@@ -13,15 +13,27 @@ const untouched = { begin: vi.fn() } as unknown as Sql
 
 type PageRow = { scanned: number; filled: number; last_id: string | null }
 
-/** The message the database pairs with each cancellation SQLSTATE. */
-const CANCELLATION_MESSAGES: Record<string, string> = {
+/** The message the database pairs with each SQLSTATE below. */
+const SERVER_MESSAGES: Record<string, string> = {
   '55P03': 'canceling statement due to lock timeout',
   '57014': 'canceling statement due to statement timeout',
+  '40P01': 'deadlock detected',
 }
 
-/** A driver error carrying a SQLSTATE, the shape `postgres` throws. */
-function postgresError(code: string, message = CANCELLATION_MESSAGES[code] ?? 'failed'): Error {
-  return Object.assign(new Error(`${message} (SQLSTATE ${code})`), { code })
+/**
+ * The error `postgres` throws for `code`: a SQLSTATE carries the server's message as is, and a
+ * lost connection is the driver's own connection error (`write <code> <host:port>`).
+ */
+function postgresError(code: string, message = SERVER_MESSAGES[code] ?? 'failed'): Error {
+  if (code.startsWith('CONNECTION_')) {
+    return Object.assign(new Error(`write ${code} localhost:5432`), {
+      code,
+      errno: code,
+      address: 'localhost',
+      port: 5432,
+    })
+  }
+  return Object.assign(new Error(message), { code })
 }
 
 /**
@@ -65,8 +77,8 @@ describe('backfillProjectionSourceAcl', () => {
     vi.useRealTimers()
   })
 
-  it.each(['55P03', '57014'])(
-    'retries the page after a %s timeout and moves the cursor only once it commits',
+  it.each(['55P03', '57014', '40P01', 'CONNECTION_CLOSED'])(
+    'retries the page after a %s failure and moves the cursor only once it commits',
     async (code) => {
       const { session, cursors } = sessionOf([
         { scanned: 2, filled: 2, last_id: 'id-2' },
@@ -86,18 +98,18 @@ describe('backfillProjectionSourceAcl', () => {
     const { session, cursors } = sessionOf(
       Array.from({ length: PROJECTION_SOURCE_ACL_PAGE_RETRIES + 1 }, () => postgresError('55P03'))
     )
-    await expect(backfillNow(session, 'embedding_keyword_tin', { pauseMs: 0 })).rejects.toThrow(
-      'SQLSTATE 55P03'
-    )
+    await expect(
+      backfillNow(session, 'embedding_keyword_tin', { pauseMs: 0 })
+    ).rejects.toMatchObject({ code: '55P03' })
     expect(cursors).toHaveLength(PROJECTION_SOURCE_ACL_PAGE_RETRIES + 1)
     expect(new Set(cursors)).toEqual(new Set(['']))
   })
 
   it('propagates an error that is not a timeout without retrying', async () => {
     const { session, cursors } = sessionOf([postgresError('42P01')])
-    await expect(backfillNow(session, 'embedding_search', { pauseMs: 0 })).rejects.toThrow(
-      'SQLSTATE 42P01'
-    )
+    await expect(backfillNow(session, 'embedding_search', { pauseMs: 0 })).rejects.toMatchObject({
+      code: '42P01',
+    })
     expect(cursors).toEqual([''])
   })
 

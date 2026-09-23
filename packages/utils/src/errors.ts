@@ -63,6 +63,164 @@ export function getPostgresCancellationReason(
 }
 
 /**
+ * How a failed database operation should be treated by a background job.
+ *
+ * - `capacity`: the database had no room for the work right now (a statement, lock, transaction,
+ *   or idle-in-transaction timeout; too many connections). Waiting out the slow window helps.
+ * - `conflict`: the transaction lost to a concurrent one (deadlock, serialization failure).
+ *   Running it again from the start succeeds.
+ * - `connection`: the connection to the database failed or was closed under the query.
+ * - `permanent`: anything else, including failures that did not come from the database at all.
+ *   Whether to retry it is the caller's ordinary policy, not this classification's.
+ */
+export type DatabaseFailureClass = 'capacity' | 'conflict' | 'connection' | 'permanent'
+
+export type TransientDatabaseFailureClass = Exclude<DatabaseFailureClass, 'permanent'>
+
+/** 57014 is handled apart; `25P04` is `transaction_timeout`, `25P03` `idle_in_transaction_session_timeout`. */
+const CAPACITY_CODES = new Set(['55P03', '25P03', '25P04', '53300'])
+const CONFLICT_CODES = new Set(['40P01', '40001'])
+
+/** The server shutting down or not yet accepting connections, as during a restart or failover. */
+const SERVER_UNAVAILABLE_SQLSTATES = new Set(['57P01', '57P02', '57P03'])
+
+/**
+ * postgres.js's own codes for a lost or unavailable connection. They count only on an error the
+ * driver built (see {@link isDriverConnectionError}) or under a database query error, never on
+ * an arbitrary client error that happens to reuse the name.
+ */
+const DRIVER_CONNECTION_CODES = new Set([
+  'CONNECTION_CLOSED',
+  'CONNECTION_DESTROYED',
+  'CONNECTION_ENDED',
+  'CONNECT_TIMEOUT',
+])
+
+/**
+ * Socket and name-resolution failures any client can raise; they count only when a database query
+ * carried them.
+ */
+const SOCKET_CONNECTION_CODES = new Set([
+  'ECONNRESET',
+  'EPIPE',
+  'ETIMEDOUT',
+  'ECONNREFUSED',
+  'EHOSTUNREACH',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'ENETDOWN',
+  'ENETRESET',
+  'ENETUNREACH',
+])
+
+const CONNECTION_EXCEPTION_SQLSTATE = /^08[0-9A-Z]{3}$/
+
+/**
+ * Classifies a failure by the SQLSTATE or driver code in its `cause` chain.
+ *
+ * `57014` is both a statement timeout and an explicit cancellation, and only the message tells
+ * them apart: an explicit cancellation was asked for, so it is `permanent`. A socket error such as
+ * `ECONNRESET` is a database connection failure only when a database query error is in the chain
+ * (see {@link isDatabaseQueryError}), and a postgres.js connection code only on an error the driver
+ * built (see {@link isDriverConnectionError}) or under a query error; a file download or provider
+ * call raising the same code is not the database's to retry.
+ */
+export function classifyDatabaseFailure(error: unknown): DatabaseFailureClass {
+  const code = getPostgresErrorCode(error)
+  if (!code) return 'permanent'
+  if (code === '57014') {
+    return getPostgresCancellationReason(error) === 'statement_timeout' ? 'capacity' : 'permanent'
+  }
+  if (CAPACITY_CODES.has(code)) return 'capacity'
+  if (CONFLICT_CODES.has(code)) return 'conflict'
+  if (CONNECTION_EXCEPTION_SQLSTATE.test(code) || SERVER_UNAVAILABLE_SQLSTATES.has(code)) {
+    return 'connection'
+  }
+  if (DRIVER_CONNECTION_CODES.has(code)) {
+    return isDriverConnectionError(findCodedLink(error, code)) || carriesDatabaseQuery(error)
+      ? 'connection'
+      : 'permanent'
+  }
+  if (SOCKET_CONNECTION_CODES.has(code) && carriesDatabaseQuery(error)) return 'connection'
+  return 'permanent'
+}
+
+/** The transient class of a database failure, or `undefined` when it is not one. */
+export function getTransientDatabaseFailure(
+  error: unknown
+): TransientDatabaseFailureClass | undefined {
+  const failureClass = classifyDatabaseFailure(error)
+  return failureClass === 'permanent' ? undefined : failureClass
+}
+
+/**
+ * Whether a link is one of the two errors a failed database query produces:
+ *
+ * - Drizzle's `DrizzleQueryError`, which sets no `name` of its own, so it is matched by shape: the
+ *   SQL in `query`, bound values in a `params` array, and a message starting `Failed query: `.
+ * - A postgres.js error for a query it had taken on, onto which the driver defines `query`,
+ *   `parameters`, `args`, and `types` as own properties. They are present even when the query
+ *   never reached the server: a refused connection carries all four with `query` undefined.
+ *
+ * A `query` property alone is not enough: an HTTP or GraphQL client error carrying its own `query`
+ * would otherwise exempt a source failure from the connector breaker.
+ */
+function isDatabaseQueryError(value: Error): boolean {
+  const candidate = value as Error & { query?: unknown; params?: unknown }
+  if (
+    typeof candidate.query === 'string' &&
+    Array.isArray(candidate.params) &&
+    candidate.message.startsWith('Failed query: ')
+  ) {
+    return true
+  }
+  return DRIVER_QUERY_PROPERTIES.every((property) => Object.hasOwn(value, property))
+}
+
+const DRIVER_QUERY_PROPERTIES = ['query', 'parameters', 'args', 'types'] as const
+
+/**
+ * Whether a link is a connection error postgres.js built itself. The driver makes each one the
+ * same way: `code` and `errno` both set to the code, a message `write <code> <host:port or path>`,
+ * and the target in `address`. A transaction that loses its connection is rejected with such an
+ * error directly, with no query attached and no Drizzle wrapper, so the query shapes above cannot
+ * be required of it.
+ */
+function isDriverConnectionError(value: unknown): boolean {
+  if (!(value instanceof Error)) return false
+  const candidate = value as Error & { code?: unknown; errno?: unknown }
+  return (
+    typeof candidate.code === 'string' &&
+    candidate.errno === candidate.code &&
+    candidate.message.startsWith(`write ${candidate.code} `) &&
+    Object.hasOwn(candidate, 'address')
+  )
+}
+
+/** The first link in the `cause` chain whose `code` is `code`, the one the classification read. */
+function findCodedLink(error: unknown, code: string): unknown {
+  const seen = new Set<unknown>()
+  let current: unknown = error
+  while (current instanceof Error && !seen.has(current) && seen.size < 10) {
+    seen.add(current)
+    if ((current as Error & { code?: unknown }).code === code) return current
+    current = current.cause
+  }
+  return undefined
+}
+
+function carriesDatabaseQuery(error: unknown): boolean {
+  const seen = new Set<unknown>()
+  let current: unknown = error
+  while (current instanceof Error && !seen.has(current) && seen.size < 10) {
+    seen.add(current)
+    if (isDatabaseQueryError(current)) return true
+    current = current.cause
+  }
+  return false
+}
+
+/**
  * Returns the name of the PostgreSQL constraint that triggered the error (e.g. the unique index
  * name on a `23505`), when present on a thrown value. Mirrors the field populated by the
  * `postgres` / `pg` drivers, walking `cause` chains the same way as `getPostgresErrorCode`.

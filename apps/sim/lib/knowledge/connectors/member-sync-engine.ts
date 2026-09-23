@@ -11,7 +11,7 @@ import {
   knowledgeDocumentObservation,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { getErrorMessage, getTransientDatabaseFailure, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { randomInt } from '@sim/utils/random'
 import { and, asc, eq, gt, inArray, isNull, lte, notExists, sql } from 'drizzle-orm'
@@ -65,6 +65,7 @@ import {
 } from '@/lib/knowledge/connectors/member-observations'
 import { inviteWorkspaceMembersToCredentialGroup } from '@/lib/knowledge/connectors/member-provisioning'
 import { runConnectorContentPass } from '@/lib/knowledge/connectors/sync-content-pass'
+import { resolveDatabaseRetryDelayMs } from '@/lib/knowledge/connectors/sync-database-retry'
 import {
   deferConnectorSync,
   getConnectorSyncDeferral,
@@ -325,6 +326,87 @@ export function buildMemberSyncFailureUpdate(
     memberSyncLockLeaseAt: null,
     updatedAt: now,
   }
+}
+
+/**
+ * The connector row written after the database, not the source, failed a members-mode run. The
+ * members-mode counterpart of `buildSyncDatabaseRetryUpdate`: the breaker keeps only the source
+ * failures already counted, and the retry waits the delay `resolveDatabaseRetryDelayMs` chose.
+ */
+export function buildMemberSyncDatabaseRetryUpdate(
+  now: Date,
+  previousFailures: number | null | undefined,
+  errorMessage: string,
+  retryDelayMs: number
+) {
+  return {
+    memberSyncStatus: 'error' as const,
+    lastMemberSyncError: errorMessage,
+    nextMemberSyncAt: new Date(now.getTime() + retryDelayMs),
+    memberSyncConsecutiveFailures: previousFailures ?? 0,
+    memberSyncLockToken: null,
+    memberSyncLockLeaseAt: null,
+    updatedAt: now,
+  }
+}
+
+/**
+ * Whether a members-mode run moved the sync forward: it completed a member, or wrote documents.
+ * `docsDeleted` holds the document lifecycle's purges, which the run log records as `docs_purged`.
+ */
+export function memberRunMadeProgress(result: MemberSyncResult): boolean {
+  return result.membersCompleted + result.docsAdded + result.docsUpdated + result.docsDeleted > 0
+}
+
+/**
+ * The connector row a failed members-mode run writes. A deterministic capacity rejection waits for
+ * an operator, a transient database failure retries without touching the breaker, and anything
+ * else climbs the ladder toward auto-disable.
+ */
+export async function resolveMemberSyncFailureUpdate(
+  error: unknown,
+  failure: {
+    connectorId: string
+    runId: string
+    previousFailures: number
+    errorMessage: string
+    retryAfterMs?: number
+    /** Whether the run completed a member or wrote documents before it failed. */
+    madeProgress: boolean
+  }
+) {
+  const now = new Date()
+  if (error instanceof ConnectorSyncCapacityError) {
+    return {
+      memberSyncStatus: 'error' as const,
+      lastMemberSyncError: failure.errorMessage,
+      nextMemberSyncAt: null,
+      memberSyncConsecutiveFailures: failure.previousFailures,
+      memberSyncLockToken: null,
+      memberSyncLockLeaseAt: null,
+      updatedAt: now,
+    }
+  }
+  if (getTransientDatabaseFailure(error)) {
+    return buildMemberSyncDatabaseRetryUpdate(
+      now,
+      failure.previousFailures,
+      failure.errorMessage,
+      await resolveDatabaseRetryDelayMs({
+        kind: 'member',
+        connectorId: failure.connectorId,
+        runId: failure.runId,
+        previousFailures: failure.previousFailures,
+        madeProgress: failure.madeProgress,
+      })
+    )
+  }
+  return buildMemberSyncFailureUpdate(
+    now,
+    failure.previousFailures,
+    failure.errorMessage,
+    failure.retryAfterMs
+  )
 }
 
 /**
@@ -2422,23 +2504,14 @@ export async function executeMemberSync(
       logger.error('Member sync failed', { connectorId, runId, error: errorMessage, diagnostic })
       try {
         await failMemberSyncLog(runId, result, errorMessage)
-        const failureUpdate =
-          error instanceof ConnectorSyncCapacityError
-            ? {
-                memberSyncStatus: 'error' as const,
-                lastMemberSyncError: errorMessage,
-                nextMemberSyncAt: null,
-                memberSyncConsecutiveFailures: connector.memberSyncConsecutiveFailures,
-                memberSyncLockToken: null,
-                memberSyncLockLeaseAt: null,
-                updatedAt: new Date(),
-              }
-            : buildMemberSyncFailureUpdate(
-                new Date(),
-                connector.memberSyncConsecutiveFailures,
-                errorMessage,
-                retryAfterMs
-              )
+        const failureUpdate = await resolveMemberSyncFailureUpdate(error, {
+          connectorId,
+          runId,
+          previousFailures: connector.memberSyncConsecutiveFailures,
+          errorMessage,
+          retryAfterMs,
+          madeProgress: memberRunMadeProgress(result),
+        })
         const written = await db
           .update(knowledgeConnector)
           .set(failureUpdate)

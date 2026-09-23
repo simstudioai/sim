@@ -102,6 +102,7 @@ jobs:
           bunx vitest run
           scripts/retired-columns.postgres.test.ts
           scripts/connector-sync-schedule-precision.postgres.test.ts
+          scripts/database-failure-classification.postgres.test.ts
 
       - name: Verify OAuth lifecycle and SCIM membership guards in PostgreSQL
         working-directory: apps/sim

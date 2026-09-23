@@ -1,7 +1,9 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it, vi } from 'vitest'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { DrizzleQueryError } from 'drizzle-orm/errors'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
 vi.mock('@/lib/knowledge/documents/service', () => ({
@@ -20,11 +22,15 @@ vi.mock('@/lib/billing/core/workspace-access', () => ({
 vi.mock('@/lib/credential-groups/availability', () => ({ isCredentialGroupsAvailable: vi.fn() }))
 
 import {
+  buildMemberSyncDatabaseRetryUpdate,
   buildMemberSyncFailureUpdate,
   deriveMemberActive,
+  type MemberSyncResult,
   memberFailureBackoffMs,
   memberNextAttemptAt,
+  memberRunMadeProgress,
   nextMemberSyncTime,
+  resolveMemberSyncFailureUpdate,
   shouldListFully,
 } from '@/lib/knowledge/connectors/member-sync-engine'
 import {
@@ -251,6 +257,131 @@ describe('member sync engine decisions', () => {
       const shorter = buildMemberSyncFailureUpdate(now, 0, 'boom', 1000)
       expect(longer.nextMemberSyncAt!.getTime()).toBe(now.getTime() + 6 * 60 * 60 * 1000)
       expect(shorter.nextMemberSyncAt!.getTime()).toBe(ladder)
+    })
+  })
+
+  describe('buildMemberSyncDatabaseRetryUpdate', () => {
+    const now = new Date('2026-09-01T12:00:00Z')
+    const minutesAfter = (mins: number) => now.getTime() + mins * 60 * 1000
+
+    it('keeps the error visible without advancing the breaker', () => {
+      const update = buildMemberSyncDatabaseRetryUpdate(
+        now,
+        MAX_CONSECUTIVE_FAILURES - 1,
+        'db timeout',
+        40
+      )
+      expect(update).toMatchObject({
+        memberSyncStatus: 'error',
+        lastMemberSyncError: 'db timeout',
+        memberSyncConsecutiveFailures: MAX_CONSECUTIVE_FAILURES - 1,
+        memberSyncLockToken: null,
+        memberSyncLockLeaseAt: null,
+      })
+    })
+
+    it('schedules the next run after the resolved retry delay', () => {
+      expect(
+        buildMemberSyncDatabaseRetryUpdate(now, 0, 'db timeout', 120 * 60 * 1000).nextMemberSyncAt
+      ).toEqual(new Date(minutesAfter(120)))
+    })
+  })
+
+  describe('memberRunMadeProgress', () => {
+    const idle = {
+      membersCompleted: 0,
+      docsAdded: 0,
+      docsUpdated: 0,
+      docsDeleted: 0,
+    } as MemberSyncResult
+
+    it('reports no progress for a run that wrote nothing', () => {
+      expect(memberRunMadeProgress(idle)).toBe(false)
+    })
+
+    it.each([
+      ['completed a member', { membersCompleted: 1 }],
+      ['added documents', { docsAdded: 2 }],
+      ['updated documents', { docsUpdated: 1 }],
+      ['purged documents in the lifecycle pass', { docsDeleted: 3 }],
+    ])('reports progress for a run that %s', (_label, writes) => {
+      expect(memberRunMadeProgress({ ...idle, ...writes })).toBe(true)
+    })
+  })
+
+  describe('resolveMemberSyncFailureUpdate', () => {
+    beforeEach(() => {
+      resetDbChainMock()
+    })
+
+    const failure = {
+      connectorId: 'c-1',
+      runId: 'run-1',
+      previousFailures: MAX_CONSECUTIVE_FAILURES - 1,
+      errorMessage: 'failed',
+      madeProgress: false,
+    }
+    const run = (status: string, membersCompleted = 0) => ({
+      status,
+      membersCompleted,
+      docsAdded: 0,
+      docsUpdated: 0,
+    })
+    const deadlock = () =>
+      new DrizzleQueryError(
+        'update private SQL',
+        ['private'],
+        Object.assign(new Error('deadlock detected'), { code: '40P01' })
+      )
+
+    it('does not disable a connector one failure from the breaker over a database timeout', async () => {
+      queueTableRows(schemaMock.knowledgeConnectorMemberSyncLog, [run('failed'), run('completed')])
+      const timeout = new DrizzleQueryError(
+        'select private SQL',
+        ['private'],
+        Object.assign(new Error('canceling statement due to statement timeout'), {
+          code: '57014',
+        })
+      )
+      const update = await resolveMemberSyncFailureUpdate(timeout, failure)
+      expect(update).toMatchObject({
+        memberSyncStatus: 'error',
+        memberSyncConsecutiveFailures: MAX_CONSECUTIVE_FAILURES - 1,
+      })
+      expect(update.nextMemberSyncAt).not.toBeNull()
+    })
+
+    it('reads the members-mode run log for the streak', async () => {
+      queueTableRows(schemaMock.knowledgeConnectorMemberSyncLog, [
+        run('failed'),
+        run('failed'),
+        run('completed'),
+      ])
+      const before = Date.now()
+      const update = await resolveMemberSyncFailureUpdate(deadlock(), {
+        ...failure,
+        previousFailures: 0,
+      })
+      expect(update.nextMemberSyncAt!.getTime() - before).toBeGreaterThanOrEqual(90 * 60 * 1000)
+    })
+
+    it('retries within minutes after a run that completed members before the database failed', async () => {
+      queueTableRows(schemaMock.knowledgeConnectorMemberSyncLog, [run('failed'), run('failed')])
+      const before = Date.now()
+      const update = await resolveMemberSyncFailureUpdate(deadlock(), {
+        ...failure,
+        madeProgress: true,
+      })
+      expect(update.nextMemberSyncAt!.getTime() - before).toBeLessThanOrEqual(5 * 60 * 1000)
+      expect(update.memberSyncConsecutiveFailures).toBe(MAX_CONSECUTIVE_FAILURES - 1)
+    })
+
+    it('still disables at the breaker for a failure the database did not cause', async () => {
+      const update = await resolveMemberSyncFailureUpdate(new Error('source broke'), failure)
+      expect(update).toMatchObject({
+        memberSyncStatus: 'disabled',
+        memberSyncConsecutiveFailures: MAX_CONSECUTIVE_FAILURES,
+      })
     })
   })
 

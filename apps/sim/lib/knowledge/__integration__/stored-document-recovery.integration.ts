@@ -82,7 +82,11 @@ import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-sea
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument } from '@/lib/knowledge/connectors/sync-persistence'
 import { sweepStuckDocuments } from '@/lib/knowledge/connectors/sync-primitives'
-import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
+import { DEFERRED_RETRY_LOST_ERROR } from '@/lib/knowledge/documents/deferred-retry-check'
+import {
+  enqueueKnowledgeDocumentProcessing,
+  KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,
+} from '@/lib/knowledge/documents/processing-outbox-event'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import {
   DOCUMENT_RECOVERY_BATCH_SIZE,
@@ -1051,5 +1055,213 @@ describe('independent recovery of retained connector documents', () => {
     } finally {
       connection.release()
     }
+  })
+})
+
+describe('uploaded documents whose scheduled database retry is lost', () => {
+  const GENERATION = 'deferred-upload-generation'
+
+  async function retryChecksFor(documentId: string) {
+    return db
+      .select()
+      .from(outboxEvent)
+      .where(
+        and(
+          eq(outboxEvent.eventType, KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT),
+          sql`${outboxEvent.payload}->>'documentId' = ${documentId}`
+        )
+      )
+  }
+
+  /** Throws once, right after the claim, the way a database capacity window fails a run. */
+  function failNextRunAfterClaim(error: Error) {
+    return vi
+      .spyOn(billingAttribution, 'assertBillingAttributionOwner')
+      .mockImplementationOnce(() => {
+        throw error
+      })
+  }
+
+  /** An uploaded document whose run hit a lock timeout and scheduled a retry of the same run. */
+  async function deferredUpload(queuedAt: Date | null) {
+    const ids = await seed()
+    const file = await failedFile(ids)
+    await db
+      .update(document)
+      .set({
+        connectorId: null,
+        processingStatus: 'pending',
+        processingQueueToken: GENERATION,
+        processingQueuedAt: queuedAt,
+        processingCompletedAt: null,
+        processingError: null,
+        uploadedAt: new Date(),
+      })
+      .where(eq(document.id, file.documentId))
+    const billing = await resolveSystemBillingAttribution(ids.workspaceId)
+    const retryAt = new Date(Date.now() + 120_000)
+    const runRetry = (options: { onClaimed?: () => void } = {}) =>
+      processDocumentAsync(ids.knowledgeBaseId, file.documentId, file, {}, billing, GENERATION, {
+        processingQueueToken: GENERATION,
+        chargedAtDispatch: false,
+        scheduleDatabaseRetry: () => retryAt,
+        ...options,
+      })
+    const spy = failNextRunAfterClaim(
+      Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' })
+    )
+    try {
+      await expect(runRetry()).rejects.toMatchObject({ code: '55P03' })
+    } finally {
+      spy.mockRestore()
+    }
+    const [check] = await retryChecksFor(file.documentId)
+    return { ids, file, billing, retryAt, check, runRetry }
+  }
+
+  async function runCheckAt(eventId: string, at: number) {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(at)
+    try {
+      return await outbox.processOutboxEventById(eventId, knowledgeDocumentProcessingOutboxHandlers)
+    } finally {
+      vi.useRealTimers()
+    }
+  }
+
+  const overdue = (retryAt: Date) => retryAt.getTime() + QUEUED_DISPATCH_GRACE_MS + 60_000
+
+  it('commits the deferral and its check together, due once the retry is past the grace', async () => {
+    const { file, retryAt, check } = await deferredUpload(new Date())
+    const [row] = await db.select().from(document).where(eq(document.id, file.documentId))
+    expect(row).toMatchObject({ processingStatus: 'pending', processingDeferredUntil: retryAt })
+    expect(check.availableAt).toEqual(new Date(retryAt.getTime() + QUEUED_DISPATCH_GRACE_MS))
+    expect(check.payload).toMatchObject({
+      documentId: file.documentId,
+      processingQueueToken: GENERATION,
+      processingDeferredUntil: retryAt.toISOString(),
+    })
+    expect(
+      await outbox.processOutboxEventById(check.id, knowledgeDocumentProcessingOutboxHandlers)
+    ).toBe('pending')
+  })
+
+  it('fails the document once its scheduled retry is overdue and no run is live', async () => {
+    const { file, retryAt, check } = await deferredUpload(new Date())
+    expect(await runCheckAt(check.id, overdue(retryAt))).toBe('completed')
+    const [row] = await db.select().from(document).where(eq(document.id, file.documentId))
+    expect(row).toMatchObject({
+      processingStatus: 'failed',
+      processingError: DEFERRED_RETRY_LOST_ERROR,
+      processingDeferredUntil: null,
+      processingQueueToken: GENERATION,
+    })
+    expect(row.processingCompletedAt).not.toBeNull()
+  })
+
+  it('checks again later, without spending an attempt, while the retry run is live', async () => {
+    const { file, retryAt, check } = await deferredUpload(new Date())
+    fixture.useTrigger = true
+    fixture.listRuns.mockResolvedValue({
+      data: [{ id: 'run-delayed', status: 'DELAYED' }],
+      hasNextPage: () => false,
+    })
+    expect(await runCheckAt(check.id, overdue(retryAt))).toBe('pending')
+    const [event] = await retryChecksFor(file.documentId)
+    expect(event.attempts).toBe(0)
+    const [row] = await db.select().from(document).where(eq(document.id, file.documentId))
+    expect(row).toMatchObject({ processingStatus: 'pending', processingDeferredUntil: retryAt })
+  })
+
+  it.each([
+    ['claims', { processingStatus: 'processing', processingStartedAt: new Date() }],
+    ['claims and re-defers', { processingDeferredUntil: new Date(Date.now() + 600_000) }],
+  ] as const)(
+    'never overwrites a retry that %s the document while the check inspects it',
+    async (_label, change) => {
+      const { file, retryAt, check } = await deferredUpload(new Date())
+      fixture.useTrigger = true
+      fixture.listRuns.mockImplementation(async () => {
+        await db.update(document).set(change).where(eq(document.id, file.documentId))
+        return { data: [], hasNextPage: () => false }
+      })
+      expect(await runCheckAt(check.id, overdue(retryAt))).toBe('completed')
+      const [row] = await db.select().from(document).where(eq(document.id, file.documentId))
+      expect(row).toMatchObject(change)
+      expect(row.processingStatus).not.toBe('failed')
+    }
+  )
+
+  it('schedules no check for a connector document, which the recovery sweep covers', async () => {
+    const ids = await seed()
+    const file = await failedFile(ids)
+    await db
+      .update(document)
+      .set({ processingStatus: 'pending', processingQueueToken: GENERATION })
+      .where(eq(document.id, file.documentId))
+    const spy = failNextRunAfterClaim(
+      Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' })
+    )
+    try {
+      await expect(
+        processDocumentAsync(
+          ids.knowledgeBaseId,
+          file.documentId,
+          file,
+          {},
+          await resolveSystemBillingAttribution(ids.workspaceId),
+          GENERATION,
+          {
+            processingQueueToken: GENERATION,
+            chargedAtDispatch: false,
+            scheduleDatabaseRetry: () => new Date(Date.now() + 120_000),
+          }
+        )
+      ).rejects.toMatchObject({ code: '55P03' })
+    } finally {
+      spy.mockRestore()
+    }
+    const [row] = await db.select().from(document).where(eq(document.id, file.documentId))
+    expect(row.processingStatus).toBe('pending')
+    expect(await retryChecksFor(file.documentId)).toHaveLength(0)
+  })
+
+  it('keeps a dispatch from claiming a deferred run that was never stamped, and the retry still claims it', async () => {
+    const { ids, file, billing, retryAt, runRetry } = await deferredUpload(null)
+    const [deferred] = await db.select().from(document).where(eq(document.id, file.documentId))
+    expect(deferred.processingQueuedAt).toEqual(retryAt)
+
+    await processDocumentsWithQueue(
+      [
+        {
+          documentId: file.documentId,
+          filename: deferred.filename,
+          fileUrl: deferred.fileUrl,
+          fileSize: deferred.fileSize,
+          mimeType: deferred.mimeType,
+        },
+      ],
+      ids.knowledgeBaseId,
+      {},
+      generateId(),
+      billing,
+      'interactive'
+    )
+    const [afterDispatch] = await db.select().from(document).where(eq(document.id, file.documentId))
+    expect(afterDispatch).toMatchObject({
+      processingStatus: 'pending',
+      processingQueueToken: GENERATION,
+      processingAttempts: deferred.processingAttempts,
+      processingDeferredUntil: retryAt,
+    })
+
+    const onClaimed = vi.fn()
+    const spy = failNextRunAfterClaim(new Error('Synthetic failure after the retry claimed'))
+    try {
+      await runRetry({ onClaimed }).catch(() => undefined)
+    } finally {
+      spy.mockRestore()
+    }
+    expect(onClaimed).toHaveBeenCalledTimes(1)
   })
 })

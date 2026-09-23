@@ -104,7 +104,10 @@ import {
 } from '@/lib/knowledge/documents/processing-claim'
 import type { DocumentProcessingContinuation } from '@/lib/knowledge/documents/processing-continuation-dispatch'
 import { documentProcessingQueueOptions } from '@/lib/knowledge/documents/processing-lane'
-import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
+import {
+  enqueueDeferredRetryCheck,
+  enqueueKnowledgeDocumentProcessing,
+} from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingBillingContext,
   createDocumentProcessingPayload,
@@ -1414,10 +1417,24 @@ export interface DocumentProcessingAttemptContext extends DocumentProcessingExec
   readonly scheduleProviderContinuation?: (
     error: ProviderCapacityDeferredError
   ) => Promise<DocumentProcessingContinuation>
+  /**
+   * Schedules the next attempt after a transient database failure and returns when it runs, or
+   * null when this failure is not retried that way. A scheduled document is left `pending` until
+   * then instead of `failed`, so a slow database window does not read as a bad document.
+   */
+  readonly scheduleDatabaseRetry?: (error: unknown) => Date | null
   /** Signals that this invocation owns the persisted processing generation. */
   readonly onClaimed?: () => void
 }
 
+/**
+ * Processes documents in this process when no Trigger.dev worker can take them.
+ *
+ * Deliberately supplies no `scheduleDatabaseRetry`: nothing here can durably wait out a slow
+ * database window, since an in-memory timer dies with the process and would leave the document
+ * `pending` with no run behind it. A transient database failure is therefore recorded `failed`,
+ * which the document's Retry action and the retry API both accept.
+ */
 async function dispatchInProcess(
   jobPayloads: DocumentProcessingPayload[],
   requestId: string,
@@ -2228,10 +2245,13 @@ export async function processDocumentAsync(
         recordedError = continuationError
       }
     }
-    const deferredUntil = continuation?.deferredUntil ?? null
+    const databaseRetryAt = continuation?.deferredUntil
+      ? null
+      : (attemptContext?.scheduleDatabaseRetry?.(recordedError) ?? null)
+    const deferredUntil = continuation?.deferredUntil ?? databaseRetryAt
     const providerContinuationExhausted =
       recordedError instanceof ProviderCapacityContinuationExhaustedError
-    const quotaContinuationFailed = quotaContinuationAttempted && !deferredUntil
+    const quotaContinuationFailed = quotaContinuationAttempted && !continuation?.deferredUntil
     const failureDiagnostic = getConnectorFailureDiagnostic(recordedError)
     const errorMessage = byokCredentialRejected
       ? BYOK_EMBEDDING_CREDENTIAL_REJECTION_MESSAGE
@@ -2273,43 +2293,73 @@ export async function processDocumentAsync(
       logger.error(logMessage, logContext)
     }
 
-    await db
-      .update(document)
-      .set({
-        processingStatus: deferredUntil ? 'pending' : 'failed',
-        processingError: deferredUntil ? null : errorMessage,
-        processingStartedAt: deferredUntil ? null : processingStartedAt,
-        ...(continuation
+    const failureStatus = {
+      processingStatus: deferredUntil ? 'pending' : 'failed',
+      processingError: deferredUntil ? null : errorMessage,
+      processingStartedAt: deferredUntil ? null : processingStartedAt,
+      ...(continuation
+        ? {
+            processingQueuedAt: continuation.deferredUntil,
+            processingQueueToken: continuation.processingQueueToken,
+          }
+        : databaseRetryAt
           ? {
-              processingQueuedAt: continuation.deferredUntil,
-              processingQueueToken: continuation.processingQueueToken,
+              /**
+               * Stamps the queue like a continuation does, so a dispatch cannot claim the row as
+               * never-queued while its retry is scheduled. The retry itself claims by token, and
+               * an existing stamp is kept because a legacy retry claims by that stamp.
+               */
+              processingQueuedAt: sql`COALESCE(${document.processingQueuedAt}, ${sql.param(databaseRetryAt, document.processingQueuedAt)})`,
             }
           : {}),
-        processingDeferredUntil: deferredUntil,
-        processingCompletedAt: deferredUntil ? null : new Date(),
-        ...(permanentError ||
-        ocrRequestRejected ||
-        byokCredentialRejected ||
-        providerContinuationExhausted ||
-        (embeddingQuotaExhausted && attemptContext?.quotaContinuationExhausted)
-          ? { processingAttempts: MAX_PROCESSING_ATTEMPTS }
-          : (embeddingQuotaExhausted || usageLimitExceeded || providerDeferral) &&
-              attemptContext?.chargedAtDispatch
-            ? { processingAttempts: sql`GREATEST(${document.processingAttempts} - 1, 0)` }
-            : {}),
+      processingDeferredUntil: deferredUntil,
+      processingCompletedAt: deferredUntil ? null : new Date(),
+      ...(permanentError ||
+      ocrRequestRejected ||
+      byokCredentialRejected ||
+      providerContinuationExhausted ||
+      (embeddingQuotaExhausted && attemptContext?.quotaContinuationExhausted)
+        ? { processingAttempts: MAX_PROCESSING_ATTEMPTS }
+        : (embeddingQuotaExhausted || usageLimitExceeded || providerDeferral) &&
+            attemptContext?.chargedAtDispatch
+          ? { processingAttempts: sql`GREATEST(${document.processingAttempts} - 1, 0)` }
+          : {}),
+    }
+    const failureStatusGuard = and(
+      eq(document.id, documentId),
+      eq(document.processingStatus, 'processing'),
+      eq(document.processingStartedAt, processingStartedAt),
+      ...queueGenerationConditions(attemptContext),
+      eq(document.userExcluded, false),
+      isNull(document.archivedAt),
+      isNull(document.deletedAt),
+      documentConnectorIsActive()
+    )
+    if (databaseRetryAt) {
+      /**
+       * An uploaded document has no recovery sweep, so the deferral and the watchdog that fails it
+       * if this retry never runs commit together.
+       */
+      await db.transaction(async (tx) => {
+        const [deferred] = await tx
+          .update(document)
+          .set(failureStatus)
+          .where(failureStatusGuard)
+          .returning({
+            ...processingSnapshotColumns,
+            knowledgeBaseId: document.knowledgeBaseId,
+            connectorId: document.connectorId,
+          })
+        if (deferred && deferred.connectorId === null && deferred.processingDeferredUntil) {
+          await enqueueDeferredRetryCheck(tx, {
+            ...deferred,
+            processingDeferredUntil: deferred.processingDeferredUntil,
+          })
+        }
       })
-      .where(
-        and(
-          eq(document.id, documentId),
-          eq(document.processingStatus, 'processing'),
-          eq(document.processingStartedAt, processingStartedAt),
-          ...queueGenerationConditions(attemptContext),
-          eq(document.userExcluded, false),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt),
-          documentConnectorIsActive()
-        )
-      )
+    } else {
+      await db.update(document).set(failureStatus).where(failureStatusGuard)
+    }
 
     throw recordedError
   }

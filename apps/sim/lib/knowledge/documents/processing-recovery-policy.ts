@@ -1,9 +1,11 @@
 import { document, outboxEvent } from '@sim/db/schema'
 import { and, eq, gt, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm'
 import { DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-timeouts.server'
-import { MAX_PROCESSING_ATTEMPTS, QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
-
-const RECOVERY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+import {
+  MAX_PROCESSING_ATTEMPTS,
+  QUEUED_DISPATCH_GRACE_MS,
+  RECOVERY_WINDOW_MS,
+} from '@/lib/knowledge/documents/types'
 
 /** One eligibility predicate is rechecked under the lifecycle locks before replacing a generation. */
 export function documentProcessingRecoveryCondition(
