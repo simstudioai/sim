@@ -60,7 +60,7 @@ export const webResearchTool: ToolConfig<GlasserWebResearchParams, GlasserRespon
   },
 
   request: {
-    // Only `answer` hands the query to a model (Exa's answer endpoint); every other action is a plain search or fetch.
+    /** Only `answer` hands the query to a model (Exa's answer endpoint); every other action is a plain search or fetch. */
     modelInput: {
       mode: 'project',
       select: (params) => (params.action === 'answer' ? { query: params.query } : {}),

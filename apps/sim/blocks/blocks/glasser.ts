@@ -73,6 +73,8 @@ const ID_TO_PARAM: Record<string, string> = {
   ci_query: 'query',
   sr_platform: 'platform',
   sr_mode: 'mode',
+  sr_query: 'query',
+  sr_url: 'url',
 }
 
 /** Per operation, the sub-block that carries the API's `action`. */
@@ -118,7 +120,7 @@ export const GlasserBlock: BlockConfig<GlasserResponse> = {
         [SOCIAL]: [
           { text: 'Get', field: 'sr_mode', core: true },
           { text: 'on', field: 'sr_platform', core: true },
-          { text: 'for', field: ['query', 'handle', 'url'] },
+          { text: 'for', field: ['sr_query', 'handle', 'sr_url'] },
         ],
         [MARKET]: [
           { text: 'Get', field: 'md_action', core: true },
@@ -144,7 +146,6 @@ export const GlasserBlock: BlockConfig<GlasserResponse> = {
       value: () => PEOPLE,
     },
 
-    // --- Find Prospects ---
     {
       id: 'ps_action',
       title: 'Action',
@@ -273,7 +274,6 @@ export const GlasserBlock: BlockConfig<GlasserResponse> = {
       },
     },
 
-    // --- Company Intelligence ---
     {
       id: 'ci_action',
       title: 'Company Report',
@@ -306,7 +306,6 @@ export const GlasserBlock: BlockConfig<GlasserResponse> = {
       mode: 'advanced',
     },
 
-    // --- Keywords and SEO ---
     {
       id: 'seo_action',
       title: 'SEO Report',
@@ -344,7 +343,6 @@ export const GlasserBlock: BlockConfig<GlasserResponse> = {
       },
     },
 
-    // --- Web Research ---
     {
       id: 'wr_action',
       title: 'Action',
@@ -371,7 +369,7 @@ export const GlasserBlock: BlockConfig<GlasserResponse> = {
       placeholder: 'Search phrase or question',
       condition: {
         field: 'operation',
-        value: [WEB, SOCIAL],
+        value: WEB,
         and: { field: 'wr_action', value: ['scrape', 'similar'], not: true },
       },
       required: {
@@ -387,7 +385,7 @@ export const GlasserBlock: BlockConfig<GlasserResponse> = {
       placeholder: 'https://example.com/page',
       condition: {
         field: 'operation',
-        value: [WEB, SOCIAL],
+        value: WEB,
         and: { field: 'wr_action', value: ['scrape', 'similar'] },
       },
       required: {
@@ -405,7 +403,6 @@ export const GlasserBlock: BlockConfig<GlasserResponse> = {
       mode: 'advanced',
     },
 
-    // --- Social Media Search ---
     {
       id: 'sr_platform',
       title: 'Platform',
@@ -437,6 +434,30 @@ export const GlasserBlock: BlockConfig<GlasserResponse> = {
       condition: { field: 'operation', value: SOCIAL },
     },
     {
+      id: 'sr_query',
+      title: 'Query',
+      type: 'long-input',
+      placeholder: 'Search phrase',
+      condition: {
+        field: 'operation',
+        value: SOCIAL,
+        and: { field: 'sr_mode', value: ['search', 'find'] },
+      },
+      required: { field: 'operation', value: SOCIAL, and: { field: 'sr_mode', value: 'search' } },
+    },
+    {
+      id: 'sr_url',
+      title: 'URL',
+      type: 'short-input',
+      placeholder: 'Post URL, or a LinkedIn profile or company page URL',
+      condition: {
+        field: 'operation',
+        value: SOCIAL,
+        and: { field: 'sr_mode', value: 'search', not: true },
+      },
+      required: { field: 'operation', value: SOCIAL, and: { field: 'sr_mode', value: 'post' } },
+    },
+    {
       id: 'handle',
       title: 'Handle',
       type: 'short-input',
@@ -448,7 +469,6 @@ export const GlasserBlock: BlockConfig<GlasserResponse> = {
       },
     },
 
-    // --- Market Data ---
     {
       id: 'md_action',
       title: 'Market Report',
@@ -551,7 +571,6 @@ export const GlasserBlock: BlockConfig<GlasserResponse> = {
       },
     },
 
-    // --- Shared ---
     {
       id: 'country',
       title: 'Country',
@@ -630,7 +649,6 @@ export const GlasserBlock: BlockConfig<GlasserResponse> = {
     task_id: { type: 'string', description: 'Task the runs are filed under' },
     limit: { type: 'number', description: 'Rows to return' },
     country: { type: 'string', description: 'Country as ISO code or name' },
-    // Find Prospects
     ps_action: { type: 'string', description: 'search, enrich or find_email' },
     job_titles: { type: 'string', description: 'Job titles, comma-separated' },
     seniorities: { type: 'json', description: 'Seniority levels' },
@@ -640,23 +658,20 @@ export const GlasserBlock: BlockConfig<GlasserResponse> = {
     full_name: { type: 'string', description: "Person's full name" },
     email: { type: 'string', description: 'Email address' },
     linkedin_url: { type: 'string', description: 'LinkedIn profile URL' },
-    // Company Intelligence
     ci_action: { type: 'string', description: 'Company report to fetch' },
     domain: { type: 'string', description: 'Website domain' },
     ci_query: { type: 'string', description: 'Company name for news search' },
-    // Keywords and SEO
     seo_action: { type: 'string', description: 'SEO report to fetch' },
     seo_keywords: { type: 'string', description: 'Keywords, comma-separated' },
-    // Web Research
     wr_action: { type: 'string', description: 'Web research action' },
     query: { type: 'string', description: 'Search phrase or question' },
-    url: { type: 'string', description: 'Page or post URL' },
+    url: { type: 'string', description: 'Page URL' },
     language: { type: 'string', description: 'Two-letter language code' },
-    // Social Media Search
     sr_platform: { type: 'string', description: 'Social platform' },
     sr_mode: { type: 'string', description: 'What to read on the platform' },
+    sr_query: { type: 'string', description: 'Search phrase (social)' },
+    sr_url: { type: 'string', description: 'Post, profile or company page URL (social)' },
     handle: { type: 'string', description: 'Username or subreddit' },
-    // Market Data
     md_action: { type: 'string', description: 'Market report to fetch' },
     address: { type: 'string', description: 'US street address' },
     city: { type: 'string', description: 'US city' },

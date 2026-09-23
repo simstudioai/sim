@@ -1,3 +1,4 @@
+import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import type { GlasserResponse, GlasserRun, GlasserRunOutput } from '@/tools/glasser/types'
@@ -98,7 +99,9 @@ export const transformRun: ToolConfig<{ apiKey: string }, GlasserResponse>['tran
 
 /**
  * A run that came back QUEUED or RUNNING is read from `GET /v1/runs/{id}` until it is
- * terminal or the budget is spent. Used as every Glasser tool's `postProcess`.
+ * terminal or the budget is spent. Used as every Glasser tool's `postProcess`. It never throws:
+ * a thrown error would make the executor fall back to the initial in-flight result, so every
+ * failure is returned as a bounded `success: false` instead.
  */
 export async function pollRun(
   result: GlasserResponse,
@@ -117,29 +120,30 @@ export async function pollRun(
     await sleep(POLL_INTERVAL_MS)
     elapsed += POLL_INTERVAL_MS
 
-    const response = await fetch(`${GLASSER_API_BASE}/v1/runs/${encodeURIComponent(runId)}`, {
-      headers: {
-        Authorization: `Bearer ${params.apiKey}`,
-        'User-Agent': USER_AGENT,
-      },
-    })
-
-    if (!response.ok) {
-      consecutiveErrors += 1
-      if (consecutiveErrors >= MAX_CONSECUTIVE_POLL_ERRORS) {
-        const errorText = await response.text().catch(() => '')
-        return {
-          success: false,
-          error: `Glasser API error: ${response.status} - ${errorText}`,
-          output: result.output,
-        }
+    let failure: string | null = null
+    try {
+      const response = await fetch(`${GLASSER_API_BASE}/v1/runs/${encodeURIComponent(runId)}`, {
+        headers: {
+          Authorization: `Bearer ${params.apiKey}`,
+          'User-Agent': USER_AGENT,
+        },
+      })
+      if (response.ok) {
+        const run = (await response.json()) as GlasserRun
+        if (TERMINAL_STATUSES.has(run.status)) return runResult(run)
+        consecutiveErrors = 0
+        continue
       }
-      continue
+      const errorText = await response.text().catch(() => '')
+      failure = `Glasser API error: ${response.status} - ${errorText}`
+    } catch (error) {
+      failure = `Glasser polling failed: ${getErrorMessage(error)}`
     }
-    consecutiveErrors = 0
 
-    const run = (await response.json()) as GlasserRun
-    if (TERMINAL_STATUSES.has(run.status)) return runResult(run)
+    consecutiveErrors += 1
+    if (consecutiveErrors >= MAX_CONSECUTIVE_POLL_ERRORS) {
+      return { success: false, error: failure, output: result.output }
+    }
   }
 
   return {

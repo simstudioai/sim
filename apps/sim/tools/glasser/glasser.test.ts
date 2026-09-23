@@ -43,9 +43,8 @@ const respond = (body: unknown, status = 200) =>
 
 describe('glasser request shape', () => {
   it('posts to the gtm solution with a bearer key and a fresh idempotency key per call', () => {
-    const headers = peopleSearchTool.request.headers as (p: any) => Record<string, string>
-    const first = headers({ apiKey: 'gl_test' })
-    const second = headers({ apiKey: 'gl_test' })
+    const first = peopleSearchTool.request.headers({ apiKey: 'gl_test' })
+    const second = peopleSearchTool.request.headers({ apiKey: 'gl_test' })
 
     expect(peopleSearchTool.request.url).toBe(`${GLASSER_API_BASE}/v1/solutions/gtm/people_search`)
     expect(first.Authorization).toBe('Bearer gl_test')
@@ -167,6 +166,23 @@ describe('glasser polling', () => {
     expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer k')
     expect(result.success).toBe(true)
     expect(result.output.status).toBe('COMPLETED')
+  })
+
+  it('counts a rejected poll toward the error budget instead of throwing', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn().mockRejectedValue(new Error('socket hang up'))
+    vi.stubGlobal('fetch', fetchMock)
+    const initial = await companyIntelligenceTool.transformResponse!(
+      respond(run({ status: 'RUNNING', output: null }), 202)
+    )
+
+    const pending = pollRun(initial, { apiKey: 'k' })
+    await vi.advanceTimersByTimeAsync(6000)
+    const result = await pending
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('Glasser polling failed: socket hang up')
   })
 
   it('gives up after repeated polling errors', async () => {

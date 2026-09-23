@@ -46,7 +46,7 @@ export const companyIntelligenceTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'For news via Serper only: the company name to search Google News by, instead of the domain',
+        'For news via Serper only: the company name to search Google News by. The domain is still required and identifies the company.',
     },
     limit: COMMON_PARAMS.limit,
     provider: {
