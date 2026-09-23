@@ -1,0 +1,183 @@
+/**
+ * @vitest-environment node
+ */
+import {
+  dbChainMockFns,
+  hasMockCondition,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockInspect, mockSnapshotCondition } = vi.hoisted(() => ({
+  mockInspect: vi.fn(),
+  mockSnapshotCondition: vi.fn((snapshot: { id: string }) => ({
+    type: 'snapshot',
+    id: snapshot.id,
+  })),
+}))
+vi.mock('@/lib/knowledge/documents/processing-recovery-queue', () => ({
+  processingSnapshotColumns: {},
+  documentProcessingSnapshotCondition: mockSnapshotCondition,
+  inspectDocumentProcessingLiveness: mockInspect,
+}))
+
+import {
+  checkDeferredDocumentRetry,
+  DEFERRED_RETRY_LOST_ERROR,
+  DEFERRED_RETRY_RECHECK_MS,
+} from '@/lib/knowledge/documents/deferred-retry-check'
+import type { DeferredRetryCheckPayload } from '@/lib/knowledge/documents/processing-outbox-event'
+import { QUEUED_DISPATCH_GRACE_MS, RECOVERY_WINDOW_MS } from '@/lib/knowledge/documents/types'
+
+const QUEUED_AT = new Date('2026-09-01T00:00:00.000Z')
+const DEFERRED_UNTIL = new Date('2026-09-01T00:02:00.000Z')
+const OVERDUE = DEFERRED_UNTIL.getTime() + QUEUED_DISPATCH_GRACE_MS + 60_000
+
+const PAYLOAD: DeferredRetryCheckPayload = {
+  knowledgeBaseId: 'kb-1',
+  documentId: 'doc-1',
+  processingQueueToken: 'token-1',
+  processingQueuedAt: QUEUED_AT.toISOString(),
+  processingDeferredUntil: DEFERRED_UNTIL.toISOString(),
+}
+
+const DEFERRED_ROW = {
+  id: 'doc-1',
+  uploadedAt: new Date('2026-08-31T00:00:00.000Z'),
+  processingStatus: 'pending',
+  processingQueueToken: 'token-1',
+  processingQueuedAt: QUEUED_AT,
+  processingStartedAt: null,
+  processingDeferredUntil: DEFERRED_UNTIL,
+  processingCompletedAt: null,
+  processingRecoveryAfter: null,
+  connectorId: null,
+  archivedAt: null,
+  deletedAt: null,
+}
+
+const context = {
+  eventId: 'event-1',
+  eventType: 'knowledge.document.deferred-retry-check',
+  attempts: 0,
+  maxAttempts: 5,
+  signal: new AbortController().signal,
+  checkpointPayload: vi.fn(),
+}
+
+function failedWrite() {
+  return dbChainMockFns.set.mock.calls.find(
+    ([value]) => (value as Record<string, unknown>).processingStatus === 'failed'
+  )?.[0]
+}
+
+async function check(row: Record<string, unknown> | null, now = OVERDUE) {
+  vi.setSystemTime(now)
+  queueTableRows(schemaMock.document, row ? [row] : [])
+  return checkDeferredDocumentRetry(PAYLOAD, context)
+}
+
+describe('checkDeferredDocumentRetry', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    vi.useFakeTimers({ toFake: ['Date'] })
+    mockInspect.mockImplementation(async (rows: unknown[]) => ({ abandoned: rows, live: [] }))
+  })
+
+  it('fails a document whose scheduled retry never ran, fenced on the snapshot it inspected', async () => {
+    expect(await check(DEFERRED_ROW)).toBeUndefined()
+
+    expect(mockInspect).toHaveBeenCalledWith([DEFERRED_ROW], context.signal)
+    expect(failedWrite()).toEqual({
+      processingStatus: 'failed',
+      processingError: DEFERRED_RETRY_LOST_ERROR,
+      processingDeferredUntil: null,
+      processingCompletedAt: new Date(OVERDUE),
+    })
+    expect(failedWrite()).not.toHaveProperty('processingQueueToken')
+    const where = dbChainMockFns.where.mock.calls.at(-1)?.[0]
+    expect(mockSnapshotCondition).toHaveBeenCalledWith(DEFERRED_ROW)
+    expect(hasMockCondition(where, (node) => node.type === 'snapshot')).toBe(true)
+    expect(
+      hasMockCondition(
+        where,
+        (node) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.document.processingStatus &&
+          node.right === 'pending'
+      )
+    ).toBe(true)
+    expect(
+      hasMockCondition(
+        where,
+        (node) => node.type === 'isNull' && node.column === schemaMock.document.connectorId
+      ) ||
+        hasMockCondition(
+          where,
+          (node) => node.type === 'isNull' && node.left === schemaMock.document.connectorId
+        )
+    ).toBe(true)
+  })
+
+  it('checks again later without spending an attempt while the run may be live', async () => {
+    mockInspect.mockResolvedValue({ abandoned: [], live: [DEFERRED_ROW] })
+
+    expect(await check(DEFERRED_ROW)).toEqual({
+      outcome: 'deferred',
+      reason: 'Deferred retry may still be running',
+      minimumBackoffMs: DEFERRED_RETRY_RECHECK_MS,
+      consumeAttempt: false,
+    })
+    expect(failedWrite()).toBeUndefined()
+  })
+
+  it('waits for the grace before inspecting a check that ran early', async () => {
+    const early = DEFERRED_UNTIL.getTime() + 1_000
+    expect(await check(DEFERRED_ROW, early)).toMatchObject({
+      outcome: 'deferred',
+      minimumBackoffMs: QUEUED_DISPATCH_GRACE_MS - 1_000,
+      consumeAttempt: false,
+    })
+    expect(mockInspect).not.toHaveBeenCalled()
+    expect(failedWrite()).toBeUndefined()
+  })
+
+  it('stops rechecking past the recovery window, so the event always ends', async () => {
+    mockInspect.mockResolvedValue({ abandoned: [], live: [DEFERRED_ROW] })
+
+    expect(await check(DEFERRED_ROW, DEFERRED_UNTIL.getTime() + RECOVERY_WINDOW_MS)).toBeUndefined()
+    expect(mockInspect).not.toHaveBeenCalled()
+    expect(failedWrite()).toMatchObject({ processingStatus: 'failed' })
+  })
+
+  it.each([
+    ['a replaced queue token', { processingQueueToken: 'token-2' }],
+    ['a new dispatch generation', { processingQueuedAt: new Date('2026-09-02T00:00:00.000Z') }],
+    ['a later deferral', { processingDeferredUntil: new Date('2026-09-01T01:00:00.000Z') }],
+    ['a claimed retry', { processingStatus: 'processing', processingDeferredUntil: null }],
+    ['a claim that kept the deferral stamp', { processingStatus: 'processing' }],
+    ['a completed pass', { processingStatus: 'completed', processingDeferredUntil: null }],
+    ['a failed document', { processingStatus: 'failed', processingDeferredUntil: null }],
+    ['a deleted document', { deletedAt: new Date() }],
+    ['an archived document', { archivedAt: new Date() }],
+    ['a connector document', { connectorId: 'connector-1' }],
+  ])('completes as a no-op after %s', async (_label, change) => {
+    expect(await check({ ...DEFERRED_ROW, ...change })).toBeUndefined()
+    expect(mockInspect).not.toHaveBeenCalled()
+    expect(failedWrite()).toBeUndefined()
+  })
+
+  it('completes as a no-op for a document that no longer exists', async () => {
+    expect(await check(null)).toBeUndefined()
+    expect(failedWrite()).toBeUndefined()
+  })
+
+  it('rejects a payload without its document or deferral', async () => {
+    await expect(checkDeferredDocumentRetry({ knowledgeBaseId: 'kb-1' }, context)).rejects.toThrow(
+      'missing'
+    )
+  })
+})

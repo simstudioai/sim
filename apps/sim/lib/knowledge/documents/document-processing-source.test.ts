@@ -94,11 +94,15 @@ import {
   UsageLimitDocumentProcessingError,
 } from '@/lib/knowledge/documents/document-processing-error'
 import { KNOWLEDGE_DOCUMENT_CONTINUATION_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-continuation-dispatch'
+import {
+  DEFERRED_RETRY_CHECK_MAX_ATTEMPTS,
+  KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT,
+} from '@/lib/knowledge/documents/processing-outbox-event'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import type { DocumentProcessingPayload } from '@/lib/knowledge/documents/processing-payload'
 import { ProviderCapacityContinuationExhaustedError } from '@/lib/knowledge/documents/processing-provider-deferral'
 import { processDocumentAsync, processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
-import { MAX_PROCESSING_ATTEMPTS } from '@/lib/knowledge/documents/types'
+import { MAX_PROCESSING_ATTEMPTS, QUEUED_DISPATCH_GRACE_MS } from '@/lib/knowledge/documents/types'
 
 const mockEmbeddingCapacity = vi.fn<typeof embeddingClient.assertKnowledgeEmbeddingCapacity>()
 beforeEach(() => {
@@ -794,19 +798,93 @@ describe('processDocumentAsync write guards', () => {
         processingStartedAt: null,
         processingCompletedAt: null,
       })
-      /** The same run retries, so its queue generation and retry budget stay as they are. */
+      /** The same run retries, so its queue token and retry budget stay as they are. */
       expect(pending).not.toHaveProperty('processingQueueToken')
-      expect(pending).not.toHaveProperty('processingQueuedAt')
       expect(pending).not.toHaveProperty('processingAttempts')
+      /** Stamped only when unset, so a dispatch cannot claim it as never queued meanwhile. */
+      expect(pending.processingQueuedAt.toSQL().sql).toMatch(/^COALESCE\(.+, \?\)$/)
       expect(
         dbChainMockFns.set.mock.calls.some(([value]) => value.processingStatus === 'failed')
       ).toBe(false)
       expect(guardForStatusWrite('pending')).toBeDefined()
     })
 
+    /** The row the deferral write returns: the document as it now stands. */
+    function deferredRow(connectorId: string | null, retryAt: Date, queuedAt: Date) {
+      return {
+        id: 'document-1',
+        knowledgeBaseId: 'knowledge-base-1',
+        connectorId,
+        uploadedAt: new Date(0),
+        processingStatus: 'pending',
+        processingQueueToken: 'pass-1',
+        processingQueuedAt: queuedAt,
+        processingStartedAt: null,
+        processingDeferredUntil: retryAt,
+        processingCompletedAt: null,
+        processingRecoveryAfter: null,
+      }
+    }
+
+    function deferredRetryChecks() {
+      return dbChainMockFns.values.mock.calls
+        .map(([value]) => value as Record<string, unknown>)
+        .filter((value) => value.eventType === KNOWLEDGE_DOCUMENT_DEFERRED_RETRY_CHECK_EVENT)
+    }
+
+    it('schedules the lost-retry check for an uploaded document in the deferral transaction', async () => {
+      const retryAt = new Date(Date.now() + 120_000)
+      const queuedAt = new Date(Date.now() - 1_000)
+      dbChainMockFns.returning.mockResolvedValue([deferredRow(null, retryAt, queuedAt)])
+
+      await failWith(databaseError(), () => retryAt)
+
+      const [check] = deferredRetryChecks()
+      expect(check).toMatchObject({
+        availableAt: new Date(retryAt.getTime() + QUEUED_DISPATCH_GRACE_MS),
+        maxAttempts: DEFERRED_RETRY_CHECK_MAX_ATTEMPTS,
+        payload: {
+          knowledgeBaseId: 'knowledge-base-1',
+          documentId: 'document-1',
+          processingQueueToken: 'pass-1',
+          processingQueuedAt: queuedAt.toISOString(),
+          processingDeferredUntil: retryAt.toISOString(),
+        },
+      })
+      /** The deferral write and the check commit together. */
+      const transactionOrder = dbChainMockFns.transaction.mock.invocationCallOrder.at(-1)!
+      const pendingSetOrder =
+        dbChainMockFns.set.mock.invocationCallOrder[
+          dbChainMockFns.set.mock.calls.findIndex(
+            ([value]) => value.processingDeferredUntil === retryAt
+          )
+        ]
+      expect(pendingSetOrder).toBeGreaterThan(transactionOrder)
+    })
+
+    it('schedules no check for a connector document, which the recovery sweep covers', async () => {
+      const retryAt = new Date(Date.now() + 120_000)
+      dbChainMockFns.returning.mockResolvedValue([deferredRow('connector-1', retryAt, new Date())])
+
+      await failWith(databaseError(), () => retryAt)
+
+      expect(deferredRetryChecks()).toHaveLength(0)
+    })
+
+    it('schedules no check when the deferral write did not land', async () => {
+      const retryAt = new Date(Date.now() + 120_000)
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'document-1' }]).mockResolvedValue([])
+
+      await failWith(databaseError(), () => retryAt)
+
+      expect(deferredRetryChecks()).toHaveLength(0)
+    })
+
     it('records the failure once no retry is scheduled', async () => {
       const error = databaseError()
+      dbChainMockFns.returning.mockResolvedValue([deferredRow(null, new Date(), new Date())])
       expect(await failWith(error, () => null)).toBe(error)
+      expect(deferredRetryChecks()).toHaveLength(0)
 
       expect(dbChainMockFns.set).toHaveBeenCalledWith(
         expect.objectContaining({
