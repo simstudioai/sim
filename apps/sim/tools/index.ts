@@ -2624,7 +2624,7 @@ async function executeDeclaredInternalOperation({
     toolId === 'function_execute' &&
     internalSandboxProfile === 'mothership' &&
     context?.copilotToolExecution === true &&
-    context.requestMode === 'agent' &&
+    (context.requestMode === 'agent' || context.requestMode === 'plan') &&
     Boolean(context.organizationId && context.chatId && context.userId) &&
     !context.workspaceId &&
     !context.workflowId

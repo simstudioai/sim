@@ -45,14 +45,14 @@ export async function executeFunctionTool(input: ExecuteFunctionToolInput): Prom
   if (!context.workspaceId) {
     if (
       context.copilotToolExecution !== true ||
-      context.requestMode !== 'agent' ||
+      (context.requestMode !== 'agent' && context.requestMode !== 'plan') ||
       !context.organizationId ||
       !context.chatId ||
       !context.userId ||
       context.workflowId ||
       sandboxProfile !== 'mothership'
     )
-      throw new Error('Organization Function execution requires trusted Agent chat scope')
+      throw new Error('Organization Function execution requires trusted Build or Plan chat scope')
     const principal = createTrustedOrganizationCopilotPrincipal(
       {
         userId: context.userId,

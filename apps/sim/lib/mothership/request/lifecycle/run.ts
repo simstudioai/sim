@@ -429,8 +429,10 @@ export async function runCopilotLifecycle(
           ? (execContext.assistantSearch ?? requestPayload.assistantSearch ?? {})
           : (requestPayload.assistantSearch ?? {})
       )
-      execContext.secretActorUserId = null
-      execContext.secretMountPolicy = { secretScope: 'selected', mountedSecrets: [] }
+      if (execContext.requestMode === 'assistant') {
+        execContext.secretActorUserId = null
+        execContext.secretMountPolicy = { secretScope: 'selected', mountedSecrets: [] }
+      }
     }
     execContext.copilotInteractionMode =
       lifecycleOptions.interactive === true ? 'interactive' : 'headless'
@@ -1566,7 +1568,7 @@ async function buildExecutionContext(
     execContext.assistantSearch = workspaceSearchFiltersSchema.parse(
       requestPayload?.assistantSearch ?? {}
     )
-    execContext.secretActorUserId = null
+    if (requestMode === 'assistant') execContext.secretActorUserId = null
   }
   if (userPermission) execContext.userPermission = userPermission
   execContext.messageId =

@@ -6,6 +6,7 @@ import {
   createTrustedCopilotPrincipal,
   createTrustedOrganizationCopilotPrincipal,
 } from '@/lib/mothership/auth/application-delegation'
+import { IntegrationCatalogRequest } from '@/lib/mothership/generated/integration-catalog'
 import {
   INTEGRATION_CATALOG_AUDIENCE,
   projectIntegrationCatalog,
@@ -202,19 +203,27 @@ describe('integration catalog projection', () => {
   })
 })
 describe('catalog authorization', () => {
-  it('preserves integration discovery for agent conversations', async () => {
-    queueChat('agent')
-    const result = await readIntegrationCatalog.execute({
-      principal: principal(),
-      input: { ...input, mode: 'agent', service: 'google-email', query: 'email' },
-    })
-    expect(result.operations.map((operation) => operation.toolId)).toEqual(['gmail_send'])
-    expect(mocks.build).toHaveBeenCalledWith(
-      'actor',
-      { schemaSurface: 'copilot', organizationId: 'org-1' },
-      undefined
-    )
-  })
+  it.each(['agent', 'plan'] as const)(
+    'preserves integration discovery for %s conversations',
+    async (mode) => {
+      queueChat(mode)
+      const result = await readIntegrationCatalog.execute({
+        principal: principal(),
+        input: IntegrationCatalogRequest.parse({
+          ...input,
+          mode,
+          service: 'google-email',
+          query: 'email',
+        }),
+      })
+      expect(result.operations.map((operation) => operation.toolId)).toEqual(['gmail_send'])
+      expect(mocks.build).toHaveBeenCalledWith(
+        'actor',
+        { schemaSurface: 'copilot', organizationId: 'org-1' },
+        undefined
+      )
+    }
+  )
 
   it('rejects Search Assistant discovery before building native or MCP catalogs', async () => {
     queueChat()

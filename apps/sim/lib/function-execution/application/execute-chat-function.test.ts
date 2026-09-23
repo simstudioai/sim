@@ -1,7 +1,8 @@
 /** @vitest-environment node */
 import { beforeEach, expect, it, vi } from 'vitest'
+import { FUNCTION_EXECUTION_DELEGATION_AUDIENCE } from '@/lib/function-execution/application/authorization'
 import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
-import { FUNCTION_EXECUTION_DELEGATION_AUDIENCE } from './authorization'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const mocks = vi.hoisted(() => ({ context: vi.fn(), authorize: vi.fn(), execute: vi.fn() }))
 vi.mock('@/lib/mothership/chat/application/context', () => ({
@@ -14,7 +15,7 @@ vi.mock('@/lib/function-execution/execute-request', () => ({
   executeFunctionRequest: mocks.execute,
 }))
 
-import { executeChatFunction } from './execute-chat-function'
+import { executeChatFunction } from '@/lib/function-execution/application/execute-chat-function'
 
 const principal = createTrustedOrganizationCopilotPrincipal(
   { userId: 'actor', organizationId: 'org', chatId: 'chat', delegationId: 'test' },
@@ -40,24 +41,91 @@ beforeEach(() => {
   })
   mocks.execute.mockResolvedValue(Response.json({ success: true }))
 })
-it('runs through the existing Function executor after fresh owner authorization without a workspace', async () => {
-  await executeChatFunction.execute({ principal, input })
-  expect(mocks.authorize).toHaveBeenCalledWith(
+it.each(['agent', 'plan'])(
+  'runs through the existing Function executor after fresh %s owner authorization without a workspace',
+  async (mode) => {
+    mocks.context.mockResolvedValue({
+      organizationId: 'org',
+      chatId: 'chat',
+      userId: 'actor',
+      mode,
+    })
+    await executeChatFunction.execute({ principal, input })
+    expect(mocks.authorize).toHaveBeenCalledWith(
+      principal,
+      expect.objectContaining({ capability: 'copilot.use', minimumRole: 'member' }),
+      { organizationId: 'org' }
+    )
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ code: 'return 1', secretScope: 'selected' }),
+      expect.objectContaining({
+        principal,
+        attributedUserId: 'actor',
+        sandboxProfile: 'mothership',
+      })
+    )
+    expect(mocks.execute.mock.calls[0][1]).not.toHaveProperty('workspaceId')
+    mocks.authorize.mockRejectedValueOnce(new Error('membership revoked'))
+    await expect(executeChatFunction.execute({ principal, input })).rejects.toThrow(
+      'membership revoked'
+    )
+    expect(mocks.execute).toHaveBeenCalledTimes(1)
+  }
+)
+it.each(['agent', 'plan'])('accepts only authorized organization mounts in %s', async (mode) => {
+  mocks.context.mockResolvedValue({ organizationId: 'org', chatId: 'chat', userId: 'actor', mode })
+  const registry = new ResolvedSecretTraceRegistry([
+    { name: 'TOKEN', plaintext: 'test-token', encryptedValue: 'test-cipher' },
+  ])
+  await executeChatFunction.execute({
     principal,
-    expect.objectContaining({ capability: 'copilot.use', minimumRole: 'member' }),
-    { organizationId: 'org' }
-  )
+    input: {
+      ...input,
+      resolvedSecretTraceRegistry: registry,
+      body: { ...input.body, mountedSecrets: ['TOKEN'], envVars: { TOKEN: 'test-token' } },
+    },
+  })
   expect(mocks.execute).toHaveBeenCalledWith(
     expect.anything(),
-    expect.objectContaining({ code: 'return 1', secretScope: 'selected' }),
-    expect.objectContaining({ principal, attributedUserId: 'actor', sandboxProfile: 'mothership' })
+    expect.objectContaining({ mountedSecrets: ['TOKEN'], envVars: { TOKEN: 'test-token' } }),
+    expect.objectContaining({ resolvedSecretTraceRegistry: registry })
   )
-  expect(mocks.execute.mock.calls[0][1]).not.toHaveProperty('workspaceId')
-  mocks.authorize.mockRejectedValueOnce(new Error('membership revoked'))
-  await expect(executeChatFunction.execute({ principal, input })).rejects.toThrow(
-    'membership revoked'
+  expect(registry.getActiveMatches()).toEqual(
+    expect.arrayContaining([expect.objectContaining({ plaintext: 'test-token' })])
   )
-  expect(mocks.execute).toHaveBeenCalledTimes(1)
+})
+it.each([
+  { envVars: { TOKEN: 'forged' }, mountedSecrets: ['TOKEN'] },
+  { envVars: { OTHER: 'test-token' }, mountedSecrets: ['OTHER'] },
+  { envVars: { TOKEN: 'test-token', EXTRA: 'unlisted' }, mountedSecrets: ['TOKEN'] },
+  { envVars: { TOKEN: 'test-token', EXTRA: 'unlisted' }, mountedSecrets: ['TOKEN', 'TOKEN'] },
+])('refuses values or names outside the trusted mount catalog %j', async (body) => {
+  await expect(
+    executeChatFunction.execute({
+      principal,
+      input: {
+        ...input,
+        body: { ...input.body, ...body },
+        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([
+          { name: 'TOKEN', plaintext: 'test-token', encryptedValue: 'test-cipher' },
+        ]),
+      },
+    })
+  ).rejects.toThrow('authorized mount')
+  expect(mocks.execute).not.toHaveBeenCalled()
+})
+it('refuses a mount with no trusted in-process provenance', async () => {
+  await expect(
+    executeChatFunction.execute({
+      principal,
+      input: {
+        ...input,
+        body: { ...input.body, mountedSecrets: ['TOKEN'], envVars: { TOKEN: 'test-token' } },
+      },
+    })
+  ).rejects.toThrow('authorized mount')
+  expect(mocks.execute).not.toHaveBeenCalled()
 })
 it.each([
   { workspaceId: 'other' },

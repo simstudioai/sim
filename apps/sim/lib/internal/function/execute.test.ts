@@ -107,38 +107,41 @@ describe('executeFunctionTool', () => {
       }),
     })
   })
-  it('binds workspace-free scratch to the trusted organization Agent chat and strips forged owners', async () => {
-    await executeFunctionTool({
-      body: { code: 'return 1', workspaceId: 'forged', userId: 'forged', timeout: 1000 },
-      headers: new Headers(),
-      requestId: 'request',
-      sandboxProfile: 'mothership',
-      context: {
-        userId: 'actor',
-        organizationId: 'org',
-        chatId: 'chat',
-        requestMode: 'agent',
-        copilotToolExecution: true,
-      },
-    })
-    expect(mocks.executeChat).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal: expect.objectContaining({
-          kind: 'organization_delegated',
-          subjectUserId: 'actor',
-          organizationId: 'org',
-          resourceScope: { chatId: 'chat' },
-        }),
-        input: expect.objectContaining({
+  it.each(['agent', 'plan'] as const)(
+    'binds workspace-free scratch to the trusted organization %s chat and strips forged owners',
+    async (requestMode) => {
+      await executeFunctionTool({
+        body: { code: 'return 1', workspaceId: 'forged', userId: 'forged', timeout: 1000 },
+        headers: new Headers(),
+        requestId: 'request',
+        sandboxProfile: 'mothership',
+        context: {
+          userId: 'actor',
           organizationId: 'org',
           chatId: 'chat',
-          body: expect.objectContaining({ workspaceId: undefined, userId: undefined }),
-        }),
+          requestMode,
+          copilotToolExecution: true,
+        },
       })
-    )
-    expect(mocks.execute).not.toHaveBeenCalled()
-    expect(mocks.createPrincipal).not.toHaveBeenCalled()
-  })
+      expect(mocks.executeChat).toHaveBeenCalledWith(
+        expect.objectContaining({
+          principal: expect.objectContaining({
+            kind: 'organization_delegated',
+            subjectUserId: 'actor',
+            organizationId: 'org',
+            resourceScope: { chatId: 'chat' },
+          }),
+          input: expect.objectContaining({
+            organizationId: 'org',
+            chatId: 'chat',
+            body: expect.objectContaining({ workspaceId: undefined, userId: undefined }),
+          }),
+        })
+      )
+      expect(mocks.execute).not.toHaveBeenCalled()
+      expect(mocks.createPrincipal).not.toHaveBeenCalled()
+    }
+  )
   it.each([
     { requestMode: 'assistant' },
     { copilotToolExecution: false },
@@ -146,7 +149,7 @@ describe('executeFunctionTool', () => {
     { organizationId: undefined },
     { userId: undefined },
     { workflowId: 'workflow' },
-  ])('refuses untrusted or non-Agent organization scope %j', async (override) => {
+  ])('refuses untrusted or non-Build/Plan organization scope %j', async (override) => {
     await expect(
       executeFunctionTool({
         body: { code: 'return 1' },
@@ -162,7 +165,7 @@ describe('executeFunctionTool', () => {
           ...override,
         },
       })
-    ).rejects.toThrow('trusted Agent chat scope')
+    ).rejects.toThrow('trusted Build or Plan chat scope')
     expect(mocks.executeChat).not.toHaveBeenCalled()
     expect(mocks.execute).not.toHaveBeenCalled()
   })

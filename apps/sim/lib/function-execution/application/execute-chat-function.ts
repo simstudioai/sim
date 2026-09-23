@@ -14,7 +14,7 @@ interface ExecuteChatFunctionInput extends Omit<ExecuteFunctionInput, 'workspace
   chatId: string
 }
 
-/** Organization scratch execution is owned by the current private Agent chat, without a synthetic workspace. */
+/** Organization scratch execution belongs to the current private Build/Plan chat. */
 export const executeChatFunction = defineAuthorizedChatUseCase({
   operation: defineWorkspaceOperation({
     id: 'function-executions.execute_chat',
@@ -43,9 +43,9 @@ export const executeChatFunction = defineAuthorizedChatUseCase({
     if (
       context.organizationId !== input.organizationId ||
       context.workspaceId ||
-      context.mode !== 'agent'
+      (context.mode !== 'agent' && context.mode !== 'plan')
     )
-      throw new OrchestrationError('not_found', 'Organization Agent chat not found')
+      throw new OrchestrationError('not_found', 'Organization Build or Plan chat not found')
     return context
   },
   authorizationOptions: {
@@ -60,9 +60,7 @@ export const executeChatFunction = defineAuthorizedChatUseCase({
       body.workspaceId ||
       body.workflowId ||
       body.sandboxId ||
-      Object.keys(body.envVars).length ||
       body.secretScope !== 'selected' ||
-      body.mountedSecrets?.length ||
       body.fileKeys?.length ||
       body.largeValueKeys?.length ||
       body.largeValueExecutionIds?.length ||
@@ -70,7 +68,22 @@ export const executeChatFunction = defineAuthorizedChatUseCase({
     )
       throw new OrchestrationError(
         'validation',
-        'Workspace files, secrets, saved sandboxes and workflow values require an explicit workspace target'
+        'Workspace files, saved sandboxes and workflow values require an explicit workspace target'
+      )
+    /** Only exact values from the server's authorized mount catalog may enter org scratch code. */
+    const mountedNames = body.mountedSecrets ?? []
+    if (
+      new Set(mountedNames).size !== mountedNames.length ||
+      Object.keys(body.envVars).length !== mountedNames.length ||
+      mountedNames.some(
+        (name) =>
+          !Object.hasOwn(body.envVars, name) ||
+          !input.resolvedSecretTraceRegistry?.recordResolved(name, body.envVars[name])
+      )
+    )
+      throw new OrchestrationError(
+        'forbidden',
+        'Organization code secrets require an authorized mount'
       )
     const { executeFunctionRequest } = await import('@/lib/function-execution/execute-request')
     return executeFunctionRequest(

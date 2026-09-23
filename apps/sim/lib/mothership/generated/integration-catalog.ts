@@ -35,7 +35,7 @@ export const IntegrationCatalogContext = z.object({
 export type IntegrationCatalogContext = z.infer<typeof IntegrationCatalogContext>;
 
 export const IntegrationCatalogRequest = IntegrationCatalogContext.extend({
-  mode: z.enum(["agent", "assistant"]),
+  mode: z.enum(["agent", "assistant", "plan"]),
   workspaceId: z.uuid().optional(),
   query: z.string().max(2_000).optional(),
   service: z.string().max(200).optional(),

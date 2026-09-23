@@ -7056,47 +7056,62 @@ describe('Cost Field Handling', () => {
 })
 
 describe('organization scratch internal entrance', () => {
-  it('admits the real function operation with trusted Agent scope and no fake workspace', async () => {
-    mockExecuteChatFunction.mockResolvedValueOnce(
-      Response.json(
-        { success: true, output: { result: 'waited' }, __resolvedSecretNames: [] },
-        { headers: { 'x-sim-private-tool-metadata': 'resolved-secret-names-durable-files-v2' } }
+  it.each(['agent', 'plan'] as const)(
+    'admits the real function operation with trusted %s scope and no fake workspace',
+    async (requestMode) => {
+      mockExecuteChatFunction.mockResolvedValueOnce(
+        Response.json(
+          { success: true, output: { result: 'waited' }, __resolvedSecretNames: [] },
+          { headers: { 'x-sim-private-tool-metadata': 'resolved-secret-names-durable-files-v2' } }
+        )
       )
-    )
-    const result = await executeTool(
-      'function_execute',
-      {
-        code: 'return "waited"',
-        secretScope: 'selected',
-        sandboxSessionKey: 'mothership-chat:org-chat',
-      },
-      {
-        operationContext: {
-          userId: 'actor',
-          organizationId: 'org',
-          chatId: 'org-chat',
-          requestMode: 'agent',
-          copilotToolExecution: true,
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'test-org-token', encryptedValue: 'test-cipher' },
+      ])
+      const result = await executeTool(
+        'function_execute',
+        {
+          code: 'return "waited"',
+          secretScope: 'selected',
+          mountedSecrets: ['TOKEN'],
+          envVars: { TOKEN: 'test-org-token' },
+          sandboxSessionKey: 'mothership-chat:org-chat',
         },
-        internalSandboxProfile: 'mothership',
-        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([]),
-      }
-    )
-    expect(result).toMatchObject({
-      success: true,
-      output: { success: true, output: { result: 'waited' } },
-    })
-    expect(mockExecuteChatFunction).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal: expect.objectContaining({
-          kind: 'organization_delegated',
-          organizationId: 'org',
-          subjectUserId: 'actor',
-        }),
-        input: expect.objectContaining({ chatId: 'org-chat' }),
+        {
+          operationContext: {
+            userId: 'actor',
+            organizationId: 'org',
+            chatId: 'org-chat',
+            requestMode,
+            copilotToolExecution: true,
+          },
+          internalSandboxProfile: 'mothership',
+          resolvedSecretTraceRegistry: registry,
+        }
+      )
+      expect(result).toMatchObject({
+        success: true,
+        output: { success: true, output: { result: 'waited' } },
       })
-    )
-  })
+      expect(mockExecuteChatFunction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          principal: expect.objectContaining({
+            kind: 'organization_delegated',
+            organizationId: 'org',
+            subjectUserId: 'actor',
+          }),
+          input: expect.objectContaining({
+            chatId: 'org-chat',
+            body: expect.objectContaining({
+              mountedSecrets: ['TOKEN'],
+              envVars: { TOKEN: 'test-org-token' },
+            }),
+            resolvedSecretTraceRegistry: registry,
+          }),
+        })
+      )
+    }
+  )
 })
 
 describe('Live Search Assistant GitHub OAuth binding', () => {

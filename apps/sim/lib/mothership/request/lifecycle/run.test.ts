@@ -8,8 +8,19 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { scopeProviderToolCallId } from '@/lib/mothership/request/go/tool-call-identity'
 import { handleBillingLimitResponse } from '@/lib/mothership/request/tools/billing'
 import type { ExecutionContext, StreamingContext } from '@/lib/mothership/request/types'
+import { executeFunctionExecute } from '@/lib/mothership/tools/handlers/function-execute'
+import { executeRunCode } from '@/lib/mothership/tools/handlers/run-code'
 import { openResourceServerTool } from '@/lib/mothership/tools/server/open-resource'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const { mockMaterializeOrganizationSecrets, mockExecuteAppTool } = vi.hoisted(() => ({
+  mockMaterializeOrganizationSecrets: vi.fn(),
+  mockExecuteAppTool: vi.fn(),
+}))
+vi.mock('@/lib/mothership/tools/organization-secret-mount', () => ({
+  materializeOrganizationCodeSecrets: mockMaterializeOrganizationSecrets,
+}))
+vi.mock('@/tools', () => ({ executeTool: mockExecuteAppTool }))
 
 const continuationAuth = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/mothership/application/authorize-chat-callback', () => ({
@@ -213,6 +224,13 @@ const SCHEMA_CONTROL_KEYS = [
 describe('runCopilotLifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockExecuteAppTool.mockResolvedValue({ success: true, output: { result: 'ok' } })
+    mockMaterializeOrganizationSecrets.mockResolvedValue({
+      envVars: { GRAFANA_API_KEY: 'test-org-token' },
+      catalogEntries: [
+        { name: 'GRAFANA_API_KEY', plaintext: 'test-org-token', encryptedValue: 'test-cipher' },
+      ],
+    })
     mockCreateRunSegment.mockResolvedValue({ status: 'active' })
     mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
     continuationAuth.mockResolvedValue(undefined)
@@ -299,6 +317,91 @@ describe('runCopilotLifecycle', () => {
       )
     }
   )
+
+  describe.each(['agent', 'plan'] as const)('organization %s secret execution', (mode) => {
+    it.each(['fresh', 'resume', 'recovery'] as const)(
+      'mounts explicit org secrets through both real code handlers after %s lifecycle setup',
+      async (phase) => {
+        let captured: ExecutionContext | undefined
+        mockRunStreamLoop.mockImplementationOnce(async (_url, _request, _state, context) => {
+          captured = context
+        })
+        const owner = { userId: 'user-1', organizationId: 'org-1', chatId: 'chat-1' }
+        await runCopilotLifecycle(
+          phase === 'resume'
+            ? { streamId: 'stream-1', checkpointId: 'checkpoint-1', results: [] }
+            : { mode, message: 'Inspect Grafana with the organization key' },
+          {
+            ...owner,
+            goRoute: phase === 'resume' ? '/api/tools/resume' : '/api/mothership',
+            ...(phase === 'resume'
+              ? {
+                  executionContext: {
+                    ...owner,
+                    workflowId: '',
+                    requestMode: mode,
+                    copilotToolExecution: true,
+                  },
+                }
+              : {}),
+            ...(phase === 'recovery'
+              ? { recovery: { streamId: 'stream-1', events: [], requestMode: mode } }
+              : {}),
+          }
+        )
+        expect(captured).toMatchObject({ ...owner, requestMode: mode })
+        if (!captured) throw new Error('Lifecycle did not dispatch')
+        for (const handler of [executeRunCode, executeFunctionExecute]) {
+          await expect(
+            handler(
+              { code: 'return 1', secrets: ['GRAFANA_API_KEY'], envVars: { FORGED: 'ignored' } },
+              { ...captured, toolCallId: 'org-code' }
+            )
+          ).resolves.toMatchObject({ success: true })
+        }
+        expect(mockMaterializeOrganizationSecrets).toHaveBeenCalledTimes(2)
+        expect(mockMaterializeOrganizationSecrets).toHaveBeenLastCalledWith(
+          expect.objectContaining({ ...owner, requestMode: mode }),
+          ['GRAFANA_API_KEY']
+        )
+        expect(mockExecuteAppTool).toHaveBeenLastCalledWith(
+          'function_execute',
+          expect.objectContaining({
+            envVars: { GRAFANA_API_KEY: 'test-org-token' },
+            secretScope: 'selected',
+            mountedSecrets: ['GRAFANA_API_KEY'],
+          }),
+          expect.objectContaining({
+            operationContext: expect.objectContaining({ ...owner, requestMode: mode }),
+            internalSandboxProfile: 'mothership',
+          })
+        )
+        expect(mockPrepareCopilotEnvironmentContext).toHaveBeenCalledWith('user-1', undefined, {
+          includeSecrets: false,
+        })
+      }
+    )
+
+    it.each([
+      { secretMountPolicy: { secretScope: 'selected' as const, mountedSecrets: [] } },
+      { secretActorUserId: null },
+    ])('preserves an explicit caller restriction %j', async (restriction) => {
+      let captured: ExecutionContext | undefined
+      mockRunStreamLoop.mockImplementationOnce(async (_url, _request, _state, context) => {
+        captured = context
+      })
+      await runCopilotLifecycle(
+        { mode, message: 'Inspect Grafana' },
+        { userId: 'user-1', organizationId: 'org-1', chatId: 'chat-1', ...restriction }
+      )
+      if (!captured) throw new Error('Lifecycle did not dispatch')
+      await expect(
+        executeRunCode({ code: 'return 1', secrets: ['GRAFANA_API_KEY'] }, captured)
+      ).rejects.toThrow(/Secret access/)
+      expect(mockMaterializeOrganizationSecrets).not.toHaveBeenCalled()
+      expect(mockExecuteAppTool).not.toHaveBeenCalled()
+    })
+  })
 
   it.each([false, true])(
     'retains Assistant policy on a standalone resume (organization=%s)',
