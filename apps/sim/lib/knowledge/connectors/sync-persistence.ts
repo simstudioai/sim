@@ -6,7 +6,6 @@ import { generateId } from '@sim/utils/id'
 import { truncateAtCodePoint } from '@sim/utils/string'
 import { and, eq, exists, inArray, isNull, lt, not, or, type SQL, sql } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
-import type { DbOrTx } from '@/lib/db/types'
 import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
 import {
   EMPTY_ACL,
@@ -16,9 +15,19 @@ import {
 import type { MirroredDocumentAcl } from '@/lib/knowledge/access/types'
 import { aclIsDerived, type ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import type { ConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import {
+  pagesByProjectionRows,
+  rewriteConnectorDocumentAcls,
+  writeProjectionPages,
+} from '@/lib/knowledge/connectors/member-observations'
 import { resolveSourceModifiedAt } from '@/lib/knowledge/connectors/source-modified-at'
-import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
-import { assertSyncLeaseHeldInTx, type SyncWriteLease } from '@/lib/knowledge/connectors/sync-lock'
+import { ACL_WRITE_BATCH_SIZE, SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
+import {
+  assertSyncLeaseHeldInTx,
+  type LeaseTransaction,
+  leaseTransaction,
+  type SyncWriteLease,
+} from '@/lib/knowledge/connectors/sync-lock'
 import { MAX_DOCUMENT_INDEXED_TEXT_LENGTH } from '@/lib/knowledge/constants'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import { enqueueKnowledgeStorageCleanup } from '@/lib/knowledge/documents/storage-cleanup'
@@ -47,53 +56,37 @@ function updatedDocumentAcl(access: ConnectorAccessMode) {
  * The workspace-mode invariant, applied after every successful content sync:
  * a document a workspace-mode connector owns is readable by the workspace,
  * whatever a mode switch or an interrupted rewrite left behind. Idempotent and
- * a no-op on a healthy connector.
+ * a no-op on a healthy connector. Paged in short transactions that each prove
+ * the connector is still in workspace mode, so it never holds the connector row
+ * across the projection fan-out of a large restore. Stops between pages once
+ * `deadlineAt` passes and reports it unfinished; a later walk resumes by
+ * rewriting whatever is still off the workspace ACL.
  */
 export async function restoreWorkspaceDocumentAcls(
-  executor: DbOrTx,
-  connectorId: string
-): Promise<number> {
-  const workspaceAcl = textArrayLiteral(WORKSPACE_ACL)
-  const restored = await executor
-    .update(document)
-    .set({ acl: [...WORKSPACE_ACL], aclRequirements: [], aclVerifiedAt: null })
-    .where(
-      and(
-        eq(document.connectorId, connectorId),
-        sql`(${document.acl} <> ${workspaceAcl} OR ${document.aclRequirements} <> '[]'::jsonb OR ${document.aclVerifiedAt} IS NOT NULL)`,
-        exists(
-          executor
-            .select({ one: sql`1` })
-            .from(knowledgeConnector)
-            .where(
-              and(
-                eq(knowledgeConnector.id, connectorId),
-                eq(knowledgeConnector.accessMode, 'workspace')
-              )
-            )
+  connectorId: string,
+  transaction: LeaseTransaction,
+  options: { beforePage?: () => Promise<void>; deadlineAt?: number } = {}
+): Promise<{ restored: number; finished: boolean }> {
+  const { rewritten, finished } = await rewriteConnectorDocumentAcls({
+    connectorId,
+    target: WORKSPACE_ACL,
+    transaction,
+    beforePage: options.beforePage,
+    deadlineAt: options.deadlineAt,
+    guard: exists(
+      db
+        .select({ one: sql`1` })
+        .from(knowledgeConnector)
+        .where(
+          and(
+            eq(knowledgeConnector.id, connectorId),
+            eq(knowledgeConnector.accessMode, 'workspace')
+          )
         )
-      )
-    )
-    .returning({ id: document.id })
-  return restored.length
+    ),
+  })
+  return { restored: rewritten, finished }
 }
-
-/**
- * Documents whose permission evidence is refreshed per statement. Documents are
- * grouped by identical ACL first — files under one folder overwhelmingly share
- * theirs — so a crawl of thousands usually resolves to a handful of statements.
- * A refresh never assigns `acl`, so it fires no projection fan-out.
- */
-const ACL_WRITE_BATCH_SIZE = 500
-
-/**
- * Documents whose ACL actually changes, per statement. Assigning `acl` fires the
- * document trigger that copies it onto every chunk's search projection rows, and
- * each of those rows is re-inserted into the vector index, so one statement costs
- * the chunks of every document in it rather than the documents. Kept small so a
- * page of changed documents cannot outrun the statement timeout.
- */
-const ACL_CHANGE_BATCH_SIZE = 25
 
 export interface DocumentAclWriteResult {
   /** Documents whose ACL or authoritative evidence timestamp was refreshed. */
@@ -111,11 +104,14 @@ export interface DocumentAclWriteResult {
  * survive failed verification.
  * An unresolved duplicate may retain evidence verified during this durable crawl,
  * without refreshing its timestamp; explicit empty ACLs always revoke access.
+ * Every batch is its own `transaction`, which proves the run's lease when it has one: a
+ * connector row lock held across every batch outlasted the statement timeout and rolled back
+ * the batches that had landed. Batches are idempotent, so a retry rewrites only what is stale.
  */
 export async function persistDocumentAcls(
   connectorId: string,
   acls: ReadonlyMap<string, MirroredDocumentAcl>,
-  executor: DbOrTx = db,
+  transaction: LeaseTransaction = leaseTransaction(connectorId),
   evidence?: {
     unresolvedExternalIds: ReadonlySet<string>
     generationStartedAt: Date
@@ -174,22 +170,46 @@ export async function persistDocumentAcls(
         unchanged ? stored : not(stored),
         evidenceGuard
       )
-    /** Refreshed first, so a row the change write below has just rewritten is not counted twice. */
-    for (const batch of chunkArray(externalIds, ACL_WRITE_BATCH_SIZE)) {
-      const rows = await executor
-        .update(document)
-        .set({ aclVerifiedAt })
-        .where(target(batch, true))
-        .returning({ id: document.id })
-      updated += rows.length
-    }
-    for (const batch of chunkArray(externalIds, ACL_CHANGE_BATCH_SIZE)) {
-      const rows = await executor
-        .update(document)
-        .set({ acl, aclRequirements: requirements, aclVerifiedAt })
-        .where(target(batch, false))
-        .returning({ id: document.id })
-      updated += rows.length
+    /**
+     * Each window's evidence refresh and its read of the documents whose ACL changes share one
+     * transaction; the refresh reports the documents it matched, so an unchanged crawl costs one
+     * transaction per window and the change pages below see only what actually changes. Refreshed
+     * first, so a row a change page then rewrites is never counted twice.
+     */
+    for (const window of chunkArray(externalIds, ACL_WRITE_BATCH_SIZE)) {
+      const { refreshed, changed } = await transaction(async (tx) => {
+        const refreshed = await tx
+          .update(document)
+          .set({ aclVerifiedAt })
+          .where(target(window, true))
+          .returning({ externalId: document.externalId })
+        const matched = new Set(refreshed.map((row) => row.externalId))
+        const remaining = window.filter((externalId) => !matched.has(externalId))
+        const changed =
+          remaining.length === 0
+            ? []
+            : await tx
+                .select({ id: document.id, chunkCount: document.chunkCount })
+                .from(document)
+                .where(target(remaining, false))
+        return { refreshed: refreshed.length, changed }
+      })
+      updated += refreshed
+      for (const page of pagesByProjectionRows(changed)) {
+        const { written } = await writeProjectionPages(
+          page,
+          transaction,
+          async (tx, locked) =>
+            (
+              await tx
+                .update(document)
+                .set({ acl, aclRequirements: requirements, aclVerifiedAt })
+                .where(and(inArray(document.id, locked), target(window, false)))
+                .returning({ id: document.id })
+            ).length
+        )
+        updated += written
+      }
     }
   }
 
@@ -199,34 +219,44 @@ export async function persistDocumentAcls(
 /**
  * Revokes every grant on the documents `target` selects from `ids`, leaving each readable by
  * nobody with its permission evidence cleared. Only a document that still grants someone has
- * `acl` assigned, {@link ACL_CHANGE_BATCH_SIZE} at a time: the projection trigger fires on every
+ * `acl` assigned, in pages bounded by their chunks' projection rows: the projection trigger fires on every
  * assignment of `acl`, changed or not, and each document costs a rewrite of its chunks'
  * projection rows. A document already readable by nobody only has leftover evidence cleared,
- * which fires no fan-out.
+ * which fires no fan-out. Each batch is its own `transaction`, so a lease lost between batches
+ * stops the rest and every committed batch stays revoked.
  */
 export async function revokeDocumentAcls(
-  executor: DbOrTx,
+  transaction: LeaseTransaction,
   ids: string[],
   target: (batch: string[]) => SQL | undefined
 ): Promise<void> {
   const grants = sql`cardinality(${document.acl}) > 0`
-  for (const batch of chunkArray(ids, ACL_WRITE_BATCH_SIZE)) {
-    await executor
-      .update(document)
-      .set({ aclRequirements: [], aclVerifiedAt: null })
-      .where(
-        and(
-          target(batch),
-          not(grants),
-          sql`(${document.aclRequirements} <> '[]'::jsonb OR ${document.aclVerifiedAt} IS NOT NULL)`
+  for (const window of chunkArray(ids, ACL_WRITE_BATCH_SIZE)) {
+    const granting = await transaction(async (tx) => {
+      await tx
+        .update(document)
+        .set({ aclRequirements: [], aclVerifiedAt: null })
+        .where(
+          and(
+            target(window),
+            not(grants),
+            sql`(${document.aclRequirements} <> '[]'::jsonb OR ${document.aclVerifiedAt} IS NOT NULL)`
+          )
         )
-      )
-  }
-  for (const batch of chunkArray(ids, ACL_CHANGE_BATCH_SIZE)) {
-    await executor
-      .update(document)
-      .set({ acl: [], aclRequirements: [], aclVerifiedAt: null })
-      .where(and(target(batch), grants))
+      return tx
+        .select({ id: document.id, chunkCount: document.chunkCount })
+        .from(document)
+        .where(and(target(window), grants))
+    })
+    for (const page of pagesByProjectionRows(granting)) {
+      await writeProjectionPages(page, transaction, async (tx, locked) => {
+        await tx
+          .update(document)
+          .set({ acl: [], aclRequirements: [], aclVerifiedAt: null })
+          .where(and(target(window), inArray(document.id, locked), grants))
+        return 0
+      })
+    }
   }
 }
 

@@ -2384,7 +2384,6 @@ describe('completeSuccessfulSync', () => {
       queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
       queueTableRows(schemaMock.document, [{ count: 4 }])
       dbChainMockFns.returning
-        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ id: 'log-1' }])
         .mockResolvedValueOnce([{ id: 'c-1' }])
       const directoryNotice =
@@ -2448,13 +2447,55 @@ describe('completeSuccessfulSync', () => {
     }
   )
 
+  /** An unfinished pending rewrite keeps its flag and comes straight back, instead of clearing it. */
+  it('keeps the pending access rewrite and re-runs at once when the walk did not finish', async () => {
+    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
+    queueTableRows(schemaMock.document, [{ count: 4 }])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ id: 'log-1' }])
+      .mockResolvedValueOnce([{ id: 'c-1' }])
+
+    await expect(
+      completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null, undefined, null, true)
+    ).resolves.toBe(true)
+
+    const logUpdate = dbChainMockFns.set.mock.calls
+      .map(([value]) => value as Record<string, unknown>)
+      .find((value) => 'completedAt' in value)
+    const connectorUpdate = dbChainMockFns.set.mock.calls
+      .map(([value]) => value as Record<string, unknown>)
+      .find((value) => value.status === 'active')
+    expect(logUpdate?.status).toBe('partial')
+    expect(connectorUpdate).not.toHaveProperty('accessRewritePending')
+    expect((connectorUpdate?.nextSyncAt as Date).getTime()).toBeLessThanOrEqual(Date.now())
+  })
+
+  it('clears the pending access rewrite once the walk finished', async () => {
+    const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
+    queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
+    queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
+    queueTableRows(schemaMock.document, [{ count: 4 }])
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([{ id: 'log-1' }])
+      .mockResolvedValueOnce([{ id: 'c-1' }])
+
+    await expect(completeSuccessfulSync('c-1', 'kb-1', 'log-1', 60, RESULT, null)).resolves.toBe(
+      true
+    )
+
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'active', accessRewritePending: false })
+    )
+  })
+
   it('counts the documents before taking the completion locks', async () => {
     const { completeSuccessfulSync } = await import('@/lib/knowledge/connectors/sync-engine')
     queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb-1' }])
     queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
     queueTableRows(schemaMock.document, [{ count: 4 }])
     dbChainMockFns.returning
-      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'log-1' }])
       .mockResolvedValueOnce([{ id: 'c-1' }])
 
@@ -2487,7 +2528,6 @@ describe('completeSuccessfulSync', () => {
       )
     )
     dbChainMockFns.returning
-      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'log-1' }])
       .mockResolvedValueOnce([{ id: 'c-1' }])
 
@@ -2520,8 +2560,6 @@ describe('completeSuccessfulSync', () => {
     queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
     queueTableRows(schemaMock.document, [{ count: 4 }])
     dbChainMockFns.returning
-      /** The workspace ACL restore finds nothing drifted. */
-      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'log-1' }])
       .mockResolvedValueOnce([{ id: 'c-1' }])
 
@@ -2561,7 +2599,6 @@ describe('completeSuccessfulSync', () => {
       queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
       queueTableRows(schemaMock.document, [{ count: 4 }])
       dbChainMockFns.returning
-        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ id: 'log-1' }])
         .mockResolvedValueOnce([{ id: 'c-1' }])
 
@@ -2608,7 +2645,6 @@ describe('completeSuccessfulSync', () => {
     queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
     queueTableRows(schemaMock.document, [{ count: 4 }])
     dbChainMockFns.returning
-      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ id: 'log-1' }])
       .mockResolvedValueOnce([{ id: 'c-1' }])
     const holdNotice = 'Source listing is incomplete; unlisted documents were kept.'
@@ -2676,7 +2712,6 @@ describe('completeSuccessfulSync', () => {
       queueTableRows(schemaMock.knowledgeConnector, [{ id: 'c-1' }])
       queueTableRows(schemaMock.document, [{ count: 4 }])
       dbChainMockFns.returning
-        .mockResolvedValueOnce([])
         .mockResolvedValueOnce([{ id: 'log-1' }])
         .mockResolvedValueOnce([{ id: 'c-1' }])
 
@@ -3386,6 +3421,9 @@ describe('executeSync heartbeats during the listing phase', () => {
       primeSyncUpToListing()
       dbChainMockFns.returning.mockReset()
       dbChainMockFns.returning.mockResolvedValueOnce([{ ...CONNECTOR, accessMode: 'admin' }])
+      /** No tombstone, then the stored document whose ACL the mirrored write changes. */
+      queueTableRows(schemaMock.document, [])
+      queueTableRows(schemaMock.document, [{ id: 'doc-1', chunkCount: 1 }])
       let permissionResult: { permissionsIncomplete: boolean } | undefined
       const pass = vi
         .spyOn(contentPass, 'runConnectorContentPass')
@@ -3412,6 +3450,68 @@ describe('executeSync heartbeats during the listing phase', () => {
       }
     }
   )
+
+  it('proves the lease last inside each bounded transaction that writes mirrored permissions', async () => {
+    const contentPass = await import('@/lib/knowledge/connectors/sync-content-pass')
+    primeSyncUpToListing()
+    dbChainMockFns.returning.mockReset()
+    dbChainMockFns.returning.mockResolvedValueOnce([{ ...CONNECTOR, accessMode: 'admin' }])
+    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, [{ id: 'doc-1', chunkCount: 1 }])
+    const pass = vi
+      .spyOn(contentPass, 'runConnectorContentPass')
+      .mockImplementation(async (input) => {
+        await input.onPage?.(
+          [
+            {
+              externalId: 'page-1',
+              title: 'Page',
+              content: 'Body',
+              contentHash: 'hash-1',
+              mimeType: 'text/plain',
+              acl: ['u:reader@example.com'],
+            },
+          ],
+          new Date()
+        )
+        throw new Error('Stopped after permission persistence')
+      })
+    try {
+      await executeSync('c-1', { billingAttribution: { workspaceId: 'ws-1' } as never })
+      const writeIndex = dbChainMockFns.set.mock.calls.findIndex(([values]) => 'acl' in values)
+      expect(writeIndex).toBeGreaterThanOrEqual(0)
+      const written = dbChainMockFns.set.mock.invocationCallOrder[writeIndex]
+      const opened = Math.max(
+        ...dbChainMockFns.transaction.mock.invocationCallOrder.filter((order) => order < written)
+      )
+      const between = (orders: number[]) =>
+        orders.some((order) => order > opened && order < written)
+      const leaseChecks = dbChainMockFns.for.mock.calls
+        .map(([mode], index) => ({
+          mode,
+          order: dbChainMockFns.for.mock.invocationCallOrder[index],
+        }))
+        .filter(({ mode }) => mode === 'share')
+        .map(({ order }) => order)
+      /** Proved after the write and before the next transaction opens: the page's last statement. */
+      const closed = Math.min(
+        ...dbChainMockFns.transaction.mock.invocationCallOrder.filter((order) => order > written),
+        Number.POSITIVE_INFINITY
+      )
+      expect(leaseChecks.some((order) => order > written && order < closed)).toBe(true)
+      expect(between(leaseChecks)).toBe(false)
+      const bounds = dbChainMockFns.execute.mock.calls
+        .map((query: unknown[], index) => ({
+          query,
+          order: dbChainMockFns.execute.mock.invocationCallOrder[index],
+        }))
+        .filter(({ query }) => JSON.stringify(query).includes('lock_timeout'))
+        .map(({ order }) => order)
+      expect(between(bounds)).toBe(true)
+    } finally {
+      pass.mockRestore()
+    }
+  })
 
   it('beats between pages and abandons the run when the lock was reclaimed', async () => {
     const { executeSync } = await import('@/lib/knowledge/connectors/sync-engine')

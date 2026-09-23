@@ -1,7 +1,12 @@
 import { db } from '@sim/db'
 import { knowledgeConnector } from '@sim/db/schema'
-import { and, eq, isNull } from 'drizzle-orm'
-import { SYNC_LOCK_HEARTBEAT_INTERVAL_MS } from '@/lib/knowledge/connectors/sync-limits'
+import { and, eq, isNull, sql } from 'drizzle-orm'
+import type { DbOrTx } from '@/lib/db/types'
+import {
+  LEASE_PAGE_LOCK_TIMEOUT_MS,
+  LEASE_PAGE_STATEMENT_TIMEOUT_MS,
+  SYNC_LOCK_HEARTBEAT_INTERVAL_MS,
+} from '@/lib/knowledge/connectors/sync-limits'
 
 /**
  * Raised when a run discovers mid-flight that it no longer holds its sync lock.
@@ -233,6 +238,42 @@ export async function assertSyncLeaseHeldInTx(
     .where(lease.stillHeld())
     .for('share')
   if (!held) throw new SyncLockLostException(connectorId)
+}
+
+/**
+ * The bounds of a connector-lease ACL page. The `document` ACL trigger rewrites every filled
+ * search projection row of a document whose ACL is assigned, so a page that waits on a lock or
+ * runs long fails within the bounds and rolls back only itself.
+ */
+export async function boundLeaseTransaction(tx: Pick<DbOrTx, 'execute'>): Promise<void> {
+  await tx.execute(
+    sql`SELECT set_config('lock_timeout', ${`${LEASE_PAGE_LOCK_TIMEOUT_MS}ms`}, true), set_config('statement_timeout', ${`${LEASE_PAGE_STATEMENT_TIMEOUT_MS}ms`}, true)`
+  )
+}
+
+/** Runs one bounded page of writes in a short transaction of its own. */
+export type LeaseTransaction = <T>(write: (tx: DbOrTx) => Promise<T>) => Promise<T>
+
+/**
+ * One short, bounded transaction per call that proves `lease` as its last statement, so a run
+ * that lost its lease writes nothing further: the proof fails and the page rolls back. Proving it
+ * last keeps the connector row unlocked while the page waits on document rows, which a processing
+ * commit may hold for its whole write, and the share lock it then takes keeps the reclaim from
+ * landing until the page commits. Without a lease the page is only bounded: callers outside a
+ * sync run have no lease to prove.
+ */
+export function leaseTransaction(
+  connectorId: string,
+  lease?: SyncWriteLease,
+  executor: Pick<typeof db, 'transaction'> = db
+): LeaseTransaction {
+  return (write) =>
+    executor.transaction(async (tx) => {
+      await boundLeaseTransaction(tx)
+      const written = await write(tx)
+      if (lease) await assertSyncLeaseHeldInTx(tx, connectorId, lease)
+      return written
+    })
 }
 
 /**

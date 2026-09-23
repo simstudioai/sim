@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   removeUnseen: vi.fn(),
   removeForDocuments: vi.fn(),
   materialize: vi.fn(),
+  rematerialize: vi.fn(async () => 0),
   lifecycle: vi.fn(),
   credentials: vi.fn(),
   getChangeCursor: vi.fn(),
@@ -60,6 +61,7 @@ vi.mock('@/lib/knowledge/connectors/member-access', () => ({
 vi.mock('@/lib/knowledge/connectors/member-observations', () => ({
   applyMemberDocumentLifecycle: mocks.lifecycle,
   materializeDocumentAcls: mocks.materialize,
+  rematerializeDocumentAcls: mocks.rematerialize,
   recordMemberObservations: mocks.observe,
   removeMemberObservationsForDocuments: mocks.removeForDocuments,
   removeUnseenMemberObservations: mocks.removeUnseen,
@@ -485,6 +487,43 @@ describe('member engine with a dedicated content credential', () => {
     expect(mocks.list.mock.calls[0][0]).toBe('service-token')
     expect(mocks.token).toHaveBeenCalledWith(expect.objectContaining({ accessMode: 'members' }))
     expect(mocks.observe).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The content completion counts the whole connector. That scan runs before the lease
+   * transaction, which stays under the role's own timeouts, so a large connector that finished
+   * every content page cannot then fail its completion on a page bound.
+   */
+  it('counts the connector before its content completion takes the lease', async () => {
+    const run = arrange({ members: true, noDueMembers: true })
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    const insertIndex = dbChainMockFns.insert.mock.calls.findIndex(
+      ([table]) => table === schemaMock.knowledgeConnectorSyncLog
+    )
+    expect(insertIndex).toBeGreaterThanOrEqual(0)
+    const inserted = dbChainMockFns.insert.mock.invocationCallOrder[insertIndex]
+    const opened = Math.max(
+      ...dbChainMockFns.transaction.mock.invocationCallOrder.filter((order) => order < inserted)
+    )
+    const counted = dbChainMockFns.select.mock.calls
+      .map(([fields], index) => ({
+        fields,
+        order: dbChainMockFns.select.mock.invocationCallOrder[index],
+      }))
+      .filter(({ fields, order }) => fields && 'count' in fields && order < inserted)
+      .map(({ order }) => order)
+    expect(Math.max(...counted)).toBeLessThan(opened)
+    const bounded = dbChainMockFns.execute.mock.calls
+      .map((call: unknown[], index) => ({
+        call,
+        order: dbChainMockFns.execute.mock.invocationCallOrder[index],
+      }))
+      .filter(
+        ({ call, order }) =>
+          order > opened && order < inserted && JSON.stringify(call).includes('lock_timeout')
+      )
+    expect(bounded).toEqual([])
   })
 
   it('reserves time for member permissions when a slow dedicated content page has more batches', async () => {
