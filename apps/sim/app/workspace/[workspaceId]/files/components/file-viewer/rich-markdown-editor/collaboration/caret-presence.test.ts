@@ -50,6 +50,26 @@ describe('caret-presence', () => {
     expect(renderCaret({ color: '#f783ac' }).dataset.colorSlot).toBeUndefined()
   })
 
+  it('maps resolved awareness colours back to their CSS palette slots', () => {
+    const resolved = ['#4ade80', '#f472b6', '#33b4ff', '#fb923c', '#c084fc', '#fcd34d']
+    try {
+      for (const [slot, reference] of USER_COLORS.entries()) {
+        const token = /^var\((--[\w-]+)\)$/.exec(reference)?.[1]
+        if (!token) throw new Error(`Missing CSS token for slot ${slot}`)
+        document.documentElement.style.setProperty(token, resolved[slot])
+      }
+      for (const [slot, color] of resolved.entries()) {
+        expect(caretColorSlot(color)).toBe(slot)
+        expect(renderCaret({ color }).dataset.colorSlot).toBe(String(slot))
+      }
+    } finally {
+      for (const reference of USER_COLORS) {
+        const token = /^var\((--[\w-]+)\)$/.exec(reference)?.[1]
+        if (token) document.documentElement.style.removeProperty(token)
+      }
+    }
+  })
+
   it('keeps stylesheet slot colours aligned with the shared identity palette', () => {
     const css = readFileSync(
       path.join(

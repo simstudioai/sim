@@ -31,9 +31,20 @@ const LEGACY_USER_COLORS = [
 export function caretColorSlot(color: unknown): number {
   if (typeof color !== 'string') return -1
   const current = USER_COLORS.findIndex((value) => value === color)
-  return current >= 0
-    ? current
-    : LEGACY_USER_COLORS.findIndex((value) => value === color.toUpperCase())
+  if (current >= 0) return current
+
+  // CollaborationCaret publishes the resolved CSS value in awareness for older peers.
+  // Resolve the same palette here so incoming hex values keep their original slots.
+  if (color && typeof document !== 'undefined') {
+    const styles = getComputedStyle(document.documentElement)
+    const resolved = USER_COLORS.findIndex((value) => {
+      const token = /^var\((--[\w-]+)\)$/.exec(value)?.[1]
+      return token && styles.getPropertyValue(token).trim().toUpperCase() === color.toUpperCase()
+    })
+    if (resolved >= 0) return resolved
+  }
+
+  return LEGACY_USER_COLORS.findIndex((value) => value === color.toUpperCase())
 }
 
 /**
