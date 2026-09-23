@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { chunkArray } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { truncateAtCodePoint } from '@sim/utils/string'
-import { and, eq, exists, inArray, isNull, lt, not, or, sql } from 'drizzle-orm'
+import { and, eq, exists, inArray, isNull, lt, not, or, type SQL, sql } from 'drizzle-orm'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx } from '@/lib/db/types'
 import { textArrayLiteral } from '@/lib/knowledge/access/predicate'
@@ -194,6 +194,40 @@ export async function persistDocumentAcls(
   }
 
   return { updated, rejected }
+}
+
+/**
+ * Revokes every grant on the documents `target` selects from `ids`, leaving each readable by
+ * nobody with its permission evidence cleared. Only a document that still grants someone has
+ * `acl` assigned, {@link ACL_CHANGE_BATCH_SIZE} at a time: the projection trigger fires on every
+ * assignment of `acl`, changed or not, and each document costs a rewrite of its chunks'
+ * projection rows. A document already readable by nobody only has leftover evidence cleared,
+ * which fires no fan-out.
+ */
+export async function revokeDocumentAcls(
+  executor: DbOrTx,
+  ids: string[],
+  target: (batch: string[]) => SQL | undefined
+): Promise<void> {
+  const grants = sql`cardinality(${document.acl}) > 0`
+  for (const batch of chunkArray(ids, ACL_WRITE_BATCH_SIZE)) {
+    await executor
+      .update(document)
+      .set({ aclRequirements: [], aclVerifiedAt: null })
+      .where(
+        and(
+          target(batch),
+          not(grants),
+          sql`(${document.aclRequirements} <> '[]'::jsonb OR ${document.aclVerifiedAt} IS NOT NULL)`
+        )
+      )
+  }
+  for (const batch of chunkArray(ids, ACL_CHANGE_BATCH_SIZE)) {
+    await executor
+      .update(document)
+      .set({ acl: [], aclRequirements: [], aclVerifiedAt: null })
+      .where(and(target(batch), grants))
+  }
 }
 
 const MAX_SAFE_TITLE_LENGTH = 200

@@ -300,7 +300,8 @@ jobs:
           bunx vitest run \
             lib/knowledge/access/predicate.postgres.test.ts \
             lib/knowledge/connectors/external-directory.postgres.test.ts \
-            lib/knowledge/connectors/sync-persistence.postgres.test.ts
+            lib/knowledge/connectors/sync-persistence.postgres.test.ts \
+            lib/knowledge/connectors/sync-content-pass.postgres.test.ts
 
       - name: Verify the projection source and ACL trigger and backfill in PostgreSQL
         working-directory: packages/db

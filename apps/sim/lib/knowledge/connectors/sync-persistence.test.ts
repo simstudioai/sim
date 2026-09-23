@@ -1,7 +1,16 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+
+import { db } from '@sim/db'
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
+import { inArray } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/knowledge/documents/service', () => ({ hardDeleteDocuments: vi.fn() }))
@@ -45,6 +54,7 @@ import {
   persistDocumentAcls,
   persistSourceDocumentFailures,
   resolveTagMapping,
+  revokeDocumentAcls,
 } from '@/lib/knowledge/connectors/sync-persistence'
 
 const CONNECTOR = 'connector-1'
@@ -278,6 +288,74 @@ describe('persistDocumentAcls', () => {
       rejected: 0,
     })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('revokeDocumentAcls', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  const REVOKED = { acl: [], aclRequirements: [], aclVerifiedAt: null }
+  const EVIDENCE_ONLY = { aclRequirements: [], aclVerifiedAt: null }
+  const scope = (batch: string[]) => inArray(schemaMock.document.id, batch)
+
+  /** The SQL text of a mock `sql` node, or undefined for an operator node. */
+  const sqlText = (node: Record<string, unknown>) =>
+    Array.isArray(node.strings) ? node.strings.join('?') : undefined
+  const grants = (node: Record<string, unknown>) =>
+    sqlText(node)?.startsWith('cardinality(') && sqlText(node)?.endsWith(') > 0')
+
+  /** Every `where` condition, paired with the `set` of the same statement. */
+  function statements() {
+    return dbChainMockFns.set.mock.calls.map(([values], index) => ({
+      values,
+      conditions: flattenMockConditions(dbChainMockFns.where.mock.calls[index]?.[0]),
+    }))
+  }
+
+  /**
+   * Assigning `acl` fires the projection fan-out whether or not the value changes, so a
+   * document that already grants nobody must never be in an `acl` assignment.
+   */
+  it('assigns acl only to documents that still grant someone', async () => {
+    await revokeDocumentAcls(db, ['a', 'b'], scope)
+
+    const writes = statements().filter(({ values }) => 'acl' in values)
+    expect(writes).toHaveLength(1)
+    expect(writes[0].values).toEqual(REVOKED)
+    expect(writes[0].conditions.some(grants)).toBe(true)
+  })
+
+  it('clears leftover evidence on an already-empty ACL without assigning acl', async () => {
+    await revokeDocumentAcls(db, ['a', 'b'], scope)
+
+    const clears = statements().filter(({ values }) => !('acl' in values))
+    expect(clears).toHaveLength(1)
+    expect(clears[0].values).toEqual(EVIDENCE_ONLY)
+    expect(
+      clears[0].conditions.some(
+        (node) => node.type === 'not' && grants(node.condition as Record<string, unknown>)
+      )
+    ).toBe(true)
+  })
+
+  /** Each document in an `acl` assignment costs a rewrite of every one of its chunks' projection rows. */
+  it('assigns acl in batches of 25 and clears evidence in batches of 500', async () => {
+    const ids = Array.from({ length: 60 }, (_unused, index) => `doc-${index}`)
+
+    await revokeDocumentAcls(db, ids, scope)
+
+    const batchSizes = (writesAcl: boolean) =>
+      statements()
+        .filter(({ values }) => 'acl' in values === writesAcl)
+        .map(({ conditions }) => {
+          const inArray = conditions.find((node) => node.type === 'inArray')
+          return (inArray?.values as string[]).length
+        })
+    expect(batchSizes(true)).toEqual([25, 25, 10])
+    expect(batchSizes(false)).toEqual([60])
   })
 })
 

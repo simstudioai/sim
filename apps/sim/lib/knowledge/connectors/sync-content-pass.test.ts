@@ -1,6 +1,7 @@
 /** @vitest-environment node */
 import {
   dbChainMockFns,
+  flattenMockConditions,
   queueTableRows,
   resetDbChainMock as resetDatabaseMock,
   schemaMock,
@@ -146,6 +147,29 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+/**
+ * Every statement that assigns `acl`, with its flattened WHERE. Selects call `where` too, so
+ * each `set` is paired with the next `where` by call order.
+ */
+function aclAssignments() {
+  const whereOrder = dbChainMockFns.where.mock.invocationCallOrder
+  return dbChainMockFns.set.mock.calls
+    .map(([values], index) => {
+      const setOrder = dbChainMockFns.set.mock.invocationCallOrder[index]
+      const next = whereOrder.findIndex((order) => order > setOrder)
+      return {
+        values,
+        conditions: flattenMockConditions(dbChainMockFns.where.mock.calls[next]?.[0]),
+      }
+    })
+    .filter(({ values }) => 'acl' in values)
+}
+
+/** The guard that keeps an ACL already readable by nobody out of an `acl` assignment. */
+function grantsSomeone(node: Record<string, unknown>): boolean {
+  return Array.isArray(node.strings) && node.strings.join('?') === 'cardinality(?) > 0'
+}
+
 describe('completed listing removal counts', () => {
   interface AbsentDocument {
     id: string
@@ -164,6 +188,7 @@ describe('completed listing removal counts', () => {
     hard?: AbsentDocument[]
     fullSync?: boolean
     updated?: { id: string }[]
+    revoked?: AbsentDocument[]
   }) {
     resetDbChainMock()
     const soft = options.soft ?? []
@@ -181,7 +206,11 @@ describe('completed listing removal counts', () => {
     queueTableRows(schemaMock.document, [
       { ownedCount: 10, listedCount: 8, softCount: soft.length, hardCount: hard.length },
     ])
-    queueTableRows(schemaMock.document, [])
+    queueTableRows(schemaMock.document, options.revoked ?? [])
+    if (options.revoked?.length) {
+      queueTableRows(schemaMock.knowledgeConnector, [{ id: 'connector' }])
+      queueTableRows(schemaMock.document, [])
+    }
     if (!options.fullSync) {
       queueTableRows(schemaMock.document, soft)
       if (soft.length) {
@@ -270,6 +299,29 @@ describe('completed listing removal counts', () => {
     })
     expect(result.docsDeleted).toBe(1)
     expect(mocks.hardDelete.mock.calls.map(([ids]) => ids)).toEqual([['live'], ['already-hidden']])
+  })
+
+  /**
+   * Each document in an `acl` assignment costs a rewrite of its chunks' projection rows, so a
+   * backlog of absent documents is revoked a small batch at a time, and only where a grant is left.
+   */
+  it('revokes absent documents in small batches, only where they still grant someone', async () => {
+    const revoked = Array.from({ length: 30 }, (_unused, index) => absent(`absent-${index}`))
+    const result = await reconcile({ revoked })
+
+    const writes = aclAssignments()
+    expect(writes.map(({ values }) => values)).toEqual([
+      { acl: [], aclRequirements: [], aclVerifiedAt: null },
+      { acl: [], aclRequirements: [], aclVerifiedAt: null },
+    ])
+    expect(
+      writes.map(
+        ({ conditions }) =>
+          (conditions.find((node) => node.type === 'inArray')?.values as string[]).length
+      )
+    ).toEqual([25, 5])
+    expect(writes.every(({ conditions }) => conditions.some(grantsSomeone))).toBe(true)
+    expect(result.docsDeleted).toBe(0)
   })
 
   it('does not report a full-sync removal when the guarded delete removed no live rows', async () => {
@@ -761,6 +813,21 @@ describe('permission refresh through the shared content pass', () => {
       [expect.objectContaining({ contentHash: current.contentHash })],
       expect.any(Date)
     )
+  })
+
+  /** Assigning `acl` fires the projection fan-out even when the document already grants nobody. */
+  it('assigns acl while revoking a changed document only where it still grants someone', async () => {
+    sourceBody = { value: '<p>Current safe body</p>' }
+    await runPass({
+      access: 'admin',
+      permissionsOnly: true,
+      readCurrent: true,
+      existing: { ...current, contentHash: 'old-body' },
+      permissionStoredAfter: current,
+    })
+    const revocations = aclAssignments().filter(({ values }) => values.acl.length === 0)
+    expect(revocations).toHaveLength(1)
+    expect(revocations[0].conditions.some(grantsSomeone)).toBe(true)
   })
 
   it('never renews a changed body after its hydration fails', async () => {
