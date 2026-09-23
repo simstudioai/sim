@@ -35,6 +35,7 @@ import {
   isInlineFileReference,
 } from '@/lib/mothership/chat/inline-image-reference'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import { ChatHorizontalScroll } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/chat-horizontal-scroll'
 import {
   SourceChip,
   sourceLabel,
@@ -253,11 +254,11 @@ function highlight(code: string, language: string): string {
 const MARKDOWN_COMPONENTS = {
   table({ children }: { children?: React.ReactNode }) {
     return (
-      <div className='not-prose my-4 w-full overflow-x-auto [&_strong]:font-semibold'>
+      <ChatHorizontalScroll className='not-prose my-4 w-full [&_strong]:font-semibold'>
         <table className='min-w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0'>
           {children}
         </table>
-      </div>
+      </ChatHorizontalScroll>
     )
   },
   thead({ children }: { children?: React.ReactNode }) {
@@ -290,9 +291,11 @@ const MARKDOWN_COMPONENTS = {
 
     if (!codeString) {
       return (
-        <pre className='not-prose my-6 overflow-x-auto rounded-lg bg-[var(--surface-5)] p-4 font-mono text-[var(--text-primary)] text-small leading-[21px] dark:bg-[var(--code-bg)]'>
-          <code>{children}</code>
-        </pre>
+        <ChatHorizontalScroll className='not-prose my-6 rounded-lg bg-[var(--surface-5)] dark:bg-[var(--code-bg)]'>
+          <pre className='m-0 w-max min-w-full p-4 font-mono text-[var(--text-primary)] text-small leading-[21px]'>
+            <code>{children}</code>
+          </pre>
+        </ChatHorizontalScroll>
       )
     }
 
@@ -307,12 +310,12 @@ const MARKDOWN_COMPONENTS = {
             className='-mr-2 text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-secondary)]'
           />
         </div>
-        <div className='code-editor-theme bg-[var(--surface-5)] dark:bg-[var(--code-bg)]'>
+        <ChatHorizontalScroll className='code-editor-theme bg-[var(--surface-5)] dark:bg-[var(--code-bg)]'>
           <pre
-            className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[var(--text-primary)] text-small leading-[21px]'
+            className='m-0 w-max min-w-full whitespace-pre p-4 font-mono text-[var(--text-primary)] text-small leading-[21px]'
             dangerouslySetInnerHTML={{ __html: html }}
           />
-        </div>
+        </ChatHorizontalScroll>
       </div>
     )
   },

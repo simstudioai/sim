@@ -12,7 +12,13 @@ import {
   useRef,
   useState,
 } from 'react'
-import { type ClipboardContent, cn } from '@sim/emcn'
+import {
+  type ClipboardContent,
+  cn,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  useScrollEdges,
+} from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
@@ -391,6 +397,10 @@ export function MothershipChat({
   const scrollElementRef = useRef<HTMLDivElement | null>(null)
   const { ref: autoScrollRef } = useAutoScroll(isStreamActive || lastRowAnimating)
   const sizerRef = useRef<HTMLDivElement | null>(null)
+  const scrollEdges = useScrollEdges(scrollElementRef, {
+    contentRef: sizerRef,
+    enabled: !isLoading,
+  })
   const scrollerPaddingRef = useRef<{ top: number; bottom: number } | null>(null)
   const sizerFloorAppliedRef = useRef(0)
   const heldHighWaterRef = useRef(0)
@@ -823,7 +833,12 @@ export function MothershipChat({
             : undefined
         }
       >
-        <div ref={setScrollElement} className={styles.scrollContainer} onCopy={handleCopy}>
+        <div
+          ref={setScrollElement}
+          className={cn(styles.scrollContainer, scrollFadeClass)}
+          {...scrollFadeAttributes(scrollEdges)}
+          onCopy={handleCopy}
+        >
           {isLoading && !hasMessages ? (
             <MothershipChatSkeleton layout={layout} />
           ) : (
