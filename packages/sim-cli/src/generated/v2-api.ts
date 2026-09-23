@@ -20257,7 +20257,7 @@ export const V2_OPERATIONS = {
       password: {
         kind: 'string',
         describe:
-          'Write-only password. Required whenever `authType` is `password`, and rejected otherwise. Never readable back.',
+          'Write-only password of 15 to 1024 characters, not only whitespace. Required whenever `authType` is `password`, and rejected otherwise. Never readable back. Taken literally, except that a request from the Sim agent resolves a whole-value `{{ENV_VAR}}` reference to that variable before the rules apply.',
       },
       allowedEmails: {
         kind: 'array',
@@ -21635,7 +21635,7 @@ export const V2_OPERATIONS = {
       password: {
         kind: 'string',
         describe:
-          'Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400.',
+          'Password of 15 to 1024 characters for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. Taken literally, except that a request from the Sim agent resolves a whole-value `{{ENV_VAR}}` reference to that variable before the rules apply.',
       },
       allowedEmails: {
         kind: 'array',

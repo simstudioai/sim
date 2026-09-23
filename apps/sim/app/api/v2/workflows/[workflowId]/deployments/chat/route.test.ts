@@ -2,8 +2,10 @@
  * @vitest-environment node
  */
 import {
+  environmentUtilsMockFns,
   MockV2ApiKeyUnauthenticatedError,
   resetDbChainMock,
+  resetEnvironmentUtilsMock,
   resetEnvMock,
   setEnv,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
@@ -72,6 +74,8 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
+import { markCopilotRequest } from '@/lib/api/server/routes/copilot-request'
+import { performChatDeploy as realPerformChatDeploy } from '@/lib/workflows/orchestration/chat-deploy'
 import { DELETE, GET, PUT } from '@/app/api/v2/workflows/[workflowId]/deployments/chat/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -480,6 +484,91 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
       await put(validBody)
 
       expect(mocks.validateChatDeployAuth).not.toHaveBeenCalled()
+    })
+
+    describe('password references', () => {
+      const passwordBody = (password: string) => ({ ...validBody, authType: 'password', password })
+
+      /** Admitted exactly as the Sim agent's in-process CLI transport admits its calls. */
+      const agentPut = (body: unknown) => {
+        const request = new NextRequest(PATH, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        markCopilotRequest(request, { userId: 'user-1', workspaceId: WORKSPACE_ID, chatId: 'c-1' })
+        return PUT(request, routeContext)
+      }
+
+      const environment = (variables: Record<string, string>) =>
+        environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables.mockResolvedValueOnce(
+          Object.fromEntries(
+            Object.entries(variables).map(([name, value]) => [
+              name,
+              { value, scope: 'workspace', visible: false },
+            ])
+          )
+        )
+
+      afterEach(resetEnvironmentUtilsMock)
+
+      it("deploys with the value of the agent's referenced variable", async () => {
+        environment({ CHAT_PW: 'resolved-chat-password' })
+
+        const response = await agentPut(passwordBody('{{CHAT_PW}}'))
+
+        expect(response.status).toBe(200)
+        expect(
+          environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables
+        ).toHaveBeenCalledWith('user-1', WORKSPACE_ID, ['CHAT_PW'])
+        expect(mocks.performChatDeploy.mock.calls[0][0].password).toBe('resolved-chat-password')
+      })
+
+      it('refuses an unset variable by name instead of deploying the placeholder', async () => {
+        const response = await agentPut(passwordBody('{{CHAT_PW}}'))
+
+        expect(response.status).toBe(400)
+        expect((await response.json()).error.message).toBe(
+          'Environment variable "CHAT_PW" referenced by password is not set for this workspace or user. Set it first, or pass the raw value.'
+        )
+        expect(mocks.performChatDeploy).not.toHaveBeenCalled()
+      })
+
+      it('holds the resolved value to the chat password rules', async () => {
+        mocks.performChatDeploy.mockImplementation(realPerformChatDeploy)
+        environment({ CHAT_PW: 'short' })
+
+        const response = await agentPut(passwordBody('{{CHAT_PW}}'))
+
+        expect(response.status).toBe(400)
+        expect((await response.json()).error.message).toBe(
+          'Password must be at least 15 characters'
+        )
+      })
+
+      it('keeps a reference literal for an API key caller, under the same rules', async () => {
+        mocks.performChatDeploy.mockImplementation(realPerformChatDeploy)
+
+        const response = await put(passwordBody('{{SHORT}}'))
+
+        expect(response.status).toBe(400)
+        expect((await response.json()).error.message).toBe(
+          'Password must be at least 15 characters'
+        )
+        expect(
+          environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables
+        ).not.toHaveBeenCalled()
+      })
+
+      it('stores a long literal reference verbatim for an API key caller', async () => {
+        const response = await put(passwordBody('{{A_LONG_LITERAL_NAME}}'))
+
+        expect(response.status).toBe(200)
+        expect(mocks.performChatDeploy.mock.calls[0][0].password).toBe('{{A_LONG_LITERAL_NAME}}')
+        expect(
+          environmentUtilsMockFns.mockResolveEffectiveEnvironmentVariables
+        ).not.toHaveBeenCalled()
+      })
     })
   })
 

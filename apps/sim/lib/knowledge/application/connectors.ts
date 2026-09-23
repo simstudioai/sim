@@ -17,6 +17,7 @@ import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { requireCurrentHumanRole } from '@/lib/core/application'
+import { resolvePrincipalEnvironmentVariable } from '@/lib/core/application/environment-reference'
 import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
 import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import {
@@ -31,6 +32,7 @@ import {
 import { redactKnownSensitiveValues } from '@/lib/core/security/redaction'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
+import { parseExactEnvironmentReference } from '@/lib/environment/reference'
 import { resolveEffectiveEnvironmentVariables } from '@/lib/environment/utils'
 import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
@@ -817,17 +819,12 @@ async function resolveConnectorApiKey(
   workspaceId: string | undefined
 ): Promise<string | undefined> {
   if (apiKey === undefined) return undefined
-  const name = apiKey.trim().match(/^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/)?.[1]
+  const name = parseExactEnvironmentReference(apiKey.trim())
   if (!name) {
     await rejectShellStyleSecretReference(apiKey, principal, workspaceId)
     return apiKey
   }
-  const userId = resolvePrincipalSubjectUserId(principal)
-  if (!userId) {
-    throw new OrchestrationError('forbidden', 'Secret references require a user identity')
-  }
-  const variables = await resolveEffectiveEnvironmentVariables(userId, workspaceId, [name])
-  const value = Object.hasOwn(variables, name) ? variables[name].value : undefined
+  const value = await resolvePrincipalEnvironmentVariable(principal, workspaceId, name)
   if (!value) {
     throw new OrchestrationError('validation', `Secret "${name}" is unavailable or empty`)
   }

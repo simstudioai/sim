@@ -2,6 +2,7 @@ import { z } from 'zod'
 import {
   isCanonicalBase64,
   noInputSchema,
+  orExactEnvironmentReference,
   requiredFieldSchema,
   versionNumberSchema,
   workspaceFileIdSchema,
@@ -698,10 +699,10 @@ export const v2UpsertFileShareBodySchema = z
       .describe(
         'How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password.'
       ),
-    password: sharePasswordSchema
+    password: orExactEnvironmentReference(sharePasswordSchema)
       .optional()
       .describe(
-        'Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400.'
+        'Password of 15 to 1024 characters for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. Taken literally, except that a request from the Sim agent resolves a whole-value `{{ENV_VAR}}` reference to that variable before the rules apply.'
       ),
     allowedEmails: z
       .array(z.string().min(1, 'allowedEmails entries cannot be empty').max(320))

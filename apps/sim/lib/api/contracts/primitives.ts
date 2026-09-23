@@ -1,6 +1,7 @@
 import { isPlainRecord } from '@sim/utils/object'
 import { z } from 'zod'
 import { setRecordValue } from '@/lib/core/utils/records'
+import { EXACT_ENVIRONMENT_REFERENCE } from '@/lib/environment/reference'
 import { PII_LANGUAGE_CODES, stripNerEntities } from '@/lib/guardrails/pii-entities'
 import { validateRegexPattern } from '@/lib/guardrails/validate_regex'
 
@@ -141,6 +142,26 @@ export function flattenFieldErrors<TFields extends string>(
 
 export const noInputSchema = z.object({}).strict()
 export type NoInput = z.output<typeof noInputSchema>
+
+/**
+ * `literal`, or a whole-value `{{NAME}}` environment-variable reference that
+ * `literal` would refuse. A refused non-reference reports `literal`'s own
+ * messages. Built as one refined string rather than a union so the field keeps a
+ * plain `string` shape in the generated OpenAPI and CLI, where a union becomes a
+ * JSON-only flag. `literal`'s length cap bounds references too.
+ */
+export function orExactEnvironmentReference(literal: z.ZodString) {
+  const capped =
+    literal.maxLength === null
+      ? z.string()
+      : z.string().max(literal.maxLength, { error: 'Password is too long', abort: true })
+  return capped.superRefine((value, ctx) => {
+    if (EXACT_ENVIRONMENT_REFERENCE.test(value)) return
+    for (const issue of literal.safeParse(value).error?.issues ?? []) {
+      ctx.addIssue({ code: 'custom', message: issue.message })
+    }
+  })
+}
 
 /**
  * Accepts canonical RFC 4648 base64, including the empty encoding used for a

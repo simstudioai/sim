@@ -1,9 +1,8 @@
 import { ImapFlow } from 'imapflow'
 import { validateDatabaseHost } from '@/lib/core/security/input-validation.server'
+import { EXACT_ENVIRONMENT_REFERENCE } from '@/lib/environment/reference'
 import { resolveEffectiveEnvironmentVariables } from '@/lib/environment/utils'
 import { containsReference } from '@/lib/workflows/sanitization/references'
-
-const EXACT_ENVIRONMENT_REFERENCE = /^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/
 
 export class ImapConnectionPolicyError extends Error {
   constructor(readonly code: 'context' | 'hidden_auth' | 'destination' | 'transport') {

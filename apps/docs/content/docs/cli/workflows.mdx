@@ -441,7 +441,7 @@ Publish or replace a workflow’s chat deployment (OAuth login or personal API k
 | `--description <value>` | No | Description shown to visitors. Omitted clears it. |
 | `--customizations <json\|@file>` | No | Presentation overrides. Omitted fields take platform defaults. (JSON, or @path / @- to read a file or stdin). |
 | `--auth-type <value>` | No | How visitors are gated. `public` leaves the chat open to anyone holding the URL. Accepted values: `public`, `password`, `email`, `sso`. |
-| `--password <value>` | No | Write-only password. Required whenever `authType` is `password`, and rejected otherwise. Never readable back. |
+| `--password <value>` | No | Write-only password of 15 to 1024 characters, not only whitespace. Required whenever `authType` is `password`, and rejected otherwise. Never readable back. Taken literally, except that a request from the Sim agent resolves a whole-value `&#123;&#123;ENV_VAR&#125;&#125;` reference to that variable before the rules apply. |
 | `--allowed-emails <json\|@file>` | No | Email addresses or domains admitted under `email` and `sso` gating. At least one is required for those modes. (JSON, or @path / @- to read a file or stdin). |
 | `--output-configs <json\|@file>` | No | Block outputs to surface to visitors. Omitted surfaces none. (JSON, or @path / @- to read a file or stdin). |
 | `--include-thinking` | No | Allow visitors to receive provider thinking events. |

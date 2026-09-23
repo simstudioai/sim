@@ -294,21 +294,24 @@ describe('knowledge connector application use cases', () => {
     )
   })
 
-  it('rejects a $NAME spelling of an existing secret instead of storing it as the key', async () => {
-    mocks.resolveEnvironment.mockResolvedValue({ GITLAB_PAT: { value: 'resolved-pat' } })
-    await expect(
-      createKnowledgeConnector.execute({
-        principal: patPrincipal,
-        input: { ...patInput, apiKey: ' $GITLAB_PAT ' },
+  it.each([{ GITLAB_PAT: { value: 'resolved-pat' } }, { GITLAB_PAT: { value: '' } }])(
+    'rejects a shell-style reference to an existing secret instead of storing it as the key',
+    async (variables) => {
+      mocks.resolveEnvironment.mockResolvedValue(variables)
+      await expect(
+        createKnowledgeConnector.execute({
+          principal: patPrincipal,
+          input: { ...patInput, apiKey: ' $GITLAB_PAT ' },
+        })
+      ).rejects.toMatchObject({
+        code: 'validation',
+        message:
+          'Secret references use {{GITLAB_PAT}}, not $GITLAB_PAT. Pass apiKey as "{{GITLAB_PAT}}" to use the secret.',
       })
-    ).rejects.toMatchObject({
-      code: 'validation',
-      message:
-        'Secret references use {{GITLAB_PAT}}, not $GITLAB_PAT. Pass apiKey as "{{GITLAB_PAT}}" to use the secret.',
-    })
-    expect(mocks.resolveEnvironment).toHaveBeenCalledWith('writer', 'workspace-b', ['GITLAB_PAT'])
-    expect(mocks.createConnector).not.toHaveBeenCalled()
-  })
+      expect(mocks.resolveEnvironment).toHaveBeenCalledWith('writer', 'workspace-b', ['GITLAB_PAT'])
+      expect(mocks.createConnector).not.toHaveBeenCalled()
+    }
+  )
 
   it('passes a $-prefixed literal through when no secret has that name', async () => {
     mocks.resolveEnvironment.mockResolvedValue({})

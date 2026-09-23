@@ -5785,9 +5785,8 @@
             "enum": ["public", "password", "email", "sso"]
           },
           "password": {
-            "description": "Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400.",
+            "description": "Password of 15 to 1024 characters for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. Taken literally, except that a request from the Sim agent resolves a whole-value `{{ENV_VAR}}` reference to that variable before the rules apply.",
             "type": "string",
-            "minLength": 15,
             "maxLength": 1024
           },
           "allowedEmails": {
