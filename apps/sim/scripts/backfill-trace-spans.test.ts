@@ -8,6 +8,7 @@ const {
   mockPrimaryRead,
   mockRead,
   mockInfo,
+  mockWarn,
   mockDataRead,
   mockTransaction,
   mockUpdate,
@@ -17,6 +18,7 @@ const {
   mockPrimaryRead: vi.fn(),
   mockRead: vi.fn(),
   mockInfo: vi.fn(),
+  mockWarn: vi.fn(),
   mockDataRead: vi.fn(),
   mockTransaction: vi.fn(),
   mockUpdate: vi.fn(),
@@ -48,7 +50,7 @@ vi.mock('@sim/db', () => {
 })
 
 vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ info: mockInfo, error: vi.fn(), warn: vi.fn(), debug: vi.fn() }),
+  createLogger: () => ({ info: mockInfo, error: vi.fn(), warn: mockWarn, debug: vi.fn() }),
 }))
 
 vi.mock('@/lib/logs/execution/trace-store', () => ({
@@ -93,6 +95,7 @@ describe('backfill options', () => {
       concurrency: 4,
       maxInFlightMiB: 512,
       checkOnly: false,
+      skipOversized: false,
       order: 'oldest',
       before,
     })
@@ -101,6 +104,7 @@ describe('backfill options', () => {
       concurrency: 8,
       maxInFlightMiB: 512,
       checkOnly: true,
+      skipOversized: false,
       order: 'oldest',
       before,
     })
@@ -115,6 +119,11 @@ describe('backfill options', () => {
       concurrency: 500,
       maxInFlightMiB: 128,
     })
+  })
+
+  it('requires explicit opt-in to skip oversized records', () => {
+    expect(parseArgs([]).skipOversized).toBe(false)
+    expect(parseArgs(['--skip-oversized']).skipOversized).toBe(true)
   })
 
   it('preserves microseconds, ordering, and cutoff when resuming a checkpoint', () => {
@@ -143,6 +152,8 @@ describe('backfill options', () => {
     '--concurrency=-1',
     '--concurrency=0',
     '--concurrency=2=3',
+    '--skip-oversized=false',
+    '--skip-oversized=true',
     '--unknown',
   ])('rejects invalid input: %s', (arg) => {
     expect(() => parseArgs([arg])).toThrow()
@@ -252,6 +263,7 @@ describe('trace backfill', () => {
     concurrency: 1,
     maxInFlightMiB: 512,
     checkOnly: false,
+    skipOversized: false,
     order: 'oldest' as const,
     before: '2026-09-17T20:00:00.000Z',
   }
@@ -292,6 +304,7 @@ describe('trace backfill', () => {
       .mockResolvedValueOnce([candidate])
     await expect(backfillTraceStorage(options)).resolves.toEqual({
       migrated: 1,
+      skippedOversized: 0,
     })
     expect(mockPrimaryRead).toHaveBeenCalledExactlyOnceWith(0)
     expect(mockRead).toHaveBeenCalledTimes(7)
@@ -369,23 +382,114 @@ describe('trace backfill', () => {
     expect(mockDataRead).toHaveBeenCalledTimes(2)
     expect(mockExternalize).not.toHaveBeenCalled()
     expect(mockTransaction).not.toHaveBeenCalled()
+    expect(mockWarn).not.toHaveBeenCalled()
+    expect(mockInfo.mock.calls.some(([message]) => message === 'Backfill checkpoint')).toBe(false)
   })
 
-  it('fails before uploading when the payload grows past its reserved capacity', async () => {
+  it('reports oversized rows without reading them and migrates later pages when opted in', async () => {
+    const oversizedMetadata = { ...candidateMetadata, id: 'log-oversized' }
+    const oversizedSize = {
+      id: oversizedMetadata.id,
+      payloadBytes: MAX_DURABLE_LARGE_VALUE_BYTES + 1,
+    }
+    const nextMetadata = {
+      id: 'log-next',
+      startedAt: '2026-09-16T20:00:01.123456Z',
+    }
+    const nextCandidate = { ...candidate, id: nextMetadata.id, executionId: 'execution-next' }
+    mockDataRead
+      .mockResolvedValueOnce([candidateMetadata, oversizedMetadata])
+      .mockResolvedValueOnce([candidate, oversizedSize])
+      .mockResolvedValueOnce([candidate])
+      .mockResolvedValueOnce([nextMetadata])
+      .mockResolvedValueOnce([nextCandidate])
+      .mockResolvedValueOnce([nextCandidate])
+
+    await expect(
+      backfillTraceStorage({ ...options, maxBatches: 2, skipOversized: true })
+    ).resolves.toEqual({ migrated: 2, skippedOversized: 1 })
+
+    expect(mockDataRead).toHaveBeenCalledTimes(6)
+    expect(mockExternalize).toHaveBeenCalledTimes(2)
+    expect(mockUpdate).toHaveBeenCalledTimes(2)
+    expect(mockWarn).toHaveBeenCalledExactlyOnceWith(
+      'Skipping oversized execution log; leaving data inline',
+      {
+        executionLogId: oversizedMetadata.id,
+        payloadBytes: oversizedSize.payloadBytes,
+        limitBytes: MAX_DURABLE_LARGE_VALUE_BYTES,
+      }
+    )
+    expect(mockInfo).toHaveBeenCalledWith(
+      'Backfill checkpoint',
+      expect.objectContaining(oversizedMetadata)
+    )
+    expect(mockInfo).toHaveBeenLastCalledWith(
+      'Backfill checkpoint',
+      expect.objectContaining(nextMetadata)
+    )
+    expect(mockInfo).toHaveBeenCalledWith(
+      expect.stringContaining('migrated 2 | skipped 1 (oversized 1)'),
+      expect.anything()
+    )
+  })
+
+  it.each(['oldest', 'newest'] as const)(
+    'advances a fully oversized page in %s order without fetching or writing payloads',
+    async (order) => {
+      mockDataRead
+        .mockResolvedValueOnce([candidateMetadata])
+        .mockResolvedValueOnce([
+          { id: candidate.id, payloadBytes: MAX_DURABLE_LARGE_VALUE_BYTES + 1 },
+        ])
+
+      await expect(
+        backfillTraceStorage({ ...options, order, skipOversized: true })
+      ).resolves.toEqual({ migrated: 0, skippedOversized: 1 })
+
+      expect(mockDataRead).toHaveBeenCalledTimes(2)
+      expect(mockExternalize).not.toHaveBeenCalled()
+      expect(mockTransaction).not.toHaveBeenCalled()
+      expect(mockInfo).toHaveBeenCalledWith(
+        'Backfill checkpoint',
+        expect.objectContaining(candidateMetadata)
+      )
+    }
+  )
+
+  it('allows a payload exactly at the durable size limit with skipping enabled', async () => {
+    const atLimit = { ...candidate, payloadBytes: MAX_DURABLE_LARGE_VALUE_BYTES }
     mockDataRead
       .mockResolvedValueOnce([candidateMetadata])
-      .mockResolvedValueOnce([candidate])
-      .mockResolvedValueOnce([
-        { ...candidate, payloadBytes: candidate.payloadBytes + 1, executionData: null },
-      ])
-    await expect(backfillTraceStorage(options)).rejects.toMatchObject({
-      cause: expect.objectContaining({ message: expect.stringContaining('grew') }),
+      .mockResolvedValueOnce([atLimit])
+      .mockResolvedValueOnce([atLimit])
+
+    await expect(backfillTraceStorage({ ...options, skipOversized: true })).resolves.toEqual({
+      migrated: 1,
+      skippedOversized: 0,
     })
-    expect(mockExternalize).not.toHaveBeenCalled()
-    expect(mockTransaction).not.toHaveBeenCalled()
+    expect(mockWarn).not.toHaveBeenCalled()
+    expect(mockUpdate).toHaveBeenCalledOnce()
   })
 
-  it('preserves the previous checkpoint after shutdown interrupts a page', async () => {
+  it.each([false, true])(
+    'still rejects payload growth with skipOversized=%s',
+    async (skipOversized) => {
+      mockDataRead
+        .mockResolvedValueOnce([candidateMetadata])
+        .mockResolvedValueOnce([candidate])
+        .mockResolvedValueOnce([
+          { ...candidate, payloadBytes: candidate.payloadBytes + 1, executionData: null },
+        ])
+      await expect(backfillTraceStorage({ ...options, skipOversized })).rejects.toMatchObject({
+        cause: expect.objectContaining({ message: expect.stringContaining('grew') }),
+      })
+      expect(mockExternalize).not.toHaveBeenCalled()
+      expect(mockTransaction).not.toHaveBeenCalled()
+    }
+  )
+
+  it('preserves the previous checkpoint when shutdown interrupts a page with an oversized row', async () => {
     const controller = new AbortController()
     const cursor = {
       version: 1 as const,
@@ -395,15 +499,26 @@ describe('trace backfill', () => {
       id: 'previous-log',
     }
     mockDataRead
-      .mockResolvedValueOnce([candidateMetadata, { ...candidateMetadata, id: 'log-2' }])
-      .mockResolvedValueOnce([candidate, { ...candidate, id: 'log-2' }])
+      .mockResolvedValueOnce([
+        candidateMetadata,
+        { ...candidateMetadata, id: 'log-2' },
+        { ...candidateMetadata, id: 'log-oversized' },
+      ])
+      .mockResolvedValueOnce([
+        candidate,
+        { ...candidate, id: 'log-2' },
+        { id: 'log-oversized', payloadBytes: MAX_DURABLE_LARGE_VALUE_BYTES + 1 },
+      ])
       .mockResolvedValueOnce([candidate])
     mockExternalize.mockImplementationOnce(async () => {
       controller.abort()
       return { traceStoreRef: { key: 'stored-key' } }
     })
-    await expect(backfillTraceStorage({ ...options, cursor }, controller.signal)).resolves.toEqual({
+    await expect(
+      backfillTraceStorage({ ...options, cursor, skipOversized: true }, controller.signal)
+    ).resolves.toEqual({
       migrated: 1,
+      skippedOversized: 1,
     })
     expect(mockUpdate).toHaveBeenCalledOnce()
     const checkpoints = mockInfo.mock.calls.filter(([message]) => message === 'Backfill checkpoint')
@@ -451,13 +566,13 @@ describe('trace backfill', () => {
     await started
     await vi.advanceTimersByTimeAsync(5000)
     expect(mockInfo).toHaveBeenCalledWith(
-      'Progress: migrated 0 | skipped 0 | 0.0 rows/s | elapsed 5s',
+      'Progress: migrated 0 | skipped 0 (oversized 0) | 0.0 rows/s | elapsed 5s',
       expect.objectContaining({ rssMiB: expect.any(Number) })
     )
     finishUpload()
     await run
     expect(mockInfo).toHaveBeenCalledWith(
-      'Progress: migrated 1 | skipped 0 | 0.2 rows/s | elapsed 5s',
+      'Progress: migrated 1 | skipped 0 (oversized 0) | 0.2 rows/s | elapsed 5s',
       expect.objectContaining({
         stages: expect.objectContaining({ externalize: { calls: 1, averageMs: 5000 } }),
       })
@@ -486,15 +601,20 @@ describe('trace backfill', () => {
     expect(mockRead.mock.calls.map(([limit]) => limit)).toEqual([0, 0, 0, 0, 1000])
   })
 
-  it('does not update the log or start the next candidate after storage fails', async () => {
-    mockDataRead
-      .mockResolvedValueOnce([candidateMetadata, { ...candidateMetadata, id: 'log-2' }])
-      .mockResolvedValueOnce([candidate, { ...candidate, id: 'log-2' }])
-      .mockResolvedValueOnce([candidate])
-    const error = new Error('storage denied')
-    mockExternalize.mockRejectedValueOnce(error)
-    await expect(backfillTraceStorage(options)).rejects.toMatchObject({ cause: error })
-    expect(mockExternalize).toHaveBeenCalledOnce()
-    expect(mockTransaction).not.toHaveBeenCalled()
-  })
+  it.each([false, true])(
+    'still stops on storage failures with skipOversized=%s',
+    async (skipOversized) => {
+      mockDataRead
+        .mockResolvedValueOnce([candidateMetadata, { ...candidateMetadata, id: 'log-2' }])
+        .mockResolvedValueOnce([candidate, { ...candidate, id: 'log-2' }])
+        .mockResolvedValueOnce([candidate])
+      const error = new Error('storage denied')
+      mockExternalize.mockRejectedValueOnce(error)
+      await expect(backfillTraceStorage({ ...options, skipOversized })).rejects.toMatchObject({
+        cause: error,
+      })
+      expect(mockExternalize).toHaveBeenCalledOnce()
+      expect(mockTransaction).not.toHaveBeenCalled()
+    }
+  )
 })

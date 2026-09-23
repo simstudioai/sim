@@ -21,6 +21,7 @@
  *   bun apps/sim/scripts/backfill-trace-spans.ts --concurrency=50
  *   bun apps/sim/scripts/backfill-trace-spans.ts --concurrency=50 --order=newest --before=<ISO-timestamp>
  *   bun apps/sim/scripts/backfill-trace-spans.ts --concurrency=50 --cursor=<checkpoint-token>
+ *   bun apps/sim/scripts/backfill-trace-spans.ts --concurrency=10 --skip-oversized --cursor=<checkpoint-token>
  *   bun apps/sim/scripts/backfill-trace-spans.ts --concurrency=200 --max-in-flight-mib=512 --cursor=<checkpoint-token>
  *
  * Uses the configured database URLs and object storage. Stops on the first
@@ -36,6 +37,10 @@
  * exclusive start-time cutoff (defaults to startup). Each completed page logs
  * a cursor that preserves the cutoff and order for restart. --max-batches
  * limits pages examined, including pages with no eligible payloads.
+ * --skip-oversized explicitly leaves payloads above the durable storage limit
+ * inline, logs each skipped ID and size, and reports their count. Completed
+ * pages advance past these rows; retry them from an earlier checkpoint after
+ * addressing their size. All other failures still stop the run.
  */
 
 import { db, dbFor } from '@sim/db'
@@ -101,6 +106,7 @@ interface Options {
   concurrency: number
   maxInFlightMiB: number
   checkOnly: boolean
+  skipOversized: boolean
   order: z.infer<typeof orderSchema>
   before: string
   cursor?: BackfillCursor
@@ -112,6 +118,7 @@ export function parseArgs(argv: string[]): Options {
     concurrency: DEFAULT_CONCURRENCY,
     maxInFlightMiB: DEFAULT_MAX_IN_FLIGHT_MIB,
     checkOnly: false,
+    skipOversized: false,
     order: 'oldest',
     before: new Date().toISOString(),
   }
@@ -120,6 +127,10 @@ export function parseArgs(argv: string[]): Options {
   for (const arg of argv) {
     if (arg === '--check-only') {
       options.checkOnly = true
+      continue
+    }
+    if (arg === '--skip-oversized') {
+      options.skipOversized = true
       continue
     }
     const [name, value] = arg.split('=')
@@ -262,14 +273,15 @@ export async function runBackfillWorkers<T>(
 export async function backfillTraceStorage(
   options: Options,
   signal?: AbortSignal
-): Promise<{ migrated: number }> {
+): Promise<{ migrated: number; skippedOversized: number }> {
   await checkDatabase()
   logger.info('Database schema and read checks passed')
-  if (options.checkOnly) return { migrated: 0 }
+  if (options.checkOnly) return { migrated: 0, skippedOversized: 0 }
 
   const execDb = dbFor('exec')
   let migrated = 0
   let skipped = 0
+  let skippedOversized = 0
   let cursor = options.cursor
   const direction = options.order === 'oldest' ? asc : desc
   const pending = and(
@@ -309,7 +321,7 @@ export async function backfillTraceStorage(
     const elapsedMs = Date.now() - startedAt
     const rowsPerSecond = elapsedMs > 0 ? migrated / (elapsedMs / 1000) : 0
     logger.info(
-      `Progress: migrated ${migrated} | skipped ${skipped} | ${rowsPerSecond.toFixed(1)} rows/s | elapsed ${formatDuration(elapsedMs)}`,
+      `Progress: migrated ${migrated} | skipped ${skipped} (oversized ${skippedOversized}) | ${rowsPerSecond.toFixed(1)} rows/s | elapsed ${formatDuration(elapsedMs)}`,
       {
         rssMiB: Math.round(process.memoryUsage().rss / MIB),
         stages: Object.fromEntries(
@@ -384,14 +396,24 @@ export async function backfillTraceStorage(
           )
           .limit(rows.length)
       )
+      const bytesById = new Map<string, number>()
       for (const { id, payloadBytes } of sizes) {
         if (payloadBytes > MAX_DURABLE_LARGE_VALUE_BYTES) {
-          throw new Error(
-            `Execution log ${id} exceeds the ${MAX_DURABLE_LARGE_VALUE_BYTES}-byte backfill limit`
-          )
+          if (!options.skipOversized) {
+            throw new Error(
+              `Execution log ${id} is ${payloadBytes} bytes, exceeding the ${MAX_DURABLE_LARGE_VALUE_BYTES}-byte backfill limit; use --skip-oversized to leave oversized logs inline and continue`
+            )
+          }
+          skippedOversized++
+          logger.warn('Skipping oversized execution log; leaving data inline', {
+            executionLogId: id,
+            payloadBytes,
+            limitBytes: MAX_DURABLE_LARGE_VALUE_BYTES,
+          })
+          continue
         }
+        bytesById.set(id, payloadBytes)
       }
-      const bytesById = new Map(sizes.map(({ id, payloadBytes }) => [id, payloadBytes]))
       const candidates = rows.flatMap(({ id }) => {
         const payloadBytes = bytesById.get(id)
         return payloadBytes === undefined ? [] : [{ id, payloadBytes }]
@@ -515,7 +537,7 @@ export async function backfillTraceStorage(
     reportCheckpoint()
   }
 
-  return { migrated }
+  return { migrated, skippedOversized }
 }
 
 async function main(): Promise<void> {
@@ -526,6 +548,7 @@ async function main(): Promise<void> {
     concurrency: options.concurrency,
     maxInFlightMiB: options.maxInFlightMiB,
     checkOnly: options.checkOnly,
+    skipOversized: options.skipOversized,
   })
   const controller = new AbortController()
   const stop = (signal: NodeJS.Signals) => {
