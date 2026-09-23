@@ -25,6 +25,7 @@ vi.mock('@/lib/knowledge/documents/processing-recovery-queue', () => ({
 
 import {
   checkDeferredDocumentRetry,
+  DEFERRED_RETRY_CHECK_TERMINAL_MS,
   DEFERRED_RETRY_LOST_ERROR,
   DEFERRED_RETRY_RECHECK_MS,
 } from '@/lib/knowledge/documents/deferred-retry-check'
@@ -173,6 +174,58 @@ describe('checkDeferredDocumentRetry', () => {
   it('completes as a no-op for a document that no longer exists', async () => {
     expect(await check(null)).toBeUndefined()
     expect(failedWrite()).toBeUndefined()
+  })
+
+  describe('database failures while checking', () => {
+    const lockTimeout = () =>
+      Object.assign(new Error('Failed query: private SQL'), {
+        query: 'private SQL',
+        cause: Object.assign(new Error('canceling statement due to lock timeout'), {
+          code: '55P03',
+        }),
+      })
+
+    function expectDatabaseDeferral(result: unknown) {
+      expect(result).toMatchObject({ outcome: 'deferred', consumeAttempt: false })
+      const backoff = (result as { minimumBackoffMs: number }).minimumBackoffMs
+      expect(backoff).toBeGreaterThan(0)
+      expect(backoff).toBeLessThanOrEqual(DEFERRED_RETRY_RECHECK_MS)
+    }
+
+    it('postpones the check without spending an attempt when the read fails', async () => {
+      vi.setSystemTime(OVERDUE)
+      dbChainMockFns.limit.mockRejectedValueOnce(lockTimeout())
+      expectDatabaseDeferral(await checkDeferredDocumentRetry(PAYLOAD, context))
+    })
+
+    it('postpones the check without spending an attempt when the fenced write fails', async () => {
+      dbChainMockFns.returning.mockRejectedValueOnce(lockTimeout())
+      expectDatabaseDeferral(await check(DEFERRED_ROW))
+    })
+
+    it('backs off longer the longer the check has been overdue, up to the recheck interval', async () => {
+      vi.setSystemTime(DEFERRED_UNTIL.getTime() + QUEUED_DISPATCH_GRACE_MS + 6 * 60 * 60 * 1000)
+      dbChainMockFns.limit.mockRejectedValueOnce(lockTimeout())
+      const late = (await checkDeferredDocumentRetry(PAYLOAD, context)) as {
+        minimumBackoffMs: number
+      }
+      expect(late.minimumBackoffMs).toBeGreaterThanOrEqual(DEFERRED_RETRY_RECHECK_MS * 0.8)
+      expect(late.minimumBackoffMs).toBeLessThanOrEqual(DEFERRED_RETRY_RECHECK_MS * 1.2)
+    })
+
+    it('spends an attempt on an error that is not a transient database failure', async () => {
+      vi.setSystemTime(OVERDUE)
+      const constraint = Object.assign(new Error('duplicate key'), { code: '23505' })
+      dbChainMockFns.limit.mockRejectedValueOnce(constraint)
+      await expect(checkDeferredDocumentRetry(PAYLOAD, context)).rejects.toBe(constraint)
+    })
+
+    it('spends attempts on a database failure once past the terminal bound, so the event ends', async () => {
+      vi.setSystemTime(DEFERRED_UNTIL.getTime() + DEFERRED_RETRY_CHECK_TERMINAL_MS)
+      const error = lockTimeout()
+      dbChainMockFns.limit.mockRejectedValueOnce(error)
+      await expect(checkDeferredDocumentRetry(PAYLOAD, context)).rejects.toBe(error)
+    })
   })
 
   it('rejects a payload without its document or deferral', async () => {
