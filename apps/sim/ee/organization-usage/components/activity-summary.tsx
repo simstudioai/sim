@@ -7,12 +7,17 @@ import {
   ChartFrame,
   ChartLegend,
   type ChartLegendItem,
+  cn,
   DashboardMetric,
   formatChartLatency,
 } from '@sim/emcn'
 import type { OrganizationActivitySummary } from '@/lib/api/contracts/organization-activity'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { USAGE_CHAT_COLOR } from '@/ee/organization-usage/constants'
+import {
+  USAGE_CHAT_COLOR,
+  USAGE_OTHER_COLOR,
+  USAGE_PALETTE_CLASS,
+} from '@/ee/organization-usage/constants'
 import { useLegendHighlight } from '@/ee/organization-usage/hooks/use-legend-highlight'
 import { useOrganizationActivitySummary } from '@/hooks/queries/organization-activity'
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
@@ -21,12 +26,13 @@ const CHART_HEIGHT = 180
 
 /**
  * Outcome layers, bottom-up. Failed is the status red and sits on the stack where a
- * spike reads at a glance; Other (cancelled, paused, unfinished) stays neutral.
+ * spike reads at a glance; Other (cancelled, paused, unfinished) stays neutral, in a
+ * gray whose lightness keeps it apart from the red for color-vision deficiency.
  */
 const OUTCOMES = [
   { id: 'completed', label: 'Completed', color: 'var(--brand-blue)' },
   { id: 'failed', label: 'Failed', color: 'var(--text-error)' },
-  { id: 'other', label: 'Other', color: 'var(--text-muted)' },
+  { id: 'other', label: 'Other', color: USAGE_OTHER_COLOR },
 ] as const
 
 const OUTCOME_LEGEND: ChartLegendItem[] = [...OUTCOMES]
@@ -113,7 +119,7 @@ export function ActivitySummary({ summary, loading, error, onRetry }: ActivitySu
   const chartState = { loading, error: error ? "Couldn't load activity." : undefined, onRetry }
 
   return (
-    <div className='flex flex-col gap-5'>
+    <div className={cn('flex flex-col gap-5', USAGE_PALETTE_CLASS)}>
       <div className='grid grid-cols-[repeat(auto-fit,minmax(min(120px,100%),1fr))] gap-4'>
         {metrics.map((metric) => (
           <DashboardMetric

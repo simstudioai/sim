@@ -95,8 +95,21 @@ export const EXPANDED_ROW_COUNT = ORGANIZATION_USAGE_BREAKDOWN_MAX_LIMIT
 export const DEFAULT_USAGE_PRESET = '30d' as const
 export const DEFAULT_USAGE_TAB = USAGE_OVERVIEW_TAB
 
+/**
+ * The Insights chart palette, declared on each chart's root so a layer, its legend
+ * dot, and its tooltip swatch resolve to one color. Each hue is its source's color
+ * elsewhere in the app — Sim green for Chat, the Enrichment block's purple, the
+ * Knowledge block's teal, the agent violet — stepped to the lightness a filled mark
+ * needs in each mode; badge text tokens are too pale in dark mode to fill a bar.
+ */
+export const USAGE_PALETTE_CLASS =
+  '[--usage-chat:#1f9d63] [--usage-enrichment:#c026d3] [--usage-knowledge:#0e9f9f] [--usage-agent:#6f3dfa] [--usage-other:var(--text-secondary)] dark:[--usage-chat:#2dac72] dark:[--usage-enrichment:#d946ef] dark:[--usage-agent:#8b5cf6] dark:[--usage-other:#8a8a8a]'
+
 /** Sim Chat's color, shared by its credit layer and the chat-runs chart. */
-export const USAGE_CHAT_COLOR = 'var(--badge-orange-text)'
+export const USAGE_CHAT_COLOR = 'var(--usage-chat)'
+
+/** The neutral remainder, shared by the credit and outcome stacks. */
+export const USAGE_OTHER_COLOR = 'var(--usage-other)'
 
 /**
  * The credit chart's layers, bottom-up. Each one owns a fixed color, so a layer keeps
@@ -104,17 +117,17 @@ export const USAGE_CHAT_COLOR = 'var(--badge-orange-text)'
  * never its rank.
  *
  * Five hues plus a neutral `Other`: the palette is validated for adjacent-pair
- * separation (including color-vision deficiency) in exactly this order, so reorder
- * or extend it only by re-running that validation. A sixth distinct source belongs
- * in `Other`, not in a generated hue.
+ * separation (including color-vision deficiency) in both modes in exactly this order,
+ * so reorder or extend it only by re-running that validation. A sixth distinct source
+ * belongs in `Other`, not in a generated hue.
  */
 export const USAGE_SOURCE_CATEGORIES = [
   { id: 'workflow', label: 'Workflows', color: 'var(--brand-blue)' },
   { id: 'chat', label: 'Sim Chat', color: USAGE_CHAT_COLOR },
-  { id: 'agent', label: 'Agent block', color: 'var(--badge-purple-text)' },
-  { id: 'knowledge', label: 'Knowledge Base', color: 'var(--badge-amber-text)' },
-  { id: 'enrichment', label: 'Enrichment', color: 'var(--badge-pink-text)' },
-  { id: 'other', label: 'Other', color: 'var(--text-muted)' },
+  { id: 'enrichment', label: 'Enrichment', color: 'var(--usage-enrichment)' },
+  { id: 'knowledge', label: 'Knowledge Base', color: 'var(--usage-knowledge)' },
+  { id: 'agent', label: 'Agent block', color: 'var(--usage-agent)' },
+  { id: 'other', label: 'Other', color: USAGE_OTHER_COLOR },
 ] as const
 
 export type UsageSourceCategoryId = (typeof USAGE_SOURCE_CATEGORIES)[number]['id']
