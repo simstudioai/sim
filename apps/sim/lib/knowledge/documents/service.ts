@@ -214,6 +214,27 @@ export class KnowledgeBaseFileOwnershipError extends OrchestrationError {
   }
 }
 
+/**
+ * Rolls back a processing pass whose completion write matched no row: the
+ * document, its connector, or its knowledge base stopped being active while the
+ * embeddings were written, so none of that output may commit.
+ */
+class SupersededProcessingOutput extends Error {
+  constructor() {
+    super('Document processing output was superseded before commit')
+    this.name = 'SupersededProcessingOutput'
+  }
+}
+
+/** The document's knowledge base has not been deleted. */
+function knowledgeBaseIsActive() {
+  return sql`EXISTS (
+    SELECT 1 FROM ${knowledgeBase}
+    WHERE ${knowledgeBase.id} = ${document.knowledgeBaseId}
+      AND ${knowledgeBase.deletedAt} IS NULL
+  )`
+}
+
 /** Internal KB uploads require the workspace's trusted file binding; external ingestion URLs do not. */
 function getKnowledgeBaseStorageKeys(fileUrls: readonly string[]): string[] {
   return [
@@ -1952,114 +1973,127 @@ export async function processDocumentAsync(
               }))
 
               signal.throwIfAborted()
-              processingCommitted = await db.transaction(async (tx) => {
-                signal.throwIfAborted()
-                const activeDocument = await tx
-                  .select({ id: document.id })
-                  .from(document)
-                  .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
-                  .where(
-                    and(
-                      eq(document.id, documentId),
-                      eq(document.processingStatus, 'processing'),
-                      eq(document.processingStartedAt, processingStartedAt),
-                      ...queueGenerationConditions(attemptContext),
-                      eq(document.userExcluded, false),
-                      isNull(document.archivedAt),
-                      isNull(document.deletedAt),
-                      documentConnectorIsActive(),
-                      isNull(knowledgeBase.deletedAt)
+              processingCommitted = await db
+                .transaction(async (tx) => {
+                  signal.throwIfAborted()
+                  /**
+                   * Reads only the document row. The connector and knowledge base
+                   * are checked by the completion write at the end instead: any
+                   * read of those tables here would hold a lock on them until
+                   * commit, across the embedding writes, and a slow index write
+                   * would then block DDL on the connector and knowledge base
+                   * tables for its whole duration.
+                   */
+                  const activeDocument = await tx
+                    .select({ id: document.id })
+                    .from(document)
+                    .where(
+                      and(
+                        eq(document.id, documentId),
+                        eq(document.processingStatus, 'processing'),
+                        eq(document.processingStartedAt, processingStartedAt),
+                        ...queueGenerationConditions(attemptContext),
+                        eq(document.userExcluded, false),
+                        isNull(document.archivedAt),
+                        isNull(document.deletedAt)
+                      )
                     )
-                  )
-                  .for('update', { of: document })
-                  .limit(1)
+                    .for('update')
+                    .limit(1)
 
-                if (activeDocument.length === 0) {
-                  return false
-                }
-
-                if (embeddingRecords.length > 0) {
-                  await tx.delete(embedding).where(eq(embedding.documentId, documentId))
-
-                  const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
-                  const batches: (typeof embeddingRecords)[] = []
-                  for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
-                    batches.push(embeddingRecords.slice(i, i + insertBatchSize))
+                  if (activeDocument.length === 0) {
+                    return false
                   }
 
-                  logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
-                  for (const [batchIndex, batch] of batches.entries()) {
-                    signal.throwIfAborted()
-                    const insertStartedAt = Date.now()
-                    try {
-                      await tx.insert(embedding).values(batch)
-                    } catch (error) {
-                      logger.error(`[${documentId}] Failed to insert embedding batch`, {
-                        knowledgeBaseId,
-                        operation: 'embedding.insert',
-                        batchNumber: batchIndex + 1,
-                        batchSize: batch.length,
-                        totalChunks: embeddingRecords.length,
-                        embeddingModel: kbEmbeddingModel,
-                        embeddingDimensions: kbEmbedding.dimensions,
-                        elapsedMs: Date.now() - insertStartedAt,
-                        diagnostic: getConnectorFailureDiagnostic(error),
-                      })
-                      throw error
+                  if (embeddingRecords.length > 0) {
+                    await tx.delete(embedding).where(eq(embedding.documentId, documentId))
+
+                    const insertBatchSize = LARGE_DOC_CONFIG.MAX_CHUNKS_PER_BATCH
+                    const batches: (typeof embeddingRecords)[] = []
+                    for (let i = 0; i < embeddingRecords.length; i += insertBatchSize) {
+                      batches.push(embeddingRecords.slice(i, i + insertBatchSize))
+                    }
+
+                    logger.info(`[${documentId}] Inserting ${embeddingRecords.length} embeddings`)
+                    for (const [batchIndex, batch] of batches.entries()) {
+                      signal.throwIfAborted()
+                      const insertStartedAt = Date.now()
+                      try {
+                        await tx.insert(embedding).values(batch)
+                      } catch (error) {
+                        logger.error(`[${documentId}] Failed to insert embedding batch`, {
+                          knowledgeBaseId,
+                          operation: 'embedding.insert',
+                          batchNumber: batchIndex + 1,
+                          batchSize: batch.length,
+                          totalChunks: embeddingRecords.length,
+                          embeddingModel: kbEmbeddingModel,
+                          embeddingDimensions: kbEmbedding.dimensions,
+                          elapsedMs: Date.now() - insertStartedAt,
+                          diagnostic: getConnectorFailureDiagnostic(error),
+                        })
+                        throw error
+                      }
+                    }
+                    const provenanceRecords = embeddingRecords.flatMap((record, index) => {
+                      const provenance = chunkProvenances[index]
+                      if (!provenance) return []
+                      return [
+                        {
+                          embeddingId: record.id,
+                          contentHash: record.chunkHash,
+                          status: provenance.status,
+                          entries: provenance.status === 'exact' ? [...provenance.entries] : [],
+                          updatedAt: now,
+                        },
+                      ]
+                    })
+                    for (let i = 0; i < provenanceRecords.length; i += insertBatchSize) {
+                      signal.throwIfAborted()
+                      await tx
+                        .insert(embeddingSecretProvenance)
+                        .values(provenanceRecords.slice(i, i + insertBatchSize))
                     }
                   }
-                  const provenanceRecords = embeddingRecords.flatMap((record, index) => {
-                    const provenance = chunkProvenances[index]
-                    if (!provenance) return []
-                    return [
-                      {
-                        embeddingId: record.id,
-                        contentHash: record.chunkHash,
-                        status: provenance.status,
-                        entries: provenance.status === 'exact' ? [...provenance.entries] : [],
-                        updatedAt: now,
-                      },
-                    ]
-                  })
-                  for (let i = 0; i < provenanceRecords.length; i += insertBatchSize) {
-                    signal.throwIfAborted()
-                    await tx
-                      .insert(embeddingSecretProvenance)
-                      .values(provenanceRecords.slice(i, i + insertBatchSize))
-                  }
-                }
 
-                signal.throwIfAborted()
-                await tx
-                  .update(document)
-                  .set({
-                    chunkCount: processed.metadata.chunkCount,
-                    tokenCount: processed.metadata.tokenCount,
-                    characterCount: processed.metadata.characterCount,
-                    processingStatus: 'completed',
-                    processingCompletedAt: now,
-                    processingError: null,
-                    /** A completed pass restores the retry allowance for a future failure. */
-                    processingAttempts: 0,
-                    processingQueueToken: null,
-                    processingQueuedAt: null,
-                    processingDeferredUntil: null,
-                  })
-                  .where(
-                    and(
-                      eq(document.id, documentId),
-                      eq(document.processingStatus, 'processing'),
-                      eq(document.processingStartedAt, processingStartedAt),
-                      ...queueGenerationConditions(attemptContext),
-                      eq(document.userExcluded, false),
-                      isNull(document.archivedAt),
-                      isNull(document.deletedAt),
-                      documentConnectorIsActive()
+                  signal.throwIfAborted()
+                  const completed = await tx
+                    .update(document)
+                    .set({
+                      chunkCount: processed.metadata.chunkCount,
+                      tokenCount: processed.metadata.tokenCount,
+                      characterCount: processed.metadata.characterCount,
+                      processingStatus: 'completed',
+                      processingCompletedAt: now,
+                      processingError: null,
+                      /** A completed pass restores the retry allowance for a future failure. */
+                      processingAttempts: 0,
+                      processingQueueToken: null,
+                      processingQueuedAt: null,
+                      processingDeferredUntil: null,
+                    })
+                    .where(
+                      and(
+                        eq(document.id, documentId),
+                        eq(document.processingStatus, 'processing'),
+                        eq(document.processingStartedAt, processingStartedAt),
+                        ...queueGenerationConditions(attemptContext),
+                        eq(document.userExcluded, false),
+                        isNull(document.archivedAt),
+                        isNull(document.deletedAt),
+                        documentConnectorIsActive(),
+                        knowledgeBaseIsActive()
+                      )
                     )
-                  )
-                signal.throwIfAborted()
-                return true
-              })
+                    .returning({ id: document.id })
+                  if (completed.length === 0) throw new SupersededProcessingOutput()
+                  signal.throwIfAborted()
+                  return true
+                })
+                .catch((error: unknown) => {
+                  if (error instanceof SupersededProcessingOutput) return false
+                  throw error
+                })
             },
             {
               opaqueInputSafe:
