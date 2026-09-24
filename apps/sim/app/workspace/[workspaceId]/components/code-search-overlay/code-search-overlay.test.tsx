@@ -67,6 +67,8 @@ describe('CodeSearchOverlay', () => {
     expect(input.getAttribute('aria-label')).toBe('Search code')
     expect(input.value).toBe('error')
     expect(overlay.textContent).toContain('2/3')
+    const tally = overlay.querySelector('[aria-live="polite"][aria-atomic="true"]')
+    expect(tally?.textContent).toBe('2/3')
 
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
     act(() => {
@@ -83,6 +85,9 @@ describe('CodeSearchOverlay', () => {
     expect(callbacks.onNext).toHaveBeenCalledTimes(1)
     expect(callbacks.onClose).toHaveBeenCalledTimes(1)
     expect(parentClick).not.toHaveBeenCalled()
+
+    renderOverlay({ matchCount: 0, currentMatchIndex: 0 })
+    expect(tally?.textContent).toBe('0/0')
   })
 
   it('keeps preview search compact in a floating overlay with a usable input ref', () => {

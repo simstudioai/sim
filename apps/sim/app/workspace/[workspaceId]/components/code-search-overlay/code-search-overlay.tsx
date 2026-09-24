@@ -68,6 +68,8 @@ export function CodeSearchOverlay({
         <ChipInput {...inputProps} appearance='compactSearch' className='mr-0.5 w-[94px]' />
       )}
       <span
+        aria-live='polite'
+        aria-atomic='true'
         className={cn(
           attached ? 'w-[58px] text-xs' : 'min-w-[45px] text-center text-xs',
           matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
