@@ -108,7 +108,7 @@ export function ChangelogTimeline({ initialEntries }: ChangelogTimelineProps) {
                         title={`@${contributor}`}
                         className='block size-6 shrink-0'
                       >
-                        <Avatar className='size-6 ring-2 ring-[var(--bg)]'>
+                        <Avatar size='sm' className='ring-2 ring-[var(--bg)]'>
                           <AvatarImage
                             src={`https://avatars.githubusercontent.com/${contributor}`}
                             alt={`@${contributor}`}

@@ -1,7 +1,7 @@
 'use client'
 
 import type { ComponentType } from 'react'
-import { cn, disclosureChevronClass, formatChartCompactNumber } from '@sim/emcn'
+import { Avatar, cn, disclosureChevronClass, formatChartCompactNumber } from '@sim/emcn'
 import { ArrowRight, ChevronDown } from '@sim/emcn/icons'
 import {
   AnthropicIcon,
@@ -34,7 +34,6 @@ import type {
   OrganizationUsageBreakdownRow,
   UsageBreakdownDimension,
 } from '@/lib/api/contracts/organization-usage'
-import { MemberAvatar } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import {
   type RowAction,
   RowActionsMenu,
@@ -153,7 +152,7 @@ function UsageConsumerRow({
       )}
     >
       {isMember ? (
-        <MemberAvatar name={row.label} image={row.image ?? null} />
+        <Avatar size='xs' name={row.label} src={row.image} aria-hidden />
       ) : (
         ProviderIcon && <ProviderIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
       )}

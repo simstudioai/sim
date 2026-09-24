@@ -1,7 +1,6 @@
 'use client'
 
-import { Avatar, AvatarFallback, Chip, ChipDropdown, cn, OverflowText } from '@sim/emcn'
-import { getUserColor } from '@/lib/workspaces/colors'
+import { Avatar, Chip, ChipDropdown, cn, OverflowText } from '@sim/emcn'
 import type { MemberRole } from './member-role-options'
 import { RoleLockTooltip } from './role-lock'
 
@@ -9,6 +8,7 @@ export interface MemberRowMember<TRole extends string = MemberRole> {
   userId: string
   userName: string | null
   userEmail: string | null
+  userImage: string | null
   role: TRole
 }
 
@@ -54,14 +54,12 @@ export function MemberRow<TRole extends string = MemberRole>({
       )}
     >
       <div className='flex min-w-0 items-center gap-2.5'>
-        <Avatar className='size-9 shrink-0'>
-          <AvatarFallback
-            style={{ background: getUserColor(member.userId || member.userEmail || '') }}
-            className='border border-[var(--border-1)] text-small text-white'
-          >
-            {(member.userName || member.userEmail || '?').charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
+        <Avatar
+          size='xs'
+          name={member.userName || member.userEmail || '?'}
+          src={member.userImage}
+          aria-hidden
+        />
         <div className='flex min-w-0 flex-col'>
           <OverflowText
             label={member.userName || member.userEmail || member.userId}

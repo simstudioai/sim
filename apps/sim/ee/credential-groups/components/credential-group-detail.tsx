@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipConfirmModal, ChipModalTabs, toast } from '@sim/emcn'
+import { Avatar, Chip, ChipConfirmModal, ChipModalTabs, toast } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
@@ -17,7 +17,6 @@ import {
   credentialGroupTabParam,
   credentialGroupTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
-import { MemberAvatar } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
@@ -283,7 +282,7 @@ export function CredentialGroupDetail({ workspaceId, groupId }: CredentialGroupD
                       return (
                         <SettingsResourceRow
                           key={enrollment.id}
-                          icon={<MemberAvatar name={enrollment.email} image={null} />}
+                          icon={<Avatar size='xs' name={enrollment.email} aria-hidden />}
                           iconVariant='custom'
                           title={enrollment.email}
                           description={

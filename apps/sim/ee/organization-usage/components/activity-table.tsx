@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  Avatar,
   Chip,
   OverflowText,
   Table,
@@ -13,7 +14,6 @@ import {
 import { formatDuration } from '@sim/utils/formatting'
 import type { OrganizationActivityBreakdown } from '@/lib/api/contracts/organization-activity'
 import type { ActivityDimension } from '@/lib/billing/core/organization-activity'
-import { MemberAvatar } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { formatFailureRate } from '@/ee/organization-usage/components/activity-summary'
 
 interface ActivityTableProps {
@@ -79,7 +79,7 @@ export function ActivityTable({ rows, dimension, onSelectWorkspace }: ActivityTa
                   </Chip>
                 ) : (
                   <div className='flex min-w-0 items-center gap-2.5'>
-                    {isMember && <MemberAvatar name={row.label} image={row.image ?? null} />}
+                    {isMember && <Avatar size='xs' name={row.label} src={row.image} aria-hidden />}
                     <OverflowText label={row.label} className='text-[var(--text-body)] text-sm' />
                   </div>
                 )}

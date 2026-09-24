@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  Avatar,
   Button,
   ChipCombobox,
   ChipConfirmModal,
@@ -79,10 +80,7 @@ import {
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
-import {
-  OwnerAvatar,
-  ownerCell,
-} from '@/app/workspace/[workspaceId]/components/resource/components/owner-cell'
+import { ownerCell } from '@/app/workspace/[workspaceId]/components/resource/components/owner-cell'
 import {
   FilesEmptyState,
   ResourceNoResults,
@@ -1938,7 +1936,7 @@ function FilesContent() {
       (members ?? []).map((m) => ({
         value: m.userId,
         label: m.name,
-        iconElement: <OwnerAvatar name={m.name} image={m.image} />,
+        iconElement: <Avatar size='xs' name={m.name} src={m.image} aria-hidden />,
       })),
     [members]
   )
