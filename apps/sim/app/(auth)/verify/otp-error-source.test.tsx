@@ -50,7 +50,6 @@ vi.mock('@sim/emcn', () => ({
     <span data-otp-slot={index} data-invalid={invalid} />
   ),
 }))
-vi.mock('@sim/logger', () => ({ createLogger: () => ({ error: vi.fn() }) }))
 vi.mock('@/lib/messaging/email/validation', () => ({
   quickValidateEmail: () => ({ isValid: true }),
 }))
