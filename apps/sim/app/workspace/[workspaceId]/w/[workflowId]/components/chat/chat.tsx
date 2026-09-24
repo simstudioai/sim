@@ -1093,12 +1093,13 @@ export function Chat() {
                       <Button
                         type='button'
                         variant='ghost'
+                        size='icon'
                         aria-label='Attach file'
                         onClick={() => document.getElementById('floating-chat-file-input')?.click()}
                         disabled={
                           !activeWorkflowId || isExecuting || chatFiles.length >= MAX_CHAT_FILES
                         }
-                        className='size-3.5 rounded-md p-0 focus-visible:ring-1 focus-visible:ring-[var(--text-muted)] disabled:opacity-50'
+                        className='rounded-md focus-visible:ring-1 focus-visible:ring-[var(--text-muted)] disabled:opacity-50'
                       >
                         <Paperclip className='h-3.5! w-3.5!' />
                       </Button>
