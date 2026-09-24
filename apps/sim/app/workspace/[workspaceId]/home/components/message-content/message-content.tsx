@@ -933,9 +933,9 @@ export function deriveThinkingLabel(blocks: ContentBlock[]): string {
     case 'tool_call':
       return last.toolCall && DISPATCH_TOOL_NAMES.has(last.toolCall.name)
         ? 'Dispatching…'
-        : 'Thinking…'
+        : 'Thinking'
     default:
-      return 'Thinking…'
+      return 'Thinking'
   }
 }
 
@@ -1109,7 +1109,13 @@ function MessageContentInner({
 
   return (
     <div>
-      <div className='space-y-2'>
+      <div
+        className={cn(
+          '[&>:empty]:hidden [&>:has(~:not(:empty))]:mb-4',
+          '[&>[data-chat-activity]:has(+[data-chat-activity],+:empty+[data-chat-activity])]:mb-2',
+          '[&>[data-agent-group]:has(>div:last-child>div:last-child>[data-interaction-card]:last-child):has(~:not(:empty))]:mb-4'
+        )}
+      >
         {segments.map((segment, i) => {
           switch (segment.type) {
             case 'text':
@@ -1149,6 +1155,7 @@ function MessageContentInner({
                 <div
                   key={segment.id}
                   data-agent-group
+                  data-chat-activity
                   className={isStreaming ? 'animate-stream-fade-in' : undefined}
                 >
                   <AgentGroup

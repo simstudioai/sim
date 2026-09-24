@@ -49,5 +49,9 @@ export function MainAgentActivity({
     )
   })
 
-  return <div className='flex min-w-0 flex-col gap-2'>{activity}</div>
+  return (
+    <div className='flex min-w-0 flex-col gap-2 [&>*:has(+[data-interaction-card])]:mb-2 [&>[data-interaction-card]:not(:last-child)]:mb-2'>
+      {activity}
+    </div>
+  )
 }

@@ -28,6 +28,7 @@ import {
   cn,
   Lightbox,
   languages,
+  overflowFadeSizeClass,
   highlight as prismHighlight,
   scrollFadeAttributes,
   scrollFadeXClass,
@@ -287,7 +288,8 @@ function MarkdownTable({ children }: MarkdownTableProps) {
       tabIndex={isOverflowing ? 0 : undefined}
       className={cn(
         'not-prose my-4 w-full overflow-x-auto [&_strong]:font-semibold',
-        scrollFadeXClass
+        scrollFadeXClass,
+        overflowFadeSizeClass
       )}
       {...scrollFadeAttributes(edges)}
     >
@@ -754,7 +756,7 @@ function ChatContentInner({
         <WorkspaceRefsContext.Provider
           value={{ resources: workspaceRefs, onSelect: onWorkspaceResourceSelect }}
         >
-          <div className={cn('space-y-3', inter.className)}>
+          <div className={cn('space-y-4', inter.className)}>
             {groups.map((group, i) => {
               if (group.kind === 'inline') {
                 return (

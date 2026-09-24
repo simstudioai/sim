@@ -10,7 +10,7 @@ export const ACTIVITY_ROW_CLASS = 'flex min-w-0 items-center gap-2'
 
 /** Activity label text, muted until the row is hovered. */
 export const ACTIVITY_LABEL_CLASS =
-  'text-[var(--text-tertiary)] text-base leading-5 group-hover/agent:text-[var(--text-body)]'
+  'text-[var(--text-tertiary)] text-sm leading-5 group-hover/agent:text-[var(--text-body)]'
 
 export interface ActivityStatusProps {
   label: string

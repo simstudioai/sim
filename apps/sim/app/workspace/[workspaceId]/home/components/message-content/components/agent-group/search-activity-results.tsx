@@ -5,6 +5,7 @@ import {
   chipRadiusClass,
   cn,
   OverflowText,
+  overflowFadeSizeClass,
   scrollFadeAttributes,
   scrollFadeClass,
   useScrollEdges,
@@ -40,7 +41,11 @@ export function SearchActivityResults({ sources, label }: SearchActivityResultsP
         ref={scrollRef}
         role='region'
         aria-label={label}
-        className={cn('max-h-[152px] overflow-y-auto overscroll-contain p-1', scrollFadeClass)}
+        className={cn(
+          'max-h-[152px] overflow-y-auto overscroll-contain p-1',
+          scrollFadeClass,
+          overflowFadeSizeClass
+        )}
         {...scrollFadeAttributes(edges)}
       >
         <ul className='m-0 list-none p-0'>

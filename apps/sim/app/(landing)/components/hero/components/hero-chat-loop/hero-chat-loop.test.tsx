@@ -139,7 +139,7 @@ describe('HeroChatLoop production thinking handoff', () => {
   })
 
   it.each([
-    ['thinking', 'Thinking…'],
+    ['thinking', 'Thinking'],
     ['dispatching', 'Dispatching…'],
   ] as const)('shows the production activity indicator alone during %s', (phase, label) => {
     renderPhase(phase)
