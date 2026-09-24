@@ -17,9 +17,16 @@ import {
 } from './persisted-message'
 
 describe('persisted-message', () => {
-  it.each(['executing', 'pending', 'awaiting_approval'] as const)(
-    'cancels unfinished %s tools even when the stopped marker already exists',
-    (state) => {
+  it.each([
+    { state: 'executing', alreadyStopped: false },
+    { state: 'executing', alreadyStopped: true },
+    { state: 'pending', alreadyStopped: false },
+    { state: 'pending', alreadyStopped: true },
+    { state: 'awaiting_approval', alreadyStopped: false },
+    { state: 'awaiting_approval', alreadyStopped: true },
+  ] as const)(
+    'cancels $state tools (existing stopped marker: $alreadyStopped)',
+    ({ state, alreadyStopped }) => {
       const message: PersistedMessage = {
         id: 'assistant',
         role: 'assistant',
@@ -36,7 +43,7 @@ describe('persisted-message', () => {
             },
           },
           { type: 'tool', toolCall: { id: 'finished', name: 'read', state: 'success' } },
-          { type: 'complete', status: 'cancelled' },
+          ...(alreadyStopped ? [{ type: 'complete' as const, status: 'cancelled' as const }] : []),
         ],
       }
       const saved = withStoppedContentBlock(message)
