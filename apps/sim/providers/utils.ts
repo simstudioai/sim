@@ -169,6 +169,7 @@ export const providers: Record<ProviderId, ProviderMetadata> = {
   bedrock: buildProviderMetadata('bedrock'),
   openrouter: buildProviderMetadata('openrouter'),
   fireworks: buildProviderMetadata('fireworks'),
+  avian: buildProviderMetadata('avian'),
   together: buildProviderMetadata('together'),
   baseten: buildProviderMetadata('baseten'),
 }
