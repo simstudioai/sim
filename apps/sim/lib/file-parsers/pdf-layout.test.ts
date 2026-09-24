@@ -252,6 +252,19 @@ describe('PdfPageCollector', () => {
     expect(bands[0].blocks).toHaveLength(3)
   })
 
+  it('matches a weekday header drawn as one text item', () => {
+    const { items } = quarterCalendar()
+    const merged: BufferedItem[] = []
+    for (const item of items) {
+      if (!['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].includes(item.str)) merged.push(item)
+      else if (item.str === 'Su' && item.geometry) {
+        merged.push(placed(WEEKDAYS.join(' '), item.geometry.x, item.geometry.y))
+      }
+    }
+
+    expect(findInterleavedBands(merged)[0]?.blocks).toHaveLength(3)
+  })
+
   it('keeps column groups that share only a single-cell label row by row', () => {
     const items: BufferedItem[] = []
     const rows = [
