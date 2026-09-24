@@ -220,6 +220,27 @@ describe('copilot chat stop route', () => {
     }
   )
 
+  it('persists completed replay when a late title session event follows completion', async () => {
+    mockReads({
+      chat: { workspaceId: 'ws-1', conversationId: 'stream-1', model: null },
+      last: { messageId: 'stream-1', role: 'user' },
+    })
+    const envelope = { v: 1, ts: '2026-09-24T19:00:00Z', stream: { streamId: 'stream-1' } }
+    mockReadEvents.mockResolvedValue([
+      {
+        ...envelope,
+        seq: 1,
+        type: 'text',
+        payload: { channel: 'assistant', text: 'Full response' },
+      },
+      { ...envelope, seq: 2, type: 'complete', payload: { status: 'cancelled' } },
+      { ...envelope, seq: 3, type: 'session', payload: { kind: 'title', title: 'New title' } },
+    ])
+    const response = await stopRequest(createRequest({ chatId: 'chat-1', streamId: 'stream-1' }))
+    expect(response.status).toBe(200)
+    expect(mockAppendCopilotChatMessages.mock.calls[0][1][0].content).toBe('Full response')
+  })
+
   it('does not finalize a contiguous prefix before the final event is flushed', async () => {
     mockReadEvents.mockResolvedValue([
       {

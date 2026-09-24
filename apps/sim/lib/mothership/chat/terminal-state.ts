@@ -41,7 +41,7 @@ export interface FinalizeAssistantTurnResult {
   outcome: (typeof CopilotChatFinalizeOutcome)[keyof typeof CopilotChatFinalizeOutcome]
 }
 
-/** Only the matching terminal run and a gap-free replay through its final event can be persisted. */
+/** Require the matching terminal run and gap-free replay containing its completion frame. */
 export async function readStoppedAssistantMessage(
   streamId: string,
   chatId: string,
@@ -50,9 +50,9 @@ export async function readStoppedAssistantMessage(
   const run = await getLatestRunForStream(streamId, userId)
   if (run?.chatId !== chatId || !isTerminalStreamStatus(run.status)) return null
   const events = await readEvents(streamId, '0')
-  /** StreamWriter starts at 1; Redis may trim oldest events or skip corrupt entries. */
+  /** Titles can arrive after completion; only the completion frame and an unbroken prefix matter. */
   if (
-    events.at(-1)?.type !== 'complete' ||
+    !events.some((event) => event.type === 'complete') ||
     !events.every((event, index) => event.seq === index + 1)
   )
     return null

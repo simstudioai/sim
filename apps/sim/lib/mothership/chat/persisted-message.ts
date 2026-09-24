@@ -360,7 +360,10 @@ export function buildPersistedAssistantMessage(
 export function withStoppedContentBlock(message: PersistedMessage): PersistedMessage {
   const contentBlocks = (message.contentBlocks ?? []).map(
     (block): PersistedContentBlock =>
-      block.toolCall?.state === 'executing'
+      block.toolCall &&
+      (block.toolCall.state === 'executing' ||
+        block.toolCall.state === 'pending' ||
+        block.toolCall.state === 'awaiting_approval')
         ? {
             ...block,
             toolCall: {
