@@ -287,6 +287,8 @@ const RECONNECT_BASE_DELAY_MS = 1000
 const RECONNECT_MAX_DELAY_MS = 30_000
 const RECONNECT_EXHAUSTED_RECHECK_MS = 30_000
 const STREAM_BATCH_FETCH_TIMEOUT_MS = 10_000
+/** Both live transports heartbeat every 15s; three missed heartbeats trigger cursor recovery. */
+const STREAM_IDLE_TIMEOUT_MS = 45_000
 const STREAM_CHAT_ID_RESOLVE_TIMEOUT_MS = 10_000
 const CHAT_HISTORY_RECOVERY_TIMEOUT_MS = 10_000
 const STOP_REQUEST_TIMEOUT_MS = 15_000
@@ -2219,6 +2221,7 @@ export function useChat(
 
       try {
         await readSSELines(reader, {
+          idleTimeoutMs: STREAM_IDLE_TIMEOUT_MS,
           onData: (raw) => {
             if (state.sawCompleteEvent) return true
             if (ops.isStale()) return
