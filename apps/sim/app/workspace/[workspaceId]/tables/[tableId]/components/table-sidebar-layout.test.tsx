@@ -41,20 +41,25 @@ describe('table sidebar layout', () => {
     render(true)
     const dialog = container.querySelector<HTMLElement>('[role="dialog"]')!
     const input = container.querySelector<HTMLInputElement>('input')!
+    const scrollBody = input.parentElement!
     expect(dialog.getAttribute('aria-label')).toBe('Configure workflow')
     expect(dialog.classList.contains('translate-x-0')).toBe(true)
     expect(dialog.classList.contains('shadow-overlay')).toBe(true)
 
     input.value = 'Edited workflow'
+    scrollBody.scrollTop = 64
     render(false)
     expect(container.querySelector('[role="dialog"]')).toBe(dialog)
     expect(container.querySelector('input')).toBe(input)
     expect(input.value).toBe('Edited workflow')
+    expect(input.parentElement).toBe(scrollBody)
+    expect(scrollBody.scrollTop).toBe(64)
     expect(dialog.classList.contains('translate-x-full')).toBe(true)
     expect(dialog.classList.contains('shadow-overlay')).toBe(false)
 
     render(true)
     expect(dialog.classList.contains('translate-x-0')).toBe(true)
     expect(input.value).toBe('Edited workflow')
+    expect(scrollBody.scrollTop).toBe(64)
   })
 })
