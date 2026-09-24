@@ -242,6 +242,37 @@ describe('Slack Lists responses', () => {
     )
     expect(empty.output.list?.schema).toEqual(schema)
   })
+  it.each([false, true, [false], [true]])(
+    'preserves checkbox response %j across row operations',
+    async (checkbox) => {
+      const row = {
+        ...item,
+        fields: [{ column_id: 'Col1', key: 'done', value: false, checkbox }],
+      }
+      const created = await slackListsItemsCreateTool.transformResponse!(
+        Response.json({ ok: true, item: row })
+      )
+      const page = await slackListsItemsListTool.transformResponse!(
+        Response.json({ ok: true, items: [row], list })
+      )
+      const info = await slackListsItemsInfoTool.transformResponse!(
+        Response.json({ ok: true, record: row, list })
+      )
+      expect(created.output.item.fields).toEqual(row.fields)
+      expect(page.output.items[0].fields).toEqual(row.fields)
+      expect(info.output.item.fields).toEqual(row.fields)
+    }
+  )
+  it.each([null, 'false', 0, ['false']])(
+    'rejects malformed checkbox response %j',
+    async (checkbox) => {
+      await expect(
+        slackListsItemsCreateTool.transformResponse!(
+          Response.json({ ok: true, item: { ...item, fields: [{ column_id: 'Col1', checkbox }] } })
+        )
+      ).rejects.toThrow()
+    }
+  )
   it('reads items.info from record, and items.create from item', async () => {
     expect(
       (
