@@ -57,24 +57,52 @@ export const ssoRegistrationBodySchema = z.discriminatedUnion('providerType', [
     skipUserInfoEndpoint: z.boolean().default(false),
     jwksEndpoint: z.string().url().optional(),
   }),
-  z.object({
-    providerType: z.literal('saml'),
-    providerId: z.string().min(1, 'Provider ID is required'),
-    issuer: z.string().url('Issuer must be a valid URL'),
-    domain: z.string().min(1, 'Domain is required'),
-    orgId: organizationIdSchema,
-    jitProvisioningEnabled: z.boolean().default(true),
-    mapping: ssoMappingSchema,
-    entryPoint: z.string().url('Entry point must be a valid URL for SAML'),
-    cert: z.string().min(1, 'Certificate is required for SAML'),
-    callbackUrl: z.string().url().optional(),
-    audience: z.string().optional(),
-    wantAssertionsSigned: z.boolean().optional(),
-    signatureAlgorithm: z.string().optional(),
-    digestAlgorithm: z.string().optional(),
-    identifierFormat: z.string().optional(),
-    idpMetadata: z.string().optional(),
-  }),
+  z
+    .object({
+      providerType: z.literal('saml'),
+      providerId: z.string().min(1, 'Provider ID is required'),
+      issuer: z.string().url('Issuer must be a valid URL'),
+      domain: z.string().min(1, 'Domain is required'),
+      orgId: organizationIdSchema,
+      jitProvisioningEnabled: z.boolean().default(true),
+      mapping: ssoMappingSchema,
+      entryPoint: z.string().url('Entry point must be a valid URL for SAML'),
+      cert: z.string().min(1, 'Certificate is required for SAML'),
+      callbackUrl: z.string().url().optional(),
+      audience: z.string().optional(),
+      wantAssertionsSigned: z.boolean().optional(),
+      signatureAlgorithm: z.string().optional(),
+      digestAlgorithm: z.string().optional(),
+      identifierFormat: z.string().optional(),
+      idpMetadata: z.string().optional(),
+      /**
+       * Encrypted assertions. The identity provider encrypts to
+       * `spEncryptionCert`, which Sim publishes in its service-provider metadata,
+       * and Sim decrypts with `spDecryptionKey`. Both halves of the pair are
+       * required together; on an update the key may be the redaction marker to
+       * keep the stored one.
+       */
+      encryptAssertions: z.boolean().default(false),
+      spEncryptionCert: z.string().optional(),
+      spDecryptionKey: z.string().optional(),
+    })
+    .superRefine((value, ctx) => {
+      if (!value.encryptAssertions) return
+      if (!value.spEncryptionCert?.trim()) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['spEncryptionCert'],
+          message: 'Service provider certificate is required to encrypt assertions',
+        })
+      }
+      if (!value.spDecryptionKey?.trim()) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['spDecryptionKey'],
+          message: 'Service provider private key is required to encrypt assertions',
+        })
+      }
+    }),
 ])
 
 export type SsoRegistrationBody = z.input<typeof ssoRegistrationBodySchema>

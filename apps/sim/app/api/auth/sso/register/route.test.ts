@@ -1,6 +1,12 @@
 /**
  * @vitest-environment node
  */
+
+import { execFileSync } from 'node:child_process'
+import { X509Certificate } from 'node:crypto'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import {
   createMockRequest,
   dbChainMock,
@@ -13,6 +19,7 @@ import {
   setEnv,
   setEnvFlags,
 } from '@sim/testing'
+import { loggerMock } from '@sim/testing/mocks/logger.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -22,6 +29,7 @@ const {
   mockHasSSOAccess,
   mockValidateUrlWithDNS,
   mockSecureFetchWithPinnedIP,
+  mockDecryptSecret,
 } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
   mockRegisterSSOProvider: vi.fn(),
@@ -29,6 +37,7 @@ const {
   mockHasSSOAccess: vi.fn(),
   mockValidateUrlWithDNS: vi.fn(),
   mockSecureFetchWithPinnedIP: vi.fn(),
+  mockDecryptSecret: vi.fn(),
 }))
 
 vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
@@ -76,12 +85,29 @@ vi.mock('@sim/utils/sso-domain', () => ({
   },
 }))
 
+/** The shared env mock's ENCRYPTION_KEY is not 64 hex characters, so real crypto would throw. */
+vi.mock('@/lib/core/security/encryption', () => ({
+  encryptSecret: vi.fn(),
+  decryptSecret: mockDecryptSecret,
+}))
+
 vi.mock('@/lib/core/security/input-validation.server', () => ({
   validateUrlWithDNS: mockValidateUrlWithDNS,
   secureFetchWithPinnedIP: mockSecureFetchWithPinnedIP,
 }))
 
 import { POST } from '@/app/api/auth/sso/register/route'
+
+type MockLogger = { info: { mock: { calls: unknown[][] } } }
+
+/** The logger the route built at import time, so its calls can be inspected. */
+const routeLogger = loggerMock.createLogger.mock.calls.reduce<MockLogger | null>(
+  (found, call, index) =>
+    call[0] === 'SSORegisterRoute'
+      ? (loggerMock.createLogger.mock.results[index].value as MockLogger)
+      : found,
+  null
+)
 
 const OIDC_BODY = {
   providerType: 'oidc' as const,
@@ -115,6 +141,9 @@ describe('POST /api/auth/sso/register', () => {
     mockHasSSOAccess.mockResolvedValue(true)
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '1.2.3.4' })
     mockSecureFetchWithPinnedIP.mockRejectedValue(new Error('discovery not mocked for this test'))
+    mockDecryptSecret.mockImplementation(async (value: string) => ({
+      decrypted: Buffer.from(value.split(':')[1], 'hex').toString('utf8'),
+    }))
     mockRegisterSSOProvider.mockResolvedValue({ id: 'row-1', providerId: 'acme-oidc' })
     mockUpdateSSOProvider.mockResolvedValue({ providerId: 'acme-oidc' })
     // The trust UPDATE reports the row it matched; by default the provider exists.
@@ -285,6 +314,374 @@ describe('POST /api/auth/sso/register', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith({
       domainVerified: true,
       jitProvisioningEnabled: true,
+    })
+  })
+
+  /**
+   * Leaving the secret field blank sends the redaction marker back, and the
+   * route lifts the stored secret into the new config. It reads the column
+   * directly rather than through Better Auth, so it decrypts it itself.
+   */
+  it('reuses the stored client secret, decrypting it first', async () => {
+    const sealed = `sim.sso.v1:${'a'.repeat(32)}:${Buffer.from('stored-secret').toString('hex')}:${'b'.repeat(32)}`
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    // In route order: providerId conflict and domain refusal, the reuse read,
+    // both checks again before the write, then the pre-image being updated.
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [
+      { oidcConfig: JSON.stringify({ clientId: 'client', clientSecret: sealed }) },
+    ])
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [{ id: 'p1' }])
+
+    const res = await POST(request({ ...OIDC_BODY, clientSecret: '[REDACTED]' }))
+
+    expect(res.status).toBe(200)
+    const sent = mockUpdateSSOProvider.mock.calls[0][0].body
+    expect(sent.oidcConfig.clientSecret).toBe('stored-secret')
+  })
+
+  it('reuses a client secret stored before encryption existed', async () => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [
+      { oidcConfig: JSON.stringify({ clientId: 'client', clientSecret: 'legacy-plain-secret' }) },
+    ])
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [{ id: 'p1' }])
+
+    const res = await POST(request({ ...OIDC_BODY, clientSecret: '[REDACTED]' }))
+
+    expect(res.status).toBe(200)
+    expect(mockUpdateSSOProvider.mock.calls[0][0].body.oidcConfig.clientSecret).toBe(
+      'legacy-plain-secret'
+    )
+    expect(mockDecryptSecret).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['no client secret', JSON.stringify({ clientId: 'client' })],
+    ['an empty client secret', JSON.stringify({ clientId: 'client', clientSecret: '' })],
+  ])('refuses to reuse a stored config with %s', async (_label, oidcConfig) => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [])
+    queueTableRows(schemaMock.ssoProvider, [{ oidcConfig }])
+
+    const res = await POST(request({ ...OIDC_BODY, clientSecret: '[REDACTED]' }))
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toMatchObject({
+      error: expect.stringContaining('Re-enter your client secret'),
+    })
+    expect(mockUpdateSSOProvider).not.toHaveBeenCalled()
+  })
+
+  /** The SAML branch carries a superRefine now; these prove the union still narrows cleanly. */
+  it.each([
+    ['an empty certificate', { cert: '' }, /Certificate is required for SAML/],
+    ['a malformed entry point', { entryPoint: 'not-a-url' }, /[Ee]ntry point/],
+    /** A missing field reports the type error; the point is that it narrows to SAML at all. */
+    ['a missing certificate', { cert: undefined }, /expected string/],
+  ])('rejects a SAML body with %s', async (_label, overrides, expected) => {
+    queueMembers([{ organizationId: 'org1', role: 'owner' }])
+    queueProviders([])
+
+    const res = await POST(
+      request({
+        providerType: 'saml',
+        providerId: 'acme-saml',
+        issuer: 'https://idp.acme.com',
+        domain: 'acme.com',
+        orgId: 'org1',
+        entryPoint: 'https://idp.acme.com/sso',
+        cert: 'IDP-CERT',
+        ...overrides,
+      })
+    )
+
+    expect(res.status).toBe(400)
+    await expect(res.json()).resolves.toMatchObject({ error: expect.stringMatching(expected) })
+    expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+  })
+
+  describe('SAML encrypted assertions', () => {
+    /**
+     * Real key material, because the route parses both halves and checks they
+     * belong together. Generated per run rather than committed: a private key
+     * in the repository is exactly what this PR is about not doing.
+     */
+    const keyPair = (subject: string) => {
+      const dir = mkdtempSync(path.join(tmpdir(), 'sim-sso-keys-'))
+      execFileSync('openssl', [
+        'req',
+        '-x509',
+        '-newkey',
+        'rsa:2048',
+        '-keyout',
+        path.join(dir, 'key.pem'),
+        '-out',
+        path.join(dir, 'cert.pem'),
+        '-days',
+        '2',
+        '-nodes',
+        '-subj',
+        `/CN=${subject}`,
+      ])
+      const pair = {
+        cert: readFileSync(path.join(dir, 'cert.pem'), 'utf8'),
+        key: readFileSync(path.join(dir, 'key.pem'), 'utf8'),
+      }
+      rmSync(dir, { recursive: true, force: true })
+      return pair
+    }
+
+    const SP = keyPair('sim-test-sp')
+    const OTHER = keyPair('sim-test-other')
+    const SP_CERT = SP.cert
+    const SP_KEY = SP.key
+    const samlBody = (overrides: Record<string, unknown> = {}) => ({
+      providerType: 'saml' as const,
+      providerId: 'acme-saml',
+      issuer: 'https://idp.acme.com',
+      domain: 'acme.com',
+      orgId: 'org1',
+      entryPoint: 'https://idp.acme.com/sso',
+      cert: 'IDP-CERT',
+      ...overrides,
+    })
+
+    it('publishes the certificate and keeps the private key for decryption', async () => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueProviders([])
+
+      const res = await POST(
+        request(
+          samlBody({ encryptAssertions: true, spEncryptionCert: SP_CERT, spDecryptionKey: SP_KEY })
+        )
+      )
+
+      expect(res.status).toBe(200)
+      const { samlConfig } = mockRegisterSSOProvider.mock.calls[0][0].body
+      expect(samlConfig.spMetadata).toMatchObject({
+        isAssertionEncrypted: true,
+        encPrivateKey: SP_KEY,
+        encryptionCert: SP_CERT,
+      })
+      /** The certificate travels in the metadata document, stripped of its PEM armor. */
+      expect(samlConfig.spMetadata.metadata).toContain('use="encryption"')
+      expect(samlConfig.spMetadata.metadata).toContain(
+        SP_CERT.replace(/-----(BEGIN|END) CERTIFICATE-----/g, '').replace(/\s+/g, '')
+      )
+      expect(samlConfig.spMetadata.metadata).not.toContain('BEGIN CERTIFICATE')
+      expect(samlConfig.spMetadata.metadata).not.toContain('PRIVATE KEY')
+    })
+
+    it('publishes only the certificate bytes, never the key, in the metadata', async () => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueProviders([])
+
+      await POST(
+        request(
+          samlBody({ encryptAssertions: true, spEncryptionCert: SP_CERT, spDecryptionKey: SP_KEY })
+        )
+      )
+
+      const { samlConfig } = mockRegisterSSOProvider.mock.calls[0][0].body
+      const published = samlConfig.spMetadata.metadata
+      /** Built from the parsed certificate's own DER, so it cannot echo pasted input. */
+      expect(published).toContain(new X509Certificate(SP_CERT).raw.toString('base64'))
+      expect(published).not.toContain(
+        SP_KEY.replace(/-----(BEGIN|END) PRIVATE KEY-----/g, '')
+          .replace(/\s+/g, '')
+          .slice(0, 40)
+      )
+    })
+
+    it('never writes the private key to a log line', async () => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueProviders([])
+
+      await POST(
+        request(
+          samlBody({ encryptAssertions: true, spEncryptionCert: SP_CERT, spDecryptionKey: SP_KEY })
+        )
+      )
+
+      /** The route logs its resolved provider config; the key must be redacted there. */
+      const logged = (routeLogger?.info.mock.calls ?? [])
+        .map((call) => JSON.stringify(call))
+        .join('\n')
+      expect(logged).not.toContain('PRIVATE KEY')
+      expect(logged).toContain('[REDACTED]')
+    })
+
+    it('leaves the metadata and key material alone when encryption is off', async () => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueProviders([])
+
+      const res = await POST(request(samlBody()))
+
+      expect(res.status).toBe(200)
+      const { samlConfig } = mockRegisterSSOProvider.mock.calls[0][0].body
+      expect(samlConfig.spMetadata).not.toHaveProperty('encPrivateKey')
+      expect(samlConfig.spMetadata).not.toHaveProperty('isAssertionEncrypted')
+      expect(samlConfig.spMetadata).not.toHaveProperty('encryptionCert')
+      expect(samlConfig.spMetadata.metadata).not.toContain('use="encryption"')
+    })
+
+    it.each([
+      ['no certificate', { spDecryptionKey: SP_KEY }],
+      ['no private key', { spEncryptionCert: SP_CERT }],
+    ])('refuses to enable encryption with %s', async (_label, overrides) => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueProviders([])
+
+      const res = await POST(request(samlBody({ encryptAssertions: true, ...overrides })))
+
+      expect(res.status).toBe(400)
+      expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      [
+        'a certificate that is not PEM',
+        { spEncryptionCert: 'not-a-cert', spDecryptionKey: SP_KEY },
+      ],
+      ['a private key that is not PEM', { spEncryptionCert: SP_CERT, spDecryptionKey: 'nope' }],
+      [
+        'a key pair whose halves do not match',
+        { spEncryptionCert: SP_CERT, spDecryptionKey: OTHER.key },
+      ],
+      /**
+       * A private key satisfies a public-key comparison, so anything short of
+       * X.509 parsing would accept it here and then publish it as the
+       * certificate in service provider metadata.
+       */
+      [
+        'a private key pasted into the certificate field',
+        { spEncryptionCert: SP_KEY, spDecryptionKey: SP_KEY },
+      ],
+    ])('refuses %s', async (_label, overrides) => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueProviders([])
+
+      const res = await POST(request(samlBody({ encryptAssertions: true, ...overrides })))
+
+      expect(res.status).toBe(400)
+      await expect(res.json()).resolves.toMatchObject({
+        error: expect.stringMatching(/PEM|matching pair/),
+      })
+      expect(mockRegisterSSOProvider).not.toHaveBeenCalled()
+    })
+
+    it('keeps the stored private key when the update sends the marker', async () => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [
+        { samlConfig: JSON.stringify({ spMetadata: { encPrivateKey: SP_KEY } }) },
+      ])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [{ id: 'p1' }])
+
+      const res = await POST(
+        request(
+          samlBody({
+            encryptAssertions: true,
+            spEncryptionCert: SP_CERT,
+            spDecryptionKey: '[REDACTED]',
+          })
+        )
+      )
+
+      expect(res.status).toBe(200)
+      const { samlConfig } = mockUpdateSSOProvider.mock.calls[0][0].body
+      expect(samlConfig.spMetadata.encPrivateKey).toBe(SP_KEY)
+    })
+
+    it('reuses a key left behind by the retired registration script', async () => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [])
+      /** Rows the script wrote kept the key flat, where the SAML library never read it. */
+      queueTableRows(schemaMock.ssoProvider, [
+        { samlConfig: JSON.stringify({ decryptionPvk: SP_KEY }) },
+      ])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [{ id: 'p1' }])
+
+      const res = await POST(
+        request(
+          samlBody({
+            encryptAssertions: true,
+            spEncryptionCert: SP_CERT,
+            spDecryptionKey: '[REDACTED]',
+          })
+        )
+      )
+
+      expect(res.status).toBe(200)
+      const { samlConfig } = mockUpdateSSOProvider.mock.calls[0][0].body
+      expect(samlConfig.spMetadata.encPrivateKey).toBe(SP_KEY)
+    })
+
+    it('asks for the key again when the stored one cannot be decrypted', async () => {
+      mockDecryptSecret.mockRejectedValue(new Error('auth tag mismatch'))
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [
+        {
+          samlConfig: JSON.stringify({
+            spMetadata: { encPrivateKey: `sim.sso.v1:${'a'.repeat(32)}:dead:${'b'.repeat(32)}` },
+          }),
+        },
+      ])
+
+      const res = await POST(
+        request(
+          samlBody({
+            encryptAssertions: true,
+            spEncryptionCert: SP_CERT,
+            spDecryptionKey: '[REDACTED]',
+          })
+        )
+      )
+
+      /** A key the app can no longer read is an operator action, not a server fault. */
+      expect(res.status).toBe(400)
+      await expect(res.json()).resolves.toMatchObject({
+        error: expect.stringContaining('Re-enter it'),
+      })
+    })
+
+    it('refuses the marker when no key is stored', async () => {
+      queueMembers([{ organizationId: 'org1', role: 'owner' }])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [])
+      queueTableRows(schemaMock.ssoProvider, [{ samlConfig: JSON.stringify({ spMetadata: {} }) }])
+
+      const res = await POST(
+        request(
+          samlBody({
+            encryptAssertions: true,
+            spEncryptionCert: SP_CERT,
+            spDecryptionKey: '[REDACTED]',
+          })
+        )
+      )
+
+      expect(res.status).toBe(400)
+      await expect(res.json()).resolves.toMatchObject({
+        error: expect.stringContaining('no stored service provider private key'),
+      })
     })
   })
 

@@ -7,6 +7,7 @@ import {
   type AuthDatabase,
   guardOAuthProviderWrites,
 } from '@/lib/auth/oauth-provider-adapter-guard'
+import { encryptSsoProviderSecrets } from '@/lib/auth/sso-provider-secret-adapter'
 import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
 
 type BetterAuthAdapter = ReturnType<ReturnType<typeof drizzleAdapter>>
@@ -25,7 +26,9 @@ export function createSimAuthAdapter(
     schema,
     transaction: false,
   })(options)
-  const guarded = guardSubscriptionPlanWrites(guardOAuthProviderWrites(base, database))
+  const guarded = guardSubscriptionPlanWrites(
+    guardOAuthProviderWrites(encryptSsoProviderSecrets(base), database)
+  )
   if (inTransaction) return guarded
 
   guarded.transaction = (callback) =>

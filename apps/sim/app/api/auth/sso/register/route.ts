@@ -1,3 +1,4 @@
+import { createPrivateKey, createPublicKey, X509Certificate } from 'node:crypto'
 import { db, member, ssoDomain, ssoProvider } from '@sim/db'
 import { keepDomainSignInProvider, ssoProviderDomainKey } from '@sim/db/sso-primary-provider'
 import { createLogger } from '@sim/logger'
@@ -9,6 +10,7 @@ import { ssoRegistrationContract } from '@/lib/api/contracts/auth'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { auth, getSession } from '@/lib/auth'
 import { invalidateSsoPolicyCache } from '@/lib/auth/sso-policy'
+import { decryptProviderConfig } from '@/lib/auth/sso-provider-secrets'
 import { hasSSOAccess } from '@/lib/billing'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { runWithOutboundOrganization } from '@/lib/core/network/context.server'
@@ -28,7 +30,7 @@ type TokenEndpointAuthMethod = 'client_secret_basic' | 'client_secret_post'
  * Prefers client_secret_post over client_secret_basic when an IdP supports both:
  * better-auth sends client_secret_basic credentials without URL-encoding per
  * RFC 6749 §2.3.1, so a '+' in the client secret is decoded as a space, causing
- * invalid_client errors. Matches the same default in register-sso-provider.ts.
+ * invalid_client errors.
  */
 function selectTokenEndpointAuthMethod(
   supportedMethods: unknown,
@@ -83,6 +85,78 @@ async function fetchOIDCDiscoveryDocument(discoveryUrl: string): Promise<Discove
   }
 }
 
+/** The SubjectPublicKeyInfo of a private key, for comparing it with a certificate's. */
+function publicKeyOfPrivateKey(pem: string): string {
+  return createPublicKey(createPrivateKey(pem)).export({ type: 'spki', format: 'pem' }).toString()
+}
+
+type KeyPairCheck = { error: string } | { certificate: X509Certificate }
+
+/**
+ * Parses an encryption key pair, or names the first problem with it.
+ *
+ * The certificate is parsed as X.509 rather than as "any key material": a
+ * private key PEM would otherwise satisfy a public-key comparison, and the
+ * metadata document would then publish that private key as the service
+ * provider's certificate. The parsed certificate is returned so the document is
+ * built from its own DER bytes rather than from re-serialized input.
+ *
+ * A mismatched pair is the other failure worth catching here — each half is
+ * individually valid, so nothing complains until the identity provider encrypts
+ * an assertion Sim cannot read.
+ */
+function checkKeyPair(cert: string | undefined, privateKey: string | undefined): KeyPairCheck {
+  let certificate: X509Certificate
+  try {
+    certificate = new X509Certificate(cert ?? '')
+  } catch {
+    return {
+      error:
+        'Service provider certificate must be a PEM X.509 certificate beginning with -----BEGIN CERTIFICATE-----',
+    }
+  }
+
+  let privateKeyPublicKey: string
+  try {
+    privateKeyPublicKey = publicKeyOfPrivateKey(privateKey ?? '')
+  } catch {
+    return {
+      error:
+        'Service provider private key must be a PEM private key beginning with -----BEGIN PRIVATE KEY-----',
+    }
+  }
+
+  const certificatePublicKey = certificate.publicKey.export({ type: 'spki', format: 'pem' })
+  if (certificatePublicKey.toString() !== privateKeyPublicKey) {
+    return { error: 'Service provider certificate and private key are not a matching pair' }
+  }
+
+  return { certificate }
+}
+
+/**
+ * The stored decryption key of a SAML config, when it holds one.
+ *
+ * `spMetadata.encPrivateKey` is where the SAML library reads it. The flat
+ * `decryptionPvk` is only ever found on rows written by the retired operator
+ * script, where it sat unread; an admin turning encryption on for such a
+ * provider already holds that key, so it is offered rather than demanded again.
+ * Either way the pair is validated against the submitted certificate before it
+ * is saved.
+ */
+function readStoredDecryptionKey(samlConfig: string | null | undefined): string | null {
+  if (!samlConfig) return null
+  try {
+    const parsed = JSON.parse(samlConfig)
+    for (const stored of [parsed?.spMetadata?.encPrivateKey, parsed?.decryptionPvk]) {
+      if (typeof stored === 'string' && stored !== '') return stored
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     if (!isSsoEnabled) {
@@ -119,8 +193,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const { providerId, issuer, providerType, mapping, orgId, jitProvisioningEnabled } = body
 
     /**
-     * Always org-scoped: an org-less provider has no `sso_domain` proof, so only
-     * operators create one, via `packages/db/scripts/register-sso-provider.ts`.
+     * Always org-scoped: an org-less provider has no `sso_domain` proof, and the
+     * verified domain is what authorizes a provider to sign anyone in.
      */
     const [membership] = await db
       .select({ organizationId: member.organizationId, role: member.role })
@@ -310,9 +384,20 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             { status: 400 }
           )
         }
+        let storedSecret: unknown
         try {
-          clientSecret = JSON.parse(existing.oidcConfig).clientSecret
+          const stored = await decryptProviderConfig(existing.oidcConfig, 'oidcConfig')
+          storedSecret = JSON.parse(stored as string).clientSecret
         } catch {
+          storedSecret = null
+        }
+
+        /**
+         * Unreadable, or readable but holding no secret: either way there is
+         * nothing to carry forward, and saving without one would surface only at
+         * the next sign-in.
+         */
+        if (typeof storedSecret !== 'string' || storedSecret === '') {
           return NextResponse.json(
             {
               error: 'Cannot update: failed to read existing secret. Re-enter your client secret.',
@@ -320,6 +405,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             { status: 400 }
           )
         }
+        clientSecret = storedSecret
       }
 
       const oidcConfig: any = {
@@ -514,7 +600,58 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         digestAlgorithm,
         identifierFormat,
         idpMetadata,
+        encryptAssertions,
+        spEncryptionCert,
+        spDecryptionKey,
       } = body
+
+      /**
+       * The private key half of the encryption pair. Like the OIDC client
+       * secret, an update may send the redaction marker to keep the stored one
+       * rather than re-pasting it.
+       */
+      let decryptionKey = spDecryptionKey
+      if (encryptAssertions && spDecryptionKey === REDACTED_MARKER) {
+        const [existing] = await db
+          .select({ samlConfig: ssoProvider.samlConfig })
+          .from(ssoProvider)
+          .where(ownerClause)
+          .limit(1)
+        let storedKey: string | null = null
+        if (existing?.samlConfig) {
+          try {
+            storedKey = readStoredDecryptionKey(
+              await decryptProviderConfig(existing.samlConfig, 'samlConfig')
+            )
+          } catch {
+            /** A key the app can no longer read is re-entered, not a 500. */
+            return NextResponse.json(
+              {
+                error:
+                  'Cannot update: failed to read the saved service provider private key. Re-enter it.',
+              },
+              { status: 400 }
+            )
+          }
+        }
+        if (!storedKey) {
+          return NextResponse.json(
+            {
+              error:
+                'Cannot update: no stored service provider private key. Re-enter the key to keep encrypted assertions on.',
+            },
+            { status: 400 }
+          )
+        }
+        decryptionKey = storedKey
+      }
+
+      let encryptionCertificate: X509Certificate | null = null
+      if (encryptAssertions) {
+        const keyPair = checkKeyPair(spEncryptionCert, decryptionKey)
+        if ('error' in keyPair) return NextResponse.json({ error: keyPair.error }, { status: 400 })
+        encryptionCertificate = keyPair.certificate
+      }
 
       const computedCallbackUrl =
         callbackUrl || `${getBaseUrl()}/api/auth/sso/saml2/callback/${providerId}`
@@ -537,9 +674,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           }
         })
 
+      /**
+       * Published so the identity provider can encrypt assertions to Sim. Only
+       * the certificate goes in the document; the matching private key stays in
+       * the provider row, encrypted.
+       */
+      const encryptionKeyDescriptor = encryptionCertificate
+        ? `
+    <md:KeyDescriptor use="encryption"><ds:KeyInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:X509Data><ds:X509Certificate>${encryptionCertificate.raw.toString('base64')}</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor>`
+        : ''
+
       const spMetadataXml = `<?xml version="1.0" encoding="UTF-8"?>
 <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${escapeXml(getBaseUrl())}">
-  <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+  <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">${encryptionKeyDescriptor}
     <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="${escapeXml(computedCallbackUrl)}" index="1"/>
   </md:SPSSODescriptor>
 </md:EntityDescriptor>`
@@ -548,8 +695,27 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         entryPoint,
         cert,
         callbackUrl: computedCallbackUrl,
+        /**
+         * Rebuilt on every save, and Better Auth replaces the whole object
+         * rather than merging its keys, so turning encryption off here clears
+         * the key material with it.
+         */
         spMetadata: {
           metadata: spMetadataXml,
+          ...(encryptAssertions && decryptionKey
+            ? {
+                isAssertionEncrypted: true,
+                encPrivateKey: decryptionKey,
+                /**
+                 * The certificate as the admin pasted it. The metadata document
+                 * carries it stripped of its PEM armor, which is what the
+                 * identity provider reads; keeping the original lets the
+                 * settings form show it back without parsing that XML. Better
+                 * Auth ignores keys it does not know.
+                 */
+                encryptionCert: spEncryptionCert,
+              }
+            : {}),
         },
       }
 
@@ -594,6 +760,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             ? {
                 ...providerConfig.samlConfig,
                 cert: REDACTED_MARKER,
+                /** The service provider's own private key never reaches a log line. */
+                ...(providerConfig.samlConfig.spMetadata?.encPrivateKey
+                  ? {
+                      spMetadata: {
+                        ...providerConfig.samlConfig.spMetadata,
+                        encPrivateKey: REDACTED_MARKER,
+                      },
+                    }
+                  : {}),
               }
             : undefined,
         },
@@ -695,6 +870,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
 
     if (existingOwnedProvider) {
+      /**
+       * Restores the columns exactly as they were read, including whatever
+       * encoding their secrets were stored in. Re-encrypting would wrap an
+       * already-encrypted value twice; decrypting would downgrade the row to
+       * plain text.
+       */
       const revertProviderUpdate = async (): Promise<void> => {
         await db
           .update(ssoProvider)

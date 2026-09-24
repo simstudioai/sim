@@ -11,6 +11,11 @@ import { listSsoProvidersContract } from '@/lib/api/contracts/auth'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { markSignInProviders } from '@/lib/auth/sso/primary-provider'
+import {
+  decryptProviderConfig,
+  resolveHolder,
+  SECRET_FIELDS,
+} from '@/lib/auth/sso-provider-secrets'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 
@@ -29,6 +34,58 @@ const MIN_LENGTH_FOR_HINT = 16
 function buildClientSecretHint(clientSecret: unknown): string | null {
   if (typeof clientSecret !== 'string' || clientSecret.length < MIN_LENGTH_FOR_HINT) return null
   return clientSecret.slice(-4)
+}
+
+/**
+ * Replaces the stored client secret with the redaction marker, keeping a hint
+ * built from the real secret. The stored value is decrypted first: a hint taken
+ * from the envelope would be four characters of the auth tag, which says nothing
+ * about the secret and changes every time the row is rewritten.
+ */
+async function redactOidcConfig(oidcConfig: string | null): Promise<string | null> {
+  if (!oidcConfig) return oidcConfig
+  try {
+    /**
+     * A secret that will not decrypt — a lost or rotated `ENCRYPTION_KEY` —
+     * reports as a provider with no config rather than failing the request.
+     * `decryptProviderConfig` has already logged the cause, and listing the
+     * provider is what keeps the settings form reachable: it still offers
+     * Replace, which is how an admin restores a working secret. A 500 here
+     * would take the whole page down and leave no way back.
+     */
+    const parsed = JSON.parse((await decryptProviderConfig(oidcConfig, 'oidcConfig')) as string)
+    const hint = buildClientSecretHint(parsed.clientSecret)
+    parsed.clientSecret = REDACTED_MARKER
+    if (hint) parsed.clientSecretHint = hint
+    return JSON.stringify(parsed)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Drops the SAML key material an admin never needs back: the service provider's
+ * own signing and decryption keys. Unlike the OIDC secret these carry no hint —
+ * the admin holds the key pair already, and the certificate half stays readable.
+ * The same field list drives encryption at rest, so the two cannot drift.
+ */
+function redactSamlConfig(samlConfig: string | null): string | null {
+  if (!samlConfig) return samlConfig
+  try {
+    const parsed = JSON.parse(samlConfig)
+    if (!parsed || typeof parsed !== 'object') return null
+    for (const path of SECRET_FIELDS.samlConfig) {
+      const holder = resolveHolder(parsed, path)
+      if (!holder) continue
+      const field = path[path.length - 1]
+      if (typeof holder[field] === 'string' && holder[field] !== '') {
+        holder[field] = REDACTED_MARKER
+      }
+    }
+    return JSON.stringify(parsed)
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -90,25 +147,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .where(whereClause)
       .orderBy(asc(ssoProvider.providerId))
 
-    const providers = markSignInProviders(results).map((provider) => {
-      let oidcConfig = provider.oidcConfig
-      if (oidcConfig) {
-        try {
-          const parsed = JSON.parse(oidcConfig)
-          const hint = buildClientSecretHint(parsed.clientSecret)
-          parsed.clientSecret = REDACTED_MARKER
-          if (hint) parsed.clientSecretHint = hint
-          oidcConfig = JSON.stringify(parsed)
-        } catch {
-          oidcConfig = null
-        }
-      }
-      return {
+    const providers = await Promise.all(
+      markSignInProviders(results).map(async (provider) => ({
         ...provider,
-        oidcConfig,
+        oidcConfig: await redactOidcConfig(provider.oidcConfig),
+        samlConfig: redactSamlConfig(provider.samlConfig),
         providerType: (provider.samlConfig ? 'saml' : 'oidc') as 'oidc' | 'saml',
-      }
-    })
+      }))
+    )
 
     logger.info('Fetched SSO providers', { userId, providerCount: providers.length })
 

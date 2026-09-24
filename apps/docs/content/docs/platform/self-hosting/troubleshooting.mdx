@@ -258,6 +258,8 @@ A document that fails with `vector 0 has N unexpected dimensions` means `EMBEDDI
 
 Integrations show as connected but fail, or provider keys error on decrypt. `ENCRYPTION_KEY` does not match the value in use when the backup was taken. There is no recovery — the original key must be restored.
 
+SSO sign-in fails the same way, since provider secrets are encrypted with the same key. A provider whose secret cannot be decrypted refuses the sign-in rather than sending an unusable secret to the identity provider; re-enter the client secret in organization settings once the correct key is in place.
+
 ## Kubernetes: App Pods Never Become Ready
 
 Check the migrations init container first — a failed migration deliberately blocks the rollout:

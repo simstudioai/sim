@@ -123,6 +123,7 @@ jobs:
           ee/scim/lib/managed-membership.postgres.test.ts
           lib/auth/sso/application/admit-sso-user.postgres.test.ts
           lib/auth/sso/primary-provider.postgres.test.ts
+          lib/auth/sso-provider-secret-adapter.postgres.test.ts
 
       - name: Verify billing and organization activity in PostgreSQL
         working-directory: apps/sim

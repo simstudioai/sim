@@ -13,7 +13,6 @@ import {
   Expandable,
   ExpandableContent,
   Label,
-  Switch,
   toast,
 } from '@sim/emcn'
 import { ArrowLeft, ChevronDown, Eye, EyeOff } from '@sim/emcn/icons'
@@ -60,6 +59,12 @@ const PROVIDER_ID_SUGGESTIONS = SSO_TRUSTED_PROVIDERS.map((id) => ({ label: id, 
 const CLIENT_SECRET_FIELD_ID = 'sso-client-secret'
 /** Fixed width, so the mask never leaks how long the stored secret is. */
 const CLIENT_SECRET_MASK = '••••••••••••'
+
+/** On/off options for the SAML toggles, the chip equivalent of a boolean switch. */
+const TOGGLE_OPTIONS = [
+  { value: 'on', label: 'On' },
+  { value: 'off', label: 'Off' },
+] as const
 
 interface ClientSecretFieldProps {
   /** A secret is already saved, so the field opens as a masked fact rather than an input. */
@@ -154,6 +159,25 @@ function ClientSecretField({
 }
 
 /** Reads a string from stored provider JSON, tolerating malformed legacy configurations. */
+/**
+ * Whether a saved SAML provider holds a service-provider private key. The API
+ * returns only its sentinel, so presence is all a client can see — and all it
+ * needs, to offer "keep the saved key" rather than demand a fresh paste.
+ */
+function hasStoredSpDecryptionKey(samlConfig: string | null | undefined): boolean {
+  if (!samlConfig) return false
+  try {
+    const config: unknown = JSON.parse(samlConfig)
+    if (!isRecordLike(config)) return false
+    const spMetadata = config.spMetadata
+    if (isRecordLike(spMetadata) && typeof spMetadata.encPrivateKey === 'string') return true
+    /** Rows from the retired registration script kept the key flat; the server reuses it too. */
+    return typeof config.decryptionPvk === 'string'
+  } catch {
+    return false
+  }
+}
+
 function readProviderConfigString(
   serialized: string | null | undefined,
   field: string
@@ -185,6 +209,9 @@ const DEFAULT_FORM_DATA = {
   mapEmail: '',
   mapName: '',
   identifierFormat: '',
+  encryptAssertions: false,
+  spEncryptionCert: '',
+  spDecryptionKey: '',
   authorizationEndpoint: '',
   tokenEndpoint: '',
   jwksEndpoint: '',
@@ -231,6 +258,7 @@ export function SsoProviderSettings({
   const [showErrors, setShowErrors] = useState(false)
 
   const [isReplacingClientSecret, setIsReplacingClientSecret] = useState(false)
+  const [isReplacingDecryptionKey, setIsReplacingDecryptionKey] = useState(false)
 
   /**
    * Editing an OIDC provider always means a secret is stored — the contract
@@ -242,6 +270,15 @@ export function SsoProviderSettings({
   const storedClientSecretHint = hasStoredClientSecret
     ? readProviderConfigString(existingProvider?.oidcConfig, 'clientSecretHint')
     : null
+
+  /**
+   * A SAML provider saved with encrypted assertions already holds the private
+   * key, and the API returns only its sentinel. Blank therefore means "keep it".
+   */
+  const hasStoredDecryptionKey =
+    isEditing &&
+    existingProvider?.providerType === 'saml' &&
+    hasStoredSpDecryptionKey(existingProvider?.samlConfig)
 
   const hasChanges = (Object.keys(formData) as (keyof typeof formData)[]).some(
     (k) => formData[k] !== originalFormData[k]
@@ -318,6 +355,17 @@ export function SsoProviderSettings({
         newErrors.entryPoint = ['Entry Point URL is required for SAML providers']
       }
       newErrors.cert = validateRequired('Certificate', data.cert)
+      if (data.encryptAssertions) {
+        newErrors.spEncryptionCert = validateRequired(
+          'Service provider certificate',
+          data.spEncryptionCert
+        )
+        /** Skipped only while the stored key is being kept, as for the client secret. */
+        newErrors.spDecryptionKey =
+          hasStoredDecryptionKey && !isReplacingDecryptionKey
+            ? []
+            : validateRequired('Service provider private key', data.spDecryptionKey)
+      }
     }
 
     return newErrors
@@ -402,6 +450,17 @@ export function SsoProviderSettings({
               ...(formData.audience ? { audience: formData.audience } : {}),
               ...(formData.idpMetadata ? { idpMetadata: formData.idpMetadata } : {}),
               identifierFormat: formData.identifierFormat,
+              encryptAssertions: formData.encryptAssertions,
+              ...(formData.encryptAssertions
+                ? {
+                    spEncryptionCert: formData.spEncryptionCert,
+                    /** Unchanged on an edit: the marker keeps the stored key. */
+                    spDecryptionKey:
+                      hasStoredDecryptionKey && !isReplacingDecryptionKey
+                        ? REDACTED_MARKER
+                        : formData.spDecryptionKey,
+                  }
+                : {}),
             }
 
       await configureSSOMutation.mutateAsync(requestBody)
@@ -462,6 +521,8 @@ export function SsoProviderSettings({
       /** Blank means "use the protocol default", so only carry over a stored value that differs — otherwise editing rewrites a default as an explicit override. */
       let mapping: { id?: string; email?: string; name?: string } = {}
       let identifierFormat = ''
+      let encryptAssertions = false
+      let spEncryptionCert = ''
       let authorizationEndpoint = ''
       let tokenEndpoint = ''
       let jwksEndpoint = ''
@@ -489,6 +550,9 @@ export function SsoProviderSettings({
             : (config.idpMetadata?.metadata ?? '')
         mapping = config.mapping ?? {}
         identifierFormat = config.identifierFormat || ''
+        encryptAssertions = config.spMetadata?.isAssertionEncrypted === true
+        /** The certificate is public and kept beside the metadata document so it can be shown back. */
+        spEncryptionCert = config.spMetadata?.encryptionCert || ''
       }
 
       const defaults =
@@ -514,6 +578,9 @@ export function SsoProviderSettings({
         mapEmail: overrideOf(mapping.email, defaults.email),
         mapName: overrideOf(mapping.name, defaults.name),
         identifierFormat,
+        encryptAssertions,
+        spEncryptionCert,
+        spDecryptionKey: '',
         authorizationEndpoint,
         tokenEndpoint,
         jwksEndpoint,
@@ -525,6 +592,7 @@ export function SsoProviderSettings({
       setShowErrors(false)
       setShowAdvanced(false)
       setIsReplacingClientSecret(false)
+      setIsReplacingDecryptionKey(false)
       setShowMapping(Boolean(snapshot.mapId || snapshot.mapEmail || snapshot.mapName))
     } catch (err) {
       logger.error('Failed to parse provider config', { error: err })
@@ -1045,17 +1113,120 @@ export function SsoProviderSettings({
                         </SettingRow>
 
                         <div className='flex items-center justify-between gap-4'>
-                          <Label htmlFor='sso-signed-assertions'>
-                            Require signed SAML assertions
-                          </Label>
-                          <Switch
-                            id='sso-signed-assertions'
-                            checked={formData.wantAssertionsSigned}
-                            onCheckedChange={(checked) =>
-                              handleInputChange('wantAssertionsSigned', checked)
+                          <Label>Require signed SAML assertions</Label>
+                          <ChipSwitch
+                            aria-label='Require signed SAML assertions'
+                            options={TOGGLE_OPTIONS}
+                            value={formData.wantAssertionsSigned ? 'on' : 'off'}
+                            onChange={(value) =>
+                              handleInputChange('wantAssertionsSigned', value === 'on')
                             }
                           />
                         </div>
+
+                        <div className='flex items-center justify-between gap-4'>
+                          <Label>Encrypt SAML assertions</Label>
+                          <ChipSwitch
+                            aria-label='Encrypt SAML assertions'
+                            options={TOGGLE_OPTIONS}
+                            value={formData.encryptAssertions ? 'on' : 'off'}
+                            onChange={(value) =>
+                              handleInputChange('encryptAssertions', value === 'on')
+                            }
+                          />
+                        </div>
+
+                        {formData.encryptAssertions && (
+                          <>
+                            <SettingRow
+                              label='Service provider certificate'
+                              htmlFor='sso-sp-encryption-cert'
+                              error={
+                                showErrors && errors.spEncryptionCert?.length > 0
+                                  ? errors.spEncryptionCert.join(' ')
+                                  : undefined
+                              }
+                            >
+                              <ChipTextarea
+                                id='sso-sp-encryption-cert'
+                                placeholder={
+                                  '-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'
+                                }
+                                value={formData.spEncryptionCert}
+                                autoComplete='off'
+                                autoCapitalize='none'
+                                spellCheck={false}
+                                onChange={(e) =>
+                                  handleInputChange('spEncryptionCert', e.target.value)
+                                }
+                                className='min-h-20'
+                                error={showErrors && errors.spEncryptionCert?.length > 0}
+                                rows={3}
+                              />
+                              <p className='mt-1 text-[var(--text-muted)] text-caption'>
+                                Upload this certificate to your identity provider so it can encrypt
+                                assertions to Sim.
+                              </p>
+                            </SettingRow>
+
+                            <SettingRow
+                              label='Service provider private key'
+                              htmlFor='sso-sp-decryption-key'
+                              error={
+                                showErrors && errors.spDecryptionKey?.length > 0
+                                  ? errors.spDecryptionKey.join(' ')
+                                  : undefined
+                              }
+                            >
+                              {hasStoredDecryptionKey && !isReplacingDecryptionKey ? (
+                                <div className='flex items-center gap-2'>
+                                  <ChipInput
+                                    id='sso-sp-decryption-key'
+                                    readOnly
+                                    value={CLIENT_SECRET_MASK}
+                                    inputClassName='cursor-default'
+                                    className='min-w-0 flex-1'
+                                    aria-label='Saved service provider private key'
+                                  />
+                                  <Chip onClick={() => setIsReplacingDecryptionKey(true)}>
+                                    Replace
+                                  </Chip>
+                                </div>
+                              ) : (
+                                <div className='flex flex-col gap-2'>
+                                  <ChipTextarea
+                                    id='sso-sp-decryption-key'
+                                    placeholder={
+                                      '-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----'
+                                    }
+                                    value={formData.spDecryptionKey}
+                                    autoComplete='off'
+                                    autoCapitalize='none'
+                                    spellCheck={false}
+                                    onChange={(e) =>
+                                      handleInputChange('spDecryptionKey', e.target.value)
+                                    }
+                                    className='min-h-20'
+                                    error={showErrors && errors.spDecryptionKey?.length > 0}
+                                    rows={3}
+                                  />
+                                  {/** The pair to Replace, as on the client secret: put the saved key back. */}
+                                  {hasStoredDecryptionKey && (
+                                    <Chip
+                                      className='w-fit'
+                                      onClick={() => {
+                                        setIsReplacingDecryptionKey(false)
+                                        handleInputChange('spDecryptionKey', '')
+                                      }}
+                                    >
+                                      Keep saved
+                                    </Chip>
+                                  )}
+                                </div>
+                              )}
+                            </SettingRow>
+                          </>
+                        )}
 
                         <SettingRow label='NameID format' optional>
                           <ChipSelect
