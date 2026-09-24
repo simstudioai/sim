@@ -2065,22 +2065,48 @@ export function registerIpcHandlers(deps: IpcDeps): void {
             throw new Error('Computer Use is switched off on this Mac.')
           const toolCallId = args[0]
           if (!isDesktopToolCallId(toolCallId)) throw new Error('Invalid tool call identifier.')
-          return deps.computerUse.executeAuthorized(toolCallId, async () => {
-            const authorization = await fetchDesktopToolAuthorization(
-              event,
-              deps,
-              toolCallId,
-              false,
-              undefined,
-              '/api/desktop/computer/authorize'
-            )
-            if (!authorization || authorization.toolName !== 'computer') {
-              throw new Error('This is not an authorized pending Computer Use action.')
-            }
-            if (!senderAllowed(event, spec.gate) || !deps.accountDataAvailable())
-              throw new Error('Computer Use session ended.')
-            return { scopeId: authorization.chatId, input: authorization.args }
-          })
+          const computerUse = deps.computerUse
+          let ownerEnded = false
+          const cancelOwnedTool = (): void => {
+            if (ownerEnded) return
+            ownerEnded = true
+            computerUse.cancel(toolCallId)
+          }
+          const onNavigation = (
+            _event: unknown,
+            _url: string,
+            isInPlace: boolean,
+            isMainFrame: boolean
+          ): void => {
+            if (!isInPlace && isMainFrame) cancelOwnedTool()
+          }
+          /** A crashed renderer cannot send pagehide or Stop; main owns the action lifetime. */
+          event.sender.on('destroyed', cancelOwnedTool)
+          event.sender.on('render-process-gone', cancelOwnedTool)
+          event.sender.on('did-start-navigation', onNavigation)
+          try {
+            if (event.sender.isDestroyed()) throw new Error('Computer Use session ended.')
+            return await computerUse.executeAuthorized(toolCallId, async () => {
+              const authorization = await fetchDesktopToolAuthorization(
+                event,
+                deps,
+                toolCallId,
+                false,
+                undefined,
+                '/api/desktop/computer/authorize'
+              )
+              if (!authorization || authorization.toolName !== 'computer') {
+                throw new Error('This is not an authorized pending Computer Use action.')
+              }
+              if (!senderAllowed(event, spec.gate) || !deps.accountDataAvailable())
+                throw new Error('Computer Use session ended.')
+              return { scopeId: authorization.chatId, input: authorization.args }
+            })
+          } finally {
+            event.sender.removeListener('destroyed', cancelOwnedTool)
+            event.sender.removeListener('render-process-gone', cancelOwnedTool)
+            event.sender.removeListener('did-start-navigation', onNavigation)
+          }
         }
         if (channel === 'browser-agent:execute-tool') {
           const toolCallId = args[0]
