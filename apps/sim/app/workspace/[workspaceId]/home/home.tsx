@@ -775,11 +775,11 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
         className={cn('z-30', RESOURCE_HEADER_CLASSES.overlay, RESOURCE_HEADER_CLASSES.endPosition)}
       >
         <Button
-          variant='ghost'
+          variant='quiet'
           size={null}
           type='button'
           onClick={isResourceCollapsed ? expandResource : collapseResource}
-          className="after:-translate-x-1/2 after:-translate-y-1/2 relative size-[var(--resource-header-toggle-size)] rounded-[8px] after:absolute after:top-1/2 after:left-1/2 after:size-[var(--resource-header-toggle-hit-size)] after:content-[''] hover-hover:bg-[var(--surface-active)]"
+          className="after:-translate-x-1/2 after:-translate-y-1/2 relative size-[var(--resource-header-toggle-size)] rounded-[8px] after:absolute after:top-1/2 after:left-1/2 after:size-[var(--resource-header-toggle-hit-size)] after:content-['']"
           aria-label={resourceToggleLabel}
         >
           <span className='relative'>

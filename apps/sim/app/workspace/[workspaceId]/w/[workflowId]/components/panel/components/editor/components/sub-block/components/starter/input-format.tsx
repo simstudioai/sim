@@ -725,6 +725,7 @@ export function FieldFormat({
                         ref={(el) => {
                           if (el) descriptionOverlayRefs.current[field.id] = el
                         }}
+                        data-preview-full-opacity={isPreview || undefined}
                         style={{ scrollbarWidth: 'none' }}
                         className={cn(
                           'pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',

@@ -15,23 +15,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   Duplicate,
+  OverlayActionButton,
   Search as SearchIcon,
   Tooltip,
   useCopyToClipboard,
 } from '@sim/emcn'
-import {
-  ArrowDown,
-  ArrowUp,
-  Check,
-  ChevronsDownUp,
-  ChevronsUpDown,
-  Clipboard,
-  Search,
-  X,
-} from '@sim/emcn/icons'
+import { Check, ChevronsDownUp, ChevronsUpDown, Clipboard, Search } from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
 import { createPortal } from 'react-dom'
 import type { TraceSpan } from '@/lib/logs/types'
+import { CodeSearchOverlay } from '@/app/workspace/[workspaceId]/components/code-search-overlay/code-search-overlay'
 import {
   adjustBgForContrast,
   formatCostAmount,
@@ -494,7 +487,8 @@ function DetailCodeSection({
             <Code.Viewer
               code={jsonString}
               language='json'
-              className='max-w-full rounded-md border-0 bg-[var(--surface-4)]! [word-break:break-all] dark:bg-[var(--surface-3)]!'
+              appearance='inspection'
+              className='max-w-full [word-break:break-all]'
               wrapText
               searchQuery={isSearchActive ? searchQuery : undefined}
               currentMatchIndex={currentMatchIndex}
@@ -504,39 +498,35 @@ function DetailCodeSection({
               <div className='absolute top-[7px] right-[6px] z-10 flex gap-1'>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <Button
+                    <OverlayActionButton
                       aria-label={copied ? 'Copied' : 'Copy'}
                       type='button'
-                      variant='default'
                       onClick={(e) => {
                         e.stopPropagation()
                         handleCopy()
                       }}
-                      className='size-[20px] cursor-pointer border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                     >
                       {copied ? (
                         <Check className='size-[10px] text-[var(--text-success)]' />
                       ) : (
                         <Clipboard className='size-[10px]' />
                       )}
-                    </Button>
+                    </OverlayActionButton>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top'>{copied ? 'Copied' : 'Copy'}</Tooltip.Content>
                 </Tooltip.Root>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <Button
+                    <OverlayActionButton
                       aria-label='Search'
                       type='button'
-                      variant='default'
                       onClick={(e) => {
                         e.stopPropagation()
                         activateSearch()
                       }}
-                      className='size-[20px] cursor-pointer border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                     >
                       <Search className='size-[10px]' />
-                    </Button>
+                    </OverlayActionButton>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top'>Search</Tooltip.Content>
                 </Tooltip.Root>
@@ -544,54 +534,18 @@ function DetailCodeSection({
             )}
           </div>
           {isSearchActive && (
-            <div
-              role='presentation'
-              className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-xs'
-              onClick={(e) => e.stopPropagation()}
-            >
-              <ChipInput
-                ref={searchInputRef}
-                type='text'
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder='Search...'
-                className='mr-0.5 w-[94px]'
-              />
-              <span
-                className={cn(
-                  'min-w-[45px] text-center text-xs',
-                  matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
-                )}
-              >
-                {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : '0/0'}
-              </span>
-              <Button
-                variant='ghost'
-                iconPadding='sm'
-                onClick={goToPreviousMatch}
-                disabled={matchCount === 0}
-                aria-label='Previous match'
-              >
-                <ArrowUp className='size-[12px]' />
-              </Button>
-              <Button
-                variant='ghost'
-                iconPadding='sm'
-                onClick={goToNextMatch}
-                disabled={matchCount === 0}
-                aria-label='Next match'
-              >
-                <ArrowDown className='size-[12px]' />
-              </Button>
-              <Button
-                variant='ghost'
-                iconPadding='sm'
-                onClick={closeSearch}
-                aria-label='Close search'
-              >
-                <X className='size-[12px]' />
-              </Button>
-            </div>
+            <CodeSearchOverlay
+              className='top-0 right-0'
+              inputKind='chip'
+              inputRef={searchInputRef}
+              query={searchQuery}
+              onQueryChange={setSearchQuery}
+              matchCount={matchCount}
+              currentMatchIndex={currentMatchIndex}
+              onPrevious={goToPreviousMatch}
+              onNext={goToNextMatch}
+              onClose={closeSearch}
+            />
           )}
           {typeof document !== 'undefined' &&
             createPortal(

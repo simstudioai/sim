@@ -172,7 +172,7 @@ export function ChatFileDownload({ file }: ChatFileDownloadProps) {
         variant='default'
         onClick={handleDownload}
         disabled={isDownloading}
-        className='group flex h-auto w-[200px] gap-2 rounded-lg px-3 py-2'
+        className='group flex w-[200px] gap-2 rounded-lg px-3 py-2'
       >
         <div className='flex size-8 shrink-0 items-center justify-center'>{renderIcon()}</div>
         <div className='min-w-0 flex-1 text-left'>

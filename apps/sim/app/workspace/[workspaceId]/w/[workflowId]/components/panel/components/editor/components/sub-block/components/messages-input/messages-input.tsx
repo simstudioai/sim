@@ -547,6 +547,7 @@ export function MessagesInput({
       {currentMessages.map((message, index) => (
         <div
           key={messageIdsRef.current[index] ?? `fallback-${index}`}
+          data-preview-full-opacity={isPreview || undefined}
           className={cn(
             'relative flex w-full flex-col rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] transition-colors dark:bg-[var(--surface-5)]',
             disabled && 'opacity-50'

@@ -13,6 +13,7 @@ import {
 import { escapeRegExp } from '@sim/utils/string'
 import { findWorkflowReferenceTokens } from '@sim/utils/workflow-references'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { cva, type VariantProps } from 'class-variance-authority'
 import { ChevronRight } from '../../icons'
 import { cn } from '../../lib/cn'
 import './code.css'
@@ -856,6 +857,18 @@ function applySearchHighlightingToLine(
  */
 type CodeViewerDensity = 'default' | 'compact'
 
+/** Container appearances shared by the standard and virtualized viewers. */
+export const codeViewerAppearanceVariants = cva('', {
+  variants: {
+    appearance: {
+      default: '',
+      inspection: 'rounded-md border-0 bg-[var(--surface-4)]! dark:bg-[var(--surface-3)]!',
+      flat: 'rounded-none border-0 bg-[var(--bg)] dark:bg-[var(--bg)]',
+    },
+  },
+  defaultVariants: { appearance: 'default' },
+})
+
 interface CodeViewerProps {
   /** Code content to display */
   code: string
@@ -865,6 +878,8 @@ interface CodeViewerProps {
   language?: 'javascript' | 'json' | 'python' | 'bash' | 'toml'
   /** Additional CSS classes for the container */
   className?: string
+  /** Container appearance for code inspected in logs/previews or on flat surfaces. */
+  appearance?: NonNullable<VariantProps<typeof codeViewerAppearanceVariants>['appearance']>
   /** Visual density for read-only code. */
   density?: CodeViewerDensity
   /** Highlight Sim `{{ENV}}` and `<block.output>` references with the platform accent. */
@@ -948,6 +963,7 @@ type ViewerInnerProps = {
   language: 'javascript' | 'json' | 'python' | 'bash' | 'toml'
   /** Additional CSS classes for the container */
   className?: string
+  appearance: NonNullable<CodeViewerProps['appearance']>
   /** Visual density for read-only code. */
   density: CodeViewerDensity
   highlightWorkflowReferences: boolean
@@ -978,6 +994,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
   showGutter,
   language,
   className,
+  appearance,
   density,
   highlightWorkflowReferences,
   paddingLeft,
@@ -1147,6 +1164,7 @@ const VirtualizedViewerInner = memo(function VirtualizedViewerInner({
         wrapText ? 'overflow-x-hidden' : 'overflow-x-auto',
         'overflow-y-auto',
         'dark:bg-[var(--code-bg)]',
+        codeViewerAppearanceVariants({ appearance }),
         className
       )}
       style={{ height: containerHeight }}
@@ -1196,6 +1214,7 @@ const ViewerInner = memo(function ViewerInner({
   showGutter,
   language,
   className,
+  appearance,
   density,
   highlightWorkflowReferences,
   paddingLeft,
@@ -1309,7 +1328,7 @@ const ViewerInner = memo(function ViewerInner({
   // Grid-based rendering for gutter alignment (works with wrap)
   if (showGutter) {
     return (
-      <Container className={className}>
+      <Container className={cn(codeViewerAppearanceVariants({ appearance }), className)}>
         <Content className='code-editor-theme' editorRef={contentRef}>
           <div
             style={{
@@ -1370,7 +1389,7 @@ const ViewerInner = memo(function ViewerInner({
 
   // Simple display without gutter
   return (
-    <Container className={className}>
+    <Container className={cn(codeViewerAppearanceVariants({ appearance }), className)}>
       <Content className='code-editor-theme' editorRef={contentRef}>
         <pre
           className={cn(
@@ -1417,6 +1436,7 @@ function Viewer({
   showGutter = false,
   language = 'json',
   className,
+  appearance = 'default',
   density = 'default',
   highlightWorkflowReferences = false,
   paddingLeft = 0,
@@ -1434,6 +1454,7 @@ function Viewer({
     showGutter,
     language,
     className,
+    appearance,
     density,
     highlightWorkflowReferences,
     paddingLeft,

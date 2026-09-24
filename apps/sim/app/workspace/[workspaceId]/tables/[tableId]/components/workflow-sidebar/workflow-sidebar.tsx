@@ -6,19 +6,18 @@ import {
   ChipCombobox,
   ChipInput,
   type ComboboxOptionGroup,
-  cn,
-  DashedDividerLine,
+  FieldDisclosure,
   FieldDivider,
   Label,
   Loader,
   OverflowText,
   Switch,
-  Tooltip,
   toast,
 } from '@sim/emcn'
-import { ArrowLeft, ChevronDown, SquareArrowUpRight, X } from '@sim/emcn/icons'
+import { ArrowLeft, SquareArrowUpRight, X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { WorkflowPreviewAction } from '@/components/workflow/workflow-preview-action'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import type {
   AddWorkflowGroupBodyInput,
@@ -46,6 +45,14 @@ import {
   FieldError,
   RequiredLabel,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/sidebar-fields'
+import {
+  TableSidebarHeader,
+  TableSidebarHeaderAction,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-sidebar-header/table-sidebar-header'
+import {
+  TableSidebarScrollBody,
+  TableSidebarShell,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-sidebar-layout'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
 import { BlockTile } from '@/blocks/block-tile'
 import { useDeployedWorkflowState } from '@/hooks/queries/deployments'
@@ -146,18 +153,11 @@ interface BlockOutputGroup {
 export function WorkflowSidebar(props: WorkflowSidebarProps) {
   const open = props.config !== null
   return (
-    <aside
-      role='dialog'
-      aria-label='Configure workflow'
-      className={cn(
-        'absolute top-0 right-0 bottom-0 z-[var(--z-modal)] flex w-[400px] flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)] transition-transform duration-200 ease-out',
-        open ? 'translate-x-0 shadow-overlay' : 'translate-x-full'
-      )}
-    >
+    <TableSidebarShell open={open} aria-label='Configure workflow'>
       {props.config && (
         <WorkflowSidebarBody key={configKey(props.config)} {...props} config={props.config} />
       )}
-    </aside>
+    </TableSidebarShell>
   )
 }
 
@@ -630,37 +630,27 @@ export function WorkflowSidebarBody({
 
   return (
     <div className='flex h-full flex-col'>
-      <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
+      <TableSidebarHeader>
         <div className='flex min-w-0 items-center gap-1.5'>
           {showBackButton && (
-            <Button
-              variant='ghost'
-              size='sm'
+            <TableSidebarHeaderAction
               onClick={onBack}
-              iconPadding='sm'
-              className='size-7 flex-none'
+              className='flex-none'
               aria-label='Back to enrichments'
             >
               <ArrowLeft className='size-[14px]' />
-            </Button>
+            </TableSidebarHeaderAction>
           )}
           <h2 className='flex min-w-0'>
             <OverflowText label={title} className='text-[var(--text-primary)] text-small' />
           </h2>
         </div>
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={onClose}
-          iconPadding='sm'
-          className='size-7 flex-none'
-          aria-label='Close'
-        >
+        <TableSidebarHeaderAction onClick={onClose} className='flex-none' aria-label='Close'>
           <X className='size-[14px]' />
-        </Button>
-      </div>
+        </TableSidebarHeaderAction>
+      </TableSidebarHeader>
 
-      <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [overflow-anchor:none]'>
+      <TableSidebarScrollBody>
         {/* Single-output mode renames this column directly. */}
         {isEditOutputMode && (
           <>
@@ -717,27 +707,18 @@ export function WorkflowSidebarBody({
                       />
                     </div>
                     {!isEnrichment && (
-                      <Tooltip.Root>
-                        <Tooltip.Trigger asChild>
-                          <Button
-                            aria-label='Open workflow'
-                            type='button'
-                            variant='ghost'
-                            onClick={() =>
-                              window.open(
-                                `/workspace/${workspaceId}/w/${selectedWorkflowId}`,
-                                '_blank',
-                                'noopener,noreferrer'
-                              )
-                            }
-                            iconSize='compact-fixed'
-                            className='absolute right-[6px] bottom-1.5 z-10 cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] hover-hover:bg-[var(--surface-4)]'
-                          >
-                            <SquareArrowUpRight className='size-[12px]' />
-                          </Button>
-                        </Tooltip.Trigger>
-                        <Tooltip.Content side='top'>Open workflow</Tooltip.Content>
-                      </Tooltip.Root>
+                      <WorkflowPreviewAction
+                        aria-label='Open workflow'
+                        onClick={() =>
+                          window.open(
+                            `/workspace/${workspaceId}/w/${selectedWorkflowId}`,
+                            '_blank',
+                            'noopener,noreferrer'
+                          )
+                        }
+                      >
+                        <SquareArrowUpRight className='size-[12px]' />
+                      </WorkflowPreviewAction>
                     )}
                   </>
                 ) : (
@@ -838,23 +819,9 @@ export function WorkflowSidebarBody({
             )}
             {selectedWorkflowId && (
               <>
-                <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
-                  <DashedDividerLine className='flex-1' />
-                  <button
-                    type='button'
-                    onClick={() => setShowAdvanced((v) => !v)}
-                    className='flex items-center gap-1.5 whitespace-nowrap text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
-                  >
-                    {showAdvanced ? 'Hide additional fields' : 'Show additional fields'}
-                    <ChevronDown
-                      className={cn(
-                        'size-[14px] transition-transform duration-200',
-                        showAdvanced && 'rotate-180'
-                      )}
-                    />
-                  </button>
-                  <DashedDividerLine className='flex-1' />
-                </div>
+                <FieldDisclosure expanded={showAdvanced} onClick={() => setShowAdvanced((v) => !v)}>
+                  {showAdvanced ? 'Hide additional fields' : 'Show additional fields'}
+                </FieldDisclosure>
                 {showAdvanced && (
                   <>
                     <InputMappingSection
@@ -869,7 +836,7 @@ export function WorkflowSidebarBody({
             )}
           </>
         )}
-      </div>
+      </TableSidebarScrollBody>
 
       <div className='flex items-center justify-end gap-2 border-[var(--border)] border-t px-2 py-3'>
         <Button variant='default' size='sm' onClick={onClose}>

@@ -1,11 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
+import {
+  Button,
+  DashedDividerLine,
+  FieldDisclosure,
+  FieldDivider,
+  Loader,
+  Tooltip,
+} from '@sim/emcn'
 import {
   BookOpen,
   Check,
-  ChevronDown,
   ChevronUp,
   Lock,
   Pencil,
@@ -18,6 +24,7 @@ import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
+import { WorkflowPreviewAction } from '@/components/workflow/workflow-preview-action'
 import { isMcpRuntimeReference } from '@/lib/mcp/operation-policy'
 import { resolveMcpBlockConfig } from '@/lib/mcp/workflow-config'
 import { captureEvent } from '@/lib/posthog/client'
@@ -604,21 +611,12 @@ export function Editor() {
                                 lightweight
                               />
                             </div>
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <Button
-                                  aria-label='Open workflow'
-                                  type='button'
-                                  variant='ghost'
-                                  onClick={handleOpenChildWorkflow}
-                                  iconSize='compact-fixed'
-                                  className='absolute right-[6px] bottom-1.5 z-10 cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] hover-hover:bg-[var(--surface-4)]'
-                                >
-                                  <SquareArrowUpRight className='size-[12px]' />
-                                </Button>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content side='top'>Open workflow</Tooltip.Content>
-                            </Tooltip.Root>
+                            <WorkflowPreviewAction
+                              aria-label='Open workflow'
+                              onClick={handleOpenChildWorkflow}
+                            >
+                              <SquareArrowUpRight className='size-[12px]' />
+                            </WorkflowPreviewAction>
                           </>
                         ) : (
                           <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
@@ -743,22 +741,14 @@ export function Editor() {
                     })}
 
                     {hasAdditionalFields && canEditBlock && (
-                      <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
-                        <DashedDividerLine className='flex-1' />
-                        <button
-                          type='button'
-                          onClick={handleToggleAdditionalFields}
-                          className='flex items-center gap-1.5 whitespace-nowrap text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
-                        >
-                          {displayAdvancedOptions
-                            ? 'Hide additional fields'
-                            : 'Show additional fields'}
-                          <ChevronDown
-                            className={`size-[14px] transition-transform duration-200 ${displayAdvancedOptions ? 'rotate-180' : ''}`}
-                          />
-                        </button>
-                        <DashedDividerLine className='flex-1' />
-                      </div>
+                      <FieldDisclosure
+                        expanded={displayAdvancedOptions}
+                        onClick={handleToggleAdditionalFields}
+                      >
+                        {displayAdvancedOptions
+                          ? 'Hide additional fields'
+                          : 'Show additional fields'}
+                      </FieldDisclosure>
                     )}
                     {hasAdditionalFields && !canEditBlock && displayAdvancedOptions && (
                       <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
