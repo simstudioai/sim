@@ -297,15 +297,11 @@ export function FieldFormat({
           autoComplete='off'
           className='allow-scroll w-full overflow-x-auto overflow-y-hidden'
           overlayClassName={cn(
-            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
+            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm [scrollbar-width:none]',
             !isReadOnly && 'pointer-events-none'
           )}
-          overlayStyle={{ scrollbarWidth: 'none' }}
           overlay={
-            <div
-              className='w-full whitespace-pre'
-              style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
-            >
+            <div className='w-full min-w-fit whitespace-pre [scrollbar-width:none]'>
               {formatDisplayText(
                 fieldValue,
                 accessiblePrefixes
@@ -528,15 +524,11 @@ export function FieldFormat({
           autoComplete='off'
           className='allow-scroll w-full overflow-x-auto overflow-y-hidden'
           overlayClassName={cn(
-            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
+            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm [scrollbar-width:none]',
             !isReadOnly && 'pointer-events-none'
           )}
-          overlayStyle={{ scrollbarWidth: 'none' }}
           overlay={
-            <div
-              className='w-full whitespace-pre'
-              style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
-            >
+            <div className='w-full min-w-fit whitespace-pre [scrollbar-width:none]'>
               {formatDisplayText(
                 fieldValue,
                 accessiblePrefixes
@@ -623,13 +615,12 @@ export function FieldFormat({
                   disabled={isReadOnly}
                   autoComplete='off'
                   className='allow-scroll w-full overflow-x-auto overflow-y-hidden placeholder:text-muted-foreground/50'
-                  overlayStyle={{ scrollbarWidth: 'none' }}
                   overlayClassName={cn(
-                    'pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
+                    'pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm [scrollbar-width:none]',
                     isReadOnly && 'opacity-50'
                   )}
                   overlay={
-                    <span className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
+                    <span className='w-full min-w-fit whitespace-pre'>
                       {formatDisplayText(
                         field.description ?? '',
                         accessiblePrefixes

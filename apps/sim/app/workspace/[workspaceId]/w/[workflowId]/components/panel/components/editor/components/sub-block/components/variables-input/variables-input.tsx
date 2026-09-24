@@ -516,13 +516,9 @@ export function VariablesInput({
                         }
                         disabled={isReadOnly}
                         className={cn(
-                          'min-h-[120px] font-mono text-sm placeholder:text-muted-foreground/50',
+                          'min-h-[120px] whitespace-pre-wrap break-words font-mono text-sm placeholder:text-muted-foreground/50',
                           dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2'
                         )}
-                        style={{
-                          wordBreak: 'break-word',
-                          whiteSpace: 'pre-wrap',
-                        }}
                         onDrop={(e) => handleDrop(e, assignment.id)}
                         onDragOver={(e) => handleDragOver(e, assignment.id)}
                         onDragLeave={(e) => handleDragLeave(e, assignment.id)}
@@ -530,10 +526,9 @@ export function VariablesInput({
                           if (el) overlayRefs.current[assignment.id] = el
                         }}
                         overlayClassName={cn(
-                          'absolute inset-0 flex items-start overflow-auto bg-transparent px-3 py-2 font-mono text-sm',
+                          'absolute inset-0 flex items-start overflow-auto bg-transparent px-3 py-2 font-mono text-sm [scrollbar-width:none]',
                           !isReadOnly && 'pointer-events-none'
                         )}
-                        overlayStyle={{ scrollbarWidth: 'none' }}
                         overlay={
                           <div className='w-full whitespace-pre-wrap break-words'>
                             {formatDisplayText(assignment.value || '', {
@@ -582,15 +577,11 @@ export function VariablesInput({
                           if (el) overlayRefs.current[assignment.id] = el
                         }}
                         overlayClassName={cn(
-                          'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
+                          'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm [scrollbar-width:none]',
                           !isReadOnly && 'pointer-events-none'
                         )}
-                        overlayStyle={{ scrollbarWidth: 'none' }}
                         overlay={
-                          <div
-                            className='w-full whitespace-pre'
-                            style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
-                          >
+                          <div className='w-full min-w-fit whitespace-pre [scrollbar-width:none]'>
                             {formatDisplayText(
                               assignment.value || '',
                               accessiblePrefixes

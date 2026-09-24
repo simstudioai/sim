@@ -258,7 +258,6 @@ function InputMappingField({
             disabled={disabled}
             autoComplete='off'
             className='allow-scroll w-full overflow-auto'
-            style={{ overflowX: 'auto' }}
             overlayRef={(el) => {
               if (el) overlayRefs.current.set(fieldId, el)
             }}
@@ -266,12 +265,8 @@ function InputMappingField({
               'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
               !disabled && 'pointer-events-none'
             )}
-            overlayStyle={{ overflowX: 'auto' }}
             overlay={
-              <div
-                className='w-full whitespace-pre'
-                style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
-              >
+              <div className='w-full min-w-fit whitespace-pre [scrollbar-width:none]'>
                 {formatDisplayText(
                   value,
                   accessiblePrefixes

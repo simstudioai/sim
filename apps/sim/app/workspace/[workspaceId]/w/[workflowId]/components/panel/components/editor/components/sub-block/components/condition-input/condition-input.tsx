@@ -1103,14 +1103,10 @@ export function ConditionInput({
                     else overlayRefs.current.delete(block.id)
                   }}
                   overlayClassName={cn(
-                    'pointer-events-none absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-3 py-2 font-sans text-sm',
+                    'pointer-events-none absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-3 py-2 text-sm [font-family:inherit] [line-height:inherit]',
                     (isPreview || disabled) && 'opacity-50'
                   )}
-                  overlayStyle={{
-                    fontFamily: 'inherit',
-                    lineHeight: 'inherit',
-                    height: `${getRouterHeight(block.id)}px`,
-                  }}
+                  overlayStyle={{ height: `${getRouterHeight(block.id)}px` }}
                   overlay={formatDisplayText(block.value, {
                     accessiblePrefixes,
                     highlightAll: !accessiblePrefixes,
