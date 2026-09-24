@@ -36,6 +36,9 @@ import type {
 
 export const PENDING_DESKTOP_SCOPE_PREFIX = 'pending:' as const
 
+/** Renderer budget for native authorization, app approval, queueing, and execution. */
+export const COMPUTER_USE_TOOL_TIMEOUT_MS = 90_000
+
 /** Native work is bound to the server-authorized chat and tool call. */
 export interface ComputerUseActivity {
   toolCallId: string

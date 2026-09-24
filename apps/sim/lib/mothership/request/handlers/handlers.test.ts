@@ -342,43 +342,64 @@ describe('sse-handlers tool lifecycle', () => {
     )
   })
 
-  it('pre-persists browser tools as pending for the desktop authorization claim', async () => {
-    isSimExecuted.mockReturnValue(false)
-    context.runId = 'run-1'
+  describe.each(['browser_list_tabs', 'terminal', 'import_local_files', 'computer'])(
+    'native %s pre-persistence',
+    (toolName) => {
+      it.each([false, true])(
+        'keeps the call pending for the desktop claim when approval gating is %s',
+        async (gated) => {
+          isSimExecuted.mockReturnValue(false)
+          toolRequiresApproval.mockReturnValue(gated)
+          context.runId = 'run-1'
+          context.toolPermissions.enabled = gated
+          const args =
+            toolName === 'computer'
+              ? { action: 'status' }
+              : toolName === 'terminal'
+                ? { operation: 'run', command: 'pwd' }
+                : {}
+          const event = {
+            type: MothershipStreamV1EventType.tool,
+            payload: {
+              toolCallId: 'native-tool-1',
+              toolName,
+              arguments: args,
+              executor: MothershipStreamV1ToolExecutor.client,
+              mode: MothershipStreamV1ToolMode.async,
+              phase: MothershipStreamV1ToolPhase.call,
+            },
+          } satisfies StreamEvent
 
-    await prePersistClientExecutableToolCall(
-      {
-        type: MothershipStreamV1EventType.tool,
-        payload: {
-          toolCallId: 'browser-tool-1',
-          toolName: 'browser_list_tabs',
-          arguments: {},
-          executor: MothershipStreamV1ToolExecutor.client,
-          mode: MothershipStreamV1ToolMode.async,
-          phase: MothershipStreamV1ToolPhase.call,
-        },
-      } satisfies StreamEvent,
-      context,
-      {},
-      execContext
-    )
+          await prePersistClientExecutableToolCall(event, context, {}, execContext)
 
-    expect(upsertAsyncToolCall).toHaveBeenCalledWith({
-      runId: 'run-1',
-      toolCallId: 'browser-tool-1',
-      toolName: 'browser_list_tabs',
-      args: {},
-      sealedContext: { __sealedClientToolContextV1: 'sealed-context' },
-      status: MothershipStreamV1AsyncToolRecordStatus.pending,
-    })
-    expect(sealClientToolContext).toHaveBeenCalledWith({
-      toolCallId: 'browser-tool-1',
-      runId: 'run-1',
-      userId: 'user-1',
-      registry: execContext.resolvedSecretTraceRegistry,
-      toolInput: {},
-    })
-  })
+          expect(upsertAsyncToolCall).toHaveBeenCalledExactlyOnceWith({
+            runId: 'run-1',
+            toolCallId: 'native-tool-1',
+            toolName,
+            args,
+            sealedContext: { __sealedClientToolContextV1: 'sealed-context' },
+            status: MothershipStreamV1AsyncToolRecordStatus.pending,
+          })
+          expect(sealClientToolContext).toHaveBeenCalledWith({
+            toolCallId: 'native-tool-1',
+            runId: 'run-1',
+            userId: 'user-1',
+            registry: execContext.resolvedSecretTraceRegistry,
+            toolInput: args,
+          })
+          expect(event.payload).toEqual({
+            toolCallId: 'native-tool-1',
+            toolName,
+            arguments: args,
+            executor: MothershipStreamV1ToolExecutor.client,
+            mode: MothershipStreamV1ToolMode.async,
+            phase: MothershipStreamV1ToolPhase.call,
+            ...(gated ? { status: 'awaiting_approval' } : {}),
+          })
+        }
+      )
+    }
+  )
 
   it('persists a gated sim tool and stamps the frame so a reload can still answer it', async () => {
     toolRequiresApproval.mockReturnValue(true)

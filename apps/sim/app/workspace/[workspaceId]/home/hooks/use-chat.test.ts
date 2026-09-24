@@ -326,4 +326,15 @@ describe('getReplayCompletedWorkflowToolCallIds', () => {
 
     expect(result).toEqual(new Set(['workflow-complete']))
   })
+
+  it('suppresses completed computer and browser calls while keeping unfinished calls eligible', () => {
+    const result = getReplayCompletedWorkflowToolCallIds([
+      toolBatchEvent(1, 'computer-complete', 'computer', MothershipStreamV1ToolPhase.call),
+      toolBatchEvent(2, 'computer-complete', 'computer', MothershipStreamV1ToolPhase.result),
+      toolBatchEvent(3, 'computer-active', 'computer', MothershipStreamV1ToolPhase.call),
+      toolBatchEvent(4, 'browser-complete', 'browser_click', MothershipStreamV1ToolPhase.result),
+    ])
+
+    expect(result).toEqual(new Set(['computer-complete', 'browser-complete']))
+  })
 })
