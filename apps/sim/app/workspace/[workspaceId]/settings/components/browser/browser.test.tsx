@@ -26,8 +26,41 @@ vi.mock('@sim/browser-protocol', () => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
-  /** `SettingsResourceRow` composes its tile classes with `cn`. */
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(' '),
+  ResourceRow: ({
+    title,
+    description,
+    icon,
+    trailing,
+    onClick,
+    clickLabel,
+    disabled,
+  }: {
+    title: ReactNode
+    description?: ReactNode
+    icon?: ReactNode
+    trailing?: ReactNode
+    onClick?: () => void
+    clickLabel?: string
+    disabled?: boolean
+  }) => (
+    <div>
+      {onClick && !disabled ? (
+        <button type='button' aria-label={clickLabel} onClick={onClick}>
+          {icon}
+          {title}
+          {description}
+        </button>
+      ) : (
+        <span>
+          {icon}
+          {title}
+          {description}
+        </span>
+      )}
+      {trailing}
+    </div>
+  ),
   Chip: ({
     children,
     disabled,

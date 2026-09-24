@@ -213,6 +213,21 @@ export {
 } from './popover/popover'
 export { POPOVER_ANIMATION_CLASSES } from './popover/popover-animation'
 export { ProgressItem } from './progress-item/progress-item'
+export {
+  RESOURCE_LIST_GRID,
+  RESOURCE_LIST_STACK,
+  RESOURCE_ROW_ARROW_CLASSES,
+  ResourceRow,
+  type ResourceRowProps,
+  resourceRowIconVariants,
+} from './resource-row/resource-row'
+export {
+  RESOURCE_TILE_BASE,
+  RESOURCE_TILE_FILL,
+  RESOURCE_TILE_PLAIN,
+  ResourceTile,
+  type ResourceTileProps,
+} from './resource-tile/resource-tile'
 export { SecretInput } from './secret-input/secret-input'
 export { SecretReveal } from './secret-reveal/secret-reveal'
 export { WORDMARK_PATHS, WORDMARK_VIEW_BOX } from './sim-wordmark/paths'
