@@ -626,7 +626,7 @@ it('shows Build with a chevron in the shared chip and text-only modes in its men
     mode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
   )
   const search = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
-    (item) => item.textContent === 'Ask'
+    (item) => item.textContent === 'Search'
   )!
   expect(search.querySelector('svg')).toBeNull()
   expect(document.querySelector('[role="tooltip"]')).toBeNull()
@@ -730,12 +730,12 @@ it.each(['skill', 'file'] as const)(
       mode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
     )
     const search = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
-      (item) => item.textContent === 'Ask'
+      (item) => item.textContent === 'Search'
     )!
     await act(async () => search.click())
     expect(onModeChange).not.toHaveBeenCalled()
     expect(info).toHaveBeenCalledWith(
-      'Remove resource and skill mentions and non-image attachments before switching to Ask.'
+      'Remove resource and skill mentions and non-image attachments before switching to Search.'
     )
     expect(
       container.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
@@ -787,7 +787,7 @@ describe('Search levels', () => {
     expect(
       row.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')
     ).not.toBeNull()
-    expect(mode.textContent).toBe('Ask')
+    expect(mode.textContent).toBe('Search')
     expect(mode.querySelectorAll('svg')).toHaveLength(1)
     expect(mode.parentElement?.nextElementSibling).toBeNull()
     expect(row.querySelector('[aria-label="Search level"]')).toBeNull()
