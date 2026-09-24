@@ -243,6 +243,24 @@ describe('knowledge query placeholder scope', () => {
     expect(placeholder('workspace-1', 'different', 5, 'reader')).toBeUndefined()
   })
 
+  it('retains a page-owned search across result limits only for the same reader', () => {
+    const query = captureQuery(() =>
+      useWorkspaceKnowledgeSearch('workspace-1', 'release', { source: 'slack' }, 50, {
+        retainAcrossLimits: true,
+      })
+    )
+    const previous = { results: [{ documentId: 'private-document' }] }
+    mocks.getQueryData.mockReturnValue(previous)
+    const placeholder = (topK: number, userId: string) =>
+      query.placeholderData?.(previous, {
+        queryKey: knowledgeKeys.search('workspace-1', 'release', {}, topK, userId),
+        state: { status: 'success', isInvalidated: false },
+      })
+    expect(placeholder(20, 'reader')).toBe(previous)
+    expect(placeholder(50, 'reader')).toBe(previous)
+    expect(placeholder(20, 'other')).toBeUndefined()
+  })
+
   it('partitions search cache entries by filter and reader', () => {
     const query = captureQuery(() =>
       useWorkspaceKnowledgeSearch('workspace-1', 'new query', { source: 'slack' })

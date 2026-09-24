@@ -22,7 +22,7 @@ https://www.googleapis.com/auth/calendar.readonly
 https://www.googleapis.com/auth/admin.directory.user.readonly
 ```
 
-`calendar.readonly` is needed for calendar metadata and the CalendarList picker; event-read scope alone is insufficient. See [CalendarList authorization](https://developers.google.com/workspace/calendar/api/v3/reference/calendarList/list).
+Search reads events with `calendar.events.readonly`. The calendar picker also needs `calendar.readonly` to list the delegated administrator's calendars. See [CalendarList authorization](https://developers.google.com/workspace/calendar/api/v3/reference/calendarList/list).
 
 3. In **Settings → Sources → Google Calendar**, choose **Service account**, then **Add connection**. Add or select the Google credential and set **Delegated administrator** to an active Workspace administrator with Directory user-read access.
 4. Select calendars, users, a date range, and optional event-text and attendee settings. Save and select this connection as the service source.
@@ -44,7 +44,7 @@ Sim does not copy the organizer's richer event details into an attendee's view o
 
 | Problem | Next step |
 | --- | --- |
-| Calendar picker or metadata read fails | Include `calendar.readonly` in delegation, along with the other scopes above. |
+| Calendar picker fails | Include `calendar.readonly` in delegation, along with the other scopes above. |
 | A member gets no matches | Check their personal connection, primary Workspace identity, Users selection, calendars, and source date window. |
 | Shared calendar is missing | Confirm both the member and delegated source identity can access that calendar ID. |
 | Event is outside the configured range | Adjust the service source's range or narrow the user's query to its allowed window. |

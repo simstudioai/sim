@@ -120,12 +120,15 @@ export async function createGoogleServiceVerifier(input: {
   }
   const calendarTimeZones = new Map<string, Promise<string>>()
   const calendarWindow = calendarSourceWindow(config, Date.now())
+  /** An events.list response carries the calendar's time zone under the crawl's events-only scope. */
   const calendarTimeZone = (subject: string, calendarId: string, client: NativeClient) => {
     const key = JSON.stringify([subject, calendarId])
     let pending = calendarTimeZones.get(key)
     if (!pending) {
       pending = client
-        .json(`/calendar/v3/calendars/${segment(calendarId)}`)
+        .json(`/calendar/v3/calendars/${segment(calendarId)}/events`, {
+          query: { maxResults: '1', fields: 'timeZone' },
+        })
         .then((row) => string(object(row).timeZone))
       calendarTimeZones.set(key, pending)
     }

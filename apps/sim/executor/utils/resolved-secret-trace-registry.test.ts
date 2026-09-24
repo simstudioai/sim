@@ -1798,6 +1798,7 @@ describe('incompleteness diagnostics', () => {
     'client-tool-content-unavailable',
     'knowledge-result-provenance-unavailable',
     'table-result-provenance-unavailable',
+    'table-run-state-provenance-unavailable',
     'mounted-file-provenance-unavailable',
     'workspace-file-provenance-unknown',
     'file-source-unidentified',

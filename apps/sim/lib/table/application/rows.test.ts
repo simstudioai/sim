@@ -182,6 +182,7 @@ vi.mock('@/lib/table/events', () => ({
 }))
 
 import { TABLE_LIMITS } from '@/lib/table'
+import { observeTableRowDelivery } from '@/lib/table/application/row-delivery-observer'
 import {
   batchUpdateTableRows,
   createTableRows,
@@ -770,7 +771,8 @@ describe('row query and upsert application semantics', () => {
         withExecutions: false,
         runStateBudgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
       },
-      expect.any(String)
+      expect.any(String),
+      undefined
     )
     expect(result.nextCursor).toBe('native-next-cursor')
   })
@@ -1470,7 +1472,8 @@ describe('opt-in per-cell run state', () => {
     expect(mockQueryRows).toHaveBeenCalledWith(
       TABLE,
       expect.objectContaining({ withExecutions: false }),
-      expect.any(String)
+      expect.any(String),
+      undefined
     )
   })
 
@@ -1483,7 +1486,8 @@ describe('opt-in per-cell run state', () => {
     expect(mockQueryRows).toHaveBeenCalledWith(
       TABLE,
       expect.objectContaining({ withExecutions: true }),
-      expect.any(String)
+      expect.any(String),
+      undefined
     )
   })
 
@@ -1809,5 +1813,267 @@ describe('enrichment detail id validation', () => {
       'row-1',
       expect.objectContaining({ budgetBytes: expect.any(Number) })
     )
+  })
+})
+
+/**
+ * An internal transport that observes delivery (the Copilot CLI) must see the
+ * persisted provenance of every row a row-returning use case hands back, even
+ * though the public surface it dispatched never asks for it on the wire.
+ */
+describe('row delivery to an observing transport', () => {
+  const ENRICHED_TABLE: TableDefinition = {
+    ...TABLE,
+    schema: {
+      columns: [{ id: 'column-name', name: 'name', type: 'string' }],
+      workflowGroups: [{ id: 'group-1', name: 'Enrich', type: 'enrichment', columnIds: [] }],
+    },
+  }
+  const ROW = {
+    id: 'row-1',
+    data: { 'column-name': 'secret-cell' },
+    createdAt: new Date('2026-01-01'),
+    updatedAt: new Date('2026-01-01'),
+  }
+  const PAGE = { rows: [ROW], rowCount: 1, totalCount: null, nextCursor: null }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue(contextFor(ENRICHED_TABLE))
+    mockQueryRows.mockResolvedValue(PAGE)
+    mockGetRowSummaryById.mockResolvedValue(ROW)
+    mockLoadExecutionsForRow.mockResolvedValue({})
+    mockLoadEnrichmentDetail.mockResolvedValue(null)
+    mockValidateRowData.mockResolvedValue({ valid: true })
+    mockValidateBatchRows.mockResolvedValue({ valid: true })
+    mockInsertRow.mockResolvedValue(ROW)
+    mockBatchInsertRows.mockResolvedValue([ROW])
+    mockUpdateRow.mockResolvedValue(ROW)
+    mockUpsertRow.mockResolvedValue({ operation: 'update', row: ROW })
+  })
+
+  const reads = {
+    list: () =>
+      listTableRows.execute({ principal: PRINCIPAL, input: { tableId: TABLE.id, limit: 25 } }),
+    query: () =>
+      queryTableRows.execute({ principal: PRINCIPAL, input: { tableId: TABLE.id, limit: 25 } }),
+    read: () =>
+      readTableRow.execute({ principal: PRINCIPAL, input: { tableId: TABLE.id, rowId: ROW.id } }),
+    enrichment: () =>
+      readTableRowEnrichmentDetail.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, rowId: ROW.id, groupId: 'group-1' },
+      }),
+    create: () =>
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          kind: 'single',
+          tableId: TABLE.id,
+          data: { name: 'secret-cell' },
+          strictWrite: true,
+          dataKeying: 'names',
+        },
+      }),
+    createBatch: () =>
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          kind: 'batch',
+          tableId: TABLE.id,
+          rows: [{ name: 'secret-cell' }],
+          strictWrite: true,
+          dataKeying: 'names',
+        },
+      }),
+    update: () =>
+      updateTableRow.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          rowId: ROW.id,
+          data: { name: 'secret-cell' },
+          strictWrite: true,
+          dataKeying: 'names',
+        },
+      }),
+    upsert: () =>
+      upsertTableRow.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          data: { name: 'secret-cell' },
+          strictWrite: true,
+          dataKeying: 'names',
+        },
+      }),
+  }
+
+  it.each(Object.keys(reads) as Array<keyof typeof reads>)(
+    '%s reports the returned rows and their provenance',
+    async (name) => {
+      const observe = vi.fn(async () => {})
+      const result = await observeTableRowDelivery(observe, reads[name])
+
+      expect(mockLoadSecretProvenance).toHaveBeenCalledWith({
+        userId: PRINCIPAL.userId,
+        workspaceId: TABLE.workspaceId,
+      })
+      expect(observe).toHaveBeenCalledTimes(1)
+      expect(observe).toHaveBeenCalledWith(
+        { version: 1, complete: true, entries: [] },
+        [ROW.data],
+        {
+          unprovenancedErrorText: false,
+        }
+      )
+      expect((result as { secretProvenance?: unknown }).secretProvenance).toBeUndefined()
+    }
+  )
+
+  it.each(Object.keys(reads) as Array<keyof typeof reads>)(
+    '%s reads no provenance without an observer or an explicit request',
+    async (name) => {
+      await reads[name]()
+
+      expect(mockLoadSecretProvenance).not.toHaveBeenCalled()
+    }
+  )
+  describe('run-state and enrichment error text', () => {
+    const CLEAN_RUN = {
+      status: 'completed',
+      executionId: 'exec-1',
+      jobId: null,
+      workflowId: 'workflow-1',
+      error: null,
+    }
+    const RUN_WITH_ERROR = { ...CLEAN_RUN, status: 'error', error: 'failed with sk-live-secret' }
+    const RUN_WITH_BLOCK_ERROR = {
+      ...CLEAN_RUN,
+      status: 'error',
+      blockErrors: { 'block-1': 'Authorization: Bearer sk-live-secret' },
+    }
+
+    async function reportedErrorText(read: () => Promise<unknown>): Promise<boolean> {
+      const observe = vi.fn(async () => {})
+      await observeTableRowDelivery(observe, read)
+      expect(observe).toHaveBeenCalledTimes(1)
+      const extras = observe.mock.calls[0]?.[2] as { unprovenancedErrorText: boolean }
+      return extras.unprovenancedErrorText
+    }
+
+    const withRunState = {
+      list: () =>
+        listTableRows.execute({
+          principal: PRINCIPAL,
+          input: { tableId: TABLE.id, limit: 25, includeRunState: true },
+        }),
+      query: () =>
+        queryTableRows.execute({
+          principal: PRINCIPAL,
+          input: { tableId: TABLE.id, limit: 25, includeRunState: true },
+        }),
+    }
+
+    it.each(Object.keys(withRunState) as Array<keyof typeof withRunState>)(
+      '%s signals returned run-state error text',
+      async (name) => {
+        mockQueryRows.mockResolvedValue({
+          ...PAGE,
+          rows: [
+            { ...ROW, executions: { 'group-1': CLEAN_RUN } },
+            { ...ROW, id: 'row-2', executions: { 'group-1': RUN_WITH_ERROR } },
+          ],
+        })
+        expect(await reportedErrorText(withRunState[name])).toBe(true)
+
+        mockQueryRows.mockResolvedValue({
+          ...PAGE,
+          rows: [{ ...ROW, executions: { 'group-1': RUN_WITH_BLOCK_ERROR } }],
+        })
+        expect(await reportedErrorText(withRunState[name])).toBe(true)
+      }
+    )
+
+    it.each(Object.keys(withRunState) as Array<keyof typeof withRunState>)(
+      '%s does not signal run state without error text',
+      async (name) => {
+        mockQueryRows.mockResolvedValue({
+          ...PAGE,
+          rows: [
+            { ...ROW, executions: { 'group-1': { ...CLEAN_RUN, error: '', blockErrors: {} } } },
+          ],
+        })
+        expect(await reportedErrorText(withRunState[name])).toBe(false)
+      }
+    )
+
+    it.each(['list', 'query'] as const)(
+      '%s does not signal error text the response omits without includeRunState',
+      async (name) => {
+        mockQueryRows.mockResolvedValue({
+          ...PAGE,
+          rows: [{ ...ROW, executions: { 'group-1': RUN_WITH_ERROR } }],
+        })
+        expect(await reportedErrorText(reads[name])).toBe(false)
+      }
+    )
+
+    it('read signals included run-state error text, and only when included', async () => {
+      mockLoadExecutionsForRow.mockResolvedValue({ 'group-1': RUN_WITH_BLOCK_ERROR })
+      const readWithRunState = () =>
+        readTableRow.execute({
+          principal: PRINCIPAL,
+          input: { tableId: TABLE.id, rowId: ROW.id, includeRunState: true },
+        })
+
+      expect(await reportedErrorText(readWithRunState)).toBe(true)
+      expect(await reportedErrorText(reads.read)).toBe(false)
+
+      mockLoadExecutionsForRow.mockResolvedValue({ 'group-1': CLEAN_RUN })
+      expect(await reportedErrorText(readWithRunState)).toBe(false)
+    })
+
+    it('enrichment detail signals its own group run-state error text', async () => {
+      mockLoadExecutionsForRow.mockResolvedValue({ 'group-1': RUN_WITH_ERROR })
+      expect(await reportedErrorText(reads.enrichment)).toBe(true)
+
+      mockLoadExecutionsForRow.mockResolvedValue({
+        'group-1': CLEAN_RUN,
+        'group-2': RUN_WITH_ERROR,
+      })
+      expect(await reportedErrorText(reads.enrichment)).toBe(false)
+    })
+
+    it('enrichment detail signals cascade provider error text', async () => {
+      const provider = {
+        id: 'hunter',
+        label: 'Hunter',
+        toolId: 'hunter_find_email',
+        status: 'error',
+        cost: 0,
+        durationMs: 5,
+        error: 'upstream rejected key sk-live-secret',
+      }
+      const detail = {
+        startedAt: '2026-01-01T00:00:00.000Z',
+        completedAt: '2026-01-01T00:00:01.000Z',
+        durationMs: 1000,
+        totalCost: 0,
+        matchedProvider: null,
+        aborted: false,
+        providers: [{ ...provider, status: 'no_match', error: null }, provider],
+      }
+      mockLoadExecutionsForRow.mockResolvedValue({ 'group-1': CLEAN_RUN })
+      mockLoadEnrichmentDetail.mockResolvedValue(detail)
+      expect(await reportedErrorText(reads.enrichment)).toBe(true)
+
+      mockLoadEnrichmentDetail.mockResolvedValue({
+        ...detail,
+        providers: [{ ...provider, status: 'matched', error: null }],
+      })
+      expect(await reportedErrorText(reads.enrichment)).toBe(false)
+    })
   })
 })

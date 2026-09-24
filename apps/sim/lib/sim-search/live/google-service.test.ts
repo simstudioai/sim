@@ -269,6 +269,13 @@ describe('Google service source filtering', () => {
         container: 'primary',
       })
     ).toBe(true)
+    expect(delegated.json).toHaveBeenCalledWith(
+      '/calendar/v3/calendars/reader%40example.com/events',
+      {
+        query: { maxResults: '1', fields: 'timeZone' },
+      }
+    )
+    for (const [path] of delegated.json.mock.calls) expect(path).toMatch(/\/events(\/|$)/)
   })
   it('verifies twenty all-day events within the request budget and refreshes timezones next session', async () => {
     vi.setSystemTime(new Date('2026-09-22T02:00:00Z'))

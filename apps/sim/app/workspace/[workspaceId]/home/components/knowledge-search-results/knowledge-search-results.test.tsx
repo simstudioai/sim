@@ -195,6 +195,7 @@ describe('result paging and the custom window', () => {
     await act(async () => more()!.click())
     /** The wider search is its own request; the first paint was never widened. */
     expect(mocks.search.mock.calls.at(-1)![3]).toBe(50)
+    expect(mocks.search.mock.calls.at(-1)![4]).toEqual({ retainAcrossLimits: true })
     expect(more()).toBeUndefined()
     mocks.search.mockReturnValue(page(7))
     await render()

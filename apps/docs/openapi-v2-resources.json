@@ -15414,7 +15414,7 @@
                   "mode": {
                     "type": "string",
                     "const": "oauth",
-                    "description": "Authenticates with an OAuth credential."
+                    "description": "Authenticates with an OAuth credential; pass `credentialId` when creating the connector."
                   },
                   "provider": {
                     "type": "string",
@@ -15437,7 +15437,7 @@
                   "mode": {
                     "type": "string",
                     "const": "apiKey",
-                    "description": "Authenticates with a stored API key."
+                    "description": "Authenticates with a stored API key; pass `apiKey`, and no `credentialId`, when creating the connector."
                   },
                   "label": {
                     "description": "Label shown above the key field.",
@@ -15456,7 +15456,7 @@
                 "additionalProperties": false
               }
             ],
-            "description": "How the connector authenticates against its source."
+            "description": "How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey`."
           },
           "configFields": {
             "type": "array",
@@ -15634,7 +15634,7 @@
               "mode": {
                 "type": "string",
                 "enum": ["oauth", "apiKey"],
-                "description": "How the connector authenticates against its source."
+                "description": "How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey`."
               }
             },
             "required": ["mode"],

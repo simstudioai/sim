@@ -14802,11 +14802,13 @@ export const V2_OPERATIONS = {
       connectorType: { kind: 'string', required: true, describe: 'Registered connector type.' },
       credentialId: {
         kind: 'string',
-        describe: 'OAuth credential identifier for connectors that require OAuth.',
+        describe:
+          'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors.',
       },
       apiKey: {
         kind: 'string',
-        describe: 'Write-only API key for connectors that use API-key authentication.',
+        describe:
+          'Write-only API key for connector types whose `auth.mode` is `apiKey` (see connector types), or a personal access token for an OAuth connector that also accepts one, such as GitHub. Send it instead of `credentialId`. Pass a raw key, or a secret reference written as the whole value `{{SECRET_NAME}}`, which the server resolves; `$SECRET_NAME` is not a reference.',
       },
       sourceConfig: {
         kind: 'object',
@@ -20255,7 +20257,7 @@ export const V2_OPERATIONS = {
       password: {
         kind: 'string',
         describe:
-          'Write-only password. Required whenever `authType` is `password`, and rejected otherwise. Never readable back.',
+          'Write-only password of 15 to 1024 characters, not only whitespace. Required whenever `authType` is `password`, and rejected otherwise. Never readable back. Taken literally, except that a request from the Sim agent resolves a whole-value `{{ENV_VAR}}` reference to that variable before the rules apply.',
       },
       allowedEmails: {
         kind: 'array',
@@ -21633,7 +21635,7 @@ export const V2_OPERATIONS = {
       password: {
         kind: 'string',
         describe:
-          'Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400.',
+          'Password of 15 to 1024 characters for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. Taken literally, except that a request from the Sim agent resolves a whole-value `{{ENV_VAR}}` reference to that variable before the rules apply.',
       },
       allowedEmails: {
         kind: 'array',

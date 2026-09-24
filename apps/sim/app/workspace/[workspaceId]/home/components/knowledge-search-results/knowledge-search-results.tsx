@@ -201,7 +201,8 @@ function SearchResults({
     topK ??
       (expanded
         ? WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.expanded
-        : WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.initial)
+        : WORKSPACE_KNOWLEDGE_SEARCH_LIMITS.initial),
+    { retainAcrossLimits: topK === undefined }
   )
   /** A full first page may collapse to few cards, yet more documents may still match. */
   const mayHaveMore =

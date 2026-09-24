@@ -461,10 +461,7 @@ describe.each([
     name: 'Google Calendar',
     auth: googleCalendarConnectorMeta.auth,
     contentScope: 'https://www.googleapis.com/auth/calendar.events.readonly',
-    delegatedScopes: [
-      'https://www.googleapis.com/auth/calendar.events.readonly',
-      'https://www.googleapis.com/auth/calendar.readonly',
-    ],
+    delegatedScopes: ['https://www.googleapis.com/auth/calendar.events.readonly'],
   },
 ])('$name declared company authentication', ({ auth, contentScope, delegatedScopes }) => {
   const directoryScope = 'https://www.googleapis.com/auth/admin.directory.user.readonly'

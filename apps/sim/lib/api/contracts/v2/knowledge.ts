@@ -1730,13 +1730,17 @@ export const v2CreateKnowledgeConnectorBodySchema = z
       .min(1)
       .max(255)
       .optional()
-      .describe('OAuth credential identifier for connectors that require OAuth.'),
+      .describe(
+        'OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors.'
+      ),
     apiKey: z
       .string()
       .min(1)
       .max(10_000)
       .optional()
-      .describe('Write-only API key for connectors that use API-key authentication.'),
+      .describe(
+        'Write-only API key for connector types whose `auth.mode` is `apiKey` (see connector types), or a personal access token for an OAuth connector that also accepts one, such as GitHub. Send it instead of `credentialId`. Pass a raw key, or a secret reference written as the whole value `{{SECRET_NAME}}`, which the server resolves; `$SECRET_NAME` is not a reference.'
+      ),
     sourceConfig: z
       .record(z.string(), z.unknown().describe('Connector-specific source configuration value.'))
       .describe('Connector-specific source selection and filtering configuration.'),

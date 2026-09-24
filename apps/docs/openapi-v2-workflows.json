@@ -11558,9 +11558,8 @@
             "enum": ["public", "password", "email", "sso"]
           },
           "password": {
-            "description": "Write-only password. Required whenever `authType` is `password`, and rejected otherwise. Never readable back.",
+            "description": "Write-only password of 15 to 1024 characters, not only whitespace. Required whenever `authType` is `password`, and rejected otherwise. Never readable back. Taken literally, except that a request from the Sim agent resolves a whole-value `{{ENV_VAR}}` reference to that variable before the rules apply.",
             "type": "string",
-            "minLength": 1,
             "maxLength": 1024
           },
           "allowedEmails": {

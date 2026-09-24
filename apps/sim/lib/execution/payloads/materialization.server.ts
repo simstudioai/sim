@@ -232,8 +232,12 @@ function assertExecutionFileScope(key: string, options: ExecutionMaterialization
     throw new ExecutionFileAccessError()
   }
 
-  // Explicit file grants are minted only after workspace authorization. They can carry
-  // an input from another workflow/run without granting any neighboring execution files.
+  /**
+   * An explicit grant names one exact key the run may read, even from another workflow or run,
+   * without opening that run's neighboring files. Grants must only be minted for keys the run's
+   * principal may already read: a stored input reference is granted only when a workspace member
+   * supplied it (see `getStoredFileReferenceScope`), otherwise only for this execution's own files.
+   */
   if (allowedFileKeys.has(key)) {
     return
   }

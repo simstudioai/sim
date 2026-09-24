@@ -78,6 +78,9 @@ it.each([1, 2])(
       `Expand resource view, ${count} resource${count === 1 ? '' : 's'} updated`
     )
     expect(container.querySelector('[role="separator"]')).toBeNull()
+    expect(button.querySelector('span[aria-hidden="true"]')?.className).toContain(
+      'bg-[var(--brand-blue)]'
+    )
     await act(async () => button.click())
     expect(toggle).toHaveBeenCalledOnce()
     expect(container.textContent).toContain('Conversation')

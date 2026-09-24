@@ -63,7 +63,7 @@ export function ChatPanelLayout({
             {collapsed && activityCount > 0 && (
               <span
                 aria-hidden='true'
-                className='-top-0.5 -right-0.5 absolute size-1.5 rounded-full bg-[var(--brand-primary)]'
+                className='-top-0.5 -right-0.5 absolute size-1.5 rounded-full bg-[var(--brand-blue)]'
               />
             )}
           </span>

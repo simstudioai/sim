@@ -1205,13 +1205,24 @@ async function searchWorkspaceKnowledge(
   return data.data
 }
 
+interface WorkspaceKnowledgeSearchOptions {
+  nativeQueries?: NativeSearchQuery[]
+  reuseFreshResult?: boolean
+  /**
+   * Keeps the previous result painted when only the result limit changes. Set it when the
+   * surface owns the limit (Show more widens the same search); leave it off when the limit is
+   * part of what was asked for, so a new limit is a new search that never shows the old one.
+   */
+  retainAcrossLimits?: boolean
+}
+
 /** Searches the canonical index under the signed-in person's ACLs. */
 export function useWorkspaceKnowledgeSearch(
   owner: string | ResourceScope | undefined,
   query: string,
   filters?: WorkspaceSearchFilters,
   topK = 20,
-  options?: { nativeQueries?: NativeSearchQuery[]; reuseFreshResult?: boolean }
+  options?: WorkspaceKnowledgeSearchOptions
 ) {
   const { features } = useDeploymentShape()
   const live = features.liveEnterpriseSearch === true
@@ -1258,17 +1269,15 @@ export function useWorkspaceKnowledgeSearch(
         : 0
       : WORKSPACE_KNOWLEDGE_SEARCH_STALE_TIME,
     retry: false,
-    placeholderData: (previous, previousQuery) =>
-      !live &&
-      userId &&
-      previousQuery?.state.status === 'success' &&
-      previousQuery.queryKey[6] === topK &&
-      !previousQuery.state.isInvalidated &&
-      knowledgeKeys
-        .searchQuery(scopeKey, trimmed, userId)
-        .every((part, index) => previousQuery.queryKey[index] === part) &&
-      queryClient.getQueryData(previousQuery.queryKey) === previous
-        ? previous
-        : undefined,
+    placeholderData: (previous, previousQuery) => {
+      if (live || !userId || previousQuery?.state.status !== 'success') return undefined
+      if (previousQuery.state.isInvalidated) return undefined
+      const prefix = knowledgeKeys.searchQuery(scopeKey, trimmed, userId)
+      if (!prefix.every((part, index) => previousQuery.queryKey[index] === part)) return undefined
+      /** `search()` appends filters, then the limit, after the reader/query prefix. */
+      const previousTopK = previousQuery.queryKey[prefix.length + 1]
+      if (!options?.retainAcrossLimits && previousTopK !== topK) return undefined
+      return queryClient.getQueryData(previousQuery.queryKey) === previous ? previous : undefined
+    },
   })
 }
