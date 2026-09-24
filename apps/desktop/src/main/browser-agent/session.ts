@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { existsSync } from 'node:fs'
-import { statfs } from 'node:fs/promises'
+import { rename, rm, statfs } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
   BrowserDataKind,
@@ -23,7 +23,7 @@ import type {
 } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
+import { generateId, generateShortId } from '@sim/utils/id'
 import type {
   BrowserWindow,
   BrowserWindowConstructorOptions,
@@ -423,7 +423,17 @@ interface ActiveBrowserDownload {
   item: DownloadItem
   diskCheckInFlight: boolean
   lastDiskCheckAt: number
+  /**
+   * Electron's download delegate opens a native Save dialog unless a path is
+   * set before `will-download` returns, so bytes land in this random hidden
+   * file and move to the asynchronously allocated `savePath` on completion.
+   */
+  stagingPath: string
+  /** The reserved final destination, once allocation has chosen one. */
   savePath?: string
+  /** Settles with the final destination, or null when allocation failed. */
+  destination: Promise<string | null>
+  finished: boolean
   scopeId: string
   terminal: boolean
   limitReason?: string
@@ -640,7 +650,7 @@ function checkBrowserDownloadDiskSpace(
   check: 'admission' | 'progress',
   now = Date.now()
 ): void {
-  if (active.terminal || active.limitReason || active.diskCheckInFlight) return
+  if (active.terminal || active.finished || active.limitReason || active.diskCheckInFlight) return
   if (
     check === 'progress' &&
     now - active.lastDiskCheckAt < BROWSER_DOWNLOAD_DISK_CHECK_INTERVAL_MS
@@ -696,6 +706,61 @@ function releaseActiveBrowserDownloadPath(
 ): void {
   if (savePath && activeDownloadPaths.get(savePath) === active) {
     activeDownloadPaths.delete(savePath)
+  }
+}
+
+function discardStagedBrowserDownload(active: ActiveBrowserDownload): void {
+  void rm(active.stagingPath, { force: true }).catch((error) => {
+    logger.warn('Could not remove a staged agent browser download', {
+      error: getErrorMessage(error),
+      filename: active.download.filename,
+    })
+  })
+}
+
+/** Moves a completed staging file to its final name; resolves to that name. */
+async function moveStagedBrowserDownload(active: ActiveBrowserDownload): Promise<string> {
+  const destination = await active.destination
+  if (!destination || active.limitReason || active.terminal) {
+    throw new Error(
+      active.limitReason ?? 'Stopped: the download destination could not be prepared safely'
+    )
+  }
+  try {
+    await rename(active.stagingPath, destination)
+  } catch (error) {
+    logger.warn('Could not move a finished agent browser download to its destination', {
+      error: getErrorMessage(error),
+      filename: active.download.filename,
+    })
+    throw new Error('Stopped: the finished download could not be moved to its destination')
+  }
+  return destination
+}
+
+function finishBrowserDownload(active: ActiveBrowserDownload): void {
+  const { download } = active
+  const liveScopeId = resolveBrowserScopeId(active.scopeId)
+  if (
+    suspendedBrowserScopes.has(liveScopeId) ||
+    !browserScopeStates.has(liveScopeId) ||
+    !browserDownloadsByScope.get(liveScopeId)?.includes(download)
+  ) {
+    return
+  }
+  trimBrowserDownloads(liveScopeId)
+  publishBrowserDownloads(liveScopeId)
+  withBrowserScope(liveScopeId, persistBrowserSession)
+  if (download.state === 'completed') {
+    logger.info('Agent browser download completed', { filename: download.filename })
+    if (process.platform === 'darwin' && download.savePath) {
+      app.dock?.downloadFinished(download.savePath)
+    }
+  } else if (download.state === 'interrupted') {
+    logger.warn('Agent browser download interrupted', {
+      filename: download.filename,
+      reason: download.interruptionReason,
+    })
   }
 }
 
@@ -1489,26 +1554,40 @@ function configureBrowserDownloads(ses: Session): void {
 
     const download = createTrackedBrowserDownload(item, 'progressing')
     const { filename } = download
-    try {
-      item.pause()
-    } catch (error) {
-      const reason = 'Stopped: the download could not be paused for a disk-space safety check'
+    const rejectBeforeTracking = (reason: string, message: string, error: unknown) => {
       download.interruptionReason = reason
       download.state = 'interrupted'
       try {
         item.cancel()
       } catch (cancelError) {
-        logger.warn('Could not cancel an agent browser download after pause failed', {
+        logger.warn('Could not cancel an agent browser download after setup failed', {
           error: getErrorMessage(cancelError),
           filename,
         })
       }
       recordBrowserDownload(scopeId, download)
       withBrowserScope(scopeId, persistBrowserSession)
-      logger.warn('Agent browser download could not be paused for admission', {
-        error: getErrorMessage(error),
-        filename,
-      })
+      logger.warn(message, { error: getErrorMessage(error), filename })
+    }
+    const stagingPath = join(directory, `.sim-download-${generateShortId()}`)
+    try {
+      item.setSavePath(stagingPath)
+    } catch (error) {
+      rejectBeforeTracking(
+        'Stopped: the download destination could not be prepared safely',
+        'Could not set the staging destination for an agent browser download',
+        error
+      )
+      return
+    }
+    try {
+      item.pause()
+    } catch (error) {
+      rejectBeforeTracking(
+        'Stopped: the download could not be paused for a disk-space safety check',
+        'Agent browser download could not be paused for admission',
+        error
+      )
       return
     }
     const active: ActiveBrowserDownload = {
@@ -1517,6 +1596,9 @@ function configureBrowserDownloads(ses: Session): void {
       item,
       diskCheckInFlight: false,
       lastDiskCheckAt: 0,
+      stagingPath,
+      destination: Promise.resolve(null),
+      finished: false,
       scopeId,
       terminal: false,
     }
@@ -1547,31 +1629,36 @@ function configureBrowserDownloads(ses: Session): void {
       publishBrowserDownloads(liveScopeId)
     })
     item.once('done', (_doneEvent, state) => {
-      releaseActiveBrowserDownload(active)
-      const liveScopeId = resolveBrowserScopeId(scopeId)
-      if (
-        suspendedBrowserScopes.has(liveScopeId) ||
-        !browserScopeStates.has(liveScopeId) ||
-        !browserDownloadsByScope.get(liveScopeId)?.includes(download)
-      ) {
+      active.finished = true
+      updateDownloadProgress(download, item)
+      if (state !== 'completed' || active.limitReason || active.terminal) {
+        const tornDown = active.terminal
+        releaseActiveBrowserDownload(active)
+        discardStagedBrowserDownload(active)
+        download.savePath = active.savePath
+        if (active.limitReason) download.state = 'interrupted'
+        else if (tornDown && state === 'completed') download.state = 'cancelled'
+        else download.state = state
+        finishBrowserDownload(active)
         return
       }
-      updateDownloadProgress(download, item)
-      download.state = active.limitReason ? 'interrupted' : state
-      trimBrowserDownloads(liveScopeId)
-      publishBrowserDownloads(liveScopeId)
-      withBrowserScope(liveScopeId, persistBrowserSession)
-      if (download.state === 'completed') {
-        logger.info('Agent browser download completed', { filename })
-        if (process.platform === 'darwin' && active.savePath) {
-          app.dock?.downloadFinished(active.savePath)
-        }
-      } else if (download.state === 'interrupted') {
-        logger.warn('Agent browser download interrupted', {
-          filename,
-          reason: download.interruptionReason,
+      void moveStagedBrowserDownload(active)
+        .then(
+          (savePath) => {
+            download.savePath = savePath
+            download.state = 'completed'
+          },
+          (error: unknown) => {
+            discardStagedBrowserDownload(active)
+            download.savePath = active.savePath
+            download.interruptionReason = getErrorMessage(error)
+            download.state = 'interrupted'
+          }
+        )
+        .finally(() => {
+          releaseActiveBrowserDownload(active)
+          finishBrowserDownload(active)
         })
-      }
     })
     let allocationExpired = false
     const allocation = uniqueDownloadPath(directory, filename, {
@@ -1596,7 +1683,7 @@ function configureBrowserDownloads(ses: Session): void {
         return true
       },
     })
-    void withBrowserDownloadTimeout(
+    active.destination = withBrowserDownloadTimeout(
       allocation,
       BROWSER_DOWNLOAD_PATH_ALLOCATION_TIMEOUT_MS,
       'Browser download path allocation timed out',
@@ -1607,7 +1694,7 @@ function configureBrowserDownloads(ses: Session): void {
       .then((savePath) => {
         if (active.terminal || !activeBrowserDownloads.has(active)) {
           releaseActiveBrowserDownloadPath(active, savePath ?? undefined)
-          return
+          return null
         }
         if (!savePath) {
           cancelBrowserDownloadForLimit(
@@ -1615,30 +1702,13 @@ function configureBrowserDownloads(ses: Session): void {
             'Stopped: a safe non-conflicting download filename could not be allocated'
           )
           publishActiveBrowserDownload(active)
-          return
-        }
-        download.savePath = savePath
-        try {
-          item.setSavePath(savePath)
-        } catch (error) {
-          releaseActiveBrowserDownloadPath(active, savePath)
-          active.savePath = undefined
-          download.savePath = undefined
-          logger.warn('Could not set the destination for an agent browser download', {
-            error: getErrorMessage(error),
-            filename,
-          })
-          cancelBrowserDownloadForLimit(
-            active,
-            'Stopped: the download destination could not be prepared safely'
-          )
-          publishActiveBrowserDownload(active)
-          return
+          return null
         }
         checkBrowserDownloadDiskSpace(active, 'admission')
+        return savePath
       })
       .catch((error) => {
-        if (active.terminal || !activeBrowserDownloads.has(active)) return
+        if (active.terminal || !activeBrowserDownloads.has(active)) return null
         logger.warn('Could not allocate an agent browser download destination', {
           error: getErrorMessage(error),
           filename,
@@ -1648,6 +1718,7 @@ function configureBrowserDownloads(ses: Session): void {
           'Stopped: the download destination could not be prepared safely'
         )
         publishActiveBrowserDownload(active)
+        return null
       })
   })
 }
