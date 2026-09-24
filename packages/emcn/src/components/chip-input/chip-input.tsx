@@ -40,8 +40,7 @@ export const chipInputVariants = cva('', {
   variants: {
     appearance: {
       chip: '',
-      compactSearch:
-        'h-[23px] items-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 transition-colors',
+      compactSearch: `${chipFieldSurfaceClass} h-[23px] items-center rounded-sm px-2 dark:bg-[var(--surface-5)]`,
     },
   },
   defaultVariants: { appearance: 'chip' },
