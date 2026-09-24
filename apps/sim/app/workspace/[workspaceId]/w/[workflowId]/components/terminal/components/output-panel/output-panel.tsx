@@ -309,11 +309,21 @@ export const OutputPanel = React.memo(function OutputPanel({
           onClick={handleHeaderClick}
         >
           <div className='flex items-center'>
-            <Chip active={!showInput} onClick={handleOutputButtonClick} aria-label='Show output'>
+            <Chip
+              active={!showInput}
+              aria-pressed={!showInput}
+              onClick={handleOutputButtonClick}
+              aria-label='Show output'
+            >
               Output
             </Chip>
             {hasInputData && (
-              <Chip active={showInput} onClick={handleInputButtonClick} aria-label='Show input'>
+              <Chip
+                active={showInput}
+                aria-pressed={showInput}
+                onClick={handleInputButtonClick}
+                aria-label='Show input'
+              >
                 Input
               </Chip>
             )}

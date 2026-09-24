@@ -72,6 +72,7 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
                   placeholder='Enter password'
                   value={password}
                   onChange={handlePasswordChange}
+                  className='h-[34px]'
                   error={hasPasswordError}
                 />
                 <div

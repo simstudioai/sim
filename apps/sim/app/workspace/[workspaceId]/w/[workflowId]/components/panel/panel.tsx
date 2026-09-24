@@ -112,6 +112,23 @@ function copilotDraftKey(
 ): string | undefined {
   return workflowId ? `${workspaceId}:workflow-copilot:${workflowId}:${chatId ?? 'new'}` : undefined
 }
+
+interface PanelTabChipProps {
+  tab: PanelTab
+  active: boolean
+  onClick: () => void
+  children: string
+}
+
+function PanelTabChip({ tab, active, onClick, children }: PanelTabChipProps) {
+  return (
+    <Chip active={active} aria-pressed={active} onClick={onClick} data-tab-button={tab}>
+      <span className={active ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}>
+        {children}
+      </span>
+    </Chip>
+  )
+}
 /**
  * Panel component with resizable width and tab navigation that persists across page refreshes.
  *
@@ -741,7 +758,7 @@ export const Panel = memo(function Panel() {
             <div className='flex gap-1.5'>
               <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
-                  <Button aria-label='Workflow actions' iconSize='regular'>
+                  <Button aria-label='Workflow actions' className='size-[30px]'>
                     <MoreHorizontal className='size-[14px]' />
                   </Button>
                 </DropdownMenuTrigger>
@@ -802,7 +819,7 @@ export const Panel = memo(function Panel() {
               </DropdownMenu>
               <Button
                 aria-label={isChatOpen ? 'Close chat' : 'Open chat'}
-                iconSize='regular'
+                className='size-[30px]'
                 variant={isChatOpen ? 'active' : 'default'}
                 onClick={() => setIsChatOpen(!isChatOpen)}
               >
@@ -853,28 +870,28 @@ export const Panel = memo(function Panel() {
           <div className='flex shrink-0 items-center justify-between px-2 pt-3.5'>
             <div className='flex gap-1'>
               {isCopilotTabAvailable && (
-                <Chip
+                <PanelTabChip
+                  tab='copilot'
                   active={_hasHydrated && activeTab === 'copilot'}
                   onClick={() => handleTabClick('copilot')}
-                  data-tab-button='copilot'
                 >
                   Chat
-                </Chip>
+                </PanelTabChip>
               )}
-              <Chip
+              <PanelTabChip
+                tab='toolbar'
                 active={_hasHydrated && activeTab === 'toolbar'}
                 onClick={() => handleTabClick('toolbar')}
-                data-tab-button='toolbar'
               >
                 Toolbar
-              </Chip>
-              <Chip
+              </PanelTabChip>
+              <PanelTabChip
+                tab='editor'
                 active={_hasHydrated && activeTab === 'editor'}
                 onClick={() => handleTabClick('editor')}
-                data-tab-button='editor'
               >
                 Editor
-              </Chip>
+              </PanelTabChip>
             </div>
           </div>
 
