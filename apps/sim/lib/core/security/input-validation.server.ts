@@ -1326,7 +1326,13 @@ export async function secureFetchWithPinnedIP(
         statusCode === 204 ||
         statusCode === 205 ||
         statusCode === 304
-      const contentLength = headersRecord['content-length']
+      /**
+       * An encoded body's Content-Length is its wire size, not the decoded size the cap bounds,
+       * so only an identity body is rejected up front; the decoded stream is capped as it reads.
+       */
+      const contentLength = headersRecord['content-encoding']
+        ? undefined
+        : headersRecord['content-length']
       if (contentLength && !isBodylessResponse) {
         const parsedLength = Number.parseInt(contentLength, 10)
         if (Number.isFinite(parsedLength) && parsedLength > maxResponseBytes) {

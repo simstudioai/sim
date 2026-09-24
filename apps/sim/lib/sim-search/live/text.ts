@@ -27,9 +27,9 @@ const INVISIBLE_RUN = new RegExp(
 /** Trailing spaces on a line, matched only from the start of their run for the same reason. */
 const TRAILING_SPACES = /(?<![^\S\n])[^\S\n]+$/gm
 /** A lone joiner or direction mark inside a word shapes it (Persian, Indic, Hebrew, Arabic). */
-const MEANINGFUL_MARK = /^[‌‍‎‏؜⁦-⁩]$/u
+const MEANINGFUL_MARK = /^(?:\u200C|\u200D|\u200E|\u200F|\u061C|[\u2066-\u2069])$/u
 /** Real whitespace; the byte-order mark counts as whitespace in JavaScript but is not spacing. */
-const SPACING = /[^\S﻿]/
+const SPACING = /[^\S\uFEFF]/
 
 /**
  * Markup becomes text only: links keep their visible text, non-text elements are dropped, each

@@ -36,7 +36,7 @@ export function publicSlackAnswer(
   sources: ReadonlyMap<string, string> = new Map(),
   integrationsUrl?: string
 ): string {
-  let value = stripInteractiveTags(text)
+  let value = stripInteractiveTags(text, { complete: false })
   if (!complete) {
     let end = Math.max(value.lastIndexOf(' '), value.lastIndexOf('\n')) + 1
     const sourceStart = value.lastIndexOf('<')

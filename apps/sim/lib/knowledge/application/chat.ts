@@ -204,7 +204,7 @@ export const organizationSearchChat: OperationUseCase<
       )
       /** MCP clients receive text; interactive Chat cards stay only in the saved transcript. */
       const answer = resolveSearchChatCitations(
-        stripInteractiveTags(assistantMessage.content),
+        stripInteractiveTags(assistantMessage.content, { complete: true }),
         result.toolCalls
       )
       if (!answer.content.trim())

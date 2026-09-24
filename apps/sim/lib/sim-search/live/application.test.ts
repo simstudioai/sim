@@ -321,7 +321,13 @@ describe('authorized live retrieval', () => {
     const order = (data: typeof result) => data.results.map((row) => row.connectorType)
     expect(order(reversed)).toEqual(order(result))
   })
-  it('scales the read window with the requested chunk limit', async () => {
+  it('reports partial coverage when more matches exist that no cursor reaches', async () => {
+    mocks.search.mockResolvedValue({ documents: [document], hasMore: true })
+    const result = await searchLiveKnowledge.execute({ principal, input })
+    expect(result.results).toHaveLength(1)
+    expect(result.live?.accounts[0]).toMatchObject({ status: 'partial' })
+  })
+  it('keeps the read page budget of indexed reads at any chunk limit', async () => {
     mocks.read.mockResolvedValue({ ...document, content: 'x'.repeat(30_000) })
     const search = await searchLiveKnowledge.execute({ principal, input })
     const read = (limit: number) =>
@@ -335,7 +341,7 @@ describe('authorized live retrieval', () => {
         },
       })
     expect((await read(3)).chunks[0]?.content).toHaveLength(8000)
-    expect((await read(8)).chunks[0]?.content).toHaveLength(24_000)
+    expect((await read(8)).chunks[0]?.content).toHaveLength(8000)
   })
   it('centers the preview on the query match', async () => {
     mocks.search.mockResolvedValue({
@@ -436,7 +442,7 @@ describe('authorized live retrieval', () => {
     expect(result.results).toHaveLength(1)
     expect(result.live?.accounts[0]).toMatchObject({
       status: 'partial',
-      message: expect.stringContaining('date range'),
+      message: expect.stringContaining('could return'),
     })
   })
   it('applies date filters before spending provider verification', async () => {
@@ -477,7 +483,7 @@ describe('authorized live retrieval', () => {
     mocks.search.mockResolvedValue({ documents: [], hasMore: true })
     const result = await searchLiveKnowledge.execute({ principal, input })
     expect(result.retrieval.status).toBe('partial')
-    expect(result.live?.accounts[0]?.message).toContain('More matches may exist')
+    expect(result.live?.accounts[0]?.message).toContain('could return')
   })
   it('reports partial coverage when a continuable page returned nothing readable', async () => {
     mocks.search.mockResolvedValue({ documents: [], nextCursor: 'next' })

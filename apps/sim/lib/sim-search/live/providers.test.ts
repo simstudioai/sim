@@ -270,13 +270,39 @@ describe('native search endpoints', () => {
     api.json.mockImplementation(async (path) =>
       path === '/user/repos' ? [{ full_name: 'org/repo' }] : { items: [], total_count: 0 }
     )
-    const result = await searchGitHub(api, { ...input, query: 'x'.repeat(975) })
+    const result = await searchGitHub(api, { ...input, query: `launch label:"${'x'.repeat(960)}"` })
     const searches = api.json.mock.calls.filter(([path]) => path.startsWith('/search/'))
     expect(searches.map(([path]) => path)).toEqual(['/search/issues', '/search/issues'])
     expect(result).toMatchObject({
       partial: true,
       message: expect.stringContaining('code search was skipped'),
     })
+  })
+  it('leaves a boolean GitHub query as written when dates are appended', async () => {
+    const api = client()
+    api.json.mockResolvedValue({ items: [], total_count: 0 })
+    await searchGitHub(api, {
+      ...input,
+      native: {
+        provider: 'github',
+        query: 'repo:org/repo is:issue label:bug OR label:feature',
+        kind: 'issues',
+      },
+      filters: { startDate: '2026-09-20T00:00:00Z' },
+    })
+    expect(api.json.mock.calls[0][1]?.query?.q).toBe(
+      'repo:org/repo is:issue label:bug OR label:feature updated:>=2026-09-20T00:00:00.000Z'
+    )
+  })
+  it("explains GitHub's search text limit instead of sending an oversized query", async () => {
+    const api = client()
+    await expect(
+      searchGitHub(api, {
+        ...input,
+        native: { provider: 'github', query: `repo:org/repo ${'word '.repeat(60)}`, kind: 'code' },
+      })
+    ).rejects.toThrow('limited to 256 characters')
+    expect(api.json).not.toHaveBeenCalled()
   })
   it('keeps GitHub qualifiers outside the grouped text of a dated search', async () => {
     const api = client()

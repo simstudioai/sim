@@ -101,18 +101,28 @@ function repositoryBatches(query: string, names: readonly string[], maxBytes: nu
 /** `key:value` or `key:"quoted value"`, excluding URLs such as `https://…`. */
 const GITHUB_QUALIFIER = /^-?[a-z][\w-]*:(?!\/\/)\S/i
 
+/** Search terms, quoted phrases, and `key:"quoted value"` qualifiers as GitHub tokenizes them. */
+const githubTokens = (query: string) => query.match(/-?[\w-]+:"[^"]*"|-?"[^"]*"|\S+/g) ?? []
+
 /**
- * Groups free text so boolean operators cannot absorb appended qualifiers. GitHub treats a
- * qualifier inside parentheses as search text, so qualifiers stay outside the group. A query
- * that already uses parentheses is structured by its author and is left as written.
+ * Groups free text so appended qualifiers apply to all of it. GitHub treats a qualifier inside
+ * parentheses as search text, so qualifiers stay outside the group. A query that already uses
+ * parentheses or boolean operators is structured by its author and is left as written.
  */
 function groupGitHubText(query: string): string {
-  if (!query || /[()]/.test(query)) return query
-  const tokens = query.match(/-?[\w-]+:"[^"]*"|-?"[^"]*"|\S+/g) ?? []
+  if (!query || /[()]/.test(query) || /(?:^|\s)(?:AND|OR|NOT)(?=\s|$)/.test(query)) return query
+  const tokens = githubTokens(query)
   const qualifiers = tokens.filter((token) => GITHUB_QUALIFIER.test(token))
   const text = tokens.filter((token) => !GITHUB_QUALIFIER.test(token)).join(' ')
   return [text ? `(${text})` : '', ...qualifiers].filter(Boolean).join(' ')
 }
+
+/** GitHub rejects more than 256 characters of search text; qualifiers do not count toward it. */
+const GITHUB_TEXT_CHARACTERS = 256
+const githubTextLength = (query: string) =>
+  githubTokens(query)
+    .filter((token) => !GITHUB_QUALIFIER.test(token))
+    .join(' ').length
 
 export async function searchGitHub(
   client: NativeClient,
@@ -241,6 +251,11 @@ export async function searchGitHub(
           : ''
   const datedQuery =
     kind === 'issues' ? [groupGitHubText(text), updated].filter(Boolean).join(' ') : text
+  if (githubTextLength(text) > GITHUB_TEXT_CHARACTERS)
+    throw new NativeSearchError(
+      'unavailable',
+      'GitHub search text is limited to 256 characters. Shorten the query.'
+    )
   const page = input.native?.cursor ?? '1'
   if (!/^\d{1,3}$/.test(page) || Number(page) < 1)
     throw new NativeSearchError('unavailable', 'Invalid GitHub page.')

@@ -101,6 +101,24 @@ describe('secureFetchWithPinnedIP connection reuse', () => {
 })
 
 describe('secureFetchWithPinnedIP compressed responses', () => {
+  it('does not reject an encoded body by its wire size when the decoded body fits', async () => {
+    const payload = Buffer.from(JSON.stringify({ ok: true }))
+    const encoded = gzipSync(payload)
+    const server = await startServer((_req, res) => {
+      res.writeHead(200, {
+        'Content-Encoding': 'gzip',
+        'Content-Length': String(encoded.length),
+      })
+      res.end(encoded)
+    })
+    const response = await secureFetchWithPinnedIP(server.origin, '127.0.0.1', {
+      profile: 'configuredEndpoint',
+      acceptCompressed: true,
+      maxResponseBytes: payload.length,
+    })
+    expect(encoded.length).toBeGreaterThan(payload.length)
+    await expect(response.json()).resolves.toEqual({ ok: true })
+  })
   it('caps the decoded size of a compressed body it asked for', async () => {
     const bomb = gzipSync(Buffer.alloc(64 * 1024, 0x41))
     const server = await startServer((_req, res) => {

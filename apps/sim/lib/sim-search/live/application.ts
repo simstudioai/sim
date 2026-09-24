@@ -208,10 +208,7 @@ const VERIFY_CONCURRENCY = 5
 const MAX_ACCOUNTS = 20
 /** Previews center on the query's longest matching term, like indexed passages. */
 const PREVIEW_CHARACTERS = 1800
-/**
- * Characters a read returns per three requested chunks. `limit` counts index chunks elsewhere,
- * so the default of three keeps one window and the maximum of eight returns three.
- */
+/** Characters one read returns, the same page budget indexed document reads use. */
 const READ_WINDOW_CHARACTERS = 8000
 
 /**
@@ -383,10 +380,10 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
         const undatedUnsorted =
           dateSorted && matching.some(({ document }) => !sourceDate(document, account.provider))
         const moreUnsorted = dateSorted && Boolean(page.nextCursor || page.hasMore)
-        /** Nothing readable came back, yet the provider has more: an empty page proves nothing. */
-        const moreWithoutResults = Boolean((page.hasMore || page.nextCursor) && !matching.length)
-        /** A dated listing should cover its window; uncontinuable extra matches leave it short. */
-        const moreInDateRange = Boolean(hasDateBounds(filters) && page.hasMore && !page.nextCursor)
+        /** More matches exist that no cursor can reach, so coverage is short. */
+        const moreUnreachable = Boolean(page.hasMore && !page.nextCursor)
+        /** A continuable page with nothing readable proves nothing about the pages after it. */
+        const emptyContinuable = Boolean(page.nextCursor && !matching.length)
         const degraded =
           unverified ||
           session.servicePartial ||
@@ -394,8 +391,8 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           undatedExcluded ||
           undatedUnsorted ||
           moreUnsorted ||
-          moreWithoutResults ||
-          moreInDateRange
+          moreUnreachable ||
+          emptyContinuable
         return {
           status: {
             ...status,
@@ -414,11 +411,11 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
               dateSorted
                 ? 'Date order covers retrieved results; follow continuation before claiming an overall earliest or latest match.'
                 : undefined,
-              moreWithoutResults
-                ? 'More matches may exist beyond this page. Continue with nextCursor when present, narrow the query, or target one source.'
+              moreUnreachable
+                ? 'More matches exist than this search could return. Narrow the query or target one source.'
                 : undefined,
-              moreInDateRange && !moreWithoutResults
-                ? 'More matches exist in this date range than were returned. Narrow the range or target one source.'
+              emptyContinuable
+                ? 'No readable matches on this page. Continue with nextCursor for more.'
                 : undefined,
             ]),
             nextCursor: page.nextCursor,
@@ -608,10 +605,7 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
         'validation',
         'This document changed. Read again from the beginning'
       )
-    const end = Math.min(
-      content.length,
-      start + READ_WINDOW_CHARACTERS * Math.ceil(input.limit / 3)
-    )
+    const end = Math.min(content.length, start + READ_WINDOW_CHARACTERS)
     return {
       documentId: input.documentId,
       knowledgeBaseId: '',
