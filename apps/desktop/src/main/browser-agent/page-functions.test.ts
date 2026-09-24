@@ -2438,3 +2438,82 @@ describe('setFocusedInputValue', () => {
     expect(other.value).toBe('')
   })
 })
+
+describe('modal hidden together with its own app root', () => {
+  const showAll = (): void => {
+    for (const element of Array.from(document.body.querySelectorAll('*'))) visible(element)
+  }
+
+  it('reads, clicks, and reports a disablePortal dialog inside the aria-hidden root', () => {
+    document.body.innerHTML = `
+      <div id="__next" aria-hidden="true"><main>
+        <nav aria-label="Mailbox navigation"><button>Compose</button></nav>
+        <div role="presentation" class="MuiModal-root"><div role="presentation">
+          <div role="dialog" aria-modal="true" aria-label="New Message">
+            <input role="combobox" aria-label="Email input" placeholder="Recipients" />
+            <button>Send</button>
+            <span aria-hidden="true">icon</span>
+          </div>
+        </div></div>
+      </main></div>`
+    showAll()
+
+    const outline = outlineOf(runSerialized(collectSnapshot, []))
+
+    expect(outline).toContain('dialog')
+    expect(outline).toContain('Email input')
+    expect(outline).toContain('Send')
+    expect(outline).not.toContain('Compose')
+    expect(outline).not.toContain('icon')
+    const clicked = runSerialized(clickElement, [refFor(outline, 'Send'), false]) as {
+      error?: string
+    }
+    expect(clicked.error).toBeUndefined()
+    expect((runSerialized(readPageActionState, []) as { dialogs: string[] }).dialogs).toContain(
+      'New Message'
+    )
+  })
+
+  it('keeps a portaled modal scoped exactly as before', () => {
+    document.body.innerHTML = `
+      <div id="__next" aria-hidden="true"><button>Compose</button></div>
+      <div role="dialog" aria-modal="true" aria-label="New Message"><button>Send</button></div>`
+    showAll()
+
+    const outline = outlineOf(collectSnapshot())
+
+    expect(outline).toContain('Send')
+    expect(outline).not.toContain('Compose')
+  })
+
+  it('keeps an aria-hidden region hidden when no modal is open', () => {
+    document.body.innerHTML = `
+      <div aria-hidden="true"><button>Hidden action</button></div>
+      <button>Shown action</button>`
+    showAll()
+
+    const outline = outlineOf(collectSnapshot())
+
+    expect(outline).toContain('Shown action')
+    expect(outline).not.toContain('Hidden action')
+  })
+
+  it('exposes only the topmost of stacked disablePortal modals', () => {
+    document.body.innerHTML = `
+      <div id="__next" aria-hidden="true"><main>
+        <div class="MuiModal-root" aria-hidden="true">
+          <div role="dialog" aria-modal="true" aria-label="Lower"><button>Discard</button></div>
+        </div>
+        <div class="MuiModal-root">
+          <div role="dialog" aria-modal="true" aria-label="Upper"><button>Confirm</button></div>
+        </div>
+      </main></div>`
+    showAll()
+
+    const outline = outlineOf(collectSnapshot())
+
+    expect(outline).toContain('Confirm')
+    expect(outline).not.toContain('Discard')
+    expect((readPageActionState() as { dialogs: string[] }).dialogs).toEqual(['Upper'])
+  })
+})

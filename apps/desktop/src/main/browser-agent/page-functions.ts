@@ -179,6 +179,56 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
 
   const visibility = new WeakMap<Element, boolean>()
 
+  /**
+   * The open modal the page aria-hid together with everything else. MUI's
+   * ModalManager aria-hides every <body> child except the modal's mount node,
+   * and a `disablePortal` modal mounts inside the app root it just hid, so its
+   * own ancestor carries aria-hidden. Ancestors ABOVE this modal skip only the
+   * aria-hidden test. Null when any modal is visible unmodified (the portaled
+   * case) or no single topmost modal is contained by all of its hidden
+   * ancestors.
+   */
+  let exemptModal: Element | null | undefined
+  const getExemptModal = (): Element | null => {
+    if (exemptModal !== undefined) return exemptModal
+    exemptModal = null
+    const rendered: Array<{ modal: Element; hidden: Element[] }> = []
+    for (const modal of Array.from(
+      document.querySelectorAll('[aria-modal="true"], dialog[open]')
+    )) {
+      const rect = modal.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0 || modal.getAttribute('aria-hidden') === 'true')
+        continue
+      const hidden: Element[] = []
+      let visible = true
+      for (let current: Element | null = modal; current && visible; ) {
+        const style = current.ownerDocument.defaultView?.getComputedStyle(current)
+        const opacity = Number.parseFloat(style?.opacity || '1')
+        visible = Boolean(
+          style &&
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            style.contentVisibility !== 'hidden' &&
+            (!Number.isFinite(opacity) || opacity > 0.01) &&
+            !current.hasAttribute('hidden')
+        )
+        if (current.getAttribute('aria-hidden') === 'true') hidden.push(current)
+        if (current.parentElement) current = current.parentElement
+        else {
+          const root = current.getRootNode()
+          current = 'host' in root ? (root.host as Element) : null
+        }
+      }
+      if (visible) rendered.push({ modal, hidden })
+    }
+    if (rendered.some(({ hidden }) => hidden.length === 0)) return exemptModal
+    const topmost = rendered.filter(({ hidden }) =>
+      hidden.every((ancestor) => rendered.every(({ modal }) => ancestor.contains(modal)))
+    )
+    if (topmost.length === 1) exemptModal = topmost[0].modal
+    return exemptModal
+  }
+
   const isVisible = (el: Element): boolean => {
     const cached = visibility.get(el)
     if (cached !== undefined) return cached
@@ -194,6 +244,7 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
       return false
     }
     let visible = true
+    let aboveExemptModal = false
     for (let current: Element | null = el; current && visible; ) {
       const currentView: Window | null = current.ownerDocument.defaultView
       const style = currentView?.getComputedStyle(current)
@@ -205,8 +256,9 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
           style.contentVisibility !== 'hidden' &&
           (!Number.isFinite(opacity) || opacity > 0.01) &&
           !current.hasAttribute('hidden') &&
-          current.getAttribute('aria-hidden') !== 'true'
+          (aboveExemptModal || current.getAttribute('aria-hidden') !== 'true')
       )
+      if (current === getExemptModal()) aboveExemptModal = true
       if (current.parentElement) current = current.parentElement
       else {
         const root = current.getRootNode()
@@ -772,9 +824,12 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
     // to zero size while mounting a replacement. Re-check live so a parked
     // node can fall through to the same strict, unique recovery used for a
     // detached node.
+    /** Re-derived live with the rest of this check, not reused from snapshot time. */
+    exemptModal = undefined
     const isCurrentlyVisible = (candidate: Element): boolean => {
       const rect = candidate.getBoundingClientRect()
       if (rect.width <= 0 || rect.height <= 0) return false
+      let aboveExemptModal = false
       for (let current: Element | null = candidate; current; ) {
         const currentView: Window | null = current.ownerDocument.defaultView
         const style = currentView?.getComputedStyle(current)
@@ -786,10 +841,11 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
           style.contentVisibility === 'hidden' ||
           (Number.isFinite(opacity) && opacity <= 0.01) ||
           current.hasAttribute('hidden') ||
-          current.getAttribute('aria-hidden') === 'true'
+          (!aboveExemptModal && current.getAttribute('aria-hidden') === 'true')
         ) {
           return false
         }
+        if (current === getExemptModal()) aboveExemptModal = true
         if (current.parentElement) current = current.parentElement
         else {
           const root = current.getRootNode()
@@ -1009,8 +1065,51 @@ export function clickElement(
     if (!el.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
   }
 
+  /** The aria-hidden modal exemption documented on collectSnapshot, inlined for serialization. */
+  let exemptModal: Element | null | undefined
+  const getExemptModal = (): Element | null => {
+    if (exemptModal !== undefined) return exemptModal
+    exemptModal = null
+    const rendered: Array<{ modal: Element; hidden: Element[] }> = []
+    for (const modal of Array.from(
+      document.querySelectorAll('[aria-modal="true"], dialog[open]')
+    )) {
+      const rect = modal.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0 || modal.getAttribute('aria-hidden') === 'true')
+        continue
+      const hidden: Element[] = []
+      let visible = true
+      for (let current: Element | null = modal; current && visible; ) {
+        const style = current.ownerDocument.defaultView?.getComputedStyle(current)
+        const opacity = Number.parseFloat(style?.opacity || '1')
+        visible = Boolean(
+          style &&
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            style.contentVisibility !== 'hidden' &&
+            (!Number.isFinite(opacity) || opacity > 0.01) &&
+            !current.hasAttribute('hidden')
+        )
+        if (current.getAttribute('aria-hidden') === 'true') hidden.push(current)
+        if (current.parentElement) current = current.parentElement
+        else {
+          const root = current.getRootNode()
+          current = 'host' in root ? (root.host as Element) : null
+        }
+      }
+      if (visible) rendered.push({ modal, hidden })
+    }
+    if (rendered.some(({ hidden }) => hidden.length === 0)) return exemptModal
+    const topmost = rendered.filter(({ hidden }) =>
+      hidden.every((ancestor) => rendered.every(({ modal }) => ancestor.contains(modal)))
+    )
+    if (topmost.length === 1) exemptModal = topmost[0].modal
+    return exemptModal
+  }
+
   const view = el.ownerDocument.defaultView
   if (!view) return { error: 'stale', reason: window.__simAgentStaleReason }
+  let aboveExemptModal = false
   for (let current: Element | null = el; current; ) {
     const currentView: Window | null = current.ownerDocument.defaultView
     const style = currentView?.getComputedStyle(current)
@@ -1022,10 +1121,11 @@ export function clickElement(
       style.contentVisibility === 'hidden' ||
       (Number.isFinite(opacity) && opacity <= 0.01) ||
       current.hasAttribute('hidden') ||
-      current.getAttribute('aria-hidden') === 'true'
+      (!aboveExemptModal && current.getAttribute('aria-hidden') === 'true')
     ) {
       return { error: 'not-visible' }
     }
+    if (current === getExemptModal()) aboveExemptModal = true
     if (current.parentElement) current = current.parentElement
     else {
       const root = current.getRootNode()
@@ -1501,6 +1601,49 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
         rect.bottom - rect.top > 1
     )
   if (rects.length === 0) return { error: 'not-visible' }
+  /** The aria-hidden modal exemption documented on collectSnapshot, inlined for serialization. */
+  let exemptModal: Element | null | undefined
+  const getExemptModal = (): Element | null => {
+    if (exemptModal !== undefined) return exemptModal
+    exemptModal = null
+    const rendered: Array<{ modal: Element; hidden: Element[] }> = []
+    for (const modal of Array.from(
+      document.querySelectorAll('[aria-modal="true"], dialog[open]')
+    )) {
+      const rect = modal.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0 || modal.getAttribute('aria-hidden') === 'true')
+        continue
+      const hidden: Element[] = []
+      let visible = true
+      for (let current: Element | null = modal; current && visible; ) {
+        const style = current.ownerDocument.defaultView?.getComputedStyle(current)
+        const opacity = Number.parseFloat(style?.opacity || '1')
+        visible = Boolean(
+          style &&
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            style.contentVisibility !== 'hidden' &&
+            (!Number.isFinite(opacity) || opacity > 0.01) &&
+            !current.hasAttribute('hidden')
+        )
+        if (current.getAttribute('aria-hidden') === 'true') hidden.push(current)
+        if (current.parentElement) current = current.parentElement
+        else {
+          const root = current.getRootNode()
+          current = 'host' in root ? (root.host as Element) : null
+        }
+      }
+      if (visible) rendered.push({ modal, hidden })
+    }
+    if (rendered.some(({ hidden }) => hidden.length === 0)) return exemptModal
+    const topmost = rendered.filter(({ hidden }) =>
+      hidden.every((ancestor) => rendered.every(({ modal }) => ancestor.contains(modal)))
+    )
+    if (topmost.length === 1) exemptModal = topmost[0].modal
+    return exemptModal
+  }
+
+  let aboveExemptModal = false
   for (let current: Element | null = editable; current; current = composedParent(current)) {
     const currentView: Window | null = current.ownerDocument.defaultView
     const style = currentView?.getComputedStyle(current)
@@ -1512,10 +1655,11 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
       style.contentVisibility === 'hidden' ||
       (Number.isFinite(opacity) && opacity <= 0.01) ||
       current.hasAttribute('hidden') ||
-      current.getAttribute('aria-hidden') === 'true'
+      (!aboveExemptModal && current.getAttribute('aria-hidden') === 'true')
     ) {
       return { error: 'not-visible' }
     }
+    if (current === getExemptModal()) aboveExemptModal = true
   }
 
   if (moveFocus) {
@@ -2230,6 +2374,48 @@ export function readPageActionState(
   const observedDocument =
     observedElement?.ownerDocument ?? registeredElement?.ownerDocument ?? document
   const observedWindow = observedDocument.defaultView ?? window
+  /** The aria-hidden modal exemption documented on collectSnapshot, inlined for serialization. */
+  let exemptModal: Element | null | undefined
+  const getExemptModal = (): Element | null => {
+    if (exemptModal !== undefined) return exemptModal
+    exemptModal = null
+    const rendered: Array<{ modal: Element; hidden: Element[] }> = []
+    for (const modal of Array.from(
+      document.querySelectorAll('[aria-modal="true"], dialog[open]')
+    )) {
+      const rect = modal.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0 || modal.getAttribute('aria-hidden') === 'true')
+        continue
+      const hidden: Element[] = []
+      let visible = true
+      for (let current: Element | null = modal; current && visible; ) {
+        const style = current.ownerDocument.defaultView?.getComputedStyle(current)
+        const opacity = Number.parseFloat(style?.opacity || '1')
+        visible = Boolean(
+          style &&
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            style.contentVisibility !== 'hidden' &&
+            (!Number.isFinite(opacity) || opacity > 0.01) &&
+            !current.hasAttribute('hidden')
+        )
+        if (current.getAttribute('aria-hidden') === 'true') hidden.push(current)
+        if (current.parentElement) current = current.parentElement
+        else {
+          const root = current.getRootNode()
+          current = 'host' in root ? (root.host as Element) : null
+        }
+      }
+      if (visible) rendered.push({ modal, hidden })
+    }
+    if (rendered.some(({ hidden }) => hidden.length === 0)) return exemptModal
+    const topmost = rendered.filter(({ hidden }) =>
+      hidden.every((ancestor) => rendered.every(({ modal }) => ancestor.contains(modal)))
+    )
+    if (topmost.length === 1) exemptModal = topmost[0].modal
+    return exemptModal
+  }
+
   const isEffectivelyRendered = (element: Element): boolean => {
     const rect = element.getBoundingClientRect()
     const view = element.ownerDocument.defaultView
@@ -2244,6 +2430,7 @@ export function readPageActionState(
     ) {
       return false
     }
+    let aboveExemptModal = false
     for (let current: Element | null = element; current; ) {
       const currentView: Window | null = current.ownerDocument.defaultView
       const style = currentView?.getComputedStyle(current)
@@ -2255,10 +2442,11 @@ export function readPageActionState(
         style.contentVisibility === 'hidden' ||
         (Number.isFinite(opacity) && opacity <= 0.01) ||
         current.hasAttribute('hidden') ||
-        current.getAttribute('aria-hidden') === 'true'
+        (!aboveExemptModal && current.getAttribute('aria-hidden') === 'true')
       ) {
         return false
       }
+      if (current === getExemptModal()) aboveExemptModal = true
       if (current.parentElement) current = current.parentElement
       else {
         const root = current.getRootNode()
@@ -2411,6 +2599,7 @@ export function readPageActionState(
     const rect = element.getBoundingClientRect()
     const view = element.ownerDocument.defaultView
     if (!view || rect.width <= 0 || rect.height <= 0) return false
+    let aboveExemptModal = false
     for (let current: Element | null = element; current; ) {
       const style = view.getComputedStyle(current)
       if (
@@ -2418,10 +2607,11 @@ export function readPageActionState(
         style.visibility === 'hidden' ||
         Number.parseFloat(style.opacity || '1') <= 0.01 ||
         current.hasAttribute('hidden') ||
-        current.getAttribute('aria-hidden') === 'true'
+        (!aboveExemptModal && current.getAttribute('aria-hidden') === 'true')
       ) {
         return false
       }
+      if (current === getExemptModal()) aboveExemptModal = true
       if (current.parentElement) current = current.parentElement
       else {
         const root = current.getRootNode()
@@ -2528,6 +2718,48 @@ export function scrollPage(direction: string, amount?: number, elementId?: numbe
   const delta = towardStart ? -distance : distance
   const scrollingElement = (document.scrollingElement || document.documentElement) as HTMLElement
 
+  /** The aria-hidden modal exemption documented on collectSnapshot, inlined for serialization. */
+  let exemptModal: Element | null | undefined
+  const getExemptModal = (): Element | null => {
+    if (exemptModal !== undefined) return exemptModal
+    exemptModal = null
+    const rendered: Array<{ modal: Element; hidden: Element[] }> = []
+    for (const modal of Array.from(
+      document.querySelectorAll('[aria-modal="true"], dialog[open]')
+    )) {
+      const rect = modal.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0 || modal.getAttribute('aria-hidden') === 'true')
+        continue
+      const hidden: Element[] = []
+      let visible = true
+      for (let current: Element | null = modal; current && visible; ) {
+        const style = current.ownerDocument.defaultView?.getComputedStyle(current)
+        const opacity = Number.parseFloat(style?.opacity || '1')
+        visible = Boolean(
+          style &&
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            style.contentVisibility !== 'hidden' &&
+            (!Number.isFinite(opacity) || opacity > 0.01) &&
+            !current.hasAttribute('hidden')
+        )
+        if (current.getAttribute('aria-hidden') === 'true') hidden.push(current)
+        if (current.parentElement) current = current.parentElement
+        else {
+          const root = current.getRootNode()
+          current = 'host' in root ? (root.host as Element) : null
+        }
+      }
+      if (visible) rendered.push({ modal, hidden })
+    }
+    if (rendered.some(({ hidden }) => hidden.length === 0)) return exemptModal
+    const topmost = rendered.filter(({ hidden }) =>
+      hidden.every((ancestor) => rendered.every(({ modal }) => ancestor.contains(modal)))
+    )
+    if (topmost.length === 1) exemptModal = topmost[0].modal
+    return exemptModal
+  }
+
   const isVisible = (element: Element): boolean => {
     const rect = element.getBoundingClientRect()
     const view = element.ownerDocument.defaultView
@@ -2540,6 +2772,7 @@ export function scrollPage(direction: string, amount?: number, elementId?: numbe
     ) {
       return false
     }
+    let aboveExemptModal = false
     for (let current: Element | null = element; current; ) {
       const currentView: Window | null = current.ownerDocument.defaultView
       const style = currentView?.getComputedStyle(current)
@@ -2551,10 +2784,11 @@ export function scrollPage(direction: string, amount?: number, elementId?: numbe
         style.contentVisibility === 'hidden' ||
         (Number.isFinite(opacity) && opacity <= 0.01) ||
         current.hasAttribute('hidden') ||
-        current.getAttribute('aria-hidden') === 'true'
+        (!aboveExemptModal && current.getAttribute('aria-hidden') === 'true')
       ) {
         return false
       }
+      if (current === getExemptModal()) aboveExemptModal = true
       if (current.parentElement) current = current.parentElement
       else {
         const root = current.getRootNode()
@@ -3021,6 +3255,49 @@ export function getElementScreenshotRect(id: number): unknown {
   const rect = element.getBoundingClientRect()
   const view = element.ownerDocument.defaultView
   if (!view) return { error: 'stale', reason: window.__simAgentStaleReason }
+  /** The aria-hidden modal exemption documented on collectSnapshot, inlined for serialization. */
+  let exemptModal: Element | null | undefined
+  const getExemptModal = (): Element | null => {
+    if (exemptModal !== undefined) return exemptModal
+    exemptModal = null
+    const rendered: Array<{ modal: Element; hidden: Element[] }> = []
+    for (const modal of Array.from(
+      document.querySelectorAll('[aria-modal="true"], dialog[open]')
+    )) {
+      const rect = modal.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0 || modal.getAttribute('aria-hidden') === 'true')
+        continue
+      const hidden: Element[] = []
+      let visible = true
+      for (let current: Element | null = modal; current && visible; ) {
+        const style = current.ownerDocument.defaultView?.getComputedStyle(current)
+        const opacity = Number.parseFloat(style?.opacity || '1')
+        visible = Boolean(
+          style &&
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            style.contentVisibility !== 'hidden' &&
+            (!Number.isFinite(opacity) || opacity > 0.01) &&
+            !current.hasAttribute('hidden')
+        )
+        if (current.getAttribute('aria-hidden') === 'true') hidden.push(current)
+        if (current.parentElement) current = current.parentElement
+        else {
+          const root = current.getRootNode()
+          current = 'host' in root ? (root.host as Element) : null
+        }
+      }
+      if (visible) rendered.push({ modal, hidden })
+    }
+    if (rendered.some(({ hidden }) => hidden.length === 0)) return exemptModal
+    const topmost = rendered.filter(({ hidden }) =>
+      hidden.every((ancestor) => rendered.every(({ modal }) => ancestor.contains(modal)))
+    )
+    if (topmost.length === 1) exemptModal = topmost[0].modal
+    return exemptModal
+  }
+
+  let aboveExemptModal = false
   for (let current: Element | null = element; current; ) {
     const currentView: Window | null = current.ownerDocument.defaultView
     const style = currentView?.getComputedStyle(current)
@@ -3032,10 +3309,11 @@ export function getElementScreenshotRect(id: number): unknown {
       style.contentVisibility === 'hidden' ||
       (Number.isFinite(opacity) && opacity <= 0.01) ||
       current.hasAttribute('hidden') ||
-      current.getAttribute('aria-hidden') === 'true'
+      (!aboveExemptModal && current.getAttribute('aria-hidden') === 'true')
     ) {
       return { error: 'not-visible' }
     }
+    if (current === getExemptModal()) aboveExemptModal = true
     if (current.parentElement) current = current.parentElement
     else {
       const root = current.getRootNode()
@@ -3170,7 +3448,51 @@ export function readChildFrameElementState(
       rect.left < view.innerWidth &&
       rect.top < view.innerHeight
   )
+
+  /** The aria-hidden modal exemption documented on collectSnapshot, inlined for serialization. */
+  let exemptModal: Element | null | undefined
+  const getExemptModal = (): Element | null => {
+    if (exemptModal !== undefined) return exemptModal
+    exemptModal = null
+    const rendered: Array<{ modal: Element; hidden: Element[] }> = []
+    for (const modal of Array.from(
+      document.querySelectorAll('[aria-modal="true"], dialog[open]')
+    )) {
+      const rect = modal.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0 || modal.getAttribute('aria-hidden') === 'true')
+        continue
+      const hidden: Element[] = []
+      let visible = true
+      for (let current: Element | null = modal; current && visible; ) {
+        const style = current.ownerDocument.defaultView?.getComputedStyle(current)
+        const opacity = Number.parseFloat(style?.opacity || '1')
+        visible = Boolean(
+          style &&
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            style.contentVisibility !== 'hidden' &&
+            (!Number.isFinite(opacity) || opacity > 0.01) &&
+            !current.hasAttribute('hidden')
+        )
+        if (current.getAttribute('aria-hidden') === 'true') hidden.push(current)
+        if (current.parentElement) current = current.parentElement
+        else {
+          const root = current.getRootNode()
+          current = 'host' in root ? (root.host as Element) : null
+        }
+      }
+      if (visible) rendered.push({ modal, hidden })
+    }
+    if (rendered.some(({ hidden }) => hidden.length === 0)) return exemptModal
+    const topmost = rendered.filter(({ hidden }) =>
+      hidden.every((ancestor) => rendered.every(({ modal }) => ancestor.contains(modal)))
+    )
+    if (topmost.length === 1) exemptModal = topmost[0].modal
+    return exemptModal
+  }
+
   let pointMappingReliable = true
+  let aboveExemptModal = false
   for (let current: Element | null = element; visible && current; ) {
     const style = view?.getComputedStyle(current)
     if (
@@ -3179,11 +3501,12 @@ export function readChildFrameElementState(
       style.visibility === 'hidden' ||
       Number.parseFloat(style.opacity || '1') <= 0.01 ||
       current.hasAttribute('hidden') ||
-      current.getAttribute('aria-hidden') === 'true'
+      (!aboveExemptModal && current.getAttribute('aria-hidden') === 'true')
     ) {
       visible = false
       break
     }
+    if (current === getExemptModal()) aboveExemptModal = true
     if (style.transform && style.transform !== 'none') {
       try {
         if (typeof DOMMatrixReadOnly !== 'function') {
