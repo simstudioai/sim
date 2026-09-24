@@ -115,7 +115,7 @@ describe('search in shared tool activity', () => {
     expand()
     expect(container.querySelectorAll('a')).toHaveLength(3)
     expect(container.querySelector('[role="region"]')?.getAttribute('aria-label')).toBe(
-      'Search results'
+      'Search results for step 1: Searched documents'
     )
     expect(container.innerHTML).not.toContain('in:launch review')
     expect(container.innerHTML).not.toContain('raw-provider-query-sentinel')
@@ -176,6 +176,14 @@ describe('search in shared tool activity', () => {
     expect(header().getAttribute('aria-expanded')).toBe('true')
     expect(container.querySelectorAll('a')).toHaveLength(6)
     expect(container.querySelectorAll('[role="region"]')).toHaveLength(2)
+    expect(
+      [...container.querySelectorAll('[role="region"]')].map((region) =>
+        region.getAttribute('aria-label')
+      )
+    ).toEqual([
+      'Search results for step 1: Searched documents',
+      'Search results for step 2: Searched documents',
+    ])
     act(() => header().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
     expect(header().getAttribute('aria-expanded')).toBe('false')
   })
@@ -232,14 +240,49 @@ describe('search in shared tool activity', () => {
     expect(container.querySelectorAll('a')).toHaveLength(0)
   })
 
-  it('shows an empty result only in its history, without a header count', () => {
+  it.each([undefined, { status: 'complete', timedOutLegs: [] }])(
+    'shows a complete or legacy empty result only in its history, without a header count',
+    (retrieval) => {
+      render([
+        {
+          ...tool,
+          status: 'success',
+          result: { success: true, output: { data: { results: [], retrieval } } },
+        },
+      ])
+      expect(headerText()).toBe('Searched documents')
+      expect(container.textContent).not.toContain('results')
+      expand()
+      expect(container.textContent).toContain('No results')
+    }
+  )
+
+  it('does not claim no results or expose an empty disclosure when retrieval is partial', () => {
     render([
-      { ...tool, status: 'success', result: { success: true, output: { data: { results: [] } } } },
+      {
+        ...tool,
+        status: 'success',
+        result: {
+          success: true,
+          output: {
+            data: { results: [], retrieval: { status: 'partial', timedOutLegs: ['vector'] } },
+          },
+        },
+      },
     ])
     expect(headerText()).toBe('Searched documents')
-    expect(container.textContent).not.toContain('results')
+    expect(header()).toBeNull()
+    expect(container.textContent).not.toContain('No results')
+  })
+
+  it('preserves available source matches when retrieval is partial', () => {
+    const search = completedSearch('partial', 'Available matches')
+    const output = search.result!.output as { data: Record<string, unknown> }
+    output.data.retrieval = { status: 'partial', timedOutLegs: ['vector'] }
+    render([search])
     expand()
-    expect(container.textContent).toContain('No results')
+    expect(container.querySelectorAll('a')).toHaveLength(3)
+    expect(container.textContent).not.toContain('No results')
   })
 
   it.each([

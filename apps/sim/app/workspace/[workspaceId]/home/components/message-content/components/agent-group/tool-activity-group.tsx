@@ -240,17 +240,22 @@ export function ToolActivityGroup({
           expanded={expanded}
           onToggle={() => setExpanded(!expanded)}
           isStreaming={working && autoScrollActivity}
-          unbounded={hasSearchDetails}
+          unbounded={entries.some(({ sources }) => (sources?.length ?? 0) > 0)}
         >
           <div className='flex min-w-0 flex-col gap-1.5 py-0.5'>
-            {entries.map(({ tool, sources }) => (
+            {entries.map(({ tool, sources }, index) => (
               <Fragment key={tool.id}>
                 {tools.length === 1 ? null : tool.id === headerTool.id ? (
                   <ActivityStatus {...status} />
                 ) : (
                   <ToolCallComponent {...tool} toolCallId={tool.id} />
                 )}
-                {sources && <SearchActivityDetails sources={sources} />}
+                {sources && (
+                  <SearchActivityDetails
+                    sources={sources}
+                    label={`Search results for step ${index + 1}: ${getToolTitle(tool)}`}
+                  />
+                )}
               </Fragment>
             ))}
           </div>

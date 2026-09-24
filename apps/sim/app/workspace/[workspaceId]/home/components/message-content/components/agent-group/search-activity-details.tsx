@@ -20,6 +20,7 @@ export function getSearchActivitySources(tool: ToolCallData): SourceTagData[] | 
     tool.status === ToolCallStatus.success &&
       tool.result?.success &&
       output?.success !== false &&
+      parseCitationRecord(data?.retrieval)?.status !== 'partial' &&
       Array.isArray(data?.results) &&
       data.results.length === 0
   )
@@ -29,12 +30,13 @@ export function getSearchActivitySources(tool: ToolCallData): SourceTagData[] | 
 
 interface SearchActivityDetailsProps {
   sources: SourceTagData[]
+  label: string
 }
 
 /** Per-call evidence stays in the shared activity history, never in the live header. */
-export function SearchActivityDetails({ sources }: SearchActivityDetailsProps) {
+export function SearchActivityDetails({ sources, label }: SearchActivityDetailsProps) {
   return sources.length > 0 ? (
-    <SearchActivityResults sources={sources} />
+    <SearchActivityResults sources={sources} label={label} />
   ) : (
     <p className='text-[var(--text-muted)] text-caption'>No results</p>
   )

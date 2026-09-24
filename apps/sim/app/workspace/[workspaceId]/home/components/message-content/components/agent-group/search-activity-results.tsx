@@ -22,6 +22,7 @@ import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/component
 
 interface SearchActivityResultsProps {
   sources: SourceTagData[]
+  label: string
 }
 
 /**
@@ -29,7 +30,7 @@ interface SearchActivityResultsProps {
  * transcript. The list shows four and a half 32px rows, so a clipped row signals
  * that it scrolls.
  */
-export function SearchActivityResults({ sources }: SearchActivityResultsProps) {
+export function SearchActivityResults({ sources, label }: SearchActivityResultsProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const edges = useScrollEdges(scrollRef)
 
@@ -38,7 +39,7 @@ export function SearchActivityResults({ sources }: SearchActivityResultsProps) {
       <div
         ref={scrollRef}
         role='region'
-        aria-label='Search results'
+        aria-label={label}
         className={cn('max-h-[152px] overflow-y-auto overscroll-contain p-1', scrollFadeClass)}
         {...scrollFadeAttributes(edges)}
       >
