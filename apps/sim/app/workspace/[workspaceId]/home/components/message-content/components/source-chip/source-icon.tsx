@@ -40,6 +40,7 @@ export function SourceIcon({ source, size = 'default' }: SourceIconProps) {
       <img
         src={faviconUrl(hostname, 64)}
         alt=''
+        referrerPolicy='no-referrer'
         className={cn(className, 'rounded-sm')}
         onError={() => setFailedHostname(hostname)}
       />
