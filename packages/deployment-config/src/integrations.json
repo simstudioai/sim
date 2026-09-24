@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-23",
+  "updatedAt": "2026-09-24",
   "integrations": [
     {
       "type": "onepassword",
@@ -22603,6 +22603,10 @@
           "description": "Rename an existing Slack List."
         },
         {
+          "name": "Share List",
+          "description": "Grant users or channels access to a Slack List. Provide exactly one of userIds or channelIds. Read allows viewing, write allows editing, and owner grants ownership to users only; only a current owner can grant ownership."
+        },
+        {
           "name": "Read List Items",
           "description": "Read a page of Slack List rows and optionally its column schema. Pass nextCursor as cursor to continue; an empty nextCursor ends pagination."
         },
@@ -22675,7 +22679,7 @@
           "description": "Set the purpose (description) for a Slack channel (max 250 characters)."
         }
       ],
-      "operationCount": 52,
+      "operationCount": 53,
       "triggers": [
         {
           "id": "slack_oauth",

@@ -30,6 +30,7 @@ const SLACK_V2_AGENT_OPERATIONS = [
 const SLACK_V2_LIST_OPERATIONS = [
   'create_list',
   'rename_list',
+  'share_list',
   'list_items',
   'get_list_item',
   'create_list_item',
@@ -3206,6 +3207,19 @@ function mapSlackListParams(params: Record<string, unknown>): Record<string, unk
     case 'rename_list':
       result.name = params.listName
       break
+    case 'share_list':
+      result.accessLevel = params.listAccessLevel ?? 'read'
+      switch (params.listShareTarget ?? 'users') {
+        case 'users':
+          result.userIds = parseOptionalJsonInput(params.listShareUserIds, 'User IDs')
+          break
+        case 'channels':
+          result.channelIds = parseOptionalJsonInput(params.listShareChannelIds, 'Channel IDs')
+          break
+        default:
+          throw new Error('Share With must be users or channels')
+      }
+      break
     case 'list_items':
       result.limit = parseOptionalNumberInput(params.listLimit, 'Page Size', {
         integer: true,
@@ -3272,6 +3286,7 @@ function getSlackV2ListSubBlocks(): SubBlockConfig[] {
         field: 'operation',
         value: [
           'rename_list',
+          'share_list',
           'list_items',
           'get_list_item',
           'create_list_item',
@@ -3279,6 +3294,57 @@ function getSlackV2ListSubBlocks(): SubBlockConfig[] {
           'delete_list_item',
         ],
       },
+    },
+    {
+      id: 'listShareTarget',
+      title: 'Share With',
+      type: 'dropdown',
+      options: [
+        { label: 'Users', id: 'users' },
+        { label: 'Channels', id: 'channels' },
+      ],
+      value: () => 'users',
+      required: true,
+      condition: { field: 'operation', value: 'share_list' },
+    },
+    {
+      id: 'listShareUserIds',
+      title: 'User IDs',
+      type: 'code',
+      language: 'json',
+      placeholder: '["U0123456789"]',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: 'share_list',
+        and: { field: 'listShareTarget', value: 'users' },
+      },
+    },
+    {
+      id: 'listShareChannelIds',
+      title: 'Channel IDs',
+      type: 'code',
+      language: 'json',
+      placeholder: '["C0123456789"]',
+      required: true,
+      condition: {
+        field: 'operation',
+        value: 'share_list',
+        and: { field: 'listShareTarget', value: 'channels' },
+      },
+    },
+    {
+      id: 'listAccessLevel',
+      title: 'Access Level',
+      type: 'dropdown',
+      options: [
+        { label: 'Can view', id: 'read' },
+        { label: 'Can edit', id: 'write' },
+        { label: 'Owner (users only)', id: 'owner' },
+      ],
+      value: () => 'read',
+      required: true,
+      condition: { field: 'operation', value: 'share_list' },
     },
     {
       id: 'listName',
@@ -3429,6 +3495,10 @@ export function getSlackV2OperationSentences() {
       { text: 'Rename list', field: 'listId', core: true },
       { text: 'to', field: 'listName' },
     ],
+    share_list: [
+      { text: 'Share list', field: 'listId', core: true },
+      { text: 'with', field: ['listShareUserIds', 'listShareChannelIds'], core: true },
+    ],
     list_items: [{ text: 'Read rows from', field: 'listId', core: true }],
     get_list_item: [
       { text: 'Read row', field: 'listItemId', core: true },
@@ -3549,6 +3619,7 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
         { label: 'Delete Canvas', id: 'delete_canvas' },
         { label: 'Create List', id: 'create_list' },
         { label: 'Rename List', id: 'rename_list' },
+        { label: 'Share List', id: 'share_list' },
         { label: 'Read List Items', id: 'list_items' },
         { label: 'Get List Item', id: 'get_list_item' },
         { label: 'Create List Item', id: 'create_list_item' },
@@ -3611,6 +3682,7 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
       'slack_delete_canvas',
       'slack_lists_create',
       'slack_lists_update',
+      'slack_lists_access_set',
       'slack_lists_items_list',
       'slack_lists_items_info',
       'slack_lists_items_create',
@@ -3638,6 +3710,8 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
             return 'slack_lists_create'
           case 'rename_list':
             return 'slack_lists_update'
+          case 'share_list':
+            return 'slack_lists_access_set'
           case 'list_items':
             return 'slack_lists_items_list'
           case 'get_list_item':
@@ -3696,6 +3770,13 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
     listId: { type: 'string', description: 'Slack List ID' },
     listItemId: { type: 'string', description: 'Slack row ID' },
     listName: { type: 'string', description: 'List name' },
+    listShareTarget: { type: 'string', description: 'Share with users or channels' },
+    listShareUserIds: { type: 'json', description: 'Slack user IDs to grant List access' },
+    listShareChannelIds: { type: 'json', description: 'Slack channel IDs to grant List access' },
+    listAccessLevel: {
+      type: 'string',
+      description: 'List access: read, write, or owner (users only)',
+    },
     listSchema: { type: 'json', description: 'Column definitions' },
     listInitialFields: { type: 'json', description: 'Initial typed cell values' },
     listCells: { type: 'json', description: 'Typed cell updates with row_id and column_id' },

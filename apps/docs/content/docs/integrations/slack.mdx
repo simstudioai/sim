@@ -1546,6 +1546,25 @@ Rename an existing Slack List.
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether Slack completed the operation |
 
+### Slack Lists Share List
+
+Grant users or channels access to a Slack List. Provide exactly one of userIds or channelIds. Read allows viewing, write allows editing, and owner grants ownership to users only; only a current owner can grant ownership.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `listId` | string | Yes | Slack List ID, from the List URL or Create List output |
+| `accessLevel` | string | Yes | Access to grant: read, write, or owner. Ownership can only be granted to users. |
+| `userIds` | json | No | Nonempty JSON array of Slack user IDs, e.g. \["U0123456789"\]. Omit channelIds. |
+| `channelIds` | json | No | Nonempty JSON array of Slack channel IDs, e.g. \["C0123456789"\]. Omit userIds. Supports read or write access. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ok` | boolean | Whether Slack completed the operation |
+
 ### Slack Lists List Items
 
 Read a page of Slack List rows and optionally its column schema. Pass nextCursor as cursor to continue; an empty nextCursor ends pagination.
@@ -2186,6 +2205,7 @@ Set the purpose (description) for a Slack channel (max 250 characters).
 
 Lists actions require a custom Slack bot and a paid Slack plan. **Manage Lists** is selected by default during bot setup. For an existing app, add `lists:read` and `lists:write` in Slack, reinstall it, then reconnect in Sim.
 
+- **Share List** grants access to users or channels. Choose **Share With**, enter a JSON array of Slack IDs, and select **Can view**, **Can edit**, or **Owner**. Ownership is for users only and requires the current owner. Creating a List does not automatically share it with your personal Slack account. See Slack's [sharing reference](https://docs.slack.dev/reference/methods/slackLists.access.set/).
 - Run **Read List Items** with **Include List Schema** enabled to get the column IDs used in `column_id`. Updates also need the row's `id` as `row_id`.
 - **Initial Fields** and **Cells** accept JSON arrays of typed values. Text uses `rich_text`; checkboxes use booleans. See Slack's [field formats](https://docs.slack.dev/reference/methods/slackLists.items.create/) for examples.
 - To read every row, pass `nextCursor` into **Cursor** until it is empty. **Archived Rows** reads archived rows instead of active rows.

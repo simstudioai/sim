@@ -1,3 +1,4 @@
+export { slackListsAccessSetTool } from '@/tools/slack_lists/access_set'
 export { slackListsCreateTool } from '@/tools/slack_lists/create'
 export { slackListsItemsCreateTool } from '@/tools/slack_lists/items_create'
 export { slackListsItemsDeleteTool } from '@/tools/slack_lists/items_delete'

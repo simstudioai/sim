@@ -24,6 +24,13 @@ export interface SlackListsUpdateParams extends SlackListsAuthParams {
   name: string
 }
 
+export interface SlackListsAccessSetParams extends SlackListsAuthParams {
+  listId: string
+  accessLevel: 'read' | 'write' | 'owner'
+  userIds?: string[] | string
+  channelIds?: string[] | string
+}
+
 export interface SlackListsItemsListParams extends SlackListsAuthParams {
   listId: string
   limit?: number

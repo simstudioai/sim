@@ -4765,6 +4765,7 @@ import {
   slackUpdateViewTool,
 } from '@/tools/slack'
 import {
+  slackListsAccessSetTool,
   slackListsCreateTool,
   slackListsItemsCreateTool,
   slackListsItemsDeleteTool,
@@ -7290,6 +7291,7 @@ export const tools: Record<string, ExecutableToolConfig> = {
   slack_set_suggested_prompts_v2: slackSetSuggestedPromptsV2Tool,
   slack_set_agent_session_status_v2: slackSetAgentSessionStatusV2Tool,
   slack_rename_agent_session_v2: slackRenameAgentSessionV2Tool,
+  slack_lists_access_set: slackListsAccessSetTool,
   slack_lists_create: slackListsCreateTool,
   slack_lists_update: slackListsUpdateTool,
   slack_lists_items_list: slackListsItemsListTool,
