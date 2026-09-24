@@ -61,4 +61,13 @@ describe('ForkDisclosureTrigger', () => {
     expect(resources?.getAttribute('aria-expanded')).toBe('true')
     expect(mapping?.getAttribute('aria-expanded')).toBe('false')
   })
+
+  it('keeps the disclosure trigger keyboard focusable with its visible focus treatment', () => {
+    const trigger = container.querySelector<HTMLButtonElement>('button')
+    act(() => trigger?.focus())
+
+    expect(document.activeElement).toBe(trigger)
+    expect(trigger?.classList.contains('focus-visible:outline-2')).toBe(true)
+    expect(trigger?.classList.contains('focus-visible:outline-[var(--selection)]')).toBe(true)
+  })
 })
