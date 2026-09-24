@@ -898,14 +898,16 @@ async function doExecuteBrowserTool(
 
     logger.info('Executing browser tool via the desktop agent browser', { toolCallId, toolName })
 
+    /** `activity` is presentation metadata for the chat row; desktop actions reject unknown keys. */
+    const { activity: _activity, ...actionParams } = params
     let result: unknown
     try {
       nativeDispatchStarted = true
       result = await executeBrowserTool(
         toolCallId,
         toolName,
-        params,
-        timeoutForTool(toolName, params),
+        actionParams,
+        timeoutForTool(toolName, actionParams),
         scopeId,
         () => {
           cancelled = true

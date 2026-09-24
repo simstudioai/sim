@@ -110,6 +110,27 @@ describe('executeBrowserToolOnClient', () => {
     expect(mockExecuteBrowserTool).toHaveBeenCalledTimes(1)
   })
 
+  it('never forwards presentation activity to the desktop driver', async () => {
+    mockExecuteBrowserTool.mockResolvedValue({ completed: true, results: [] })
+    const toolCallId = nextToolCallId()
+    const fields = [{ elementId: 1, kind: 'text', text: 'a' }]
+    executeBrowserToolOnClient(
+      toolCallId,
+      'browser_fill_form',
+      { activity: { description: 'Filling the form' }, fields },
+      CHAT_SCOPE
+    )
+    await flush()
+    expect(mockExecuteBrowserTool).toHaveBeenCalledWith(
+      toolCallId,
+      'browser_fill_form',
+      { fields },
+      expect.anything(),
+      CHAT_SCOPE,
+      expect.any(Function)
+    )
+  })
+
   it('reports a batch as failed only when one of its actions failed', async () => {
     const actions = [
       { tool: 'browser_click', args: { elementId: 1 } },
