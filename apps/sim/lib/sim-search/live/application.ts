@@ -474,7 +474,15 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           resolveListedLiveAccount(input, userId, account)
         )
         const session = await measureSearchStage('live.session', () =>
-          openLiveAccountSession({ owner: input, userId, resolved, policies, signal, pool })
+          openLiveAccountSession({
+            owner: input,
+            userId,
+            resolved,
+            policies,
+            signal,
+            pool,
+            searches: natives.length,
+          })
         )
         return await Promise.all(
           natives.map((native) =>

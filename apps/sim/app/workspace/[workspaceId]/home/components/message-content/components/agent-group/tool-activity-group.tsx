@@ -36,14 +36,19 @@ function isFailedTool(tool: ToolCallData): boolean {
 }
 
 /**
- * Drops a search that errored when another call follows it: the model corrected the query
- * and moved on, so the failed attempt is not part of what the user reads.
- * The last call always stays, so a run whose searches all failed still shows its outcome.
+ * Drops a search that errored when a later search follows it: the model corrected the query
+ * and searched again, so the failed attempt is not part of what the user reads. The last search
+ * always stays, so a failure that no search retried, or a run whose searches all failed, still
+ * shows its outcome.
  */
-function withoutRecoveredSearchFailures(tools: ToolCallData[]): ToolCallData[] {
+function withoutRetriedSearchFailures(tools: ToolCallData[]): ToolCallData[] {
+  let lastSearch = -1
+  for (const [index, tool] of tools.entries()) {
+    if (tool.toolName === SearchWorkspace.id) lastSearch = index
+  }
   return tools.filter(
     (tool, index) =>
-      index === tools.length - 1 ||
+      index >= lastSearch ||
       tool.toolName !== SearchWorkspace.id ||
       tool.status !== ToolCallStatus.error
   )
@@ -216,7 +221,7 @@ export function ToolActivityGroup({
   isLive = false,
 }: ToolActivityGroupProps) {
   const [expanded, setExpanded] = useState(false)
-  const tools = withoutRecoveredSearchFailures(calls)
+  const tools = withoutRetriedSearchFailures(calls)
   const statusTool = getActivityStatusTool(tools)
   if (!statusTool) return null
   const headerTool = getActivityHeaderTool(tools, statusTool)

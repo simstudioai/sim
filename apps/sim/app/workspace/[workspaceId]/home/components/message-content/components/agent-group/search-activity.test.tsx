@@ -236,6 +236,21 @@ describe('search in shared tool activity', () => {
     )
   })
 
+  it('keeps a failed search that no later search retried', () => {
+    const read: ToolCallData = {
+      id: 'read',
+      toolName: 'read_document',
+      displayTitle: 'Reading document',
+      activityDescription: 'Reading the launch plan',
+      status: 'success',
+    }
+    render([read])
+    expect(header()).toBeNull()
+    render([{ ...completedSearch('one', 'First query'), status: 'error' }, read])
+    expect(header()).not.toBeNull()
+    expect(container.textContent).not.toMatch(/failed/i)
+  })
+
   it('keeps the last search visible when every search failed', () => {
     render([
       { ...completedSearch('one', 'First query'), status: 'error' },

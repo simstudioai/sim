@@ -15,6 +15,9 @@ export class NativeSearchError extends Error {
   }
 }
 
+/** Provider requests one native search may make, including discovery and verification. */
+export const NATIVE_SEARCH_REQUEST_BUDGET = 30
+
 /** Tokens only go to a code-selected provider origin; redirects never carry credentials. */
 export function createNativeClient(input: {
   origin: string
@@ -22,6 +25,8 @@ export function createNativeClient(input: {
   signal: AbortSignal
   /** Reuses connections across this client's requests; the caller owns its lifetime. */
   pool?: PinnedConnectionPool
+  /** Requests this client may make; defaults to one search's budget. */
+  requestBudget?: number
 }): NativeClient {
   let requests = 0
   async function request(
@@ -33,7 +38,7 @@ export function createNativeClient(input: {
     }
   ) {
     input.signal.throwIfAborted()
-    if (++requests > 30)
+    if (++requests > (input.requestBudget ?? NATIVE_SEARCH_REQUEST_BUDGET))
       throw new NativeSearchError('unavailable', 'Request budget reached. Narrow the query.')
     const url = new URL(input.origin)
     if (options?.googleService === 'sheets') {
