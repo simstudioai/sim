@@ -26,6 +26,14 @@ describe('providerText', () => {
       'Reply from John <john@acme.com>'
     )
   })
+  it('keeps the spacing of plain text documents', () => {
+    const table = '  Name      Qty\n  Widget    2\n\n> quoted reply\n    indented code'
+    expect(providerText(`${table}   \n\n\n`)).toBe(table)
+  })
+  it('removes invisible characters inside a word without splitting it', () => {
+    const softHyphen = String.fromCodePoint(0xad)
+    expect(providerText(`hyphen${softHyphen}ation`)).toBe('hyphenation')
+  })
   it('does not decode entities in plain text', () => {
     expect(providerText('Use &lt;b&gt; for bold')).toBe('Use &lt;b&gt; for bold')
   })

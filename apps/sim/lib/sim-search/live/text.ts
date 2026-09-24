@@ -13,14 +13,10 @@ type ProviderTextFormat = 'plain' | 'escaped' | 'html' | 'auto'
  * followed by a pictograph is kept because it composes a single emoji. The combining grapheme
  * joiner is its own alternative because it cannot share a character class with base characters.
  */
-const INVISIBLE_CHARACTERS = new RegExp(
-  [
-    '[\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B\\u200C\\u200E\\u200F\\u202A-\\u202E\\u2060-\\u2064\\u2066-\\u206F\\u3164\\uFEFF\\uFFA0]',
-    '\\u034F',
-    '\\u200D(?!\\p{Extended_Pictographic})',
-  ].join('|'),
-  'gu'
-)
+const INVISIBLE_CHARACTER =
+  '[\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B\\u200C\\u200E\\u200F\\u202A-\\u202E\\u2060-\\u2064\\u2066-\\u206F\\u3164\\uFEFF\\uFFA0]|\\u034F|\\u200D(?!\\p{Extended_Pictographic})'
+/** A run of invisible characters with the spaces between them, as preheader padding is built. */
+const INVISIBLE_RUN = new RegExp(`(?:[^\\S\\n]*(?:${INVISIBLE_CHARACTER}))+[^\\S\\n]*`, 'gu')
 
 /** Markup becomes text only: links keep their visible text, and non-text elements are dropped. */
 const HTML_TO_TEXT: HtmlToTextOptions = {
@@ -48,10 +44,11 @@ export function providerText(value: string, format: ProviderTextFormat = 'plain'
   } else if (format === 'escaped') {
     text = decodeHtmlEntities(text)
   }
+  /** Padding collapses to one space, or to nothing inside a word; other spacing is kept. */
+  text = text.replace(INVISIBLE_RUN, (run) => (/\s/.test(run) ? ' ' : ''))
+  if (format === 'escaped') return text.replace(/\s+/g, ' ').trim()
   return text
-    .replace(INVISIBLE_CHARACTERS, '')
-    .replace(/[^\S\n]+/g, ' ')
-    .replace(/ *\n */g, '\n')
+    .replace(/[^\S\n]+$/gm, '')
     .replace(/\n{3,}/g, '\n\n')
-    .trim()
+    .replace(/^\n+|\n+$/g, '')
 }
