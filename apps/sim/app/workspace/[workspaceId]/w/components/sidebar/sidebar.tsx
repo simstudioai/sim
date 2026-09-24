@@ -280,8 +280,10 @@ const SidebarChatItem = memo(function SidebarChatItem({
               showStatusDot ? (
                 <span
                   aria-hidden='true'
-                  className='size-[6px] rounded-full'
-                  style={{ backgroundColor: isActive ? '#EAB308' : 'var(--brand-accent)' }}
+                  className={cn(
+                    'size-[6px] rounded-full',
+                    isActive ? 'bg-[var(--chat-status-active)]' : 'bg-[var(--brand-accent)]'
+                  )}
                 />
               ) : isPinned ? (
                 <Pin aria-hidden='true' className='size-[12px] text-[var(--text-icon)]' />

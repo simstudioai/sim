@@ -433,6 +433,15 @@
   --auth-primary-btn-hover-border: #e0e0e0;
   --auth-primary-btn-hover-text: #000000;
 
+  /* Chat navigation and log history keep their existing state colours. */
+  --chat-status-active: var(--color-yellow-500);
+  --logs-status-success: color-mix(in oklab, var(--color-emerald-400) 90%, transparent);
+  --logs-status-warning: color-mix(in oklab, var(--color-amber-400) 90%, transparent);
+  --logs-status-error: color-mix(in oklab, var(--color-red-400) 90%, transparent);
+
+  /* The rendered presentation sheet uses this same shadow in both viewer modes. */
+  --shadow-presentation-slide: 0 2px 8px rgba(0, 0, 0, 0.15);
+
   /* z-index scale. The toast/notification stack is ambient: it sits above page
      content but BELOW the modal and the transient poppers (menus, selects,
      popovers, tooltips), so an open modal or dropdown menu is never occluded by
@@ -800,6 +809,7 @@ html[data-sim-desktop-title-bar="inset"]
     --error-emphasis: #b91c1c;
     --caution: #f59e0b;
     --success: #22c55e;
+    --logs-status-empty: color-mix(in oklab, var(--color-gray-300) 60%, transparent);
 
     /* Brand extended */
     --brand-knowledge: #00b0b0;
@@ -917,6 +927,8 @@ html[data-sim-desktop-title-bar="inset"]
     --usage-enrichment: #d946ef;
     --usage-agent: var(--color-violet-500);
     --usage-other: #8a8a8a;
+
+    --logs-status-empty: color-mix(in oklab, var(--color-gray-500) 40%, transparent);
 
     /* Inverted surface (in dark mode, falls back to standard surfaces) */
     --surface-inverted: #242424;
