@@ -8,13 +8,25 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '@/lib/api/client/errors'
 
-const { mockGetFullOrganization, mockListOrganizations, mockRequestJson, featureFlags } =
-  vi.hoisted(() => ({
-    mockGetFullOrganization: vi.fn(),
-    mockListOrganizations: vi.fn(),
-    mockRequestJson: vi.fn(),
-    featureFlags: { organizations: true },
-  }))
+const {
+  mockGetFullOrganization,
+  mockListOrganizations,
+  mockSetActiveOrganization,
+  mockRefresh,
+  mockRequestJson,
+  featureFlags,
+} = vi.hoisted(() => ({
+  mockGetFullOrganization: vi.fn(),
+  mockListOrganizations: vi.fn(),
+  mockSetActiveOrganization: vi.fn(),
+  mockRefresh: vi.fn(),
+  mockRequestJson: vi.fn(),
+  featureFlags: { organizations: true },
+}))
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: mockRefresh }),
+}))
 
 vi.mock('@/lib/core/config/env-flags', () => ({
   get isOrganizationsEnabled() {
@@ -31,6 +43,7 @@ vi.mock('@/lib/auth/auth-client', () => ({
     organization: {
       getFullOrganization: mockGetFullOrganization,
       list: mockListOrganizations,
+      setActive: mockSetActiveOrganization,
     },
     subscription: {
       list: vi.fn(),
@@ -49,6 +62,7 @@ import {
 } from '@/lib/api/contracts/subscription'
 import {
   organizationKeys,
+  useCreateOrganization,
   useOrganization,
   useOrganizationBilling,
   useOrganizationList,
@@ -198,6 +212,48 @@ describe('organization identity transitions', () => {
     const signal = mockListOrganizations.mock.calls[0][0].fetchOptions.signal
     expect(signal).toBeInstanceOf(AbortSignal)
   })
+
+  it.each([true, false])(
+    'refreshes the server layout after organization activation settles (success=%s)',
+    async (success) => {
+      mockRequestJson.mockResolvedValue({ organizationId: 'new-organization' })
+      const activation = createDeferred<{ error: { message: string } | null }>()
+      mockSetActiveOrganization.mockReturnValue(activation.promise)
+      let mutation: ReturnType<typeof useCreateOrganization>
+      function CreationProbe() {
+        mutation = useCreateOrganization()
+        return null
+      }
+
+      await act(async () => {
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <CreationProbe />
+          </QueryClientProvider>
+        )
+      })
+      let pending: Promise<unknown>
+      await act(async () => {
+        pending = mutation.mutateAsync({ name: 'New organization' })
+      })
+      expect(mockSetActiveOrganization).toHaveBeenCalledWith({
+        organizationId: 'new-organization',
+      })
+      expect(mockRefresh).not.toHaveBeenCalled()
+
+      await act(async () => {
+        if (success) {
+          activation.resolve({ error: null })
+          await pending
+        } else {
+          const rejection = expect(pending).rejects.toThrow('Activation failed')
+          activation.resolve({ error: { message: 'Activation failed' } })
+          await rejection
+        }
+      })
+      expect(mockRefresh).toHaveBeenCalledOnce()
+    }
+  )
 
   it('does not call the organization plugin when organizations are disabled', async () => {
     featureFlags.organizations = false
