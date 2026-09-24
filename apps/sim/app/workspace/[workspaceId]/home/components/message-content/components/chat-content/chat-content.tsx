@@ -24,22 +24,26 @@ import '@sim/emcn/components/code/code.css'
 import {
   Checkbox,
   CopyCodeButton,
+  chipFilledFillTokens,
   cn,
   Lightbox,
   languages,
   highlight as prismHighlight,
+  scrollFadeAttributes,
+  scrollFadeXClass,
+  useScrollEdges,
 } from '@sim/emcn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import {
   inlineChatImageUrl,
   isInlineFileReference,
 } from '@/lib/mothership/chat/inline-image-reference'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import { sanitizeChatDisplayContent } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/chat-sanitize'
 import {
   ExternalLink,
-  externalLinkHostname,
   LinkSourcesContext,
-  PROSE_LINK_CLASS,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/external-link'
 import { HighlightedLines } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/highlighted-lines'
 import { remarkPlainText } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/remark-plain-text'
@@ -47,6 +51,10 @@ import {
   SourceChip,
   sourceLabel,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'
+import {
+  externalLinkHostname,
+  PROSE_LINK_CLASS,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import {
   type ContentSegment,
   type CredentialSubmissionPayload,
@@ -59,7 +67,6 @@ import {
 import { indexSourcesByUrl } from '@/app/workspace/[workspaceId]/home/components/message-content/sources-by-url'
 import type { WorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/types'
 import { useSmoothText } from '@/hooks/use-smooth-text'
-import { sanitizeChatDisplayContent } from './chat-sanitize'
 
 const LANG_ALIASES: Record<string, string> = {
   js: 'javascript',
@@ -81,13 +88,13 @@ const MARKDOWN_REMARK_PLUGINS = [
 
 const PROSE_CLASSES = cn(
   'prose prose-base dark:prose-invert max-w-none',
-  'font-[family-name:var(--font-inter)] antialiased break-words tracking-[0]',
+  'antialiased break-words tracking-[0]',
   'prose-headings:font-semibold prose-headings:tracking-[0] prose-headings:text-[var(--text-primary)]',
   'prose-headings:mb-3 prose-headings:mt-6 first:prose-headings:mt-0',
   'prose-p:text-base prose-p:leading-[25px] prose-p:text-[var(--text-primary)]',
   'prose-li:text-base prose-li:leading-[25px] prose-li:text-[var(--text-primary)]',
   'prose-li:my-1',
-  'prose-ul:my-4 prose-ol:my-4',
+  'prose-ul:my-4 prose-ol:my-4 [&_li>ul]:my-1 [&_li>ol]:my-1',
   'prose-strong:font-semibold prose-strong:text-[var(--text-primary)]',
   'prose-a:text-[var(--text-primary)] prose-a:no-underline',
   'prose-hr:border-[var(--border)] prose-hr:my-6',
@@ -263,16 +270,36 @@ function highlight(code: string, language: string): string {
   return html
 }
 
+interface MarkdownTableProps {
+  children?: React.ReactNode
+}
+
+function MarkdownTable({ children }: MarkdownTableProps) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const edges = useScrollEdges(scrollRef, { axis: 'x' })
+  const isOverflowing = edges.left || edges.right
+
+  return (
+    <div
+      ref={scrollRef}
+      role={isOverflowing ? 'region' : undefined}
+      aria-label={isOverflowing ? 'Scrollable table' : undefined}
+      tabIndex={isOverflowing ? 0 : undefined}
+      className={cn(
+        'not-prose my-4 w-full overflow-x-auto [&_strong]:font-semibold',
+        scrollFadeXClass
+      )}
+      {...scrollFadeAttributes(edges)}
+    >
+      <table className='min-w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0'>
+        {children}
+      </table>
+    </div>
+  )
+}
+
 const MARKDOWN_COMPONENTS = {
-  table({ children }: { children?: React.ReactNode }) {
-    return (
-      <div className='not-prose my-4 w-full overflow-x-auto [&_strong]:font-semibold'>
-        <table className='min-w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0'>
-          {children}
-        </table>
-      </div>
-    )
-  },
+  table: MarkdownTable,
   thead({ children }: { children?: React.ReactNode }) {
     return <thead>{children}</thead>
   },
@@ -345,11 +372,7 @@ const MARKDOWN_COMPONENTS = {
     }
     const hostname = externalLinkHostname(href)
     if (hostname && href) {
-      return (
-        <ExternalLink href={href} hostname={hostname}>
-          {children}
-        </ExternalLink>
-      )
+      return <ExternalLink href={href}>{children}</ExternalLink>
     }
     if (href?.startsWith('mailto:')) {
       return (
@@ -366,7 +389,16 @@ const MARKDOWN_COMPONENTS = {
   },
   ul({ children, className }: { children?: React.ReactNode; className?: string }) {
     if (className?.includes('contains-task-list')) {
-      return <ul className='my-4 list-none space-y-2 pl-0'>{children}</ul>
+      return (
+        <ul
+          className={cn(
+            'my-4 list-none space-y-2 ps-0 [&>li:not(.task-list-item)]:ms-5 [&>li:not(.task-list-item)]:list-disc',
+            className
+          )}
+        >
+          {children}
+        </ul>
+      )
     }
     return <ul className='my-4 list-disc pl-5 marker:text-[var(--text-primary)]'>{children}</ul>
   },
@@ -376,7 +408,12 @@ const MARKDOWN_COMPONENTS = {
   li({ children, className }: { children?: React.ReactNode; className?: string }) {
     if (className?.includes('task-list-item')) {
       return (
-        <li className='flex list-none items-start gap-2 text-[var(--text-primary)] text-base leading-[25px] [&>p:only-child]:inline [&>p]:my-0'>
+        <li
+          className={cn(
+            'list-none ps-6 text-[var(--text-primary)] text-base leading-[25px] [&>p:only-child]:inline [&>p]:my-0',
+            className
+          )}
+        >
           {children}
         </li>
       )
@@ -389,7 +426,12 @@ const MARKDOWN_COMPONENTS = {
   },
   inlineCode({ children }: { children?: React.ReactNode }) {
     return (
-      <code className='whitespace-normal rounded bg-[var(--surface-5)] px-1.5 py-0.5 font-mono font-normal text-[var(--text-primary)] not-italic before:content-none after:content-none'>
+      <code
+        className={cn(
+          'whitespace-normal rounded px-1 py-[1px] font-mono font-normal text-[var(--text-primary)] not-italic before:content-none after:content-none',
+          chipFilledFillTokens
+        )}
+      >
         {children}
       </code>
     )
@@ -403,7 +445,14 @@ const MARKDOWN_COMPONENTS = {
   },
   input({ type, checked }: { type?: string; checked?: boolean }) {
     if (type === 'checkbox') {
-      return <Checkbox checked={checked || false} disabled size='sm' className='mt-1.5 shrink-0' />
+      return (
+        <Checkbox
+          checked={checked || false}
+          disabled
+          size='sm'
+          className='-ms-6 mr-2 inline-flex align-middle'
+        />
+      )
     }
     return <input type={type} checked={checked} readOnly />
   },
@@ -705,7 +754,7 @@ function ChatContentInner({
         <WorkspaceRefsContext.Provider
           value={{ resources: workspaceRefs, onSelect: onWorkspaceResourceSelect }}
         >
-          <div className='space-y-3'>
+          <div className={cn('space-y-3', inter.className)}>
             {groups.map((group, i) => {
               if (group.kind === 'inline') {
                 return (

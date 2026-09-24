@@ -10,14 +10,14 @@ import {
   useScrollEdges,
 } from '@sim/emcn'
 import {
-  externalLinkHostname,
-  handleExternalLinkClick,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/external-link'
-import {
   SourceIcon,
   sourceLabel,
   sourceSiteName,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'
+import {
+  externalLinkHostname,
+  handleExternalLinkClick,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 
 interface SearchActivityResultsProps {

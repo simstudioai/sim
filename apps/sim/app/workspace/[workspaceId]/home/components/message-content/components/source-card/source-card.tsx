@@ -18,12 +18,12 @@ import {
 import { Check, Link as LinkIcon, MoreHorizontal, Sparkles } from '@sim/emcn/icons'
 import { formatDate } from '@sim/utils/formatting'
 import { findTermMatches, queryTerms } from '@/lib/knowledge/search/snippet'
-import { handleExternalLinkClick } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/external-link'
 import {
   SourceIcon,
   sourceLabel,
   sourceSiteName,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'
+import { handleExternalLinkClick } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 
 const SOURCE_ROW_CLASSES = cn(

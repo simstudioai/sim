@@ -1,11 +1,12 @@
 'use client'
 
-import { chipFilledFillTokens, chipHoverSurfaceClass, cn, OverflowText, Tooltip } from '@sim/emcn'
+import { chipFilledFillTokens, chipHoverSurfaceClass, cn, OverflowText } from '@sim/emcn'
+import { SourceIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip/source-icon'
 import {
   handleExternalLinkClick,
   linkSiteName,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/external-link'
-import { SourceIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip/source-icon'
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
+import { SourcePreview } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-preview'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 
 /** The source's site or provider, separate from its document title. */
@@ -35,33 +36,21 @@ export function SourceChip({ source }: SourceChipProps) {
     source.connectorType === 'slack' ? source.title?.match(/^(#[^:\s]+): /)?.[1] : undefined
 
   return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <a
-          href={source.url}
-          target='_blank'
-          rel='noopener noreferrer'
-          onClick={(event) => handleExternalLinkClick(event, source.url)}
-          className={cn(
-            'not-prose inline-flex h-[20px] max-w-[160px] shrink-0 items-center gap-1 rounded-full px-1.5 align-middle text-[var(--text-body)] text-caption no-underline transition-colors',
-            chipFilledFillTokens,
-            chipHoverSurfaceClass
-          )}
-        >
-          <SourceIcon source={source} size='inline' />
-          <OverflowText label={slackChannel ?? sourceLabel(source)} tooltipEnabled={false} />
-        </a>
-      </Tooltip.Trigger>
-      <Tooltip.Content className='whitespace-normal [overflow-wrap:anywhere]'>
-        {source.title ? (
-          <span className='flex min-w-0 flex-col gap-0.5'>
-            <span>{source.title}</span>
-            <span className='text-[var(--text-muted)]'>{source.url}</span>
-          </span>
-        ) : (
-          <span>{source.url}</span>
+    <SourcePreview key={source.url} source={source}>
+      <a
+        href={source.url}
+        target='_blank'
+        rel='noopener noreferrer'
+        onClick={(event) => handleExternalLinkClick(event, source.url)}
+        className={cn(
+          'not-prose inline-flex h-[20px] max-w-[160px] shrink-0 items-center gap-1 rounded-full px-1.5 align-middle font-normal text-[var(--text-body)] text-caption no-underline transition-colors',
+          chipFilledFillTokens,
+          chipHoverSurfaceClass
         )}
-      </Tooltip.Content>
-    </Tooltip.Root>
+      >
+        <SourceIcon source={source} size='inline' />
+        <OverflowText label={slackChannel ?? sourceLabel(source)} tooltipEnabled={false} />
+      </a>
+    </SourcePreview>
   )
 }

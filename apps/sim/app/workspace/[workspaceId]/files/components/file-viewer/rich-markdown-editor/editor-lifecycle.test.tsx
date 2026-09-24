@@ -31,6 +31,7 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/workspace/workspace-1/files',
   useRouter: () => ({ push: vi.fn() }),
 }))
+vi.mock('@/app/_styles/fonts/inter/inter', () => ({ inter: { variable: 'test-inter-variable' } }))
 vi.mock('@/lib/auth/auth-client', () => ({ useSession: () => ({ data: null, isPending: false }) }))
 vi.mock('@/hooks/queries/workspace-files', () => ({
   useUploadWorkspaceFile: () => ({ mutateAsync: uploadFile }),

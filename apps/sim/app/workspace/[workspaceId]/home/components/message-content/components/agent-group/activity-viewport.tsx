@@ -85,8 +85,7 @@ export function ActivityViewport({
       className={cn(
         'pr-2',
         !unbounded && 'scrollbar-hide max-h-[110px] overflow-y-auto',
-        scrollFadeClass,
-        (edges.top || edges.bottom) && 'py-1'
+        scrollFadeClass
       )}
       {...scrollFadeAttributes(edges)}
     >

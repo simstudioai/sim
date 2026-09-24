@@ -49,5 +49,5 @@ export function MainAgentActivity({
     )
   })
 
-  return <div className='flex min-w-0 flex-col gap-3'>{activity}</div>
+  return <div className='flex min-w-0 flex-col gap-2'>{activity}</div>
 }
