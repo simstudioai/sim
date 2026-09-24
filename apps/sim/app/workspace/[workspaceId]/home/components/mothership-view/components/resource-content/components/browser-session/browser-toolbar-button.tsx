@@ -19,7 +19,7 @@ export const BrowserToolbarButton = forwardRef<HTMLButtonElement, BrowserToolbar
       variant='ghost-secondary'
       size='sm'
       iconSize='regular'
-      className={cn('shrink-0', className)}
+      className={cn('size-[30px] shrink-0', className)}
     />
   )
 )
