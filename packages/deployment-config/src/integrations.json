@@ -22460,8 +22460,8 @@
       "type": "slack_v2",
       "slug": "slack",
       "name": "Slack",
-      "description": "Manage Slack messages, channels, users, files, search, Lists, canvases, and Agent Sessions",
-      "longDescription": "Build Slack workflows with messages, conversations, files, reactions, pins, bookmarks, user groups, profiles, Lists, canvases, and Agent Sessions. Operations that need additional app scopes use custom Slack bots. Lists require lists:read/lists:write and a paid Slack plan. Search, profile updates, and notification changes require a managed Slack user credential authorized through a custom app. Native Sim connections retain their existing permissions. Page through list and search outputs explicitly.",
+      "description": "Manage Slack messages, channels, users, files, Lists, canvases, and Agent Sessions",
+      "longDescription": "Build Slack workflows with messages, conversations, files, reactions, pins, bookmarks, user groups, profiles, Lists, canvases, and Agent Sessions. Operations that need additional app scopes use custom Slack bots. Lists require lists:read/lists:write and a paid Slack plan. Native Sim connections retain their existing permissions. Page through list outputs explicitly.",
       "bgColor": "#611f69",
       "iconName": "SlackIcon",
       "docsUrl": "https://docs.sim.ai/integrations/slack",
@@ -22743,12 +22743,8 @@
           "description": "Read a Slack user’s profile, status, and custom fields. Omit User ID for the authenticated identity."
         },
         {
-          "name": "Update User Profile",
-          "description": "Update a Slack user’s profile or status using a managed user credential. Updating another user requires Slack administrator permissions."
-        },
-        {
-          "name": "Set User Presence",
-          "description": "Set the authenticated identity’s presence to away or automatic."
+          "name": "Set Bot Presence",
+          "description": "Set the selected custom bot’s presence to away or automatic. This does not change a workspace member’s presence."
         },
         {
           "name": "Get File Info",
@@ -22827,36 +22823,12 @@
           "description": "Replace all members of a Slack user group with the supplied user IDs. An empty list is not supported; disable the group instead."
         },
         {
-          "name": "Search Messages",
-          "description": "Search messages visible to the authorized Slack user. Requires a managed user credential with search:read. Continue using messages.paging."
-        },
-        {
-          "name": "Search Files",
-          "description": "Search files visible to the authorized Slack user. Requires a managed user credential with search:read. Continue using fileSearchResults.paging."
-        },
-        {
-          "name": "Search Messages and Files",
-          "description": "Search messages and files visible to the authorized Slack user. Requires a managed user credential with search:read. Each result collection includes paging."
-        },
-        {
           "name": "Get Do Not Disturb Info",
           "description": "Read a user’s Do Not Disturb schedule and available snooze information."
         },
         {
           "name": "Get Team Do Not Disturb Info",
           "description": "Read Do Not Disturb settings for the supplied user IDs."
-        },
-        {
-          "name": "Snooze Notifications",
-          "description": "Snooze notifications for the authorized Slack user for a number of minutes."
-        },
-        {
-          "name": "End Notification Snooze",
-          "description": "End the authorized Slack user’s current notification snooze."
-        },
-        {
-          "name": "End Do Not Disturb",
-          "description": "End the authorized Slack user’s current Do Not Disturb session."
         },
         {
           "name": "List Custom Emoji",
@@ -22875,7 +22847,7 @@
           "description": "Attach custom previews to links already shared in a message. Configure the relevant unfurl domains in your Slack app."
         }
       ],
-      "operationCount": 102,
+      "operationCount": 95,
       "triggers": [
         {
           "id": "slack_oauth",

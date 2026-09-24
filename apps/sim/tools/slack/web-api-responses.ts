@@ -302,29 +302,6 @@ export const pagingOutput = {
   },
 } satisfies ToolOutputProperty
 
-export const paginationSchema = z
-  .object({
-    first: z.number().optional(),
-    last: z.number().optional(),
-    page: z.number().optional(),
-    page_count: z.number().optional(),
-    per_page: z.number().optional(),
-    total_count: z.number().optional(),
-  })
-  .passthrough()
-export const paginationOutput = {
-  type: 'object',
-  description: 'Pagination',
-  properties: {
-    first: { type: 'number', description: 'First', optional: true },
-    last: { type: 'number', description: 'Last', optional: true },
-    page: { type: 'number', description: 'Page', optional: true },
-    page_count: { type: 'number', description: 'Page count', optional: true },
-    per_page: { type: 'number', description: 'Per page', optional: true },
-    total_count: { type: 'number', description: 'Total count', optional: true },
-  },
-} satisfies ToolOutputProperty
-
 export const metadataSchema = z.object({ next_cursor: z.string().optional() }).passthrough()
 export const metadataOutput = {
   type: 'object',
@@ -417,65 +394,6 @@ export const usergroupOutput = {
         },
       },
     },
-  },
-} satisfies ToolOutputProperty
-
-export const searchMessageSchema = z
-  .object({
-    text: z.string().optional(),
-    ts: z.string(),
-    user: z.string().optional(),
-    permalink: z.string().optional(),
-    channel: conversationSchema.optional(),
-  })
-  .passthrough()
-export const searchMessageOutput = {
-  type: 'object',
-  description: 'Searchmessage',
-  properties: {
-    text: { type: 'string', description: 'Text', optional: true },
-    ts: { type: 'string', description: 'Ts' },
-    user: { type: 'string', description: 'User', optional: true },
-    permalink: { type: 'string', description: 'Permalink', optional: true },
-    channel: { ...conversationOutput, optional: true },
-  },
-} satisfies ToolOutputProperty
-
-export const messageSearchSchema = z
-  .object({
-    matches: z.array(searchMessageSchema),
-    total: z.number(),
-    paging: pagingSchema.optional(),
-    pagination: paginationSchema.optional(),
-  })
-  .passthrough()
-export const messageSearchOutput = {
-  type: 'object',
-  description: 'Messagesearch',
-  properties: {
-    matches: { type: 'array', description: 'Matches', items: { ...searchMessageOutput } },
-    total: { type: 'number', description: 'Total' },
-    paging: { ...pagingOutput, optional: true },
-    pagination: { ...paginationOutput, optional: true },
-  },
-} satisfies ToolOutputProperty
-
-export const fileSearchSchema = z
-  .object({
-    matches: z.array(fileSchema),
-    total: z.number(),
-    paging: pagingSchema.optional(),
-    pagination: paginationSchema.optional(),
-  })
-  .passthrough()
-export const fileSearchOutput = {
-  type: 'object',
-  description: 'Filesearch',
-  properties: {
-    matches: { type: 'array', description: 'Matches', items: { ...fileOutput } },
-    total: { type: 'number', description: 'Total' },
-    paging: { ...pagingOutput, optional: true },
-    pagination: { ...paginationOutput, optional: true },
   },
 } satisfies ToolOutputProperty
 

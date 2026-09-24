@@ -8,8 +8,6 @@ import { slackDeleteFileTool } from '@/tools/slack/delete_file'
 import { slackDisableUserGroupTool } from '@/tools/slack/disable_user_group'
 import { slackEditBookmarkTool } from '@/tools/slack/edit_bookmark'
 import { slackEnableUserGroupTool } from '@/tools/slack/enable_user_group'
-import { slackEndDndTool } from '@/tools/slack/end_dnd'
-import { slackEndDndSnoozeTool } from '@/tools/slack/end_dnd_snooze'
 import fixtures from '@/tools/slack/fixtures/workflow-api-responses.json'
 import { slackGetDndInfoTool } from '@/tools/slack/get_dnd_info'
 import { slackGetFileInfoTool } from '@/tools/slack/get_file_info'
@@ -35,10 +33,6 @@ import { slackOpenConversationTool } from '@/tools/slack/open_conversation'
 import { slackPinMessageTool } from '@/tools/slack/pin_message'
 import { slackRemoveBookmarkTool } from '@/tools/slack/remove_bookmark'
 import { slackRevokeCanvasAccessTool } from '@/tools/slack/revoke_canvas_access'
-import { slackSearchAllTool } from '@/tools/slack/search_all'
-import { slackSearchFilesTool } from '@/tools/slack/search_files'
-import { slackSearchMessagesTool } from '@/tools/slack/search_messages'
-import { slackSetDndSnoozeTool } from '@/tools/slack/set_dnd_snooze'
 import { slackSetUserPresenceTool } from '@/tools/slack/set_user_presence'
 import { slackShareCanvasTool } from '@/tools/slack/share_canvas'
 import { slackUnarchiveConversationTool } from '@/tools/slack/unarchive_conversation'
@@ -46,7 +40,6 @@ import { slackUnfurlLinksTool } from '@/tools/slack/unfurl_links'
 import { slackUnpinMessageTool } from '@/tools/slack/unpin_message'
 import { slackUpdateUserGroupTool } from '@/tools/slack/update_user_group'
 import { slackUpdateUserGroupMembersTool } from '@/tools/slack/update_user_group_members'
-import { slackUpdateUserProfileTool } from '@/tools/slack/update_user_profile'
 import { slackListsAccessDeleteTool } from '@/tools/slack_lists/access_delete'
 import { slackListsDownloadGetTool } from '@/tools/slack_lists/download_get'
 import { slackListsDownloadStartTool } from '@/tools/slack_lists/download_start'
@@ -70,7 +63,6 @@ const tools: ToolConfig[] = [
   slackLookupUserByEmailTool,
   slackListUserConversationsTool,
   slackGetUserProfileTool,
-  slackUpdateUserProfileTool,
   slackSetUserPresenceTool,
   slackGetFileInfoTool,
   slackListFilesTool,
@@ -91,14 +83,8 @@ const tools: ToolConfig[] = [
   slackListUserGroupsTool,
   slackListUserGroupMembersTool,
   slackUpdateUserGroupMembersTool,
-  slackSearchMessagesTool,
-  slackSearchFilesTool,
-  slackSearchAllTool,
   slackGetDndInfoTool,
   slackGetTeamDndInfoTool,
-  slackSetDndSnoozeTool,
-  slackEndDndSnoozeTool,
-  slackEndDndTool,
   slackListEmojiTool,
   slackGetTeamInfoTool,
   slackGetTeamProfileTool,
@@ -154,23 +140,6 @@ describe('Slack workflow API response contracts', () => {
     expect(
       (await slackListFilesTool.transformResponse!(Response.json({ ok: true, files }))).output
     ).toEqual({ ok: true, fileMetadata: files })
-    for (const tool of [slackSearchFilesTool, slackSearchAllTool]) {
-      const sample = responses[tool.id][0]
-      const result = await tool.transformResponse!(Response.json(sample))
-      expect(result.output.fileSearchResults).toEqual(sample.files)
-      expect(result.output).not.toHaveProperty('files')
-    }
-  })
-
-  it('preserves optional legacy posts and their provider-defined fields in combined search', async () => {
-    const posts = {
-      matches: [{ id: 'F_POST', title: 'Example post', custom_field: ['value'] }],
-      total: 1,
-    }
-    const result = await slackSearchAllTool.transformResponse!(
-      Response.json({ ...responses.slack_search_all[0], posts })
-    )
-    expect(result.output.posts).toEqual(posts)
   })
 
   it('exercises documented DND and emoji fields beyond the minimal success envelopes', async () => {
@@ -228,19 +197,17 @@ describe('Slack workflow API request contracts', () => {
     }
   )
 
-  it('encodes search queries and pagination without leaking credentials', () => {
-    const buildUrl = slackSearchMessagesTool.request.url
+  it('encodes pagination without leaking credentials', () => {
+    const buildUrl = slackListReactionsTool.request.url
     if (typeof buildUrl !== 'function') throw new Error('Expected query builder')
-    const url = new URL(
-      buildUrl({ ...auth, query: 'in:general A&B + C', count: 100, cursor: 'a+b/=' })
-    )
-    expect(url.origin + url.pathname).toBe('https://slack.com/api/search.messages')
+    const url = new URL(buildUrl({ ...auth, user: 'U1', limit: 100, cursor: 'a+b/=' }))
+    expect(url.origin + url.pathname).toBe('https://slack.com/api/reactions.list')
     expect(Object.fromEntries(url.searchParams)).toEqual({
-      query: 'in:general A&B + C',
-      count: '100',
+      user: 'U1',
+      limit: '100',
       cursor: 'a+b/=',
     })
-    expect(() => buildUrl({ ...auth, query: 'query', count: 101 })).toThrow()
+    expect(() => buildUrl({ ...auth, limit: 1000 })).toThrow()
   })
 
   it('requires exactly one reaction target and both message identifiers', () => {
@@ -328,16 +295,7 @@ describe('Slack workflow API request contracts', () => {
     ).toEqual({ list_id: 'F1', format: 'json', include_archived: false, include_threads: true })
   })
 
-  it('supports deliberate profile and user-group clears without accepting empty membership replacements', () => {
-    expect(
-      slackUpdateUserProfileTool.request.body!({
-        ...auth,
-        profile: { status_text: '', status_emoji: '', status_expiration: 0 },
-      })
-    ).toEqual({ profile: { status_text: '', status_emoji: '', status_expiration: 0 } })
-    expect(() => slackUpdateUserProfileTool.request.body!({ ...auth, profile: '{}' })).toThrow(
-      'at least one'
-    )
+  it('supports deliberate user-group clears without accepting empty membership replacements', () => {
     expect(
       slackUpdateUserGroupTool.request.body!({
         ...auth,
@@ -376,10 +334,7 @@ describe('Slack workflow API request contracts', () => {
     ).toEqual({ channel_id: 'C1', bookmark_id: 'Bk1', emoji: '' })
   })
 
-  it('sends snooze minutes as the documented string and rejects invalid JSON', () => {
-    expect(slackSetDndSnoozeTool.request.body!({ ...auth, num_minutes: 30 })).toEqual({
-      num_minutes: '30',
-    })
+  it('rejects invalid and empty unfurl JSON', () => {
     expect(() =>
       slackUnfurlLinksTool.request.body!({ ...auth, channel: 'C1', ts: '123.456', unfurls: '{' })
     ).toThrow('Invalid JSON')
@@ -393,11 +348,7 @@ describe('Slack workflow API request contracts', () => {
       const tool = tools.find(({ id }) => id === operation.tool)!
       expect(tool, operation.tool).toBeDefined()
       expect(tool.oauth?.credentialKind).toBe(
-        operation.auth === 'bot'
-          ? 'service-account'
-          : operation.auth === 'user'
-            ? 'oauth'
-            : undefined
+        operation.auth === 'bot' ? 'service-account' : undefined
       )
       expect(tool.oauth?.requiredScopes).toBeDefined()
     }

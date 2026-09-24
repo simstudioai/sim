@@ -1,6 +1,6 @@
 ---
 title: Slack
-description: Manage Slack messages, channels, users, files, search, Lists, canvases, and Agent Sessions
+description: Manage Slack messages, channels, users, files, Lists, canvases, and Agent Sessions
 ---
 
 import { BlockInfoCard } from "@/components/ui/block-info-card"
@@ -17,11 +17,11 @@ Use [Slack](https://www.slack.com/) to send and manage messages, work with canva
 
 Select an operation in the **Slack** block. Custom bots support the expanded channel, file, bookmark, pin, user-group, profile, workspace, List, and Canvas actions. The custom-app manifest selects all available capabilities by default. Existing apps need the updated manifest and a reinstall to grant newly added scopes.
 
-Search, profile updates, and notification snooze changes require a **managed Slack user credential** authorized through your custom app in a Slack Credential Group. Use that credential’s ID in the operation. Bot tokens cannot perform these user-only actions. The native Sim Slack app keeps its existing permissions.
+The native Sim Slack app keeps its existing permissions. **Set Bot Presence** changes the selected custom bot’s presence. **Mark Conversation Read** moves the selected account or bot’s read cursor. Neither action changes another workspace member’s state.
 
-List and search actions return one page. Use the returned cursor or page information to continue. **Update User Group Members** replaces the complete member list. **Start List Export** returns a job ID; pass it to **Get List Export** with the same export options. Canvas access changes apply to standalone canvases and require the link to have been shared with the recipient first.
+List actions return one page. Use the returned cursor or page information to continue. **Update User Group Members** replaces the complete member list. **Start List Export** returns a job ID; pass it to **Get List Export** with the same export options. Canvas access changes apply to standalone canvases and require the link to have been shared with the recipient first.
 
-Slack’s retired reminders APIs and Enterprise administration APIs are not included. Use scheduled messages or a scheduled Sim workflow for reminders.
+User-token-only search, profile updates, and notification controls, Slack’s retired reminders APIs, and Enterprise administration APIs are not included. Use scheduled messages or a scheduled Sim workflow for reminders.
 
 ## Stream Trigger Responses
 
@@ -50,7 +50,7 @@ For help with the Slack integration, contact [help@sim.ai](mailto:help@sim.ai).
 
 ## Usage Instructions
 
-Build Slack workflows with messages, conversations, files, reactions, pins, bookmarks, user groups, profiles, Lists, canvases, and Agent Sessions. Operations that need additional app scopes use custom Slack bots. Lists require lists:read/lists:write and a paid Slack plan. Search, profile updates, and notification changes require a managed Slack user credential authorized through a custom app. Native Sim connections retain their existing permissions. Page through list and search outputs explicitly.
+Build Slack workflows with messages, conversations, files, reactions, pins, bookmarks, user groups, profiles, Lists, canvases, and Agent Sessions. Operations that need additional app scopes use custom Slack bots. Lists require lists:read/lists:write and a paid Slack plan. Native Sim connections retain their existing permissions. Page through list outputs explicitly.
 
 
 
@@ -2603,43 +2603,9 @@ Read a Slack user’s profile, status, and custom fields. Omit User ID for the a
 |   ↳ `status_expiration` | number | Status expiration |
 |   ↳ `fields` | json | Fields |
 
-### Slack Update User Profile
+### Slack Set Bot Presence
 
-Update a Slack user’s profile or status using a managed user credential. Updating another user requires Slack administrator permissions.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `profile` | json | Yes | JSON object of profile fields, including status_text, status_emoji, status_expiration, and custom fields. Empty status text and emoji clear the status. |
-| `user` | string | No | Omit to update the authorized user. Updating others requires elevated Slack permissions. |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `ok` | boolean | Ok |
-| `profile` | object | Profile |
-|   ↳ `title` | string | Title |
-|   ↳ `phone` | string | Phone |
-|   ↳ `real_name` | string | Real name |
-|   ↳ `display_name` | string | Display name |
-|   ↳ `email` | string | Email |
-|   ↳ `first_name` | string | First name |
-|   ↳ `last_name` | string | Last name |
-|   ↳ `status_text` | string | Status text |
-|   ↳ `status_emoji` | string | Status emoji |
-|   ↳ `image_48` | string | Image 48 |
-|   ↳ `image_192` | string | Image 192 |
-|   ↳ `image_512` | string | Image 512 |
-|   ↳ `pronouns` | string | Pronouns |
-|   ↳ `start_date` | string | Start date |
-|   ↳ `status_expiration` | number | Status expiration |
-|   ↳ `fields` | json | Fields |
-
-### Slack Set User Presence
-
-Set the authenticated identity’s presence to away or automatic.
+Set the selected custom bot’s presence to away or automatic. This does not change a workspace member’s presence.
 
 #### Input
 
@@ -3306,223 +3272,6 @@ Replace all members of a Slack user group with the supplied user IDs. An empty l
 |     ↳ `channels` | array | Channels |
 |     ↳ `groups` | array | Groups |
 
-### Slack Search Messages
-
-Search messages visible to the authorized Slack user. Requires a managed user credential with search:read. Continue using messages.paging.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | Search Query |
-| `sort` | string | No | Sort By Options: score, timestamp. |
-| `sort_dir` | string | No | Sort Direction Options: asc, desc. |
-| `page` | number | No | Page |
-| `count` | number | No | Page Size |
-| `highlight` | boolean | No | Highlight Matches |
-| `team_id` | string | No | Workspace ID |
-| `cursor` | string | No | Cursor |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `ok` | boolean | Ok |
-| `query` | string | Query |
-| `messages` | object | Messagesearch |
-|   ↳ `matches` | array | Matches |
-|     ↳ `text` | string | Text |
-|     ↳ `ts` | string | Ts |
-|     ↳ `user` | string | User |
-|     ↳ `permalink` | string | Permalink |
-|     ↳ `channel` | object | Conversation |
-|       ↳ `id` | string | Id |
-|       ↳ `name` | string | Name |
-|       ↳ `creator` | string | Creator |
-|       ↳ `user` | string | User |
-|       ↳ `last_read` | string | Last read |
-|       ↳ `is_archived` | boolean | Is archived |
-|       ↳ `is_private` | boolean | Is private |
-|       ↳ `is_im` | boolean | Is im |
-|       ↳ `is_mpim` | boolean | Is mpim |
-|       ↳ `is_member` | boolean | Is member |
-|       ↳ `is_open` | boolean | Is open |
-|       ↳ `created` | number | Created |
-|       ↳ `topic` | object | Topic |
-|         ↳ `value` | string | Value |
-|         ↳ `creator` | string | Creator |
-|         ↳ `last_set` | number | Last set |
-|       ↳ `purpose` | object | Purpose |
-|         ↳ `value` | string | Value |
-|         ↳ `creator` | string | Creator |
-|         ↳ `last_set` | number | Last set |
-|   ↳ `total` | number | Total |
-|   ↳ `paging` | object | Paging |
-|     ↳ `count` | number | Count |
-|     ↳ `page` | number | Page |
-|     ↳ `pages` | number | Pages |
-|     ↳ `total` | number | Total |
-|   ↳ `pagination` | object | Pagination |
-|     ↳ `first` | number | First |
-|     ↳ `last` | number | Last |
-|     ↳ `page` | number | Page |
-|     ↳ `page_count` | number | Page count |
-|     ↳ `per_page` | number | Per page |
-|     ↳ `total_count` | number | Total count |
-
-### Slack Search Files
-
-Search files visible to the authorized Slack user. Requires a managed user credential with search:read. Continue using fileSearchResults.paging.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | Search Query |
-| `sort` | string | No | Sort By Options: score, timestamp. |
-| `sort_dir` | string | No | Sort Direction Options: asc, desc. |
-| `page` | number | No | Page |
-| `count` | number | No | Page Size |
-| `highlight` | boolean | No | Highlight Matches |
-| `team_id` | string | No | Workspace ID |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `ok` | boolean | Ok |
-| `query` | string | Query |
-| `fileSearchResults` | object | Filesearch |
-|   ↳ `matches` | array | Matches |
-|     ↳ `id` | string | Id |
-|     ↳ `name` | string | Name |
-|     ↳ `title` | string | Title |
-|     ↳ `mimetype` | string | Mimetype |
-|     ↳ `filetype` | string | Filetype |
-|     ↳ `user` | string | User |
-|     ↳ `mode` | string | Mode |
-|     ↳ `permalink` | string | Permalink |
-|     ↳ `url_private` | string | Url private |
-|     ↳ `url_private_download` | string | Url private download |
-|     ↳ `size` | number | Size |
-|     ↳ `created` | number | Created |
-|     ↳ `is_public` | boolean | Is public |
-|     ↳ `reactions` | array | Reactions |
-|       ↳ `name` | string | Name |
-|       ↳ `count` | number | Count |
-|       ↳ `users` | array | Users |
-|   ↳ `total` | number | Total |
-|   ↳ `paging` | object | Paging |
-|     ↳ `count` | number | Count |
-|     ↳ `page` | number | Page |
-|     ↳ `pages` | number | Pages |
-|     ↳ `total` | number | Total |
-|   ↳ `pagination` | object | Pagination |
-|     ↳ `first` | number | First |
-|     ↳ `last` | number | Last |
-|     ↳ `page` | number | Page |
-|     ↳ `page_count` | number | Page count |
-|     ↳ `per_page` | number | Per page |
-|     ↳ `total_count` | number | Total count |
-
-### Slack Search Messages and Files
-
-Search messages and files visible to the authorized Slack user. Requires a managed user credential with search:read. Each result collection includes paging.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `query` | string | Yes | Search Query |
-| `sort` | string | No | Sort By Options: score, timestamp. |
-| `sort_dir` | string | No | Sort Direction Options: asc, desc. |
-| `page` | number | No | Page |
-| `count` | number | No | Page Size |
-| `highlight` | boolean | No | Highlight Matches |
-| `team_id` | string | No | Workspace ID |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `ok` | boolean | Ok |
-| `query` | string | Query |
-| `messages` | object | Messagesearch |
-|   ↳ `matches` | array | Matches |
-|     ↳ `text` | string | Text |
-|     ↳ `ts` | string | Ts |
-|     ↳ `user` | string | User |
-|     ↳ `permalink` | string | Permalink |
-|     ↳ `channel` | object | Conversation |
-|       ↳ `id` | string | Id |
-|       ↳ `name` | string | Name |
-|       ↳ `creator` | string | Creator |
-|       ↳ `user` | string | User |
-|       ↳ `last_read` | string | Last read |
-|       ↳ `is_archived` | boolean | Is archived |
-|       ↳ `is_private` | boolean | Is private |
-|       ↳ `is_im` | boolean | Is im |
-|       ↳ `is_mpim` | boolean | Is mpim |
-|       ↳ `is_member` | boolean | Is member |
-|       ↳ `is_open` | boolean | Is open |
-|       ↳ `created` | number | Created |
-|       ↳ `topic` | object | Topic |
-|         ↳ `value` | string | Value |
-|         ↳ `creator` | string | Creator |
-|         ↳ `last_set` | number | Last set |
-|       ↳ `purpose` | object | Purpose |
-|         ↳ `value` | string | Value |
-|         ↳ `creator` | string | Creator |
-|         ↳ `last_set` | number | Last set |
-|   ↳ `total` | number | Total |
-|   ↳ `paging` | object | Paging |
-|     ↳ `count` | number | Count |
-|     ↳ `page` | number | Page |
-|     ↳ `pages` | number | Pages |
-|     ↳ `total` | number | Total |
-|   ↳ `pagination` | object | Pagination |
-|     ↳ `first` | number | First |
-|     ↳ `last` | number | Last |
-|     ↳ `page` | number | Page |
-|     ↳ `page_count` | number | Page count |
-|     ↳ `per_page` | number | Per page |
-|     ↳ `total_count` | number | Total count |
-| `fileSearchResults` | object | Filesearch |
-|   ↳ `matches` | array | Matches |
-|     ↳ `id` | string | Id |
-|     ↳ `name` | string | Name |
-|     ↳ `title` | string | Title |
-|     ↳ `mimetype` | string | Mimetype |
-|     ↳ `filetype` | string | Filetype |
-|     ↳ `user` | string | User |
-|     ↳ `mode` | string | Mode |
-|     ↳ `permalink` | string | Permalink |
-|     ↳ `url_private` | string | Url private |
-|     ↳ `url_private_download` | string | Url private download |
-|     ↳ `size` | number | Size |
-|     ↳ `created` | number | Created |
-|     ↳ `is_public` | boolean | Is public |
-|     ↳ `reactions` | array | Reactions |
-|       ↳ `name` | string | Name |
-|       ↳ `count` | number | Count |
-|       ↳ `users` | array | Users |
-|   ↳ `total` | number | Total |
-|   ↳ `paging` | object | Paging |
-|     ↳ `count` | number | Count |
-|     ↳ `page` | number | Page |
-|     ↳ `pages` | number | Pages |
-|     ↳ `total` | number | Total |
-|   ↳ `pagination` | object | Pagination |
-|     ↳ `first` | number | First |
-|     ↳ `last` | number | Last |
-|     ↳ `page` | number | Page |
-|     ↳ `page_count` | number | Page count |
-|     ↳ `per_page` | number | Per page |
-|     ↳ `total_count` | number | Total count |
-| `posts` | object | Legacy post search results when returned by Slack |
-|   ↳ `matches` | array | Legacy post matches with provider-defined fields |
-|   ↳ `total` | number | Total matching posts |
-
 ### Slack Get Do Not Disturb Info
 
 Read a user’s Do Not Disturb schedule and available snooze information.
@@ -3564,66 +3313,6 @@ Read Do Not Disturb settings for the supplied user IDs.
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
 | `users` | json | Users |
-
-### Slack Snooze Notifications
-
-Snooze notifications for the authorized Slack user for a number of minutes.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-| `num_minutes` | number | Yes | Minutes |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `ok` | boolean | Ok |
-| `dnd_enabled` | boolean | Dnd enabled |
-| `next_dnd_start_ts` | number | Next dnd start ts |
-| `next_dnd_end_ts` | number | Next dnd end ts |
-| `snooze_enabled` | boolean | Snooze enabled |
-| `snooze_endtime` | number | Snooze endtime |
-| `snooze_remaining` | number | Snooze remaining |
-| `snooze_is_indefinite` | boolean | Snooze is indefinite |
-
-### Slack End Notification Snooze
-
-End the authorized Slack user’s current notification snooze.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `ok` | boolean | Ok |
-| `dnd_enabled` | boolean | Dnd enabled |
-| `next_dnd_start_ts` | number | Next dnd start ts |
-| `next_dnd_end_ts` | number | Next dnd end ts |
-| `snooze_enabled` | boolean | Snooze enabled |
-| `snooze_endtime` | number | Snooze endtime |
-| `snooze_remaining` | number | Snooze remaining |
-| `snooze_is_indefinite` | boolean | Snooze is indefinite |
-
-### Slack End Do Not Disturb
-
-End the authorized Slack user’s current Do Not Disturb session.
-
-#### Input
-
-| Parameter | Type | Required | Description |
-| --------- | ---- | -------- | ----------- |
-
-#### Output
-
-| Parameter | Type | Description |
-| --------- | ---- | ----------- |
-| `ok` | boolean | Ok |
 
 ### Slack List Custom Emoji
 

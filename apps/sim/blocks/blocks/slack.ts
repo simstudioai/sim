@@ -3590,15 +3590,14 @@ const {
 
 /**
  * Slack actions and triggers with reusable credentials. App-scoped operations use
- * custom bots; user-only operations use managed Slack user credentials.
+ * custom bots with the required scopes.
  */
 export const SlackV2Block: BlockConfig<SlackResponse> = {
   ...SlackBlock,
   type: 'slack_v2',
-  description:
-    'Manage Slack messages, channels, users, files, search, Lists, canvases, and Agent Sessions',
+  description: 'Manage Slack messages, channels, users, files, Lists, canvases, and Agent Sessions',
   longDescription:
-    'Build Slack workflows with messages, conversations, files, reactions, pins, bookmarks, user groups, profiles, Lists, canvases, and Agent Sessions. Operations that need additional app scopes use custom Slack bots. Lists require lists:read/lists:write and a paid Slack plan. Search, profile updates, and notification changes require a managed Slack user credential authorized through a custom app. Native Sim connections retain their existing permissions. Page through list and search outputs explicitly.',
+    'Build Slack workflows with messages, conversations, files, reactions, pins, bookmarks, user groups, profiles, Lists, canvases, and Agent Sessions. Operations that need additional app scopes use custom Slack bots. Lists require lists:read/lists:write and a paid Slack plan. Native Sim connections retain their existing permissions. Page through list outputs explicitly.',
   hideFromToolbar: false,
   sunset: undefined,
   canvasPresentation: {
@@ -3703,8 +3702,7 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
         { label: 'Find User by Email', id: 'lookup_user_by_email' },
         { label: 'List User Conversations', id: 'list_user_conversations' },
         { label: 'Get User Profile', id: 'get_user_profile' },
-        { label: 'Update User Profile', id: 'update_user_profile' },
-        { label: 'Set User Presence', id: 'set_user_presence' },
+        { label: 'Set Bot Presence', id: 'set_user_presence' },
         { label: 'Get File Info', id: 'get_file_info' },
         { label: 'List Files', id: 'list_files' },
         { label: 'Delete File', id: 'delete_file' },
@@ -3724,14 +3722,8 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
         { label: 'List User Groups', id: 'list_user_groups' },
         { label: 'List User Group Members', id: 'list_user_group_members' },
         { label: 'Update User Group Members', id: 'update_user_group_members' },
-        { label: 'Search Messages', id: 'search_messages' },
-        { label: 'Search Files', id: 'search_files' },
-        { label: 'Search Messages and Files', id: 'search_all' },
         { label: 'Get Do Not Disturb Info', id: 'get_dnd_info' },
         { label: 'Get Team Do Not Disturb Info', id: 'get_team_dnd_info' },
-        { label: 'Snooze Notifications', id: 'set_dnd_snooze' },
-        { label: 'End Notification Snooze', id: 'end_dnd_snooze' },
-        { label: 'End Do Not Disturb', id: 'end_dnd' },
         { label: 'List Custom Emoji', id: 'list_emoji' },
         { label: 'Get Workspace Info', id: 'get_team_info' },
         { label: 'Get Workspace Profile Fields', id: 'get_team_profile' },
@@ -3815,7 +3807,6 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
       'slack_lookup_user_by_email',
       'slack_list_user_conversations',
       'slack_get_user_profile',
-      'slack_update_user_profile',
       'slack_set_user_presence',
       'slack_get_file_info',
       'slack_list_files',
@@ -3836,14 +3827,8 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
       'slack_list_user_groups',
       'slack_list_user_group_members',
       'slack_update_user_group_members',
-      'slack_search_messages',
-      'slack_search_files',
-      'slack_search_all',
       'slack_get_dnd_info',
       'slack_get_team_dnd_info',
-      'slack_set_dnd_snooze',
-      'slack_end_dnd_snooze',
-      'slack_end_dnd',
       'slack_list_emoji',
       'slack_get_team_info',
       'slack_get_team_profile',
@@ -3969,7 +3954,6 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
     status: { type: 'string', description: 'List export job status' },
     download_url: { type: 'string', description: 'List export download URL when ready' },
     response_metadata: { type: 'json', description: 'Pagination metadata including next_cursor' },
-    query: { type: 'string', description: 'Executed Slack search query' },
     dnd_enabled: { type: 'boolean', description: 'Whether Do Not Disturb is enabled' },
     next_dnd_start_ts: { type: 'number', description: 'Next Do Not Disturb start timestamp' },
     next_dnd_end_ts: { type: 'number', description: 'Next Do Not Disturb end timestamp' },
@@ -3985,19 +3969,11 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
     },
     messages: {
       type: 'json',
-      description: 'Conversation messages, or search results with matches and paging',
+      description: 'Conversation messages',
     },
     fileMetadata: {
       type: 'json',
       description: 'Slack file metadata (id, name, title, mimetype, permalink)',
-    },
-    posts: {
-      type: 'json',
-      description: 'Legacy post search results (matches, total), when returned',
-    },
-    fileSearchResults: {
-      type: 'json',
-      description: 'File search results with matches and paging',
     },
     conversation: {
       type: 'json',

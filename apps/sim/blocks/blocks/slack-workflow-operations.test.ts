@@ -37,19 +37,12 @@ describe('Slack workflow operations in the existing block', () => {
           ).toBe(true)
         }
       }
-      const credentialId =
-        operation.auth === 'bot'
-          ? 'apiBotCredential'
-          : operation.auth === 'user'
-            ? 'apiManagedUserCredentialId'
-            : 'apiOAuthCredential'
+      const credentialId = operation.auth === 'bot' ? 'apiBotCredential' : 'apiOAuthCredential'
       expect(fieldIds).toContain(credentialId)
       expect(fieldIds).not.toContain('credential')
       expect(fieldIds).not.toContain('listBotCredential')
       if (operation.auth === 'bot')
         expect(fields.find(({ id }) => id === credentialId)?.credentialKind).toBe('service-account')
-      if (operation.auth === 'user')
-        expect(fields.some(({ type }) => type === 'oauth-input')).toBe(false)
       expect(SlackV2Block.canvasPresentation?.sentences?.byOperation?.[operation.id]).toBeDefined()
     }
   )
@@ -57,7 +50,7 @@ describe('Slack workflow operations in the existing block', () => {
   it('keeps message output types while exposing conversation and file metadata separately', () => {
     expect(SlackV2Block.outputs.channel.type).toBe('string')
     expect(SlackV2Block.outputs.files.type).toBe('file[]')
-    for (const key of ['conversation', 'fileMetadata', 'fileSearchResults'])
+    for (const key of ['conversation', 'fileMetadata'])
       expect(SlackV2Block.outputs[key].type).toBe('json')
   })
 
@@ -100,18 +93,18 @@ describe('Slack workflow operations in the existing block', () => {
         apiBotCredentialId: 'stale',
         slack_open_conversation_users: '["U1","U2"]',
         slack_open_conversation_return_im: false,
-        slack_update_user_profile_profile: 'invalid stale JSON',
+        slack_share_canvas_user_ids: 'invalid stale JSON',
       })
     ).toEqual({ credential: 'account', users: ['U1', 'U2'], return_im: false })
     expect(
       mapParams({
-        operation: 'search_messages',
-        apiManagedUserCredentialId: 'user',
-        apiOAuthCredentialId: 'native',
-        slack_search_messages_query: 'roadmap',
-        slack_search_messages_count: '25',
+        operation: 'list_files',
+        apiOAuthCredentialId: 'account',
+        apiBotCredentialId: 'stale',
+        slack_list_files_channel: 'C1',
+        slack_list_files_count: '25',
       })
-    ).toEqual({ credential: 'user', query: 'roadmap', count: 25, sort: 'score', sort_dir: 'desc' })
+    ).toEqual({ credential: 'account', channel: 'C1', count: 25 })
     expect(
       mapParams({
         operation: 'edit_bookmark',
@@ -121,9 +114,7 @@ describe('Slack workflow operations in the existing block', () => {
         slack_edit_bookmark_emoji: '',
       })
     ).toEqual({ credential: 'bot', channel_id: 'C1', bookmark_id: 'Bk1', emoji: '' })
-    expect(() =>
-      mapParams({ operation: 'search_messages', slack_search_messages_count: 'many' })
-    ).toThrow()
+    expect(() => mapParams({ operation: 'list_files', slack_list_files_count: 'many' })).toThrow()
     expect(() =>
       mapParams({ operation: 'share_canvas', slack_share_canvas_user_ids: 'invalid JSON' })
     ).toThrow()
@@ -199,12 +190,29 @@ describe('Slack custom-app permissions', () => {
     )
   })
 
-  it('covers user-only operations through managed user scopes and leaves native Sim scopes unchanged', () => {
-    for (const operation of SLACK_WORKFLOW_OPERATIONS.filter(({ auth }) => auth === 'user')) {
-      expect(SLACK_MANAGED_USER_SCOPES).toEqual(
-        expect.arrayContaining(tools[operation.tool].oauth!.requiredScopes!)
-      )
+  it('excludes user-only actions and their newly added scopes from the integration', () => {
+    const operationField = SlackV2Block.subBlocks.find(({ id }) => id === 'operation')!
+    const options = operationField.options
+    if (!Array.isArray(options)) throw new Error('Expected static operation options')
+    for (const operation of [
+      'update_user_profile',
+      'search_messages',
+      'search_files',
+      'search_all',
+      'set_dnd_snooze',
+      'end_dnd_snooze',
+      'end_dnd',
+    ]) {
+      expect(options.map(({ id }) => id)).not.toContain(operation)
+      expect(SlackV2Block.tools.access).not.toContain(`slack_${operation}`)
+      expect(tools).not.toHaveProperty(`slack_${operation}`)
     }
+    expect(SlackV2Block.subBlocks.map(({ id }) => id)).not.toContain('apiManagedUserCredentialId')
+    expect(SLACK_MANAGED_USER_SCOPES).not.toContain('dnd:write')
+    expect(SLACK_MANAGED_USER_SCOPES).not.toContain('search:read')
+  })
+
+  it('leaves native Sim scopes unchanged', () => {
     const native = getScopesForService('slack')
     for (const scope of [
       'lists:read',

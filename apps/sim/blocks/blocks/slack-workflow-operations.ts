@@ -26,7 +26,7 @@ interface SlackWorkflowOperation {
   id: string
   label: string
   tool: string
-  auth: 'bot' | 'any' | 'user'
+  auth: 'bot' | 'any'
   fields: SlackWorkflowField[]
 }
 
@@ -497,34 +497,8 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
     ],
   },
   {
-    id: 'update_user_profile',
-    label: 'Update User Profile',
-    tool: 'slack_update_user_profile',
-    auth: 'user',
-    fields: [
-      {
-        id: 'slack_update_user_profile_profile',
-        param: 'profile',
-        title: 'Profile',
-        type: 'json',
-        required: true,
-        description:
-          'JSON object of profile fields, including status_text, status_emoji, status_expiration, and custom fields. Empty status text and emoji clear the status.',
-      },
-      {
-        id: 'slack_update_user_profile_user',
-        param: 'user',
-        title: 'User ID',
-        type: 'string',
-        required: false,
-        description:
-          'Omit to update the authorized user. Updating others requires elevated Slack permissions.',
-      },
-    ],
-  },
-  {
     id: 'set_user_presence',
-    label: 'Set User Presence',
+    label: 'Set Bot Presence',
     tool: 'slack_set_user_presence',
     auth: 'bot',
     fields: [
@@ -1253,205 +1227,6 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
     ],
   },
   {
-    id: 'search_messages',
-    label: 'Search Messages',
-    tool: 'slack_search_messages',
-    auth: 'user',
-    fields: [
-      {
-        id: 'slack_search_messages_query',
-        param: 'query',
-        title: 'Search Query',
-        type: 'string',
-        required: true,
-      },
-      {
-        id: 'slack_search_messages_sort',
-        param: 'sort',
-        title: 'Sort By',
-        type: 'string',
-        required: false,
-        enum: ['score', 'timestamp'],
-        default: 'score',
-      },
-      {
-        id: 'slack_search_messages_sort_dir',
-        param: 'sort_dir',
-        title: 'Sort Direction',
-        type: 'string',
-        required: false,
-        enum: ['asc', 'desc'],
-        default: 'desc',
-      },
-      {
-        id: 'slack_search_messages_page',
-        param: 'page',
-        title: 'Page',
-        type: 'number',
-        required: false,
-        min: 1,
-      },
-      {
-        id: 'slack_search_messages_count',
-        param: 'count',
-        title: 'Page Size',
-        type: 'number',
-        required: false,
-        min: 1,
-        max: 100,
-      },
-      {
-        id: 'slack_search_messages_highlight',
-        param: 'highlight',
-        title: 'Highlight Matches',
-        type: 'boolean',
-        required: false,
-      },
-      {
-        id: 'slack_search_messages_team_id',
-        param: 'team_id',
-        title: 'Workspace ID',
-        type: 'string',
-        required: false,
-      },
-      {
-        id: 'slack_search_messages_cursor',
-        param: 'cursor',
-        title: 'Cursor',
-        type: 'string',
-        required: false,
-      },
-    ],
-  },
-  {
-    id: 'search_files',
-    label: 'Search Files',
-    tool: 'slack_search_files',
-    auth: 'user',
-    fields: [
-      {
-        id: 'slack_search_files_query',
-        param: 'query',
-        title: 'Search Query',
-        type: 'string',
-        required: true,
-      },
-      {
-        id: 'slack_search_files_sort',
-        param: 'sort',
-        title: 'Sort By',
-        type: 'string',
-        required: false,
-        enum: ['score', 'timestamp'],
-        default: 'score',
-      },
-      {
-        id: 'slack_search_files_sort_dir',
-        param: 'sort_dir',
-        title: 'Sort Direction',
-        type: 'string',
-        required: false,
-        enum: ['asc', 'desc'],
-        default: 'desc',
-      },
-      {
-        id: 'slack_search_files_page',
-        param: 'page',
-        title: 'Page',
-        type: 'number',
-        required: false,
-        min: 1,
-      },
-      {
-        id: 'slack_search_files_count',
-        param: 'count',
-        title: 'Page Size',
-        type: 'number',
-        required: false,
-        min: 1,
-        max: 100,
-      },
-      {
-        id: 'slack_search_files_highlight',
-        param: 'highlight',
-        title: 'Highlight Matches',
-        type: 'boolean',
-        required: false,
-      },
-      {
-        id: 'slack_search_files_team_id',
-        param: 'team_id',
-        title: 'Workspace ID',
-        type: 'string',
-        required: false,
-      },
-    ],
-  },
-  {
-    id: 'search_all',
-    label: 'Search Messages and Files',
-    tool: 'slack_search_all',
-    auth: 'user',
-    fields: [
-      {
-        id: 'slack_search_all_query',
-        param: 'query',
-        title: 'Search Query',
-        type: 'string',
-        required: true,
-      },
-      {
-        id: 'slack_search_all_sort',
-        param: 'sort',
-        title: 'Sort By',
-        type: 'string',
-        required: false,
-        enum: ['score', 'timestamp'],
-        default: 'score',
-      },
-      {
-        id: 'slack_search_all_sort_dir',
-        param: 'sort_dir',
-        title: 'Sort Direction',
-        type: 'string',
-        required: false,
-        enum: ['asc', 'desc'],
-        default: 'desc',
-      },
-      {
-        id: 'slack_search_all_page',
-        param: 'page',
-        title: 'Page',
-        type: 'number',
-        required: false,
-        min: 1,
-      },
-      {
-        id: 'slack_search_all_count',
-        param: 'count',
-        title: 'Page Size',
-        type: 'number',
-        required: false,
-        min: 1,
-        max: 100,
-      },
-      {
-        id: 'slack_search_all_highlight',
-        param: 'highlight',
-        title: 'Highlight Matches',
-        type: 'boolean',
-        required: false,
-      },
-      {
-        id: 'slack_search_all_team_id',
-        param: 'team_id',
-        title: 'Workspace ID',
-        type: 'string',
-        required: false,
-      },
-    ],
-  },
-  {
     id: 'get_dnd_info',
     label: 'Get Do Not Disturb Info',
     tool: 'slack_get_dnd_info',
@@ -1495,30 +1270,6 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
       },
     ],
   },
-  {
-    id: 'set_dnd_snooze',
-    label: 'Snooze Notifications',
-    tool: 'slack_set_dnd_snooze',
-    auth: 'user',
-    fields: [
-      {
-        id: 'slack_set_dnd_snooze_num_minutes',
-        param: 'num_minutes',
-        title: 'Minutes',
-        type: 'number',
-        required: true,
-        min: 1,
-      },
-    ],
-  },
-  {
-    id: 'end_dnd_snooze',
-    label: 'End Notification Snooze',
-    tool: 'slack_end_dnd_snooze',
-    auth: 'user',
-    fields: [],
-  },
-  { id: 'end_dnd', label: 'End Do Not Disturb', tool: 'slack_end_dnd', auth: 'user', fields: [] },
   {
     id: 'list_emoji',
     label: 'List Custom Emoji',
@@ -1639,19 +1390,6 @@ export function getSlackWorkflowSubBlocks(): SubBlockConfig[] {
       }
     )
   }
-  result.push({
-    id: 'apiManagedUserCredentialId',
-    title: 'Managed Slack User Credential ID',
-    type: 'short-input',
-    required: true,
-    placeholder: 'User credential ID from a Slack Credential Group',
-    description:
-      'Requires a user authorized through your custom Slack app with this operation’s scopes. Native Sim connections and bot tokens are not supported.',
-    condition: {
-      field: 'operation',
-      value: SLACK_WORKFLOW_OPERATIONS.filter(({ auth }) => auth === 'user').map(({ id }) => id),
-    },
-  })
   for (const operation of SLACK_WORKFLOW_OPERATIONS) {
     for (const field of operation.fields) {
       result.push({
@@ -1687,14 +1425,7 @@ export function mapSlackWorkflowParams(
   params: Record<string, unknown>
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {
-    credential:
-      params[
-        operation.auth === 'bot'
-          ? 'apiBotCredentialId'
-          : operation.auth === 'user'
-            ? 'apiManagedUserCredentialId'
-            : 'apiOAuthCredentialId'
-      ],
+    credential: params[operation.auth === 'bot' ? 'apiBotCredentialId' : 'apiOAuthCredentialId'],
   }
   for (const field of operation.fields) {
     const raw = params[field.id]
@@ -1720,7 +1451,6 @@ export function mapSlackWorkflowParams(
 export const SLACK_WORKFLOW_INPUTS: BlockConfig['inputs'] = {
   apiBotCredentialId: { type: 'string', description: 'Custom Slack bot credential ID' },
   apiOAuthCredentialId: { type: 'string', description: 'Slack credential ID' },
-  apiManagedUserCredentialId: { type: 'string', description: 'Managed Slack user credential ID' },
   ...Object.fromEntries(
     SLACK_WORKFLOW_OPERATIONS.flatMap(({ fields }) =>
       fields.map((field) => [
