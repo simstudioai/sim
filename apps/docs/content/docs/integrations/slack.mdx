@@ -13,69 +13,6 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 {/* MANUAL-CONTENT-START:intro */}
 Use [Slack](https://www.slack.com/) to send and manage messages, work with canvases, and inspect channels and users. Custom bots also support Agent Sessions and streamed trigger responses.
 
-## Slack Lists
-
-Choose a Lists action from the Slack block’s **Operation** menu.
-
-### Connect a custom Slack bot
-
-Slack Lists supports **custom Slack bots only**. Select a reusable bot in **Custom Slack Bot**, or choose **Set up a custom bot**. Native Sim Slack connections are not supported. Lists requires a paid Slack plan and access to the target List for the selected bot.
-
-The custom app needs `lists:read` for Read List Items and Get List Item, and `lists:write` for writes. Enable **Manage Lists** in the custom app setup manifest. For an existing bot, add these scopes to its Slack app, reinstall it, and update its stored credential in Sim. This integration does not add scopes to the native Sim Slack app.
-
-### Read the schema before writing rows
-
-1. Copy the `F…` List ID from the Slack List URL, or use `listId` returned by Create List.
-2. Run **Read List Items** with **Include List Schema** enabled (the default). The `list.schema` output contains each column's `id`, `name`, `type`, and type-specific `options`. This works even when the List has no rows. **Get List Item** also returns the parent schema. Create List may return `schema`; if Slack omits it, use Read List Items.
-3. Use those real `Col…` IDs as `column_id`. Use the `Rec…` IDs returned by Read List Items or Create List Item as `row_id` for updates. Select values must match the column's configured choice values.
-
-For **Create List Item**, provide **Initial Fields** as a JSON array. For example, replace the placeholder column IDs below with IDs from your List:
-
-```json
-[
-  {
-    "column_id": "ColTitle",
-    "rich_text": [{
-      "type": "rich_text",
-      "elements": [{
-        "type": "rich_text_section",
-        "elements": [{ "type": "text", "text": "Review the proposal" }]
-      }]
-    }]
-  },
-  { "column_id": "ColDueDate", "date": ["2026-10-01"] },
-  { "column_id": "ColDone", "checkbox": false }
-]
-```
-
-For **Update List Items**, each object in **Cells** also needs `row_id`. A single call can update cells in multiple rows. Text writes require `rich_text`; the `text` and legacy `value` properties in responses are not write inputs. Checkboxes use a boolean, while number, date, select, user, channel, attachment, email, phone, rating, timestamp, message, link, and reference values use arrays. Message values are URLs. Link objects use `original_url`, `display_as_url`, and `display_name`, which differ from response keys. Empty arrays clear array-valued cells; `false` clears a checkbox.
-
-### Pagination and limits
-
-Read List Items returns one page, defaulting to a requested size of 100. Pass `nextCursor` into the next call's **Cursor** until it is empty, even if a page contains fewer rows than requested. Use a Loop block for full traversal. **Archived Rows** selects archived rows instead of active rows. Disable **Include List Schema** on later pages when the schema is already known.
-
-The integration supports creating and renaming Lists, plus reading, creating, updating, and deleting rows. It does not enumerate all workspace Lists, change an existing List's column definitions, manage access, or delete an entire List. Share the List in Slack before running tools against another user's List.
-
-Slack currently assigns Tier 2 (20+ requests/minute) to list creation/renaming and row reads/deletion, and Tier 3 (50+ requests/minute) to row creation/updates. The tools surface Slack failures, including rate limits and missing scopes; they do not automatically replay writes.
-
-See Slack's [Lists API](https://docs.slack.dev/surfaces/lists/), [typed field formats](https://docs.slack.dev/reference/methods/slackLists.items.create/), and [pagination](https://docs.slack.dev/reference/methods/slackLists.items.list/).
-
-## Canvases
-
-Select a Slack account or reusable custom bot. Creating, editing, and deleting canvases requires `canvases:write`; section lookup requires `canvases:read`; metadata and listing use `files:read`. For custom bots, enable **Manage canvases** in the app setup manifest. If scopes are missing, update and reinstall the Slack app, then reconnect the credential in Sim. The selected user or bot must also have access to the canvas or channel.
-
-### Choose an operation
-
-Select a Canvas action from the Slack block’s **Operation** menu.
-
-- **Create Canvas** creates a document and adds it as a tab in the selected channel. **Create Channel Canvas** creates the channel's resource canvas; Slack returns an error if one already exists.
-- **Get Canvas Info** returns file details and links, not the document body. **List Canvases** returns one page of metadata; increment **Page** using the returned `paging.page` and `paging.pages` to continue.
-- **Lookup Canvas Sections** returns matching section IDs. Supply criteria such as `{"section_types":["h1"],"contains_text":"Roadmap"}`.
-- **Edit Canvas** accepts Markdown. Insert before/after a section or delete a section using its ID. Replace may target a section, or replace the entire canvas when Section ID is empty. Rename uses New Title. Slack currently allows one edit operation per request and up to 1,048,576 Markdown characters per change.
-- **Delete Canvas** removes the entire document permanently.
-
-See Slack's [Canvas guide](https://docs.slack.dev/surfaces/canvases/) and [editing reference](https://docs.slack.dev/reference/methods/canvases.edit/).
-
 ## Stream Trigger Responses
 
 Custom-bot Slack triggers can stream workflow outputs directly back into the conversation that started a run. Turn on **Enable agent session** (`streamResponse`) on a Message, App Mention, or Assistant Thread Started trigger, then select the outputs to deliver in **Outputs to stream** (`streamOutputs`).
@@ -2242,7 +2179,23 @@ Set the purpose (description) for a Slack channel (max 250 characters).
 | --------- | ---- | ----------- |
 | `purpose` | string | The purpose/description that was set on the channel |
 
+{/* MANUAL-CONTENT-START:notes */}
+## Lists and Canvas notes
 
+### Lists
+
+Lists actions require a custom Slack bot and a paid Slack plan. Enable **Manage Lists** during bot setup. For an existing app, add `lists:read` and `lists:write` in Slack, reinstall it, then reconnect in Sim.
+
+- Run **Read List Items** with **Include List Schema** enabled to get the column IDs used in `column_id`. Updates also need the row's `id` as `row_id`.
+- **Initial Fields** and **Cells** accept JSON arrays of typed values. Text uses `rich_text`; checkboxes use booleans. See Slack's [field formats](https://docs.slack.dev/reference/methods/slackLists.items.create/) for examples.
+- To read every row, pass `nextCursor` into **Cursor** until it is empty. **Archived Rows** reads archived rows instead of active rows.
+
+### Canvases
+
+For custom bots, enable **Manage canvases** during setup. Existing apps need `canvases:write` for changes, `canvases:read` for section lookup, and `files:read` for metadata. Reinstall the app after changing scopes, then reconnect in Sim.
+
+**Edit Canvas** can replace the whole document when **Section ID** is empty. **Get Canvas Info** and **List Canvases** return metadata, not document contents. See Slack's [Canvas guide](https://docs.slack.dev/surfaces/canvases/) for details.
+{/* MANUAL-CONTENT-END */}
 
 ## Triggers
 
