@@ -102,7 +102,7 @@ describe('inline search activity', () => {
     [
       'failed sources check',
       { ...tool, toolName: 'search_sources', status: 'error', params: { action: 'list' } },
-      'Checking connected sources',
+      'Checked connected sources',
     ],
   ] as const)(
     'labels a %s search and leaves it static unless its lane names it live',

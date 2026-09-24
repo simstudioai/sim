@@ -92,9 +92,8 @@ function searchTitle(
   }
   if (queryText) return queryText
   if (tool.toolName === 'search_sources') {
-    return tool.status === ToolCallStatus.success
-      ? 'Checked connected sources'
-      : 'Checking connected sources'
+    const settled = tool.status === ToolCallStatus.success || tool.status === ToolCallStatus.error
+    return settled ? 'Checked connected sources' : 'Checking connected sources'
   }
   return 'Preparing query'
 }
