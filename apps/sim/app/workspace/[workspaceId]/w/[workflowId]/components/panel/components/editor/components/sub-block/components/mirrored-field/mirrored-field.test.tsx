@@ -17,7 +17,10 @@ vi.mock('@sim/emcn', () => ({
   ) => <textarea {...props} />,
 }))
 
-import { MirroredInput, MirroredTextarea } from './mirrored-field'
+import {
+  MirroredInput,
+  MirroredTextarea,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/mirrored-field/mirrored-field'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
