@@ -6,7 +6,6 @@ import {
   Combobox,
   type ComboboxOption,
   cn,
-  Input,
   Label,
   OverflowText,
   Trash,
@@ -14,6 +13,7 @@ import {
 import { Plus } from '@sim/emcn/icons'
 import type { FilterRule } from '@/lib/table/query-builder/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { MirroredInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/mirrored-field/mirrored-field'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import {
   getActiveWorkflowSearchHighlight,
@@ -60,10 +60,6 @@ export function FilterRuleRow({
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const valueInputRef = useRef<HTMLInputElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
-
-  const syncOverlayScroll = (scrollLeft: number) => {
-    if (overlayRef.current) overlayRef.current.scrollLeft = scrollLeft
-  }
 
   const cellKey = `filter-${rule.id}-value`
   const fieldState = inputController.fieldHelpers.getFieldState(cellKey)
@@ -147,7 +143,7 @@ export function FilterRuleRow({
 
   const renderValueInput = () => (
     <div className='relative'>
-      <Input
+      <MirroredInput
         ref={valueInputRef}
         value={rule.value}
         onChange={handlers.onChange}
@@ -155,35 +151,26 @@ export function FilterRuleRow({
         onDrop={handlers.onDrop}
         onDragOver={handlers.onDragOver}
         onFocus={handlers.onFocus}
-        onScroll={(e) => syncOverlayScroll(e.currentTarget.scrollLeft)}
-        onPaste={() =>
-          setTimeout(() => {
-            if (valueInputRef.current) {
-              syncOverlayScroll(valueInputRef.current.scrollLeft)
-            }
-          }, 0)
-        }
         disabled={isReadOnly}
         autoComplete='off'
         placeholder='Enter value'
-        className='allow-scroll w-full overflow-auto text-transparent caret-foreground [letter-spacing:inherit]'
-      />
-      <div
-        ref={overlayRef}
-        className={cn(
+        className='allow-scroll w-full overflow-auto'
+        overlayRef={overlayRef}
+        overlayClassName={cn(
           'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
           !isReadOnly && 'pointer-events-none'
         )}
-      >
-        <div className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
-          {formatDisplayText(
-            rule.value,
-            accessiblePrefixes
-              ? { accessiblePrefixes, workflowSearchHighlight }
-              : { highlightAll: true, workflowSearchHighlight }
-          )}
-        </div>
-      </div>
+        overlay={
+          <div className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
+            {formatDisplayText(
+              rule.value,
+              accessiblePrefixes
+                ? { accessiblePrefixes, workflowSearchHighlight }
+                : { highlightAll: true, workflowSearchHighlight }
+            )}
+          </div>
+        }
+      />
       {fieldState.showTags && (
         <TagDropdown
           visible={fieldState.showTags}

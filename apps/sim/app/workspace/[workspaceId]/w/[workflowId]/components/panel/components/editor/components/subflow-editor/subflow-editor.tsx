@@ -1,13 +1,6 @@
 'use client'
 
-import {
-  Code as CodeEditor,
-  Combobox,
-  FieldDivider,
-  getCodeEditorProps,
-  Input,
-  Label,
-} from '@sim/emcn'
+import { Code as CodeEditor, Combobox, FieldDivider, getCodeEditorProps, Label } from '@sim/emcn'
 import { ChevronUp } from '@sim/emcn/icons'
 import SimpleCodeEditor from 'react-simple-code-editor'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
@@ -15,6 +8,7 @@ import {
   formatDisplayText,
   getValidWorkflowSearchRange,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { MirroredInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/mirrored-field/mirrored-field'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
@@ -160,19 +154,18 @@ export function SubflowEditor({
 
             {isCountMode ? (
               <div className='relative'>
-                <Input
+                <MirroredInput
                   type='text'
                   value={inputValue}
                   onChange={handleSubflowIterationsChange}
                   onBlur={handleSubflowIterationsBlur}
                   disabled={!userCanEdit}
-                  className='mb-1 text-transparent caret-[var(--text-primary)] [letter-spacing:inherit]'
-                />
-                <div className='pointer-events-none absolute inset-x-0 top-0 flex h-8 items-center overflow-hidden px-2 font-sans text-sm'>
-                  {formatDisplayText(inputValue, {
+                  className='mb-1 caret-[var(--text-primary)]'
+                  overlayClassName='pointer-events-none absolute inset-x-0 top-0 flex h-8 items-center overflow-hidden px-2 font-sans text-sm'
+                  overlay={formatDisplayText(inputValue, {
                     workflowSearchHighlight: configSearchHighlight,
                   })}
-                </div>
+                />
                 <div className='text-[var(--text-muted)] text-micro'>
                   Enter a whole number greater than 0.
                 </div>
@@ -226,19 +219,18 @@ export function SubflowEditor({
               <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
                 Parallel Batch Size
               </Label>
-              <Input
+              <MirroredInput
                 type='text'
                 value={batchSizeValue}
                 onChange={handleParallelBatchSizeChange}
                 onBlur={handleParallelBatchSizeBlur}
                 disabled={!userCanEdit}
-                className='mb-1 text-transparent caret-[var(--text-primary)] [letter-spacing:inherit]'
-              />
-              <div className='pointer-events-none absolute inset-x-0 top-[26px] flex h-8 items-center overflow-hidden px-2 font-sans text-sm'>
-                {formatDisplayText(batchSizeValue, {
+                className='mb-1 caret-[var(--text-primary)]'
+                overlayClassName='pointer-events-none absolute inset-x-0 top-[26px] flex h-8 items-center overflow-hidden px-2 font-sans text-sm'
+                overlay={formatDisplayText(batchSizeValue, {
                   workflowSearchHighlight: batchSizeSearchHighlight,
                 })}
-              </div>
+              />
               <div className='text-[var(--text-muted)] text-micro'>
                 Run 1 to 20 parallel branches at a time.
               </div>

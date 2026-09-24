@@ -8,7 +8,6 @@ import {
   Combobox,
   type ComboboxOption,
   cn,
-  Input,
   Label,
   OverflowText,
   Trash,
@@ -18,6 +17,7 @@ import { generateId } from '@sim/utils/id'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { MirroredInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/mirrored-field/mirrored-field'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
@@ -210,11 +210,6 @@ export function KnowledgeTagFilters({
   /**
    * Syncs scroll position between input and overlay
    */
-  const syncOverlayScroll = (filterId: string, scrollLeft: number) => {
-    const overlay = overlayRefs.current[filterId]
-    if (overlay) overlay.scrollLeft = scrollLeft
-  }
-
   if (isPreview) {
     const appliedFilters = filters.filter((f) => f.tagName.trim() && f.tagValue.trim()).length
 
@@ -305,7 +300,7 @@ export function KnowledgeTagFilters({
 
     return (
       <div className='relative'>
-        <Input
+        <MirroredInput
           ref={(el) => {
             if (el) valueInputRefs.current[cellKey] = el
           }}
@@ -315,36 +310,28 @@ export function KnowledgeTagFilters({
           onDrop={handlers.onDrop}
           onDragOver={handlers.onDragOver}
           onFocus={handlers.onFocus}
-          onScroll={(e) => syncOverlayScroll(cellKey, e.currentTarget.scrollLeft)}
-          onPaste={() =>
-            setTimeout(() => {
-              const input = valueInputRefs.current[cellKey]
-              input && syncOverlayScroll(cellKey, input.scrollLeft)
-            }, 0)
-          }
           disabled={isReadOnly}
           autoComplete='off'
           placeholder={placeholder}
-          className='allow-scroll w-full overflow-auto text-transparent caret-foreground [letter-spacing:inherit]'
-        />
-        <div
-          ref={(el) => {
+          className='allow-scroll w-full overflow-auto'
+          overlayRef={(el) => {
             if (el) overlayRefs.current[cellKey] = el
           }}
-          className={cn(
+          overlayClassName={cn(
             'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
             !isReadOnly && 'pointer-events-none'
           )}
-        >
-          <div className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
-            {formatDisplayText(
-              fieldValue,
-              accessiblePrefixes
-                ? { accessiblePrefixes, workflowSearchHighlight }
-                : { highlightAll: true, workflowSearchHighlight }
-            )}
-          </div>
-        </div>
+          overlay={
+            <div className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
+              {formatDisplayText(
+                fieldValue,
+                accessiblePrefixes
+                  ? { accessiblePrefixes, workflowSearchHighlight }
+                  : { highlightAll: true, workflowSearchHighlight }
+              )}
+            </div>
+          }
+        />
         {fieldState.showTags && (
           <TagDropdown
             visible={fieldState.showTags}
