@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import {
   Badge,
-  Button,
+  Chip,
   ChipCopyInput,
   ChipInput,
   ChipModalTabs,
@@ -434,14 +434,13 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
             className='w-[160px]'
           />
         </div>
-        <Button
+        <Chip
           variant='primary'
-          className='h-[32px]'
           onClick={handleGenerate}
           disabled={generateLicense.isPending || !newName.trim()}
         >
           {generateLicense.isPending ? 'Generating...' : 'Generate'}
-        </Button>
+        </Chip>
       </div>
 
       {generatedKey && (
