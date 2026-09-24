@@ -64,7 +64,7 @@ export {
   ChipEmailsInput,
   type ChipEmailsInputProps,
 } from './chip-emails-input/chip-emails-input'
-export { ChipInput, type ChipInputProps } from './chip-input/chip-input'
+export { ChipInput, type ChipInputProps, chipInputVariants } from './chip-input/chip-input'
 export {
   type ChipConfirmAction,
   type ChipConfirmDefaultAction,
