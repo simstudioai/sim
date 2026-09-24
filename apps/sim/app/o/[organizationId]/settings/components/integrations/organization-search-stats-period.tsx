@@ -61,7 +61,8 @@ export function OrganizationSearchStatsPeriod({
           tabIndex={-1}
           align='end'
           sideOffset={4}
-          className='w-auto p-0'
+          padding='none'
+          className='w-auto'
           onOpenAutoFocus={() => calendarRef.current?.focus()}
           onCloseAutoFocus={() =>
             triggerContainerRef.current?.querySelector<HTMLElement>('[role="combobox"]')?.focus()

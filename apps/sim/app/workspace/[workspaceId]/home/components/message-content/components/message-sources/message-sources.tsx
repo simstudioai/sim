@@ -36,7 +36,7 @@ export function MessageSources({ sources }: MessageSourcesProps) {
         </Tooltip.Trigger>
         <Tooltip.Content side='top'>{label}</Tooltip.Content>
       </Tooltip.Root>
-      <PopoverContent align='start' side='top' sideOffset={4} className='w-[420px] p-0'>
+      <PopoverContent align='start' side='top' sideOffset={4} padding='none' className='w-[420px]'>
         <div className='flex flex-col py-1'>
           {sources.map((source) => (
             <SourceCard key={source.url} source={source} dense />
