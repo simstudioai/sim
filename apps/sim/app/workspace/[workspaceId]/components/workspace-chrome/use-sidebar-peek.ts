@@ -68,8 +68,6 @@ function containsPoint(element: Element | null, x: number, y: number, pad: numbe
 export interface SidebarPeekResult {
   /** Card is mounted as a floating overlay — drives positioning, chrome, and the expanded width. */
   isPeekActive: boolean
-  /** Whether the floating card is visible. */
-  isPeekOpen: boolean
   /** Attach to the floating card so the pointer hit-test can recognise it. */
   cardRef: React.RefObject<HTMLDivElement | null>
   /**
@@ -212,7 +210,6 @@ export function useSidebarPeek(enabled: boolean, dismissed = false): SidebarPeek
 
   return {
     isPeekActive: isPeekVisible,
-    isPeekOpen: isPeekVisible,
     cardRef,
     triggerRef,
     onTriggerEnter,

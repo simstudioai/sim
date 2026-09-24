@@ -212,6 +212,52 @@ describe('organization Search query navigation', () => {
     expect(mocks.urlUpdate).not.toHaveBeenCalled()
   })
 
+  it('keeps edits for separate committed queries across storage rehydration', async () => {
+    await render('?q=Orion')
+    await editDraft('Orion follow-up')
+    await render('?q=Vega')
+    await editDraft('Vega follow-up')
+    await act(async () => root.unmount())
+    const saved = localStorage.getItem('mothership-drafts:v1')!
+    useMothershipDraftsStore.setState({ drafts: {} })
+    localStorage.setItem('mothership-drafts:v1', saved)
+    await useMothershipDraftsStore.persist.rehydrate()
+    root = createRoot(container)
+
+    await render('?q=Orion')
+    expect(searchInput().value).toBe('Orion follow-up')
+    await render('?q=Vega')
+    expect(searchInput().value).toBe('Vega follow-up')
+    await render('')
+    expect(searchInput().value).toBe('Vega follow-up')
+  })
+
+  it('submits one query without clearing another query’s latest draft', async () => {
+    await render('?q=Orion')
+    await editDraft('Orion follow-up')
+    await render('?q=Vega')
+    await editDraft('Vega follow-up')
+    await render('?q=Orion')
+    await act(async () =>
+      searchInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    )
+    expectVisibleQuery('Orion follow-up')
+    await render('')
+    expect(searchInput().value).toBe('Vega follow-up')
+    await editDraft('Vega revised')
+    await render('?q=Vega')
+    expect(searchInput().value).toBe('Vega revised')
+    await render('')
+    await act(async () =>
+      searchInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    )
+    expectVisibleQuery('Vega revised')
+    await render('?q=Vega')
+    expectVisibleQuery('Vega')
+    await render('')
+    expect(searchInput().value).toBe('')
+  })
+
   it.each(['Enter', 'button'] as const)(
     'keeps the draft out of Search until %s commits it and restores input focus afterward',
     async (submit) => {

@@ -34,16 +34,24 @@ interface SearchFieldProps {
 function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const { organization } = useOrganizationContext()
-  const draftKey = `${userId}:organization:${organization.id}:search`
+  const latestDraftKey = `${userId}:organization:${organization.id}:search`
+  const latestDraft = useMothershipDraftsStore((state) => state.drafts[latestDraftKey])
+  const ownerQuery = initialValue || latestDraft?.searchQuery || ''
+  const draftKey = `${latestDraftKey}:query:${encodeURIComponent(ownerQuery)}`
   const draft = useMothershipDraftsStore((state) => state.drafts[draftKey])
   const value =
-    draft && (!initialValue || draft.searchQuery === initialValue) ? draft.text : initialValue
+    draft?.text ?? (latestDraft?.searchQuery === ownerQuery ? latestDraft.text : initialValue)
   const setValue = (text: string) => {
-    useMothershipDraftsStore.getState().setDraft(draftKey, { text, searchQuery: initialValue })
+    const { setDraft } = useMothershipDraftsStore.getState()
+    const payload = { text, searchQuery: ownerQuery }
+    setDraft(draftKey, payload)
+    setDraft(latestDraftKey, payload)
   }
   const submit = () => {
     if (!value.trim()) return
-    useMothershipDraftsStore.getState().clearDraft(draftKey)
+    const { clearDraft } = useMothershipDraftsStore.getState()
+    clearDraft(draftKey)
+    if (latestDraft?.searchQuery === ownerQuery) clearDraft(latestDraftKey)
     onSubmit(value)
   }
   const voice = useVoiceInput({

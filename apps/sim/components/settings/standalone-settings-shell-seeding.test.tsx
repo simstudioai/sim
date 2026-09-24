@@ -29,14 +29,19 @@ import {
   resetDeploymentShape,
   resolveDeploymentShape,
 } from '@/lib/core/config/deployment-shape'
+import { useSidebarStore } from '@/stores/sidebar/store'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 let host: HTMLDivElement
 let root: Root
+const originalInnerWidth = window.innerWidth
 
 beforeEach(() => {
   resetDeploymentShape()
+  window.innerWidth = 1600
+  localStorage.clear()
+  useSidebarStore.setState({ sidebarWidth: 400, isCollapsed: false, _hasHydrated: false })
   host = document.createElement('div')
   document.body.appendChild(host)
   root = createRoot(host)
@@ -45,10 +50,44 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   host.remove()
+  window.innerWidth = originalInnerWidth
+  localStorage.clear()
   vi.clearAllMocks()
 })
 
 describe('StandaloneSettingsShell', () => {
+  it.each([false, true])(
+    'resizes consistently with workspace chrome (collapsed: %s)',
+    async (isCollapsed) => {
+      useSidebarStore.setState({ isCollapsed })
+      act(() =>
+        root.render(
+          <StandaloneSettingsShell plane='selfhost' deployment={resolveDeploymentShape()}>
+            {null}
+          </StandaloneSettingsShell>
+        )
+      )
+      const expandedWidth = () =>
+        document.documentElement.style.getPropertyValue('--sidebar-expanded-width')
+      expect(expandedWidth()).toBe('400px')
+
+      await act(async () => {
+        window.innerWidth = 800
+        window.dispatchEvent(new Event('resize'))
+        await vi.waitFor(() => expect(expandedWidth()).toBe('240px'))
+      })
+      expect(useSidebarStore.getState().sidebarWidth).toBe(isCollapsed ? 400 : 240)
+
+      await act(async () => {
+        window.innerWidth = 1600
+        window.dispatchEvent(new Event('resize'))
+        await vi.waitFor(() => expect(expandedWidth()).toBe(isCollapsed ? '400px' : '240px'))
+      })
+      act(() => useSidebarStore.getState().syncWidth())
+      expect(expandedWidth()).toBe(isCollapsed ? '400px' : '240px')
+    }
+  )
+
   it('filters its navigation by the server-resolved shape, not the env fallback', () => {
     /** Inverts the fallback's hosted and billing switches, which decide the Billing and Chat keys items. */
     const fallback = resolveDeploymentShape()

@@ -1918,9 +1918,10 @@ export function useChat(
         if (
           resource.type === 'search' &&
           (hasCitedSources ||
-            !resourcesRef.current.some(
-              (visible) => getChatResourceKey(visible) === getChatResourceKey(resource)
-            ))
+            (getChatResourceSelectionId(resource) !== selectedResourceIdRef.current &&
+              !resourcesRef.current.some(
+                (visible) => getChatResourceKey(visible) === getChatResourceKey(resource)
+              )))
         ) {
           removeResource('search', resource.id, resource.workspaceId)
         }

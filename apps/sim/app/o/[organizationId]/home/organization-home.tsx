@@ -11,7 +11,10 @@ import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
-import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
+import {
+  getMothershipAttachmentPreviewUrl,
+  getMothershipAttachmentUrl,
+} from '@/lib/mothership/chat/attachment-preview'
 import { createSearchResource } from '@/lib/mothership/resources/search'
 import { Composer } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
@@ -350,7 +353,10 @@ function OrganizationHomeContent({
                   name: file.filename,
                   type: file.media_type,
                   size: file.size,
-                  path: file.path || getMothershipAttachmentPreviewUrl(file) || '',
+                  path:
+                    file.path ||
+                    getMothershipAttachmentPreviewUrl(file) ||
+                    getMothershipAttachmentUrl(file),
                   previewUrl: getMothershipAttachmentPreviewUrl(file),
                   uploading: false,
                 }))

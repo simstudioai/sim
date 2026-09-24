@@ -1,3 +1,8 @@
+/** Resolves a stored attachment without relying on an expired local preview or saved path. */
+export function getMothershipAttachmentUrl(file: { key: string }): string {
+  return `/api/files/serve/${encodeURIComponent(file.key)}?context=mothership`
+}
+
 export function getMothershipAttachmentPreviewUrl(file: {
   key: string
   media_type: string
@@ -10,5 +15,5 @@ export function getMothershipAttachmentPreviewUrl(file: {
   // may substitute a browser-renderable derivative for a format no browser decodes (HEIC).
   // A video has no derivative path, so asking would only spend a brand sniff per request.
   const preview = isImage ? '&preview=1' : ''
-  return `/api/files/serve/${encodeURIComponent(file.key)}?context=mothership${preview}`
+  return `${getMothershipAttachmentUrl(file)}${preview}`
 }

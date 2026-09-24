@@ -5,7 +5,10 @@ import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
+import {
+  getMothershipAttachmentPreviewUrl,
+  getMothershipAttachmentUrl,
+} from '@/lib/mothership/chat/attachment-preview'
 import { assertMultiFileUploadAdmission } from '@/lib/uploads/client/admission'
 import { runWithConcurrency, WHOLE_FILE_PARALLEL_UPLOADS } from '@/lib/uploads/client/concurrency'
 import { uploadInternalFileSession } from '@/lib/uploads/client/session-upload'
@@ -113,7 +116,8 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
       size: file.size,
       type: file.media_type,
       key: file.key,
-      path: file.path || getMothershipAttachmentPreviewUrl(file) || '',
+      path:
+        file.path || getMothershipAttachmentPreviewUrl(file) || getMothershipAttachmentUrl(file),
       previewUrl: getMothershipAttachmentPreviewUrl(file),
       uploading: false,
     }))

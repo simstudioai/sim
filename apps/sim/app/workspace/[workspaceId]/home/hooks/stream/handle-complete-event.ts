@@ -50,10 +50,10 @@ export function handleCompleteEvent(ctx: StreamLoopContext, parsed: CompleteEven
   const searchResources = new Map<string, { id: string; workspaceId?: string }>(
     ctx.deps.resourcesRef.current
       .filter((item) => item.type === 'search')
-      .map((item) => [`${item.workspaceId ?? ''}:${item.id}`, item] as const)
+      .map((item) => [getChatResourceKey(item), item] as const)
   )
   if (streamedSearch) {
-    searchResources.set(`${streamedSearch.workspaceId ?? ''}:${streamedSearch.id}`, streamedSearch)
+    searchResources.set(getChatResourceKey(streamedSearch), streamedSearch)
   }
   for (const search of searchResources.values()) {
     ctx.deps.removeResource('search', search.id, search.workspaceId)
