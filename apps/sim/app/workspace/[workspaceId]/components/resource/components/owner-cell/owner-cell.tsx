@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { Avatar, AvatarFallback, AvatarImage } from '@sim/emcn'
 import type { ResourceCell } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import type { WorkspaceMember } from '@/hooks/queries/workspace'
 
@@ -13,21 +14,11 @@ export interface OwnerAvatarProps {
  * owner/uploaded-by filter options on every list.
  */
 export const OwnerAvatar = memo(function OwnerAvatar({ name, image }: OwnerAvatarProps) {
-  if (image) {
-    return (
-      <img
-        src={image}
-        alt={name}
-        referrerPolicy='no-referrer'
-        className='size-[14px] rounded-full border border-[var(--border)] object-cover'
-      />
-    )
-  }
-
   return (
-    <span className='flex size-[14px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
-      {name.charAt(0).toUpperCase()}
-    </span>
+    <Avatar size='xs'>
+      {image && <AvatarImage src={image} alt={name} referrerPolicy='no-referrer' />}
+      <AvatarFallback>{name.charAt(0).toUpperCase()}</AvatarFallback>
+    </Avatar>
   )
 })
 

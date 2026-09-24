@@ -37,7 +37,7 @@ function UserAvatar({ user, index }: UserAvatarProps) {
       )}
       <AvatarFallback
         style={{ background: color }}
-        className='border-0 font-semibold text-[7px] text-white leading-none'
+        className='border-0 font-semibold text-white leading-none'
       >
         {initials}
       </AvatarFallback>
@@ -98,7 +98,7 @@ export function PresenceAvatars({
               style={{ zIndex: 0 }}
               aria-label={`${overflowCount} more ${overflowCount === 1 ? 'user' : 'users'}`}
             >
-              <AvatarFallback className='border-0 bg-gray-700 font-semibold text-[7px] text-white leading-none'>
+              <AvatarFallback className='border-0 bg-gray-700 font-semibold text-white leading-none'>
                 +{overflowCount}
               </AvatarFallback>
             </Avatar>
