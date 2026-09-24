@@ -7,7 +7,7 @@ import {
   forgetProjectionFilled,
   isProjectionFilled,
   PROJECTION_FILLED_PROBE_BUDGET_MS,
-} from '@/lib/sim-search/indexed/retrieval/projection-filled'
+} from '@/lib/sim-search/indexed/retrieval/projection-fill'
 
 const LEG_BUDGET_MS = 8000
 

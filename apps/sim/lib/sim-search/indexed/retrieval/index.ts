@@ -7,5 +7,5 @@
 export {
   forgetProjectionFilled,
   isProjectionFilled,
-} from '@/lib/sim-search/indexed/retrieval/projection-filled'
+} from '@/lib/sim-search/indexed/retrieval/projection-fill'
 export { resolveTinKeywordQuery } from '@/lib/sim-search/indexed/retrieval/tin-keyword'

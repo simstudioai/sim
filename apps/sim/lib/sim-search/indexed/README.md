@@ -23,7 +23,7 @@ While the gate is off:
 - `index.ts` is the use-case barrel: `searchScopedKnowledge`, `searchOrganizationKnowledge`, `searchWorkspaceKnowledge`, `readSearchDocument`, and `readIndexedKnowledgeDocument`.
 - `search/scoped-search.ts` resolves an owner's search index and runs the shared knowledge search over it.
 - `documents/` reads indexed passages for Sim's `read_document` tool, the document page, and the MCP `read_document` tool.
-- `retrieval/` is the barrel for the search-index-only retrieval strategies that shared retrieval calls: Tin keyword ranking (`tin-keyword.ts`, `tin-query.ts`, flag `knowledge-tin-keyword`) and the projection-fill probe (`projection-filled.ts`). It is separate from `index.ts` because the use cases depend on shared retrieval, which depends on these.
+- `retrieval/` is the barrel for the search-index-only retrieval strategies that shared retrieval calls: Tin keyword ranking (`tin-keyword.ts`, `tin-query.ts`, flag `knowledge-tin-keyword`) and the projection-fill probe (`projection-fill.ts`). It is separate from `index.ts` because the use cases depend on shared retrieval, which depends on these.
 
 `scripts/check-indexed-org-search-boundary.ts` (`bun run check:indexed-org-search-boundary`, part of `check:audits`) enforces the edge. Outside this directory, only the entry files it allowlists import a barrel, each of them must import the gate, and no file imports past a barrel. Tests are exempt.
 
