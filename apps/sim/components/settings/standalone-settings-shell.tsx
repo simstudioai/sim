@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { type ReactNode, useLayoutEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import {
   ACCOUNT_SETTINGS_GROUPS,
@@ -20,7 +20,7 @@ import { useSettingsBeforeUnload } from '@/components/settings/use-settings-befo
 import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { useSeedDeploymentShape } from '@/hooks/use-seed-deployment-shape'
-import { SIDEBAR_WIDTH } from '@/stores/constants'
+import { useSidebarStore } from '@/stores/sidebar/store'
 
 interface StandaloneSettingsShellBaseProps {
   children: ReactNode
@@ -46,6 +46,10 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
   const pathname = usePathname()
   const { hosted, billingEnabled } = useDeploymentShape()
   const isSuperUser = plane === 'account' ? (props.isSuperUser ?? false) : false
+
+  useLayoutEffect(() => {
+    void useSidebarStore.persist.rehydrate()
+  }, [])
 
   const accountItems = ACCOUNT_SETTINGS_ITEMS.filter((item) => {
     if (item.id === 'billing' && !billingEnabled) return false
@@ -100,8 +104,7 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
         page should look the same whether it is reached inside a workspace or not.
       */}
       <aside
-        style={{ width: SIDEBAR_WIDTH.DEFAULT }}
-        className='flex h-full shrink-0 flex-col overflow-hidden bg-[var(--surface-1)] pt-3'
+        className='flex h-full w-[var(--sidebar-expanded-width)] shrink-0 flex-col overflow-hidden bg-[var(--surface-1)] pt-3 [&_*]:animate-none! [&_*]:transition-none!'
         aria-label={`${SETTINGS_PLANE_CHROME[plane].label} settings navigation`}
       >
         {sidebar}

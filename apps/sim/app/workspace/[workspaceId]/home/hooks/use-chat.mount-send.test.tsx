@@ -1050,6 +1050,41 @@ describe('useChat remount send recovery', () => {
     }
   )
 
+  it('discards a recovered interim search without opening a panel after a citation-free turn', async () => {
+    const shape = resolveDeploymentShape()
+    seedDeploymentShape({ ...shape, features: { ...shape.features, liveEnterpriseSearch: true } })
+    const search = createSearchResource({
+      query: 'interim query',
+      scope: { kind: 'workspace', workspaceId: 'ws-1' },
+    })
+    const history: MothershipChatHistory = {
+      id: 'recovered-interim-search',
+      mode: 'assistant',
+      title: 'Recovered search',
+      messages: [],
+      activeStreamId: null,
+      resources: [search],
+    }
+    let storedResources = [search]
+    mockRequestJson.mockImplementation((contract) => {
+      if (contract.path === '/api/mothership/chat/resources') {
+        if (contract.method === 'DELETE') storedResources = []
+        return Promise.resolve({ success: true })
+      }
+      return Promise.resolve({ chat: { ...history, resources: storedResources } })
+    })
+    const { getResult } = renderUseChatInChat(
+      history.id,
+      history,
+      undefined,
+      undefined,
+      'assistant'
+    )
+    await waitFor(() => storedResources.length === 0)
+    expect(getResult().resources).toEqual([])
+    expect(getResult().activeResourceId).toBeNull()
+  })
+
   it('hydrates changed resource addresses and an empty saved panel list', async () => {
     const history: MothershipChatHistory = {
       id: 'chat-resource-address',

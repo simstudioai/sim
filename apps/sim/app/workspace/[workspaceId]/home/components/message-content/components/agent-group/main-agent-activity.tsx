@@ -2,6 +2,10 @@ import { type ComponentType, Fragment, type ReactNode } from 'react'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
 import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
+import {
+  isSearchActivityTool,
+  SearchActivity,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/search-activity'
 import { ToolActivityGroup } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import { needsToolInput } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-interactions'
@@ -42,21 +46,28 @@ export function MainAgentActivity({
   const flushTools = (active = false) => {
     if (tools.length === 0) return
     activity.push(
-      <ToolActivityGroup
-        key={tools[0].id}
-        tools={tools}
-        activity={groupActivity}
-        completedGroupCount={completedGroupCount}
-        isActive={active || unresolved}
-        ToolCallComponent={ToolCallComponent}
-        autoScrollActivity={autoScrollActivity}
-      />
+      isSearchActivityTool(tools[0]) ? (
+        <SearchActivity key={tools[0].id} tools={tools} />
+      ) : (
+        <ToolActivityGroup
+          key={tools[0].id}
+          tools={tools}
+          activity={groupActivity}
+          completedGroupCount={completedGroupCount}
+          isActive={active || unresolved}
+          ToolCallComponent={ToolCallComponent}
+          autoScrollActivity={autoScrollActivity}
+        />
+      )
     )
     tools = []
   }
 
   for (const [index, item] of items.entries()) {
     if (item.type === 'tool' && !isStandaloneItem(item)) {
+      if (tools.length && isSearchActivityTool(tools[0]) !== isSearchActivityTool(item.data)) {
+        flushTools()
+      }
       tools.push(item.data)
       continue
     }

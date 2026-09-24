@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Chip, ChipDatePicker, ChipLink, cn } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
-import { ActivityStatus } from '@/components/ui/activity-status'
 import {
   WORKSPACE_KNOWLEDGE_SEARCH_LIMITS,
   type WorkspaceKnowledgeSearchResult,
@@ -263,9 +262,7 @@ function SearchResults({
             <p role='status' className='text-[var(--text-muted)] text-caption'>
               Choose the days to search.
             </p>
-          ) : fetching || (pending && !failed) ? (
-            <ActivityStatus label={pending ? 'Searching…' : 'Updating results…'} isActive />
-          ) : (
+          ) : fetching || (pending && !failed) ? null : (
             <p role='status' className='text-[var(--text-muted)] text-caption'>
               {failed
                 ? 'Search couldn’t run.'
@@ -446,12 +443,10 @@ function LiveSearchResults({
   ]
   return (
     <div className='flex flex-col'>
-      {(awaitingRange || isPending || isFetching || isError) && (
+      {(awaitingRange || isError) && (
         <div className='flex items-center gap-2 px-2 py-2'>
           {awaitingRange ? (
             <p className='text-caption'>Choose the days to search.</p>
-          ) : isPending || isFetching ? (
-            <ActivityStatus label='Searching connected accounts…' isActive />
           ) : (
             <p role='status' className='text-[var(--text-muted)] text-caption'>
               Search couldn’t run.

@@ -54,10 +54,10 @@ describe('sidebar width CSS variables', () => {
     expect(widthVars()).toEqual({ width: '300px', expanded: '300px' })
   })
 
-  it('allows narrowing below the default down to the minimum', () => {
+  it('starts at the minimum and prevents narrower widths', () => {
     useSidebarStore.getState().setSidebarWidth(SIDEBAR_WIDTH.MIN)
     expect(useSidebarStore.getState().sidebarWidth).toBe(SIDEBAR_WIDTH.MIN)
-    expect(SIDEBAR_WIDTH.MIN).toBeLessThan(SIDEBAR_WIDTH.DEFAULT)
+    expect(SIDEBAR_WIDTH.MIN).toBe(SIDEBAR_WIDTH.DEFAULT)
 
     useSidebarStore.getState().setSidebarWidth(SIDEBAR_WIDTH.MIN - 1)
     expect(useSidebarStore.getState().sidebarWidth).toBe(SIDEBAR_WIDTH.MIN)
@@ -103,7 +103,7 @@ describe('sidebar width CSS variables', () => {
     expect(widthVars().expanded).toBe(`${SIDEBAR_WIDTH.MIN}px`)
   })
 
-  it('clamps the default fallback to a viewport maximum below the default', () => {
+  it('restores the minimum default for an invalid persisted width', () => {
     const innerWidth = window.innerWidth
     window.innerWidth = 800
     try {
@@ -111,8 +111,7 @@ describe('sidebar width CSS variables', () => {
 
       useSidebarStore.getState().syncWidth()
 
-      expect(widthVars().expanded).toBe(`${getMaxSidebarWidth(800)}px`)
-      expect(getMaxSidebarWidth(800)).toBeLessThan(SIDEBAR_WIDTH.DEFAULT)
+      expect(widthVars().expanded).toBe(`${SIDEBAR_WIDTH.MIN}px`)
     } finally {
       window.innerWidth = innerWidth
     }

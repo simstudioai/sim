@@ -28,8 +28,8 @@ export const CONTENT_WINDOW_GAP = 0
 
 /** Sidebar width constraints */
 export const SIDEBAR_WIDTH = {
-  DEFAULT: 256,
-  /** Narrowest the expanded rail can be dragged — slightly under the default */
+  DEFAULT: 224,
+  /** Default and narrowest expanded rail width across every surface. */
   MIN: 224,
   /** Width when sidebar is collapsed to icon-only mode */
   COLLAPSED: 48,
@@ -79,7 +79,7 @@ export const MOTHERSHIP_WIDTH = {
   MAX_PERCENTAGE: 0.8,
   /**
    * Narrowest the chat column beside the panel may be laid out at — the
-   * `min-w-[240px]` class on that column in home.tsx, so the two must agree.
+   * `min-w-[min(480px,100%)]` class on that column in home.tsx, so the two must agree.
    *
    * The panel is what yields to it: the chat's flex-basis is 0, so the whole of
    * any negative free space is taken out of the panel. A width written past
@@ -87,7 +87,7 @@ export const MOTHERSHIP_WIDTH = {
    * still reads what was asked for, and anything deriving the divider from that
    * value follows an edge that is not on screen.
    */
-  CHAT_MIN: 240,
+  CHAT_MIN: 480,
   /**
    * Share of the viewport the panel takes while unpinned — the `w-1/2` class in
    * mothership-view. Also reported to the desktop shell so it can re-derive the

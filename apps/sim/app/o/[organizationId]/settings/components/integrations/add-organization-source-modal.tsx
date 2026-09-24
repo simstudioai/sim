@@ -10,6 +10,10 @@ import {
   ChipModalHeader,
 } from '@sim/emcn'
 import { Search } from '@sim/emcn/icons'
+import {
+  GENERIC_SECRETS_SOURCE_TYPE,
+  GenericSecretSourceIcon,
+} from '@/app/o/[organizationId]/settings/components/integrations/generic-secret-source'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {
@@ -54,7 +58,13 @@ export function AddOrganizationSourceModal({
           <SettingsResourceRow
             key={type}
             iconVariant='custom'
-            icon={<IntegrationTile blockType={type} icon={meta.icon} />}
+            icon={
+              type === GENERIC_SECRETS_SOURCE_TYPE ? (
+                <GenericSecretSourceIcon />
+              ) : (
+                <IntegrationTile blockType={type} icon={meta.icon} />
+              )
+            }
             title={meta.name}
             description={
               !ready
@@ -108,10 +118,10 @@ export function AddOrganizationSourceModal({
           </ChipModalField>
         )}
         {compact ? (
-          <>
+          <div className='px-2'>
             {feedback}
             {list}
-          </>
+          </div>
         ) : (
           <ChipModalField type='custom' title='Sources'>
             {feedback}

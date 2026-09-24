@@ -617,15 +617,15 @@ it('shows Build with a chevron in the shared chip and text-only modes in its men
     onModeChange,
   })
   const mode = container.querySelector<HTMLButtonElement>('[aria-label="Conversation mode"]')!
-  expect(mode.parentElement?.previousElementSibling).toBeNull()
-  expect(mode.parentElement?.nextElementSibling?.getAttribute('aria-label')).toBe('Add resources')
+  expect(mode.parentElement?.previousElementSibling?.getAttribute('aria-label')).toBe('Skills')
+  expect(mode.parentElement?.nextElementSibling).toBeNull()
   expect(mode.textContent).toBe('Build')
   expect(mode.querySelectorAll('svg')).toHaveLength(1)
   await act(async () =>
     mode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
   )
   const search = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
-    (item) => item.textContent === 'Search'
+    (item) => item.textContent === 'Ask'
   )!
   expect(search.querySelector('svg')).toBeNull()
   expect(document.querySelector('[role="tooltip"]')).toBeNull()
@@ -729,12 +729,12 @@ it.each(['skill', 'file'] as const)(
       mode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
     )
     const search = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
-      (item) => item.textContent === 'Search'
+      (item) => item.textContent === 'Ask'
     )!
     await act(async () => search.click())
     expect(onModeChange).not.toHaveBeenCalled()
     expect(info).toHaveBeenCalledWith(
-      'Remove resource and skill mentions and non-image attachments before switching to Search.'
+      'Remove resource and skill mentions and non-image attachments before switching to Ask.'
     )
     expect(
       container.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
@@ -786,8 +786,8 @@ describe('Search levels', () => {
     expect(
       row.querySelector<HTMLInputElement | HTMLTextAreaElement>('[aria-label="Ask Sim"]')
     ).not.toBeNull()
-    expect(mode.textContent).toBe('')
-    expect(mode.querySelectorAll('svg')).toHaveLength(2)
+    expect(mode.textContent).toBe('Ask')
+    expect(mode.querySelectorAll('svg')).toHaveLength(1)
     expect(mode.parentElement?.nextElementSibling).toBeNull()
     expect(row.querySelector('[aria-label="Search level"]')).toBeNull()
   })

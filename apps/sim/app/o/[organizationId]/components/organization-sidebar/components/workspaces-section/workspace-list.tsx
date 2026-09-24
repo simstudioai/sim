@@ -6,7 +6,6 @@ import {
   cn,
   DropdownMenuItem,
   DropdownMenuItemAction,
-  Loader,
   OverflowText,
   toast,
 } from '@sim/emcn'
@@ -76,12 +75,6 @@ export function WorkspaceList({ organizationId, pathname, flyout }: WorkspaceLis
 
   return (
     <>
-      {isLoading && flyout && (
-        <DropdownMenuItem disabled>
-          <Loader className='size-[14px]' animate />
-          Loading...
-        </DropdownMenuItem>
-      )}
       {!isLoading && workspaces.length === 0 && (
         <div className='px-2 py-1 text-[var(--text-muted)] text-small'>No workspaces yet</div>
       )}

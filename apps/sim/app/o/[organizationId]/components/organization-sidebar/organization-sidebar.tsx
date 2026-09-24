@@ -16,10 +16,7 @@ import {
   OrganizationHeader,
   WorkspacesSection,
 } from '@/app/o/[organizationId]/components/organization-sidebar/components'
-import {
-  useCollapsedTooltips,
-  useOrganizationChats,
-} from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
+import { useOrganizationChats } from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
 import { buildOrganizationNavItems } from '@/app/o/[organizationId]/components/organization-sidebar/navigation'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { OrganizationSettingsSidebar } from '@/app/o/[organizationId]/settings/organization-settings-sidebar'
@@ -85,7 +82,7 @@ export const OrganizationSidebar = memo(function OrganizationSidebar() {
     useOrganizationContext()
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const { handlePointerDown } = useSidebarResize()
-  const showCollapsedTooltips = useCollapsedTooltips(isCollapsed)
+  const showCollapsedTooltips = isCollapsed
   const scrollEdges = useScrollEdges(scrollContainerRef, {
     contentRef: scrollContentRef,
     enabled: !isCollapsed,

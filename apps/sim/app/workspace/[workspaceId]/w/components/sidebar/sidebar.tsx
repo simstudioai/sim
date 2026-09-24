@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   Chip,
@@ -15,7 +15,6 @@ import {
   Library,
   Loader,
   OverflowText,
-  Skeleton,
   scrollFadeAttributes,
   scrollFadeClass,
   Tooltip,
@@ -140,7 +139,6 @@ import { useContextMenu } from '@/hooks/use-context-menu'
 import { useMothershipChatEvents } from '@/hooks/use-mothership-chat-events'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
 import { useFilterStore } from '@/stores/logs/filters/store'
@@ -180,15 +178,6 @@ const SEARCH_MODAL_DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
   hour: 'numeric',
   minute: '2-digit',
 })
-
-/** Stands in for a chip row while a list loads, so it carries no margin either. */
-function SidebarItemSkeleton() {
-  return (
-    <div className='sidebar-collapse-hide flex h-[30px] items-center gap-2 rounded-lg px-2'>
-      <Skeleton className='h-[16px] w-[16px] shrink-0 rounded-sm' />
-    </div>
-  )
-}
 
 const SidebarChatItem = memo(function SidebarChatItem({
   chat,
@@ -411,26 +400,11 @@ export const Sidebar = memo(function Sidebar() {
     customBlockOverlayVersion,
   ])
 
-  const setSidebarWidth = useSidebarStore((state) => state.setSidebarWidth)
   const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed)
   const isOnWorkflowPage = !!workflowId
 
-  const isCollapsedRef = useRef(isCollapsed)
-  useLayoutEffect(() => {
-    isCollapsedRef.current = isCollapsed
-  }, [isCollapsed])
-
   const isMac = isMacPlatform()
-
-  const [showCollapsedTooltips, setShowCollapsedTooltips] = useState(isCollapsed)
-
-  useEffect(() => {
-    if (isCollapsed) {
-      const timer = setTimeout(() => setShowCollapsedTooltips(true), 200)
-      return () => clearTimeout(timer)
-    }
-    setShowCollapsedTooltips(false)
-  }, [isCollapsed])
+  const showCollapsedTooltips = isCollapsed
 
   const { isImporting, handleFileChange: handleImportFileChange } = useImportWorkflow({
     workspaceId,
@@ -829,9 +803,6 @@ export const Sidebar = memo(function Sidebar() {
   }
 
   const handleOpenSettings = (section: SettingsSection) => {
-    if (!isCollapsedRef.current) {
-      setSidebarWidth(SIDEBAR_WIDTH.DEFAULT)
-    }
     navigateToSettings({ section })
   }
 
@@ -901,16 +872,6 @@ export const Sidebar = memo(function Sidebar() {
     setIsChatDeleteModalOpen(true)
   }, [chats])
 
-  const navigateToPage = useCallback(
-    (path: string) => {
-      if (!isCollapsedRef.current) {
-        setSidebarWidth(SIDEBAR_WIDTH.DEFAULT)
-      }
-      router.push(path)
-    },
-    [setSidebarWidth, router]
-  )
-
   const handleConfirmDeleteChats = () => {
     const { chatIds: chatIdsToDelete } = contextMenuSelectionRef.current
     if (chatIdsToDelete.length === 0) return
@@ -923,7 +884,7 @@ export const Sidebar = memo(function Sidebar() {
     const onDeleteSuccess = () => {
       useFolderStore.getState().clearChatSelection()
       if (isViewingDeletedChat) {
-        navigateToPage(`/workspace/${workspaceId}/home`)
+        router.push(`/workspace/${workspaceId}/home`)
       }
     }
 
@@ -1271,7 +1232,7 @@ export const Sidebar = memo(function Sidebar() {
           try {
             const pathWorkspaceId = resolveWorkspaceIdFromPath()
             if (pathWorkspaceId) {
-              navigateToPage(`/workspace/${pathWorkspaceId}/logs`)
+              router.push(`/workspace/${pathWorkspaceId}/logs`)
               logger.info('Navigated to logs', { workspaceId: pathWorkspaceId })
             } else {
               logger.warn('No workspace ID found, cannot navigate to logs')
@@ -1482,12 +1443,7 @@ export const Sidebar = memo(function Sidebar() {
                               ariaLabel='Chats'
                               isEditing={!!chatFlyoutRename.editingId}
                             >
-                              {chatsLoading ? (
-                                <DropdownMenuItem disabled>
-                                  <Loader className='size-[14px]' animate />
-                                  Loading...
-                                </DropdownMenuItem>
-                              ) : chats.length === 0 ? (
+                              {chatsLoading ? null : chats.length === 0 ? (
                                 <DropdownMenuItem disabled>No chats yet</DropdownMenuItem>
                               ) : (
                                 chats.map((chat) => (
@@ -1513,9 +1469,7 @@ export const Sidebar = memo(function Sidebar() {
                           </div>
                         ) : (
                           <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
-                            {chatsLoading ? (
-                              <SidebarItemSkeleton />
-                            ) : (
+                            {!chatsLoading && (
                               <>
                                 {chats.length === 0 ? (
                                   <div className='flex h-[30px] items-center px-2 text-[var(--text-muted)] text-small'>
@@ -1720,12 +1674,8 @@ export const Sidebar = memo(function Sidebar() {
                             isEditing={!!workflowFlyoutRename.editingId}
                             primaryAction={workflowsPrimaryAction}
                           >
-                            {workflowsLoading && regularWorkflows.length === 0 ? (
-                              <DropdownMenuItem disabled>
-                                <Loader className='size-[14px]' animate />
-                                Loading...
-                              </DropdownMenuItem>
-                            ) : regularWorkflows.length === 0 ? (
+                            {workflowsLoading &&
+                            regularWorkflows.length === 0 ? null : regularWorkflows.length === 0 ? (
                               <DropdownMenuItem disabled>No workflows yet</DropdownMenuItem>
                             ) : (
                               <>
@@ -1777,9 +1727,7 @@ export const Sidebar = memo(function Sidebar() {
                         </div>
                       ) : (
                         <div className='px-2'>
-                          {workflowsLoading && regularWorkflows.length === 0 ? (
-                            <SidebarItemSkeleton />
-                          ) : (
+                          {workflowsLoading && regularWorkflows.length === 0 ? null : (
                             <WorkflowList
                               workspaceId={workspaceId}
                               workflowId={workflowId}

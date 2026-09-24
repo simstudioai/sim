@@ -6,7 +6,6 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   PEEK_CLOSE_DELAY_MS as CLOSE_DELAY_MS,
-  PEEK_EXIT_DURATION_MS as EXIT_DURATION_MS,
   PEEK_OPEN_DELAY_MS as OPEN_DELAY_MS,
   PEEK_POINTER_SAMPLE_MS as POINTER_SAMPLE_MS,
   useSidebarPeek,
@@ -273,12 +272,6 @@ describe('useSidebarPeek', () => {
       vi.advanceTimersByTime(CLOSE_DELAY_MS)
     })
     expect(active.state().isPeekOpen).toBe(false)
-    // Stays mounted so the fade-out can play.
-    expect(active.state().isPeekActive).toBe(true)
-
-    act(() => {
-      vi.advanceTimersByTime(EXIT_DURATION_MS)
-    })
     expect(active.state().isPeekActive).toBe(false)
   })
 
@@ -334,41 +327,18 @@ describe('useSidebarPeek', () => {
     expect(active.state().isPeekActive).toBe(false)
   })
 
-  it('drops an already-exiting card the instant a modal opens', () => {
+  it('reopens after the hover dwell when a card has retracted', () => {
     active = renderPeek(true)
     openPeek(active)
     movePointerTo(POINT.onContent)
     act(() => {
       vi.advanceTimersByTime(CLOSE_DELAY_MS)
     })
-    expect(active.state().isPeekActive).toBe(true)
-
-    active.setDismissed(true)
-
     expect(active.state().isPeekActive).toBe(false)
-  })
 
-  it('snaps a card that is animating out back open on re-hover', () => {
-    active = renderPeek(true)
-    openPeek(active)
-    movePointerTo(POINT.onContent)
-    act(() => {
-      vi.advanceTimersByTime(CLOSE_DELAY_MS)
-    })
-    // Mid-exit: mounted but no longer open.
-    expect(active.state().isPeekActive).toBe(true)
+    act(() => active?.triggerEnter())
     expect(active.state().isPeekOpen).toBe(false)
-
-    // Re-hover late in the exit window; the pending exit timer must not win.
-    act(() => {
-      vi.advanceTimersByTime(EXIT_DURATION_MS - 20)
-      active?.triggerEnter()
-    })
-    expect(active.state().isPeekOpen).toBe(true)
-
-    act(() => {
-      vi.advanceTimersByTime(EXIT_DURATION_MS * 2)
-    })
+    act(() => vi.advanceTimersByTime(OPEN_DELAY_MS))
     expect(active.state().isPeekOpen).toBe(true)
   })
 

@@ -1,4 +1,5 @@
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import { getChatResourceKey } from '@/lib/mothership/resources/types'
 import { collectCitedMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 
@@ -16,18 +17,26 @@ export function handleCompleteEvent(ctx: StreamLoopContext, parsed: CompleteEven
   ctx.state.sawCompleteEvent = true
   ctx.state.completionStatus = parsed.payload.status ?? null
   ctx.ops.flush()
-  if (
-    !ctx.deps.citedSourcesEnabled ||
-    parsed.payload.status !== 'complete' ||
-    ctx.deps.options.deferFlushes ||
-    ctx.ops.isStale()
-  )
+  if (!ctx.deps.citedSourcesEnabled || ctx.deps.options.deferFlushes || ctx.ops.isStale()) return
+  const streamedSearch = ctx.state.liveSearchResource
+  const sources =
+    parsed.payload.status === 'complete'
+      ? collectCitedMessageSources(
+          ctx.deps.streamingBlocksRef.current,
+          ctx.deps.streamingContentRef.current
+        )
+      : []
+  if (!sources.length) {
+    const wasVisible =
+      streamedSearch &&
+      ctx.deps.resourcesRef.current.some(
+        (item) => getChatResourceKey(item) === getChatResourceKey(streamedSearch)
+      )
+    if (streamedSearch && !wasVisible) {
+      ctx.deps.removeResource('search', streamedSearch.id, streamedSearch.workspaceId)
+    }
     return
-  const sources = collectCitedMessageSources(
-    ctx.deps.streamingBlocksRef.current,
-    ctx.deps.streamingContentRef.current
-  )
-  if (!sources.length) return
+  }
   const resource = {
     type: 'sources' as const,
     id: 'cited-sources',
@@ -37,15 +46,12 @@ export function handleCompleteEvent(ctx: StreamLoopContext, parsed: CompleteEven
       ...(ctx.state.streamRequestId ? { requestId: ctx.state.streamRequestId } : {}),
     },
   }
-  // Search results have already served their purpose once the answer names its
-  // evidence. Include the streamed address: React may not have rendered the
-  // search resource into resourcesRef before this completion frame arrives.
+  /** Remove older search tabs when the answer replaces them with cited evidence. */
   const searchResources = new Map<string, { id: string; workspaceId?: string }>(
     ctx.deps.resourcesRef.current
       .filter((item) => item.type === 'search')
       .map((item) => [`${item.workspaceId ?? ''}:${item.id}`, item] as const)
   )
-  const streamedSearch = ctx.state.liveSearchResource
   if (streamedSearch) {
     searchResources.set(`${streamedSearch.workspaceId ?? ''}:${streamedSearch.id}`, streamedSearch)
   }

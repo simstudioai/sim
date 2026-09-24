@@ -584,14 +584,6 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       <InputToolbar
         leadingControls={
           <>
-            {onModeChange && (
-              <ConversationModeSelector
-                value={requestMode}
-                onChange={(mode) => {
-                  if (mode === 'agent' || mode === 'plan') onModeChange(mode)
-                }}
-              />
-            )}
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
                 <Chip
@@ -625,6 +617,14 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>Skills</Tooltip.Content>
             </Tooltip.Root>
+            {onModeChange && (
+              <ConversationModeSelector
+                value={requestMode}
+                onChange={(mode) => {
+                  if (mode === 'agent' || mode === 'plan') onModeChange(mode)
+                }}
+              />
+            )}
           </>
         }
         voiceControl={

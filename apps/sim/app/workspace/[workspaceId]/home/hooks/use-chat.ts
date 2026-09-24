@@ -1906,17 +1906,22 @@ export function useChat(
       chatHistory.id,
       persistedResources
     )
-    // Chats saved by earlier live-search clients can hold both tabs. Keep only
-    // the cited evidence when restoring that completed answer, and remove the
-    // obsolete search row through the same persistence queue as a tab close.
+    /** Recovery discards interim search tabs without taking an already visible panel away. */
     if (
       getDeploymentShape().features.liveEnterpriseSearch &&
       requestModeRef.current === 'assistant' &&
-      (!activeStreamId || isTerminalStreamStatus(chatHistory.streamSnapshot?.status)) &&
-      updatedResources.some((resource) => resource.type === 'sources')
+      !sendingRef.current &&
+      (!activeStreamId || isTerminalStreamStatus(chatHistory.streamSnapshot?.status))
     ) {
+      const hasCitedSources = updatedResources.some((resource) => resource.type === 'sources')
       for (const resource of updatedResources) {
-        if (resource.type === 'search') {
+        if (
+          resource.type === 'search' &&
+          (hasCitedSources ||
+            !resourcesRef.current.some(
+              (visible) => getChatResourceKey(visible) === getChatResourceKey(resource)
+            ))
+        ) {
           removeResource('search', resource.id, resource.workspaceId)
         }
       }
@@ -1932,7 +1937,20 @@ export function useChat(
     const projectedResources = pendingOrder
       ? (reorderStoredChatResources(updatedResources, pendingOrder) ?? updatedResources)
       : updatedResources
-    const restorableResources = projectedResources.filter(canDisplayResource)
+    const keepSearchPanelStable =
+      getDeploymentShape().features.liveEnterpriseSearch &&
+      requestModeRef.current === 'assistant' &&
+      (sendingRef.current ||
+        (activeStreamId && !isTerminalStreamStatus(chatHistory.streamSnapshot?.status)))
+    const restorableResources = projectedResources
+      .filter(canDisplayResource)
+      .flatMap((resource) => {
+        if (!keepSearchPanelStable || resource.type !== 'search') return [resource]
+        const visible = resourcesRef.current.find(
+          (item) => getChatResourceKey(item) === getChatResourceKey(resource)
+        )
+        return visible ? [visible] : []
+      })
     undisplayableResourcesRef.current = persistedResources.filter((r) => !canDisplayResource(r))
     // Keyed on everything the server holds, not just what is restorable, so a
     // resource being hidden cannot make it look local-only and get re-added.

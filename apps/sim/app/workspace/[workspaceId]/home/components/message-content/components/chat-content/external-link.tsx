@@ -13,7 +13,7 @@ export function hideBrokenFavicon(e: React.SyntheticEvent<HTMLImageElement>): vo
 /**
  * Hostname for an external http(s) link, used to fetch its favicon. Returns
  * null for relative, anchor, mailto, and unparsable hrefs so those keep the
- * plain underlined treatment.
+ * plain text treatment.
  */
 export function externalLinkHostname(href?: string): string | null {
   if (!href || !/^https?:\/\//i.test(href)) return null
@@ -31,14 +31,6 @@ interface ExternalLinkProps {
 }
 
 /**
- * Favicon + quiet-underline external link with an OG-preview tooltip. The
- * preview query fires when the link renders, so metadata is normally cached
- * (client and server side) before the first hover; the tooltip shows the
- * destination URL until metadata arrives or when the site has none. Previews
- * are https-only — plain-http links keep the URL tooltip, since fetching them
- * server-side would reach the URL validator's self-host loopback exception.
- */
-/**
  * In the desktop app, a plain click diverts into the embedded Sim browser
  * panel; modified clicks (Cmd/Ctrl/Shift/middle) keep the default behavior,
  * which the shell routes to the system browser. In a web browser this is a
@@ -54,6 +46,14 @@ export function handleExternalLinkClick(
   openInBrowserPanel(href)
 }
 
+/**
+ * Favicon + understated external link with an OG-preview tooltip. The
+ * preview query fires when the link renders, so metadata is normally cached
+ * (client and server side) before the first hover; the tooltip shows the
+ * destination URL until metadata arrives or when the site has none. Previews
+ * are https-only — plain-http links keep the URL tooltip, since fetching them
+ * server-side would reach the URL validator's self-host loopback exception.
+ */
 export function ExternalLink({ href, hostname, children }: ExternalLinkProps) {
   const { data } = useLinkPreview(href.startsWith('https://') ? href : undefined)
   const preview = data?.preview
@@ -63,7 +63,7 @@ export function ExternalLink({ href, hostname, children }: ExternalLinkProps) {
       <Tooltip.Trigger asChild>
         <a
           href={href}
-          className='not-prose group text-[var(--text-primary)] no-underline'
+          className='not-prose rounded-sm text-[var(--text-primary)] no-underline hover:bg-[var(--surface-5)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--text-primary)]'
           target='_blank'
           rel='noopener noreferrer'
           onClick={(event) => handleExternalLinkClick(event, href)}
@@ -74,9 +74,7 @@ export function ExternalLink({ href, hostname, children }: ExternalLinkProps) {
             className='relative top-[0.5px] mr-[2px] inline size-[12px] rounded-[3px]'
             onError={hideBrokenFavicon}
           />
-          <span className='underline decoration-[color:var(--text-muted)] underline-offset-4 transition-colors group-hover:decoration-[color:var(--text-primary)]'>
-            {children}
-          </span>
+          {children}
         </a>
       </Tooltip.Trigger>
       <Tooltip.Content>

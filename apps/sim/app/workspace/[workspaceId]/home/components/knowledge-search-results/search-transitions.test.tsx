@@ -140,7 +140,7 @@ async function render({
       <QueryClientProvider client={client}>
         <NuqsTestingAdapter hasMemory searchParams={params} onUrlUpdate={mocks.urlUpdate}>
           {organizationPage ? (
-            <OrganizationSearch />
+            <OrganizationSearch userId='reader' />
           ) : (
             <KnowledgeSearchResults
               scope={scope}
@@ -238,7 +238,7 @@ describe('search refinement with the real query cache and URL state', () => {
       expect(container.querySelector('textarea')).toBe(input)
       expect(container.querySelector('[aria-label="Search filters"]')).toBe(filters)
       expect(document.activeElement).toBe(control)
-      expect(container.textContent).toContain('Updating results…')
+      expect(container.textContent).not.toContain('Updating results…')
       expect(
         container.querySelector('[aria-label="Search results"]')?.getAttribute('aria-busy')
       ).toBe('true')
@@ -291,14 +291,14 @@ describe('search refinement with the real query cache and URL state', () => {
     await complete(0, { count: 20 })
     await click('Show more')
     expect(requests[1].body.topK).toBe(50)
-    expect(container.textContent).toContain('Updating results…')
+    expect(container.textContent).not.toContain('Updating results…')
     expect(container.textContent).not.toContain('Searching…')
     expect(container.querySelectorAll('a[data-source-link]')).toHaveLength(20)
     await complete(1, { title: 'Wider plan', count: 50 })
     expect(container.querySelectorAll('a[data-source-link]')).toHaveLength(50)
     await click('Gmail')
     expect(requests[2].body).toMatchObject({ filters: { source: 'gmail' }, topK: 20 })
-    expect(container.textContent).toContain('Updating results…')
+    expect(container.textContent).not.toContain('Updating results…')
     expect(container.textContent).not.toContain('Searching…')
     expect(container.querySelectorAll('a[data-source-link]')).toHaveLength(50)
     expect(container.querySelector('a[data-source-link]')?.textContent).toBe('Wider plan')
@@ -325,14 +325,14 @@ describe('search refinement with the real query cache and URL state', () => {
   it('keeps controls and focus while retaining only the preceding refinement results', async () => {
     await render()
     expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
-    expect(container.textContent).toContain('Searching…')
+    expect(container.textContent).not.toContain('Searching…')
     await complete(0)
     const gmail = button('Gmail')
     await click('Gmail')
     expect(button('Gmail')).toBe(gmail)
     expect(document.activeElement).toBe(gmail)
     expect(gmail.getAttribute('aria-pressed')).toBe('true')
-    expect(container.textContent).toContain('Updating results…')
+    expect(container.textContent).not.toContain('Updating results…')
     expect(container.textContent).toContain('Release plan')
     expect(container.textContent).not.toContain('Summarize')
     expect(requests[1].body.filters).toMatchObject({ source: 'gmail' })
@@ -392,7 +392,7 @@ describe('search refinement with the real query cache and URL state', () => {
               : { kind: 'organization', organizationId: 'organization' },
       })
       expect(container.textContent).not.toContain('Release plan')
-      expect(container.textContent).toContain('Searching…')
+      expect(container.textContent).not.toContain('Searching…')
       expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
       expect(requests).toHaveLength(2)
     }

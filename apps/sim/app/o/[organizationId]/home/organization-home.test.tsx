@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AuthorizedApp, AuthorizedAppsPage } from '@/lib/api/contracts/user'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
 
 const mocks = vi.hoisted(() => ({
@@ -93,6 +94,7 @@ import { OrganizationHome } from '@/app/o/[organizationId]/home/organization-hom
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
+  useMothershipDraftsStore.setState({ drafts: {} })
   mocks.plan = false
   mocks.live = false
   vi.clearAllMocks()
@@ -906,3 +908,65 @@ it.each(['adaptive', 'fast', 'max'] as const)(
     )
   }
 )
+
+it.each(['agent', 'plan', 'assistant'] as const)(
+  'persists the %s Home draft across reloads and mode changes',
+  async (mode) => {
+    mocks.plan = true
+    await act(async () => renderHome(<OrganizationHome requestMode={mode} />))
+    await act(async () => composerProps().onChange('Unsent launch follow-up'))
+    expect(localStorage.getItem('mothership-drafts:v1')).toContain('Unsent launch follow-up')
+    await act(async () =>
+      composerProps().onModeChange?.(mode === 'assistant' ? 'agent' : 'assistant')
+    )
+    expect(composerProps().value).toBe('Unsent launch follow-up')
+    await act(async () => root.unmount())
+    const saved = localStorage.getItem('mothership-drafts:v1')!
+    useMothershipDraftsStore.setState({ drafts: {} })
+    localStorage.setItem('mothership-drafts:v1', saved)
+    await useMothershipDraftsStore.persist.rehydrate()
+    root = createRoot(container)
+    await act(async () => renderHome(<OrganizationHome requestMode={mode} />))
+    expect(composerProps().value).toBe('Unsent launch follow-up')
+    await act(async () => composerProps().onSubmit(composerProps().value))
+    expect(composerProps().value).toBe('')
+    expect(localStorage.getItem('mothership-drafts:v1')).not.toContain('Unsent launch follow-up')
+  }
+)
+
+it('isolates saved drafts by user, organization, and conversation', async () => {
+  mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+  await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
+  await act(async () => composerProps().onChange('Chat A follow-up'))
+  await act(async () => renderHome(<OrganizationHome chatId='chat-b' requestMode='assistant' />))
+  expect(composerProps().value).toBe('')
+  await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
+  expect(composerProps().value).toBe('Chat A follow-up')
+  mocks.session.mockReturnValue({ data: { user: { id: 'other-user' } } })
+  await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
+  expect(composerProps().value).toBe('')
+  mocks.session.mockReturnValue({ data: { user: { id: 'reader' } } })
+  mocks.context.mockReturnValue({
+    ...mocks.context(),
+    organization: { id: 'other-org', name: 'Other' },
+  })
+  await act(async () => renderHome(<OrganizationHome chatId='chat-a' requestMode='assistant' />))
+  expect(composerProps().value).toBe('')
+})
+
+it('moves a follow-up draft to the newly resolved conversation before it is reopened', async () => {
+  mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+  await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
+  await act(async () => composerProps().onSubmit('First question'))
+  await act(async () => composerProps().onChange('Follow-up typed before admission'))
+  mocks.chat.mockReturnValue({ ...mocks.chat(), resolvedChatId: 'adopted-chat' })
+  await act(async () => renderHome(<OrganizationHome requestMode='assistant' />))
+  expect(composerProps().value).toBe('Follow-up typed before admission')
+  expect(
+    useMothershipDraftsStore.getState().drafts['reader:organization:organization-a:new']
+  ).toBeUndefined()
+  await act(async () =>
+    renderHome(<OrganizationHome chatId='adopted-chat' requestMode='assistant' />)
+  )
+  expect(composerProps().value).toBe('Follow-up typed before admission')
+})

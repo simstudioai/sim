@@ -40,6 +40,7 @@ import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { getWorkspaceFilesQueryOptions } from '@/hooks/queries/workspace-files'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
 import type { ChatContext } from '@/stores/panel'
 
@@ -61,7 +62,12 @@ export function OrganizationHome(props: OrganizationHomeProps) {
   if (!mothershipAvailable || (!canBuild && !searchAccess.memberScoped)) return null
   /** Preferences are browser-persisted and keyed by user; never paint a guessed mode first. */
   if (!isClient || !session?.user?.id) return <HomeFallback />
-  return <OrganizationHomeContent key={`${organization.id}:${props.chatId ?? 'new'}`} {...props} />
+  return (
+    <OrganizationHomeContent
+      key={`${session.user.id}:${organization.id}:${props.chatId ?? 'new'}`}
+      {...props}
+    />
+  )
 }
 
 function OrganizationHomeContent({
@@ -93,8 +99,6 @@ function OrganizationHomeContent({
         : rememberedMode === 'assistant' && searchAccess.memberScoped
           ? 'assistant'
           : 'agent')
-  const [draft, setDraft] = useState('')
-  const [restoredContexts, setRestoredContexts] = useState<ChatContext[]>([])
   const controller = useResourcePanelController()
   const queryClient = useQueryClient()
   const chat = useChat({ organizationId: organization.id }, chatId, {
@@ -103,6 +107,23 @@ function OrganizationHomeContent({
     onResourceEvent: controller.onResourceEvent,
     activeResourceState: controller.activeResourceState,
   })
+  const initialDraftKey = `${userId}:organization:${organization.id}:${chatId ?? 'new'}`
+  const draftKey = `${userId}:organization:${organization.id}:${chat.resolvedChatId ?? chatId ?? 'new'}`
+  const draft = useMothershipDraftsStore(
+    (state) => (state.drafts[draftKey] ?? state.drafts[initialDraftKey])?.text ?? ''
+  )
+  const setDraft = useCallback(
+    (text: string, contexts?: ChatContext[]) => {
+      useMothershipDraftsStore.getState().setDraft(draftKey, { text, contexts })
+    },
+    [draftKey]
+  )
+  const [restoredContexts, setRestoredContexts] = useState<ChatContext[]>(
+    () => useMothershipDraftsStore.getState().drafts[draftKey]?.contexts ?? []
+  )
+  useEffect(() => {
+    useMothershipDraftsStore.getState().migrateDraft(initialDraftKey, draftKey)
+  }, [initialDraftKey, draftKey])
   const hasChat = Boolean(chatId || chat.messages.length)
   const canSelectMode =
     !hasChat && mothershipAvailable && canBuild && (searchAccess.memberScoped || planEnabled)
@@ -277,7 +298,7 @@ function OrganizationHomeContent({
     )
 
   const content = (
-    <div className='flex h-full min-h-0 min-w-[240px] flex-1 flex-col bg-[var(--bg)]'>
+    <div className='flex h-full min-h-0 min-w-[min(480px,100%)] flex-1 flex-col bg-[var(--bg)]'>
       {hasChat ? (
         <MothershipChat
           SearchConnectionComponent={SearchIntegrationConnection}

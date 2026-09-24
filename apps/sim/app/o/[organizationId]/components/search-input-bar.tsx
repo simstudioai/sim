@@ -81,8 +81,8 @@ export function SearchInputBar({
     <div
       ref={scrollerRef}
       className={cn(
-        'relative min-h-[46px] w-full rounded-[23px] border border-[var(--border-1)] bg-[var(--white)] py-[7px] pr-2.5 pl-4 dark:bg-[var(--surface-4)]',
-        hasAttachments && 'rounded-2xl px-2.5 py-2',
+        'relative min-h-[46px] w-full rounded-[23px] border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
+        (hasAttachments || expanded) && 'rounded-2xl',
         floating && 'shadow-ambient'
       )}
     >
