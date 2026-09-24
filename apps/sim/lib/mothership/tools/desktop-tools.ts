@@ -21,6 +21,7 @@ export const NAMED_DESKTOP_TOOL_NAMES = [
   TERMINAL_TOOL_NAME,
   'import_local_files',
   'read_local_file',
+  'computer',
 ] as const
 
 const DESKTOP_TOOL_NAMES: ReadonlySet<string> = new Set(NAMED_DESKTOP_TOOL_NAMES)
@@ -37,6 +38,7 @@ export function isDesktopToolCall(toolName: string, args: Record<string, unknown
 export function getDesktopToolClaimOwner(toolName: string): DesktopToolClaimOwner | undefined {
   if (isCurrentBrowserToolName(toolName)) return DESKTOP_TOOL_CLAIM_OWNER.browser
   if (isTerminalToolName(toolName)) return DESKTOP_TOOL_CLAIM_OWNER.terminal
+  if (toolName === 'computer') return DESKTOP_TOOL_CLAIM_OWNER.computer
   if (toolName === 'import_local_files') return DESKTOP_TOOL_CLAIM_OWNER.files
   return undefined
 }

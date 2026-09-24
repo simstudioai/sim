@@ -319,6 +319,16 @@ export const POST = withRouteHandler((req: NextRequest) => {
           return heldByAnotherReporterResponse()
         }
 
+        if (
+          existing.toolName === 'computer' &&
+          (status === ASYNC_TOOL_CONFIRMATION_STATUS.background ||
+            (existing.status === ASYNC_TOOL_STATUS.running &&
+              existing.claimedBy !== DESKTOP_TOOL_CLAIM_OWNER.computer))
+        ) {
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
+          return createNotFoundResponse('Claimed computer tool call not found')
+        }
+
         let effectiveStatus = status
         let executionId = submittedExecutionId
         let launchError: WorkflowToolLaunchError | undefined
@@ -429,7 +439,11 @@ export const POST = withRouteHandler((req: NextRequest) => {
           projected.data,
           {
             ...(isWorkflowTool && executionId ? { executionId } : {}),
-            ...(isPreclaimNativeTerminalOutcome ? { guard: { kind: 'pending' } as const } : {}),
+            ...(isPreclaimNativeTerminalOutcome
+              ? { guard: { kind: 'pending' } as const }
+              : existing.toolName === 'computer'
+                ? { guard: { kind: 'claimed', claimedBy: DESKTOP_TOOL_CLAIM_OWNER.computer } as const }
+                : {}),
           }
         )
 

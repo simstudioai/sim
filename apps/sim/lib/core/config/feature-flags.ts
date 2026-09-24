@@ -51,6 +51,11 @@ const FEATURE_FLAGS = {
       'Enable dashboard resources, rendering, analytics, and Mothership authoring. Supports global and organization rollout; disabled by default.',
     fallback: 'DASHBOARDS',
   },
+  'mothership-computer-use': {
+    description:
+      'Enable native macOS computer use in Mothership. Global on/off only; each device must also opt in.',
+    fallback: 'MSHIP_COMPUTER_USE',
+  },
   'mothership-model-selector': {
     description:
       'Show the Mothership model selector, model-specific effort levels, and Fast for supported ' +

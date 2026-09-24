@@ -27,10 +27,15 @@ import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
 import { searchIssuesV2Tool } from '@/tools/github/search_issues'
 import { getToolMetadata } from '@/tools/metadata'
 
-const { mockCreateUserToolSchema, mockDashboardAvailability, mockSecretNames } = vi.hoisted(() => ({
+const { mockCreateUserToolSchema, mockDashboardAvailability, mockSecretNames, mockComputerUseAvailable } = vi.hoisted(() => ({
   mockDashboardAvailability: vi.fn(async () => false),
+  mockComputerUseAvailable: vi.fn(async () => false),
   mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
   mockSecretNames: vi.fn(async () => ({ names: [] as string[] })),
+}))
+
+vi.mock('@/lib/computer-use/availability.server', () => ({
+  isComputerUseAvailable: mockComputerUseAvailable,
 }))
 
 // The inventory reads nine application worlds; these suites exercise the request shape, not the reads.
@@ -755,6 +760,27 @@ describe('Assistant payload', () => {
 })
 
 describe('desktop request capabilities', () => {
+  it.each([false, true])(
+    'rechecks the server rollout for a forged computer capability (enabled=%s)',
+    async (enabled) => {
+      mockComputerUseAvailable.mockResolvedValueOnce(enabled)
+      const payload = await buildCopilotRequestPayload(
+        {
+          message: 'Use Notes',
+          workspaceId: 'workspace',
+          userId: 'user',
+          userMessageId: 'message',
+          mode: 'agent',
+          model: 'gpt-6-astra',
+          computerUse: true,
+        },
+        { selectedModel: 'gpt-6-astra' }
+      )
+      expect(payload.desktop?.computerUse ?? false).toBe(enabled)
+      expect(mockComputerUseAvailable).toHaveBeenCalledWith()
+    }
+  )
+
   it('preserves desktop capabilities and current session hints on the worker wire', async () => {
     const payload = await buildCopilotRequestPayload({
       message: 'Inspect my local page',
@@ -771,6 +797,7 @@ describe('desktop request capabilities', () => {
       ],
     })
     expect(payload.desktop).toEqual({
+      computerUse: false,
       browser: true,
       terminal: true,
       terminals: [{ id: 'terminal-1', cwd: '/work/app', active: true }],
@@ -791,6 +818,7 @@ describe('desktop request capabilities', () => {
       desktopLocalFiles: true,
     })
     expect(payload.desktop).toEqual({
+      computerUse: false,
       localFiles: true,
       browser: false,
       terminal: false,

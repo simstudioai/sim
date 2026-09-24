@@ -213,6 +213,8 @@ export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void
       deps.startClientBrowserTool(rawId, name, args ?? {}, parsed.ts)
     } else if (isTerminalToolName(name)) {
       deps.startClientTerminalTool(rawId, name, args ?? {}, parsed.ts)
+    } else if (name === 'computer') {
+      deps.startClientComputerTool(rawId, payload.arguments ?? {}, parsed.ts)
     } else {
       deps.startClientLocalFilesystemTool(rawId, name, args ?? {})
     }

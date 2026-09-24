@@ -5,6 +5,7 @@ import type { DesktopPreferenceKey, DesktopPreferences } from '@sim/desktop-brid
 import { Label, Switch, toast } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
 import { getDesktopBridge, getDesktopShellVersion } from '@/lib/desktop'
+import { ComputerUseSettings } from '@/app/workspace/[workspaceId]/settings/components/desktop/computer-use'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
@@ -84,6 +85,7 @@ export function Desktop() {
 
   return (
     <SettingsPanel>
+      <ComputerUseSettings />
       <SettingsSection label='General'>
         <div className='flex flex-col gap-3'>
           {shellVersion && (

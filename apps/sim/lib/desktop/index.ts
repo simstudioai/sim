@@ -24,6 +24,8 @@
 import type { BrowserKnownSession } from '@sim/browser-protocol'
 import type { DesktopPreferences, SimDesktopApi } from '@sim/desktop-bridge'
 import { truncate } from '@sim/utils/string'
+import { requestJson } from '@/lib/api/client'
+import { computerUseAvailabilityContract } from '@/lib/api/contracts/computer-use'
 import {
   DESKTOP_TERMINAL_HINT_ID_MAX_LENGTH,
   DESKTOP_TERMINAL_HINT_TEXT_MAX_LENGTH,
@@ -159,6 +161,7 @@ export interface DesktopChatCapabilities {
     localReadClaims?: true
     browser?: true
     terminal?: true
+    computerUse?: true
     browserSessions?: BrowserKnownSession[]
     terminals?: DesktopTerminalHint[]
     /** The desktop's background executor, offered to run this turn's desktop tools. */
@@ -183,6 +186,14 @@ export async function getDesktopChatCapabilities(
   const localFilesystem = hasLocalFilesystem()
   const browser = isBrowserAgentEnabled()
   const terminal = isTerminalEnabled()
+  const computerUse = bridge?.computerUse
+    ? await Promise.all([
+        bridge.computerUse.getStatus(),
+        requestJson(computerUseAvailabilityContract, { signal: AbortSignal.timeout(5000) }),
+      ])
+        .then(([status, rollout]) => status.supported && status.enabled && rollout.enabled)
+        .catch(() => false)
+    : false
   // Sent every request so the agent knows what is already running without
   // spending a tool call to ask — and, more importantly, so it notices a
   // terminal that is occupied instead of launching a second copy into it.
@@ -221,7 +232,7 @@ export async function getDesktopChatCapabilities(
     ? await bridge.desktopExecutor.getDevice().catch(() => null)
     : null
   return {
-    ...(localFiles || localFilesystem || browser || terminal
+    ...(localFiles || localFilesystem || browser || terminal || computerUse
       ? {
           desktopCapabilities: {
             ...(localFiles ? { localFiles: true as const } : {}),
@@ -229,6 +240,7 @@ export async function getDesktopChatCapabilities(
             ...(localFilesystem ? { localFilesystem: true as const } : {}),
             ...(browser ? { browser: true as const } : {}),
             ...(terminal ? { terminal: true as const } : {}),
+            ...(computerUse ? { computerUse: true as const } : {}),
             ...(terminals.length > 0 ? { terminals } : {}),
             ...(browserSessions.length > 0 ? { browserSessions } : {}),
             ...(executorDevice
