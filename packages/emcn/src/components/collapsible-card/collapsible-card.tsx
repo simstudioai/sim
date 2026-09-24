@@ -3,6 +3,8 @@
 import type * as React from 'react'
 import { cn } from '../../lib/cn'
 import { handleKeyboardActivation } from '../../lib/keyboard'
+import { Expandable, ExpandableContent } from '../expandable/expandable'
+import { FieldCardContent, FieldCardFrame } from '../field-card/field-card'
 import { OverflowText, overflowTextClipClass } from '../overflow-text/overflow-text'
 
 export interface CollapsibleCardProps
@@ -13,8 +15,14 @@ export interface CollapsibleCardProps
   badge?: React.ReactNode
   /** Header actions, outside the collapse target and arranged with standard spacing. */
   actions?: React.ReactNode
+  /** Prevent header activation and remove it from tab order; independent actions stay available. */
+  disabled?: boolean
   collapsed: boolean
   onToggleCollapse: () => void
+  /** Animate expansion using the shared Expandable height transition. */
+  animated?: boolean
+  /** Native body attributes and layout, including an ID linked from the trigger. */
+  contentProps?: React.HTMLAttributes<HTMLDivElement>
   /** Body content, shown when expanded. */
   children: React.ReactNode
 }
@@ -23,6 +31,7 @@ export interface CollapsibleCardProps
  * A collapsible field card: a `--surface-4` header (click / keyboard to toggle)
  * with a fade-clipped title + optional badge, over a `--surface-2` body. Shared by
  * the workflow input-mapping rows and the enrichment output-column config.
+ * Its frame and body are also used by the always-open FieldCard.
  *
  * @example
  * <CollapsibleCard title='Condition' collapsed={collapsed} onToggleCollapse={toggle}
@@ -35,65 +44,72 @@ export function CollapsibleCard({
   badge,
   actions,
   collapsed,
+  disabled = false,
   onToggleCollapse,
+  animated = false,
+  contentProps,
   children,
   className,
   ...props
 }: CollapsibleCardProps) {
+  const content = <FieldCardContent {...contentProps}>{children}</FieldCardContent>
   return (
-    <div
+    <FieldCardFrame
       {...props}
-      className={cn(
-        'rounded-sm border border-[var(--border-1)]',
-        collapsed ? 'overflow-hidden' : 'overflow-visible',
-        className
-      )}
-    >
-      <div className='flex items-center justify-between rounded-t-[4px] bg-[var(--surface-4)]'>
-        <div
-          role='button'
-          tabIndex={0}
-          aria-expanded={!collapsed}
-          className={cn(
-            'flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-2.5 py-[5px]',
-            actions && 'pr-2'
-          )}
-          onClick={onToggleCollapse}
-          onKeyDown={(event) => {
-            if (event.target !== event.currentTarget) return
-            handleKeyboardActivation(event, onToggleCollapse)
-          }}
-        >
-          {typeof title === 'string' || typeof title === 'number' ? (
-            <OverflowText
-              label={String(title)}
-              className='flex-1 text-[var(--text-tertiary)] text-sm'
-              focusTarget='nearest-interactive'
-            />
-          ) : (
-            <span
-              className={cn(overflowTextClipClass, 'flex-1 text-[var(--text-tertiary)] text-sm')}
-            >
-              {title}
-            </span>
-          )}
-          {badge}
-        </div>
-        {actions && (
+      className={cn(collapsed ? 'overflow-hidden' : 'overflow-visible', className)}
+      header={
+        <>
           <div
-            role='presentation'
-            className='flex shrink-0 items-center gap-2 py-[5px] pr-2.5'
-            onClick={(event) => event.stopPropagation()}
+            role='button'
+            tabIndex={disabled ? -1 : 0}
+            aria-expanded={!collapsed}
+            aria-disabled={disabled || undefined}
+            aria-controls={contentProps?.id}
+            className={cn(
+              'flex min-w-0 flex-1 items-center gap-2 px-2.5 py-[5px]',
+              !disabled && 'cursor-pointer',
+              actions && 'pr-2'
+            )}
+            onClick={disabled ? undefined : onToggleCollapse}
+            onKeyDown={(event) => {
+              if (disabled || event.target !== event.currentTarget) return
+              handleKeyboardActivation(event, onToggleCollapse)
+            }}
           >
-            {actions}
+            {typeof title === 'string' || typeof title === 'number' ? (
+              <OverflowText
+                label={String(title)}
+                className='flex-1 text-[var(--text-tertiary)] text-sm'
+                focusTarget='nearest-interactive'
+              />
+            ) : (
+              <span
+                className={cn(overflowTextClipClass, 'flex-1 text-[var(--text-tertiary)] text-sm')}
+              >
+                {title}
+              </span>
+            )}
+            {badge}
           </div>
-        )}
-      </div>
-      {!collapsed && (
-        <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
-          {children}
-        </div>
+          {actions && (
+            <div
+              role='presentation'
+              className='flex shrink-0 items-center gap-2 py-[5px] pr-2.5'
+              onClick={(event) => event.stopPropagation()}
+            >
+              {actions}
+            </div>
+          )}
+        </>
+      }
+    >
+      {animated ? (
+        <Expandable expanded={!collapsed}>
+          <ExpandableContent>{content}</ExpandableContent>
+        </Expandable>
+      ) : (
+        !collapsed && content
       )}
-    </div>
+    </FieldCardFrame>
   )
 }

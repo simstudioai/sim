@@ -1,7 +1,7 @@
-import { Combobox, cn, Label, Tooltip } from '@sim/emcn'
-import { ArrowLeftRight } from '@sim/emcn/icons'
+import { Combobox, Label } from '@sim/emcn'
 import type { CanonicalMode } from '@/lib/workflows/subblocks/visibility'
 import type { StoredTool } from '@/lib/workflows/tool-input/types'
+import { FieldModeToggle } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/field-mode-toggle/field-mode-toggle'
 import { ShortInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/short-input'
 import type { SubBlockConfig } from '@/blocks/types'
 
@@ -63,29 +63,12 @@ export function ToolUsageControl({
       <div className='flex items-center justify-between gap-1.5 pl-0.5'>
         <Label className='flex items-baseline gap-1.5 whitespace-nowrap'>Permission Mode</Label>
         <div className='flex min-w-0 flex-1 items-center justify-end gap-1.5'>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <button
-                type='button'
-                className='flex size-[12px] shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
-                onClick={onModeToggle}
-                disabled={disabled}
-                aria-label={toggleLabel}
-              >
-                <ArrowLeftRight
-                  className={cn(
-                    'size-[12px]!',
-                    mode === 'advanced'
-                      ? 'text-[var(--text-primary)]'
-                      : 'text-[var(--text-secondary)]'
-                  )}
-                />
-              </button>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              <p>{toggleLabel}</p>
-            </Tooltip.Content>
-          </Tooltip.Root>
+          <FieldModeToggle
+            active={mode === 'advanced'}
+            label={toggleLabel}
+            onClick={onModeToggle}
+            disabled={disabled}
+          />
         </div>
       </div>
       {mode === 'advanced' ? (
