@@ -3,6 +3,8 @@
 import { type ComponentType, Fragment, useState } from 'react'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
+import { CallIntegrationTool, RunCode } from '@/lib/mothership/generated/tool-catalog-v1'
+import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import {
   getToolActivitySummaryActions,
   readToolActivity,
@@ -11,7 +13,10 @@ import { getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
 import { getNewestRunningTool } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-content'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
-import { getActivityAttentionKey } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-interactions'
+import {
+  getActivityAttentionKey,
+  needsToolInput,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-interactions'
 import { isToolDone } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
 import { type ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -66,21 +71,69 @@ function getToolActivityInterruptions(tools: ToolCallData[]): string[] {
 }
 
 /**
- * The title of an activity in progress, shared by tool group and subagent
- * headers: "Working…" while a `sim_cli` or `run_code` call still generates its
- * arguments, else the status call's in-progress title with earlier stops and
- * skips kept visible.
+ * An executing call whose streamed arguments do not name its action yet, so its
+ * title is only its tool's placeholder: a `sim_cli` call before its command
+ * parses ("Running CLI command") or a `run_code` call before its arguments
+ * resolve, while their parameters hold at most the activity, and an
+ * integration gateway call before its description streams ("Calling integration").
+ * A call awaiting approval is never untitled, so its permission card keeps the
+ * header, and neither is one the model already described.
+ */
+function isAwaitingTitle(tool: ToolCallData): boolean {
+  if (tool.status !== ToolCallStatus.executing || tool.activityDescription) return false
+  if (tool.toolName === CallIntegrationTool.id) {
+    const description =
+      tool.params?.description ?? extractStreamingStringArgument(tool.streamingArgs, 'description')
+    return !(typeof description === 'string' && description.trim())
+  }
+  return (
+    (tool.toolName === 'sim_cli' || tool.toolName === RunCode.id) &&
+    Object.keys(tool.params ?? {}).every((key) => key === 'activity')
+  )
+}
+
+/**
+ * The call an in-progress header describes, label and icon alike, shared by
+ * tool group and subagent headers so a live header never flips to placeholder
+ * text between steps: the status call, unless it is still awaiting its title,
+ * in which case the call the header described before it keeps the header
+ * until the new title arrives. A call waiting on the user is never held, since
+ * its permission card or handoff would replace the header, and neither is a
+ * failed call, which must not read as live. With no such earlier call, the
+ * status call.
+ */
+export function getActivityHeaderTool(
+  tools: ToolCallData[],
+  statusTool: ToolCallData
+): ToolCallData {
+  if (!isAwaitingTitle(statusTool)) return statusTool
+  return (
+    getActivityStatusTool(
+      tools.filter(
+        (tool) =>
+          tool.id !== statusTool.id &&
+          !isAwaitingTitle(tool) &&
+          !needsToolInput(tool) &&
+          !isFailedTool(tool)
+      )
+    ) ?? statusTool
+  )
+}
+
+/**
+ * The title of an activity in progress for its header call, with earlier
+ * stops and skips kept visible. A header call still awaiting its title has no
+ * earlier call to hold, so it reads as the activity's intent when the model
+ * gave one, else as its own in-progress title.
  */
 export function getInProgressActivityLabel(
   activeLabel: string,
-  statusTool: ToolCallData,
-  tools: ToolCallData[]
+  headerTool: ToolCallData,
+  tools: ToolCallData[],
+  activityTitle: string | undefined
 ): string {
-  const isGenerating =
-    !isToolDone(statusTool.status) &&
-    (statusTool.toolName === 'sim_cli' || statusTool.toolName === 'run_code') &&
-    Object.keys(statusTool.params ?? {}).every((key) => key === 'activity')
-  return isGenerating ? 'Working…' : getActiveToolActivityTitle(activeLabel, statusTool, tools)
+  const label = (isAwaitingTitle(headerTool) && activityTitle) || activeLabel
+  return getActiveToolActivityTitle(label, headerTool, tools)
 }
 
 /** Keep earlier interruptions visible while the latest action continues. */
@@ -141,6 +194,7 @@ export function ToolActivityGroup({
   const [expanded, setExpanded] = useState(false)
   const statusTool = getActivityStatusTool(tools)
   if (!statusTool) return null
+  const headerTool = getActivityHeaderTool(tools, statusTool)
   const groupedActivity =
     activity ??
     tools
@@ -153,20 +207,25 @@ export function ToolActivityGroup({
 
   return (
     <ToolCallComponent
-      {...statusTool}
-      toolCallId={statusTool.id}
+      {...headerTool}
+      toolCallId={headerTool.id}
       renderStatus={(status) => (
         <ActivityStream
           activity={{
             label: working
-              ? getInProgressActivityLabel(status.activeLabel, statusTool, tools)
+              ? getInProgressActivityLabel(
+                  status.activeLabel,
+                  headerTool,
+                  tools,
+                  groupedActivity?.title
+                )
               : tools.length === 1
                 ? status.label
                 : getCompletedActivityLabel(tools, groupedActivity),
             isActive: isLive,
             icon: status.icon,
           }}
-          activityKey={statusTool.id}
+          activityKey={headerTool.id}
           attentionKey={attentionKey}
           expandedLabel={tools.length > 1 ? groupedActivity?.title : undefined}
           collapsible={tools.length > 1}
@@ -177,7 +236,7 @@ export function ToolActivityGroup({
           <div className='flex min-w-0 flex-col gap-1.5 py-0.5'>
             {tools.map((tool) => (
               <Fragment key={tool.id}>
-                {tool.id === statusTool.id ? (
+                {tool.id === headerTool.id ? (
                   <ActivityStatus {...status} />
                 ) : (
                   <ToolCallComponent {...tool} toolCallId={tool.id} />

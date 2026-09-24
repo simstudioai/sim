@@ -1,6 +1,10 @@
 /** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
-import { getCompletedActivityLabel } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
+import {
+  getActivityHeaderTool,
+  getCompletedActivityLabel,
+  getInProgressActivityLabel,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
 /** A finished activity without a model title is labelled by its action summary. */
@@ -132,5 +136,87 @@ describe('interrupted activity summaries', () => {
         },
       ])
     ).toBe('Ran invoice workflow')
+  })
+})
+
+describe('in-progress activity header', () => {
+  const read = tool('read', 'Reading notes.md')
+  const pendingCli = tool('sim_cli', 'Running CLI command', 'executing', {
+    activity: { id: 'a' },
+  })
+  const pendingGateway = tool('call_integration_tool', 'Calling integration', 'executing')
+
+  it.each([
+    ['a CLI call before its command parses', pendingCli],
+    ['a code call before its arguments resolve', tool('run_code', 'Running code', 'executing')],
+    ['a gateway call before its description streams', pendingGateway],
+  ])('holds the previous call for %s', (_case, pending) => {
+    const tools = [read, pending]
+    expect(getActivityHeaderTool(tools, pending)).toBe(read)
+    expect(getInProgressActivityLabel('Reading notes.md', read, tools, 'Reconciling')).toBe(
+      'Reading notes.md'
+    )
+  })
+
+  it('holds the call the header described before, skipping untitled and failed calls', () => {
+    const failed = tool('grep', 'Searching', 'error')
+    const tools = [read, failed, pendingGateway, pendingCli]
+    expect(getActivityHeaderTool(tools, pendingCli)).toBe(read)
+  })
+
+  it('never holds a failed call, falling back to the new call itself', () => {
+    const failed = tool('grep', 'Searching', 'error')
+    expect(getActivityHeaderTool([failed, pendingCli], pendingCli)).toBe(pendingCli)
+    expect(
+      getInProgressActivityLabel(
+        'Running CLI command',
+        pendingCli,
+        [failed, pendingCli],
+        'Reconciling'
+      )
+    ).toBe('Reconciling')
+  })
+
+  it('keeps a call waiting on approval as the header, never holding past or onto it', () => {
+    const gatedGateway = {
+      ...pendingGateway,
+      id: 'gateway-gated',
+      status: 'awaiting_approval' as const,
+    }
+    expect(getActivityHeaderTool([read, gatedGateway], gatedGateway)).toBe(gatedGateway)
+    const gatedRead = { ...read, id: 'read-gated', status: 'awaiting_approval' as const }
+    expect(getActivityHeaderTool([read, gatedRead, pendingCli], pendingCli)).toBe(read)
+  })
+
+  it.each([
+    ['a parsed CLI command', tool('cli_workflows_list', 'Listing workflows', 'executing')],
+    [
+      'resolved code arguments',
+      tool('run_code', 'Summing', 'executing', { activity: { id: 'a' }, code: '1' }),
+    ],
+    [
+      'a streamed gateway description',
+      {
+        ...pendingGateway,
+        id: 'gateway-described',
+        streamingArgs: '{"description":"Sending the report",',
+      },
+    ],
+    [
+      'a model activity description',
+      { ...pendingCli, id: 'cli-described', activityDescription: 'Listing the workflows' },
+    ],
+  ])('describes the new call once it has %s', (_case, titled) => {
+    expect(getActivityHeaderTool([read, titled], titled)).toBe(titled)
+  })
+
+  it('reads a first untitled call as the activity intent, else its own title', () => {
+    expect(getActivityHeaderTool([pendingCli], pendingCli)).toBe(pendingCli)
+    expect(
+      getInProgressActivityLabel('Running CLI command', pendingCli, [pendingCli], 'Reconciling')
+    ).toBe('Reconciling')
+    expect(
+      getInProgressActivityLabel('Running CLI command', pendingCli, [pendingCli], undefined)
+    ).toBe('Running CLI command')
   })
 })

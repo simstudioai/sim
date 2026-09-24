@@ -24,6 +24,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/lane-activity'
 import { MainAgentActivity } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/main-agent-activity'
 import {
+  getActivityHeaderTool,
   getActivityStatusTool,
   getCompletedActivityLabel,
   getInProgressActivityLabel,
@@ -119,13 +120,14 @@ export function AgentGroupView({
   const isMainAgent = agentName === 'mothership'
   const tools = isMainAgent ? [] : collectGroupTools(items)
   const statusTool = getActivityStatusTool(tools)
-  const statusTitle = useToolCallTitle(
-    statusTool && {
-      ...statusTool,
-      toolCallId: statusTool.id,
+  const headerTool = statusTool && getActivityHeaderTool(tools, statusTool)
+  const headerTitle = useToolCallTitle(
+    headerTool && {
+      ...headerTool,
+      toolCallId: headerTool.id,
       displayTitle:
-        statusTool.displayTitle ||
-        getToolDisplayTitle(String(statusTool.toolName ?? ''), undefined),
+        headerTool.displayTitle ||
+        getToolDisplayTitle(String(headerTool.toolName ?? ''), undefined),
     }
   )
   const activityDescriptor =
@@ -283,8 +285,13 @@ export function AgentGroupView({
   const headerText = error
     ? agentLabel
     : inProgress
-      ? statusTool && statusTitle
-        ? getInProgressActivityLabel(statusTitle.activeLabel, statusTool, tools)
+      ? headerTool && headerTitle
+        ? getInProgressActivityLabel(
+            headerTitle.activeLabel,
+            headerTool,
+            tools,
+            activityDescriptor?.title
+          )
         : 'Thinking'
       : tools.length > 0
         ? getCompletedActivityLabel(tools, activityDescriptor)
@@ -307,7 +314,7 @@ export function AgentGroupView({
       ) : (
         <ActivityStream
           activity={{ label: headerText, isActive: headerActive, icon: agentIcon }}
-          activityKey={statusTool?.id}
+          activityKey={headerTool?.id}
           expandedLabel={pendingInteraction ? undefined : activityDescriptor?.title}
           attentionKey={`${getActivityAttentionKey(tools)}:${activeBrowserTakeover?.id ?? ''}`}
           collapsible={collapsible}
