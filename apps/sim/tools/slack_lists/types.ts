@@ -161,10 +161,10 @@ export const LIST_ITEM_OUTPUT_PROPERTIES = {
           items: { type: 'string' },
         },
         checkbox: {
-          type: 'array',
+          type: 'json',
           optional: true,
-          description: 'Checkbox values in responses; write a scalar boolean',
-          items: { type: 'boolean' },
+          description:
+            'Checkbox boolean or boolean array returned by Slack; write a scalar boolean',
         },
         email: {
           type: 'array',

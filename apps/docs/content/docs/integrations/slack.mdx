@@ -1580,7 +1580,7 @@ Read a page of Slack List rows and optionally its column schema. Pass nextCursor
 |     ↳ `user` | array | Slack user IDs |
 |     ↳ `channel` | array | Slack channel IDs |
 |     ↳ `attachment` | array | Slack file IDs |
-|     ↳ `checkbox` | array | Checkbox values in responses; write a scalar boolean |
+|     ↳ `checkbox` | json | Checkbox boolean or boolean array returned by Slack; write a scalar boolean |
 |     ↳ `email` | array | Email values |
 |     ↳ `phone` | array | Phone values |
 |     ↳ `rating` | array | Rating values |
@@ -1635,7 +1635,7 @@ Read a Slack List row and its parent List column schema.
 |     ↳ `user` | array | Slack user IDs |
 |     ↳ `channel` | array | Slack channel IDs |
 |     ↳ `attachment` | array | Slack file IDs |
-|     ↳ `checkbox` | array | Checkbox values in responses; write a scalar boolean |
+|     ↳ `checkbox` | json | Checkbox boolean or boolean array returned by Slack; write a scalar boolean |
 |     ↳ `email` | array | Email values |
 |     ↳ `phone` | array | Phone values |
 |     ↳ `rating` | array | Rating values |
@@ -1691,7 +1691,7 @@ Create a Slack List row using real column IDs and typed cell values. Text column
 |     ↳ `user` | array | Slack user IDs |
 |     ↳ `channel` | array | Slack channel IDs |
 |     ↳ `attachment` | array | Slack file IDs |
-|     ↳ `checkbox` | array | Checkbox values in responses; write a scalar boolean |
+|     ↳ `checkbox` | json | Checkbox boolean or boolean array returned by Slack; write a scalar boolean |
 |     ↳ `email` | array | Email values |
 |     ↳ `phone` | array | Phone values |
 |     ↳ `rating` | array | Rating values |

@@ -19,7 +19,7 @@ export const listFieldResponseSchema = z
     user: z.array(z.string()).optional(),
     channel: z.array(z.string()).optional(),
     attachment: z.array(z.string()).optional(),
-    checkbox: z.array(z.boolean()).optional(),
+    checkbox: z.union([z.boolean(), z.array(z.boolean())]).optional(),
     email: z.array(z.string()).optional(),
     phone: z.array(z.string()).optional(),
     rating: z.array(z.number()).optional(),
