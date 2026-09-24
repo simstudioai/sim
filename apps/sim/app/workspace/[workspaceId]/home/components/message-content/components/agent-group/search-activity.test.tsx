@@ -104,6 +104,11 @@ describe('inline search activity', () => {
       { ...tool, toolName: 'search_sources', status: 'error', params: { action: 'list' } },
       'Checked connected sources',
     ],
+    [
+      'stopped sources check',
+      { ...tool, toolName: 'search_sources', status: 'cancelled', params: { action: 'list' } },
+      'Checked connected sources',
+    ],
   ] as const)(
     'labels a %s search and leaves it static unless its lane names it live',
     (_state, call, label) => {
