@@ -56,6 +56,7 @@ import {
 import { getDocumentTagDefinitionsByKnowledgeBaseIds } from '@/lib/knowledge/tags/service'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type { StructuredFilter } from '@/lib/knowledge/types'
+import { assertSearchIndexesActive } from '@/lib/sim-search/indexed/gate'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { getRerankModelPricing } from '@/providers/models'
@@ -296,6 +297,8 @@ export async function runKnowledgeSearch({
     scopeKind: context.organizationId ? 'organization' : 'workspace',
     knowledgeBaseCount: context.knowledgeBases.length,
   })
+  /** A search index is readable only while indexed organization search is on; nothing is spent first. */
+  assertSearchIndexesActive(context.knowledgeBases)
   input.signal?.throwIfAborted()
   const requestId = generateRequestId()
   const hasQuery = Boolean(input.query?.trim())

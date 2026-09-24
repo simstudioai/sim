@@ -17,7 +17,7 @@ const { mockResolveTinKeywordQuery } = vi.hoisted(() => ({
   mockResolveTinKeywordQuery: vi.fn<() => Promise<string | null>>(async () => null),
 }))
 
-vi.mock('@/lib/knowledge/search/tin-keyword', () => ({
+vi.mock('@/lib/sim-search/indexed/retrieval/tin-keyword', () => ({
   resolveTinKeywordQuery: mockResolveTinKeywordQuery,
 }))
 
@@ -35,7 +35,6 @@ import {
 import type { SearchStage } from '@/lib/knowledge/search/diagnostics'
 import {
   executeKeywordSearch,
-  forgetProjectionFilled,
   forgetSearchReach,
   fuseByReciprocalRank,
   getStructuredTagFilters,
@@ -56,6 +55,7 @@ import {
 import { RRF_K } from '@/lib/knowledge/search/recency'
 import { forgetIndexedVectorSources } from '@/lib/knowledge/search/source-vector-indexes'
 import type { StructuredFilter } from '@/lib/knowledge/types'
+import { forgetProjectionFilled } from '@/lib/sim-search/indexed/retrieval'
 
 /**
  * The builder only reads `embeddingTable[tagSlot]`, so a slot-to-name map stands

@@ -25,6 +25,11 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+/** This suite covers indexed organization search, which is dormant unless Live Search is off. */
+vi.mock('@/lib/core/config/env-flags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/config/env-flags')>()),
+  isLiveEnterpriseSearchEnabled: false,
+}))
 vi.mock('@/lib/embeddings', async () => ({
   ...(await import('@/lib/embeddings/client')),
   assertKnowledgeEmbeddingCapacity: async () => {},

@@ -6,7 +6,7 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ search: vi.fn() }))
-vi.mock('@/lib/knowledge/application/workspace-search', () => ({
+vi.mock('@/lib/sim-search/indexed', () => ({
   searchScopedKnowledge: { operation: { id: 'knowledge.search' }, execute: mocks.search },
 }))
 

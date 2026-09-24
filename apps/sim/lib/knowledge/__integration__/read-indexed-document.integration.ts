@@ -21,6 +21,11 @@ import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 const fixtures = vi.hoisted(() => ({ storageRoot: '' }))
+/** This suite covers indexed organization search, which is dormant unless Live Search is off. */
+vi.mock('@/lib/core/config/env-flags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/config/env-flags')>()),
+  isLiveEnterpriseSearchEnabled: false,
+}))
 vi.mock('@/lib/uploads/core/setup.server', () => ({
   get UPLOAD_DIR_SERVER() {
     return fixtures.storageRoot
@@ -45,13 +50,13 @@ import {
   seedKnowledgeAclFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { confluencePageAcl } from '@/lib/knowledge/access/confluence-permissions'
-import {
-  type ReadIndexedKnowledgeDocumentInput,
-  readIndexedKnowledgeDocument,
-} from '@/lib/knowledge/application/read-indexed-document'
 import { createContentSyncLease } from '@/lib/knowledge/connectors/sync-lock'
 import { addDocument, persistDocumentAcls } from '@/lib/knowledge/connectors/sync-persistence'
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
+import {
+  type ReadIndexedKnowledgeDocumentInput,
+  readIndexedKnowledgeDocument,
+} from '@/lib/sim-search/indexed/documents/read-indexed-document'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 describe('indexed document references', () => {

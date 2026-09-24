@@ -30,6 +30,11 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+/** This suite covers indexed organization search, which is dormant unless Live Search is off. */
+vi.mock('@/lib/core/config/env-flags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/config/env-flags')>()),
+  isLiveEnterpriseSearchEnabled: false,
+}))
 vi.mock('@/lib/embeddings', async () => ({
   ...(await import('@/lib/embeddings/client')),
   assertKnowledgeEmbeddingCapacity: async () => {},
@@ -83,7 +88,6 @@ import {
   listKnowledgeConnectorDocuments,
 } from '@/lib/knowledge/application/connectors'
 import { readKnowledgeDocument } from '@/lib/knowledge/application/documents'
-import { readIndexedKnowledgeDocument } from '@/lib/knowledge/application/read-indexed-document'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import { readSearchSourceOverview } from '@/lib/knowledge/application/search-source-overview'
 import { listSearchSources } from '@/lib/knowledge/application/search-sources'
@@ -95,6 +99,7 @@ import {
 } from '@/lib/knowledge/connectors/sync-limits'
 import { getDocuments } from '@/lib/knowledge/documents/service'
 import { getTagUsageStats } from '@/lib/knowledge/tags/service'
+import { readIndexedKnowledgeDocument } from '@/lib/sim-search/indexed/documents/read-indexed-document'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'

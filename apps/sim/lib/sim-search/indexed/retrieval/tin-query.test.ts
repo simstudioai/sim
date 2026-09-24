@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { tinQueryFromTsquery } from '@/lib/knowledge/search/tin-query'
+import { tinQueryFromTsquery } from '@/lib/sim-search/indexed/retrieval/tin-query'
 
 /** Inputs are `websearch_to_tsquery('english', …)::text` exactly as PostgreSQL renders them. */
 describe('tinQueryFromTsquery', () => {

@@ -16,6 +16,7 @@ import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/bi
 import { KnowledgeDocumentNotReadyError } from '@/lib/knowledge/application/chunk-errors'
 import { KnowledgeSearchProvenanceUnavailableError } from '@/lib/knowledge/application/search'
 import { KnowledgeDocumentUnsupportedMediaTypeError } from '@/lib/knowledge/application/upload-sessions'
+import { SearchIndexDormantError } from '@/lib/sim-search/indexed/gate'
 import { v2Error } from '@/app/api/v2/lib/response'
 
 function internalKnowledgeErrorPolicy(unhandledMessage: string): InternalErrorPolicy {
@@ -46,6 +47,10 @@ const internalKnowledgeSearchErrorPolicy: InternalErrorPolicy = {
     }
     if (error instanceof KnowledgeSearchProvenanceUnavailableError) {
       return internalErrorResponse(422, { error: error.message })
+    }
+    /** The knowledge base exists and is readable; its state is what refuses the search. */
+    if (error instanceof SearchIndexDormantError) {
+      return internalErrorResponse(409, { error: error.message })
     }
     return internalOrchestrationErrorPolicy.project(error)
   },
@@ -122,6 +127,9 @@ const v2KnowledgeUsageErrorPolicy = {
       return v2Error('USAGE_LIMIT_EXCEEDED', error.message)
     }
     if (error instanceof KnowledgeSearchProvenanceUnavailableError) {
+      return v2Error('CONFLICT', error.message)
+    }
+    if (error instanceof SearchIndexDormantError) {
       return v2Error('CONFLICT', error.message)
     }
     return v2OrchestrationErrorPolicy.render(error)

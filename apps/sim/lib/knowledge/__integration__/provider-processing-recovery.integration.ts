@@ -25,6 +25,11 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fixtureStorage = vi.hoisted(() => ({ root: '' }))
+/** This suite covers indexed organization search, which is dormant unless Live Search is off. */
+vi.mock('@/lib/core/config/env-flags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/config/env-flags')>()),
+  isLiveEnterpriseSearchEnabled: false,
+}))
 vi.mock('@/lib/uploads/core/setup.server', () => ({
   get UPLOAD_DIR_SERVER() {
     return fixtureStorage.root
@@ -49,7 +54,6 @@ import {
   seedKnowledgeMemberFixture,
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
-import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-search'
 import {
   materializeDocumentAcls,
   recordMemberObservations,
@@ -61,6 +65,7 @@ import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/docum
 import { assertDocumentProcessingPayload } from '@/lib/knowledge/documents/processing-payload'
 import * as providerContinuation from '@/lib/knowledge/documents/processing-provider-continuation'
 import { processDocumentsWithQueue } from '@/lib/knowledge/documents/service'
+import { searchScopedKnowledge } from '@/lib/sim-search/indexed/search/scoped-search'
 
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',

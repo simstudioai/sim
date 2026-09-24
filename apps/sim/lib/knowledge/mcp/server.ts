@@ -15,13 +15,11 @@ import {
 import type { V2ApiKeyAuthContext } from '@/lib/api/server/routes/v2-api-key-auth'
 import { v2RateLimits } from '@/lib/api/server/routes/v2-json-route'
 import type { ApplicationOperation } from '@/lib/core/application'
-import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { afterResponse } from '@/lib/core/utils/after-response'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { organizationSearchChatOperation } from '@/lib/knowledge/application/chat-operations'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { readIndexedKnowledgeDocument } from '@/lib/knowledge/application/read-indexed-document'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import {
   recordOrganizationSearchMcpActivity,
@@ -29,6 +27,8 @@ import {
 } from '@/lib/knowledge/mcp/activity'
 import { createKnowledgeDocumentCitation, liveCitationId } from '@/lib/knowledge/search/citation'
 import { toolError } from '@/lib/mcp/tool-result'
+import { readIndexedKnowledgeDocument } from '@/lib/sim-search/indexed'
+import { isIndexedOrgSearchEnabled } from '@/lib/sim-search/indexed/gate'
 import { readLiveDocument, searchLiveKnowledge } from '@/lib/sim-search/live/application'
 import { v2CaughtOrchestrationError } from '@/app/api/v2/lib/response'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
@@ -73,6 +73,8 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
   const scope: ResourceScope = { kind: 'organization', organizationId }
   const principal = auth.principal
   const server = new McpServer({ name: 'Sim Search', version: '1.0.0' })
+  /** Live Search serves both tools unless indexed organization search is on. */
+  const liveSearch = !isIndexedOrgSearchEnabled()
 
   async function execute(
     toolName: SearchMcpActivityInput['toolName'],
@@ -145,15 +147,15 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     'search',
     {
       title: 'Search',
-      description: isLiveEnterpriseSearchEnabled
+      description: liveSearch
         ? 'Search this organization’s sources through their live APIs, within your access and the admin’s source settings. Use source and date filters to narrow results, or nativeQueries for provider queries and pagination. Inspect live.accounts for provider status and continuation cursors, and live.guidance for query syntax. Results are candidates, not proof of complete coverage. Use read_document with the exact returned documentId for context and cite citationUrl when available.'
         : 'Search accessible passages in this organization’s Search index. Use source (for example, jira), modifiedAfter (an ISO timestamp), or documentIds to narrow results. Results are candidates; score is similarity, not answer confidence. Use read_document for context and cite citationUrl.',
-      inputSchema: isLiveEnterpriseSearchEnabled ? liveSearchMcpSchema : searchMcpSchema,
+      inputSchema: liveSearch ? liveSearchMcpSchema : searchMcpSchema,
       annotations: READ_ONLY,
     },
     async (input: unknown, extra: { signal: AbortSignal }) =>
       execute('search', knowledgeOperations.search, extra.signal, async (registry, signal) => {
-        if (isLiveEnterpriseSearchEnabled) {
+        if (liveSearch) {
           const { query, topK, nativeQueries, ...filters } = liveSearchMcpSchema.parse(input)
           const result = await searchLiveKnowledge.execute({
             principal,
@@ -242,12 +244,10 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     'read_document',
     {
       title: 'Read document',
-      description: isLiveEnterpriseSearchEnabled
+      description: liveSearch
         ? 'Read a live document using the exact documentId returned by search. Access and the admin’s source settings are checked again on every read. When hasMore is true, pass next.startChunkIndex and next.startOffset with the same documentId to continue. Cite citationUrl when available.'
         : 'Read an indexed document by documentId from search or its original URL. URLs must match an accessible indexed source; this tool does not browse the web. Set aroundChunkIndex to a search hit’s chunkIndex for nearby context, or use offset for sequential pages. When pagination.hasMore is true, continue with pagination.offset + pagination.limit. Cite citationUrl. Documents still indexing return metadata only.',
-      inputSchema: isLiveEnterpriseSearchEnabled
-        ? readLiveDocumentMcpSchema
-        : readDocumentMcpSchema,
+      inputSchema: liveSearch ? readLiveDocumentMcpSchema : readDocumentMcpSchema,
       annotations: READ_ONLY,
     },
     async (raw: unknown, extra: { signal: AbortSignal }) =>
@@ -256,7 +256,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
         knowledgeOperations.readDocument,
         extra.signal,
         async (registry, signal) => {
-          if (isLiveEnterpriseSearchEnabled) {
+          if (liveSearch) {
             const input = readLiveDocumentMcpSchema.parse(raw)
             const result = await readLiveDocument.execute({
               principal,

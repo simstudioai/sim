@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -33,6 +34,7 @@ const drained = { settled: 1, deferred: 0, pages: 2, written: 3, remaining: fals
 describe('runKnowledgeProjectionPass', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetEnvFlagsMock()
     mocks.runProjection.mockResolvedValue(drained)
     mocks.isFeatureEnabled.mockResolvedValue(false)
     mocks.marks.mockReturnValue(2)
@@ -46,6 +48,10 @@ describe('runKnowledgeProjectionPass', () => {
       remaining: false,
     })
     expect(mocks.runProjection).toHaveBeenCalledTimes(2)
+    expect(mocks.runProjection).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ includeTin: true })
+    )
     expect(mocks.isFeatureEnabled).toHaveBeenCalledWith('knowledge-projection-fill')
     expect(mocks.markUnfilled).not.toHaveBeenCalled()
     expect(mocks.end).toHaveBeenCalledTimes(2)
@@ -99,10 +105,26 @@ describe('runKnowledgeProjectionPass', () => {
       .mockResolvedValueOnce({ marked: 0, cursor: null })
     const result = await runKnowledgeProjectionPass({ budgetMs: 60_000 })
     expect(result).toMatchObject({ filled: 2, remaining: false })
-    expect(mocks.markUnfilled).toHaveBeenNthCalledWith(1, expect.anything(), undefined)
-    expect(mocks.markUnfilled).toHaveBeenNthCalledWith(2, expect.anything(), {
-      projection: 0,
-      afterId: 'row-2',
+    expect(mocks.markUnfilled).toHaveBeenNthCalledWith(1, expect.anything(), undefined, {
+      includeSearchIndexes: true,
+    })
+    expect(mocks.markUnfilled).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      { projection: 0, afterId: 'row-2' },
+      { includeSearchIndexes: true }
+    )
+  })
+
+  it('writes no Tin and passes over search-index rows while indexed search is dormant', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    mocks.isFeatureEnabled.mockResolvedValue(true)
+    mocks.markUnfilled.mockResolvedValueOnce({ marked: 0, cursor: null })
+    await runKnowledgeProjectionPass({ budgetMs: 60_000 })
+    for (const [, options] of mocks.runProjection.mock.calls)
+      expect(options).toMatchObject({ includeTin: false })
+    expect(mocks.markUnfilled).toHaveBeenCalledWith(expect.anything(), undefined, {
+      includeSearchIndexes: false,
     })
   })
 

@@ -24,6 +24,10 @@ import {
 import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { buildUndefinedTagsError, validateTagValue } from '@/lib/knowledge/tags/utils'
 import type { StructuredFilter } from '@/lib/knowledge/types'
+import {
+  isIndexedOrgSearchEnabled,
+  SEARCH_INDEX_DORMANT_MESSAGE,
+} from '@/lib/sim-search/indexed/gate'
 import { checkKnowledgeBaseAccess, type KnowledgeBaseAccessResult } from '@/app/api/knowledge/utils'
 import { handleError, resolveV1KnowledgeReadAccess } from '@/app/api/v1/knowledge/utils'
 import {
@@ -119,6 +123,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         { error: `Knowledge bases not found or access denied: ${inaccessibleKbIds.join(', ')}` },
         { status: 404 }
       )
+    }
+
+    /** A search index is readable only while indexed organization search is on. */
+    if (!isIndexedOrgSearchEnabled() && accessibleKbs.some((kb) => kb.isSearchIndex)) {
+      return NextResponse.json({ error: SEARCH_INDEX_DORMANT_MESSAGE }, { status: 409 })
     }
 
     let structuredFilters: StructuredFilter[] = []

@@ -13,7 +13,7 @@ vi.mock('@sim/logger', () => ({
 vi.mock('@/lib/mothership/chat/organization-chats', () => ({
   authorizeOrganizationChatDelegation: { execute: mocks.authorizeChat },
 }))
-vi.mock('@/lib/knowledge/application/workspace-search', () => ({
+vi.mock('@/lib/sim-search/indexed', () => ({
   searchOrganizationKnowledge: {
     get operation() {
       return knowledgeOperations.search
@@ -26,8 +26,6 @@ vi.mock('@/lib/knowledge/application/workspace-search', () => ({
     },
     execute: mocks.search,
   },
-}))
-vi.mock('@/lib/knowledge/application/read-search-document', () => ({
   readSearchDocument: {
     get operation() {
       return knowledgeOperations.readDocument

@@ -36,7 +36,7 @@ vi.mock('@/lib/knowledge/application/search', () => ({
   afterKnowledgeSearch: mocks.afterSearch,
 }))
 
-import { searchWorkspaceKnowledge } from '@/lib/knowledge/application/workspace-search'
+import { searchWorkspaceKnowledge } from '@/lib/sim-search/indexed/search/scoped-search'
 
 const principal = { kind: 'session', userId: 'reader', sessionId: 'session' } as const
 const input = { workspaceId: 'workspace', query: 'orion', topK: 20, filters: { source: 'slack' } }

@@ -244,6 +244,12 @@ export interface KnowledgeProjectionOptions {
    */
   budgetMs?: number
   pageSize?: number
+  /**
+   * Whether the Tin keyword projection is written. It holds only search-index rows, so the
+   * application turns it off while indexed organization search is dormant; the other projections
+   * are written either way. Defaults to true, and Tin is still skipped where it is not installed.
+   */
+  includeTin?: boolean
   /** Called after each page commits, for tests that interleave writes with a run. */
   onPage?: (page: {
     documentId: string
@@ -439,9 +445,10 @@ export async function runKnowledgeProjection(
 ): Promise<KnowledgeProjectionProgress> {
   const deadline =
     options.budgetMs === undefined ? Number.POSITIVE_INFINITY : Date.now() + options.budgetMs
-  const projections = (await tinInstalled(sql))
-    ? KNOWLEDGE_PROJECTIONS
-    : KNOWLEDGE_PROJECTIONS.filter((projection) => projection !== 'embedding_keyword_tin')
+  const projections =
+    options.includeTin !== false && (await tinInstalled(sql))
+      ? KNOWLEDGE_PROJECTIONS
+      : KNOWLEDGE_PROJECTIONS.filter((projection) => projection !== 'embedding_keyword_tin')
   const totals = { pages: 0, written: 0 }
   const skipped: string[] = []
   let settled = 0
@@ -467,6 +474,14 @@ export async function runKnowledgeProjection(
   return { settled, deferred: skipped.length, ...totals, remaining: true }
 }
 
+export interface MarkUnfilledProjectionOptions {
+  /**
+   * Whether rows of search-index knowledge bases are filled. Defaults to true; the application
+   * turns it off while indexed organization search is dormant.
+   */
+  includeSearchIndexes?: boolean
+}
+
 /** Unfilled rows the fill reads per round, from each projection's unfilled-rows index. */
 const FILL_SCAN_ROWS = 2_000
 
@@ -490,24 +505,39 @@ export const FILL_MARK_CEILING = 100
  * removes or rewrites its rows itself, and the next pass reads whatever is still unfilled. Returns
  * how many documents were marked and the id to continue after, or `null` once every projection's
  * unfilled rows have been read.
+ *
+ * With `includeSearchIndexes` off, rows of search-index knowledge bases are passed over like rows
+ * whose document is gone, so the fill never rewrites them, and the Tin projection, which holds
+ * only search-index rows, is not read at all. The package cannot see the application's switch, so
+ * the caller decides.
  */
 export async function markUnfilledProjectionDocuments(
   sql: Sql,
-  cursor: { projection: number; afterId: string } = { projection: 0, afterId: '' }
+  cursor: { projection: number; afterId: string } = { projection: 0, afterId: '' },
+  options: MarkUnfilledProjectionOptions = {}
 ): Promise<{ marked: number; cursor: { projection: number; afterId: string } | null }> {
+  const includeSearchIndexes = options.includeSearchIndexes ?? true
   const [{ outstanding }] = await sql<Array<{ outstanding: number }>>`
     SELECT count(*)::int AS outstanding FROM knowledge_projection_dirty`
   if (outstanding >= FILL_MARK_CEILING) return { marked: 0, cursor }
   for (let index = cursor.projection; index < SOURCE_ACL_PROJECTIONS.length; index++) {
     const projection = SOURCE_ACL_PROJECTIONS[index]
+    if (!includeSearchIndexes && projection === 'embedding_keyword_tin') continue
     const afterId = index === cursor.projection ? cursor.afterId : ''
+    /** Search-index rows are read and passed over, so the cursor still moves past them. */
+    const outsideSearchIndexes = includeSearchIndexes
+      ? ''
+      : `
+          AND NOT EXISTS (
+            SELECT 1 FROM knowledge_base k WHERE k.id = u.knowledge_base_id AND k.is_search_index
+          )`
     const [row] = await sql.unsafe<Array<{ marked: number; last_id: string | null }>>(
       `WITH unfilled AS MATERIALIZED (
-        SELECT id, document_id FROM ${projection} WHERE acl IS NULL AND id > $1
+        SELECT id, document_id${includeSearchIndexes ? '' : ', knowledge_base_id'} FROM ${projection} WHERE acl IS NULL AND id > $1
         ORDER BY id LIMIT ${FILL_SCAN_ROWS}
       ), documents AS MATERIALIZED (
         SELECT u.document_id, min(u.id) AS first_id FROM unfilled u
-        WHERE EXISTS (SELECT 1 FROM document d WHERE d.id = u.document_id)
+        WHERE EXISTS (SELECT 1 FROM document d WHERE d.id = u.document_id)${outsideSearchIndexes}
         GROUP BY u.document_id
       ), chosen AS MATERIALIZED (
         SELECT document_id, first_id FROM documents ORDER BY first_id LIMIT $2

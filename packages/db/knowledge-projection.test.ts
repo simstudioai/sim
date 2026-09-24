@@ -161,6 +161,25 @@ describe('runKnowledgeProjection', () => {
     ])
   })
 
+  it('writes no Tin rows when the caller leaves Tin out, and projects everything else', async () => {
+    const state = database({
+      marks: new Map([
+        ['content', { generation: 1, content: true }],
+        ['acl', { generation: 1, content: false }],
+      ]),
+    })
+    const { sql, trace } = fakeSql(state)
+    await expect(runKnowledgeProjection(sql, { includeTin: false })).resolves.toMatchObject({
+      settled: 2,
+      remaining: false,
+    })
+    expect(trace.pages.map((page) => `${page.documentId}:${page.projection}`)).toEqual([
+      'content:embedding_search',
+      'content:embedding_keyword_search',
+      'acl:embedding_search',
+    ])
+  })
+
   it('pages a document by chunk rows until a page comes back short', async () => {
     const state = database({
       marks: new Map([['doc', { generation: 1, content: false }]]),
@@ -333,5 +352,36 @@ describe('markUnfilledProjectionDocuments', () => {
     await expect(
       markUnfilledProjectionDocuments(done.sql, { projection: 1, afterId: 'tin-1' })
     ).resolves.toEqual({ marked: 0, cursor: null })
+  })
+
+  it('reads search-index rows only when they are included', async () => {
+    const { sql, statements } = fillSql(0, [{ marked: 1, last_id: 'row-3' }])
+    await markUnfilledProjectionDocuments(sql)
+    expect(statements[0]?.text).not.toContain('is_search_index')
+  })
+
+  it('passes over search-index rows and never reads Tin when they are excluded', async () => {
+    const { sql, statements } = fillSql(0, [
+      { marked: 0, last_id: 'row-9' },
+      { marked: 0, last_id: null },
+    ])
+    await expect(
+      markUnfilledProjectionDocuments(sql, undefined, { includeSearchIndexes: false })
+    ).resolves.toEqual({ marked: 0, cursor: { projection: 0, afterId: 'row-9' } })
+    expect(statements[0]?.text).toContain('FROM embedding_search WHERE acl IS NULL')
+    expect(statements[0]?.text).toContain(
+      'SELECT 1 FROM knowledge_base k WHERE k.id = u.knowledge_base_id AND k.is_search_index'
+    )
+    await expect(
+      markUnfilledProjectionDocuments(
+        sql,
+        { projection: 0, afterId: 'row-9' },
+        { includeSearchIndexes: false }
+      )
+    ).resolves.toEqual({ marked: 0, cursor: null })
+    expect(statements).toHaveLength(2)
+    expect(statements.some((statement) => statement.text.includes('embedding_keyword_tin'))).toBe(
+      false
+    )
   })
 })

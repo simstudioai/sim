@@ -41,8 +41,13 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+/** This suite covers indexed organization search, which is dormant unless Live Search is off. */
+vi.mock('@/lib/core/config/env-flags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/config/env-flags')>()),
+  isLiveEnterpriseSearchEnabled: false,
+}))
 /** The TINQL `resolveTinKeywordQuery` renders for `fixture`: its `english` stem, quoted. */
-vi.mock('@/lib/knowledge/search/tin-keyword', () => ({
+vi.mock('@/lib/sim-search/indexed/retrieval/tin-keyword', () => ({
   resolveTinKeywordQuery: async () => '"fixtur"',
 }))
 
@@ -76,11 +81,11 @@ import type {
 import { leaseTransaction } from '@/lib/knowledge/connectors/sync-lock'
 import {
   executeKeywordSearch,
-  forgetProjectionFilled,
   handleVectorOnlySearch,
   liveSourceAccessFor,
 } from '@/lib/knowledge/search/queries'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
+import { forgetProjectionFilled } from '@/lib/sim-search/indexed/retrieval'
 
 const ids = createKnowledgeAclFixtureIds()
 const connectorId = generateId()

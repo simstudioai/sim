@@ -7,7 +7,13 @@
  * @vitest-environment node
  */
 
-import { createMockRequest, knowledgeApiUtilsMock, knowledgeApiUtilsMockFns } from '@sim/testing'
+import {
+  createMockRequest,
+  knowledgeApiUtilsMock,
+  knowledgeApiUtilsMockFns,
+  resetEnvFlagsMock,
+  setEnvFlags,
+} from '@sim/testing'
 import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -118,6 +124,7 @@ const baseKb = (id: string, embeddingModel: string, embeddingDimension = 1536) =
 describe('v1 knowledge search route — per-KB embedding model', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetEnvFlagsMock()
     mockResolveV1KnowledgeReadAccess.mockResolvedValue({ kind: 'workspace', tokens: ['pub', 'ws'] })
     mockAuthenticateRequest.mockResolvedValue({
       requestId: 'req-1',
@@ -161,6 +168,38 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
     )
     expect(mockExecuteKnowledgeSearch).toHaveBeenCalledOnce()
     expect(response.status).toBe(500)
+  })
+
+  it('refuses a search index while indexed organization search is dormant, before any spend', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
+      hasAccess: true,
+      knowledgeBase: { ...baseKb('kb-1', 'text-embedding-3-small'), isSearchIndex: true },
+    })
+    const response = await POST(
+      createMockRequest('POST', { workspaceId: 'ws-1', knowledgeBaseIds: 'kb-1', query: 'hello' })
+    )
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({
+      error: 'This search index is inactive; use Sim Search.',
+    })
+    expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled()
+    expect(mockExecuteKnowledgeSearch).not.toHaveBeenCalled()
+  })
+
+  it('searches a workspace knowledge base while indexed organization search is dormant', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
+      hasAccess: true,
+      knowledgeBase: { ...baseKb('kb-1', 'text-embedding-3-small'), isSearchIndex: false },
+    })
+    const response = await POST(
+      createMockRequest('POST', { workspaceId: 'ws-1', knowledgeBaseIds: 'kb-1', query: 'hello' })
+    )
+    expect(response.status).toBe(200)
+    expect(mockExecuteKnowledgeSearch).toHaveBeenCalledWith(
+      expect.objectContaining({ knowledgeBaseIds: ['kb-1'], searchIndexOnly: false })
+    )
   })
 
   it('retains the reader provider for ranked results and returned document metadata', async () => {

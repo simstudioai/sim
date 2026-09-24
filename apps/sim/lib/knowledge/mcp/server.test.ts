@@ -51,7 +51,7 @@ vi.mock('@/lib/api/server/routes/v2-json-route', () => ({
 vi.mock('@/lib/knowledge/application/search', () => ({
   searchKnowledge: { execute: mocks.search },
 }))
-vi.mock('@/lib/knowledge/application/read-indexed-document', () => ({
+vi.mock('@/lib/sim-search/indexed', () => ({
   readIndexedKnowledgeDocument: { execute: mocks.read },
 }))
 vi.mock('@/lib/sim-search/live/application', () => ({

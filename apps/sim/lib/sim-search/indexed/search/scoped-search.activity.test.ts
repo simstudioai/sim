@@ -51,7 +51,7 @@ vi.mock('@/lib/knowledge/application/search', () => ({
 import {
   searchOrganizationKnowledge,
   searchScopedKnowledge,
-} from '@/lib/knowledge/application/workspace-search'
+} from '@/lib/sim-search/indexed/search/scoped-search'
 
 const principal = { kind: 'session', userId: 'reader', sessionId: 'session' } as const
 const input = { organizationId: 'org', query: 'policy', topK: 20, surface: 'slack' } as const

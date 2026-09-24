@@ -11,12 +11,12 @@ import {
 } from '@/lib/knowledge/__integration__/seed-source-access-fixture'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import {
-  forgetProjectionFilled,
   resolvePermittedDocuments,
   retrieveKnowledgeSearch,
   VECTOR_PROBE_DOCUMENT_LIMIT,
 } from '@/lib/knowledge/search/queries'
 import { embeddingVectorValues } from '@/lib/knowledge/vector-columns'
+import { forgetProjectionFilled } from '@/lib/sim-search/indexed/retrieval'
 
 describe('API-key KB block fan-out', () => {
   const ids = createKnowledgeAclFixtureIds()

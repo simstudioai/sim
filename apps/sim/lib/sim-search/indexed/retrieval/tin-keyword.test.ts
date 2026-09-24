@@ -13,7 +13,7 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
 }))
 
 import { SearchBudget, SearchDeadlineError } from '@/lib/knowledge/search/budget'
-import { resolveTinKeywordQuery } from '@/lib/knowledge/search/tin-keyword'
+import { resolveTinKeywordQuery } from '@/lib/sim-search/indexed/retrieval/tin-keyword'
 
 /** Readiness is cached per process; the incomplete-index case lives in its own file, where the cache starts empty. */
 describe('resolveTinKeywordQuery', () => {

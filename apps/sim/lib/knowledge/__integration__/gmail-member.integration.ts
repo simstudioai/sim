@@ -24,6 +24,11 @@ import { eq, inArray } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const counters = vi.hoisted(() => ({ embeddedTexts: 0 }))
+/** This suite covers indexed organization search, which is dormant unless Live Search is off. */
+vi.mock('@/lib/core/config/env-flags', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/config/env-flags')>()),
+  isLiveEnterpriseSearchEnabled: false,
+}))
 vi.mock('@/lib/embeddings', async () => ({
   ...(await import('@/lib/embeddings/client')),
   assertKnowledgeEmbeddingCapacity: async () => {},

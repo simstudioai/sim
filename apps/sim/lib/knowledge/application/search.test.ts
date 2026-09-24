@@ -3,8 +3,8 @@
  */
 
 import { member } from '@sim/db/schema'
-import { queueTableRows, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { queueTableRows, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const mocks = vi.hoisted(() => ({
@@ -115,6 +115,7 @@ vi.mock('@/lib/knowledge/secret-provenance', () => ({
 }))
 
 import { searchKnowledge } from '@/lib/knowledge/application/search'
+import { SearchIndexDormantError } from '@/lib/sim-search/indexed/gate'
 
 const workspace = {
   workspaceId: 'workspace-1',
@@ -342,6 +343,62 @@ describe('knowledge search application use case', () => {
     expect(mocks.resolveBilling).not.toHaveBeenCalled()
     expect(mocks.generateEmbedding).not.toHaveBeenCalled()
     expect(mocks.executeSearch).not.toHaveBeenCalled()
+  })
+
+  describe('while indexed organization search is dormant', () => {
+    const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+    beforeEach(() => setEnvFlags({ isLiveEnterpriseSearchEnabled: true }))
+    afterEach(resetEnvFlagsMock)
+
+    it.each([
+      ['an organization', { workspaceId: null, organizationId: 'org-canonical' }],
+      ['a workspace', {}],
+    ])(
+      'refuses %s search index named by id before any spend or retrieval',
+      async (_owner, owner) => {
+        mocks.getKnowledgeBase.mockResolvedValue({
+          ...knowledgeBase,
+          ...owner,
+          isSearchIndex: true,
+        })
+        queueTableRows(member, [{ role: 'member' }])
+        const search = searchKnowledge.execute({
+          principal,
+          input: { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 5 },
+        })
+        await expect(search).rejects.toBeInstanceOf(SearchIndexDormantError)
+        await expect(search).rejects.toThrow('This search index is inactive; use Sim Search.')
+        expect(mocks.resolveBilling).not.toHaveBeenCalled()
+        expect(mocks.generateEmbedding).not.toHaveBeenCalled()
+        expect(mocks.executeSearch).not.toHaveBeenCalled()
+        expect(mocks.recordActivity).not.toHaveBeenCalled()
+      }
+    )
+
+    it('refuses a batch that names a search index beside a workspace knowledge base', async () => {
+      mocks.getKnowledgeBases.mockResolvedValue([
+        knowledgeBase,
+        { ...knowledgeBase, id: 'knowledge-2', isSearchIndex: true },
+      ])
+      await expect(
+        searchKnowledge.execute({
+          principal,
+          input: { knowledgeBaseIds: ['knowledge-1', 'knowledge-2'], query: 'answer', topK: 5 },
+        })
+      ).rejects.toBeInstanceOf(SearchIndexDormantError)
+      expect(mocks.executeSearch).not.toHaveBeenCalled()
+    })
+
+    it('searches a workspace knowledge base exactly as before', async () => {
+      const result = await searchKnowledge.execute({
+        principal,
+        input: { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 5 },
+      })
+      expect(result.results).toHaveLength(1)
+      expect(mocks.executeSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ knowledgeBaseIds: ['knowledge-1'], searchIndexOnly: false })
+      )
+    })
   })
 
   it('authorizes every canonical knowledge base before billing and search', async () => {

@@ -4,12 +4,12 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
-import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { internalKnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-search'
 import { DEFAULT_RERANKER_MODEL } from '@/lib/knowledge/reranker-models'
 import { sourceAuthor } from '@/lib/knowledge/search/author'
+import { searchScopedKnowledge } from '@/lib/sim-search/indexed'
+import { isIndexedOrgSearchEnabled } from '@/lib/sim-search/indexed/gate'
 import { searchLiveKnowledge } from '@/lib/sim-search/live/application'
 
 const DIRECT_SEARCH_VECTOR_BUDGET_MS = 3000
@@ -81,4 +81,5 @@ const liveSearchRoute = defineInternalJsonRoute({
   present: (data) => ({ success: true as const, data }),
 })
 
-export const POST = isLiveEnterpriseSearchEnabled ? liveSearchRoute : indexedSearchRoute
+/** Indexed organization search is dormant unless its gate is on; Live Search serves otherwise. */
+export const POST = isIndexedOrgSearchEnabled() ? indexedSearchRoute : liveSearchRoute

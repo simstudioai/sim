@@ -44,6 +44,7 @@
     "check:api-validation:strict": "bun run scripts/check-api-validation-contracts.ts --check --enforce-boundary-baseline",
     "check:realtime-prune": "bun run scripts/check-realtime-prune-graph.ts",
     "check:tool-request-boundary": "bun run scripts/check-tool-request-boundary.ts",
+    "check:indexed-org-search-boundary": "bun run scripts/check-indexed-org-search-boundary.ts",
     "check:actorless-executor-operations": "bun run scripts/check-actorless-executor-operations.ts",
     "check:permission-group-enforcement": "bun run scripts/check-permission-group-enforcement.ts",
     "check:capability-subject": "bun run scripts/check-capability-subject.ts",

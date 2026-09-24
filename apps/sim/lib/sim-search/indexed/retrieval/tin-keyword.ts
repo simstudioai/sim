@@ -5,7 +5,7 @@ import { sql } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { runSearchQuery, type SearchBudget } from '@/lib/knowledge/search/budget'
-import { tinQueryFromTsquery } from '@/lib/knowledge/search/tin-query'
+import { tinQueryFromTsquery } from '@/lib/sim-search/indexed/retrieval/tin-query'
 
 const logger = createLogger('TinKeywordSearch')
 

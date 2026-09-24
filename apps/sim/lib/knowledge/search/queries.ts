@@ -1,5 +1,4 @@
 import { db } from '@sim/db'
-import { SOURCE_ACL_PROJECTIONS, type SourceAclProjection } from '@sim/db/knowledge-projection'
 import {
   document,
   embedding,
@@ -55,7 +54,6 @@ import { workspaceSearchFilterConditions } from '@/lib/knowledge/search/filter-c
 import type { WorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { applyRecencyBoost, RRF_K } from '@/lib/knowledge/search/recency'
 import { indexedVectorSources } from '@/lib/knowledge/search/source-vector-indexes'
-import { resolveTinKeywordQuery } from '@/lib/knowledge/search/tin-keyword'
 import {
   coerceTagFilterValue,
   escapeLikePattern,
@@ -67,6 +65,8 @@ import {
   embeddingCandidateDistance,
   embeddingDistance,
 } from '@/lib/knowledge/vector-columns'
+import { isIndexedOrgSearchEnabled } from '@/lib/sim-search/indexed/gate'
+import { isProjectionFilled, resolveTinKeywordQuery } from '@/lib/sim-search/indexed/retrieval'
 
 const logger = createLogger('KnowledgeSearchQueries')
 
@@ -110,60 +110,12 @@ function onRowWalkScanTuples(
     : Number(CANDIDATE_HNSW_MAX_SCAN_TUPLES)
 }
 
-/** How long a fully filled projection is taken on trust before its unfilled rows are looked for again. */
-const PROJECTION_FILLED_TTL_MS = 60_000
-
 /**
- * Whether the ranking projection still holds rows the source and ACL fill has not reached. Read off the
- * unfilled-rows index in milliseconds and remembered briefly: the answer only ever changes once.
- *
- * The read asks for the last unfilled row by id, not whether one exists: an `EXISTS` drops its
- * order and limit, and while most rows are unfilled the planner expects a sequential scan to
- * meet one at once, then walks the whole projection when the unfilled rows sit past the filled
- * ones. Ordered by id and capped at one row, the read can only be the partial index, whose
- * last entry is the row the fill reaches last.
+ * Whether the search-index-only retrieval strategies (the projection-fill probe and Tin keyword
+ * ranking) may run: every base is a search index and indexed organization search is on.
  */
-const projectionFilled = new LRUCache<
-  SourceAclProjection,
-  boolean,
-  { budget: SearchBudget | undefined; stage: SearchStage }
->({
-  max: SOURCE_ACL_PROJECTIONS.length,
-  ttl: PROJECTION_FILLED_TTL_MS,
-  /**
-   * The read that misses the cache is the search's own, under its budget like every other read
-   * of the leg, and the searches that miss together share it. A read that fails is not
-   * remembered: it answers unfilled, the slower and safe form, and the next search reads again.
-   */
-  fetchMethod: async (projection, _stale, { context }) => {
-    const table = projection === 'embedding_search' ? embeddingSearch : embeddingKeywordTin
-    try {
-      const [row] = await runSearchQuery(context.budget, context.stage, (executor) =>
-        executor.execute<{ unfilled: boolean }>(sql`
-        SELECT (
-          SELECT ${table.id} FROM ${table} WHERE ${table.acl} IS NULL
-          ORDER BY ${table.id} DESC LIMIT 1
-        ) IS NOT NULL AS unfilled`)
-      )
-      return !row?.unfilled
-    } catch {
-      return undefined
-    }
-  },
-})
-
-/** Whether every row of the projection carries its mirrored source and ACL; unknown counts as not yet. */
-async function isProjectionFilled(
-  projection: SourceAclProjection,
-  stage: SearchStage,
-  budget: SearchBudget | undefined
-): Promise<boolean> {
-  return (await projectionFilled.fetch(projection, { context: { budget, stage } })) ?? false
-}
-
-/** Forgets whether the projections were filled; the memo is per process and otherwise expires on its own. */
-export function forgetProjectionFilled(): void {
-  projectionFilled.clear()
+function usesIndexedRetrieval(searchIndexOnly: boolean | undefined): boolean {
+  return searchIndexOnly === true && isIndexedOrgSearchEnabled()
 }
 
 /**
@@ -1834,7 +1786,7 @@ async function selectVectorResults(params: SearchParams): Promise<SearchResult[]
         const plan = params.access.kind === 'user' ? params.accessPlan : undefined
         /** Two remembered facts, read together when neither is remembered. */
         const [filled, plannedIndexedSources] = await Promise.all([
-          params.searchIndexOnly === true
+          usesIndexedRetrieval(params.searchIndexOnly)
             ? isProjectionFilled('embedding_search', 'vector.projection_filled', params.budget)
             : false,
           plan?.memberSources.length ? indexedVectorSources(params.budget) : undefined,
@@ -2192,7 +2144,7 @@ export async function executeKeywordSearch(params: KeywordSearchParams): Promise
     if (onRowReader && tagFilterConditions.length === 0) {
       try {
         tinQuery = await resolveTinKeywordQuery(
-          params.searchIndexOnly === true,
+          usesIndexedRetrieval(params.searchIndexOnly),
           query,
           FTS_CONFIG,
           params.budget

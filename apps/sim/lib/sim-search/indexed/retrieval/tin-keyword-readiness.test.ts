@@ -8,7 +8,7 @@ vi.mock('@/lib/core/config/feature-flags', () => ({
   isFeatureEnabled: vi.fn(async () => true),
 }))
 
-import { resolveTinKeywordQuery } from '@/lib/knowledge/search/tin-keyword'
+import { resolveTinKeywordQuery } from '@/lib/sim-search/indexed/retrieval/tin-keyword'
 
 /** Its own file, so the process-wide readiness cache starts empty. */
 it('stays on the GIN projection while the Tin index is incomplete, and remembers that', async () => {

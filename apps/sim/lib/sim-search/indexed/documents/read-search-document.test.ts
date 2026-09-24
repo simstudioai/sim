@@ -32,7 +32,7 @@ vi.mock('@/lib/execution/durable-secret-provenance', () => ({
   importDurableSecretProvenance: mocks.importProvenance,
 }))
 
-import { readSearchDocument } from '@/lib/knowledge/application/read-search-document'
+import { readSearchDocument } from '@/lib/sim-search/indexed/documents/read-search-document'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const principal = { kind: 'session', userId: 'reader', sessionId: 'session' } as const

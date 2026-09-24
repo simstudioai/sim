@@ -9,6 +9,7 @@ import { createLogger } from '@sim/logger'
 import postgres, { type Sql } from 'postgres'
 import { env, envNumber } from '@/lib/core/config/env'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { isIndexedOrgSearchEnabled } from '@/lib/sim-search/indexed/gate'
 
 const logger = createLogger('KnowledgeProjectionPass')
 
@@ -52,6 +53,10 @@ export interface KnowledgeProjectionPassResult extends KnowledgeProjectionProgre
  * read the same oldest marks and split them at those locks. A round ends when every worker found
  * nothing more it could take; the pass goes on while rounds settle documents, and `remaining`
  * reports marks it left or a fill it did not finish, so the caller can schedule another.
+ *
+ * While indexed organization search is dormant the pass writes no Tin keyword rows, which only
+ * that search reads, and the fill passes over search-index rows: rewriting them would spend index
+ * writes on content no search serves. Workspace knowledge bases are projected either way.
  */
 export async function runKnowledgeProjectionPass(options: {
   budgetMs: number
@@ -71,6 +76,7 @@ export async function runKnowledgeProjectionPass(options: {
     )
   )
   const deadline = Date.now() + options.budgetMs
+  const indexedOrgSearch = isIndexedOrgSearchEnabled()
   const result: KnowledgeProjectionPassResult = {
     settled: 0,
     deferred: 0,
@@ -88,7 +94,10 @@ export async function runKnowledgeProjectionPass(options: {
       /** Every worker finishes its document before a failure ends the pass, so none is cut off. */
       const outcomes = await Promise.allSettled(
         workers.map((session) =>
-          runKnowledgeProjection(session, { budgetMs: Math.max(0, deadline - Date.now()) })
+          runKnowledgeProjection(session, {
+            budgetMs: Math.max(0, deadline - Date.now()),
+            includeTin: indexedOrgSearch,
+          })
         )
       )
       const round: KnowledgeProjectionProgress[] = []
@@ -108,7 +117,9 @@ export async function runKnowledgeProjectionPass(options: {
       }
       /** The fill starts only inside the budget, and what it marks is left for a round to settle. */
       if (fillCursor === null || Date.now() >= deadline) break
-      const fill = await markUnfilledProjectionDocuments(sessions[0], fillCursor)
+      const fill = await markUnfilledProjectionDocuments(sessions[0], fillCursor, {
+        includeSearchIndexes: indexedOrgSearch,
+      })
       result.filled += fill.marked
       fillCursor = fill.cursor
       if (fill.marked > 0) result.remaining = true
