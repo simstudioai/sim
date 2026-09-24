@@ -4,6 +4,7 @@ import { and, eq, inArray, isNull, ne } from 'drizzle-orm'
 import { liveSearchProviderSchema } from '@/lib/api/contracts/mothership-assistant-tools'
 import {
   type ResourceOwner,
+  type ResourceScope,
   resourceScopeFields,
   resourceScopeFromOwner,
 } from '@/lib/core/resource-scope'
@@ -27,74 +28,84 @@ import {
 } from '@/lib/sim-search/live/provider-catalog'
 import type { LiveAccount } from '@/lib/sim-search/live/types'
 
-/** Personal provider accounts and ACL-gated administrator-managed GitLab sources. */
-export async function listLiveAccounts(
-  owner: ResourceOwner,
-  userId: string
-): Promise<LiveAccount[]> {
-  const scope = resourceScopeFromOwner(owner)
-  const oauth =
-    scope.kind === 'workspace'
-      ? await getPersonalOAuthCredentials(scope.workspaceId, userId)
-      : [
-          ...(
-            await getOwnOrganizationManagedOAuthCredentials({
-              organizationId: scope.organizationId,
-              userId,
-            })
-          ).map((row) => ({ ...row, type: 'managed_oauth' as const })),
-          ...(
-            await db
-              .select({
-                id: credential.id,
-                providerId: credential.providerId,
-                displayName: credential.displayName,
-              })
-              .from(credential)
-              .innerJoin(account, eq(account.id, credential.accountId))
-              .where(
-                and(
-                  resourceScopeCondition(credential, scope),
-                  eq(credential.type, 'oauth'),
-                  eq(account.userId, userId),
-                  eq(account.providerId, credential.providerId),
-                  ne(credential.providerId, 'slack')
-                )
-              )
-          ).flatMap((row) =>
-            row.providerId ? [{ ...row, providerId: row.providerId, type: 'oauth' as const }] : []
-          ),
-        ]
-  const workspaceContext =
-    scope.kind === 'workspace'
-      ? await resolveKnowledgeWorkspaceContext({ workspaceId: scope.workspaceId })
-      : undefined
-  const organizationId =
-    scope.kind === 'organization' ? scope.organizationId : workspaceContext?.workspaceOrganizationId
-  const approvals = organizationId ? await listOrganizationSearchApprovals(organizationId) : null
-  const denied = new Set(
-    approvals
-      ? liveSearchProviderSchema.options.filter((provider) => approvals.get(provider) !== true)
-      : []
-  )
-  const coda = (
-    await db
+async function listOAuthRows(scope: ResourceScope, userId: string) {
+  if (scope.kind === 'workspace') return getPersonalOAuthCredentials(scope.workspaceId, userId)
+  const [managed, personal] = await Promise.all([
+    getOwnOrganizationManagedOAuthCredentials({ organizationId: scope.organizationId, userId }),
+    db
       .select({
         id: credential.id,
         providerId: credential.providerId,
         displayName: credential.displayName,
       })
       .from(credential)
+      .innerJoin(account, eq(account.id, credential.accountId))
       .where(
         and(
           resourceScopeCondition(credential, scope),
-          eq(credential.type, 'service_account'),
-          eq(credential.providerId, 'coda-service-account'),
-          eq(credential.createdBy, userId),
-          isNull(credential.revokedAt)
+          eq(credential.type, 'oauth'),
+          eq(account.userId, userId),
+          eq(account.providerId, credential.providerId),
+          ne(credential.providerId, 'slack')
         )
+      ),
+  ])
+  return [
+    ...managed.map((row) => ({ ...row, type: 'managed_oauth' as const })),
+    ...personal.flatMap((row) =>
+      row.providerId ? [{ ...row, providerId: row.providerId, type: 'oauth' as const }] : []
+    ),
+  ]
+}
+
+async function listCodaTokenRows(scope: ResourceScope, userId: string) {
+  const rows = await db
+    .select({
+      id: credential.id,
+      providerId: credential.providerId,
+      displayName: credential.displayName,
+    })
+    .from(credential)
+    .where(
+      and(
+        resourceScopeCondition(credential, scope),
+        eq(credential.type, 'service_account'),
+        eq(credential.providerId, 'coda-service-account'),
+        eq(credential.createdBy, userId),
+        isNull(credential.revokedAt)
       )
-  ).map((row) => ({ ...row, providerId: 'coda-service-account', type: 'service_account' as const }))
+    )
+  return rows.map((row) => ({
+    ...row,
+    providerId: 'coda-service-account',
+    type: 'service_account' as const,
+  }))
+}
+
+/** Personal provider accounts and ACL-gated administrator-managed GitLab sources. */
+export async function listLiveAccounts(
+  owner: ResourceOwner,
+  userId: string
+): Promise<LiveAccount[]> {
+  const scope = resourceScopeFromOwner(owner)
+  /** A workspace's organization is known only after its context loads; an organization's is not. */
+  const loadApprovals = (organizationId?: string | null) =>
+    organizationId ? listOrganizationSearchApprovals(organizationId) : null
+  const [oauth, coda, workspaceContext, organizationApprovals] = await Promise.all([
+    listOAuthRows(scope, userId),
+    listCodaTokenRows(scope, userId),
+    scope.kind === 'workspace'
+      ? resolveKnowledgeWorkspaceContext({ workspaceId: scope.workspaceId })
+      : undefined,
+    scope.kind === 'organization' ? loadApprovals(scope.organizationId) : null,
+  ])
+  const approvals =
+    organizationApprovals ?? (await loadApprovals(workspaceContext?.workspaceOrganizationId))
+  const denied = new Set(
+    approvals
+      ? liveSearchProviderSchema.options.filter((provider) => approvals.get(provider) !== true)
+      : []
+  )
   const candidates = [...oauth, ...coda].flatMap((row) => {
     const provider = liveSearchProviderForCredential(row.providerId)
     return provider && supportsLiveSearchMode(provider, 'member') && !denied.has(provider)
@@ -110,11 +121,11 @@ export async function listLiveAccounts(
         ]
       : []
   })
-  const visible = workspaceContext
-    ? await filterWorkspaceAccountCredentials(workspaceContext, candidates)
-    : candidates
-  const mcp = denied.has('coda') ? [] : await listCodaMcpSearchAccounts(owner, userId)
-  const admin = denied.has('gitlab') ? [] : await listAdminGitLabAccounts(owner)
+  const [visible, mcp, admin] = await Promise.all([
+    workspaceContext ? filterWorkspaceAccountCredentials(workspaceContext, candidates) : candidates,
+    denied.has('coda') ? [] : listCodaMcpSearchAccounts(owner, userId),
+    denied.has('gitlab') ? [] : listAdminGitLabAccounts(owner),
+  ])
   if (visible.length === 0) return [...mcp, ...admin]
   // Metadata is fetched in one batch; a fresh binding check still precedes token resolution.
   const rows = await db
@@ -152,10 +163,25 @@ export async function listLiveAccounts(
   ]
 }
 
+/** Re-lists the member's accounts so a reference from an earlier request is checked afresh. */
 export async function resolveLiveAccount(owner: ResourceOwner, userId: string, accountId: string) {
   const current = (await listLiveAccounts(owner, userId)).find((row) => row.id === accountId)
   if (!current)
     throw new NativeSearchError('reconnect', 'This search connection is no longer available.')
+  return resolveListedLiveAccount(owner, userId, current)
+}
+
+export type ResolvedLiveAccount = Awaited<ReturnType<typeof resolveListedLiveAccount>>
+
+/**
+ * Resolves credentials for an account {@link listLiveAccounts} returned earlier in the same
+ * request, which already performed the binding and revocation checks.
+ */
+export async function resolveListedLiveAccount(
+  owner: ResourceOwner,
+  userId: string,
+  current: LiveAccount
+) {
   if (current.type === 'admin_source') return resolveAdminGitLabAccount(owner, current)
   if (current.type === 'managed_mcp') return { account: current, accessToken: '', mcp: true }
   const scope = resourceScopeFromOwner(owner)

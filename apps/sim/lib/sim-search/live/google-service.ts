@@ -1,4 +1,5 @@
 import { normalizeEmail } from '@sim/utils/string'
+import type { PinnedConnectionPool } from '@/lib/core/security/input-validation.server'
 import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
 import type { ConnectorAccessToken } from '@/lib/knowledge/connectors/access-token'
 import {
@@ -20,6 +21,8 @@ import {
 type GoogleProvider = 'google_drive' | 'gmail' | 'google_calendar'
 type Reference = Pick<NativeDocument, 'id' | 'container' | 'kind'>
 const SOURCE_REQUEST_BUDGET = 30
+/** Distinct ancestor folders a restricted Drive page may read while verifying its files. */
+const DRIVE_FOLDER_RESERVE = 9
 const DAY_MS = 86400000
 
 interface GoogleServiceSession {
@@ -43,8 +46,9 @@ export async function createGoogleServiceVerifier(input: {
   config: Record<string, unknown>
   policy: LiveSearchPolicy
   signal: AbortSignal
+  pool?: PinnedConnectionPool
 }): Promise<GoogleServiceSession> {
-  const { provider, token, member, config, policy, signal } = input
+  const { provider, token, member, config, policy, signal, pool } = input
   if (!token.getDelegatedAccessToken)
     throw new NativeSearchError(
       'unavailable',
@@ -99,7 +103,12 @@ export async function createGoogleServiceVerifier(input: {
     )
       continue
     const accessToken = await token.getDelegatedAccessToken(person.email, signal)
-    const client = createNativeClient({ origin: 'https://www.googleapis.com', accessToken, signal })
+    const client = createNativeClient({
+      origin: 'https://www.googleapis.com',
+      accessToken,
+      signal,
+      pool,
+    })
     clients.push({
       email: person.email,
       client,
@@ -110,7 +119,12 @@ export async function createGoogleServiceVerifier(input: {
   if (provider === 'google_drive' && !selected.length && !clients.length) {
     signal.throwIfAborted()
     const accessToken = await token.getDelegatedAccessToken(administrator.email, signal)
-    const client = createNativeClient({ origin: 'https://www.googleapis.com', accessToken, signal })
+    const client = createNativeClient({
+      origin: 'https://www.googleapis.com',
+      accessToken,
+      signal,
+      pool,
+    })
     clients.push({
       email: administrator.email,
       client,
@@ -261,6 +275,15 @@ export async function createGoogleServiceVerifier(input: {
     partial,
     scopeSearch(search) {
       if (!clients.length) return null
+      if (provider === 'google_drive') {
+        /** Each file costs one read; a restricted source also reads folders shared across files. */
+        const folderReserve =
+          policy.mode === 'selected' || policy.excluded.length ? DRIVE_FOLDER_RESERVE : 0
+        return {
+          ...search,
+          limit: Math.min(search.limit, SOURCE_REQUEST_BUDGET - 1 - folderReserve),
+        }
+      }
       if (provider === 'gmail') {
         const requestsPerMessage = string(config.query).trim() ? 2 : 1
         return {

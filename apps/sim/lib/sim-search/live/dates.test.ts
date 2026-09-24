@@ -243,7 +243,7 @@ describe('generic live search dates', () => {
     })
     expect(api.json).toHaveBeenCalledTimes(1)
     expect(api.json.mock.calls[0]?.[1].query).toMatchObject({
-      q: expect.stringContaining('updated:>=2026-09-22T07:00:00.000Z'),
+      q: 'repo:team/repo is:pr updated:2026-09-22T07:00:00.000Z..2026-09-23T07:00:00.000Z',
       sort: 'updated',
       order: 'asc',
     })

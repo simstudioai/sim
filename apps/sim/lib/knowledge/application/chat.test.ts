@@ -140,7 +140,7 @@ describe('organization Search Assistant chat', () => {
       userId: 'member-1',
       organizationId: 'org-1',
       chatId: 'private-chat',
-      goRoute: '/api/mothership/execute',
+      goRoute: '/api/mothership',
       interactive: false,
       autoExecuteTools: true,
       secretActorUserId: null,

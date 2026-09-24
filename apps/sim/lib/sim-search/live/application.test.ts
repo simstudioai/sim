@@ -49,6 +49,10 @@ vi.mock('@/lib/knowledge/application/contexts', () => ({
 vi.mock('@/lib/sim-search/live/accounts', () => ({
   listLiveAccounts: mocks.accounts,
   resolveLiveAccount: mocks.resolveAccount,
+  resolveListedLiveAccount: async (owner: unknown, userId: string, listed: { id: string }) => ({
+    ...(await mocks.resolveAccount(owner, userId, listed.id)),
+    account: listed,
+  }),
 }))
 vi.mock('@/lib/sim-search/live/providers', () => ({
   NATIVE_SEARCH_GUIDANCE: 'Live coverage',
@@ -232,6 +236,176 @@ describe('authorized live retrieval', () => {
       expect.anything(),
       expect.objectContaining({ filters })
     )
+  })
+  it('reports more matches as a cursor, not as degraded coverage', async () => {
+    mocks.search.mockResolvedValue({ documents: [document], nextCursor: 'next', hasMore: true })
+    const result = await searchLiveKnowledge.execute({ principal, input: { ...input, topK: 1 } })
+    expect(result.retrieval.status).toBe('complete')
+    expect(result.live?.accounts[0]).toMatchObject({ status: 'ok', nextCursor: 'next' })
+  })
+  it('keeps more matches partial when a date order must cover them', async () => {
+    mocks.search.mockResolvedValue({ documents: [document], nextCursor: 'next' })
+    const result = await searchLiveKnowledge.execute({
+      principal,
+      input: { ...input, filters: { sortBy: 'newest' } },
+    })
+    expect(result.retrieval.status).toBe('partial')
+  })
+  it('reports candidates that could not be verified and keeps the verified ones', async () => {
+    mocks.search.mockResolvedValue({
+      documents: [document, { ...document, id: 'other', url: 'https://docs.google.com/other' }],
+    })
+    mocks.service.mockResolvedValue({
+      policy: defaultLiveSearchPolicy(),
+      partial: false,
+      verify: async ({ id }: { id: string }) => {
+        if (id === 'other') throw new NativeSearchError('unavailable', 'Budget')
+        return true
+      },
+    })
+    const result = await searchLiveKnowledge.execute({ principal, input })
+    expect(result.results.map((row) => decodeLiveReference(row.documentId).id)).toEqual(['doc'])
+    expect(result.live?.accounts[0]).toMatchObject({
+      status: 'partial',
+      message: expect.stringContaining('could not be verified'),
+    })
+  })
+  it('fails the account when a grant is revoked during verification', async () => {
+    mocks.service.mockResolvedValue({
+      policy: defaultLiveSearchPolicy(),
+      partial: false,
+      verify: async () => {
+        throw new NativeSearchError('reconnect', 'Revoked')
+      },
+    })
+    const result = await searchLiveKnowledge.execute({ principal, input })
+    expect(result.results).toEqual([])
+    expect(result.live?.accounts[0]).toMatchObject({ status: 'reconnect', message: 'Revoked' })
+  })
+  it('verifies GitLab candidates with the evidence from their own search response', async () => {
+    const gitlab = {
+      ...account,
+      id: 'gitlab-source:source',
+      provider: 'gitlab',
+      type: 'admin_source',
+    }
+    const evidence = { confidential: false, authorId: 7, assigneeIds: [] }
+    mocks.accounts.mockResolvedValue([gitlab])
+    mocks.resolveAccount.mockResolvedValue({
+      account: gitlab,
+      accessToken: 'admin-secret',
+      origin: 'https://gitlab.company.com',
+      adminSource: { id: 'source', config: { project: '42' } },
+    })
+    mocks.adminSearch.mockResolvedValue({
+      documents: [
+        { ...document, id: '5', container: '42', kind: 'issues', accessMetadata: evidence },
+      ],
+    })
+    await searchLiveKnowledge.execute({ principal, input })
+    expect(mocks.adminVerify).toHaveBeenCalledWith(expect.objectContaining({ id: '5' }), evidence)
+  })
+  it('merges equal ranks in a stable account order', async () => {
+    const gmail = { ...account, id: 'mail', provider: 'gmail', displayName: 'Mail' }
+    mocks.accounts.mockResolvedValue([gmail, account])
+    mocks.search.mockImplementation(async (provider: string) => ({
+      documents: [{ ...document, id: provider, url: `https://docs.google.com/${provider}` }],
+    }))
+    const result = await searchLiveKnowledge.execute({ principal, input })
+    mocks.accounts.mockResolvedValue([account, gmail])
+    const reversed = await searchLiveKnowledge.execute({ principal, input })
+    const order = (data: typeof result) => data.results.map((row) => row.connectorType)
+    expect(order(reversed)).toEqual(order(result))
+  })
+  it('scales the read window with the requested chunk limit', async () => {
+    mocks.read.mockResolvedValue({ ...document, content: 'x'.repeat(30_000) })
+    const search = await searchLiveKnowledge.execute({ principal, input })
+    const read = (limit: number) =>
+      readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: search.results[0]!.documentId,
+          limit,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+        },
+      })
+    expect((await read(3)).chunks[0]?.content).toHaveLength(8000)
+    expect((await read(8)).chunks[0]?.content).toHaveLength(24_000)
+  })
+  it('centers the preview on the query match', async () => {
+    mocks.search.mockResolvedValue({
+      documents: [{ ...document, content: `${'filler '.repeat(500)}launch checklist` }],
+    })
+    const result = await searchLiveKnowledge.execute({ principal, input })
+    expect(result.results[0]?.content).toContain('launch checklist')
+  })
+  it('keeps the first verified copy of an item a provider returned twice', async () => {
+    mocks.search.mockResolvedValue({
+      documents: [
+        {
+          ...document,
+          id: 'primary-copy',
+          url: 'https://calendar.google.com/a',
+          dedupeKey: 'meeting',
+        },
+        {
+          ...document,
+          id: 'team-copy',
+          url: 'https://calendar.google.com/b',
+          dedupeKey: 'meeting',
+        },
+      ],
+    })
+    mocks.service.mockResolvedValue({
+      policy: defaultLiveSearchPolicy(),
+      partial: false,
+      verify: async ({ id }: { id: string }) => id === 'team-copy',
+    })
+    const result = await searchLiveKnowledge.execute({ principal, input })
+    expect(result.results.map((row) => decodeLiveReference(row.documentId).id)).toEqual([
+      'team-copy',
+    ])
+  })
+  it('reports undated exclusions only for documents the member may read', async () => {
+    mocks.search.mockResolvedValue({
+      documents: [{ ...document, id: 'hidden', modifiedAt: undefined }],
+    })
+    mocks.service.mockResolvedValue({
+      policy: defaultLiveSearchPolicy(),
+      partial: false,
+      verify: async () => false,
+    })
+    const result = await searchLiveKnowledge.execute({
+      principal,
+      input: { ...input, filters: { modifiedAfter: '2026-01-01T00:00:00Z' } },
+    })
+    expect(result.live?.accounts[0]).toMatchObject({ status: 'ok' })
+    expect(result.live?.accounts[0]?.message).toBeUndefined()
+  })
+  it('drops the cursor of an account whose results were cut from the merge', async () => {
+    const gmail = { ...account, id: 'mail', provider: 'gmail', displayName: 'Mail' }
+    mocks.accounts.mockResolvedValue([account, gmail])
+    mocks.search.mockImplementation(async (provider: string) => ({
+      documents: [1, 2].map((rank) => ({
+        ...document,
+        id: `${provider}-${rank}`,
+        url: `https://docs.google.com/${provider}-${rank}`,
+      })),
+      nextCursor: 'next',
+    }))
+    const result = await searchLiveKnowledge.execute({ principal, input: { ...input, topK: 2 } })
+    expect(result.results).toHaveLength(2)
+    for (const status of result.live?.accounts ?? []) {
+      expect(status.nextCursor).toBeUndefined()
+      expect(status.message).toContain('Search this account alone')
+    }
+  })
+  it('reports partial coverage when more matches exist but none could be returned', async () => {
+    mocks.search.mockResolvedValue({ documents: [], hasMore: true })
+    const result = await searchLiveKnowledge.execute({ principal, input })
+    expect(result.retrieval.status).toBe('partial')
+    expect(result.live?.accounts[0]?.message).toContain('More matches exist')
   })
   it('rejects invalid dates before resolving provider credentials', async () => {
     await expect(

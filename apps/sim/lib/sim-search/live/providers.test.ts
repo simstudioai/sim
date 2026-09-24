@@ -5,6 +5,7 @@ import { searchCoda } from '@/lib/sim-search/live/coda'
 import { searchGitHub } from '@/lib/sim-search/live/github'
 import { readGitLab, searchGitLab } from '@/lib/sim-search/live/gitlab'
 import { readDrive, searchCalendar, searchDrive, searchGmail } from '@/lib/sim-search/live/google'
+import { withJsonMemo } from '@/lib/sim-search/live/http'
 import { readSlack, searchSlack } from '@/lib/sim-search/live/slack'
 import type { NativeClient } from '@/lib/sim-search/live/types'
 
@@ -105,12 +106,189 @@ describe('native search endpoints', () => {
     const api = client()
     api.json
       .mockResolvedValueOnce({ items: [{ id: 'primary' }, { id: 'team@example.com' }] })
-      .mockResolvedValue({
-        items: [{ id: 'e', summary: 'Launch', htmlLink: 'https://calendar.google.com/event' }],
-      })
+      .mockResolvedValueOnce({ items: [{ id: 'mine', summary: 'Launch' }] })
+      .mockResolvedValueOnce({ items: [{ id: 'team', summary: 'Launch review' }] })
     const result = await searchCalendar(api, input)
     expect(result.documents.map((item) => item.container)).toEqual(['primary', 'team@example.com'])
     expect(api.json.mock.calls[2][0]).toContain('team%40example.com')
+  })
+  it('marks a meeting shared across calendars as one item, primary calendar first', async () => {
+    const api = client()
+    const shared = (calendar: string, dateTime: string) => ({
+      id: 'meeting',
+      iCalUID: 'meeting@google.com',
+      summary: 'Pilot planning',
+      htmlLink: `https://calendar.google.com/${calendar}`,
+      start: { dateTime },
+    })
+    api.json
+      .mockResolvedValueOnce({
+        items: [{ id: 'teammate@example.com' }, { id: 'member@example.com', primary: true }],
+      })
+      .mockResolvedValueOnce({ items: [shared('me', '2026-09-24T09:00:00-07:00')] })
+      .mockResolvedValueOnce({ items: [shared('emir', '2026-09-24T12:00:00-04:00')] })
+    const result = await searchCalendar(api, input)
+    expect(result.documents.map((item) => item.container)).toEqual([
+      'member@example.com',
+      'teammate@example.com',
+    ])
+    expect(new Set(result.documents.map((item) => item.dedupeKey)).size).toBe(1)
+    expect(api.json.mock.calls[1][0]).toContain('member%40example.com')
+  })
+  it('keeps recurring occurrences that share one iCalendar UID', async () => {
+    const api = client()
+    const occurrence = (day: string) => ({
+      id: `standup_${day}`,
+      iCalUID: 'standup@google.com',
+      summary: 'Standup',
+      start: { dateTime: `2026-09-${day}T09:00:00Z` },
+    })
+    api.json
+      .mockResolvedValueOnce({ items: [{ id: 'primary', primary: true }] })
+      .mockResolvedValueOnce({ items: [occurrence('24'), occurrence('25')] })
+    const result = await searchCalendar(api, {
+      ...input,
+      query: '',
+      filters: { startDate: '2026-09-24T00:00:00Z', endDate: '2026-09-26T00:00:00Z' },
+    })
+    expect(result.documents.map((item) => item.id)).toEqual(['standup_24', 'standup_25'])
+    expect(result.documents[0]?.dedupeKey).not.toBe(result.documents[1]?.dedupeKey)
+  })
+  it('orders a dated agenda by start time across calendars', async () => {
+    const api = client()
+    const event = (id: string, hour: string) => ({
+      id,
+      summary: id,
+      start: { dateTime: `2026-09-24T${hour}:00:00Z` },
+    })
+    api.json
+      .mockResolvedValueOnce({ items: [{ id: 'primary', primary: true }, { id: 'team' }] })
+      .mockResolvedValueOnce({ items: [event('late', '17'), event('later', '18')] })
+      .mockResolvedValueOnce({ items: [event('early', '08')], nextPageToken: 'more' })
+    const result = await searchCalendar(api, {
+      ...input,
+      query: '',
+      filters: { startDate: '2026-09-24T00:00:00Z', endDate: '2026-09-25T00:00:00Z' },
+    })
+    expect(result.documents.map((item) => item.id)).toEqual(['early', 'late', 'later'])
+    expect(result).toMatchObject({ hasMore: true, partial: false })
+    expect(api.json.mock.calls[1][1]?.query).toMatchObject({
+      singleEvents: 'true',
+      orderBy: 'startTime',
+    })
+  })
+  it('turns HTML event descriptions into readable text', async () => {
+    const api = client()
+    api.json
+      .mockResolvedValueOnce({ items: [{ id: 'primary', primary: true }] })
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: 'e',
+            summary: 'Demo',
+            description:
+              'Who:<br><a href="mailto:host@example.com">host@example.com</a><br>Where: <a href="https://www.google.com/url?q=https://meet.google.com/abc&amp;sa=D">https://meet.google.com/abc</a>',
+          },
+        ],
+      })
+    const [event] = (await searchCalendar(api, input)).documents
+    expect(event.content).toContain('Who:\nhost@example.com\nWhere: https://meet.google.com/abc')
+    expect(event.content).not.toContain('<a')
+    expect(event.content).not.toContain('google.com/url')
+  })
+  it('requests only the Gmail metadata a result uses and cleans the snippet', async () => {
+    const api = client()
+    api.json.mockResolvedValueOnce({ messages: [{ id: 'm' }] }).mockResolvedValueOnce({
+      id: 'm',
+      labelIds: ['INBOX'],
+      snippet: 'Let&#39;s ship it \u034f \u034f \u200c\u200b\ufeff \u034f',
+      internalDate: '1700000000000',
+      payload: { headers: [{ name: 'Subject', value: 'Launch' }] },
+    })
+    const [message] = (await searchGmail(api, input)).documents
+    expect(message.content).toBe("Let's ship it")
+    expect(message.accessMetadata).toEqual({ id: 'm', labelIds: ['INBOX'] })
+    expect(api.json.mock.calls[1][1]?.query).toMatchObject({
+      format: 'metadata',
+      metadataHeaders: ['Subject', 'From'],
+      fields: 'id,labelIds,snippet,internalDate,payload/headers',
+    })
+  })
+  it('batches code search by bytes and searches issues in fewer, larger batches', async () => {
+    const api = client()
+    const repositories = Array.from({ length: 100 }, (_, index) => ({
+      full_name: `simstudioai/repository-with-a-long-name-${index}`,
+    }))
+    api.json.mockImplementation(async (path) =>
+      path === '/user/repos' ? repositories : { items: [], total_count: 0 }
+    )
+    const result = await searchGitHub(api, { ...input, query: 'déploiement 検索' })
+    const queries = (path: string) =>
+      api.json.mock.calls
+        .filter(([called]) => called === path)
+        .map(([, options]) => Buffer.byteLength(String(options?.query?.q)))
+    expect(Math.max(...queries('/search/code'))).toBeLessThanOrEqual(1000)
+    expect(queries('/search/code').length).toBeLessThanOrEqual(4)
+    expect(queries('/search/issues').length).toBeLessThan(queries('/search/code').length * 2)
+    expect(result.partial).toBe(true)
+    expect(result.message).toMatch(/Only the \d+ most recently pushed repositories were searched/)
+  })
+  it('keeps GitHub qualifiers outside the grouped text of a dated search', async () => {
+    const api = client()
+    api.json.mockImplementation(async (path) =>
+      path === '/user/repos' ? [{ full_name: 'org/repo' }] : { items: [], total_count: 0 }
+    )
+    await searchGitHub(api, {
+      ...input,
+      filters: { startDate: '2026-09-20T00:00:00Z', endDate: '2026-09-24T00:00:00Z' },
+    })
+    const searches = api.json.mock.calls.filter(([path]) => path.startsWith('/search/'))
+    expect(searches.map(([path]) => path)).toEqual(['/search/issues', '/search/issues'])
+    expect(searches.map(([, options]) => options?.query?.q)).toEqual([
+      '(launch) repo:org/repo is:issue updated:2026-09-20T00:00:00.000Z..2026-09-24T00:00:00.000Z',
+      '(launch) repo:org/repo is:pull-request updated:2026-09-20T00:00:00.000Z..2026-09-24T00:00:00.000Z',
+    ])
+  })
+  it('lists dated GitHub issues without grouping an empty query', async () => {
+    const api = client()
+    api.json.mockResolvedValue({ items: [], total_count: 0 })
+    await searchGitHub(api, {
+      ...input,
+      query: '',
+      native: { provider: 'github', query: 'repo:org/repo is:issue', kind: 'issues' },
+      filters: { startDate: '2026-09-20T00:00:00Z' },
+    })
+    expect(api.json.mock.calls[0][1]?.query?.q).toBe(
+      'repo:org/repo is:issue updated:>=2026-09-20T00:00:00.000Z'
+    )
+  })
+  it('searches Atlassian sites in parallel and reads accessible sites once per client', async () => {
+    const api = client()
+    api.json.mockImplementation(async (path) => {
+      if (path === '/oauth/token/accessible-resources')
+        return [
+          { id: 'one', url: 'https://one.atlassian.net' },
+          { id: 'two', url: 'https://two.atlassian.net' },
+        ]
+      const site = path.includes('/one/') ? 'one' : 'two'
+      return {
+        results: [
+          {
+            content: { id: `${site}-1`, title: 'A' },
+            excerpt: '@@@hl@@@Launch@@@endhl@@@ &amp; plan',
+          },
+          { content: { id: `${site}-2`, title: 'B' } },
+        ],
+      }
+    })
+    const session = withJsonMemo(api)
+    const result = await searchAtlassian(session, 'confluence', input)
+    await searchAtlassian(session, 'confluence', input)
+    expect(result.documents.map((item) => item.id)).toEqual(['one-1', 'two-1', 'one-2', 'two-2'])
+    expect(result.documents[0].content).toBe('Launch & plan')
+    expect(
+      api.json.mock.calls.filter(([path]) => path === '/oauth/token/accessible-resources')
+    ).toHaveLength(1)
   })
   it('calls Slack RTS with only channel types granted by the user token', async () => {
     const api = client()
@@ -365,7 +543,7 @@ describe('native search endpoints', () => {
       ...input,
       native: { provider: 'github', query: 'repo:org/repo auth', kind: 'code' },
     })
-    expect(result).toMatchObject({ partial: true, nextCursor: '2' })
+    expect(result).toMatchObject({ partial: true, hasMore: true, nextCursor: '2' })
     expect(api.json.mock.calls[0][0]).toBe('/search/code')
   })
 })

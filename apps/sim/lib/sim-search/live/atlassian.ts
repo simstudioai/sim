@@ -1,4 +1,4 @@
-import { nativeDateBounds, nativeText } from '@/lib/sim-search/live/dates'
+import { dateSortDirection, nativeDateBounds, nativeText } from '@/lib/sim-search/live/dates'
 import {
   array,
   NativeSearchError,
@@ -7,6 +7,8 @@ import {
   string,
   textContent,
 } from '@/lib/sim-search/live/http'
+import { interleaveByRank } from '@/lib/sim-search/live/pages'
+import { providerText } from '@/lib/sim-search/live/text'
 import type {
   NativeClient,
   NativeDocument,
@@ -73,15 +75,16 @@ function page(row: Record<string, unknown>, cloudId: string, site: string): Nati
     title: string(content.title) || string(row.title),
     url: `${site}/wiki${string(links.webui) || `/pages/${segment(string(content.id))}`}`,
     content:
-      string(object(object(content.body).view).value).replace(/<[^>]*>/g, ' ') ||
-      string(row.excerpt).replace(/<[^>]*>/g, ' ') ||
+      providerText(string(object(object(content.body).view).value), 'html') ||
+      providerText(string(row.excerpt).replace(/@@@(?:end)?hl@@@/g, ''), 'html') ||
       string(content.title),
     modifiedAt: string(version.when) || string(row.lastModified),
     author: string(object(version.by).displayName),
   }
 }
+/** The sites a grant can reach, requested once per client and shared with its verifier. */
 async function sites(client: NativeClient) {
-  return array(await client.json('/oauth/token/accessible-resources'))
+  return array(await client.json('/oauth/token/accessible-resources', { memo: true }))
 }
 
 export async function searchAtlassian(
@@ -102,56 +105,52 @@ export async function searchAtlassian(
       'reconnect',
       'No accessible Atlassian site matches this account or site ID.'
     )
-  const documents: NativeDocument[] = []
-  let partial = !input.native?.project && allSites.length > selected.length
-  let nextCursor: string | undefined
-  for (const site of selected) {
-    const cloudId = string(site.id)
-    const origin = string(site.url).replace(/\/$/, '')
-    const policyScope =
-      input.policy?.mode === 'selected'
-        ? `(${input.policy.included.map((id) => `${provider === 'jira' ? 'project' : 'space'} = ${JSON.stringify(id)}`).join(' OR ')})`
-        : undefined
-    const dates = nativeDateBounds(input)
-    const field = provider === 'jira' ? 'updated' : 'lastmodified'
-    const scope =
-      [
-        policyScope,
-        dates.start
-          ? `${field} >= "${new Date(Date.parse(dates.start) - 86400000).toISOString().slice(0, 10)}"`
-          : '',
-        dates.end
-          ? `${field} <= "${new Date(Date.parse(dates.end) + 86400000).toISOString().slice(0, 10)}"`
-          : '',
-      ]
-        .filter(Boolean)
-        .join(' AND ') || undefined
-    const order =
-      input.filters?.sortBy && input.filters.sortBy !== 'relevance'
-        ? `${field} ${input.filters.sortBy === 'oldest' ? 'ASC' : 'DESC'}`
-        : undefined
-    const text = nativeText(input)
-    if (provider === 'jira') {
-      const data = object(
-        await client.json(`/ex/jira/${segment(cloudId)}/rest/api/3/search/jql`, {
-          body: {
-            jql: scopeAtlassianQuery(
-              input.native?.query || (text ? `text ~ ${escapeSearchPhrase(text)}` : ''),
-              scope,
-              order
-            ),
-            maxResults: input.limit,
-            fields: ['summary', 'description', 'updated', 'creator', 'status'],
-            ...(input.native?.cursor && selected.length === 1
-              ? { nextPageToken: input.native.cursor }
-              : {}),
-          },
-        })
-      )
-      documents.push(...array(data.issues).map((row) => issue(row, cloudId, origin)))
-      partial ||= Boolean(data.nextPageToken)
-      if (selected.length === 1) nextCursor = string(data.nextPageToken) || undefined
-    } else {
+  const single = selected.length === 1
+  const policyScope =
+    input.policy?.mode === 'selected'
+      ? `(${input.policy.included.map((id) => `${provider === 'jira' ? 'project' : 'space'} = ${JSON.stringify(id)}`).join(' OR ')})`
+      : undefined
+  const dates = nativeDateBounds(input)
+  const field = provider === 'jira' ? 'updated' : 'lastmodified'
+  const scope =
+    [
+      policyScope,
+      dates.start
+        ? `${field} >= "${new Date(Date.parse(dates.start) - 86400000).toISOString().slice(0, 10)}"`
+        : '',
+      dates.end
+        ? `${field} <= "${new Date(Date.parse(dates.end) + 86400000).toISOString().slice(0, 10)}"`
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' AND ') || undefined
+  const direction = dateSortDirection(input.filters)
+  const order = direction ? `${field} ${direction.toUpperCase()}` : undefined
+  const text = nativeText(input)
+  const pages = await Promise.all(
+    selected.map(async (site) => {
+      const cloudId = string(site.id)
+      const origin = string(site.url).replace(/\/$/, '')
+      if (provider === 'jira') {
+        const data = object(
+          await client.json(`/ex/jira/${segment(cloudId)}/rest/api/3/search/jql`, {
+            body: {
+              jql: scopeAtlassianQuery(
+                input.native?.query || (text ? `text ~ ${escapeSearchPhrase(text)}` : ''),
+                scope,
+                order
+              ),
+              maxResults: input.limit,
+              fields: ['summary', 'description', 'updated', 'creator', 'status'],
+              ...(input.native?.cursor && single ? { nextPageToken: input.native.cursor } : {}),
+            },
+          })
+        )
+        return {
+          documents: array(data.issues).map((row) => issue(row, cloudId, origin)),
+          next: string(data.nextPageToken) || undefined,
+        }
+      }
       const data = object(
         await client.json(`/ex/confluence/${segment(cloudId)}/wiki/rest/api/search`, {
           query: {
@@ -163,24 +162,25 @@ export async function searchAtlassian(
             ),
             limit: String(input.limit),
             expand: 'content.version',
-            ...(input.native?.cursor && selected.length === 1
-              ? { cursor: input.native.cursor }
-              : {}),
+            ...(input.native?.cursor && single ? { cursor: input.native.cursor } : {}),
           },
         })
       )
-      documents.push(...array(data.results).map((row) => page(row, cloudId, origin)))
       const next = string(object(data._links).next)
-      partial ||= Boolean(next)
-      if (next && selected.length === 1)
-        nextCursor =
-          new URL(next, 'https://api.atlassian.com').searchParams.get('cursor') ?? undefined
-    }
-  }
+      return {
+        documents: array(data.results).map((row) => page(row, cloudId, origin)),
+        next: next
+          ? (new URL(next, 'https://api.atlassian.com').searchParams.get('cursor') ?? undefined)
+          : undefined,
+      }
+    })
+  )
+  const documents = interleaveByRank(pages.map((result) => result.documents))
   return {
     documents,
-    partial,
-    nextCursor,
+    partial: !input.native?.project && allSites.length > selected.length,
+    hasMore: pages.some((result) => Boolean(result.next)),
+    nextCursor: single ? pages[0]?.next : undefined,
     message:
       'Searches up to four accessible Atlassian sites. For a specific site and pagination, set project to its cloud ID.',
   }

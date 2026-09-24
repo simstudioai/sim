@@ -1,7 +1,15 @@
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
-import { hasDateBounds, nativeDateBounds, nativeText } from '@/lib/sim-search/live/dates'
+import {
+  dateSortDirection,
+  hasDateBounds,
+  nativeDateBounds,
+  nativeText,
+} from '@/lib/sim-search/live/dates'
 import { array, NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
+import { interleaveByRank } from '@/lib/sim-search/live/pages'
 import { permitsResources } from '@/lib/sim-search/live/policy'
+import { providerText } from '@/lib/sim-search/live/text'
 import type {
   NativeClient,
   NativeDocument,
@@ -46,8 +54,10 @@ export async function searchDrive(
           ...(dates.start ? [`modifiedTime >= '${dates.start}'`] : []),
           ...(dates.end ? [`modifiedTime <= '${dates.end}'`] : []),
         ].join(' and '),
-        ...(input.filters?.sortBy && input.filters.sortBy !== 'relevance'
-          ? { orderBy: `modifiedTime${input.filters.sortBy === 'oldest' ? '' : ' desc'}` }
+        ...(dateSortDirection(input.filters)
+          ? {
+              orderBy: `modifiedTime${dateSortDirection(input.filters) === 'asc' ? '' : ' desc'}`,
+            }
           : {}),
         fields: `nextPageToken,incompleteSearch,files(${DRIVE_FIELDS})`,
         pageSize: String(input.limit),
@@ -117,6 +127,11 @@ export async function readDrive(client: NativeClient, id: string): Promise<Nativ
   return document
 }
 
+/** One metadata read per match, bounded so a page stays within Gmail's per-user rate. */
+const GMAIL_METADATA_CONCURRENCY = 10
+/** Only the fields a result uses; labels double as member-policy evidence. */
+const GMAIL_METADATA_FIELDS = 'id,labelIds,snippet,internalDate,payload/headers'
+
 function gmailDocument(row: Record<string, unknown>): NativeDocument {
   const payload = object(row.payload)
   const headers = array(payload.headers)
@@ -124,10 +139,13 @@ function gmailDocument(row: Record<string, unknown>): NativeDocument {
     string(headers.find((h) => string(h.name).toLowerCase() === name)?.value)
   const timestamp = Number(row.internalDate)
   return {
+    ...(Array.isArray(row.labelIds)
+      ? { accessMetadata: { id: row.id, labelIds: row.labelIds } }
+      : {}),
     id: string(row.id),
     title: header('subject') || '(No subject)',
     url: `https://mail.google.com/mail/u/0/#all/${segment(string(row.id))}`,
-    content: string(row.snippet),
+    content: providerText(string(row.snippet), 'escaped'),
     author: header('from'),
     ...(Number.isFinite(timestamp) && timestamp > 0
       ? { modifiedAt: new Date(timestamp).toISOString() }
@@ -157,24 +175,22 @@ export async function searchGmail(
       },
     })
   )
-  const documents: NativeDocument[] = []
-  // Bound fanout while retaining provider rank. One metadata call per matching message.
-  const messages = array(data.messages)
-  for (let offset = 0; offset < messages.length; offset += 5) {
-    documents.push(
-      ...(await Promise.all(
-        messages.slice(offset, offset + 5).map(async (message) =>
-          gmailDocument(
-            object(
-              await client.json(`/gmail/v1/users/me/messages/${segment(string(message.id))}`, {
-                query: { format: 'metadata' },
-              })
-            )
-          )
+  const documents = await mapWithConcurrency(
+    array(data.messages),
+    GMAIL_METADATA_CONCURRENCY,
+    async (message) =>
+      gmailDocument(
+        object(
+          await client.json(`/gmail/v1/users/me/messages/${segment(string(message.id))}`, {
+            query: {
+              format: 'metadata',
+              metadataHeaders: ['Subject', 'From'],
+              fields: GMAIL_METADATA_FIELDS,
+            },
+          })
         )
-      ))
-    )
-  }
+      )
+  )
   return {
     documents,
     nextCursor: string(data.nextPageToken) || undefined,
@@ -188,13 +204,11 @@ function mailText(value: unknown): string {
   const children = array(part.parts).map(mailText).filter(Boolean)
   const encoded = string(object(part.body).data)
   if (string(part.mimeType) === 'text/plain' && encoded)
-    return Buffer.from(encoded, 'base64url').toString('utf8')
+    return providerText(Buffer.from(encoded, 'base64url').toString('utf8'))
   if (children.length) return children.join('\n')
   // HTML-only messages remain text, never rendered as markup.
   if (string(part.mimeType) === 'text/html' && encoded)
-    return Buffer.from(encoded, 'base64url')
-      .toString('utf8')
-      .replace(/<[^>]*>/g, ' ')
+    return providerText(Buffer.from(encoded, 'base64url').toString('utf8'), 'html')
   return ''
 }
 
@@ -226,7 +240,7 @@ function eventDocument(
     url: string(row.htmlLink),
     content: [
       string(row.summary),
-      string(row.description),
+      providerText(string(row.description), 'auto'),
       string(row.location),
       `Start: ${string(object(row.start).dateTime) || string(object(row.start).date)}`,
       `End: ${string(object(row.end).dateTime) || string(object(row.end).date)}`,
@@ -240,6 +254,27 @@ function eventDocument(
     modifiedAt: string(row.updated),
     author: string(object(row.organizer).email),
   }
+}
+
+/**
+ * A shared meeting appears once in every attendee calendar the member can see. Its iCalendar
+ * UID and start instant identify the occurrence across calendars, which may report the start in
+ * their own time zones; a modified recurring instance stays distinct from its series.
+ */
+function calendarOccurrenceKey(row: Record<string, unknown>): string {
+  const start = object(row.originalStartTime ?? row.start)
+  const instant = Date.parse(string(start.dateTime))
+  return JSON.stringify([
+    string(row.iCalUID) || string(row.id),
+    row.recurringEventId ? 'instance' : 'event',
+    Number.isFinite(instant) ? instant : string(start.date),
+  ])
+}
+
+/** Events without a resolvable start sort after every scheduled one. */
+function eventStartTime(document: NativeDocument): number {
+  const time = Date.parse(document.eventStartAt ?? '')
+  return Number.isFinite(time) ? time : Number.MAX_SAFE_INTEGER
 }
 
 export async function searchCalendar(
@@ -262,76 +297,68 @@ export async function searchCalendar(
         ])
     )
     .slice(0, 20)
-  const documents: NativeDocument[] = []
-  let partial = Boolean(calendars.nextPageToken)
-  let nextCursor: string | undefined
-  let failedCalendars = 0
-  for (let offset = 0; offset < rows.length; offset += 4) {
-    const pages = await Promise.allSettled(
-      rows.slice(offset, offset + 4).map(async (row) => {
-        const calendarId = string(row.id)
-        const data = object(
-          await client.json(`/calendar/v3/calendars/${segment(calendarId)}/events`, {
-            query: {
-              ...(nativeText(input) ? { q: nativeText(input) } : {}),
-              ...(input.filters?.startDate
-                ? {
-                    timeMin: new Date(
-                      Math.floor(Date.parse(input.filters.startDate) / 1000) * 1000 - 1000
-                    ).toISOString(),
-                  }
-                : {}),
-              ...(input.filters?.endDate
-                ? {
-                    timeMax: new Date(
-                      Math.ceil(Date.parse(input.filters.endDate) / 1000) * 1000
-                    ).toISOString(),
-                  }
-                : {}),
-              ...(input.filters?.modifiedAfter ? { updatedMin: input.filters.modifiedAfter } : {}),
-              ...(hasDateBounds(input.filters) ||
-              (input.filters?.sortBy && input.filters.sortBy !== 'relevance')
-                ? { singleEvents: 'true', orderBy: 'startTime' }
-                : {}),
-              maxResults: String(input.limit),
-              showDeleted: 'false',
-              ...(input.native?.cursor && input.native.project
-                ? { pageToken: input.native.cursor }
-                : {}),
-            },
-          })
-        )
-        return { data, calendarId, timeZone: string(data.timeZone) || string(row.timeZone) }
-      })
-    )
-    for (const result of pages) {
-      if (result.status === 'rejected') {
-        if (input.native?.project) throw result.reason
-        partial = true
-        failedCalendars++
-        continue
-      }
-      const { data, calendarId, timeZone } = result.value
-      documents.push(
-        ...array(data.items)
-          .filter((event) => event.status !== 'cancelled')
-          .map((event) =>
-            eventDocument(event, calendarId, input.policy?.includeAttendees, timeZone)
-          )
+    .sort((left, right) => Number(right.primary === true) - Number(left.primary === true))
+  const chronological = hasDateBounds(input.filters) || Boolean(dateSortDirection(input.filters))
+  const pages = await mapWithConcurrency(rows, 4, async (row) => {
+    const calendarId = string(row.id)
+    try {
+      const data = object(
+        await client.json(`/calendar/v3/calendars/${segment(calendarId)}/events`, {
+          query: {
+            ...(nativeText(input) ? { q: nativeText(input) } : {}),
+            ...(input.filters?.startDate
+              ? {
+                  timeMin: new Date(
+                    Math.floor(Date.parse(input.filters.startDate) / 1000) * 1000 - 1000
+                  ).toISOString(),
+                }
+              : {}),
+            ...(input.filters?.endDate
+              ? {
+                  timeMax: new Date(
+                    Math.ceil(Date.parse(input.filters.endDate) / 1000) * 1000
+                  ).toISOString(),
+                }
+              : {}),
+            ...(input.filters?.modifiedAfter ? { updatedMin: input.filters.modifiedAfter } : {}),
+            ...(chronological ? { singleEvents: 'true', orderBy: 'startTime' } : {}),
+            maxResults: String(input.limit),
+            showDeleted: 'false',
+            ...(input.native?.cursor && input.native.project
+              ? { pageToken: input.native.cursor }
+              : {}),
+          },
+        })
       )
-      partial ||= Boolean(data.nextPageToken)
-      if (input.native?.project) nextCursor = string(data.nextPageToken) || undefined
+      return { data, calendarId, timeZone: string(data.timeZone) || string(row.timeZone) }
+    } catch (error) {
+      if (input.native?.project) throw error
+      return null
     }
-  }
-  if (rows.length > 0 && failedCalendars === rows.length)
+  })
+  const searched = pages.filter((page) => page !== null)
+  if (rows.length > 0 && searched.length === 0)
     throw new NativeSearchError(
       'unavailable',
       'None of the calendars could be searched. Check calendar permissions.'
     )
+  const perCalendar = searched.map(({ data, calendarId, timeZone }) =>
+    array(data.items)
+      .filter((event) => event.status !== 'cancelled')
+      .map((event) => ({
+        ...eventDocument(event, calendarId, input.policy?.includeAttendees, timeZone),
+        dedupeKey: calendarOccurrenceKey(event),
+      }))
+  )
+  const documents = chronological
+    ? perCalendar.flat().sort((left, right) => eventStartTime(left) - eventStartTime(right))
+    : interleaveByRank(perCalendar)
+  const single = input.native?.project ? searched[0] : undefined
   return {
     documents,
-    partial,
-    nextCursor,
+    partial: Boolean(calendars.nextPageToken) || searched.length < rows.length,
+    hasMore: searched.some(({ data }) => Boolean(data.nextPageToken)),
+    nextCursor: single ? string(single.data.nextPageToken) || undefined : undefined,
     message:
       'Calendar supports text and date-only searches across up to 20 calendars. startDate/endDate filter scheduled starts; recurring events expand within the window. sourceDate is scheduled start and sourceModifiedAt is last edit. Use project = calendar ID to paginate; reverse ordering is limited to the fetched page.',
   }

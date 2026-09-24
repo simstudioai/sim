@@ -362,15 +362,25 @@ export function looksLikeHtml(value: string): boolean {
  * punctuation as numeric references, which previously reached the index verbatim.
  */
 export function htmlToPlainText(html: string): string {
-  const text = html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(HTML_ENTITY_PATTERN, (raw: string, hex?: string, decimal?: string, named?: string) => {
+  return decodeHtmlEntities(html.replace(/<[^>]*>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Decodes HTML character references without touching markup or whitespace. Use for text a
+ * provider HTML-escapes but does not mark up, such as Gmail message snippets.
+ */
+export function decodeHtmlEntities(text: string): string {
+  return text.replace(
+    HTML_ENTITY_PATTERN,
+    (raw: string, hex?: string, decimal?: string, named?: string) => {
       if (named !== undefined) return NAMED_ENTITIES[named] ?? raw
       if (hex !== undefined) return decodeCharacterReference(raw, Number.parseInt(hex, 16))
       if (decimal !== undefined) return decodeCharacterReference(raw, Number.parseInt(decimal, 10))
       return raw
-    })
-  return text.replace(/\s+/g, ' ').trim()
+    }
+  )
 }
 
 /**

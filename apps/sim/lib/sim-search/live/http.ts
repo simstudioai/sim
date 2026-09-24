@@ -1,5 +1,9 @@
-import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
+import {
+  type PinnedConnectionPool,
+  secureFetchWithValidation,
+} from '@/lib/core/security/input-validation.server'
 import type { NativeClient } from '@/lib/sim-search/live/types'
+import { isGoogleQuotaReason } from '@/connectors/google-workspace/api-errors'
 
 export class NativeSearchError extends Error {
   constructor(
@@ -16,6 +20,8 @@ export function createNativeClient(input: {
   origin: string
   accessToken: string
   signal: AbortSignal
+  /** Reuses connections across this client's requests; the caller owns its lifetime. */
+  pool?: PinnedConnectionPool
 }): NativeClient {
   let requests = 0
   async function request(
@@ -57,10 +63,18 @@ export function createNativeClient(input: {
       timeout: 10_000,
       maxResponseBytes: 4 * 1024 * 1024,
       maxRedirects: 0,
+      acceptCompressed: true,
+      connectionPool: input.pool,
     })
     if (!response.ok) {
+      /** Reading the small error body also returns a pooled connection for reuse. */
+      let quotaExceeded = false
+      if (response.status === 403 && url.hostname.endsWith('.googleapis.com'))
+        quotaExceeded = isGoogleQuotaError(await response.json().catch(() => null))
+      else await response.text().catch(() => '')
       if (
         response.status === 429 ||
+        quotaExceeded ||
         (response.status === 403 &&
           (response.headers.get('retry-after') !== null ||
             response.headers.get('x-ratelimit-remaining') === '0'))
@@ -90,14 +104,51 @@ export function createNativeClient(input: {
     }
     return response
   }
-  return {
+  return withJsonMemo({
     async json(path, options) {
       return (await request(path, options)).json()
     },
     async text(path, query) {
       return (await request(path, { query })).text()
     },
+  })
+}
+
+/**
+ * Answers a repeated `memo` GET from the client's earlier response. A client lives for one
+ * search or read, so a memoized response never outlives the request that authorized it.
+ */
+export function withJsonMemo(client: NativeClient): NativeClient {
+  const memo = new Map<string, Promise<unknown>>()
+  return {
+    ...client,
+    json(...request) {
+      const [path, options] = request
+      if (!options?.memo || options.body) return client.json(...request)
+      const key = JSON.stringify([path, options.query, options.googleService])
+      let pending = memo.get(key)
+      if (!pending) {
+        pending = client.json(...request)
+        memo.set(key, pending)
+        pending.catch(() => memo.delete(key))
+      }
+      return pending
+    },
   }
+}
+
+/**
+ * Google reports quota exhaustion as a 403 whose body names the reason, without the rate-limit
+ * headers other providers send. Only the reason codes are read; the body is never surfaced.
+ */
+function isGoogleQuotaError(body: unknown): boolean {
+  const error = object(object(body).error)
+  return (
+    error.status === 'RESOURCE_EXHAUSTED' ||
+    [...array(error.errors), ...array(error.details)].some((entry) =>
+      isGoogleQuotaReason(string(entry.reason))
+    )
+  )
 }
 
 /** Only extract typed fields from untrusted provider JSON. */

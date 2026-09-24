@@ -1,4 +1,5 @@
 import { decryptSecret } from '@/lib/core/security/encryption'
+import type { PinnedConnectionPool } from '@/lib/core/security/input-validation.server'
 import {
   assertGitHubInstallationRepositoryActive,
   parseGitHubInstallationBinding,
@@ -47,7 +48,8 @@ function codeAllowed(source: LiveGitHubSource, document: Pick<NativeDocument, 'i
 export function createGitHubServiceVerifier(
   sources: readonly LiveGitHubSource[],
   member: NativeClient,
-  signal: AbortSignal
+  signal: AbortSignal,
+  pool?: PinnedConnectionPool
 ) {
   const byRepository = new Map<string, LiveGitHubSource[]>()
   for (const source of sources) {
@@ -107,6 +109,7 @@ export function createGitHubServiceVerifier(
           origin: 'https://api.github.com',
           accessToken,
           signal,
+          pool,
         })
         const [appRepository, memberRepository] = await Promise.all([
           app.json(path).then(object),

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConnectorAccessToken } from '@/lib/knowledge/connectors/access-token'
 import { searchCalendar } from '@/lib/sim-search/live/google'
 import { createGoogleServiceVerifier } from '@/lib/sim-search/live/google-service'
-import { NativeSearchError } from '@/lib/sim-search/live/http'
+import { NativeSearchError, withJsonMemo } from '@/lib/sim-search/live/http'
 import { liveSourcePolicy } from '@/lib/sim-search/live/source-policy'
 import type { NativeClient, NativeSearchInput } from '@/lib/sim-search/live/types'
 
@@ -41,7 +41,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date('2026-09-22T12:00:00Z'))
   member.json.mockResolvedValue({ emailAddress: 'reader@example.com' })
   mocks.directory.mockImplementation(async (_token, email: string) => person(email))
-  mocks.createClient.mockReturnValue(delegated)
+  mocks.createClient.mockImplementation(() => withJsonMemo(delegated))
   mint.mockResolvedValue('delegated-token')
 })
 afterEach(() => vi.useRealTimers())
@@ -427,5 +427,13 @@ describe('Google service search scope and continuation', () => {
       limit: 29,
       native,
     })
+  })
+  it('caps Drive pages to what source verification can check within its request budget', async () => {
+    member.json.mockResolvedValue({ user: { emailAddress: 'reader@example.com' } })
+    const search = { query: 'launch', limit: 50, scopes: [] }
+    const scoped = await create('google_drive', { folderId: 'folder' })
+    expect(scoped.scopeSearch(search)).toMatchObject({ limit: 20 })
+    expect(scoped.scopeSearch({ ...search, limit: 10 })).toMatchObject({ limit: 10 })
+    expect((await create('google_drive')).scopeSearch(search)).toMatchObject({ limit: 29 })
   })
 })

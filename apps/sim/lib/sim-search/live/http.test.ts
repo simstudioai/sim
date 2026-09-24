@@ -95,6 +95,52 @@ describe('native search network boundary', () => {
       message: expect.stringContaining('read permissions for Contents, Issues, and Pull requests'),
     })
   })
+  it('reports a Google quota 403 as a rate limit rather than a reconnect', async () => {
+    mocks.fetch.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: { code: 403, errors: [{ reason: 'userRateLimitExceeded' }], message: 'private' },
+        }),
+        { status: 403 }
+      )
+    )
+    const client = createNativeClient({
+      origin: 'https://www.googleapis.com',
+      accessToken: 'private',
+      signal: new AbortController().signal,
+    })
+    await expect(client.json('/drive/v3/files')).rejects.toMatchObject({
+      status: 'rate_limited',
+      message: 'Provider rate limit reached. Try again later.',
+    })
+  })
+  it('still asks for a reconnect when Google denies access', async () => {
+    mocks.fetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: { errors: [{ reason: 'insufficientPermissions' }] } }), {
+        status: 403,
+      })
+    )
+    const client = createNativeClient({
+      origin: 'https://www.googleapis.com',
+      accessToken: 'private',
+      signal: new AbortController().signal,
+    })
+    await expect(client.json('/drive/v3/files')).rejects.toMatchObject({ status: 'reconnect' })
+  })
+  it('requests compressed bodies and passes the caller connection pool through', async () => {
+    const pool = { agent: vi.fn(), destroy: vi.fn() }
+    const client = createNativeClient({
+      origin: 'https://www.googleapis.com',
+      accessToken: 'private',
+      signal: new AbortController().signal,
+      pool,
+    })
+    await client.json('/drive/v3/files')
+    expect(mocks.fetch).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ acceptCompressed: true, connectionPool: pool })
+    )
+  })
   it('does not issue any request after cancellation', async () => {
     const controller = new AbortController()
     controller.abort()

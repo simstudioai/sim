@@ -44,11 +44,22 @@ export async function createCodaMcpClient(
       throw new NativeSearchError('reconnect', 'Coda connection changed. Search again.')
     return current
   }
-  const loadProvider = async () => createManagedMcpAuthProvider(await loadCurrent())
+  /**
+   * The first provider load reuses the grant checked moments earlier in the same step; any later
+   * load, such as a token refresh inside the MCP client, reads the current grant again.
+   */
+  const providerLoader = (checked: typeof initial) => {
+    let first: typeof initial | undefined = checked
+    return async () => {
+      const current = first ?? (await loadCurrent())
+      first = undefined
+      return createManagedMcpAuthProvider(current)
+    }
+  }
   const tools = await mcpService.discoverManagedMcpTools(
     initial.mcpServerId,
     initial.scope,
-    { credentialId, loadProvider },
+    { credentialId, loadProvider: providerLoader(initial) },
     signal,
     { requireComplete: true }
   )
@@ -64,13 +75,13 @@ export async function createCodaMcpClient(
           `Coda no longer advertises ${name}. Reconnect or update the connector.`
         )
       validateToolArguments(tool, args)
-      await loadCurrent()
+      const current = await loadCurrent()
       const result = await mcpService.executeManagedMcpTool({
         connectionId: credentialId,
         serverId: initial.mcpServerId,
         scope: initial.scope,
         toolCall: { name, arguments: args },
-        loadAuthProvider: loadProvider,
+        loadAuthProvider: providerLoader(current),
         signal,
         timeoutMs: 10_000,
       })
@@ -190,11 +201,8 @@ export async function searchCodaMcp(
   return {
     documents,
     nextCursor,
-    partial:
-      documents.length < rows.length ||
-      Boolean(nextCursor) ||
-      result.hasMore === true ||
-      hasDateBounds(input.filters),
+    hasMore: result.hasMore === true,
+    partial: documents.length < rows.length || hasDateBounds(input.filters),
     message:
       (query
         ? 'Coda content search includes pages and table rows. Narrow the query or target a document for more results.'

@@ -85,7 +85,7 @@ describe('Coda MCP content search', () => {
     })
     expect(page).toMatchObject({
       nextCursor: 'next',
-      partial: true,
+      partial: false,
       documents: [{ id: 'coda://docs/doc/pages/page', kind: 'mcp', content: 'Release next week' }],
     })
   })

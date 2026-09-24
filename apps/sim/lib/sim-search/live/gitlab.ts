@@ -1,4 +1,9 @@
-import { hasDateBounds, nativeDateBounds, nativeText } from '@/lib/sim-search/live/dates'
+import {
+  dateSortDirection,
+  hasDateBounds,
+  nativeDateBounds,
+  nativeText,
+} from '@/lib/sim-search/live/dates'
 import { array, NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
 import { collectNativePages } from '@/lib/sim-search/live/pages'
 import type {
@@ -13,7 +18,10 @@ function document(row: Record<string, unknown>, kind: string): NativeDocument {
     accessMetadata: {
       confidential: row.confidential,
       authorId: object(row.author).id,
-      assigneeIds: array(row.assignees).map((person) => person.id),
+      /** Older merge request payloads carry only the single, deprecated `assignee`. */
+      assigneeIds: Array.isArray(row.assignees)
+        ? array(row.assignees).map((person) => person.id)
+        : [object(row.assignee).id].filter((id) => id !== undefined),
       state: row.state,
       labels: row.labels,
       milestone: row.milestone,
@@ -109,8 +117,7 @@ export async function searchGitLab(
   const listing = Boolean(
     input.native?.project &&
       ['issues', 'merge_requests'].includes(kind) &&
-      (hasDateBounds(input.filters) ||
-        (input.filters?.sortBy && input.filters.sortBy !== 'relevance'))
+      (hasDateBounds(input.filters) || Boolean(dateSortDirection(input.filters)))
   )
   let response: unknown
   try {
@@ -127,7 +134,7 @@ export async function searchGitLab(
           ...(listing && dates.start ? { updated_after: dates.start } : {}),
           ...(listing && dates.end ? { updated_before: dates.end } : {}),
           ...(listing
-            ? { order_by: 'updated_at', sort: input.filters?.sortBy === 'oldest' ? 'asc' : 'desc' }
+            ? { order_by: 'updated_at', sort: dateSortDirection(input.filters) ?? 'desc' }
             : {}),
           per_page: String(input.limit),
           page,

@@ -137,7 +137,12 @@ describe('service credential isolation', () => {
     })
     expect(session).toBeTruthy()
     expect(mocks.githubSources).toHaveBeenCalledWith(base.owner)
-    expect(mocks.github).toHaveBeenCalledWith([{ id: 'repository-source' }], api, base.signal)
+    expect(mocks.github).toHaveBeenCalledWith(
+      [{ id: 'repository-source' }],
+      api,
+      base.signal,
+      undefined
+    )
     expect(mocks.source).not.toHaveBeenCalled()
     await expect(
       createLiveServiceSession({ ...base, member: null, provider: 'github', policy: configured })

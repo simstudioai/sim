@@ -24,6 +24,12 @@ export function hasDateBounds(filters?: WorkspaceSearchFilters): boolean {
   )
 }
 
+/** The provider-date order results must follow, or undefined when ranked by relevance. */
+export function dateSortDirection(filters?: WorkspaceSearchFilters): 'asc' | 'desc' | undefined {
+  if (!filters?.sortBy || filters.sortBy === 'relevance') return undefined
+  return filters.sortBy === 'oldest' ? 'asc' : 'desc'
+}
+
 /** Native bounds may be widened for provider precision; returned metadata is checked exactly. */
 export function nativeDateBounds(input: NativeSearchInput): { start?: string; end?: string } {
   const filters = input.filters
