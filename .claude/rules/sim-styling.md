@@ -47,7 +47,7 @@ setWidth: (width) => {
 
 ## Text Scale
 
-Use the named scale in `apps/sim/app/_styles/globals.css`: `text-micro`=10px, `text-xs`=11px, `text-caption`=12px, `text-small`=13px, `text-base`=15px, `text-md`=16px, `text-title`=28px, `text-title-lg`=32px, and `text-display`=40px. The explicitly adopted stock entries retain their rem units and default leading: `text-sm`=0.875rem, `text-xl`=1.25rem, and `text-2xl`=1.5rem (14/20/24px at the default root size). Field titles use `text-small`; hints/errors use `text-caption`; workflow titles use `text-md`.
+Use the named scale in `apps/sim/app/_styles/globals.css`: `text-micro`=10px, `text-xs`=11px, `text-caption`=12px, `text-small`=13px, `text-base`=15px, `text-md`=16px, `text-title`=28px, `text-title-lg`=32px, and `text-display`=40px. The explicitly adopted stock entries retain their rem units and default leading: `text-sm`=0.875rem, `text-lg`=1.125rem, `text-xl`=1.25rem, and `text-2xl`=1.5rem (14/18/20/24px at the default root size). Field titles use `text-small`; hints/errors use `text-caption`; workflow titles use `text-md`.
 
 Preserve explicit line heights when replacing arbitrary sizes. Where the old size inherited its line height, use `leading-[inherit]` if the named utility would otherwise add a different default. Keep document-relative heading/code recipes and the thinking loader's proportional label sizing distinct from ordinary UI text.
 

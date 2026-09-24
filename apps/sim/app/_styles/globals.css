@@ -110,6 +110,8 @@
   --text-sm--line-height: calc(1.25 / 0.875);
   --text-base: 15px;
   --text-md: 16px;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: calc(1.75 / 1.125);
   --text-xl: 1.25rem;
   --text-xl--line-height: calc(1.75 / 1.25);
   --text-2xl: 1.5rem;
