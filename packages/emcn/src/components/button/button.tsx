@@ -98,7 +98,7 @@ const responsiveIconSizes = {
   regular: 'sm:size-7',
   roomy: 'sm:size-8',
   touch: 'sm:size-10',
-} satisfies Record<ButtonIconSize, string>
+} as const satisfies Record<ButtonIconSize, string>
 
 export interface ButtonProps
   extends ButtonHTMLAttributes<HTMLButtonElement>,

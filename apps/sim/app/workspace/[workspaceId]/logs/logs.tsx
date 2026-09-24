@@ -14,6 +14,7 @@ import {
 import {
   Button,
   Calendar,
+  Chip,
   ChipCombobox,
   type ComboboxOption,
   cn,
@@ -1584,13 +1585,9 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
       </div>
 
       {filtersActive && (
-        <Button
-          variant='active'
-          onClick={handleClearFilters}
-          className='h-[32px] w-full rounded-md'
-        >
+        <Chip variant='border-shadow' fullWidth onClick={handleClearFilters} align='center'>
           Clear All Filters
-        </Button>
+        </Chip>
       )}
     </div>
   )
