@@ -77,6 +77,7 @@ const buttonVariants = cva(
        */
       { size: 'icon', variant: 'quiet', className: 'text-[var(--text-icon-muted)]' },
       { size: 'icon', variant: 'ghost', className: 'text-[var(--text-icon-muted)]' },
+      { size: 'icon', variant: 'ghost-hover', className: 'text-[var(--text-icon-muted)]' },
     ],
     defaultVariants: {
       variant: 'default',

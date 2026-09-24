@@ -1,5 +1,6 @@
 'use client'
 
+/** biome-ignore assist/source/organizeImports: Keep the local feature import after shared hooks and stores, per AGENTS.md. */
 import { memo, useCallback, useRef, useState } from 'react'
 import {
   Button,
@@ -24,13 +25,14 @@ import { useShallow } from 'zustand/react/shallow'
 import { useSession } from '@/lib/auth/auth-client'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands-utils'
-import { CanvasControlButton } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/canvas-control-button'
 import { useShowActionBar, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useCanvasViewport } from '@/hooks/use-canvas-viewport'
 import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+
+import { CanvasControlButton } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/canvas-control-button'
 
 const logger = createLogger('WorkflowControls')
 
