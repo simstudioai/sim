@@ -17,9 +17,16 @@ import {
 } from './persisted-message'
 
 describe('persisted-message', () => {
-  it.each([false, true])(
-    'cancels unfinished tools even when the stopped marker already exists: %s',
-    (alreadyStopped) => {
+  it.each([
+    { state: 'executing', alreadyStopped: false },
+    { state: 'executing', alreadyStopped: true },
+    { state: 'pending', alreadyStopped: false },
+    { state: 'pending', alreadyStopped: true },
+    { state: 'awaiting_approval', alreadyStopped: false },
+    { state: 'awaiting_approval', alreadyStopped: true },
+  ] as const)(
+    'cancels $state tools (existing stopped marker: $alreadyStopped)',
+    ({ state, alreadyStopped }) => {
       const message: PersistedMessage = {
         id: 'assistant',
         role: 'assistant',
@@ -31,7 +38,7 @@ describe('persisted-message', () => {
             toolCall: {
               id: 'unfinished',
               name: 'run_code',
-              state: 'executing',
+              state,
               params: { code: 'keep me' },
             },
           },
@@ -47,7 +54,7 @@ describe('persisted-message', () => {
       })
       expect(saved.contentBlocks?.[1].toolCall?.state).toBe('success')
       expect(saved.contentBlocks?.filter((block) => block.type === 'complete')).toHaveLength(1)
-      expect(message.contentBlocks?.[0].toolCall?.state).toBe('executing')
+      expect(message.contentBlocks?.[0].toolCall?.state).toBe(state)
     }
   )
 
