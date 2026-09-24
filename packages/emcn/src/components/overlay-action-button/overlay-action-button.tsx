@@ -5,7 +5,7 @@ import { Button, type ButtonProps } from '../button/button'
 
 /** Transparent, bordered icon action over code or preview content. */
 export const overlayActionButtonVariants = cva(
-  'cursor-pointer border border-[var(--border)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)] dark:hover-hover:bg-[var(--surface-5)] hover-hover:border-[var(--border)]',
+  'cursor-pointer border border-[var(--border)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)] dark:hover-hover:bg-[var(--surface-5)]',
   {
     variants: {
       size: {
