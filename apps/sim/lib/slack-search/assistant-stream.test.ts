@@ -14,7 +14,7 @@ vi.mock('@/lib/webhooks/slack-agent-api', () => ({
   stopSlackAgentStream: api.stop,
   setSlackAgentSessionStatus: api.status,
 }))
-vi.mock('@/lib/copilot/chat/sim-key-redaction', () => ({
+vi.mock('@/lib/mothership/chat/sim-key-redaction', () => ({
   redactSensitiveContent: (value: string) => value,
 }))
 vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
@@ -24,8 +24,8 @@ vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
 import type {
   ToolCallStreamEvent,
   ToolResultStreamEvent,
-} from '@/lib/copilot/request/session/contract'
-import type { OrchestratorResult } from '@/lib/copilot/request/types'
+} from '@/lib/mothership/request/session/contract'
+import type { OrchestratorResult } from '@/lib/mothership/request/types'
 import { publicSlackAnswer, SlackSearchAssistantStream } from '@/lib/slack-search/assistant-stream'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -65,7 +65,10 @@ function retrieval(
     },
   }
 }
-function setup(deliverConnections = vi.fn().mockResolvedValue(undefined)) {
+function setup(
+  deliverConnections = vi.fn().mockResolvedValue(undefined),
+  integrationsUrl?: string
+) {
   const controller = new AbortController()
   const beforeDelivery = vi.fn().mockResolvedValue(undefined)
   const beforeCleanup = vi.fn().mockResolvedValue(undefined)
@@ -83,6 +86,7 @@ function setup(deliverConnections = vi.fn().mockResolvedValue(undefined)) {
       channel: 'D1',
       threadTs: '1.1',
       slackUserId: 'U1',
+      integrationsUrl,
       controller,
       registry,
       beforeDelivery,
@@ -201,6 +205,7 @@ describe('Slack lazy stream lifecycle', () => {
     expect(api.start).not.toHaveBeenCalled()
     await stream.onEvent(toolCall())
     expect(api.start).toHaveBeenCalledOnce()
+    expect(api.start.mock.calls[0][3]).toBe('plan')
     expect(api.start.mock.calls[0][2]).toEqual([
       { type: 'markdown_text', text: '\n' },
       { type: 'markdown_text', text: '\n\n' },
@@ -800,6 +805,59 @@ describe('Slack tool progress', () => {
 })
 
 describe('Slack Assistant delivery', () => {
+  it.each(['/o/org-1/integrations', 'https://sim.example/o/org-1/integrations'])(
+    'preserves the live account connection link %s across streamed text boundaries',
+    async (destination) => {
+      const integrationsUrl = 'https://sim.example/o/org-1/integrations'
+      const deliver = vi.fn().mockResolvedValue(undefined)
+      const { stream } = setup(deliver, integrationsUrl)
+      await stream.start()
+      const answer = `Connect Gmail in [Connected accounts](${destination}), then try again.`
+      for (const text of answer) {
+        await stream.onEvent({ type: 'text', payload: { channel: 'assistant', text } })
+      }
+      await stream.finish(result)
+      expect(deliveredText()).toBe(
+        `Connect Gmail in [Integrations](<${integrationsUrl}>), then try again.`
+      )
+      expect(deliver).not.toHaveBeenCalled()
+    }
+  )
+
+  it('never accepts another organization, origin, or query in account connection links', () => {
+    const integrationsUrl = 'https://sim.example/o/org-1/integrations'
+    for (const destination of [
+      '/o/org-2/integrations',
+      'https://sim.example/o/org-2/integrations',
+      'https://evil.example/o/org-1/integrations',
+      '//evil.example/o/org-1/integrations',
+      `${integrationsUrl}?redirect=https://evil.example`,
+    ]) {
+      expect(
+        publicSlackAnswer(
+          `Open [Connected accounts](${destination}).`,
+          true,
+          new Map(),
+          integrationsUrl
+        )
+      ).toBe('Open Connected accounts.')
+    }
+  })
+
+  it('keeps connection links stable at every partial-render boundary', () => {
+    const integrationsUrl = 'https://sim.example/o/org-1/integrations'
+    const answer = 'Open [Connected accounts](/o/org-1/integrations), then search.'
+    const expected = `Open [Integrations](<${integrationsUrl}>), then search.`
+    let previous = ''
+    for (let end = 0; end <= answer.length; end++) {
+      const rendered = publicSlackAnswer(answer.slice(0, end), false, new Map(), integrationsUrl)
+      expect(rendered.startsWith(previous)).toBe(true)
+      expect(expected.startsWith(rendered)).toBe(true)
+      previous = rendered
+    }
+    expect(publicSlackAnswer(answer, true, new Map(), integrationsUrl)).toBe(expected)
+  })
+
   it('withholds split connection tags, delivers validated controls, and leaves a visible next step', async () => {
     const deliver = vi.fn().mockResolvedValue(undefined)
     const { stream } = setup(deliver)
@@ -838,7 +896,7 @@ describe('Slack Assistant delivery', () => {
       'Connect here '
     )
   })
-  it('streams only main public answer text and preserves the original thread', async () => {
+  it('streams only main public answer text in plan mode and preserves the original thread', async () => {
     const { stream } = setup()
     await stream.start()
     await stream.onEvent({
@@ -851,7 +909,7 @@ describe('Slack Assistant delivery', () => {
       'test-token',
       { channel: 'D1', threadTs: '1.1' },
       [{ type: 'markdown_text', text: 'Hello world. ' }],
-      'timeline',
+      'plan',
       expect.any(AbortSignal)
     )
     expect(deliveredText()).toBe('Hello world. ')

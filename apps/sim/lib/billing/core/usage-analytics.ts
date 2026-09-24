@@ -1,4 +1,5 @@
 import { usageLog } from '@sim/db/schema'
+import { compareStrings } from '@sim/utils/string'
 import { eq, gte, lt, type SQL } from 'drizzle-orm'
 import { MAX_CUSTOM_RANGE_DAYS } from '@/lib/api/contracts/organization-usage'
 import {
@@ -6,8 +7,8 @@ import {
   resolveEnterpriseReportingPeriod,
 } from '@/lib/billing/core/reporting-period'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
-import { STREAM_TIMEOUT_MS } from '@/lib/copilot/constants'
 import { zonedWallClockToUtc } from '@/lib/core/utils/timezone'
+import { STREAM_TIMEOUT_MS } from '@/lib/mothership/constants'
 
 /**
  * Pure half of organization usage analytics: window resolution, the ledger scope
@@ -616,6 +617,29 @@ interface RankedRow {
   outputTokens?: number
 }
 
+export type UsageRankMetric = 'cost' | 'tokens'
+
+const usageRankValue = (row: RankedRow, rankBy: UsageRankMetric) =>
+  rankBy === 'tokens' ? (row.inputTokens ?? 0) + (row.outputTokens ?? 0) : toNumber(row.cost)
+
+/**
+ * The order that decides which rows a ranked list keeps: by the metric, then by key.
+ *
+ * The tiebreak is the key, not the label, because a label is a name read *after* the
+ * cut — only the kept rows are ever named. Deciding the cut by name would mean reading
+ * every row tied at it, which a large tie turns into an unbounded lookup.
+ */
+export function rankUsageRows<T extends RankedRow>(
+  rows: readonly T[],
+  rankBy: UsageRankMetric
+): T[] {
+  return [...rows].sort(
+    (left, right) =>
+      usageRankValue(right, rankBy) - usageRankValue(left, rankBy) ||
+      compareStrings(left.key ?? '', right.key ?? '')
+  )
+}
+
 /**
  * Ranks a dimension and closes it with an explicit remainder.
  *
@@ -633,23 +657,24 @@ export function foldUsageBreakdown(
   totalCost: number,
   labelFor: (key: string | null) => string,
   limit: number,
-  rankBy: 'cost' | 'tokens' = 'cost'
+  rankBy: UsageRankMetric = 'cost'
 ): UsageBreakdownFold {
-  const ranked = rows
-    .map((row) => ({
-      id: row.key ?? '',
-      label: labelFor(row.key),
-      cost: toNumber(row.cost),
-      events: Math.round(toNumber(row.events)),
-      tokens: (row.inputTokens ?? 0) + (row.outputTokens ?? 0),
-    }))
+  const ranked = rankUsageRows(rows, rankBy).map((row) => ({
+    id: row.key ?? '',
+    label: labelFor(row.key),
+    cost: toNumber(row.cost),
+    events: Math.round(toNumber(row.events)),
+    tokens: (row.inputTokens ?? 0) + (row.outputTokens ?? 0),
+  }))
+
+  /** Ties among the kept rows read alphabetically; the cut itself was decided above. */
+  const visible = ranked
+    .slice(0, limit)
     .sort(
       (left, right) =>
         (rankBy === 'tokens' ? right.tokens - left.tokens : right.cost - left.cost) ||
         left.label.localeCompare(right.label)
     )
-
-  const visible = ranked.slice(0, limit)
   const hidden = ranked.slice(limit)
   /**
    * Share is measured in whatever the list is ranked by, because it is what draws the

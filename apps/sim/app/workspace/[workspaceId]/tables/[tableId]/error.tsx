@@ -3,7 +3,7 @@
 import { Chip } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { useParams, useRouter } from 'next/navigation'
-import { type ErrorBoundaryProps, ErrorState } from '@/app/workspace/[workspaceId]/components'
+import { type ErrorBoundaryProps, ErrorState } from '@/app/workspace/[workspaceId]/components/error'
 
 export default function TableError({ error, reset }: ErrorBoundaryProps) {
   const router = useRouter()

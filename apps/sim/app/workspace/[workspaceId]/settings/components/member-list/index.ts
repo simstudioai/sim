@@ -1,1 +1,1 @@
-export { MemberAvatar, MemberRow, MemberSection } from './member-list'
+export { MemberRow, MemberSection } from './member-list'

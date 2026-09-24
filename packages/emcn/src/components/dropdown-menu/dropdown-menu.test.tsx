@@ -9,6 +9,7 @@
  * Radix's `Slot` requires exactly one element child.
  */
 import { act, type ReactNode } from 'react'
+import { sleep } from '@sim/utils/helpers'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -18,6 +19,10 @@ import {
   DropdownMenuItem,
   DropdownMenuItemAction,
   DropdownMenuItemLabel,
+  DropdownMenuSearchInput,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from './dropdown-menu'
 
@@ -199,4 +204,70 @@ describe('menu row actions', () => {
     })
     expect(document.activeElement).toBe(item)
   })
+})
+
+describe('nested searchable menus', () => {
+  it.each([true, false])(
+    'keeps nested resource menus open with child search=%s',
+    async (childSearch) => {
+      ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+      act(() =>
+        root?.render(
+          <DropdownMenu defaultOpen modal={false}>
+            <DropdownMenuTrigger>Resources</DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>Workspace</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {childSearch && <DropdownMenuSearchInput placeholder='Search resources' />}
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>Workflows</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem>Acceptance workflow</DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )
+      )
+      const findRow = (label: string) =>
+        Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+          (item) => item.textContent === label
+        )!
+      act(() => findRow('Workspace').click())
+      await act(async () => sleep(1))
+      if (childSearch) expect(document.querySelector('input') === document.activeElement).toBe(true)
+      const workspaceTrigger = findRow('Workspace')
+      const workflowsTrigger = findRow('Workflows')
+      const workspaceMenu = workflowsTrigger.closest<HTMLElement>('[role="menu"]')!
+      workspaceMenu.dataset.side = 'left'
+      workspaceMenu.getBoundingClientRect = () => new DOMRect(0, 0, 100, 100)
+      const pointer = (type: string, clientX: number, relatedTarget?: EventTarget) => {
+        const event = new MouseEvent(type, { bubbles: true, clientX, clientY: 20, relatedTarget })
+        Object.defineProperty(event, 'pointerType', { value: 'mouse' })
+        return event
+      }
+      act(() => workspaceTrigger.dispatchEvent(pointer('pointermove', 150)))
+      act(() => workspaceTrigger.dispatchEvent(pointer('pointerout', 99, workflowsTrigger)))
+      expect(findRow('Workflows')).toBeDefined()
+      act(() => {
+        const workflows = findRow('Workflows')
+        workflows.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
+        workflows.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }))
+        workflows.focus()
+        workflows.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }))
+        workflows.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }))
+        workflows.click()
+      })
+      expect(findRow('Acceptance workflow')).toBeDefined()
+      expect(document.querySelectorAll('[role="menu"]')).toHaveLength(3)
+      act(() => findRow('Acceptance workflow').click())
+      expect(document.querySelector('[role="menu"]')).toBeNull()
+    }
+  )
 })

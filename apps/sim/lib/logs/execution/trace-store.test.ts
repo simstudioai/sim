@@ -132,6 +132,7 @@ describe('execution data storage', () => {
       correlation,
       hasTraceSpans: true,
       traceSpanCount: 2,
+      hasHandledErrors: false,
     })
 
     await expect(materializeExecutionData(slim, CONTEXT)).resolves.toEqual({
@@ -139,8 +140,37 @@ describe('execution data storage', () => {
       correlation,
       hasTraceSpans: true,
       traceSpanCount: 2,
+      hasHandledErrors: false,
     })
   })
+
+  it.each([
+    { traceSpans: [{ children: [{ status: 'error', errorHandled: true }] }], expected: true },
+    { traceSpans: [{ status: 'error', errorHandled: false }], expected: false },
+    {
+      traceSpans: [{ status: 'success', output: { status: 'error', errorHandled: true } }],
+      expected: false,
+    },
+  ])(
+    'retains handled-error classification without loading trace IO: $expected',
+    async ({ traceSpans, expected }) => {
+      storeExecutionTraceArchiveMock.mockResolvedValue({
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_bbbbbbbbbbbb',
+        kind: 'object',
+        size: 128,
+        key: 'execution/workspace-1/workflow-1/execution-1/large-value-lv_bbbbbbbbbbbb.json',
+        executionId: 'execution-1',
+      })
+      materializeLargeValueRefMock.mockRejectedValue(new Error('object unavailable'))
+      const slim = await externalizeExecutionData({ traceSpans }, CONTEXT)
+      expect(slim.hasHandledErrors).toBe(expected)
+      expect(slim).not.toHaveProperty('traceSpans')
+      const metadata = await materializeExecutionData(slim, CONTEXT)
+      expect(metadata.hasHandledErrors).toBe(expected)
+    }
+  )
 })
 
 describe('projectExecutionDataForDisplay', () => {

@@ -493,27 +493,6 @@ export function onBrowserFillAvailability(
   )
 }
 
-/** Saved accounts that the active scoped page can accept right now. */
-export function loadBrowserFillOptions(
-  scopeId = currentBrowserScopeId()
-): Promise<BrowserCredentialMetadata[]> {
-  return (
-    getDesktopBridge()
-      ?.browserCredentials.listFillOptions(scopeId)
-      .catch(() => []) ?? Promise.resolve([])
-  )
-}
-
-/** Fills one user-selected saved account into the active scoped page. */
-export function fillBrowserCredential(
-  credentialId: string,
-  scopeId = currentBrowserScopeId()
-): Promise<boolean> {
-  return (
-    getDesktopBridge()?.browserCredentials.fill(credentialId, scopeId) ?? Promise.resolve(false)
-  )
-}
-
 /**
  * Asks the shell to open its native account chooser at a point in the window.
  * Must be called straight from a click: the shell requires a live user gesture,

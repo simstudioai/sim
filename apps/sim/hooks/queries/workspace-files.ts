@@ -17,6 +17,7 @@ import {
   createWorkspaceFileContract,
   deleteWorkspaceFileContract,
   listWorkspaceFilesContract,
+  readWorkspaceFileContract,
   renameWorkspaceFileContract,
   restoreWorkspaceFileContract,
   type UpdateWorkspaceFileContentBody,
@@ -43,6 +44,9 @@ export const workspaceFilesKeys = {
   workspaceLists: (workspaceId: string) => [...workspaceFilesKeys.lists(), workspaceId] as const,
   list: (workspaceId: string, scope: WorkspaceFileQueryScope = 'active') =>
     [...workspaceFilesKeys.workspaceLists(workspaceId), scope] as const,
+  records: () => [...workspaceFilesKeys.all, 'record'] as const,
+  record: (workspaceId: string, fileId: string) =>
+    [...workspaceFilesKeys.records(), workspaceId, fileId] as const,
   contents: () => [...workspaceFilesKeys.all, 'content'] as const,
   contentFile: (workspaceId: string, fileId: string) =>
     [...workspaceFilesKeys.contents(), workspaceId, fileId] as const,
@@ -82,6 +86,27 @@ export function useWorkspaceFileRecord(workspaceId: string, fileId: string) {
     enabled: !!workspaceId && !!fileId,
     staleTime: WORKSPACE_FILES_LIST_STALE_TIME,
     select: (files) => files.find((f) => f.id === fileId) ?? null,
+  })
+}
+
+/** Canonical read fallback for addressed resources absent from the workspace file inventory. */
+export function useAddressedWorkspaceFileRecord(
+  workspaceId: string,
+  fileId: string,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: workspaceFilesKeys.record(workspaceId, fileId),
+    queryFn: async ({ signal }) => {
+      const result = await requestJson(readWorkspaceFileContract, {
+        params: { id: workspaceId, fileId },
+        signal,
+      })
+      return result.file
+    },
+    enabled: !!workspaceId && !!fileId && (options?.enabled ?? true),
+    staleTime: WORKSPACE_FILES_LIST_STALE_TIME,
+    retry: false,
   })
 }
 

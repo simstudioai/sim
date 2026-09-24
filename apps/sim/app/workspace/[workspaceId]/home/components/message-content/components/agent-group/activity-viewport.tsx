@@ -6,7 +6,7 @@ import { cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/
 interface ActivityViewportProps {
   children: ReactNode
   isStreaming: boolean
-  /** A nested blocking interaction must not be clipped by this ancestor's log viewport. */
+  /** Keeps nested interactions or independently scrolling detail lists from being clipped. */
   unbounded?: boolean
 }
 
@@ -85,8 +85,7 @@ export function ActivityViewport({
       className={cn(
         'pr-2',
         !unbounded && 'scrollbar-hide max-h-[110px] overflow-y-auto',
-        scrollFadeClass,
-        (edges.top || edges.bottom) && 'py-1'
+        scrollFadeClass
       )}
       {...scrollFadeAttributes(edges)}
     >

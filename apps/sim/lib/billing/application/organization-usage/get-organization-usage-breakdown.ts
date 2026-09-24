@@ -7,6 +7,7 @@ import { organizationUsageOperations } from '@/lib/billing/application/organizat
 import {
   foldUsageBreakdown,
   mergeRowsByKey,
+  rankUsageRows,
   resolveUsageAnalyticsWindow,
   USAGE_NULL_KEY_LABELS,
   type UsageAnalyticsWindow,
@@ -14,7 +15,11 @@ import {
   type UsageGroupRow,
   type UsageWindowPreset,
 } from '@/lib/billing/core/usage-analytics'
-import { readUsageEntityNames, readUsageGroups } from '@/lib/billing/core/usage-analytics-queries'
+import {
+  readUsageEntities,
+  readUsageGroups,
+  type UsageEntity,
+} from '@/lib/billing/core/usage-analytics-queries'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
@@ -47,6 +52,8 @@ export interface OrganizationUsageBreakdownRow {
   share: number
   providerId?: string
   tokens?: number
+  /** Member rows only, when the member has one. */
+  image?: string
 }
 
 export interface OrganizationUsageBreakdownResult {
@@ -132,20 +139,19 @@ export async function buildUsageBreakdown({
    * Names are hydrated for the surviving keys only — joining inside the aggregate
    * would break the index-only scan the member dimension depends on.
    *
-   * Sorted before slicing: the breakdown query only groups, so Postgres returns its
-   * aggregate in arbitrary order. Slicing that directly hydrated an arbitrary subset
-   * while the fold below ranks by cost, so a top row whose name was never fetched
-   * fell through to `?? key` and rendered a raw id. The margin over `limit` covers
-   * the fold's label tiebreak pulling in a row just past the cut.
+   * Cut with the fold's own ranking, so the rows read here are exactly the rows it
+   * keeps: the breakdown query only groups, and Postgres returns its aggregate in
+   * arbitrary order. The ranking breaks ties by key, never by a name not yet read, so
+   * the read is bounded by `limit` however large a tie at the cutoff.
    */
-  const rankedIds = [...rows]
-    .sort((left, right) => right.cost - left.cost)
-    .slice(0, limit * 2)
+  const rankBy = dimension === 'byok' ? 'tokens' : 'cost'
+  const rankedIds = rankUsageRows(rows, rankBy)
+    .slice(0, limit)
     .map((row) => row.key)
     .filter((key): key is string => Boolean(key))
-  const names = NAMED_DIMENSIONS.has(dimension)
-    ? await readUsageEntityNames(dimension, rankedIds)
-    : new Map<string, string>()
+  const entities = NAMED_DIMENSIONS.has(dimension)
+    ? await readUsageEntities(dimension, rankedIds)
+    : new Map<string, UsageEntity>()
 
   const labelFor = (key: string | null): string => {
     /**
@@ -163,18 +169,12 @@ export async function buildUsageBreakdown({
     if (dimension === 'model') return key
     // A deleted workspace or workflow nulls its id on the ledger row, so a key that
     // resolves to no name is a live entity we could not read — not a deleted one.
-    return names.get(key) ?? key
+    return entities.get(key)?.name ?? key
   }
 
   // BYOK is denominated in tokens and every row costs zero, so ranking it by cost
   // would order the list alphabetically and call the result "top providers".
-  const fold = foldUsageBreakdown(
-    rows,
-    totalCost,
-    labelFor,
-    limit,
-    dimension === 'byok' ? 'tokens' : 'cost'
-  )
+  const fold = foldUsageBreakdown(rows, totalCost, labelFor, limit, rankBy)
   const tokensByKey = new Map(
     rows.map((row) => [row.key ?? '', (row.inputTokens ?? 0) + (row.outputTokens ?? 0)])
   )
@@ -201,6 +201,7 @@ export async function buildUsageBreakdown({
     dimension: dimension,
     rows: fold.rows.map((row, index) => {
       const tokens = tokensByKey.get(row.id) ?? 0
+      const image = entities.get(row.id)?.image
       return {
         id: row.id,
         label: row.label,
@@ -210,6 +211,7 @@ export async function buildUsageBreakdown({
         ...(isModelDimension && tokens > 0 ? { tokens } : {}),
         ...(dimension === 'byok' ? { providerId: row.id } : {}),
         ...(dimension === 'model' && row.id ? { providerId: getProviderFromModel(row.id) } : {}),
+        ...(image ? { image } : {}),
       }
     }),
     other: {

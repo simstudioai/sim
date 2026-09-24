@@ -3,8 +3,10 @@
 import { useState } from 'react'
 import { Chip, ChipConfirmModal, ChipModalError, ChipSwitch, toast } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getOrganizationAccountUpdateOptions } from '@/lib/credential-groups/organization-account-options'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
+import { LiveSearchSettings } from '@/app/o/[organizationId]/settings/components/integrations/live-search-settings'
 import { OrganizationIntegrationsSetup } from '@/app/o/[organizationId]/settings/components/integrations/organization-integrations-setup'
 import { OrganizationSourcePeople } from '@/app/o/[organizationId]/settings/components/integrations/organization-source-people'
 import { OrganizationSourceStats } from '@/app/o/[organizationId]/settings/components/integrations/organization-source-stats'
@@ -23,6 +25,15 @@ import {
 } from '@/hooks/queries/organization-accounts'
 
 export function OrganizationIntegrationsSettings() {
+  const { features } = useDeploymentShape()
+  return features.liveEnterpriseSearch ? (
+    <LiveSearchSettings />
+  ) : (
+    <IndexedOrganizationIntegrationsSettings />
+  )
+}
+
+function IndexedOrganizationIntegrationsSettings() {
   const { organization, viewer } = useOrganizationContext()
   const [{ tab }, setNavigation] = useQueryStates({
     [organizationIntegrationsTabParam.key]: organizationIntegrationsTabParam.parser,

@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import {
@@ -84,6 +85,16 @@ describe.runIf(Boolean(databaseUrl))('Tin keyword projection in PostgreSQL', () 
   beforeEach(async () => {
     await sql`TRUNCATE embedding_keyword_tin, embedding, knowledge_base`
     await sql`INSERT INTO knowledge_base (id, is_search_index) VALUES ('legacy', false), ('index', true)`
+  })
+
+  it('runs standalone when CI leaves the optional migration URL empty', () => {
+    const result = spawnSync('bun', [path.join(__dirname, '0019_tin_keyword_projection.ts')], {
+      env: { ...process.env, MIGRATION_DATABASE_URL: '', DATABASE_URL: databaseUrl },
+      encoding: 'utf8',
+      timeout: 30_000,
+    })
+    expect(result.error).toBeUndefined()
+    expect(result.status, result.stdout + result.stderr).toBe(0)
   })
 
   it('projects only chunks of search indexes, as their lexemes in position order', async () => {

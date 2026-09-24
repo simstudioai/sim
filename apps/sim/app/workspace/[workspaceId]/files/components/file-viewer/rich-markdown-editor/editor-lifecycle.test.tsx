@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
 import { exportWorkspaceFileSnapshotBodySchema } from '@/lib/api/contracts/workspace-files'
-import { SIM_SELECTION_MIME } from '@/lib/copilot/chat/selection-clipboard'
+import { SIM_SELECTION_MIME } from '@/lib/mothership/chat/selection-clipboard'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
@@ -31,6 +31,7 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/workspace/workspace-1/files',
   useRouter: () => ({ push: vi.fn() }),
 }))
+vi.mock('@/app/_styles/fonts/inter/inter', () => ({ inter: { variable: 'test-inter-variable' } }))
 vi.mock('@/lib/auth/auth-client', () => ({ useSession: () => ({ data: null, isPending: false }) }))
 vi.mock('@/hooks/queries/workspace-files', () => ({
   useUploadWorkspaceFile: () => ({ mutateAsync: uploadFile }),

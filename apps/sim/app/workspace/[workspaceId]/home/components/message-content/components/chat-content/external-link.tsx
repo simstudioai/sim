@@ -1,97 +1,39 @@
 'use client'
 
-import { Tooltip } from '@sim/emcn'
-import { openInBrowserPanel, shouldOpenInBrowserPanel } from '@/lib/browser-agent/open-in-panel'
-import { faviconUrl } from '@/lib/core/utils/favicon'
-import { useLinkPreview } from '@/hooks/queries/link-preview'
+import { createContext, type ReactNode, useContext } from 'react'
+import { SourceIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip/source-icon'
+import {
+  handleExternalLinkClick,
+  PROSE_LINK_CLASS,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
+import { SourcePreview } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-preview'
+import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 
-/** Hides a favicon img that failed to load so the link degrades to plain text. */
-export function hideBrokenFavicon(e: React.SyntheticEvent<HTMLImageElement>): void {
-  e.currentTarget.style.display = 'none'
-}
-
-/**
- * Hostname for an external http(s) link, used to fetch its favicon. Returns
- * null for relative, anchor, mailto, and unparsable hrefs so those keep the
- * plain underlined treatment.
- */
-export function externalLinkHostname(href?: string): string | null {
-  if (!href || !/^https?:\/\//i.test(href)) return null
-  try {
-    return new URL(href).hostname
-  } catch {
-    return null
-  }
-}
+/** Retrieved metadata takes precedence over generic public-page metadata. */
+export const LinkSourcesContext = createContext<ReadonlyMap<string, SourceTagData>>(new Map())
 
 interface ExternalLinkProps {
   href: string
-  hostname: string
-  children?: React.ReactNode
+  children?: ReactNode
 }
 
-/**
- * Favicon + quiet-underline external link with an OG-preview tooltip. The
- * preview query fires when the link renders, so metadata is normally cached
- * (client and server side) before the first hover; the tooltip shows the
- * destination URL until metadata arrives or when the site has none. Previews
- * are https-only — plain-http links keep the URL tooltip, since fetching them
- * server-side would reach the URL validator's self-host loopback exception.
- */
-/**
- * In the desktop app, a plain click diverts into the embedded Sim browser
- * panel; modified clicks (Cmd/Ctrl/Shift/middle) keep the default behavior,
- * which the shell routes to the system browser. In a web browser this is a
- * no-op and the link opens a new tab as usual.
- */
-export function handleExternalLinkClick(
-  event: React.MouseEvent<HTMLAnchorElement>,
-  href: string
-): void {
-  if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return
-  if (!shouldOpenInBrowserPanel(href)) return
-  event.preventDefault()
-  openInBrowserPanel(href)
-}
-
-export function ExternalLink({ href, hostname, children }: ExternalLinkProps) {
-  const { data } = useLinkPreview(href.startsWith('https://') ? href : undefined)
-  const preview = data?.preview
-
+/** The anchor stays inline so long link text wraps with the surrounding prose. */
+export function ExternalLink({ href, children }: ExternalLinkProps) {
+  const source = useContext(LinkSourcesContext).get(href) ?? { url: href }
   return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <a
-          href={href}
-          className='not-prose group text-[var(--text-primary)] no-underline'
-          target='_blank'
-          rel='noopener noreferrer'
-          onClick={(event) => handleExternalLinkClick(event, href)}
-        >
-          <img
-            src={faviconUrl(hostname, 32)}
-            alt=''
-            className='relative top-[0.5px] mr-[2px] inline size-[12px] rounded-[3px]'
-            onError={hideBrokenFavicon}
-          />
-          <span className='underline decoration-[color:var(--text-muted)] underline-offset-4 transition-colors group-hover:decoration-[color:var(--text-primary)]'>
-            {children}
-          </span>
-        </a>
-      </Tooltip.Trigger>
-      <Tooltip.Content>
-        {preview ? (
-          <span className='flex flex-col gap-0.5'>
-            {preview.title && <span>{preview.title}</span>}
-            {preview.description && (
-              <span className='line-clamp-2 text-[var(--text-muted)]'>{preview.description}</span>
-            )}
-            <span className='text-[var(--text-muted)]'>{preview.siteName ?? hostname}</span>
-          </span>
-        ) : (
-          <span className='break-all'>{href}</span>
-        )}
-      </Tooltip.Content>
-    </Tooltip.Root>
+    <SourcePreview key={source.url} source={source}>
+      <a
+        href={href}
+        className={PROSE_LINK_CLASS}
+        target='_blank'
+        rel='noopener noreferrer'
+        onClick={(event) => handleExternalLinkClick(event, href)}
+      >
+        <span aria-hidden className='mr-1 inline-flex items-center align-middle'>
+          <SourceIcon source={source} />
+        </span>
+        {children}
+      </a>
+    </SourcePreview>
   )
 }

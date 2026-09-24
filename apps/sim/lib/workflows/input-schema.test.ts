@@ -29,12 +29,7 @@ describe('workflow input schemas', () => {
     expect(advertised.properties?.files).toMatchObject({
       type: 'array',
       items: {
-        type: 'object',
-        required: ['id', 'name', 'url', 'size', 'type', 'key'],
-        properties: {
-          key: { type: 'string' },
-          type: { type: 'string' },
-        },
+        anyOf: expect.any(Array),
       },
     })
     const input = { input: 'Rotate the image', conversationId: 'conversation-1', files: [file] }
@@ -52,13 +47,11 @@ describe('workflow input schemas', () => {
   })
 
   it.each([
-    { name: 'photo.png', data: 'base64', mimeType: 'image/png' },
-    { ...file, id: undefined },
-    { ...file, name: '' },
-    { ...file, type: '' },
-    { ...file, size: '128' },
-    { ...file, key: undefined },
-    { ...file, key: undefined, url: '/api/files/serve/' },
+    { name: 'photo.png' },
+    { id: '' },
+    { key: '' },
+    { type: 'file', name: 'photo.png' },
+    { type: 'file', data: 'data:image/png;base64,aGVsbG8=', name: '' },
   ])('rejects file input that the Start block cannot consume: %j', (invalidFile) => {
     expect(schema.safeParse({ files: [invalidFile] }).success).toBe(false)
   })
@@ -66,16 +59,19 @@ describe('workflow input schemas', () => {
   it.each([
     { value: file, valid: true },
     { value: { ...file, key: '' }, valid: false },
-    { value: { ...file, key: undefined }, valid: false },
+    { value: { ...file, key: undefined }, valid: true },
     {
       value: {
         ...file,
         key: undefined,
         url: `/api/files/serve/s3/${encodeURIComponent(file.key)}?context=workspace`,
       },
-      valid: false,
+      valid: true,
     },
-  ])('advertises the same storage-key requirement it validates: $valid', ({ value, valid }) => {
+    { value: { id: file.id }, valid: true },
+    { value: { key: file.key }, valid: true },
+    { value: { name: 'photo.png', data: 'base64', mimeType: 'image/png' }, valid: true },
+  ])('advertises the same accepted file forms it validates: $valid', ({ value, valid }) => {
     const validate = compileMcpToolSchema(generateToolInputSchema(inputFormat))
     const input = { files: [value] }
     expect(validate(input)).toBe(valid)
@@ -113,8 +109,8 @@ describe('workflow input schemas', () => {
   })
 
   it('rejects unsupported type names instead of advertising strings', () => {
-    expect(() => generateToolInputSchema([{ name: 'files', type: 'files' }])).toThrow(
-      'Unsupported workflow input type "files"'
+    expect(() => generateToolInputSchema([{ name: 'files', type: 'unsupported' }])).toThrow(
+      'Unsupported workflow input type "unsupported"'
     )
   })
 })

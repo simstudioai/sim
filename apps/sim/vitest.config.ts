@@ -29,6 +29,14 @@ export default defineConfig(({ mode }) => {
         '**/dist/**',
         /** Workspace suites require their dedicated database and realtime setup. */
         ...(integration ? ['lib/workspaces/__integration__/*.integration.ts'] : []),
+        /** Live database and hosted sandbox acceptance belongs in explicit local runs. */
+        ...(process.env.CI === 'true'
+          ? [
+              'lib/mothership/agent-cli/saved-run-read.postgres.test.ts',
+              'lib/mothership/tools/hosted-workbench.smoke.test.ts',
+              'lib/uploads/upload-session/workspace-file-provenance.postgres.test.ts',
+            ]
+          : []),
       ],
       setupFiles: integration
         ? ['./lib/knowledge/__integration__/setup.ts']

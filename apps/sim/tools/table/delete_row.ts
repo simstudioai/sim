@@ -1,3 +1,5 @@
+import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { tableSuccess } from '@/tools/table/response'
 import type { TableDeleteResponse, TableRowDeleteParams } from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -8,12 +10,7 @@ export const tableDeleteRowTool: InternalToolConfig<TableRowDeleteParams, TableD
   version: '1.0.0',
 
   params: {
-    tableId: {
-      type: 'string',
-      required: true,
-      description: 'Table ID',
-      visibility: 'user-only',
-    },
+    tableId: TABLE_ID_PARAM,
     rowId: {
       type: 'string',
       required: true,
@@ -41,13 +38,10 @@ export const tableDeleteRowTool: InternalToolConfig<TableRowDeleteParams, TableD
     const result = await response.json()
     const data = result.data || result
 
-    return {
-      success: true,
-      output: {
-        deletedCount: data.deletedCount,
-        message: data.message || 'Row deleted successfully',
-      },
-    }
+    return tableSuccess({
+      deletedCount: data.deletedCount,
+      message: data.message || 'Row deleted successfully',
+    })
   },
 
   outputs: {

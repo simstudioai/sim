@@ -591,6 +591,9 @@ export const env = createEnv({
     // AgentMail - Mothership Email Inbox
     AGENTMAIL_API_KEY:                     z.string().min(1).optional(),           // AgentMail API key for mothership email inbox
     AGENTMAIL_DOMAIN:                      z.string().optional(),                  // Custom domain for AgentMail inboxes (default: agentmail.to)
+    MSHIP_PLAN_MODE: z.boolean().optional(),
+    MSHIP_MODEL_SELECTOR: z.boolean().optional(),
+    SIM_SEARCH_LIVE: z.boolean().optional(), // Query connected providers directly; false preserves indexed search
     INBOX_ENABLED:                         z.boolean().optional(),                 // Enable inbox (Sim Mailer) on self-hosted (bypasses hosted requirements)
     SANDBOXES_ENABLED:                     z.boolean().optional(),                 // Enable custom sandboxes on self-hosted (bypasses hosted requirements)
 
@@ -600,6 +603,8 @@ export const env = createEnv({
     E2B_FUNCTION_TEMPLATE_ID:               z.string().refine(isImmutableE2BTemplateRef, { message: `E2B_FUNCTION_TEMPLATE_ID ${IMMUTABLE_E2B_TEMPLATE_REF_ERROR}` }).optional(), // Immutable dedicated E2B build for Function JavaScript/Python/Shell and workspace sandbox layers; no Mothership fallback
     E2B_FUNCTION_TEMPLATE_GENERATION:       z.string().refine(isValidSandboxReleaseGeneration, { message: `E2B_FUNCTION_TEMPLATE_GENERATION ${SANDBOX_RELEASE_GENERATION_ERROR}` }).optional(), // Monotonic release epoch printed by the Function E2B builder
     MOTHERSHIP_E2B_TEMPLATE_ID:             z.string().optional(),                  // Mothership code-tool template; never a Function-base fallback
+    MOTHERSHIP_SIM_TRANSPORT:              z.enum(['direct', 'checkpoint']).optional(), // Server-side Sim delivery; hosted defaults to direct, self-hosted to outbound checkpoint delivery
+    MOTHERSHIP_SANDBOX_CLI_ENDPOINT:        z.string().optional(),                  // Sim API base the sandboxed sim CLI calls back to; defaults to NEXT_PUBLIC_APP_URL (set when the public URL is not reachable from the sandbox network)
     MOTHERSHIP_E2B_DOC_TEMPLATE_ID:         z.string().optional(),                  // Dedicated E2B template with python-pptx/docx/openpyxl/reportlab for document generation; when set (and E2B enabled), docs compile via Python instead of the JS isolated-vm path
     E2B_PI_TEMPLATE_ID:                     z.string().optional(),                  // E2B template ID/alias with the Pi CLI + git baked in (Create PR, its Babysit continuation, and Review Code)
     PI_SANDBOX_LIFETIME_MS:                 z.string().optional(),                  // Lower the Pi sandbox lifetime (ms) below the default; E2B caps a sandbox at 1h on Hobby accounts and 24h on Pro
@@ -757,6 +762,7 @@ export const env = createEnv({
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED:     z.boolean().optional(),                   // Enable organizations on self-hosted (bypasses plan requirements)
     NEXT_PUBLIC_DISABLE_INVITATIONS:       z.boolean().optional(),                   // Disable workspace invitations globally (for self-hosted deployments)
     NEXT_PUBLIC_DISABLE_PUBLIC_API:        z.boolean().optional(),                   // Disable public API access UI toggle globally
+    NEXT_PUBLIC_SIM_SEARCH_LIVE: z.boolean().optional(),
     NEXT_PUBLIC_INBOX_ENABLED:             z.boolean().optional(),                   // Enable inbox (Sim Mailer) on self-hosted
     NEXT_PUBLIC_CHAT_DISABLED:             z.boolean().optional(),                   // Hide the Chat module (Chat is shown when unset)
     NEXT_PUBLIC_STATUS_NOTICE_PREVIEW:     z.boolean().optional(),                   // Force the sidebar service-status notice into its critical preview state
@@ -804,6 +810,7 @@ export const env = createEnv({
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED: process.env.NEXT_PUBLIC_ORGANIZATIONS_ENABLED,
     NEXT_PUBLIC_DISABLE_INVITATIONS: process.env.NEXT_PUBLIC_DISABLE_INVITATIONS,
     NEXT_PUBLIC_DISABLE_PUBLIC_API: process.env.NEXT_PUBLIC_DISABLE_PUBLIC_API,
+    NEXT_PUBLIC_SIM_SEARCH_LIVE: process.env.NEXT_PUBLIC_SIM_SEARCH_LIVE,
     NEXT_PUBLIC_INBOX_ENABLED: process.env.NEXT_PUBLIC_INBOX_ENABLED,
     NEXT_PUBLIC_CHAT_DISABLED: process.env.NEXT_PUBLIC_CHAT_DISABLED,
     NEXT_PUBLIC_STATUS_NOTICE_PREVIEW: process.env.NEXT_PUBLIC_STATUS_NOTICE_PREVIEW,

@@ -20,8 +20,8 @@ import { Check, TriangleAlert } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { GeneratedPasswordInput } from '@/components/ui'
+import { buildChatDeploymentUrl } from '@/lib/chat-deployments/urls'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
 import { validateAllowlistEntry } from '@/lib/messaging/email/validation'
 import { formatInternalOutputSelector } from '@/lib/workflows/streaming/output-selector'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
@@ -498,7 +498,7 @@ export function ChatDeploy({
           { text: existingChat?.title || 'this chat', bold: true },
           '? ',
           {
-            text: `This will remove the chat at "${getEmailDomain()}/chat/${existingChat?.identifier ?? ''}" and make it unavailable to all users.`,
+            text: `This will remove the chat at "${buildChatDeploymentUrl(existingChat?.identifier ?? '').replace(/^https?:\/\//, '')}" and make it unavailable to all users.`,
             error: true,
           },
           ' This action cannot be undone.',
@@ -555,7 +555,7 @@ interface IdentifierInputProps {
 }
 
 const getDomainPrefix = (() => {
-  const prefix = `${getEmailDomain()}/chat/`
+  const prefix = buildChatDeploymentUrl('').replace(/^https?:\/\//, '')
   return () => prefix
 })()
 
@@ -582,7 +582,7 @@ function IdentifierInput({
     onChange(lowercaseValue)
   }
 
-  const fullUrl = `${getBaseUrl()}/chat/${value}`
+  const fullUrl = buildChatDeploymentUrl(value)
   const displayUrl = fullUrl.replace(/^https?:\/\//, '')
 
   return (

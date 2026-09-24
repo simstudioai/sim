@@ -36,3 +36,26 @@ describe('shared Search connection tags', () => {
     )
   })
 })
+
+it('parses exact live connection and reconnect controls without an indexed connector', () => {
+  const live = {
+    type: 'link',
+    provider: 'slack',
+    connectorType: 'slack',
+    connectionMode: 'live',
+    optionId: 'slack-option',
+    credentialId: 'account',
+  }
+  expect(parseSearchConnectionTargets(`<credential>${JSON.stringify(live)}</credential>`)).toEqual([
+    live,
+  ])
+  for (const invalid of [
+    { ...live, optionId: undefined },
+    { ...live, connectorId: 'indexed' },
+    { ...live, connectionMode: undefined },
+  ]) {
+    expect(
+      parseSearchConnectionTargets(`<credential>${JSON.stringify(invalid)}</credential>`)
+    ).toEqual([])
+  }
+})

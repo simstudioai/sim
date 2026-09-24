@@ -10,16 +10,16 @@ const { mockParseRequest, mockGetAccessibleChat } = vi.hoisted(() => ({
   mockGetAccessibleChat: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 vi.mock('@/lib/api/server', () => ({ parseRequest: mockParseRequest }))
 vi.mock('@/lib/api/contracts/mothership-chats', () => ({ markMothershipChatReadContract: {} }))
-vi.mock('@/lib/copilot/chat/lifecycle', () => ({
+vi.mock('@/lib/mothership/chat/lifecycle', () => ({
   getAccessibleCopilotChatAuth: mockGetAccessibleChat,
 }))
 
-vi.mock('@/lib/copilot/chat-status', () => ({ publishChatStatusChanged: vi.fn() }))
+vi.mock('@/lib/mothership/chat-status', () => ({ publishChatStatusChanged: vi.fn() }))
 
-import { publishChatStatusChanged } from '@/lib/copilot/chat-status'
+import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import { POST } from '@/app/api/mothership/chats/read/route'
 
 function createRequest() {

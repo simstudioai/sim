@@ -3,7 +3,8 @@ import { defineWorkspaceOperation } from '@/lib/core/application/workspace-opera
 const adminPolicy = {
   minimumRole: 'admin',
   workspaceApiKey: 'deny',
-  principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
+  delegatedServices: ['copilot'],
 } as const
 
 export const forkOperations = {

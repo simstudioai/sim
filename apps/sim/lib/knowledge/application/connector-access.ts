@@ -10,10 +10,9 @@ import {
 } from '@/lib/core/resource-scope'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { loadScopedAccountsCredentialListContext } from '@/lib/credential-groups/credentials'
-import { getCredentialGroupOAuthContextForEnrollment } from '@/lib/credential-groups/enrollments'
-import { startCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
 import type { CredentialGroupConnectionIntent } from '@/lib/credential-groups/oauth-intent'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
+import { startViewerCredentialGroupOAuth } from '@/lib/credential-groups/self-enrollment-oauth'
 import {
   requireKnowledgeMemberAccessAvailable,
   requireSourceMirroredAccessAvailable,
@@ -99,36 +98,22 @@ export const startKnowledgeConnectorMemberEnrollment = defineAuthorizedKnowledge
       )
     }
     const enrollmentUrl = async (credentialGroupId: string, optionId: string) => {
-      const { enrollment, invitationLink } = await createViewerCredentialGroupEnrollment({
+      if (input.oauthCompletionId) {
+        const { authorizationUrl } = await startViewerCredentialGroupOAuth({
+          userId,
+          ...owner,
+          credentialGroupId,
+          optionId,
+          completionId: input.oauthCompletionId,
+          connectionIntent: input.connectionIntent,
+        })
+        return authorizationUrl
+      }
+      const { invitationLink } = await createViewerCredentialGroupEnrollment({
         userId,
         ...owner,
         credentialGroupId,
       })
-      if (input.oauthCompletionId) {
-        const token = new URL(invitationLink).pathname.split('/').at(-1)
-        if (!token) throw new Error('Account enrollment did not return an invitation token')
-        const oauth = await getCredentialGroupOAuthContextForEnrollment(
-          {
-            ...owner,
-            credentialGroupId,
-            enrollmentId: enrollment.id,
-            email: enrollment.email,
-            userId,
-          },
-          optionId
-        )
-        if (!oauth)
-          throw new OrchestrationError(
-            'forbidden',
-            'This account connection is no longer available'
-          )
-        return startCredentialGroupOAuth(oauth, token, {
-          completionRedirect: true,
-          returnTo: 'search',
-          completionId: input.oauthCompletionId,
-          connectionIntent: input.connectionIntent,
-        })
-      }
       if (!context.knowledgeBase.isSearchIndex) return invitationLink
       const url = new URL(invitationLink)
       url.searchParams.set('optionId', optionId)

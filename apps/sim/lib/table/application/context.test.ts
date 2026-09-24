@@ -327,7 +327,7 @@ describe('surface-neutral remediation text', () => {
    * correct remediation rather than a leak.
    *
    * `workspace-file-imports` lives under `lib/table` but is imported solely by
-   * `lib/copilot/application/table-commands`, so every message it raises reaches
+   * `lib/mothership/application/table-commands`, so every message it raises reaches
    * an agent that can actually call `save_upload` and `glob(...)`. Rewriting
    * those into surface-neutral prose removed a working next step from the one
    * caller able to act on it.

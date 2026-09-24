@@ -2,6 +2,7 @@ import {
   type WorkspaceSearchFilters,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/knowledge/search'
+import { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 /**
  * Safe localStorage utilities with SSR support
  * Provides clean error handling and type safety for browser storage operations
@@ -355,6 +356,7 @@ export interface MothershipHandoff {
   /** The request mode the withdrawn send asked for, so a retry stays the same kind of turn. */
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
+  assistantSearchLevel?: AssistantSearchLevel
 }
 
 type MothershipHandoffOwner = string | { organizationId: string }
@@ -415,6 +417,9 @@ export class MothershipHandoffStorage {
       ...(handoff.resumeUserMessageId ? { resumeUserMessageId: handoff.resumeUserMessageId } : {}),
       ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
       ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
+      ...(handoff.assistantSearchLevel !== undefined
+        ? { assistantSearchLevel: handoff.assistantSearchLevel }
+        : {}),
       workspaceId,
       organizationId,
       timestamp: Date.now(),
@@ -454,7 +459,8 @@ export class MothershipHandoffStorage {
    */
   static consume(
     owner: MothershipHandoffOwner,
-    maxAge: number = MothershipHandoffStorage.MAX_AGE_MS
+    maxAge: number = MothershipHandoffStorage.MAX_AGE_MS,
+    requestMode?: ChatRequestMode
   ): MothershipHandoff | null {
     const data = BrowserStorage.getItem<StoredHandoff | null>(MothershipHandoffStorage.KEY, null)
 
@@ -468,6 +474,9 @@ export class MothershipHandoffStorage {
     ) {
       return null
     }
+
+    const storedMode = data.requestMode ?? (data.organizationId ? 'assistant' : 'agent')
+    if (requestMode && storedMode !== requestMode) return null
 
     MothershipHandoffStorage.clear()
 
@@ -483,14 +492,31 @@ export class MothershipHandoffStorage {
       return null
     }
 
+    const legacyFast = (data as { assistantFast?: unknown }).assistantFast
+    if (
+      data.assistantSearchLevel === undefined &&
+      legacyFast !== undefined &&
+      typeof legacyFast !== 'boolean'
+    )
+      return null
+    const rawLevel =
+      data.assistantSearchLevel ??
+      (legacyFast === true ? 'fast' : legacyFast === false ? 'adaptive' : undefined)
+    const searchLevel = AssistantSearchLevel.optional().safeParse(rawLevel)
+    if (!searchLevel.success) return null
     const assistantSearch = workspaceSearchFiltersSchema.safeParse(data.assistantSearch ?? {})
     if (!assistantSearch.success) return null
 
     return {
       ...(data.message || hasAttachments ? { message: data.message ?? '' } : {}),
       contexts,
-      ...(data.requestMode === 'assistant' ? { requestMode: 'assistant' as const } : {}),
+      ...(data.requestMode === 'assistant' ||
+      data.requestMode === 'agent' ||
+      data.requestMode === 'plan'
+        ? { requestMode: data.requestMode }
+        : {}),
       ...(data.assistantSearch ? { assistantSearch: assistantSearch.data } : {}),
+      ...(searchLevel.data !== undefined ? { assistantSearchLevel: searchLevel.data } : {}),
       ...(Array.isArray(data.fileAttachments) && data.fileAttachments.length > 0
         ? { fileAttachments: data.fileAttachments }
         : {}),

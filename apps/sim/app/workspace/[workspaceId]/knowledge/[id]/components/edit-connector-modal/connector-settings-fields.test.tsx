@@ -242,7 +242,15 @@ describe('connector settings service-account choices', () => {
     expect(container.textContent).not.toContain('Keeps the current repository')
     expect(mocks.configFields).toHaveBeenCalledWith(
       expect.objectContaining({
-        connectorConfig: githubConnectorMeta,
+        connectorConfig: expect.objectContaining({
+          configFields: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'repository',
+              type: 'selector',
+              selectorKey: 'github.installationRepositories',
+            }),
+          ]),
+        }),
         sourceConfig: { repository: 'acme/platform' },
       })
     )
@@ -338,7 +346,19 @@ describe('connector settings service-account choices', () => {
       expect(mocks.contentField).toHaveBeenCalled()
       expect(mocks.accessField).toHaveBeenCalled()
       expect(mocks.configFields).toHaveBeenCalledWith(
-        expect.objectContaining({ connectorConfig: githubConnectorMeta })
+        expect.objectContaining({
+          connectorConfig: expect.objectContaining({
+            id: 'github',
+            configFields: expect.arrayContaining([
+              expect.objectContaining({
+                id: 'repository',
+                ...('scope' in overrides
+                  ? { type: 'short-input' }
+                  : { type: 'selector', selectorKey: 'github.installationRepositories' }),
+              }),
+            ]),
+          }),
+        })
       )
     }
   )

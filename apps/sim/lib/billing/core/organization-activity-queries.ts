@@ -230,6 +230,7 @@ export async function readActivityBreakdown(
   const hasWorkspace = dimension === 'workspace' || dimension === 'workflow'
   const workspaceId = hasWorkspace ? sql`a.workspace_id` : sql`NULL::text`
   const workspaceName = hasWorkspace ? sql`w.name` : sql`NULL::text`
+  const image = dimension === 'member' ? sql`u.image` : sql`NULL::text`
   const order = {
     runs: sql`("workflowRuns" + "chatRuns") DESC`,
     failures: sql`failed DESC`,
@@ -241,6 +242,7 @@ export async function readActivityBreakdown(
       label: string
       workspaceId: string | null
       workspaceName: string | null
+      image: string | null
     }
   >(sql`
     WITH activity AS (${activityGroups(
@@ -252,7 +254,7 @@ export async function readActivityBreakdown(
       FROM activity a
       GROUP BY 1, 2
     ), named AS (
-      SELECT a.*, ${label} AS label, ${workspaceName} AS "workspaceName"
+      SELECT a.*, ${label} AS label, ${workspaceName} AS "workspaceName", ${image} AS image
       FROM grouped a
       ${hasWorkspace ? sql`LEFT JOIN ${workspace} w ON w.id = a."workspaceId"` : sql``}
       ${dimension === 'workflow' ? sql`LEFT JOIN ${workflow} f ON f.id = a.id` : sql``}
@@ -267,6 +269,7 @@ export async function readActivityBreakdown(
       label: row.label,
       workspaceId: row.workspaceId,
       workspaceName: row.workspaceName,
+      ...(row.image ? { image: row.image } : {}),
       ...activityMetrics(row),
     })),
     hasMore: rows.length > ACTIVITY_PAGE_SIZE,

@@ -5,8 +5,10 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkspaceKnowledgeSearchResult } from '@/lib/api/contracts/knowledge'
 import type { ResourceScope } from '@/lib/core/resource-scope'
+import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import type { useSpeechToText } from '@/hooks/use-speech-to-text'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 
 const mocks = vi.hoisted(() => ({
   search: vi.fn(),
@@ -14,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   speech: vi.fn<typeof useSpeechToText>(),
   toggleListening: vi.fn(),
+  mothershipAvailable: true,
 }))
 
 vi.mock('@/hooks/use-speech-to-text', () => ({ useSpeechToText: mocks.speech }))
@@ -28,6 +31,7 @@ vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
   useOrganizationContext: () => ({
     organization: { id: 'organization-a', name: 'Acme' },
     searchAccess: { memberScoped: true },
+    mothershipAvailable: mocks.mothershipAvailable,
   }),
 }))
 vi.mock('@/hooks/queries/kb/knowledge', () => ({ useWorkspaceKnowledgeSearch: mocks.search }))
@@ -44,10 +48,23 @@ vi.mock(
 vi.mock(
   '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card',
   () => ({
-    SourceCard: ({ source }: { source: SourceTagData }) => (
-      <a href={source.url} data-source-link>
-        {source.title}
-      </a>
+    SourceCard: ({
+      source,
+      onSummarize,
+    }: {
+      source: SourceTagData
+      onSummarize?: (source: SourceTagData) => void
+    }) => (
+      <>
+        <a href={source.url} data-source-link>
+          {source.title}
+        </a>
+        {onSummarize && (
+          <button type='button' onClick={() => onSummarize(source)}>
+            Summarize
+          </button>
+        )}
+      </>
     ),
   })
 )
@@ -60,6 +77,17 @@ let container: HTMLDivElement
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
+  useMothershipDraftsStore.setState({ drafts: {} })
+  mocks.mothershipAvailable = true
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    }
+  )
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal(
     'matchMedia',
@@ -112,14 +140,16 @@ async function render(searchParams = '') {
   await act(async () =>
     root.render(
       <NuqsTestingAdapter hasMemory searchParams={searchParams} onUrlUpdate={mocks.urlUpdate}>
-        <OrganizationSearch />
+        <OrganizationSearch userId='reader' />
       </NuqsTestingAdapter>
     )
   )
 }
 
 function searchInput() {
-  const input = container.querySelector<HTMLInputElement>('input[aria-label="Search your sources"]')
+  const input = container.querySelector<HTMLTextAreaElement>(
+    'textarea[aria-label="Search your sources"]'
+  )
   if (!input) throw new Error('Missing Search input')
   return input
 }
@@ -127,7 +157,7 @@ function searchInput() {
 async function editDraft(value: string) {
   await act(async () => {
     const input = searchInput()
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value)
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(input, value)
     input.dispatchEvent(new Event('input', { bubbles: true }))
   })
 }
@@ -135,7 +165,9 @@ async function editDraft(value: string) {
 function expectVisibleQuery(query: string) {
   expect(searchInput().value).toBe(query)
   expect(container.querySelector('a[data-source-link]')?.textContent).toBe(`${query} launch plan`)
-  expect(mocks.search).toHaveBeenLastCalledWith(scope, query, {}, 20)
+  expect(mocks.search).toHaveBeenLastCalledWith(scope, query, {}, 20, {
+    retainAcrossLimits: true,
+  })
   expect(document.activeElement).toBe(searchInput())
 }
 
@@ -147,7 +179,7 @@ describe('organization Search query navigation', () => {
       await editDraft('Find')
       const searchCalls = mocks.search.mock.calls.length
       const mic = container.querySelector<HTMLButtonElement>('button[aria-label="Voice input"]')!
-      expect(mic.nextElementSibling?.getAttribute('aria-label')).toBe('Search')
+      expect(mic.parentElement?.nextElementSibling?.getAttribute('aria-label')).toBe('Search')
       await act(async () => mic.click())
       expect(mocks.toggleListening).toHaveBeenCalledOnce()
       const speech = mocks.speech.mock.calls.at(-1)![0]
@@ -164,7 +196,7 @@ describe('organization Search query navigation', () => {
     }
   )
 
-  it('replaces the field draft and results when the committed URL query changes without remounting the page', async () => {
+  it('keeps committed URL navigation independent of the saved editable draft', async () => {
     await render('?q=Orion')
     expectVisibleQuery('Orion')
     await editDraft('Unsubmitted draft')
@@ -174,9 +206,56 @@ describe('organization Search query navigation', () => {
     expect(container.textContent).not.toContain('Orion launch plan')
 
     await render('?q=Orion')
-    expectVisibleQuery('Orion')
+    expect(searchInput().value).toBe('Unsubmitted draft')
+    expect(container.querySelector('a[data-source-link]')?.textContent).toBe('Orion launch plan')
     expect(container.textContent).not.toContain('Vega launch plan')
     expect(mocks.urlUpdate).not.toHaveBeenCalled()
+  })
+
+  it('keeps edits for separate committed queries across storage rehydration', async () => {
+    await render('?q=Orion')
+    await editDraft('Orion follow-up')
+    await render('?q=Vega')
+    await editDraft('Vega follow-up')
+    await act(async () => root.unmount())
+    const saved = localStorage.getItem('mothership-drafts:v1')!
+    useMothershipDraftsStore.setState({ drafts: {} })
+    localStorage.setItem('mothership-drafts:v1', saved)
+    await useMothershipDraftsStore.persist.rehydrate()
+    root = createRoot(container)
+
+    await render('?q=Orion')
+    expect(searchInput().value).toBe('Orion follow-up')
+    await render('?q=Vega')
+    expect(searchInput().value).toBe('Vega follow-up')
+    await render('')
+    expect(searchInput().value).toBe('Vega follow-up')
+  })
+
+  it('submits one query without clearing another query’s latest draft', async () => {
+    await render('?q=Orion')
+    await editDraft('Orion follow-up')
+    await render('?q=Vega')
+    await editDraft('Vega follow-up')
+    await render('?q=Orion')
+    await act(async () =>
+      searchInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    )
+    expectVisibleQuery('Orion follow-up')
+    await render('')
+    expect(searchInput().value).toBe('Vega follow-up')
+    await editDraft('Vega revised')
+    await render('?q=Vega')
+    expect(searchInput().value).toBe('Vega revised')
+    await render('')
+    await act(async () =>
+      searchInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    )
+    expectVisibleQuery('Vega revised')
+    await render('?q=Vega')
+    expectVisibleQuery('Vega')
+    await render('')
+    expect(searchInput().value).toBe('')
   })
 
   it.each(['Enter', 'button'] as const)(
@@ -221,87 +300,54 @@ describe('organization Search query navigation', () => {
   })
 })
 
-describe('organization Search header placement', () => {
-  it('tracks result scroll edges after submitting from the centered layout', async () => {
-    await render()
-    await editDraft('Orion')
-    await act(async () =>
-      searchInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-    )
-    const results = container.querySelector('[aria-label="Search results"]')!
-    const scroller = results.closest<HTMLDivElement>('.overflow-y-auto')!
-    Object.defineProperties(scroller, {
-      scrollHeight: { value: 1000 },
-      clientHeight: { value: 400 },
-    })
-    await act(async () => {
-      scroller.scrollTop = 100
-      scroller.dispatchEvent(new Event('scroll'))
-    })
-    expect(scroller.getAttribute('data-scroll-fade-top')).toBe('true')
-    expect(scroller.getAttribute('data-scroll-fade-bottom')).toBe('true')
-    await act(async () => {
-      scroller.scrollTop = 600
-      scroller.dispatchEvent(new Event('scroll'))
-    })
-    expect(scroller.getAttribute('data-scroll-fade-bottom')).toBeNull()
+it('hands document summaries to Search chat even when Build is the default', async () => {
+  await render('?q=Orion&source=slack')
+  await act(async () =>
+    [...container.querySelectorAll('button')]
+      .find((button) => button.textContent === 'Summarize')!
+      .click()
+  )
+  expect(mocks.push).toHaveBeenCalledWith('/o/organization-a/home?searchLevel=adaptive')
+  expect(
+    MothershipHandoffStorage.consume({ organizationId: 'organization-a' }, undefined, 'assistant')
+  ).toMatchObject({
+    requestMode: 'assistant',
+    assistantSearch: { source: 'slack', documentIds: ['document-Orion'] },
   })
+})
 
-  it.each([
-    ['pending', { isPending: true, isFetching: true }],
-    ['failed', { isError: true, isPending: false }],
-    ['empty', { data: { results: [], retrieval: { status: 'complete', timedOutLegs: [] } } }],
-    [
-      'timed out',
-      { data: { results: [], retrieval: { status: 'partial', timedOutLegs: ['vector'] } } },
-    ],
-  ])('keeps a submitted %s search at the top', async (_state, response) => {
-    mocks.search.mockReturnValue(response)
-    await render('?q=Orion')
-    expect(container.querySelector('h1')).toBeNull()
-    expect(container.querySelector('[aria-label="Search results"]')).toBeNull()
-    expect(document.activeElement).toBe(searchInput())
-  })
+it.each(['', '?q=Orion'])(
+  'restores an unsent draft after remount and localStorage rehydration (%s)',
+  async (params) => {
+    await render(params)
+    await editDraft('Launch review follow-up')
+    await act(async () => root.unmount())
+    const saved = localStorage.getItem('mothership-drafts:v1')!
+    useMothershipDraftsStore.setState({ drafts: {} })
+    localStorage.setItem('mothership-drafts:v1', saved)
+    await useMothershipDraftsStore.persist.rehydrate()
+    root = createRoot(container)
+    await render(params)
+    expect(searchInput().value).toBe('Launch review follow-up')
+    expect(mocks.urlUpdate).not.toHaveBeenCalled()
+  }
+)
 
-  it('moves to the top on submit and reveals filters after results without losing a draft', async () => {
-    const completed = mocks.search(scope, 'Orion')
-    mocks.search.mockReturnValue({ isPending: true, isFetching: true })
-    await render()
-    expect(container.querySelector('h1')?.textContent).toBe('Search Acme')
-    await editDraft('Orion')
-    await act(async () =>
-      searchInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-    )
-    expect(container.querySelector('h1')).toBeNull()
-    expect(container.textContent).toContain('Searching…')
-    expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
-    const input = searchInput()
-    await editDraft('Unsubmitted draft')
-    mocks.search.mockReturnValue(completed)
-    await render('?q=Orion')
-    expect(container.querySelector('h1')).toBeNull()
-    expect(searchInput()).toBe(input)
-    expect(input.value).toBe('Unsubmitted draft')
-    expect(document.activeElement).toBe(input)
-    const filters = container.querySelector('[aria-label="Search filters"]')
-    expect(filters).not.toBeNull()
+it('preserves a deliberately emptied Search input through remount', async () => {
+  await render('?q=Orion')
+  await editDraft('')
+  await act(async () => root.unmount())
+  root = createRoot(container)
+  await render('?q=Orion')
+  expect(searchInput().value).toBe('')
+  expect(container.querySelector('a[data-source-link]')?.textContent).toBe('Orion launch plan')
+})
 
-    mocks.search.mockReturnValue({
-      data: { results: [], retrieval: { status: 'complete', timedOutLegs: [] } },
-    })
-    await render('?q=Orion')
-    expect(container.querySelector('h1')).toBeNull()
-    expect(searchInput()).toBe(input)
-    expect(container.querySelector('[aria-label="Search filters"]')).toBe(filters)
-
-    mocks.search.mockReturnValue({ isPending: true, isFetching: true })
-    await render('?q=Vega')
-    expect(container.querySelector('h1')).toBeNull()
-    expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
-    expect(searchInput().value).toBe('Vega')
-
-    await render()
-    expect(container.querySelector('h1')?.textContent).toBe('Search Acme')
-    expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
-  })
+it('restores the latest unsent draft when Search is reopened from navigation without a query', async () => {
+  await render('?q=Orion')
+  await editDraft('Unsent follow-up')
+  await render('')
+  expect(searchInput().value).toBe('Unsent follow-up')
+  expect(container.querySelector('a[data-source-link]')).toBeNull()
+  expect(mocks.urlUpdate).not.toHaveBeenCalled()
 })

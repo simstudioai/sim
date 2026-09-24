@@ -84,7 +84,10 @@ describe.each([
     })
     expect(mocks.authority).toHaveBeenCalledWith(
       principal,
-      expect.objectContaining({ minimumRole: 'admin', principalKinds: ['session'] }),
+      expect.objectContaining({
+        minimumRole: 'admin',
+        principalKinds: ['session', 'organization_delegated'],
+      }),
       { organizationId: 'org' }
     )
     expect(mocks.entitlement).not.toHaveBeenCalled()

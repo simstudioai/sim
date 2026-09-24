@@ -16,6 +16,7 @@ import {
 } from '@/lib/api/contracts/v1/workflows'
 import { workflowStateSchema } from '@/lib/api/contracts/workflows'
 import { serializeZodIssues } from '@/lib/api/server'
+import { collectStrippedWorkspaceBindings } from '@/lib/workflows/credentials/credential-extractor'
 import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
 import {
   type PerformCreateWorkflowParams,
@@ -81,6 +82,13 @@ export interface ImportWorkflowParams {
   requestId: string
 }
 
+/** One block the import created — a summary, not the graph. */
+export interface ImportedWorkflowBlock {
+  id: string
+  type: string
+  name: string
+}
+
 export interface ImportedWorkflow {
   id: string
   name: string
@@ -90,11 +98,34 @@ export interface ImportedWorkflow {
   sortOrder: number
   createdAt: Date
   updatedAt: Date
+  /** The blocks the import persisted, in payload order, so a caller can see what landed without a second read. */
+  blocks: ImportedWorkflowBlock[]
 }
 
 export type ImportWorkflowResult =
-  | { success: true; workflow: ImportedWorkflow }
+  | {
+      success: true
+      workflow: ImportedWorkflow
+      /**
+       * One line per required workspace binding the payload carried empty —
+       * what the export cleared and this import could not restore. The
+       * workflow was created; it cannot run until these are set.
+       */
+      warnings: string[]
+    }
   | { success: false; status: number; error: string; details?: unknown }
+
+/**
+ * The import-side half of the export contract: export clears every
+ * workspace-scoped binding, so a round trip lands a workflow whose table and
+ * knowledge-base selections are empty. Saying so in the response is what keeps
+ * that from being discovered at the first failed run.
+ */
+export function describeStrippedWorkspaceBindings(state: WorkflowState): string[] {
+  return collectStrippedWorkspaceBindings(state).map(
+    ({ blockName, field }) => `${blockName}: ${field} was stripped by export; set it before running`
+  )
+}
 
 /**
  * Caps a payload-derived string at `maxLength` *including* the ellipsis.
@@ -423,7 +454,13 @@ async function executeImportWorkflowIntoWorkspace(
       sortOrder: created.workflow.sortOrder,
       createdAt: created.workflow.createdAt,
       updatedAt: created.workflow.updatedAt,
+      blocks: Object.values(workflowState.blocks).map((block) => ({
+        id: block.id,
+        type: block.type,
+        name: block.name,
+      })),
     },
+    warnings: describeStrippedWorkspaceBindings(workflowState),
   }
 }
 

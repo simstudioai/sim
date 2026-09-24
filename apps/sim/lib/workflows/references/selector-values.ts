@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { bindCopilotWorkspaceOperation } from '@/lib/core/application/copilot-workspace-invocation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getSelectorOption } from '@/lib/selectors/application/get-selector-option'
 import {
@@ -18,6 +19,12 @@ export function selectedReferenceValues(value: string, multiple = false): string
 
 /** Request-local, bounded option verification shared by import and workspace sync. */
 export function workflowSelectorValidator(principal: Principal, workspaceId: string) {
+  principal = bindCopilotWorkspaceOperation(
+    principal,
+    workspaceId,
+    ['sim:workflows', 'sim:workspaces', 'sim:selectors'],
+    getSelectorOption
+  )
   const requests = new Map<string, Promise<SafeSelectorOption | null>>()
   return async (field: {
     selectorKey: string

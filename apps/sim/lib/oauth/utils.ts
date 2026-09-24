@@ -346,6 +346,8 @@ export const SCOPE_DESCRIPTIONS: Record<string, string> = {
   'users:read.email': 'View user email addresses',
   'files:write': 'Upload files',
   'files:read': 'Download and read files',
+  'lists:read': 'Read Slack Lists, rows, and column schemas',
+  'lists:write': 'Create and rename Slack Lists and create, update, or delete rows',
   'canvases:read': 'Read canvas sections',
   'canvases:write': 'Create, edit, and delete canvas documents',
   'reactions:write': 'Add emoji reactions to messages',

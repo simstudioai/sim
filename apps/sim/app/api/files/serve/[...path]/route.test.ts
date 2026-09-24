@@ -72,7 +72,7 @@ const {
 })
 
 vi.mock('@/lib/uploads/contexts/organization-assistant/application', () => ({
-  readOrganizationAssistantImage: mockReadOrganizationAssistantImage,
+  readOrganizationChatAttachment: mockReadOrganizationAssistantImage,
 }))
 
 vi.mock('fs/promises', () => ({
@@ -124,7 +124,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content-by-key', 
   readWorkspaceFileContentByKey: { execute: mockReadWorkspaceFileContentByKey },
 }))
 
-vi.mock('@/lib/copilot/tools/server/files/doc-compile', () => ({
+vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({
   resolveServableDocBytes: mockResolveServableDocBytes,
 }))
 
@@ -243,6 +243,20 @@ describe('File Serve API Route', () => {
     })
   })
 
+  it.each(['', 's3/', 'blob/'])(
+    'denies private chat images through generic %s serving',
+    async (prefix) => {
+      const key = `${prefix}chat-images/chat/request/image.webp`
+      const response = await GET(
+        new NextRequest(`http://localhost/api/files/serve/${key}?context=profile-pictures`),
+        { params: Promise.resolve({ path: key.split('/') }) }
+      )
+      expect(response.status).toBe(404)
+      expect(mockReadOrganizationAssistantImage).not.toHaveBeenCalled()
+      expect(mockCreateFileResponse).not.toHaveBeenCalled()
+    }
+  )
+
   it('serves private Assistant images through session authorization and disables caching', async () => {
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1' },
@@ -261,6 +275,7 @@ describe('File Serve API Route', () => {
     expect(mockReadOrganizationAssistantImage).toHaveBeenCalledWith({
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       key,
+      maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
       signal: expect.any(AbortSignal),
     })
     expect(mockCreateFileResponse).toHaveBeenCalledWith(

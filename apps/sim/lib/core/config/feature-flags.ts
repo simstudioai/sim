@@ -46,6 +46,18 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
+  'mothership-model-selector': {
+    description:
+      'Show the Mothership model selector, model-specific effort levels, and Fast for supported ' +
+      'models. Global on/off only; disabled uses Astra with simplified effort labels.',
+    fallback: 'MSHIP_MODEL_SELECTOR',
+  },
+  'mothership-plan-mode': {
+    description:
+      'Show and admit Mothership Plan conversations. Global on/off only, shared by organization ' +
+      'and workspace surfaces.',
+    fallback: 'MSHIP_PLAN_MODE',
+  },
   'agent-memory-history': {
     description:
       'Capture durable Workflow Agent tool history and continue existing retries. Supports workspace rollout targeting; version-aware memory storage remains active when capture is disabled.',

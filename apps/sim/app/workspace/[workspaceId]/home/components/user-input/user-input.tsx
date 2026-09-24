@@ -14,10 +14,11 @@ import { Chip, cn, Tooltip, toast } from '@sim/emcn'
 import { Paperclip, Plus, Slash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
-import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
-import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
+import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
 import { MOTHERSHIP_ADD_CONTEXT_EVENT } from '@/lib/mothership/events'
+import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
   AnimatedPlaceholderEffect,
@@ -29,6 +30,8 @@ import {
   SendButton,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components'
+import { ConversationModeSelector } from '@/app/workspace/[workspaceId]/home/components/user-input/components/conversation-mode-selector'
+import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
 import { handleMothershipAddContextEvent } from '@/app/workspace/[workspaceId]/home/components/user-input/mothership-context-event'
 import type {
   FileAttachmentForApi,
@@ -49,6 +52,8 @@ export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/ty
 const logger = createLogger('UserInput')
 
 interface UserInputProps {
+  requestMode?: 'agent' | 'plan'
+  onModeChange?: (mode: 'agent' | 'plan') => void
   defaultValue?: string
   draftScopeKey?: string
   onSubmit: (
@@ -80,6 +85,8 @@ export interface UserInputHandle {
  */
 const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserInput(
   {
+    requestMode = 'agent',
+    onModeChange,
     defaultValue = '',
     draftScopeKey,
     onSubmit,
@@ -470,6 +477,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     prevSelectedContextsRef.current = []
     resetTranscript()
     filesRef.current.clearAttachedFiles()
+    filesRef.current = { ...filesRef.current, attachedFiles: [] }
   }, [resetTranscript])
 
   const handleSubmit = useCallback(() => {
@@ -552,6 +560,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       }}
       className={cn(
         'relative z-10 mx-auto w-full max-w-chat cursor-text rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
+        inter.className,
         isInitialView && 'shadow-ambient'
       )}
       onDragEnter={handleDragEnter}
@@ -575,58 +584,70 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         className={cn('max-h-[200px]', isInitialView && 'min-h-[56px]')}
       />
 
-      <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-1'>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Chip
-                shape='round'
-                leftIcon={Plus}
-                onClick={handlePlusClick}
-                aria-label='Add resources'
+      <InputToolbar
+        leadingControls={
+          <>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Chip
+                  shape='round'
+                  leftIcon={Plus}
+                  onClick={handlePlusClick}
+                  aria-label='Add resources'
+                />
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Add resources</Tooltip.Content>
+            </Tooltip.Root>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Chip
+                  shape='round'
+                  leftIcon={Paperclip}
+                  onClick={handleFileSelectStable}
+                  aria-label='Attach file'
+                />
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Attach file</Tooltip.Content>
+            </Tooltip.Root>
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <Chip
+                  shape='round'
+                  leftIcon={Slash}
+                  onClick={handleSlashTriggerClick}
+                  aria-label='Skills'
+                />
+              </Tooltip.Trigger>
+              <Tooltip.Content side='top'>Skills</Tooltip.Content>
+            </Tooltip.Root>
+            {onModeChange && (
+              <ConversationModeSelector
+                value={requestMode}
+                onChange={(mode) => {
+                  if (mode === 'agent' || mode === 'plan') onModeChange(mode)
+                }}
               />
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>Add resources</Tooltip.Content>
-          </Tooltip.Root>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Chip
-                shape='round'
-                leftIcon={Paperclip}
-                onClick={handleFileSelectStable}
-                aria-label='Attach file'
-              />
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>Attach file</Tooltip.Content>
-          </Tooltip.Root>
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <Chip
-                shape='round'
-                leftIcon={Slash}
-                onClick={handleSlashTriggerClick}
-                aria-label='Skills'
-              />
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>Skills</Tooltip.Content>
-          </Tooltip.Root>
-        </div>
-        <div className='flex items-center gap-1.5'>
-          {isSttSupported && (
+            )}
+          </>
+        }
+        voiceControl={
+          isSttSupported && (
             <MicButton
               audioLevelsRef={audioLevelsRef}
               isListening={isListening}
               onToggle={toggleListening}
             />
-          )}
+          )
+        }
+        submitControl={
           <SendButton
             isSending={isSending}
             canSubmit={canSubmit}
             onSubmit={handleSubmit}
             onStopGeneration={onStopGeneration}
           />
-        </div>
-      </div>
+        }
+      />
 
       <input
         ref={files.fileInputRef}

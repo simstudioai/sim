@@ -3,9 +3,6 @@ import { resolvePrincipalSubject } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isPlainRecord } from '@sim/utils/object'
-import { executeCopilotManagedMcpUseCase } from '@/lib/copilot/application/execute-managed-mcp-use-case'
-import { executeCopilotMcpServerUseCase } from '@/lib/copilot/application/execute-mcp-server-use-case'
-import { requireTrustedCopilotExecutionContext } from '@/lib/copilot/auth/application-delegation'
 import {
   capExecutionTimeoutMs,
   getAsyncExecutionTimeoutForBillingAttribution,
@@ -37,6 +34,11 @@ import {
   MANAGED_MCP_CONNECTION_PREFIX,
   parseMcpToolTarget,
 } from '@/lib/mcp/utils'
+import {
+  COPILOT_APPLICATION_DELEGATION_TTL_MS,
+  createCopilotApplicationPrincipal,
+  requireTrustedCopilotExecutionContext,
+} from '@/lib/mothership/auth/application-delegation'
 import {
   ResolvedSecretTraceProvenanceAccumulator,
   type ResolvedSecretTraceRegistry,
@@ -161,29 +163,33 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
 
   let provenance: ResolvedSecretTraceProvenanceAccumulator | undefined
   try {
-    const interactiveCopilot =
-      request.context.copilotToolExecution &&
-      request.context.copilotInteractionMode === 'interactive' &&
-      !request.context.mcpBlockId
-    const principal = interactiveCopilot
-      ? undefined
-      : await createExecutorPrincipalFromExecutionContext({
-          context: request.context,
-          audience:
-            target.kind === 'shared_server'
-              ? MCP_SERVER_DELEGATION_AUDIENCE
-              : MANAGED_MCP_DELEGATION_AUDIENCE,
-          ...(target.kind === 'managed_connection'
-            ? { resourceScope: { credentialId: target.credentialId } }
-            : { resourceScope: { mcpServerId: target.serverId } }),
-        })
+    const audience =
+      target.kind === 'shared_server'
+        ? MCP_SERVER_DELEGATION_AUDIENCE
+        : MANAGED_MCP_DELEGATION_AUDIENCE
+    const resourceScope =
+      target.kind === 'managed_connection'
+        ? { credentialId: target.credentialId }
+        : { mcpServerId: target.serverId }
+    /** Workspace chat tools act as their authenticated subject without requiring a workflow. */
+    const principal =
+      request.context.copilotToolExecution && !request.context.mcpBlockId
+        ? createCopilotApplicationPrincipal(
+            requireTrustedCopilotExecutionContext(request.context),
+            {
+              audience,
+              resourceScope,
+              ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS,
+              createDelegationId: (context) => `copilot-tool:${context.toolCallId}`,
+            }
+          )
+        : await createExecutorPrincipalFromExecutionContext({
+            context: request.context,
+            audience,
+            resourceScope,
+          })
     request.signal?.throwIfAborted()
-    const subject = principal
-      ? resolvePrincipalSubject(principal)
-      : {
-          kind: 'sim_user' as const,
-          userId: requireTrustedCopilotExecutionContext(request.context).userId,
-        }
+    const subject = resolvePrincipalSubject(principal)
     provenance =
       request.context.resolvedSecretTraceRegistry && subject?.kind === 'sim_user'
         ? new ResolvedSecretTraceProvenanceAccumulator({
@@ -215,22 +221,13 @@ export const executeMcpTool: InternalToolOperationHandler = async (request) => {
           ? (value) => provenance?.record(value)
           : undefined,
       }
-      result = principal
-        ? await executeMcpToolUseCase.execute({ principal, input })
-        : await executeCopilotMcpServerUseCase(request.context, executeMcpToolUseCase, input)
+      result = await executeMcpToolUseCase.execute({ principal, input })
     } else {
       const input = {
         ...commonInput,
         credentialId: target.credentialId,
       }
-      result = principal
-        ? await executeManagedMcpToolUseCase.execute({ principal, input })
-        : await executeCopilotManagedMcpUseCase(
-            request.context,
-            executeManagedMcpToolUseCase,
-            input,
-            { credentialId: target.credentialId }
-          )
+      result = await executeManagedMcpToolUseCase.execute({ principal, input })
     }
     request.signal?.throwIfAborted()
     const body =

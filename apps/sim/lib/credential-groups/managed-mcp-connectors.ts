@@ -1,4 +1,4 @@
-export const MANAGED_MCP_CONNECTOR_IDS = ['fireflies', 'granola', 'databricks'] as const
+export const MANAGED_MCP_CONNECTOR_IDS = ['fireflies', 'granola', 'databricks', 'coda'] as const
 
 export type ManagedMcpConnectorId = (typeof MANAGED_MCP_CONNECTOR_IDS)[number]
 
@@ -20,6 +20,13 @@ interface DatabricksManagedMcpConnector {
 export type ManagedMcpConnector = FixedManagedMcpConnector | DatabricksManagedMcpConnector
 
 export const MANAGED_MCP_CONNECTORS = {
+  coda: {
+    id: 'coda',
+    name: 'Coda',
+    description: 'Search and read Superhuman Docs (Coda) using each person’s OAuth account',
+    url: 'https://docs.superhuman.com/apis/mcp',
+    oauthClientRegistration: 'dynamic',
+  },
   fireflies: {
     id: 'fireflies',
     name: 'Fireflies',

@@ -142,6 +142,16 @@ describe('v2 API key authentication', () => {
     })
   })
 
+  it('does not accept an opaque sandbox callback credential as a personal API key', async () => {
+    await expect(
+      authenticateV2ApiKey({
+        apiKey: 'mothership-sandbox:11111111-1111-4111-8111-111111111111',
+        bearer: null,
+      })
+    ).rejects.toBeInstanceOf(V2ApiKeyUnauthenticatedError)
+    expect(mocks.updateLastUsed).not.toHaveBeenCalled()
+  })
+
   it('treats missing, banned, and expired credentials as unauthenticated', async () => {
     await expect(authenticateV2ApiKey({ apiKey: 'missing', bearer: null })).rejects.toBeInstanceOf(
       V2ApiKeyUnauthenticatedError

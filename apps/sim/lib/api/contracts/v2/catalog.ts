@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  booleanQueryFlagSchema,
+  noInputSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
@@ -108,7 +112,7 @@ export const v2BlockFieldSchema = z
       .boolean()
       .optional()
       .describe(
-        'Whether a value must be supplied. A conditionally required field reports `true` and carries `requiredWhen`.'
+        'Whether a value must always be supplied. A field required only under some configuration reports `false` and carries `requiredWhen`.'
       ),
     requiredWhen: v2CatalogConditionSchema
       .optional()
@@ -134,11 +138,17 @@ export const v2BlockFieldSchema = z
             .boolean()
             .optional()
             .describe('Whether the option renders with an icon. The icon itself is not published.'),
+          hosted: z
+            .boolean()
+            .optional()
+            .describe(
+              'Model options only: whether Sim runs the model with its own key on a hosted deployment, so no provider API key is needed for it.'
+            ),
         })
       )
       .optional()
       .describe(
-        'Selectable options. Absent on fields whose options are fetched per workspace at edit time.'
+        'Selectable options. Absent on fields whose options are fetched per workspace at edit time. A `model` field always carries its options, with `hosted` marking the models a hosted deployment runs without an author-supplied key.'
       ),
     min: z.number().optional().describe('Minimum accepted numeric value.'),
     max: z.number().optional().describe('Maximum accepted numeric value.'),
@@ -661,7 +671,11 @@ export const v2ConnectorTypeSchema = z
     auth: z
       .discriminatedUnion('mode', [
         z.object({
-          mode: z.literal('oauth').describe('Authenticates with an OAuth credential.'),
+          mode: z
+            .literal('oauth')
+            .describe(
+              'Authenticates with an OAuth credential; pass `credentialId` when creating the connector.'
+            ),
           provider: z.string().describe('OAuth service the credential must authenticate.'),
           requiredScopes: z
             .array(z.string())
@@ -669,7 +683,11 @@ export const v2ConnectorTypeSchema = z
             .describe('Scopes the credential must carry.'),
         }),
         z.object({
-          mode: z.literal('apiKey').describe('Authenticates with a stored API key.'),
+          mode: z
+            .literal('apiKey')
+            .describe(
+              'Authenticates with a stored API key; pass `apiKey`, and no `credentialId`, when creating the connector.'
+            ),
           label: z.string().optional().describe('Label shown above the key field.'),
           placeholder: z.string().optional().describe('Placeholder shown in the key field.'),
           optional: z
@@ -679,7 +697,9 @@ export const v2ConnectorTypeSchema = z
             ),
         }),
       ])
-      .describe('How the connector authenticates against its source.'),
+      .describe(
+        'How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey`.'
+      ),
     configFields: z
       .array(v2ConnectorConfigFieldSchema)
       .describe('Fields that make up the connector’s `sourceConfig`.'),
@@ -705,6 +725,47 @@ export const v2ConnectorTypeSchema = z
   })
 export type V2ConnectorType = z.output<typeof v2ConnectorTypeSchema>
 
+/**
+ * The projection `GET /api/v2/connector-types` returns unless asked for
+ * `detail=full`. Sixty-odd connector types with every config field, option
+ * list, and tag definition came to well over 100 KB for a caller that only
+ * needed to pick one; the summary is what that decision takes, and the full
+ * shape is one `detail=full` away.
+ */
+export const v2ConnectorTypeSummarySchema = z
+  .object({
+    connectorType: v2ConnectorTypeSchema.shape.connectorType,
+    name: v2ConnectorTypeSchema.shape.name,
+    description: v2ConnectorTypeSchema.shape.description,
+    auth: z
+      .object({
+        mode: z
+          .enum(['oauth', 'apiKey'])
+          .describe(
+            'How the connector authenticates against its source: `oauth` connectors take `credentialId` (GitHub also accepts a personal access token as `apiKey`), `apiKey` connectors take `apiKey`.'
+          ),
+      })
+      .describe(
+        'Authentication mode only. `detail=full` adds the OAuth provider and scopes, or the API-key field labels.'
+      ),
+  })
+  .meta({
+    id: 'V2ConnectorTypeSummary',
+    title: 'Connector type summary',
+    description:
+      'A knowledge-base connector type without its configuration schema. Request `detail=full` for the config fields and tag definitions.',
+  })
+export type V2ConnectorTypeSummary = z.output<typeof v2ConnectorTypeSummarySchema>
+
+export const v2ConnectorTypeDetailSchema = z.enum(['summary', 'full'])
+export type V2ConnectorTypeDetail = z.output<typeof v2ConnectorTypeDetailSchema>
+
+/**
+ * Smaller than the v2 default of 50: the summary is the point of the default
+ * projection, and a page of 25 keeps the full projection readable too.
+ */
+export const V2_CONNECTOR_TYPES_DEFAULT_PAGE_SIZE = 25
+
 export const v2BlockSortFields = ['id', 'name', 'category'] as const
 export const v2ToolSortFields = ['id', 'name'] as const
 
@@ -726,7 +787,13 @@ export const v2ListBlocksQuerySchema = catalogWorkspaceQuerySchema
     source: z
       .enum(['builtin', 'custom'])
       .optional()
-      .describe("Restrict to built-in blocks or this workspace's deployed custom blocks."),
+      .describe('Restrict to shipped blocks or to this workspace’s deployed custom blocks.'),
+    includeSunset: booleanQueryFlagSchema
+      .optional()
+      .default(false)
+      .describe(
+        'Include `legacy` and `deprecated` blocks. Off by default: a sunset block keeps executing where it is already placed, but it is not offered for new authoring. Each returned entry carries `sunset.replacedBy`, the block to build with instead.'
+      ),
     ...v2SortFields(v2BlockSortFields, { sortBy: 'id', sortOrder: 'asc' }),
     ...v2PaginationFields({ description: 'Maximum blocks to return per page.' }),
   })
@@ -772,6 +839,16 @@ export type V2GetToolParams = z.output<typeof v2GetToolParamsSchema>
 export const v2ListConnectorTypesQuerySchema = catalogWorkspaceQuerySchema
   .extend({
     search: v2SearchSchema.describe('Case-insensitive substring match against the connector name.'),
+    detail: v2ConnectorTypeDetailSchema
+      .optional()
+      .default('summary')
+      .describe(
+        'Projection of each item. `summary` (the default) carries the identifier, name, description, and auth mode; `full` adds the version, the complete auth settings, the `sourceConfig` field schema, incremental-sync support, and tag definitions.'
+      ),
+    ...v2PaginationFields({
+      description: 'Maximum connector types to return per page.',
+      fallback: V2_CONNECTOR_TYPES_DEFAULT_PAGE_SIZE,
+    }),
   })
   .strict()
 export type V2ListConnectorTypesQuery = z.output<typeof v2ListConnectorTypesQuerySchema>
@@ -836,12 +913,19 @@ export const v2ExecuteToolContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2ToolExecutionSchema) },
 })
 
+/**
+ * Connector-type list, paginated by the same offset cursor as the block and
+ * tool lists: the sequence is the code-defined connector registry filtered in
+ * memory, so there is no ordered SQL read for a keyset predicate to act on.
+ * Items are the summary projection unless `detail=full` is sent; the full
+ * schema is listed first so a full item is never narrowed to a summary.
+ */
 export const v2ListConnectorTypesContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/connector-types',
   query: v2ListConnectorTypesQuerySchema,
   response: {
     mode: 'json',
-    schema: v2CursorListResponse(v2ConnectorTypeSchema, { paged: false }),
+    schema: v2CursorListResponse(z.union([v2ConnectorTypeSchema, v2ConnectorTypeSummarySchema])),
   },
 })

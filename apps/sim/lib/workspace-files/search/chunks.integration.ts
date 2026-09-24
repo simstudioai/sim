@@ -28,7 +28,7 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
   getWorkspaceFile: vi.fn(),
   fetchWorkspaceFileBuffer: vi.fn(),
 }))
-vi.mock('@/lib/copilot/tools/server/files/doc-compile', () => ({ resolveServableDoc: vi.fn() }))
+vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({ resolveServableDoc: vi.fn() }))
 vi.mock('@/lib/file-parsers', () => ({ parseBuffer: vi.fn(), isSupportedFileType: vi.fn() }))
 
 import {
@@ -180,7 +180,7 @@ describe('chunked workspace file search on PostgreSQL', () => {
       '0358_workspace_file_content_version_precision.sql',
       '0359_workspace_file_search_chunks.sql',
       ginWriteMigration,
-      '0380_workspace_file_search_dispatch_handoff.sql',
+      '0382_workspace_file_search_dispatch_handoff.sql',
     ]) {
       await applyMigration(migration)
     }

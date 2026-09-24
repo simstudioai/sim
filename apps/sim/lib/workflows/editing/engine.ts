@@ -159,7 +159,8 @@ function orderOperations(operations: EditWorkflowOperation[]): EditWorkflowOpera
 export function applyOperationsToWorkflowState(
   workflowState: Record<string, unknown>,
   operations: EditWorkflowOperation[],
-  permissionConfig: PermissionGroupConfig | null = null
+  permissionConfig: PermissionGroupConfig | null = null,
+  enforceToolBindingContract = false
 ): ApplyOperationsResult {
   // Deep clone the workflow state to avoid mutations
   const modifiedState = structuredClone(workflowState)
@@ -186,6 +187,7 @@ export function applyOperationsToWorkflowState(
   })
 
   const ctx: OperationContext = {
+    enforceToolBindingContract,
     modifiedState,
     skippedItems,
     validationErrors,
@@ -242,7 +244,14 @@ export function applyOperationsToWorkflowState(
         continue
       }
 
-      addConnectionsAsEdges(modifiedState, blockId, connections, logger, skippedItems)
+      addConnectionsAsEdges(
+        modifiedState,
+        blockId,
+        connections,
+        logger,
+        skippedItems,
+        validationErrors
+      )
     }
 
     logger.info('Finished processing deferred connections', {
@@ -351,7 +360,7 @@ function applyAgentToolUsageControlModesAfterEdits(
   blocks: Record<string, BlockState> | undefined
 ): void {
   for (const [blockId, block] of Object.entries(blocks ?? {})) {
-    if (block.type !== 'agent') continue
+    if (block.type !== 'agent' && block.type !== 'mothership') continue
     const tools = coerceObjectArray(block.subBlocks?.tools?.value).array
     if (!tools) continue
     const originalTools = coerceObjectArray(

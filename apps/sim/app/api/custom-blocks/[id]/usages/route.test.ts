@@ -3,6 +3,7 @@
  */
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const { mockHasWorkspaceAdminAccess, mockOperations } = vi.hoisted(() => ({
   mockHasWorkspaceAdminAccess: vi.fn(),
@@ -10,11 +11,25 @@ const { mockHasWorkspaceAdminAccess, mockOperations } = vi.hoisted(() => ({
     getCustomBlockManageContext: vi.fn(),
     getCustomBlockUsageCounts: vi.fn(),
     isCustomBlocksDeploymentEnabled: vi.fn(),
+    CustomBlockValidationError: class extends Error {},
   },
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  hasWorkspaceAdminAccess: mockHasWorkspaceAdminAccess,
+vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
+  resolveEffectiveWorkspacePermission: async (...args: unknown[]) =>
+    (await mockHasWorkspaceAdminAccess(...args)) === null
+      ? null
+      : (await mockHasWorkspaceAdminAccess(...args))
+        ? 'admin'
+        : 'read',
+}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
+    workspaceId,
+    workspaceOrganizationId: 'org-1',
+    allowPersonalApiKeys: true,
+  }),
 }))
 
 vi.mock('@/lib/workflows/custom-blocks/operations', () => mockOperations)
@@ -39,7 +54,7 @@ function callRoute(id = 'cb-1') {
 describe('GET /api/custom-blocks/[id]/usages', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+    mockGetSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     mockHasWorkspaceAdminAccess.mockResolvedValue(true)
     mockOperations.getCustomBlockManageContext.mockResolvedValue(MANAGE_CONTEXT)
     mockOperations.getCustomBlockUsageCounts.mockResolvedValue(USAGE_COUNTS)
@@ -56,6 +71,13 @@ describe('GET /api/custom-blocks/[id]/usages', () => {
     mockOperations.getCustomBlockManageContext.mockResolvedValue(null)
     const response = await callRoute()
     expect(response.status).toBe(404)
+  })
+
+  it('conceals a block in an inaccessible workspace', async () => {
+    mockHasWorkspaceAdminAccess.mockResolvedValue(null)
+    const response = await callRoute()
+    expect(response.status).toBe(404)
+    expect(mockOperations.getCustomBlockUsageCounts).not.toHaveBeenCalled()
   })
 
   it('returns 403 for a non-admin of the source workspace', async () => {
@@ -82,5 +104,14 @@ describe('GET /api/custom-blocks/[id]/usages', () => {
       'org-1',
       'custom_block_abc123'
     )
+  })
+
+  it('conceals internal orchestration diagnostics', async () => {
+    mockOperations.getCustomBlockUsageCounts.mockRejectedValue(
+      new OrchestrationError('internal', 'Database driver diagnostic')
+    )
+    const response = await callRoute()
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: 'Internal server error' })
   })
 })

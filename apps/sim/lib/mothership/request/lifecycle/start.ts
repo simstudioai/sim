@@ -1,0 +1,690 @@
+import { type Context, context as otelContextApi } from '@opentelemetry/api'
+import { db } from '@sim/db'
+import { copilotChats } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { and, eq, isNull } from 'drizzle-orm'
+import {
+  assertBillingAttributionSnapshot,
+  type BillingAttributionSnapshot,
+  checkAttributedUsageLimits,
+  createAttributedBillingRequestEnvelope,
+  resolveBillingAttribution,
+  resolveOrganizationBillingAttribution,
+} from '@/lib/billing/core/billing-attribution'
+import { isHosted } from '@/lib/core/config/env-flags'
+import { createRunSegment, recordRunBillingAdmission } from '@/lib/mothership/async-runs/repository'
+import { buildChatTitleContext } from '@/lib/mothership/chat/title-context'
+import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
+import {
+  MothershipStreamV1EventType,
+  MothershipStreamV1SessionKind,
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import { TitleRequest } from '@/lib/mothership/generated/protocol'
+import {
+  RequestTraceV1Outcome,
+  RequestTraceV1SpanStatus,
+} from '@/lib/mothership/generated/request-trace-v1'
+import {
+  CopilotRequestCancelReason,
+  type CopilotRequestCancelReasonValue,
+  CopilotTransport,
+} from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceEvent } from '@/lib/mothership/generated/trace-events-v1'
+import { resolveEnterpriseByokKey } from '@/lib/mothership/request/enterprise-byok'
+import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
+import { finalizeStream } from '@/lib/mothership/request/lifecycle/finalize'
+import { streamRecoveryConfig } from '@/lib/mothership/request/lifecycle/recovery-config'
+import {
+  type CopilotLifecycleOptions,
+  runCopilotLifecycle,
+} from '@/lib/mothership/request/lifecycle/run'
+import { type CopilotLifecycleOutcome, startCopilotOtelRoot } from '@/lib/mothership/request/otel'
+import {
+  cleanupAbortMarker,
+  clearFilePreviewSessions,
+  isExplicitStopReason,
+  registerActiveStream,
+  releasePendingChatStream,
+  StreamWriter,
+  scheduleBufferCleanup,
+  scheduleFilePreviewSessionCleanup,
+  startAbortPoller,
+  unregisterActiveStream,
+} from '@/lib/mothership/request/session'
+import { getLocalChatStreamLease } from '@/lib/mothership/request/session/abort'
+import { AbortReason } from '@/lib/mothership/request/session/abort-reason'
+import {
+  assertChatStreamLease,
+  StreamControllerSupersededError,
+} from '@/lib/mothership/request/session/controller-lease'
+import { SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/session/sse'
+import { TraceCollector } from '@/lib/mothership/request/trace'
+import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
+
+export { SSE_RESPONSE_HEADERS }
+
+const logger = createLogger('CopilotChatStreaming')
+
+type CurrentChatSummary = {
+  title?: string | null
+} | null
+
+export interface StreamingOrchestrationParams {
+  requestPayload: Record<string, unknown>
+  userId: string
+  streamId: string
+  executionId: string
+  runId: string
+  chatId?: string
+  currentChat: CurrentChatSummary
+  message: string
+  titleModel: string
+  titleProvider?: string
+  requestId: string
+  workspaceId?: string
+  organizationId?: string
+  orchestrateOptions: Omit<CopilotLifecycleOptions, 'onEvent'>
+  /** Interactive admission commits before the HTTP stream is exposed. */
+  admittedRun?: Awaited<ReturnType<typeof createRunSegment>>
+  resumeSeq?: number
+  /** Pre-started root; omit to let the stream start its own root. */
+  otelRoot?: ReturnType<typeof startCopilotOtelRoot>
+}
+
+export function createSSEStream(params: StreamingOrchestrationParams): ReadableStream {
+  const {
+    requestPayload,
+    userId,
+    streamId,
+    executionId,
+    runId,
+    chatId,
+    currentChat,
+    message,
+    titleModel,
+    titleProvider,
+    requestId,
+    workspaceId,
+    organizationId,
+    orchestrateOptions,
+    otelRoot,
+  } = params
+
+  // Reuse caller's root if provided; otherwise start our own.
+  const activeOtelRoot =
+    otelRoot ??
+    startCopilotOtelRoot({
+      requestId,
+      route: orchestrateOptions.goRoute,
+      chatId,
+      workflowId: orchestrateOptions.workflowId,
+      executionId,
+      runId,
+      streamId,
+      transport: CopilotTransport.Stream,
+    })
+
+  const abortController = new AbortController()
+  registerActiveStream(streamId, abortController)
+
+  const lease = chatId ? getLocalChatStreamLease(chatId, streamId) : undefined
+  const assertControllerOwnership = async () => {
+    if (!chatId) return
+    try {
+      if (!lease || abortController.signal.reason instanceof StreamControllerSupersededError) {
+        throw new StreamControllerSupersededError()
+      }
+      await assertChatStreamLease(lease)
+    } catch {
+      const error = new StreamControllerSupersededError()
+      abortController.abort(error)
+      throw error
+    }
+  }
+  const publisher = new StreamWriter({
+    streamId,
+    chatId,
+    requestId,
+    userId,
+    lease,
+    initialSeq: params.resumeSeq,
+  })
+
+  // Declared at function scope (same rationale as `cancelReason` below) so the
+  // leak backstop in the orchestration's outer finally can always reach them:
+  // the stream registration above, the abort poller, and the keepalive are
+  // process-held resources, and a throw that bypasses the inner finally's
+  // ordered teardown (e.g. `resetBuffer` failing on a Redis blip before the
+  // lifecycle starts) previously orphaned them — the poller and keepalive
+  // intervals then ran, and the activeStreams entry sat, for the life of the
+  // process.
+  let abortPoller: ReturnType<typeof startAbortPoller> | undefined
+  let processResourcesReleased = false
+
+  // Only explicit cancellation affects the run; browser attachment is independent.
+  const recordCancelled = (errorMessage?: string): CopilotRequestCancelReasonValue => {
+    const rawReason = abortController.signal.reason
+    let cancelReason: CopilotRequestCancelReasonValue
+    if (isExplicitStopReason(rawReason)) {
+      cancelReason = CopilotRequestCancelReason.ExplicitStop
+    } else {
+      cancelReason = CopilotRequestCancelReason.Unknown
+      const serializedReason =
+        rawReason === undefined
+          ? 'undefined'
+          : rawReason instanceof Error
+            ? `${rawReason.name}: ${rawReason.message}`
+            : typeof rawReason === 'string'
+              ? rawReason
+              : (() => {
+                  try {
+                    return JSON.stringify(rawReason)
+                  } catch {
+                    return String(rawReason)
+                  }
+                })()
+      // Contract violation: add the new reason to AbortReason /
+      // isExplicitStopReason or extend the classifier.
+      logger.error(`[${requestId}] Stream cancelled with unknown abort reason`, {
+        streamId,
+        chatId,
+        reason: serializedReason,
+      })
+      activeOtelRoot.span.setAttribute(TraceAttr.CopilotAbortUnknownReason, serializedReason)
+    }
+    activeOtelRoot.span.setAttribute(TraceAttr.CopilotRequestCancelReason, cancelReason)
+    activeOtelRoot.span.addEvent(TraceEvent.RequestCancelled, {
+      [TraceAttr.CopilotRequestCancelReason]: cancelReason,
+      ...(errorMessage ? { [TraceAttr.ErrorMessage]: errorMessage } : {}),
+    })
+    return cancelReason
+  }
+
+  const collector = new TraceCollector()
+
+  return new ReadableStream({
+    async start(controller) {
+      publisher.attach(controller)
+
+      // Re-enter the root OTel context — ALS doesn't survive the
+      // Next handler → ReadableStream.start boundary.
+      await otelContextApi.with(activeOtelRoot.context, async () => {
+        const otelContext = activeOtelRoot.context
+        let rootOutcome: CopilotLifecycleOutcome = RequestTraceV1Outcome.error
+        let rootError: unknown
+        // `cancelReason` must be declared OUTSIDE the outer `try` so
+        // it remains in scope for the outer `finally` that calls
+        // `activeOtelRoot.finish(rootOutcome, rootError, cancelReason)`.
+        // `let` bindings declared inside a `try` block are NOT visible
+        // in the paired `finally`; referencing one there raises a
+        // TDZ ReferenceError, skipping `finish()`, leaving the root
+        // span never-ended, and making Tempo see every child as an
+        // orphan under a phantom parent. (Regression landed 2026-04-21.)
+        let cancelReason: CopilotRequestCancelReasonValue | undefined
+        try {
+          const requestSpan = collector.startSpan('Sim Agent Request', 'request', {
+            streamId,
+            chatId,
+            runId,
+          })
+          let outcome: CopilotLifecycleOutcome = RequestTraceV1Outcome.error
+          let lifecycleResult:
+            | {
+                usage?: { prompt: number; completion: number }
+                cost?: { input: number; output: number; total: number }
+              }
+            | undefined
+
+          await assertControllerOwnership()
+          if (!orchestrateOptions.recovery) await clearFilePreviewSessions(streamId)
+
+          const savedRequestContext = {
+            ...(params.admittedRun?.requestContext ?? {}),
+            requestId,
+            controllerToken: lease?.value,
+            recovery: streamRecoveryConfig(orchestrateOptions, requestPayload),
+          }
+          try {
+            if (chatId && !orchestrateOptions.recovery) {
+              const run =
+                params.admittedRun ??
+                (await createRunSegment({
+                  id: runId,
+                  executionId,
+                  chatId,
+                  userId,
+                  workflowId:
+                    typeof requestPayload.workflowId === 'string'
+                      ? requestPayload.workflowId
+                      : null,
+                  workspaceId,
+                  organizationId,
+                  streamId,
+                  model: typeof requestPayload.model === 'string' ? requestPayload.model : null,
+                  provider:
+                    typeof requestPayload.provider === 'string' ? requestPayload.provider : null,
+                  requestContext: savedRequestContext,
+                }))
+              if (run.status === 'cancelled') {
+                outcome = RequestTraceV1Outcome.cancelled
+                abortController.abort(AbortReason.UserStop)
+                cancelReason = recordCancelled()
+                await finalizeStream(
+                  {
+                    success: false,
+                    cancelled: true,
+                    content: '',
+                    contentBlocks: [],
+                    toolCalls: [],
+                  },
+                  publisher,
+                  runId,
+                  outcome,
+                  requestId
+                )
+                return
+              }
+            }
+
+            abortPoller = startAbortPoller(streamId, abortController, {
+              requestId,
+              chatId,
+              lease,
+            })
+            publisher.startKeepalive()
+
+            if (chatId && !orchestrateOptions.recovery) {
+              await publisher.publish({
+                type: MothershipStreamV1EventType.session,
+                payload: {
+                  kind: MothershipStreamV1SessionKind.chat,
+                  chatId,
+                },
+              })
+            }
+
+            fireTitleGeneration({
+              inventory: requestPayload.inventory,
+              chatId,
+              currentChat,
+              userId,
+              message,
+              titleModel,
+              titleProvider,
+              workspaceId,
+              organizationId,
+              billingAttribution: orchestrateOptions.billingAttribution,
+              requestId,
+              publisher,
+              otelContext,
+            })
+
+            const result = await runCopilotLifecycle(requestPayload, {
+              ...orchestrateOptions,
+              executionId,
+              runId,
+              trace: collector,
+              simRequestId: requestId,
+              otelContext,
+              abortSignal: abortController.signal,
+              assertControllerOwnership,
+              onBillingAdmission: async (admission) => {
+                if (!chatId || !savedRequestContext.recovery) return
+                await assertControllerOwnership()
+                if (!lease) throw new StreamControllerSupersededError()
+                const updated = await recordRunBillingAdmission(
+                  runId,
+                  {
+                    billingRequestId: admission.billingRequestId,
+                    serializedAttribution: admission.serializedAttribution,
+                  },
+                  lease.value
+                )
+                if (!updated) throw new Error('Run no longer owns billing admission')
+              },
+              onEvent: async (event) => {
+                try {
+                  await publisher.publish(event)
+                } catch (error) {
+                  abortController.abort(new StreamControllerSupersededError())
+                  throw error
+                }
+              },
+              onAbortObserved: (reason) => {
+                if (!abortController.signal.aborted) {
+                  abortController.abort(reason)
+                }
+              },
+            })
+
+            lifecycleResult = result
+            // A completed result wins a late Stop; passive disconnection never cancels.
+            outcome = result.success
+              ? RequestTraceV1Outcome.success
+              : result.cancelled || abortController.signal.aborted
+                ? RequestTraceV1Outcome.cancelled
+                : RequestTraceV1Outcome.error
+            if (outcome === RequestTraceV1Outcome.cancelled) {
+              cancelReason = recordCancelled()
+            }
+            await assertControllerOwnership()
+            await finalizeStream(result, publisher, runId, outcome, requestId)
+          } catch (error) {
+            if (
+              error instanceof StreamControllerSupersededError ||
+              abortController.signal.reason instanceof StreamControllerSupersededError
+            ) {
+              logger.info('Stream controller handed off; leaving its run recoverable', { streamId })
+              return
+            }
+            await assertControllerOwnership()
+            const wasCancelled = abortController.signal.aborted
+            outcome = wasCancelled ? RequestTraceV1Outcome.cancelled : RequestTraceV1Outcome.error
+            if (outcome === RequestTraceV1Outcome.cancelled) {
+              cancelReason = recordCancelled(getErrorMessage(error))
+            }
+            if (publisher.clientDisconnected) {
+              logger.info(`[${requestId}] Stream errored after client disconnect`, {
+                error: getErrorMessage(error, 'Stream error'),
+              })
+            }
+            // Demote to warn when the throw came from a user-initiated
+            // cancel — it isn't an "unexpected" failure then, and the
+            // error-level log pollutes alerting on normal Stop presses.
+            const logFn = outcome === RequestTraceV1Outcome.cancelled ? logger.warn : logger.error
+            logFn.call(logger, `[${requestId}] Orchestration ended with ${outcome}:`, error)
+
+            const syntheticResult = {
+              success: false as const,
+              content: '',
+              contentBlocks: [],
+              toolCalls: [],
+              error: 'An unexpected error occurred while processing the response.',
+            }
+            await finalizeStream(syntheticResult, publisher, runId, outcome, requestId)
+          } finally {
+            collector.endSpan(
+              requestSpan,
+              outcome === RequestTraceV1Outcome.success
+                ? RequestTraceV1SpanStatus.ok
+                : outcome === RequestTraceV1Outcome.cancelled
+                  ? RequestTraceV1SpanStatus.cancelled
+                  : RequestTraceV1SpanStatus.error
+            )
+
+            clearInterval(abortPoller)
+            try {
+              await publisher.close()
+            } catch (error) {
+              logger.warn(`[${requestId}] Failed to flush stream persistence during close`, {
+                error: getErrorMessage(error),
+              })
+            }
+            unregisterActiveStream(streamId, abortController)
+            if (chatId) {
+              await releasePendingChatStream(chatId, streamId, lease)
+            }
+            processResourcesReleased = true
+            if (!(abortController.signal.reason instanceof StreamControllerSupersededError)) {
+              await scheduleBufferCleanup(streamId)
+              await scheduleFilePreviewSessionCleanup(streamId)
+              await cleanupAbortMarker(streamId)
+            }
+
+            rootOutcome = outcome
+            if (lifecycleResult?.usage) {
+              activeOtelRoot.span.setAttributes({
+                [TraceAttr.GenAiUsageInputTokens]: lifecycleResult.usage.prompt ?? 0,
+                [TraceAttr.GenAiUsageOutputTokens]: lifecycleResult.usage.completion ?? 0,
+              })
+            }
+            if (lifecycleResult?.cost) {
+              activeOtelRoot.span.setAttributes({
+                [TraceAttr.BillingCostInputUsd]: lifecycleResult.cost.input ?? 0,
+                [TraceAttr.BillingCostOutputUsd]: lifecycleResult.cost.output ?? 0,
+                [TraceAttr.BillingCostTotalUsd]: lifecycleResult.cost.total ?? 0,
+              })
+            }
+          }
+        } catch (error) {
+          rootOutcome = RequestTraceV1Outcome.error
+          rootError = error
+          throw error
+        } finally {
+          // Leak backstop for throws that bypassed the inner finally's
+          // ordered teardown (a session reset failing before the lifecycle
+          // started, or the teardown itself throwing before its release
+          // lines). Every step is idempotent — clearInterval and
+          // stopKeepalive no-op when already stopped, unregister is a keyed
+          // delete, and the chat-stream release is ownership-guarded against
+          // a successor stream — and none of them throw, so the otel finish
+          // below always still runs. On the normal path the flag set by the
+          // ordered teardown skips this entirely.
+          if (!processResourcesReleased) {
+            processResourcesReleased = true
+            clearInterval(abortPoller)
+            publisher.stopKeepalive()
+            unregisterActiveStream(streamId, abortController)
+            if (chatId) {
+              await releasePendingChatStream(chatId, streamId, lease)
+            }
+          }
+          // `finish` is idempotent, so it's safe whether the POST
+          // handler started the root (and may also call finish on an
+          // error path before the stream ran) or we did. The cancel
+          // reason (if any) determines whether `cancelled` is an
+          // expected outcome (explicit_stop → status OK) or a real
+          // error (client_disconnect / unknown → status ERROR).
+          //
+          // Belt-and-suspenders: if `finish()` itself throws (e.g. an
+          // argument in the TDZ, a bad attribute, a regression in
+          // status-setting), fall back to `span.end()` directly. A
+          // root that never ends leaves every child orphaned in Tempo
+          // under a phantom parent; force-ending it keeps the trace
+          // shape intact even when the pretty-finalize path is
+          // broken. The error is logged so Loki greps surface the
+          // regression instead of it silently costing us trace
+          // fidelity for hours.
+          try {
+            activeOtelRoot.finish(rootOutcome, rootError, cancelReason)
+          } catch (finishError) {
+            logger.error(`[${requestId}] activeOtelRoot.finish threw; force-ending root span`, {
+              error: getErrorMessage(finishError),
+            })
+            try {
+              activeOtelRoot.span.end()
+            } catch {
+              // Already ended or an OTel internal failure — nothing
+              // more we can do. The export pipe has already had its
+              // chance; swallow to avoid masking the original error
+              // path.
+            }
+          }
+        }
+      })
+    },
+    cancel() {
+      // The browser's SSE reader closed. Flip `clientDisconnected` so
+      // in-flight `publisher.publish` calls silently no-op (prevents
+      // enqueueing on a closed controller).
+      //
+      // Browser disconnect is NOT an abort — firing the controller
+      // here retroactively reclassifies in-flight successful streams
+      // as aborted and skips assistant persistence. Let the
+      // orchestrator drain naturally; publish no-ops post-disconnect.
+      // Explicit Stop still fires the controller via /chat/abort.
+      publisher.markDisconnected()
+    },
+  })
+}
+
+// Title generation (fire-and-forget side effect)
+
+function fireTitleGeneration(params: {
+  inventory?: unknown
+  chatId?: string
+  currentChat: CurrentChatSummary
+  userId?: string
+  message: string
+  titleModel: string
+  titleProvider?: string
+  workspaceId?: string
+  organizationId?: string
+  billingAttribution?: BillingAttributionSnapshot
+  requestId: string
+  publisher: StreamWriter
+  otelContext?: Context
+}): void {
+  const {
+    chatId,
+    currentChat,
+    userId,
+    message,
+    titleModel,
+    titleProvider,
+    workspaceId,
+    organizationId,
+    billingAttribution,
+    requestId,
+    publisher,
+    otelContext,
+  } = params
+  /** A stopped first turn can leave a persisted chat untitled; each accepted turn may name it. */
+  if (!chatId || currentChat?.title) return
+
+  requestChatTitle({
+    inventory: params.inventory,
+    chatId,
+    message,
+    model: titleModel,
+    provider: titleProvider,
+    userId,
+    workspaceId,
+    organizationId,
+    billingAttribution,
+    otelContext,
+  })
+    .then(async (title) => {
+      if (!title) return
+      // Only stamp the generated title while the chat has none. Title
+      // generation is fired at turn start and resolves asynchronously, so a
+      // user could rename the chat in the meantime; the `isNull` guard makes
+      // the write lose that race instead of clobbering the explicit rename.
+      const stamped = await db
+        .update(copilotChats)
+        .set({ title })
+        .where(and(eq(copilotChats.id, chatId), isNull(copilotChats.title)))
+        .returning({ id: copilotChats.id })
+      // The rename won — do not announce a title the row no longer holds.
+      if (stamped.length === 0) return
+      await publisher.publish({
+        type: MothershipStreamV1EventType.session,
+        payload: { kind: MothershipStreamV1SessionKind.title, title },
+      })
+      publishChatStatusChanged({ workspaceId, organizationId, userId }, { chatId, type: 'renamed' })
+    })
+    .catch((error) => {
+      logger.error(`[${requestId}] Title generation failed:`, error)
+    })
+}
+
+/** Requests a title through the shared Assistant backend and its attributed billing protocol. */
+export async function requestChatTitle(params: {
+  inventory?: unknown
+  chatId?: string
+  message: string
+  model: string
+  provider?: string
+  userId?: string
+  workspaceId?: string
+  organizationId?: string
+  billingAttribution?: BillingAttributionSnapshot
+  otelContext?: Context
+  signal?: AbortSignal
+}): Promise<string | null> {
+  const {
+    chatId,
+    message,
+    model,
+    userId,
+    workspaceId,
+    organizationId,
+    billingAttribution,
+    otelContext,
+    signal,
+  } = params
+  if (!message || !model) return null
+
+  const headers = mothershipRequestHeaders()
+
+  try {
+    if (organizationId && (!chatId || workspaceId)) {
+      throw new Error('Organization titles require a private chat without a workspace')
+    }
+    if (isHosted) {
+      if (!userId || (!workspaceId && !organizationId)) {
+        throw new Error('Title generation requires a billing actor and workspace')
+      }
+      const attribution = billingAttribution
+        ? assertBillingAttributionSnapshot(billingAttribution)
+        : organizationId
+          ? await resolveOrganizationBillingAttribution({ actorUserId: userId, organizationId })
+          : await resolveBillingAttribution({ actorUserId: userId, workspaceId: workspaceId! })
+      if (
+        attribution.actorUserId !== userId ||
+        attribution.workspaceId !== (workspaceId ?? null) ||
+        (organizationId && attribution.organizationId !== organizationId)
+      ) {
+        throw new Error('Title billing attribution does not match its actor and workspace')
+      }
+
+      const admission = await checkAttributedUsageLimits(attribution)
+      if (admission.isExceeded) return null
+
+      const billingRequest = createAttributedBillingRequestEnvelope(attribution)
+      Object.assign(headers, billingRequest.headers)
+    }
+
+    const { fetchGo } = await import('@/lib/mothership/request/go/fetch')
+    const mothershipBaseURL = await getMothershipBaseURL({ userId })
+    // Title reads the user's message content, so an enterprise chat pins its key here too.
+    const byokApiKey = await resolveEnterpriseByokKey(workspaceId)
+    const context = await buildChatTitleContext(params)
+    const response = await fetchGo(`${mothershipBaseURL}/api/generate-chat-title`, {
+      method: 'POST',
+      signal,
+      headers,
+      body: JSON.stringify(
+        TitleRequest.parse({
+          message,
+          ...(context ? { context } : {}),
+          ...(workspaceId ? { workspaceId } : {}),
+          ...(organizationId ? { organizationId, chatId } : {}),
+          ...(userId ? { userId } : {}),
+          ...(byokApiKey ? { byokApiKey } : {}),
+          ...(chatId ? { chatId } : {}),
+        })
+      ),
+      otelContext,
+      spanName: 'sim → go /api/generate-chat-title',
+      operation: 'generate_chat_title',
+    })
+
+    const payload = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      logger.warn('Failed to generate chat title via copilot backend', {
+        status: response.status,
+        error: payload,
+      })
+      return null
+    }
+
+    const title = typeof payload?.title === 'string' ? payload.title.trim() : ''
+    return title || null
+  } catch (error) {
+    logger.error('Error generating chat title:', error)
+    return null
+  }
+}

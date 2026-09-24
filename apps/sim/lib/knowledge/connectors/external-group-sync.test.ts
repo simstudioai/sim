@@ -1,7 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  schemaMock,
+  setEnvFlags,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
 import { GoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
@@ -299,6 +306,7 @@ describe('refreshConnectorDirectory', () => {
       sourceConfig: { adminEmail: 'admin@corp.com' },
       workspaceId: 'ws-1',
       knowledgeBaseOwnerId: 'owner-1',
+      isSearchIndex: false,
       updatedAt: new Date('2026-09-04T00:00:00Z'),
       lastSyncError: null,
       ...overrides,
@@ -308,10 +316,35 @@ describe('refreshConnectorDirectory', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    resetEnvFlagsMock()
     mockResolveTokenUserId.mockResolvedValue('owner-1')
     mockResolveToken.mockResolvedValue({ accessToken: 'token', cloudId: 'cloud-1' })
     mockOpenDirectory.mockResolvedValue(null)
     dbChainMockFns.returning.mockResolvedValue([{ id: 'group-row' }])
+  })
+
+  it('skips previously queued Search directory refreshes before resolving credentials in live mode', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    queueTableRows(schemaMock.knowledgeConnector, [connectorRow({ isSearchIndex: true })])
+
+    await expect(refreshConnectorDirectory('connector-1', 'req-1')).resolves.toBe('skipped')
+
+    expect(mockResolveTokenUserId).not.toHaveBeenCalled()
+    expect(mockResolveToken).not.toHaveBeenCalled()
+    expect(mockOpenDirectory).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { liveSearch: true, isSearchIndex: false },
+    { liveSearch: false, isSearchIndex: true },
+  ])('preserves directory refreshes for %j', async ({ liveSearch, isSearchIndex }) => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: liveSearch })
+    queueTableRows(schemaMock.knowledgeConnector, [connectorRow({ isSearchIndex })])
+
+    await refreshConnectorDirectory('connector-1', 'req-1')
+
+    expect(mockOpenDirectory).toHaveBeenCalledOnce()
   })
 
   /**

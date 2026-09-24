@@ -1,0 +1,172 @@
+/**
+ * @vitest-environment node
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { discoverServerTools, assertPermissionsAllowed, getServer, resolveTarget } = vi.hoisted(
+  () => ({
+    discoverServerTools: vi.fn(),
+    getServer: vi.fn(),
+    resolveTarget: vi.fn(),
+    assertPermissionsAllowed: vi.fn(),
+  })
+)
+
+vi.mock('@/lib/internal/mcp/discover-tools', () => ({
+  discoverMcpServerToolsAsExecutor: discoverServerTools,
+}))
+vi.mock('@/lib/mothership/application/workspace-target', () => ({
+  resolveInvocationWorkspace: resolveTarget,
+}))
+vi.mock('@/lib/mcp/application/use-cases', () => ({
+  getMcpServerUseCase: { execute: getServer },
+  discoverMcpServerToolsUseCase: {
+    execute: async (args: unknown) => ({ tools: await discoverServerTools(args) }),
+  },
+}))
+vi.mock('@/ee/access-control/utils/permission-check', () => ({ assertPermissionsAllowed }))
+
+import {
+  buildOrganizationTaggedMcpToolSchemas,
+  buildSelectedMcpToolSchemas,
+  buildTaggedMcpToolSchemas,
+} from '@/lib/mothership/mcp-tools'
+
+describe('mothership MCP tool schemas', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    assertPermissionsAllowed.mockResolvedValue(undefined)
+  })
+
+  it('discovers tools only for explicitly tagged servers', async () => {
+    discoverServerTools.mockResolvedValue([
+      {
+        serverId: 'mcp-server-1',
+        serverName: 'Docs',
+        name: 'search',
+        description: 'Search docs',
+        inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+      },
+    ])
+
+    const tools = await buildTaggedMcpToolSchemas('user-1', 'ws-1', ['mcp-server-1'])
+
+    expect(discoverServerTools).toHaveBeenCalledTimes(1)
+    expect(discoverServerTools).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ serverId: 'mcp-server-1', workspaceId: 'ws-1' }),
+      })
+    )
+    expect(tools).toEqual([
+      expect.objectContaining({
+        name: 'mcp-server-1-search',
+        // Explicitly enabled by the user, so it is callable without an unlock step.
+        defer_loading: false,
+        executeLocally: false,
+        params: expect.objectContaining({
+          mothershipToolKind: 'mcp',
+          mothershipToolName: 'mcp-server-1-search',
+          serverId: 'mcp-server-1',
+          toolName: 'search',
+        }),
+      }),
+    ])
+  })
+
+  it('rediscovers a selected block tool even with a cached schema', async () => {
+    discoverServerTools.mockResolvedValue([
+      {
+        serverId: 'mcp-server-1',
+        name: 'search',
+        inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+      },
+    ])
+    const tools = await buildSelectedMcpToolSchemas(
+      'user-1',
+      'ws-1',
+      [
+        {
+          type: 'mcp',
+          params: { serverId: 'mcp-server-1', toolName: 'search', serverName: 'Docs' },
+          schema: { type: 'object', properties: { query: { type: 'string' } } },
+        },
+      ],
+      { workflowId: 'workflow-1', workspaceId: 'ws-1', mcpBlockId: 'block-1' }
+    )
+
+    expect(discoverServerTools).toHaveBeenCalledOnce()
+    expect(tools[0]).toMatchObject({
+      name: 'mcp-server-1-search',
+      input_schema: { type: 'object', properties: { query: { type: 'string' } } },
+    })
+  })
+
+  it('discovers a selected legacy tool without a cached schema', async () => {
+    discoverServerTools.mockResolvedValueOnce([
+      {
+        serverId: 'mcp-server-1',
+        name: 'search',
+        inputSchema: { type: 'object' },
+      },
+    ])
+
+    const tools = await buildSelectedMcpToolSchemas(
+      'user-1',
+      'ws-1',
+      [
+        {
+          type: 'mcp',
+          params: { serverId: 'mcp-server-1', toolName: 'search' },
+        },
+      ],
+      { workflowId: 'workflow-1', workspaceId: 'ws-1', mcpBlockId: 'block-1' }
+    )
+
+    expect(discoverServerTools).toHaveBeenCalledWith(
+      expect.objectContaining({ serverId: 'mcp-server-1', workspaceId: 'ws-1' })
+    )
+    expect(tools[0]).toMatchObject({ name: 'mcp-server-1-search' })
+  })
+})
+
+describe('organization tagged MCP targets', () => {
+  const owner = { userId: 'user-1', organizationId: 'org-1', chatId: 'chat-1' }
+  const principal = { kind: 'session' as const, userId: 'user-1' }
+  beforeEach(() => {
+    vi.clearAllMocks()
+    getServer.mockImplementation(async ({ input }) => ({
+      server: { workspaceId: input.serverId === 'server-a' ? 'workspace-a' : 'workspace-b' },
+    }))
+    resolveTarget.mockResolvedValue({})
+    assertPermissionsAllowed.mockResolvedValue(undefined)
+    discoverServerTools.mockImplementation(async ({ input }) => [
+      { serverId: input.serverId, name: 'search', inputSchema: { type: 'object' } },
+    ])
+  })
+  it('retains distinct callable schemas for tagged servers in independently authorized targets', async () => {
+    const tools = await buildOrganizationTaggedMcpToolSchemas(principal, owner, [
+      'server-a',
+      'server-b',
+      'server-a',
+    ])
+    expect(getServer).toHaveBeenCalledTimes(2)
+    expect(resolveTarget).toHaveBeenCalledWith(owner, 'workspace-a')
+    expect(resolveTarget).toHaveBeenCalledWith(owner, 'workspace-b')
+    expect(tools.map((tool) => tool.name)).toEqual(['mcp-server-a-search', 'mcp-server-b-search'])
+    expect(tools[0]?.description).toContain('workspace-a')
+    expect(tools[1]?.description).toContain('workspace-b')
+    expect(discoverServerTools).toHaveBeenCalledTimes(2)
+  })
+  it('does not discover remote schemas after current target access is denied', async () => {
+    resolveTarget.mockRejectedValueOnce(new Error('target denied'))
+    await expect(
+      buildOrganizationTaggedMcpToolSchemas(principal, owner, ['server-a'])
+    ).rejects.toThrow('target denied')
+    expect(discoverServerTools).not.toHaveBeenCalled()
+  })
+  it('does not enumerate untagged servers', async () => {
+    expect(await buildOrganizationTaggedMcpToolSchemas(principal, owner, [])).toEqual([])
+    expect(getServer).not.toHaveBeenCalled()
+    expect(discoverServerTools).not.toHaveBeenCalled()
+  })
+})

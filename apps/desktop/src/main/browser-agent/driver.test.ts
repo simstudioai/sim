@@ -1,8 +1,19 @@
 import { BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS } from '@sim/browser-protocol'
+import { toRecord } from '@sim/utils/object'
 import type { MenuItemConstructorOptions, WebContents } from 'electron'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
+
+const { stageUploadFiles, saveDownloadToWorkspace } = vi.hoisted(() => ({
+  stageUploadFiles: vi.fn(),
+  saveDownloadToWorkspace: vi.fn(),
+}))
+vi.mock('@/main/browser-agent/file-transfer', () => ({
+  stageUploadFiles,
+  saveDownloadToWorkspace,
+  discardStagedUploads: vi.fn(async () => {}),
+}))
 
 import { BrowserWindow, Menu, type nativeImage } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
@@ -278,6 +289,9 @@ describe('executeTool', () => {
       code: -102,
       description: 'ERR_CONNECTION_REFUSED',
     }
+    vi.mocked(tab.view.webContents.loadURL).mockImplementationOnce(async () => {
+      session.notePageLoadStarted(tab.view.webContents)
+    })
     vi.useFakeTimers()
     try {
       const result = driver.executeTool('chat-test', 'browser_reload', {})
@@ -1046,9 +1060,11 @@ describe('executeTool', () => {
     beforeMouse({}, { type: 'mouseDown' })
     const openWindow = vi.mocked(source.setWindowOpenHandler).mock.calls[0]?.[0] as (details: {
       url: string
-    }) => { action: string }
+    }) => { action: string; createWindow?: (options: object) => unknown }
 
-    expect(openWindow({ url: 'https://user-popup.example/' })).toEqual({ action: 'deny' })
+    const decision = openWindow({ url: 'https://user-popup.example/' })
+    expect(decision.action).toBe('allow')
+    decision.createWindow?.({})
     const popup = session.activeTab()?.view.webContents
     if (!popup) throw new Error('Expected user popup tab')
     expect(session.automationTab()?.view.webContents).toBe(source)
@@ -1062,9 +1078,11 @@ describe('executeTool', () => {
     session.setAutomationActive(true)
     const openWindow = vi.mocked(source.setWindowOpenHandler).mock.calls[0]?.[0] as (details: {
       url: string
-    }) => { action: string }
+    }) => { action: string; createWindow?: (options: object) => unknown }
 
-    expect(openWindow({ url: 'https://agent-popup.example/' })).toEqual({ action: 'deny' })
+    const decision = openWindow({ url: 'https://agent-popup.example/' })
+    expect(decision.action).toBe('allow')
+    decision.createWindow?.({})
     const popup = session.requireAutomationTab().view.webContents
     expect(session.activeTab()?.view.webContents).toBe(source)
     session.setAutomationActive(false)
@@ -1113,7 +1131,14 @@ describe('executeTool', () => {
       | MenuItemConstructorOptions[]
       | undefined
     const labels = template?.filter((item) => item.type !== 'separator').map((item) => item.label)
-    expect(labels).toEqual(['Find in Page', 'Zoom (110%)', 'Import Passwords', 'Browser Settings'])
+    expect(labels).toEqual([
+      'Find in Page',
+      'Zoom (110%)',
+      'Fill Saved Password',
+      'Passwords',
+      'Import Passwords',
+      'Browser Settings',
+    ])
 
     const settings = template?.find((item) => item.label === 'Browser Settings')
     const openSettings = settings?.click as (() => void) | undefined
@@ -1756,7 +1781,8 @@ describe('executeTool', () => {
     }
   )
 
-  it('merges cross-origin structure and routes its refs through production frame isolation', async () => {
+  const frameUrls = ['https://ogs.google.com/u/0/widget/app', 'about:srcdoc', 'about:blank']
+  it.each(frameUrls)('inspects and interacts with isolated frame %s', async (frameUrl) => {
     const win = new BrowserWindow()
     driver.initDriver(
       {
@@ -1846,8 +1872,8 @@ describe('executeTool', () => {
       detached: false,
       isDestroyed: vi.fn(() => false),
       name: 'google-apps',
-      origin: 'https://ogs.google.com',
-      url: 'https://ogs.google.com/u/0/widget/app',
+      origin: frameUrl.startsWith('about:') ? 'null' : 'https://ogs.google.com',
+      url: frameUrl,
       parent: mainFrame,
       executeJavaScript: vi.fn((expression: string) => {
         if (isPageCall(expression, 'collectSnapshot')) {
@@ -1918,7 +1944,11 @@ describe('executeTool', () => {
     const isolatedFrameEval = vi
       .spyOn(cdp, 'evaluateInIsolatedFrame')
       .mockImplementation((_contents, frame, expression) => {
-        if ((frame as unknown) === mainFrame) return mainFrame.executeJavaScript(expression)
+        if ((frame as unknown) === mainFrame) {
+          return isPageCall(expression, 'readChildFrameElementState')
+            ? mainFrame.executeJavaScript(expression)
+            : contents.executeJavaScript(expression)
+        }
         if ((frame as unknown) === crossFrame) return crossFrame.executeJavaScript(expression)
         return Promise.reject(new Error('unexpected isolated frame target'))
       })
@@ -2068,12 +2098,19 @@ describe('credential protection', () => {
       for (const [fnName, value] of Object.entries(replies)) {
         if (isPageCall(expression, fnName)) return Promise.resolve(value)
       }
-      if (isPageCall(expression, 'clickElement')) {
-        return Promise.resolve({ dispatched: false, x: 24, y: 48, element: 'Test' })
-      }
+      if (isPageCall(expression, 'clickElement')) return Promise.resolve(CLICK_TARGET)
       return Promise.resolve(undefined)
     })
   }
+
+  function mousePresses(contents: Awaited<ReturnType<typeof openPage>>): number {
+    return cdpCalls(contents, 'Input.dispatchMouseEvent').filter(
+      ([, params]) => toRecord(params).type === 'mousePressed'
+    ).length
+  }
+
+  /** What the page reports for an ordinary click target before native dispatch. */
+  const CLICK_TARGET = { dispatched: false, x: 24, y: 48, element: 'Test' }
 
   function cdpCalls(contents: Awaited<ReturnType<typeof openPage>>, method: string): unknown[][] {
     return vi
@@ -2389,6 +2426,56 @@ describe('credential protection', () => {
     expect(cdpCalls(contents, 'Input.dispatchKeyEvent').length).toBeGreaterThan(0)
   })
 
+  it('repeats a keystroke with a trusted down/up pair per press', async () => {
+    const contents = await openPage()
+    respondWith(contents, { activeElementSecrecy: 'safe', readActiveElementState: {} })
+
+    const result = await driver.executeTool('chat-test', 'browser_press_key', {
+      key: 'ArrowRight',
+      repeat: 3,
+    })
+
+    expect(result).toMatchObject({ ok: true, result: { pressed: 'ArrowRight', repeat: 3 } })
+    const downs = cdpCalls(contents, 'Input.dispatchKeyEvent').filter(
+      ([, event]) => (event as { type?: string }).type === 'rawKeyDown'
+    )
+    expect(downs).toHaveLength(3)
+  })
+
+  it('rejects an out-of-range repeat before dispatch', async () => {
+    const contents = await openPage()
+
+    const result = await driver.executeTool('chat-test', 'browser_press_key', {
+      key: 'Tab',
+      repeat: 51,
+    })
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('repeat must') })
+    expect(cdpCalls(contents, 'Input.dispatchKeyEvent')).toHaveLength(0)
+  })
+
+  it('stops repeating once focus reaches a password field', async () => {
+    const contents = await openPage()
+    let secrecyChecks = 0
+    vi.mocked(contents.executeJavaScript).mockImplementation(async (expression: string) => {
+      if (isPageCall(expression, 'activeElementSecrecy'))
+        return ++secrecyChecks > 1 ? 'secret' : 'safe'
+      if (isPageCall(expression, 'readActiveElementState')) return {}
+      return undefined
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_press_key', {
+      key: 'Tab',
+      repeat: 5,
+    })
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('1 of 5 times') })
+    const downs = cdpCalls(contents, 'Input.dispatchKeyEvent').filter(
+      ([, event]) => (event as { type?: string }).type === 'rawKeyDown'
+    )
+    expect(downs).toHaveLength(1)
+  })
+
   it('sends the keystroke when nothing sensitive is focused', async () => {
     const contents = await openPage()
     respondWith(contents, { activeElementSecrecy: 'safe', readActiveElementState: {} })
@@ -2398,6 +2485,75 @@ describe('credential protection', () => {
     expect(result.ok).toBe(true)
     expect(cdpCalls(contents, 'Input.dispatchKeyEvent').length).toBeGreaterThan(0)
   })
+
+  it.each(['cancelled', 'timed out'] as const)(
+    'retains a completed action when its observation is %s',
+    async (stop) => {
+      const contents = await openPage()
+      respondWith(contents, {
+        activeElementSecrecy: 'safe',
+        readActiveElementState: {},
+        readPageActionState: {},
+      })
+      const pageCall = vi.mocked(contents.executeJavaScript).getMockImplementation()
+      let releaseObservation: (value: unknown) => void = () => {}
+      const observation = new Promise<unknown>((resolve) => {
+        releaseObservation = resolve
+      })
+      let observing = false
+      vi.mocked(contents.executeJavaScript).mockImplementation((expression, ...args) => {
+        if (isPageCall(expression, 'collectSnapshot')) {
+          observing = true
+          return observation
+        }
+        return pageCall?.(expression, ...args) ?? Promise.resolve(undefined)
+      })
+      vi.useFakeTimers()
+      try {
+        const timersBefore = vi.getTimerCount()
+        const pending = driver.executeTool(
+          'chat-test',
+          'browser_press_key',
+          { key: 'a', observe: {} },
+          'observed-action'
+        )
+        await vi.advanceTimersByTimeAsync(200)
+        expect(observing).toBe(true)
+
+        if (stop === 'cancelled') driver.cancelTool('chat-test', 'observed-action')
+        else
+          await vi.advanceTimersByTimeAsync(driver.browserToolWatchdogMs('browser_press_key', {})!)
+
+        await expect(pending).resolves.toMatchObject({
+          ok: true,
+          result: {
+            pressed: 'a',
+            trusted: true,
+            observation: {
+              ok: false,
+              doNotRetry: true,
+              note: expect.stringContaining('The action was dispatched'),
+            },
+          },
+        })
+        await expect(
+          driver.executeTool('chat-test', 'browser_list_tabs', {})
+        ).resolves.toMatchObject({
+          ok: true,
+        })
+        expect(vi.getTimerCount()).toBe(timersBefore)
+        expect(
+          cdpCalls(contents, 'Input.dispatchKeyEvent').filter(([, event]) =>
+            ['keyDown', 'rawKeyDown'].includes((event as { type: string }).type)
+          )
+        ).toHaveLength(1)
+      } finally {
+        releaseObservation({ outline: 'Late snapshot', refIds: [], nextElementId: 1 })
+        await vi.advanceTimersByTimeAsync(0)
+        vi.useRealTimers()
+      }
+    }
+  )
 
   it('reports when a platform-mismatched shortcut produces no observable effect', async () => {
     const contents = await openPage()
@@ -3271,10 +3427,221 @@ describe('credential protection', () => {
     expect(first).toMatchObject({
       ok: true,
       result: {
-        notices: [expect.stringContaining('alert dialog ("Heads up") which was auto-dismissed')],
+        notices: [expect.stringContaining('alert dialog ("Heads up") which was dismissed')],
       },
     })
     expect(second).not.toMatchObject({ result: { notices: expect.anything() } })
+  })
+
+  it('runs batched actions in order and returns each result', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+
+    const result = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_click', args: { elementId: 0 } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        completed: true,
+        completedCount: 2,
+        results: [
+          { index: 0, tool: 'browser_click', result: { dispatched: true } },
+          { index: 1, tool: 'browser_click', result: { dispatched: true } },
+        ],
+      },
+    })
+  })
+
+  it('stops a batch at the first failed action and keeps earlier results', async () => {
+    const contents = await openPage()
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (!isPageCall(expression, 'clickElement')) return Promise.resolve(undefined)
+      return Promise.resolve(
+        mousePresses(contents) > 0 ? { error: 'obstructed', blocker: 'IMG' } : CLICK_TARGET
+      )
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_click', args: { elementId: 0 } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
+
+    expect(mousePresses(contents)).toBe(1)
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        completed: false,
+        completedCount: 1,
+        stoppedIndex: 1,
+        stoppedBy: 'failure',
+        error: expect.stringContaining('covered by IMG'),
+      },
+    })
+  })
+
+  it('stops a batch after an action navigates the page', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+    const sendCommand = vi.mocked(contents.debugger.sendCommand)
+    const dispatch = sendCommand.getMockImplementation()
+    sendCommand.mockImplementation((method, params) => {
+      if (method === 'Input.dispatchMouseEvent' && toRecord(params).type === 'mouseReleased') {
+        emitContentsEvent(contents, 'did-navigate')
+      }
+      return dispatch?.(method, params) ?? Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_click', args: { elementId: 0 } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
+
+    expect(mousePresses(contents)).toBe(1)
+    expect(result).toMatchObject({
+      ok: true,
+      result: { completed: false, completedCount: 1, stoppedIndex: 1, stoppedBy: 'page-change' },
+    })
+  })
+
+  it('stops a batch after an action changes the URL within the document', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+    const url = contents.getURL()
+    const sendCommand = vi.mocked(contents.debugger.sendCommand)
+    const dispatch = sendCommand.getMockImplementation()
+    sendCommand.mockImplementation((method, params) => {
+      if (method === 'Input.dispatchMouseEvent' && toRecord(params).type === 'mouseReleased') {
+        vi.mocked(contents.getURL).mockReturnValue(`${url}#next`)
+        emitContentsEvent(contents, 'did-navigate-in-page')
+      }
+      return dispatch?.(method, params) ?? Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_click', args: { elementId: 0 } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
+
+    expect(mousePresses(contents)).toBe(1)
+    expect(result).toMatchObject({
+      ok: true,
+      result: { completed: false, completedCount: 1, stoppedIndex: 1, stoppedBy: 'page-change' },
+    })
+  })
+
+  it('reports a batch cancelled during its first action as an unknown outcome', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+    const sendCommand = vi.mocked(contents.debugger.sendCommand)
+    const dispatch = sendCommand.getMockImplementation()
+    sendCommand.mockImplementation((method, params) =>
+      method === 'Input.dispatchKeyEvent'
+        ? new Promise(() => {})
+        : (dispatch?.(method, params) ?? Promise.resolve(undefined))
+    )
+
+    const pending = driver.executeTool(
+      'chat-test',
+      'browser_batch',
+      {
+        actions: [
+          { tool: 'browser_press_key', args: { key: 'Enter' } },
+          { tool: 'browser_click', args: { elementId: 0 } },
+        ],
+      },
+      'batch-first-call'
+    )
+    await vi.waitFor(() => expect(cdpCalls(contents, 'Input.dispatchKeyEvent')).toHaveLength(1))
+    driver.cancelTool('chat-test', 'batch-first-call')
+
+    await expect(pending).resolves.toMatchObject({
+      ok: true,
+      result: { outcomeUnknown: true, doNotRetry: true },
+    })
+  })
+
+  it('reports a batch cancelled after an action ran as an unknown outcome', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+    const sendCommand = vi.mocked(contents.debugger.sendCommand)
+    const dispatch = sendCommand.getMockImplementation()
+    sendCommand.mockImplementation((method, params) =>
+      method === 'Input.dispatchKeyEvent'
+        ? new Promise(() => {})
+        : (dispatch?.(method, params) ?? Promise.resolve(undefined))
+    )
+
+    const pending = driver.executeTool(
+      'chat-test',
+      'browser_batch',
+      {
+        actions: [
+          { tool: 'browser_click', args: { elementId: 0 } },
+          { tool: 'browser_press_key', args: { key: 'Enter' } },
+        ],
+      },
+      'batch-call'
+    )
+    await vi.waitFor(() => expect(cdpCalls(contents, 'Input.dispatchKeyEvent')).toHaveLength(1))
+    driver.cancelTool('chat-test', 'batch-call')
+
+    await expect(pending).resolves.toMatchObject({
+      ok: true,
+      result: { outcomeUnknown: true, doNotRetry: true },
+    })
+  })
+
+  it('rejects batches that name non-action tools or observe per action', async () => {
+    await openPage()
+
+    const navigation = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_navigate', args: { url: 'https://example.com' } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
+    const observed = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_click', args: { elementId: 0, observe: {} } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
+
+    expect(navigation).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('Batch action 0'),
+    })
+    expect(observed).toMatchObject({ ok: false, error: expect.stringContaining('cannot observe') })
+  })
+
+  it('keeps element ids valid when an observed action is refused before dispatch', async () => {
+    const contents = await openPage()
+    respondWith(contents, { clickElement: { error: 'obstructed', blocker: 'IMG' } })
+
+    const refused = await driver.executeTool('chat-test', 'browser_click', {
+      elementId: 0,
+      observe: {},
+    })
+    respondWith(contents, {})
+    const retried = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+
+    expect(refused).toEqual({
+      ok: false,
+      error: expect.stringContaining('That element is covered by IMG'),
+    })
+    expect(retried).toMatchObject({ ok: true, result: { dispatched: true } })
   })
 
   it('invalidates element ids when the active tab changes', async () => {
@@ -3485,6 +3852,535 @@ describe('credential protection', () => {
     expect(counts).toEqual([1, 2])
   })
 
+  it('dispatches right-clicks and modifier clicks through the same trusted gesture', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      describePointTarget: { found: true, element: 'row "notes.pdf"', editable: false },
+      readActiveElementState: {},
+      readPageActionState: {},
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_click_at', {
+      x: 10,
+      y: 20,
+      button: 'right',
+      modifiers: ['Shift'],
+    })
+
+    expect(result).toMatchObject({ ok: true, result: { dispatched: true } })
+    const presses = cdpCalls(contents, 'Input.dispatchMouseEvent').filter(
+      ([, event]) => (event as { type?: string }).type === 'mousePressed'
+    )
+    expect(presses.map(([, event]) => event)).toEqual([
+      expect.objectContaining({ button: 'right', buttons: 2, modifiers: 8, clickCount: 1 }),
+    ])
+  })
+
+  it('rejects unknown click buttons and modifiers before dispatch', async () => {
+    const contents = await openPage()
+
+    const badButton = await driver.executeTool('chat-test', 'browser_click_at', {
+      x: 10,
+      y: 20,
+      button: 'back',
+    })
+    const badModifier = await driver.executeTool('chat-test', 'browser_click_at', {
+      x: 10,
+      y: 20,
+      modifiers: ['Hyper'],
+    })
+
+    expect(badButton).toMatchObject({ ok: false, error: expect.stringContaining('button must be') })
+    expect(badModifier).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('Unrecognized modifier'),
+    })
+    expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(0)
+  })
+
+  it('answers a dialog opened by an action with that action dialog response only', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      describePointTarget: { found: true, element: 'button "Delete"', editable: false },
+      readActiveElementState: {},
+      readPageActionState: {},
+    })
+    const listener = vi
+      .mocked(contents.debugger.on)
+      .mock.calls.find(([event]) => event === 'message')?.[1] as
+      | ((event: unknown, method: string, params: unknown, sessionId?: string) => void)
+      | undefined
+    const send = vi.mocked(contents.debugger.sendCommand)
+    const dispatch = send.getMockImplementation()
+    send.mockImplementation(async (method, params, ...rest) => {
+      if (method === 'Input.dispatchMouseEvent' && params?.type === 'mouseReleased') {
+        listener?.({}, 'Page.javascriptDialogOpening', { type: 'confirm', message: 'Delete?' })
+      }
+      return dispatch?.(method, params, ...rest)
+    })
+
+    const accepted = await driver.executeTool('chat-test', 'browser_click_at', {
+      x: 10,
+      y: 20,
+      dialog: { accept: true },
+    })
+    const dismissed = await driver.executeTool('chat-test', 'browser_click_at', { x: 10, y: 20 })
+    await driver.executeTool('chat-test', 'browser_list_tabs', {})
+
+    const answers = cdpCalls(contents, 'Page.handleJavaScriptDialog').map(([, answer]) => answer)
+    expect(answers).toEqual([{ accept: true }, { accept: false }])
+    expect(accepted).toMatchObject({ ok: true })
+    expect(dismissed).toMatchObject({ ok: true })
+  })
+
+  it('dismisses background tab dialogs while the action target accepts its dialog', async () => {
+    const background = await openPage()
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const contents = session.requireAutomationTab().view.webContents
+    vi.mocked(contents.getURL).mockReturnValue('https://example.com/target')
+    respondWith(contents, {
+      describePointTarget: { found: true, element: 'button "Delete"', editable: false },
+      readActiveElementState: {},
+      readPageActionState: {},
+    })
+    const listeners = [background, contents].map(
+      (tab) =>
+        vi.mocked(tab.debugger.on).mock.calls.find(([event]) => event === 'message')?.[1] as
+          | ((event: unknown, method: string, params: unknown) => void)
+          | undefined
+    )
+    vi.mocked(contents.debugger.sendCommand).mockImplementation(async (method, params) => {
+      if (method === 'Input.dispatchMouseEvent' && params?.type === 'mouseReleased') {
+        for (const listener of listeners) {
+          listener?.({}, 'Page.javascriptDialogOpening', { type: 'confirm', message: 'Delete?' })
+        }
+      }
+      return {}
+    })
+
+    await expect(
+      driver.executeTool('chat-test', 'browser_click_at', {
+        x: 10,
+        y: 20,
+        dialog: { accept: true },
+      })
+    ).resolves.toMatchObject({ ok: true })
+
+    expect(cdpCalls(background, 'Page.handleJavaScriptDialog').map(([, answer]) => answer)).toEqual(
+      [{ accept: false }]
+    )
+    expect(cdpCalls(contents, 'Page.handleJavaScriptDialog').map(([, answer]) => answer)).toEqual([
+      { accept: true },
+    ])
+  })
+
+  it('rejects a malformed dialog response before dispatch', async () => {
+    const contents = await openPage()
+
+    const result = await driver.executeTool('chat-test', 'browser_click_at', {
+      x: 10,
+      y: 20,
+      dialog: { accept: 'yes' },
+    })
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('dialog must be') })
+    expect(cdpCalls(contents, 'Input.dispatchMouseEvent')).toHaveLength(0)
+  })
+
+  describe('file uploads', () => {
+    afterEach(() => vi.restoreAllMocks())
+
+    it('retains one input handle through staging and releases it after uploading', async () => {
+      const contents = await openPage()
+      respondWith(contents, { readPageActionState: {} })
+      const input = { objectId: 'isolated-input', multiple: true, accept: '.pdf' }
+      const resolve = vi.spyOn(cdp, 'resolveFileInput').mockResolvedValue(input)
+      const setFiles = vi
+        .spyOn(cdp, 'setFileInputFiles')
+        .mockResolvedValue({ files: [{ name: 'a.pdf', size: 3 }] })
+      const release = vi.spyOn(cdp, 'releaseFileInput').mockResolvedValue()
+      stageUploadFiles.mockResolvedValue(['/staged/a.pdf'])
+
+      const result = await driver.executeTool(
+        'chat-test',
+        'browser_upload_file',
+        { elementId: 0, paths: ['files/a.pdf'] },
+        'call-upload'
+      )
+
+      expect(result).toMatchObject({
+        ok: true,
+        result: { uploaded: [{ name: 'a.pdf', size: 3 }], effectObserved: true, accept: '.pdf' },
+      })
+      expect(resolve).toHaveBeenCalledWith(
+        contents,
+        contents.mainFrame,
+        expect.stringContaining('function resolveFileInputTarget(')
+      )
+      expect(stageUploadFiles).toHaveBeenCalledWith(
+        expect.objectContaining({ toolCallId: 'call-upload', paths: ['files/a.pdf'] })
+      )
+      expect(setFiles).toHaveBeenCalledWith(
+        contents,
+        input,
+        ['/staged/a.pdf'],
+        expect.any(AbortSignal),
+        expect.any(Function)
+      )
+      expect(release).toHaveBeenCalledWith(contents, input)
+      expect(resolve).toHaveBeenCalledTimes(1)
+    })
+
+    it('refuses several files for a single-file input and releases its handle without staging', async () => {
+      const contents = await openPage()
+      const input = { objectId: 'isolated-input', multiple: false }
+      vi.spyOn(cdp, 'resolveFileInput').mockResolvedValue(input)
+      const release = vi.spyOn(cdp, 'releaseFileInput').mockResolvedValue()
+      stageUploadFiles.mockClear()
+
+      const result = await driver.executeTool(
+        'chat-test',
+        'browser_upload_file',
+        { elementId: 0, paths: ['files/a.pdf', 'files/b.pdf'] },
+        'call-single'
+      )
+
+      expect(result).toMatchObject({
+        ok: false,
+        error: expect.stringContaining('accepts one file'),
+      })
+      expect(stageUploadFiles).not.toHaveBeenCalled()
+      expect(release).toHaveBeenCalledWith(contents, input)
+    })
+
+    it.each(['staging', 'attachment'])(
+      'releases the pinned input after %s fails before dispatch',
+      async (failure) => {
+        const contents = await openPage()
+        const input = { objectId: 'isolated-input', multiple: false }
+        vi.spyOn(cdp, 'resolveFileInput').mockResolvedValue(input)
+        const setFiles = vi
+          .spyOn(cdp, 'setFileInputFiles')
+          .mockRejectedValue(new Error('attachment failed'))
+        const release = vi.spyOn(cdp, 'releaseFileInput').mockResolvedValue()
+        stageUploadFiles.mockReset()
+        if (failure === 'staging') stageUploadFiles.mockRejectedValue(new Error('staging failed'))
+        else stageUploadFiles.mockResolvedValue(['/staged/a.pdf'])
+
+        const result = await driver.executeTool(
+          'chat-test',
+          'browser_upload_file',
+          { elementId: 0, paths: ['files/a.pdf'] },
+          'call-failed'
+        )
+
+        expect(result).toEqual({
+          ok: false,
+          error: expect.stringContaining(`${failure} failed`),
+        })
+        if (failure === 'staging') expect(setFiles).not.toHaveBeenCalled()
+        expect(release).toHaveBeenCalledTimes(1)
+        expect(release).toHaveBeenCalledWith(contents, input)
+      }
+    )
+
+    it('reports an acknowledged upload with unavailable readback without inviting a retry', async () => {
+      const contents = await openPage()
+      const input = { objectId: 'isolated-input', multiple: false }
+      vi.spyOn(cdp, 'resolveFileInput').mockResolvedValue(input)
+      vi.spyOn(cdp, 'setFileInputFiles').mockResolvedValue({
+        readbackError: 'Execution context destroyed',
+      })
+      const release = vi.spyOn(cdp, 'releaseFileInput').mockResolvedValue()
+      stageUploadFiles.mockResolvedValue(['/staged/a.pdf'])
+
+      const result = await driver.executeTool(
+        'chat-test',
+        'browser_upload_file',
+        { elementId: 0, paths: ['files/a.pdf'] },
+        'call-navigated'
+      )
+
+      expect(result).toMatchObject({
+        ok: true,
+        result: {
+          dispatched: true,
+          observation: { ok: false, doNotRetry: true, error: 'Execution context destroyed' },
+        },
+      })
+      expect(release).toHaveBeenCalledWith(contents, input)
+    })
+
+    it.each(['cancelled', 'timed out'] as const)(
+      'does not retry a dispatched upload when acknowledgement is %s',
+      async (stop) => {
+        const contents = await openPage()
+        const input = { objectId: 'isolated-input', multiple: false }
+        vi.spyOn(cdp, 'resolveFileInput').mockResolvedValue(input)
+        stageUploadFiles.mockResolvedValue(['/staged/a.pdf'])
+        let acknowledge: () => void = () => {}
+        const acknowledgement = new Promise<void>((resolve) => {
+          acknowledge = resolve
+        })
+        const send = vi.mocked(contents.debugger.sendCommand)
+        send.mockImplementation(async (method, params) => {
+          if (method === 'Runtime.callFunctionOn') {
+            const mode = (params?.arguments as Array<{ value: string }>)[0].value
+            return mode === 'input'
+              ? { result: { objectId: 'original-input' } }
+              : { result: { value: { files: [{ name: 'a.pdf', size: 3 }] } } }
+          }
+          if (method === 'DOM.setFileInputFiles') await acknowledgement
+          return {}
+        })
+        vi.useFakeTimers()
+        try {
+          const pending = driver.executeTool(
+            'chat-test',
+            'browser_upload_file',
+            { elementId: 0, paths: ['files/a.pdf'] },
+            'unacknowledged-upload'
+          )
+          await vi.advanceTimersByTimeAsync(200)
+          expect(cdpCalls(contents, 'DOM.setFileInputFiles')).toHaveLength(1)
+          expect(cdpCalls(contents, 'Runtime.releaseObject')).toHaveLength(0)
+
+          if (stop === 'cancelled') driver.cancelTool('chat-test', 'unacknowledged-upload')
+          else
+            await vi.advanceTimersByTimeAsync(
+              driver.browserToolWatchdogMs('browser_upload_file', {})!
+            )
+
+          await expect(pending).resolves.toMatchObject({
+            ok: true,
+            result: {
+              outcomeUnknown: true,
+              doNotRetry: true,
+            },
+          })
+          await expect(
+            driver.executeTool('chat-test', 'browser_list_tabs', {}, 'after-unacknowledged-upload')
+          ).resolves.toMatchObject({ ok: true })
+        } finally {
+          acknowledge()
+          await vi.advanceTimersByTimeAsync(200)
+          vi.useRealTimers()
+        }
+        expect(cdpCalls(contents, 'DOM.setFileInputFiles')).toHaveLength(1)
+        expect(cdpCalls(contents, 'Runtime.releaseObject').map(([, params]) => params)).toEqual([
+          { objectId: 'original-input' },
+          { objectId: 'isolated-input' },
+        ])
+      }
+    )
+
+    it.each(['cancelled', 'timed out'] as const)(
+      'retains an acknowledged upload when readback is %s and releases its handle when readback settles',
+      async (stop) => {
+        const contents = await openPage()
+        respondWith(contents, { readPageActionState: {} })
+        const input = { objectId: 'isolated-input', multiple: false }
+        vi.spyOn(cdp, 'resolveFileInput').mockResolvedValue(input)
+        let releaseReadback: (value: { files: Array<{ name: string; size: number }> }) => void =
+          () => {}
+        const readback = new Promise<{ files: Array<{ name: string; size: number }> }>(
+          (resolve) => {
+            releaseReadback = resolve
+          }
+        )
+        const setFiles = vi
+          .spyOn(cdp, 'setFileInputFiles')
+          .mockImplementation(async (_contents, _handle, _files, _signal, onDispatch) => {
+            onDispatch?.('pending')
+            onDispatch?.('acknowledged')
+            return readback
+          })
+        const release = vi.spyOn(cdp, 'releaseFileInput').mockResolvedValue()
+        stageUploadFiles.mockResolvedValue(['/staged/a.pdf'])
+        vi.useFakeTimers()
+        try {
+          const timersBefore = vi.getTimerCount()
+          const pending = driver.executeTool(
+            'chat-test',
+            'browser_upload_file',
+            { elementId: 0, paths: ['files/a.pdf'] },
+            'interrupted-upload'
+          )
+          await vi.advanceTimersByTimeAsync(200)
+          expect(setFiles).toHaveBeenCalledTimes(1)
+          expect(release).not.toHaveBeenCalled()
+          const queued = driver.executeTool('chat-test', 'browser_list_tabs', {}, 'after-upload')
+
+          if (stop === 'cancelled') driver.cancelTool('chat-test', 'interrupted-upload')
+          else
+            await vi.advanceTimersByTimeAsync(
+              driver.browserToolWatchdogMs('browser_upload_file', {})!
+            )
+
+          await expect(pending).resolves.toMatchObject({
+            ok: true,
+            result: {
+              dispatched: true,
+              observation: {
+                ok: false,
+                doNotRetry: true,
+                note: expect.stringContaining('The action was dispatched'),
+              },
+            },
+          })
+          await expect(queued).resolves.toMatchObject({ ok: true })
+          expect(vi.getTimerCount()).toBe(timersBefore)
+          expect(setFiles).toHaveBeenCalledTimes(1)
+          expect(release).not.toHaveBeenCalled()
+        } finally {
+          releaseReadback({ files: [{ name: 'a.pdf', size: 3 }] })
+          await vi.advanceTimersByTimeAsync(200)
+          vi.useRealTimers()
+        }
+        expect(release).toHaveBeenCalledExactlyOnceWith(contents, input)
+        expect(setFiles).toHaveBeenCalledTimes(1)
+      }
+    )
+
+    it.each(['cancelled', 'timed out'] as const)(
+      'reports an unconfirmed upload when its acknowledgment is %s without replaying it or affecting queued work',
+      async (stop) => {
+        const contents = await openPage()
+        const input = { objectId: 'isolated-input', multiple: false }
+        vi.spyOn(cdp, 'resolveFileInput').mockResolvedValue(input)
+        let acknowledgeUpload: () => void = () => {}
+        const acknowledgment = new Promise<void>((resolve) => {
+          acknowledgeUpload = resolve
+        })
+        let appliedUploads = 0
+        const setFiles = vi
+          .spyOn(cdp, 'setFileInputFiles')
+          .mockImplementation(async (_contents, _handle, _files, _signal, onDispatch) => {
+            onDispatch?.('pending')
+            appliedUploads++
+            await acknowledgment
+            onDispatch?.('acknowledged')
+            return { files: [{ name: 'a.pdf', size: 3 }] }
+          })
+        const release = vi.spyOn(cdp, 'releaseFileInput').mockResolvedValue()
+        stageUploadFiles.mockResolvedValue(['/staged/a.pdf'])
+        let releaseSnapshot: (value: unknown) => void = () => {}
+        const snapshot = new Promise<unknown>((resolve) => {
+          releaseSnapshot = resolve
+        })
+        let snapshotStarted = false
+        vi.mocked(contents.executeJavaScript).mockImplementation((expression) => {
+          if (isPageCall(expression, 'collectSnapshot')) {
+            snapshotStarted = true
+            return snapshot
+          }
+          return Promise.resolve({})
+        })
+
+        vi.useFakeTimers()
+        try {
+          const timersBefore = vi.getTimerCount()
+          const pending = driver.executeTool(
+            'chat-test',
+            'browser_upload_file',
+            { elementId: 0, paths: ['files/a.pdf'] },
+            'unconfirmed-upload'
+          )
+          await vi.advanceTimersByTimeAsync(200)
+          expect(appliedUploads).toBe(1)
+          const queued = driver.executeTool('chat-test', 'browser_snapshot', {}, 'next-snapshot')
+
+          if (stop === 'cancelled') driver.cancelTool('chat-test', 'unconfirmed-upload')
+          else
+            await vi.advanceTimersByTimeAsync(
+              driver.browserToolWatchdogMs('browser_upload_file', {})!
+            )
+
+          const result = await pending
+          expect(result).toMatchObject({
+            ok: true,
+            result: {
+              outcomeUnknown: true,
+              doNotRetry: true,
+              error: expect.any(String),
+              note: expect.stringContaining('The action may already have run'),
+            },
+          })
+          expect(result.result).not.toHaveProperty('dispatched')
+          await vi.advanceTimersByTimeAsync(0)
+          expect(snapshotStarted).toBe(true)
+          expect(release).not.toHaveBeenCalled()
+
+          acknowledgeUpload()
+          await vi.advanceTimersByTimeAsync(200)
+          expect(release).toHaveBeenCalledExactlyOnceWith(contents, input)
+          expect(appliedUploads).toBe(1)
+          expect(setFiles).toHaveBeenCalledTimes(1)
+          expect(result.result).toMatchObject({ outcomeUnknown: true, doNotRetry: true })
+          expect(result.result).not.toHaveProperty('dispatched')
+
+          driver.cancelTool('chat-test', 'next-snapshot')
+          await expect(queued).resolves.toEqual({
+            ok: false,
+            error: expect.stringContaining('cancelled'),
+          })
+          expect(vi.getTimerCount()).toBe(timersBefore)
+        } finally {
+          acknowledgeUpload()
+          releaseSnapshot({ outline: 'Late snapshot', refIds: [], nextElementId: 1 })
+          await vi.advanceTimersByTimeAsync(200)
+          vi.useRealTimers()
+        }
+      }
+    )
+  })
+
+  it('validates upload paths before touching the page', async () => {
+    await openPage()
+
+    const result = await driver.executeTool(
+      'chat-test',
+      'browser_upload_file',
+      { elementId: 0, paths: [] },
+      'call-empty'
+    )
+
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('paths must list') })
+  })
+
+  it('saves only a completed download, bound to its tool call', async () => {
+    await openPage()
+    const completed = vi
+      .spyOn(session, 'completedBrowserDownload')
+      .mockReturnValueOnce({ filename: 'report.csv', savePath: '/downloads/report.csv' })
+      .mockReturnValueOnce(null)
+    saveDownloadToWorkspace.mockResolvedValue({
+      path: 'files/report.csv',
+      name: 'report.csv',
+      size: 8,
+    })
+
+    const saved = await driver.executeTool(
+      'chat-test',
+      'browser_save_download',
+      { downloadId: 'd1' },
+      'call-save'
+    )
+    const missing = await driver.executeTool(
+      'chat-test',
+      'browser_save_download',
+      { downloadId: 'd2' },
+      'call-save-2'
+    )
+
+    expect(saved).toMatchObject({ ok: true, result: { path: 'files/report.csv' } })
+    expect(saveDownloadToWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({ toolCallId: 'call-save', filePath: '/downloads/report.csv' })
+    )
+    expect(missing).toMatchObject({ ok: false, error: expect.stringContaining('not a completed') })
+    completed.mockRestore()
+  })
+
   it('refuses a coordinate click on a file input', async () => {
     const contents = await openPage()
     respondWith(contents, {
@@ -3569,7 +4465,8 @@ describe('credential protection', () => {
     })
     const isolatedFrameEval = vi
       .spyOn(cdp, 'evaluateInIsolatedFrame')
-      .mockImplementation((_contents, _frame, expression) => {
+      .mockImplementation((_contents, frame, expression) => {
+        if ((frame as unknown) === mainFrame) return contents.executeJavaScript(expression)
         if (isPageCall(expression, 'activeElementSecrecy')) return Promise.resolve('safe')
         if (isPageCall(expression, 'describeFocusedEditable')) {
           return Promise.resolve({ editable: true, kind: 'input' })

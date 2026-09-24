@@ -28,13 +28,17 @@ export const organizationAccountAccessOperations = {
   read: defineOrganizationOperation({
     id: 'organization_accounts.workspace_access.read',
     minimumRole: 'admin',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'organization_delegated'],
+    delegationAudience: 'sim:settings',
+    delegatedServices: ['copilot'],
     capability: 'integrations.manage',
   }),
   update: defineOrganizationOperation({
     id: 'organization_accounts.workspace_access.update',
     minimumRole: 'admin',
-    principalKinds: ['session'],
+    principalKinds: ['session', 'organization_delegated'],
+    delegationAudience: 'sim:settings',
+    delegatedServices: ['copilot'],
     capability: 'integrations.manage',
   }),
 } as const

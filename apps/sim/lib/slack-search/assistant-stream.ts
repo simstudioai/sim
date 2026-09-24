@@ -2,21 +2,21 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { truncate } from '@sim/utils/string'
 import {
+  parseSearchConnectionTargets,
+  type SearchConnectionTarget,
+} from '@/lib/knowledge/search/connection-target'
+import {
   collectRetrievalCitationEvidence,
   parseCitationRecord,
   type RetrievalCitationBlock,
-} from '@/lib/copilot/chat/citation-evidence'
-import { redactSensitiveContent } from '@/lib/copilot/chat/sim-key-redaction'
+} from '@/lib/mothership/chat/citation-evidence'
+import { redactSensitiveContent } from '@/lib/mothership/chat/sim-key-redaction'
 import type {
   StreamEvent,
   ToolCallStreamEvent,
   ToolResultStreamEvent,
-} from '@/lib/copilot/request/session/contract'
-import type { OrchestratorResult } from '@/lib/copilot/request/types'
-import {
-  parseSearchConnectionTargets,
-  type SearchConnectionTarget,
-} from '@/lib/knowledge/search/connection-target'
+} from '@/lib/mothership/request/session/contract'
+import type { OrchestratorResult } from '@/lib/mothership/request/types'
 import { SLACK_SEARCH_FAILED_ANSWER } from '@/lib/slack-search/constants'
 import {
   appendSlackAgentStream,
@@ -32,7 +32,8 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 export function publicSlackAnswer(
   text: string,
   complete: boolean,
-  sources: ReadonlyMap<string, string> = new Map()
+  sources: ReadonlyMap<string, string> = new Map(),
+  integrationsUrl?: string
 ): string {
   let value = text.replace(
     /<(options|question|thinking|usage_upgrade|credential|workspace_resource)>[\s\S]*?(?:<\/\1>|$)/g,
@@ -42,14 +43,15 @@ export function publicSlackAnswer(
     let end = Math.max(value.lastIndexOf(' '), value.lastIndexOf('\n')) + 1
     const sourceStart = value.lastIndexOf('<')
     if (sourceStart > value.lastIndexOf('>')) end = Math.min(end, sourceStart)
-    const linkStart = value.lastIndexOf('[')
-    if (linkStart > value.lastIndexOf(')')) end = Math.min(end, linkStart)
+    const prefix = value.slice(0, end)
+    const linkStart = prefix.lastIndexOf('[')
+    if (linkStart > prefix.lastIndexOf(')')) end = Math.min(end, linkStart)
     value = value.slice(0, end)
   }
   let answer = ''
   let offset = 0
   for (const match of value.matchAll(/<source>([\s\S]*?)(<\/source>|$)/g)) {
-    answer += publicSlackText(value.slice(offset, match.index))
+    answer += publicSlackText(value.slice(offset, match.index), integrationsUrl)
     const source = match[2] ? parseCitationRecord(match[1]) : null
     const id = typeof source?.id === 'string' ? source.id : undefined
     /** A result may arrive after its citation; keep subsequent text pending until it resolves. */
@@ -58,10 +60,25 @@ export function publicSlackAnswer(
     if (link) answer += `${answer && !/\s$/.test(answer) ? ' ' : ''}${link}`
     offset = match.index + match[0].length
   }
-  return answer + publicSlackText(value.slice(offset))
+  return answer + publicSlackText(value.slice(offset), integrationsUrl)
 }
 
-function publicSlackText(value: string): string {
+/** Preserve only the server-bound member settings destination, never a model-supplied URL. */
+function publicSlackText(value: string, integrationsUrl?: string): string {
+  if (!integrationsUrl) return stripSlackLinks(value)
+  const path = new URL(integrationsUrl).pathname
+  const link = sourceLink({ url: integrationsUrl, title: 'Integrations' })
+  let text = ''
+  let offset = 0
+  for (const match of value.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)) {
+    if (match[1] !== path && match[1] !== integrationsUrl) continue
+    text += stripSlackLinks(value.slice(offset, match.index)) + link
+    offset = match.index + match[0].length
+  }
+  return text + stripSlackLinks(value.slice(offset))
+}
+
+function stripSlackLinks(value: string): string {
   return value
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/<[^>]*(?:>|$)/g, '')
@@ -95,6 +112,7 @@ interface AssistantStreamOptions {
   channel: string
   threadTs: string
   slackUserId: string
+  integrationsUrl?: string
   controller: AbortController
   registry: ResolvedSecretTraceRegistry
   beforeDelivery: () => Promise<void>
@@ -228,7 +246,7 @@ export class SlackSearchAssistantStream {
       }
     }
     this.toolProgress.set(payload.toolCallId, { toolName: payload.toolName, chunk })
-    /** Updating an existing task does not introduce a new position in Slack's timeline. */
+    /** Existing task updates can be delivered without waiting for preceding answer text. */
     this.pendingProgress.push({ textEnd: payload.phase === 'call' ? this.text.length : 0, chunk })
   }
 
@@ -286,7 +304,12 @@ export class SlackSearchAssistantStream {
     const projection = projectResolvedSecretDiagnosticContent(text, this.options.registry, 512_000)
     if (!projection.safe || typeof projection.value !== 'string')
       throw new Error('Answer could not be safely projected')
-    return publicSlackAnswer(redactSensitiveContent(projection.value), complete, sources)
+    return publicSlackAnswer(
+      redactSensitiveContent(projection.value),
+      complete,
+      sources,
+      this.options.integrationsUrl
+    )
   }
 
   private async appendText(text: string) {
@@ -333,7 +356,7 @@ export class SlackSearchAssistantStream {
       token,
       { channel, threadTs },
       [...this.leadingChunks, chunk],
-      'timeline',
+      'plan',
       signal
     )
     this.leadingChunks = []

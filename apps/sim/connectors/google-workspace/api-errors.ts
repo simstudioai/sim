@@ -54,6 +54,13 @@ const RATE_LIMIT_REASONS = new Set([
   'RATE_LIMIT_EXCEEDED',
 ])
 
+/** Whether a Google error reason reports an exhausted rate or usage quota rather than a denial. */
+export function isGoogleQuotaReason(reason: string): boolean {
+  return (
+    RATE_LIMIT_REASONS.has(reason) || reason === 'dailyLimitExceeded' || reason === 'quotaExceeded'
+  )
+}
+
 export function safeGoogleErrorReasons(reasons: readonly string[]): string[] {
   return [...new Set(reasons.filter((reason) => SAFE_REASONS.has(reason)))]
 }
@@ -119,13 +126,7 @@ export class GoogleApiError extends ConnectorSourceError {
     const safeReasons = safeGoogleErrorReasons(reasons)
     const suffix = safeReasons.length ? ` (${safeReasons.join(', ')})` : ''
     const category =
-      status === 429 ||
-      safeReasons.some(
-        (reason) =>
-          RATE_LIMIT_REASONS.has(reason) ||
-          reason === 'dailyLimitExceeded' ||
-          reason === 'quotaExceeded'
-      )
+      status === 429 || safeReasons.some(isGoogleQuotaReason)
         ? 'rate_limit'
         : status >= 500
           ? 'provider_unavailable'

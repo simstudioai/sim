@@ -21,6 +21,7 @@ import {
   ASSISTANT_IMAGE_MAX_COUNT,
 } from '@/lib/uploads/shared/assistant-images'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
+import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 
 interface HookHarness {
@@ -29,14 +30,17 @@ interface HookHarness {
 }
 
 function renderFileAttachmentsHook(
-  owner: { workspaceId: string } | { organizationId: string } = { workspaceId: 'workspace-1' }
+  owner: { workspaceId: string } | { organizationId: string; requestMode?: 'agent' | 'plan' } = {
+    workspaceId: 'workspace-1',
+  },
+  initialAttachments?: FileAttachmentForApi[]
 ): HookHarness {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   const root: Root = createRoot(document.createElement('div'))
   let latest: ReturnType<typeof useFileAttachments>
 
   function Probe() {
-    latest = useFileAttachments({ userId: 'user-1', ...owner })
+    latest = useFileAttachments({ userId: 'user-1', ...owner, initialAttachments })
     return null
   }
 
@@ -75,6 +79,28 @@ describe('useFileAttachments admission', () => {
     } else {
       Reflect.deleteProperty(URL, 'createObjectURL')
     }
+  })
+
+  it('opens a restored document without a saved path using its encoded storage key', () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const { result, unmount } = renderFileAttachmentsHook(undefined, [
+      {
+        id: 'file-1',
+        filename: 'draft.pdf',
+        key: 'mothership/draft file.pdf',
+        media_type: 'application/pdf',
+        size: 42,
+      },
+    ])
+    const file = result().attachedFiles[0]
+    expect(file.previewUrl).toBeUndefined()
+    result().handleFileClick(file)
+    expect(open).toHaveBeenCalledWith(
+      '/api/files/serve/mothership%2Fdraft%20file.pdf?context=mothership',
+      '_blank'
+    )
+    unmount()
+    open.mockRestore()
   })
 
   it('rejects aggregate bytes before previews, placeholders, or sessions are allocated', async () => {
@@ -121,6 +147,35 @@ describe('useFileAttachments admission', () => {
 
     unmount()
   })
+
+  it.each(['agent', 'plan'] as const)(
+    'accepts organizational documents in %s mode',
+    async (requestMode) => {
+      mockUploadInternalFileSession.mockResolvedValue({
+        path: '/api/files/serve/s3/mothership%2Fspec.pdf?context=mothership',
+        key: 'mothership/spec.pdf',
+      })
+      const { result, unmount } = renderFileAttachmentsHook({
+        organizationId: 'organization-1',
+        requestMode,
+      })
+      const file = new File(['spec'], 'spec.pdf', { type: 'application/pdf' })
+      await act(async () => result().processFiles(asFileList([file])))
+      expect(mockUploadInternalFileSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          purpose: 'mothership_attachment',
+          organizationId: 'organization-1',
+          requestMode,
+          file,
+        })
+      )
+      expect(mockToastError).not.toHaveBeenCalled()
+      expect(result().attachedFiles).toEqual([
+        expect.objectContaining({ name: file.name, uploading: false }),
+      ])
+      unmount()
+    }
+  )
 
   it.each(['unsupported', 'oversized', 'too many'] as const)(
     'rejects %s organization images before allocating previews or sessions',

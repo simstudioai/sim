@@ -8,7 +8,6 @@ import {
 } from '@/lib/api/contracts/organization-usage'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { UsageConsumers } from '@/ee/organization-usage/components/usage-consumers'
-import { UsageMemberAvatar } from '@/ee/organization-usage/components/usage-member-avatar'
 import type { UsageTab } from '@/ee/organization-usage/constants'
 import { useOrganizationUsageBreakdown } from '@/hooks/queries/organization-usage'
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
@@ -64,7 +63,6 @@ export function UsageTopCards({
   onViewAll,
 }: UsageTopCardsProps) {
   const models = useOrganizationUsageBreakdown(organizationId, window, 'model')
-  const images = new Map(overview?.members.rows.map((row) => [row.id, row.image]))
 
   return (
     <div className='grid grid-cols-1 gap-7 md:grid-cols-2 md:gap-x-8'>
@@ -94,9 +92,6 @@ export function UsageTopCards({
           isLoading={isOverviewLoading}
           isError={isOverviewError}
           isPlaceholderData={isOverviewPlaceholderData}
-          renderLeading={(row) => (
-            <UsageMemberAvatar id={row.id} name={row.label} image={images.get(row.id)} />
-          )}
         />
       </SettingsSection>
     </div>

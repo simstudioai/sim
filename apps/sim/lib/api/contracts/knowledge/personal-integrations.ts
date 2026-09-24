@@ -8,8 +8,8 @@ export const personalSearchIntegrationSchema = z.object({
   name: z.string().max(200),
   providerId: z.string().min(1).max(100),
   connectorType: z.string().min(1).max(100),
-  connectorId: z.string().min(1).max(200),
-  knowledgeBaseId: z.string().min(1).max(200),
+  connectorId: z.string().min(1).max(200).optional(),
+  knowledgeBaseId: z.string().min(1).max(200).optional(),
   description: z.string().max(240),
   accounts: z
     .array(
@@ -22,7 +22,9 @@ export const personalSearchIntegrationSchema = z.object({
     )
     .max(100),
   connectionStatus: z.enum(['connected', 'reconnect_needed', 'not_connected', 'unavailable']),
-  indexingStatus: z.enum(['indexing', 'indexed', 'not_indexed', 'sync_failed', 'paused']),
+  indexingStatus: z
+    .enum(['indexing', 'indexed', 'not_indexed', 'sync_failed', 'paused'])
+    .optional(),
   action: searchConnectionTargetSchema.nullable(),
 })
 
@@ -80,8 +82,8 @@ export const connectPersonalSearchIntegrationContract = defineRouteContract({
     schema: successResponseSchema(
       z.object({
         url: z.string().url(),
-        connectorId: z.string().min(1).max(200),
-        knowledgeBaseId: z.string().min(1).max(200),
+        connectorId: z.string().min(1).max(200).optional(),
+        knowledgeBaseId: z.string().min(1).max(200).optional(),
       })
     ),
   },

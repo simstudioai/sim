@@ -19,7 +19,7 @@ import {
   useCopyToClipboard,
 } from '@sim/emcn'
 import { useParams, useRouter } from 'next/navigation'
-import { isLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
+import { isLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'

@@ -2,37 +2,88 @@
 
 import { type ComponentType, Fragment, useState } from 'react'
 import { ActivityStatus } from '@/components/ui/activity-status'
-import { getToolActivitySummaryActions } from '@/lib/copilot/tools/tool-activity'
-import { getToolStatusDisplayTitle } from '@/lib/copilot/tools/tool-display'
+import type { ToolActivity } from '@/lib/mothership/generated/protocol'
+import {
+  CallIntegrationTool,
+  RunCode,
+  SearchWorkspace,
+} from '@/lib/mothership/generated/tool-catalog-v1'
+import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
+import {
+  getToolActivitySummaryActions,
+  readToolActivity,
+} from '@/lib/mothership/tools/tool-activity'
+import { getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
+import { getNewestRunningTool } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-content'
+import {
+  getSearchActivitySources,
+  SearchActivityDetails,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/search-activity-details'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
-import { getActivityAttentionKey } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-interactions'
-import { getToolIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
+import {
+  getActivityAttentionKey,
+  needsToolInput,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-interactions'
+import { isToolDone } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
 import { type ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
+/** A completed summary names at most this many distinct actions, and never counts the rest. */
 const MAX_SUMMARY_ACTIONS = 3
 
-/** Summarize completed actions without describing failed or skipped work as successful. */
-export function getToolActivitySummary(tools: ToolCallData[]): string {
-  if (tools.length === 1) {
-    const tool = tools[0]
-    return getToolStatusDisplayTitle(
-      tool.displayTitle,
-      tool.status,
-      tool.toolName,
-      tool.activityDescription
-    )
+function isFailedTool(tool: ToolCallData): boolean {
+  return tool.status === ToolCallStatus.error || tool.status === ToolCallStatus.rejected
+}
+
+/**
+ * Drops a search that errored when a later search follows it: the model corrected the query
+ * and searched again, so the failed attempt is not part of what the user reads. The last search
+ * always stays, so a failure that no search retried, or a run whose searches all failed, still
+ * shows its outcome.
+ */
+function withoutRetriedSearchFailures(tools: ToolCallData[]): ToolCallData[] {
+  let lastSearch = -1
+  for (const [index, tool] of tools.entries()) {
+    if (tool.toolName === SearchWorkspace.id) lastSearch = index
   }
-  const { labels, additionalActions } = getToolActivitySummaryActions(
-    tools.filter((tool) => tool.status === ToolCallStatus.success),
-    MAX_SUMMARY_ACTIONS
+  return tools.filter(
+    (tool, index) =>
+      index >= lastSearch ||
+      tool.toolName !== SearchWorkspace.id ||
+      tool.status !== ToolCallStatus.error
   )
-  const summary = labels.join(', ')
-  const summaryLabel = summary ? summary[0].toUpperCase() + summary.slice(1) : 'Tool activity'
-  return [
-    additionalActions > 0 ? `${summaryLabel} +${additionalActions} more` : summaryLabel,
-    ...getToolActivityInterruptions(tools),
-  ].join(' · ')
+}
+
+function toolCountLabel(tools: ToolCallData[]): string {
+  return `${tools.length} tool ${tools.length === 1 ? 'call' : 'calls'}`
+}
+
+function getToolTitle(tool: ToolCallData): string {
+  return getToolStatusDisplayTitle(
+    tool.displayTitle,
+    tool.status,
+    tool.toolName,
+    tool.activityDescription
+  )
+}
+
+/**
+ * Summarize completed actions without describing failed or skipped work as
+ * successful: a single call, or the only successful one, keeps its own title;
+ * several successful calls name their distinct actions ("Navigated, read
+ * pages, clicked elements"); stopped or skipped calls append an outcome count.
+ */
+function getToolActivitySummary(tools: ToolCallData[]): string {
+  if (tools.length === 1) return getToolTitle(tools[0])
+  const succeeded = tools.filter((tool) => tool.status === ToolCallStatus.success)
+  const [first, ...rest] =
+    succeeded.length === 1
+      ? [getToolTitle(succeeded[0])]
+      : getToolActivitySummaryActions(succeeded, MAX_SUMMARY_ACTIONS)
+  const summary = first
+    ? [first.charAt(0).toUpperCase() + first.slice(1), ...rest].join(', ')
+    : toolCountLabel(tools)
+  return [summary, ...getToolActivityInterruptions(tools)].join(' · ')
 }
 
 function getToolActivityInterruptions(tools: ToolCallData[]): string[] {
@@ -46,8 +97,76 @@ function getToolActivityInterruptions(tools: ToolCallData[]): string[] {
   return [...(stopped ? [`${stopped} stopped`] : []), ...(skipped ? [`${skipped} skipped`] : [])]
 }
 
+/**
+ * An executing call whose streamed arguments do not name its action yet, so its
+ * title is only its tool's placeholder: a search before its arguments arrive,
+ * a `sim_cli` call before its command parses ("Running CLI command"),
+ * a `run_code` call before its arguments
+ * resolve, while their parameters hold at most the activity, and an
+ * integration gateway call before its description streams ("Calling integration").
+ * A call awaiting approval is never untitled, so its permission card keeps the
+ * header, and neither is one the model already described.
+ */
+function isAwaitingTitle(tool: ToolCallData): boolean {
+  if (tool.status !== ToolCallStatus.executing || tool.activityDescription) return false
+  if (tool.toolName === CallIntegrationTool.id) {
+    const description =
+      tool.params?.description ?? extractStreamingStringArgument(tool.streamingArgs, 'description')
+    return !(typeof description === 'string' && description.trim())
+  }
+  return (
+    (tool.toolName === 'sim_cli' ||
+      tool.toolName === RunCode.id ||
+      tool.toolName === 'search_workspace') &&
+    Object.keys(tool.params ?? {}).every((key) => key === 'activity')
+  )
+}
+
+/**
+ * The call an in-progress header describes, label and icon alike, shared by
+ * tool group and subagent headers so a live header never flips to placeholder
+ * text between steps: the status call, unless it is still awaiting its title,
+ * in which case the call the header described before it keeps the header
+ * until the new title arrives. A call waiting on the user is never held, since
+ * its permission card or handoff would replace the header, and neither is a
+ * failed call, which must not read as live. With no such earlier call, the
+ * status call.
+ */
+export function getActivityHeaderTool(
+  tools: ToolCallData[],
+  statusTool: ToolCallData
+): ToolCallData {
+  if (!isAwaitingTitle(statusTool)) return statusTool
+  return (
+    getActivityStatusTool(
+      tools
+        .slice(
+          0,
+          tools.findIndex((tool) => tool.id === statusTool.id)
+        )
+        .filter((tool) => !isAwaitingTitle(tool) && !needsToolInput(tool) && !isFailedTool(tool))
+    ) ?? statusTool
+  )
+}
+
+/**
+ * The title of an activity in progress for its header call, with earlier
+ * stops and skips kept visible. A header call still awaiting its title has no
+ * earlier call to hold, so it reads as the activity's intent when the model
+ * gave one, else as its own in-progress title.
+ */
+export function getInProgressActivityLabel(
+  activeLabel: string,
+  headerTool: ToolCallData,
+  tools: ToolCallData[],
+  activityTitle: string | undefined
+): string {
+  const label = (isAwaitingTitle(headerTool) && activityTitle) || activeLabel
+  return getActiveToolActivityTitle(label, headerTool, tools)
+}
+
 /** Keep earlier interruptions visible while the latest action continues. */
-export function getActiveToolActivityTitle(
+function getActiveToolActivityTitle(
   label: string,
   tool: ToolCallData,
   tools: ToolCallData[]
@@ -57,73 +176,109 @@ export function getActiveToolActivityTitle(
     : label
 }
 
-/** Keep running work visible until every parallel call finishes. */
+/**
+ * The call a header describes: the newest running call, else the latest call
+ * that did not error or get rejected, so a failed attempt labels the activity
+ * only when every call failed. A stopped, skipped, or interrupted call can still be it.
+ */
 export function getActivityStatusTool(tools: ToolCallData[]): ToolCallData | undefined {
   return (
-    tools.reduce<ToolCallData | undefined>(
-      (newest, tool) =>
-        tool.status === ToolCallStatus.executing &&
-        (!newest || (tool.startedAt ?? 0) >= (newest.startedAt ?? 0))
-          ? tool
-          : newest,
-      undefined
-    ) ?? tools.at(-1)
+    getNewestRunningTool(tools) ??
+    tools.filter((tool) => !isFailedTool(tool)).at(-1) ??
+    tools.at(-1)
   )
 }
 
+/**
+ * The label of a finished activity: the model's completed title when every
+ * call succeeded, else the summary of what did succeed, so a stopped, skipped,
+ * or failed call never hides behind a success title. Main and subagent lanes
+ * share this rule.
+ */
+export function getCompletedActivityLabel(
+  tools: ToolCallData[],
+  activity: ToolActivity | undefined
+): string {
+  return activity?.completedTitle && tools.every((tool) => tool.status === ToolCallStatus.success)
+    ? activity.completedTitle
+    : getToolActivitySummary(tools)
+}
+
 interface ToolActivityGroupProps {
+  activity?: ToolActivity
   tools: ToolCallData[]
   ToolCallComponent: ComponentType<ToolCallItemProps>
   autoScrollActivity?: boolean
-  isActive?: boolean
+  /** The group holds its lane's one live indicator, so its header shimmers. */
+  isLive?: boolean
 }
 
 export function ToolActivityGroup({
-  tools,
+  activity,
+  tools: calls,
   ToolCallComponent,
   autoScrollActivity = true,
-  isActive = false,
+  isLive = false,
 }: ToolActivityGroupProps) {
   const [expanded, setExpanded] = useState(false)
+  const tools = withoutRetriedSearchFailures(calls)
   const statusTool = getActivityStatusTool(tools)
   if (!statusTool) return null
-  const working = isActive || tools.some((tool) => tool.status === ToolCallStatus.executing)
-  const headerActive =
-    working &&
-    (statusTool.status === ToolCallStatus.executing || statusTool.status === ToolCallStatus.success)
+  const headerTool = getActivityHeaderTool(tools, statusTool)
+  const groupedActivity =
+    activity ??
+    tools
+      .map((tool) => readToolActivity(tool.params, tool.streamingArgs))
+      .reverse()
+      .find((entry) => entry?.title || entry?.completedTitle)
+  /** Tense follows liveness: a live group, or one with a call still running, reads in progress. */
+  const working = isLive || tools.some((tool) => !isToolDone(tool.status))
   const attentionKey = getActivityAttentionKey(tools)
-  const SummaryIcon = getToolIcon(tools[0].toolName)
+  const entries = tools.map((tool) => ({ tool, sources: getSearchActivitySources(tool) }))
+  const hasSearchDetails = entries.some(({ sources }) => sources !== undefined)
 
   return (
     <ToolCallComponent
-      {...statusTool}
-      toolCallId={statusTool.id}
+      {...headerTool}
+      toolCallId={headerTool.id}
       renderStatus={(status) => (
         <ActivityStream
           activity={{
             label: working
-              ? getActiveToolActivityTitle(status.activeLabel, statusTool, tools)
+              ? getInProgressActivityLabel(
+                  status.activeLabel,
+                  headerTool,
+                  tools,
+                  groupedActivity?.title
+                )
               : tools.length === 1
                 ? status.label
-                : getToolActivitySummary(tools),
-            isActive: headerActive,
-            icon:
-              working || tools.length === 1 ? status.icon : <SummaryIcon className='size-full' />,
+                : getCompletedActivityLabel(tools, groupedActivity),
+            isActive: isLive,
+            icon: status.icon,
           }}
-          activityKey={statusTool.id}
+          activityKey={headerTool.id}
           attentionKey={attentionKey}
-          collapsible={tools.length > 1}
+          expandedLabel={tools.length > 1 ? groupedActivity?.title : undefined}
+          collapsible={tools.length > 1 || hasSearchDetails}
           expanded={expanded}
           onToggle={() => setExpanded(!expanded)}
           isStreaming={working && autoScrollActivity}
+          unbounded={entries.some(({ sources }) => (sources?.length ?? 0) > 0)}
         >
-          <div className='flex min-w-0 flex-col gap-1.5 py-0.5 pl-6'>
-            {tools.map((tool) => (
+          <div className='flex min-w-0 flex-col gap-2'>
+            {entries.map(({ tool, sources }, index) => (
               <Fragment key={tool.id}>
-                {tool.id === statusTool.id ? (
+                {tools.length === 1 ? null : tool.id === headerTool.id ? (
                   <ActivityStatus {...status} />
                 ) : (
                   <ToolCallComponent {...tool} toolCallId={tool.id} />
+                )}
+                {sources && (
+                  <SearchActivityDetails
+                    sources={sources}
+                    label={`Search results for step ${index + 1}: ${getToolTitle(tool)}`}
+                  />
                 )}
               </Fragment>
             ))}

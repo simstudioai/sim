@@ -1,4 +1,5 @@
 import { parseAsIsoDate, parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 
 /**
  * Co-located, typed URL query-param definition for the home/Chat surface.
@@ -46,3 +47,41 @@ export const searchFilterParsers = {
   from: parseAsIsoDate,
   to: parseAsIsoDate,
 } as const
+
+/**
+ * The picker names calendar days; the URL keeps them as dates. A day's bounds are its local
+ * midnight and the last millisecond before the next, so "September 1" means the reader's own day.
+ */
+function startOfLocalDay(day: Date): Date {
+  return new Date(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate())
+}
+function endOfLocalDay(day: Date): Date {
+  return new Date(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate() + 1, 0, 0, 0, -1)
+}
+
+/** Resolve the shared source/recency controls once for a particular search. */
+export function searchFiltersFromParams(
+  params: {
+    source: string | null
+    updated: (typeof UPDATED_WINDOWS)[number]['id']
+    from?: Date | null
+    to?: Date | null
+  },
+  searchedAt: number
+): WorkspaceSearchFilters {
+  const days = UPDATED_WINDOWS.find((entry) => entry.id === params.updated)?.days
+  const [from, to] =
+    params.from && params.to && params.from > params.to
+      ? [params.to, params.from]
+      : [params.from, params.to]
+  return {
+    ...(params.updated === 'custom' && from && to
+      ? {
+          modifiedAfter: startOfLocalDay(from).toISOString(),
+          modifiedBefore: endOfLocalDay(to).toISOString(),
+        }
+      : {}),
+    ...(params.source ? { source: params.source } : {}),
+    ...(days ? { modifiedAfter: new Date(searchedAt - days * 86_400_000).toISOString() } : {}),
+  }
+}

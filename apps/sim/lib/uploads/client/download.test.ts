@@ -131,6 +131,20 @@ describe('file download snapshots', () => {
     )
   })
 
+  it.each(['workspace', 'mothership'] as const)(
+    'downloads chat-upload Markdown from its %s byte context, without mutable snapshot export',
+    async (storageContext) => {
+      const mounted = source()
+      await triggerFileDownload({ ...file, vfsNamespace: 'uploads', storageContext }, mounted)
+      expect(mounted.getContent).not.toHaveBeenCalled()
+      expect(requestRaw).not.toHaveBeenCalled()
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining(`?context=${storageContext}&t=`),
+        { cache: 'no-store' }
+      )
+    }
+  )
+
   it('does not send non-workspace storage to the workspace snapshot endpoint', async () => {
     const mounted = source()
     await triggerFileDownload({ ...file, storageContext: 'mothership' }, mounted)

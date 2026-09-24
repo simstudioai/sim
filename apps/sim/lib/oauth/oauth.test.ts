@@ -433,12 +433,6 @@ describe('OAuth Token Refresh', () => {
         },
       },
       { name: 'X (Twitter)', providerId: 'x', endpoint: 'https://api.x.com/2/oauth2/token' },
-      {
-        name: 'Confluence',
-        providerId: 'confluence',
-        endpoint: 'https://auth.atlassian.com/oauth/token',
-      },
-      { name: 'Jira', providerId: 'jira', endpoint: 'https://auth.atlassian.com/oauth/token' },
       { name: 'Linear', providerId: 'linear', endpoint: 'https://api.linear.app/oauth/token' },
       {
         name: 'Reddit',
@@ -512,6 +506,24 @@ describe('OAuth Token Refresh', () => {
         }
       )
     })
+
+    it.each(['jira', 'confluence'] as const)(
+      'refreshes %s with Atlassian JSON credentials',
+      async (providerId) => {
+        const mockFetch = createMockFetch(defaultOAuthResponse)
+        await withMockFetch(mockFetch, () => refreshOAuthToken(providerId, 'test_refresh_token'))
+
+        const [endpoint, request] = mockFetch.mock.calls[0] as [string, RequestInit]
+        expect(endpoint).toBe('https://auth.atlassian.com/oauth/token')
+        expect(request.headers).toMatchObject({ 'Content-Type': 'application/json' })
+        expect(JSON.parse(request.body as string)).toEqual({
+          grant_type: 'refresh_token',
+          refresh_token: 'test_refresh_token',
+          client_id: `${providerId}_client_id`,
+          client_secret: `${providerId}_client_secret`,
+        })
+      }
+    )
 
     it('preserves Intuit refresh-token lifetime metadata', async () => {
       const mockFetch = createMockFetch({

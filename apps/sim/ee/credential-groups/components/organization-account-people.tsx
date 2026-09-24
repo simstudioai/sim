@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { Avatar, AvatarFallback, Chip, ChipConfirmModal, ChipModalError, toast } from '@sim/emcn'
+import { Avatar, Chip, ChipConfirmModal, ChipModalError, toast } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import type { SettingsAction, SettingsBackAction } from '@/components/settings/settings-header'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -111,13 +111,7 @@ export function OrganizationAccountPeople({
                   {enrollments.map((person) => (
                     <SettingsResourceRow
                       key={person.id}
-                      icon={
-                        <div className='self-start'>
-                          <Avatar size='sm' aria-hidden>
-                            <AvatarFallback>{person.email.charAt(0).toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                        </div>
-                      }
+                      icon={<Avatar size='xs' name={person.email} aria-hidden />}
                       iconVariant='custom'
                       title={person.email}
                       description={<OrganizationPersonConnections person={person} />}

@@ -21,6 +21,7 @@ function row(overrides: Partial<LogStatsSegmentRow> = {}): LogStatsSegmentRow {
     totalExecutions: 1,
     successfulExecutions: 1,
     avgDurationMs: 100,
+    handledErrorRuns: 0,
     ...overrides,
   }
 }
@@ -280,6 +281,41 @@ describe('buildDashboardStats', () => {
     expect(stats.workflows).toHaveLength(1)
   })
 
+  /**
+   * Five runs on the default 72-bucket window answered with 67 zero rows per
+   * series — tens of kilobytes carrying nothing the totals did not. The sparse
+   * form keeps every bucket that holds a run, at its dense-form timestamp, and
+   * never exceeds `segmentCount`.
+   */
+  it('omits buckets with no runs when includeEmpty is false', () => {
+    const { stats } = buildDashboardStats(
+      [row({ segmentIndex: 1, totalExecutions: 3, successfulExecutions: 2 })],
+      window,
+      2,
+      { includeEmpty: false }
+    )
+
+    expect(stats.workflows[0].segments).toEqual([
+      {
+        timestamp: '2026-01-15T01:00:00.000Z',
+        totalExecutions: 3,
+        successfulExecutions: 2,
+        avgDurationMs: 100,
+      },
+    ])
+    expect(stats.aggregateSegments).toEqual(stats.workflows[0].segments)
+    expect(stats.totalRuns).toBe(3)
+    expect(stats.totalErrors).toBe(1)
+    expect(stats.segmentMs).toBe(window.segmentMs)
+  })
+
+  it('publishes no buckets at all for a workspace with no runs when empties are omitted', () => {
+    const { stats } = buildDashboardStats([], window, 2, { includeEmpty: false })
+
+    expect(stats.aggregateSegments).toEqual([])
+    expect(stats.totalRuns).toBe(0)
+  })
+
   it('returns an empty-but-shaped response for a workspace with no runs', () => {
     const { stats } = buildDashboardStats([], window, 2)
 
@@ -291,5 +327,36 @@ describe('buildDashboardStats', () => {
       start: '2026-01-15T00:00:00.000Z',
       end: '2026-01-15T02:00:00.000Z',
     })
+  })
+})
+
+describe('buildDashboardStats handled errors', () => {
+  const window = {
+    startTime: new Date('2026-08-06T00:00:00.000Z'),
+    endTime: new Date('2026-08-06T02:00:00.000Z'),
+    segmentMs: 3_600_000,
+  }
+
+  it('sums handled-error runs across every workflow and bucket when asked', () => {
+    const { stats } = buildDashboardStats(
+      [
+        row({ handledErrorRuns: 2 }),
+        row({ segmentIndex: 1, handledErrorRuns: 1 }),
+        row({ workflowId: 'wf-2', workflowName: 'Beta', handledErrorRuns: 0 }),
+      ],
+      window,
+      2,
+      { includeHandledErrors: true }
+    )
+
+    expect(stats.handledErrorRuns).toBe(3)
+    /** A handled error is still a successful run in every other figure. */
+    expect(stats.totalErrors).toBe(0)
+  })
+
+  it('publishes no handled-error count unless the rows were counted', () => {
+    const { stats } = buildDashboardStats([row({ handledErrorRuns: 2 })], window, 2)
+
+    expect(stats).not.toHaveProperty('handledErrorRuns')
   })
 })

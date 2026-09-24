@@ -4,15 +4,17 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { internalKnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { searchScopedKnowledge } from '@/lib/knowledge/application/workspace-search'
 import { DEFAULT_RERANKER_MODEL } from '@/lib/knowledge/reranker-models'
 import { sourceAuthor } from '@/lib/knowledge/search/author'
+import { searchLiveKnowledge } from '@/lib/sim-search/live/application'
 
 const DIRECT_SEARCH_VECTOR_BUDGET_MS = 3000
 
-export const POST = defineInternalJsonRoute({
+const indexedSearchRoute = defineInternalJsonRoute({
   contract: searchWorkspaceKnowledgeContract,
   auth: internalSessionAuth,
   operation: knowledgeOperations.search,
@@ -64,3 +66,19 @@ export const POST = defineInternalJsonRoute({
     }
   },
 })
+
+const liveSearchRoute = defineInternalJsonRoute({
+  contract: searchWorkspaceKnowledgeContract,
+  auth: internalSessionAuth,
+  operation: knowledgeOperations.search,
+  rateLimit: internalRateLimits.none({
+    reason:
+      'Provider limits apply independently to each user grant; requests have bounded fanout and deadlines',
+  }),
+  errorPolicy: internalKnowledgeErrorPolicies.search,
+  mapInput: ({ body }, { request }) => ({ ...body, signal: request.signal }),
+  useCase: searchLiveKnowledge,
+  present: (data) => ({ success: true as const, data }),
+})
+
+export const POST = isLiveEnterpriseSearchEnabled ? liveSearchRoute : indexedSearchRoute

@@ -1,4 +1,3 @@
-import { executeCopilotOrganizationKnowledgeUseCase } from '@/lib/copilot/application/execute-knowledge-use-case'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { requestSlackApi } from '@/lib/internal/slack/client'
 import { resolvePersonalSearchConnection } from '@/lib/knowledge/application/personal-search-integrations'
@@ -6,6 +5,7 @@ import {
   type SearchConnectionTarget,
   searchConnectionPath,
 } from '@/lib/knowledge/search/connection-target'
+import { executeCopilotOrganizationKnowledgeUseCase } from '@/lib/mothership/application/execute-knowledge-use-case'
 
 interface SlackSearchConnectionsInput {
   targets: SearchConnectionTarget[]

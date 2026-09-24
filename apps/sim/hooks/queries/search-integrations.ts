@@ -6,6 +6,7 @@ import {
   type UpdateSearchIntegrationBody,
   updateSearchIntegrationContract,
 } from '@/lib/api/contracts/knowledge/search-integrations'
+import { organizationAccountsKeys } from '@/hooks/queries/organization-accounts'
 import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
 import { searchIntegrationKeys } from '@/hooks/queries/utils/search-integration-keys'
 
@@ -31,6 +32,9 @@ export function useUpdateSearchIntegration() {
       await Promise.all([
         resetOrganizationSearchAccess(queryClient, organizationId),
         queryClient.invalidateQueries({ queryKey: searchIntegrationKeys.list(organizationId) }),
+        queryClient.invalidateQueries({
+          queryKey: organizationAccountsKeys.detail(organizationId),
+        }),
       ])
       router.refresh()
     },

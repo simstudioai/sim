@@ -105,6 +105,51 @@ describe('Google server selector adapters', () => {
     }
   )
 
+  it('stores delegated Gmail label names so the same selection works in every member mailbox', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          labels: [
+            { id: 'Label_1', name: 'Customer' },
+            { id: 'INBOX', name: 'INBOX', type: 'system' },
+          ],
+        })
+      )
+    )
+    const args = { ...listArgs('google.calendar'), selectorKey: 'gmail.labels' as const }
+    args.context.impersonateUserEmail = 'admin@example.com'
+    await expect(googleSelectorAttachments['gmail.labels'].execute(args)).resolves.toMatchObject({
+      items: [
+        { id: 'Customer', label: 'Customer' },
+        { id: 'INBOX', label: 'Inbox' },
+      ],
+    })
+    expect(mockResolveSelectorOAuthAccessToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scopes: ['https://www.googleapis.com/auth/gmail.readonly'],
+        impersonateEmail: 'admin@example.com',
+      })
+    )
+  })
+
+  it('stores primary as a per-member calendar alias when browsing with delegation', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ items: [{ id: 'admin@example.com', summary: 'Primary', primary: true }] })
+      )
+    )
+    const args = listArgs('google.calendar')
+    args.context.impersonateUserEmail = 'admin@example.com'
+    await expect(googleSelectorAttachments['google.calendar'].execute(args)).resolves.toMatchObject(
+      {
+        items: [{ id: 'primary', label: 'Primary' }],
+      }
+    )
+    expect(mockResolveSelectorOAuthAccessToken).toHaveBeenCalledWith(
+      expect.objectContaining({ scopes: ['https://www.googleapis.com/auth/calendar.readonly'] })
+    )
+  })
+
   it('includes matching folders when the shared-drive search is complete', async () => {
     mockFetch
       .mockResolvedValueOnce(

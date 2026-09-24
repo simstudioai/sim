@@ -538,19 +538,17 @@ function WorkspaceHeaderImpl({
                     Back to organization
                   </SettingsGuardedLink>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator className='shrink-0' />
+                {(!showSearch || isWorkspacesLoading) && (
+                  <DropdownMenuSeparator className='shrink-0' />
+                )}
               </>
             )}
-            {isWorkspacesLoading ? (
-              <div className='px-2 py-[5px] text-[var(--text-secondary)] text-caption'>
-                Loading workspaces...
-              </div>
-            ) : (
+            {!isWorkspacesLoading && (
               <>
                 {showSearch && (
                   <ChipInput
                     ref={searchInputRef}
-                    className='shrink-0'
+                    className={cn('shrink-0', organizationHref && 'mt-2')}
                     icon={Search}
                     placeholder='Search workspaces...'
                     value={workspaceSearch}

@@ -7,13 +7,13 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
-import { SkillTile } from '@/app/workspace/[workspaceId]/components'
 import {
   CredentialDetailHeading,
   CredentialDetailLayout,
   UnsavedChangesModal,
   useUnsavedChangesGuard,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { SkillTile } from '@/app/workspace/[workspaceId]/components/skill-tile'
 import {
   type SkillFieldErrors,
   SkillFields,

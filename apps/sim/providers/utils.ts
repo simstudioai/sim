@@ -21,6 +21,7 @@ import {
   resolveActiveCanonicalValue,
   scopeCanonicalModesForTool,
 } from '@/lib/workflows/subblocks/visibility'
+import { resolveBlockToolId } from '@/lib/workflows/tool-input/identity'
 import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { SubBlockConfig } from '@/blocks/types'
 import { isCustomTool } from '@/executor/constants'
@@ -651,6 +652,17 @@ export function buildBlockToolParamsTransform(config: {
 
         result = decodeToolParams(result, paramShapes, blockSubBlocks ?? [])
 
+        /** Use the executor's partial reference shape before upload-oriented block mappers. */
+        const toFileReference = (value: unknown) =>
+          typeof value === 'string' && value.length > 0 ? { id: value } : value
+        for (const [key, param] of Object.entries(toolParams ?? {})) {
+          if ((param.type === 'file' || param.type === 'file[]') && result[key] != null) {
+            result[key] = Array.isArray(result[key])
+              ? result[key].map(toFileReference)
+              : toFileReference(result[key])
+          }
+        }
+
         if (blockParamsFn) {
           const transformed = blockParamsFn(result)
           result = { ...result, ...transformed }
@@ -843,26 +855,15 @@ export async function transformBlockTool(
 
   let toolId: string | null = null
 
-  if ((blockDef.tools?.access?.length || 0) > 1) {
-    if (selectedOperation && blockDef.tools?.config?.tool) {
-      try {
-        toolId = blockDef.tools.config.tool({
-          ...block.params,
-          operation: selectedOperation,
-        })
-      } catch (error) {
-        logger.error('Error selecting tool for block', {
-          blockType: block.type,
-          operation: selectedOperation,
-          error,
-        })
-        return null
-      }
-    } else {
-      toolId = blockDef.tools.access[0]
-    }
-  } else {
-    toolId = blockDef.tools?.access?.[0] || null
+  try {
+    toolId = resolveBlockToolId(blockDef, block.params ?? {}, selectedOperation)
+  } catch (error) {
+    logger.error('Error selecting tool for block', {
+      blockType: block.type,
+      operation: selectedOperation,
+      error,
+    })
+    return null
   }
 
   if (!toolId) {

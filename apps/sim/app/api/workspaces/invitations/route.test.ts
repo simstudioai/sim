@@ -57,6 +57,11 @@ const {
   mockGetInvitePlanCategoryForUser: vi.fn(),
 }))
 
+vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
+  resolveEffectiveWorkspacePermission: mockGetEffectiveWorkspacePermission,
+}))
+
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
   ...permissionsMock,
   getEffectiveWorkspacePermission: mockGetEffectiveWorkspacePermission,
@@ -192,6 +197,14 @@ describe('POST /api/workspaces/invitations/batch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    queueTableRows(schemaMock.workspace, [
+      {
+        id: 'workspace-1',
+        organizationId: null,
+        allowPersonalApiKeys: true,
+        billedAccountUserId: 'user-1',
+      },
+    ])
     queueTableRows(schemaMock.user, [{ id: 'user-1', name: 'Owner User', email: 'owner@test.com' }])
     mockGetSession.mockResolvedValue({
       session: { id: 'session-1' },

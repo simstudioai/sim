@@ -1,6 +1,8 @@
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
+import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { tableSuccess } from '@/tools/table/response'
 import type { TableBulkOperationResponse, TableUpdateByFilterParams } from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -21,12 +23,7 @@ export const tableUpdateRowsByFilterTool: InternalToolConfig<
   },
 
   params: {
-    tableId: {
-      type: 'string',
-      required: true,
-      description: 'Table ID',
-      visibility: 'user-only',
-    },
+    tableId: TABLE_ID_PARAM,
     filter: {
       type: 'object',
       required: true,
@@ -72,14 +69,11 @@ export const tableUpdateRowsByFilterTool: InternalToolConfig<
     const result = await response.json()
     const data = result.data || result
 
-    return {
-      success: true,
-      output: {
-        updatedCount: data.updatedCount || 0,
-        updatedRowIds: data.updatedRowIds || [],
-        message: data.message || 'Rows updated successfully',
-      },
-    }
+    return tableSuccess({
+      updatedCount: data.updatedCount || 0,
+      updatedRowIds: data.updatedRowIds || [],
+      message: data.message || 'Rows updated successfully',
+    })
   },
 
   outputs: {

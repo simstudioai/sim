@@ -1,0 +1,140 @@
+/**
+ * @vitest-environment node
+ */
+
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+
+/**
+ * The handler map is a wiring table from tool id to implementation. Only its
+ * shape is asserted here, so every implementation module it imports is stubbed
+ * with `workflow/mutations` mocked separately to assert cancellation dispatch.
+ * Loading the rest reaches the block registry, the executor, and most of
+ * `lib/`; every stubbed export resolves to a mock function, which is all the
+ * table needs to bind.
+ */
+const { stubHandlerModule } = vi.hoisted(() => ({
+  stubHandlerModule: () =>
+    new Proxy(
+      {},
+      {
+        get: (_target, name) => (typeof name === 'string' && name !== 'then' ? vi.fn() : undefined),
+        has: (_target, name) => typeof name === 'string' && name !== 'then',
+      }
+    ),
+}))
+
+vi.mock('@/lib/mothership/tools/handlers/deployment/custom-block', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/deployment/deploy', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/deployment/manage', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/function-execute', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/integration-tools', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/management/connect-slack-bot', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/management/manage-credential', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/management/manage-custom-tool', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/management/manage-mcp-tool', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/management/manage-sandbox', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/management/manage-skill', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/materialize-file', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/oauth', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/resources', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/restore-resource', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/run-code', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/vfs', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/vfs-mutate', stubHandlerModule)
+vi.mock('@/lib/mothership/tools/handlers/workflow/queries', stubHandlerModule)
+
+/** Server-router tools are appended to the map from their own registry, which this test does not cover. */
+vi.mock('@/lib/mothership/tools/server/router', () => ({ getRegisteredServerToolNames: () => [] }))
+
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const mocks = vi.hoisted(() => ({ cancel: vi.fn() }))
+vi.mock('@/lib/mothership/tools/handlers/workflow/mutations', () => ({
+  executeCancelWorkflowRun: mocks.cancel,
+  executeGenerateApiKey: vi.fn(),
+  executeRunBlock: vi.fn(),
+  executeRunFromBlock: vi.fn(),
+  executeRunWorkflow: vi.fn(),
+  executeRunWorkflowUntilBlock: vi.fn(),
+}))
+
+import { executeTool, hasHandler } from '@/lib/mothership/tool-executor/executor'
+import { ensureHandlersRegistered } from '@/lib/mothership/tool-executor/register-handlers'
+import {
+  getToolEntry,
+  isSimExecuted,
+  toolRequiresApproval,
+  toolRequiresApprovalLane,
+} from '@/lib/mothership/tool-executor/router'
+
+describe('workflow-run cancellation tool routing', () => {
+  beforeEach(() => vi.clearAllMocks())
+  it('routes cancellation through Sim with write permission and explicit approval', () => {
+    expect(getToolEntry('cancel_workflow_run')).toMatchObject({
+      requiredPermission: 'write',
+      route: 'sim',
+    })
+    expect(isSimExecuted('cancel_workflow_run')).toBe(true)
+    expect(toolRequiresApproval('cancel_workflow_run')).toBe(true)
+  })
+
+  it('dispatches cancellation to the registered Sim handler with trusted context', async () => {
+    await ensureHandlersRegistered()
+
+    expect(hasHandler('cancel_workflow_run')).toBe(true)
+    const context = {
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      chatId: 'chat-1',
+      toolCallId: 'cancel-1',
+      copilotToolExecution: true,
+      userPermission: 'write',
+    }
+    const params = { workflowId: 'workflow-1', executionId: 'run-1' }
+    const result = { success: true, output: { status: 'cancelled' } }
+    mocks.cancel.mockResolvedValue(result)
+    await expect(
+      executeTool(
+        'cancel_workflow_run',
+        {
+          ...params,
+          activity: { title: 'Stopping workflow' },
+        },
+        context
+      )
+    ).resolves.toEqual(result)
+    expect(mocks.cancel).toHaveBeenCalledExactlyOnceWith(params, context)
+  })
+})
+
+describe('toolRequiresApprovalLane', () => {
+  afterEach(resetEnvFlagsMock)
+
+  /**
+   * Asked by lanes that cannot hold a prompt, so it answers from the catalog and the
+   * feature flag alone: there is no streaming context to consult, and the stored
+   * auto-allow list is deliberately not read (an auto-allowed tool is admitted on the
+   * checkpoint lane without prompting anyone).
+   */
+  it('is false while copilot tool permissions are off, whatever the catalog says', () => {
+    expect(toolRequiresApproval('run_function')).toBe(true)
+    expect(toolRequiresApprovalLane('run_function')).toBe(false)
+  })
+
+  it('is true for a catalog-gated tool once the feature is on', () => {
+    setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+    expect(toolRequiresApprovalLane('run_function')).toBe(true)
+  })
+
+  it('is false for a tool the catalog does not gate, feature on', () => {
+    setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+    expect(toolRequiresApproval('read')).toBe(false)
+    expect(toolRequiresApprovalLane('read')).toBe(false)
+  })
+
+  it('is false for a tool that is not in the catalog at all', () => {
+    setEnvFlags({ isCopilotToolPermissionsEnabled: true })
+    expect(toolRequiresApprovalLane('not_a_real_tool')).toBe(false)
+  })
+})

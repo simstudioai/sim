@@ -8,7 +8,9 @@ import {
   type MockCondition,
   queueTableRows,
   resetDbChainMock,
+  resetEnvFlagsMock,
   schemaMock,
+  setEnvFlags,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -143,6 +145,8 @@ import {
   withoutSecret,
 } from '@/lib/knowledge/orchestration/connectors'
 
+beforeEach(resetEnvFlagsMock)
+
 const KB = { id: 'kb-1', name: 'Docs', workspaceId: 'ws-1' }
 const ACTOR = { userId: 'user-1', source: 'agent' as const, requestId: 'req-1' }
 const BILLING = { actorUserId: 'user-1', workspaceId: 'ws-1' } as never
@@ -176,6 +180,21 @@ describe('performCreateKnowledgeConnector', () => {
     resolveBillingAttribution,
     resolveAccessToken: vi.fn(),
   }
+
+  it('creates a live Search source as active without queueing content indexing', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    queueSuccessfulInsert()
+    const outcome = await performCreateKnowledgeConnector({
+      ...createParams,
+      knowledgeBase: { ...KB, isSearchIndex: true },
+    })
+    expect(outcome).toMatchObject({ success: true, initialSyncQueued: false })
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'active', nextSyncAt: null })
+    )
+    expect(mockDispatchSync).not.toHaveBeenCalled()
+    expect(mockDispatchMemberSync).not.toHaveBeenCalled()
+  })
 
   it.each([
     { connectorType: 'jira', field: 'projectKey' },
@@ -592,6 +611,48 @@ describe('performUpdateKnowledgeConnector', () => {
   })
 
   afterAll(resetDbChainMock)
+
+  it('saves live permissions without indexing while protecting stale indexed ACLs', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    queueTableRows(schemaMock.knowledgeConnector, [
+      {
+        id: 'conn-1',
+        knowledgeBaseId: 'kb-1',
+        connectorType: 'notion',
+        status: 'active',
+        accessMode: 'admin',
+        sourceConfig: {},
+        updatedAt: new Date(),
+      },
+    ])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
+    const write = vi.fn()
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: { ...KB, isSearchIndex: true },
+      connectorId: 'conn-1',
+      updates: { status: 'active' },
+      resolveBillingAttribution,
+      permissionChange: {
+        requiresAclReset: true,
+        requiresContentSync: true,
+        populateSyncContext: vi.fn(),
+        write,
+      },
+    })
+    expect(outcome.success).toBe(true)
+    expect(write).toHaveBeenCalled()
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        nextSyncAt: null,
+        nextMemberSyncAt: null,
+        accessRewritePending: true,
+      })
+    )
+    expect(mockDispatchSync).not.toHaveBeenCalled()
+    expect(mockDispatchMemberSync).not.toHaveBeenCalled()
+    expect(resolveBillingAttribution).not.toHaveBeenCalled()
+  })
 
   it.each([
     { connectorType: 'jira', field: 'projectKey' },

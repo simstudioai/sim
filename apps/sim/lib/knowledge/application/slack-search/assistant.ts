@@ -7,28 +7,9 @@ import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { resolveOrganizationBillingAttribution } from '@/lib/billing/core/billing-attribution'
-import { createRunSegment, updateRunStatus } from '@/lib/copilot/async-runs/repository'
-import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
-import {
-  buildPersistedAssistantMessage,
-  normalizeMessage,
-  withStoppedContentBlock,
-} from '@/lib/copilot/chat/persisted-message'
-import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
-import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
-import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
-import {
-  acquirePendingChatStream,
-  cleanupAbortMarker,
-  getChatStreamLockOwners,
-  registerActiveStream,
-  releasePendingChatStream,
-  startAbortPoller,
-  unregisterActiveStream,
-} from '@/lib/copilot/request/session/abort'
-import type { OrchestratorResult } from '@/lib/copilot/request/types'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getSlackSearchSender } from '@/lib/internal/slack/search-client'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { authorizeSlackSearchInstallation } from '@/lib/knowledge/application/slack-search/authorization'
@@ -48,6 +29,28 @@ import {
   requireSlackSearchTurnLease,
   wasSlackSearchTurnStopped,
 } from '@/lib/knowledge/application/slack-search/turns'
+import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load-search-integrations'
+import { createRunSegment, updateRunStatus } from '@/lib/mothership/async-runs/repository'
+import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
+import {
+  buildPersistedAssistantMessage,
+  normalizeMessage,
+  withStoppedContentBlock,
+} from '@/lib/mothership/chat/persisted-message'
+import { finalizeAssistantTurn } from '@/lib/mothership/chat/terminal-state'
+import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
+import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/headless'
+import {
+  acquirePendingChatStream,
+  cleanupAbortMarker,
+  getChatStreamLockOwners,
+  registerActiveStream,
+  releasePendingChatStream,
+  startAbortPoller,
+  unregisterActiveStream,
+} from '@/lib/mothership/request/session/abort'
+import type { OrchestratorResult } from '@/lib/mothership/request/types'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { SlackSearchAssistantStream } from '@/lib/slack-search/assistant-stream'
 import { deliverSlackSearchConnections } from '@/lib/slack-search/connections'
 import {
@@ -193,6 +196,7 @@ export async function runSlackSearchAssistant(
     const executionId = generateId()
     const run = await createRunSegment({
       executionId,
+      organizationId: installation.organizationId,
       chatId: chat.id,
       userId,
       streamId: messageId,
@@ -206,6 +210,10 @@ export async function runSlackSearchAssistant(
       channel: job.message.channelId,
       threadTs: slackSearchThreadTimestamp(job.message),
       slackUserId: job.message.userId,
+      integrationsUrl: new URL(
+        organizationRoutes(installation.organizationId).integrations,
+        getBaseUrl()
+      ).href,
       controller,
       registry: environmentContext.resolvedSecretTraceRegistry,
       beforeDelivery: checkAccess,
@@ -233,6 +241,13 @@ export async function runSlackSearchAssistant(
         organizationId: installation.organizationId,
         chatId: chat.id,
         mode: 'assistant',
+        workspaceContext: await loadCopilotSearchIntegrations({
+          userId,
+          organizationId: installation.organizationId,
+          chatId: chat.id,
+          messageId,
+          signal: controller.signal,
+        }),
         model: '',
       },
       { selectedModel: '' }

@@ -15,10 +15,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createWorkspaceFileContract,
   listWorkspaceFilesContract,
+  readWorkspaceFileContract,
   updateWorkspaceFileContentContract,
 } from '@/lib/api/contracts/workspace-files'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
+  useAddressedWorkspaceFileRecord,
   useCreateWorkspaceFile,
   useReloadWorkspaceFileContent,
   useUpdateWorkspaceFileContent,
@@ -714,5 +716,44 @@ describe('useWorkspaceFileContent while a superseded key is being re-resolved', 
     expect(getResult().error).not.toBeNull()
     resolveRecord()
     unmount()
+  })
+})
+
+describe('addressed file metadata fallback', () => {
+  it('uses the authenticated detail contract and keeps uploads out of inventory cache', async () => {
+    const file = {
+      id: 'upload-1',
+      workspaceId: 'ws-1',
+      vfsNamespace: 'uploads',
+      storageContext: 'workspace',
+    }
+    mockRequestJson.mockResolvedValue({ success: true, file })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    function Probe() {
+      const record = useAddressedWorkspaceFileRecord('ws-1', 'upload-1')
+      return <div>{record.data?.id}</div>
+    }
+    try {
+      await act(async () =>
+        root.render(
+          <QueryClientProvider client={client}>
+            <Probe />
+          </QueryClientProvider>
+        )
+      )
+      await vi.waitFor(() =>
+        expect(client.getQueryData(workspaceFilesKeys.record('ws-1', 'upload-1'))).toEqual(file)
+      )
+      expect(mockRequestJson).toHaveBeenCalledExactlyOnceWith(readWorkspaceFileContract, {
+        params: { id: 'ws-1', fileId: 'upload-1' },
+        signal: expect.any(AbortSignal),
+      })
+      expect(client.getQueryData(workspaceFilesKeys.list('ws-1'))).toBeUndefined()
+    } finally {
+      act(() => root.unmount())
+      client.clear()
+    }
   })
 })

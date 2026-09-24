@@ -509,6 +509,18 @@ describe('foldUsageBreakdown', () => {
     expect(foldUsageBreakdown(rows, 10, labelFor, 3).rows.map((r) => r.id)).toEqual(['a', 'b', 'c'])
   })
 
+  it('decides a tie at the cutoff by key, then orders the kept rows by label', () => {
+    const tied = [
+      { key: 'k3', cost: '1', events: 1 },
+      { key: 'k1', cost: '1', events: 1 },
+      { key: 'k2', cost: '1', events: 1 },
+    ]
+    const names: Record<string, string> = { k1: 'Zed', k2: 'Ada', k3: 'Bo' }
+    const fold = foldUsageBreakdown(tied, 3, (key) => names[key ?? ''] ?? '', 2)
+    expect(fold.rows.map((row) => row.label)).toEqual(['Ada', 'Zed'])
+    expect(fold.other.rowCount).toBe(1)
+  })
+
   it('computes share against the window total, not the visible subset', () => {
     // Sharing against the visible rows would make a truncated list read as 100%.
     const fold = foldUsageBreakdown(rows, 10, labelFor, 1)

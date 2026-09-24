@@ -1,3 +1,5 @@
+import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { tableSuccess } from '@/tools/table/response'
 import type { TableRowGetParams, TableRowResponse } from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -8,12 +10,7 @@ export const tableGetRowTool: InternalToolConfig<TableRowGetParams, TableRowResp
   version: '1.0.0',
 
   params: {
-    tableId: {
-      type: 'string',
-      required: true,
-      description: 'Table ID',
-      visibility: 'user-only',
-    },
+    tableId: TABLE_ID_PARAM,
     rowId: {
       type: 'string',
       required: true,
@@ -38,13 +35,10 @@ export const tableGetRowTool: InternalToolConfig<TableRowGetParams, TableRowResp
     const result = await response.json()
     const data = result.data || result
 
-    return {
-      success: true,
-      output: {
-        row: data.row,
-        message: data.message || 'Row retrieved successfully',
-      },
-    }
+    return tableSuccess({
+      row: data.row,
+      message: data.message || 'Row retrieved successfully',
+    })
   },
 
   outputs: {

@@ -1,5 +1,5 @@
-import type { Dirent } from 'node:fs'
-import { lstat, opendir, readFile, realpath, stat } from 'node:fs/promises'
+import { constants, type Dirent } from 'node:fs'
+import { type FileHandle, lstat, open, opendir, readFile, realpath, stat } from 'node:fs/promises'
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path'
 import type {
   LocalFilesystemData,
@@ -495,18 +495,7 @@ export class LocalFilesystemService {
       return false
     }
     const args = authorization.args
-
-    const expectedUriForPath = (path: unknown): string | null => {
-      if (typeof path !== 'string') return null
-      for (const mount of this.mounts.values()) {
-        const root = mountVfsRoot(mount)
-        if (path === root) return mount.uri
-        if (path.startsWith(`${root}/`)) {
-          return `${mount.uri}${path.slice(root.length + 1)}`
-        }
-      }
-      return null
-    }
+    const expectedUriForPath = (path: unknown): string | null => this.uriForVfsPath(path)
 
     switch (authorization.toolName) {
       case 'read': {
@@ -795,6 +784,72 @@ export class LocalFilesystemService {
     return { revealed: true }
   }
 
+  /**
+   * Resolves a granted `user-local/…` file the browser agent attaches to a page. It applies the
+   * same VFS mapping and realpath containment as reads and returns an open handle so later path
+   * replacements cannot redirect the upload. The caller owns and must close the handle, and must
+   * enforce the byte limit while reading because the file can grow after its initial size check.
+   * Rechecks containment and identity after opening; Node's path-based lookups cannot make
+   * ancestor resolution atomic.
+   */
+  async resolveGrantedFile(
+    vfsPath: string,
+    maxBytes: number
+  ): Promise<{ handle: FileHandle; name: string; size: number }> {
+    const uri = this.uriForVfsPath(vfsPath)
+    if (!uri) {
+      throw new LocalFilesystemError(
+        'MOUNT_NOT_FOUND',
+        'That local folder is not shared with Sim. Ask the user to select it again.'
+      )
+    }
+    const resolved = await this.resolveUri(uri)
+    const handle = await open(
+      resolved.realPath,
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK
+    )
+    try {
+      const metadata = await handle.stat()
+      if (!metadata.isFile()) {
+        throw new LocalFilesystemError('NOT_A_FILE', 'The local path is not a file.')
+      }
+      const verified = await this.resolveUri(uri)
+      const currentMetadata = await lstat(verified.realPath)
+      if (
+        verified.realPath !== resolved.realPath ||
+        !currentMetadata.isFile() ||
+        metadata.dev !== currentMetadata.dev ||
+        metadata.ino !== currentMetadata.ino
+      ) {
+        throw new LocalFilesystemError(
+          'ACCESS_DENIED',
+          'The local file changed while it was being opened. Try again.'
+        )
+      }
+      if (metadata.size > maxBytes) {
+        throw new LocalFilesystemError(
+          'FILE_TOO_LARGE',
+          `The local file exceeds the ${Math.floor(maxBytes / 1024 / 1024)} MB upload limit.`
+        )
+      }
+      return { handle, name: basename(resolved.realPath), size: metadata.size }
+    } catch (error) {
+      await handle.close()
+      throw error
+    }
+  }
+
+  /** Maps a `user-local/<name>--<id>/…` VFS path onto its granted mount's localfs URI. */
+  private uriForVfsPath(path: unknown): string | null {
+    if (typeof path !== 'string') return null
+    for (const mount of this.mounts.values()) {
+      const root = mountVfsRoot(mount)
+      if (path === root) return mount.uri
+      if (path.startsWith(`${root}/`)) return `${mount.uri}${path.slice(root.length + 1)}`
+    }
+    return null
+  }
+
   private parseUri(uri: string): { mount: GrantedMount; relativePath: string } {
     if (!uri.startsWith('localfs://')) {
       throw new LocalFilesystemError('INVALID_URI', 'The localfs URI is invalid.')
@@ -854,7 +909,7 @@ export class LocalFilesystemService {
         decoded === '.' ||
         decoded === '..' ||
         decoded.includes('/') ||
-        decoded.includes('\\') ||
+        (sep === '\\' && decoded.includes('\\')) ||
         decoded.includes('\0')
       ) {
         throw new LocalFilesystemError('INVALID_URI', 'The localfs URI is invalid.')

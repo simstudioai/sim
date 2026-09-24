@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { uploadSession } from '@sim/db/schema'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -16,7 +16,10 @@ import {
   ASSISTANT_IMAGE_MAX_BYTES,
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { createUploadSession, type UploadSessionRecord } from '@/lib/uploads/upload-session/service'
+import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
+import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 
 const organizationAttachmentOperation = defineOrganizationOperation({
   id: 'organization.assistant.attachments.use',
@@ -29,6 +32,7 @@ const MAX_ASSISTANT_IMAGE_PIXELS = 25_000_000
 
 export interface CreateOrganizationAssistantAttachmentInput {
   organizationId: string
+  requestMode?: 'agent' | 'assistant' | 'plan'
   name: string
   contentType: string
   size: number
@@ -46,6 +50,7 @@ export async function createOrganizationAssistantAttachment(
   )
   return createUploadSession({
     purpose: 'mothership_attachment',
+    requestMode: input.requestMode,
     principal,
     organizationId: context.organizationId,
     userId: context.userId,
@@ -65,13 +70,18 @@ export async function authorizeOrganizationAttachmentControl(
 }
 
 /** A bounded decode removes active content, metadata, and animation before preview or model use. */
-async function readImageBytes(key: string, contentType: string, signal?: AbortSignal) {
+async function readImageBytes(
+  key: string,
+  contentType: string,
+  signal?: AbortSignal,
+  maxBytes = ASSISTANT_IMAGE_MAX_BYTES
+) {
   if (!isAssistantImageType(contentType))
     throw new OrchestrationError('validation', 'Unsupported image type')
   const buffer = await downloadFile({
     key,
     context: 'mothership',
-    maxBytes: ASSISTANT_IMAGE_MAX_BYTES,
+    maxBytes: Math.min(maxBytes, ASSISTANT_IMAGE_MAX_BYTES),
     signal,
   })
   try {
@@ -88,8 +98,8 @@ async function readImageBytes(key: string, contentType: string, signal?: AbortSi
       .resize(1568, 1568, { fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 85 })
       .toBuffer()
-    if (normalized.length > ASSISTANT_IMAGE_MAX_BYTES)
-      throw new OrchestrationError('payload_too_large', 'Image exceeds the 5 MB limit')
+    if (normalized.length > Math.min(maxBytes, ASSISTANT_IMAGE_MAX_BYTES))
+      throw new OrchestrationError('payload_too_large', 'Image exceeds the read byte limit')
     return normalized
   } catch (cause) {
     if (cause instanceof OrchestrationError) throw cause
@@ -104,7 +114,8 @@ export async function finalizeOrganizationAssistantAttachment(
   session: UploadSessionRecord
 ) {
   await authorizeOrganizationAttachmentControl(principal, session)
-  await readImageBytes(session.finalKey, session.contentType)
+  if (organizationAttachmentBinding(session).requestMode === 'assistant')
+    await readImageBytes(session.finalKey, session.contentType)
   await authorizeOrganizationAttachmentControl(principal, session)
   return {
     path: `/api/files/serve/${getServeStoragePrefix()}/${encodeURIComponent(session.finalKey)}?context=mothership`,
@@ -115,15 +126,28 @@ export async function finalizeOrganizationAssistantAttachment(
   }
 }
 
-/** Resolves only completed images owned by the current user and their current organization. */
-export async function readOrganizationAssistantImage(input: {
+const organizationAttachmentReadOperation = defineOrganizationOperation({
+  id: 'organization.chat.attachments.read',
+  minimumRole: 'member',
+  capability: 'copilot.use',
+  principalKinds: ['session', 'organization_delegated'],
+  delegatedServices: ['copilot'],
+  delegationAudience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+})
+
+interface ReadOrganizationAttachmentInput {
   principal: Principal
   organizationId?: string
   key: string
   signal?: AbortSignal
-}) {
-  if (input.principal.kind !== 'session')
+}
+
+/** Resolve immutable upload ownership before metadata or bytes leave storage. */
+export async function authorizeOrganizationChatAttachment(input: ReadOrganizationAttachmentInput) {
+  if (input.principal.kind !== 'session' && input.principal.kind !== 'organization_delegated')
     throw new OrchestrationError('not_found', 'Attachment not found')
+  const userId = resolvePrincipalSubjectUserId(input.principal)
+  if (!userId) throw new OrchestrationError('not_found', 'Attachment not found')
   const keyParts = input.key.split('/')
   if (
     keyParts.length !== 5 ||
@@ -149,7 +173,7 @@ export async function readOrganizationAssistantImage(input: {
       and(
         eq(uploadSession.id, keyParts[3]),
         eq(uploadSession.finalKey, input.key),
-        eq(uploadSession.userId, input.principal.userId),
+        eq(uploadSession.userId, userId),
         eq(uploadSession.purpose, 'mothership_attachment'),
         eq(uploadSession.status, 'completed'),
         isNull(uploadSession.workspaceId)
@@ -159,14 +183,55 @@ export async function readOrganizationAssistantImage(input: {
   if (!session) throw new OrchestrationError('not_found', 'Attachment not found')
   const binding = organizationAttachmentBinding(session)
   if (
-    session.userId !== input.principal.userId ||
+    session.userId !== userId ||
     keyParts[1] !== binding.organizationId ||
     keyParts[2] !== binding.userId ||
     (input.organizationId && input.organizationId !== binding.organizationId)
   ) {
     throw new OrchestrationError('not_found', 'Attachment not found')
   }
-  await authorizeOrganizationOperation(input.principal, organizationAttachmentOperation, binding)
+  await authorizeOrganizationOperation(
+    input.principal,
+    organizationAttachmentReadOperation,
+    binding
+  )
+  return { session, binding }
+}
+
+/** Agent attachments retain their original file representation; Assistant images stay bounded. */
+export async function readOrganizationChatAttachment(
+  input: ReadOrganizationAttachmentInput & { maxBytes?: number }
+) {
+  const { session, binding } = await authorizeOrganizationChatAttachment(input)
+  const maxBytes = input.maxBytes ?? MAX_TEXT_EXTRACTION_BYTES
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_BUFFERED_TRANSFER_BYTES)
+    throw new OrchestrationError('validation', 'Invalid attachment byte limit')
+  if (session.fileSize > maxBytes)
+    throw new OrchestrationError('payload_too_large', 'Attachment exceeds the read byte limit')
+  const buffer =
+    binding.requestMode === 'assistant'
+      ? await readImageBytes(session.finalKey, session.contentType, input.signal, maxBytes)
+      : await downloadFile({
+          key: session.finalKey,
+          context: 'mothership',
+          maxBytes,
+          signal: input.signal,
+        })
+  return {
+    id: session.id,
+    key: session.finalKey,
+    name: session.fileName,
+    size: buffer.length,
+    contentType: binding.requestMode === 'assistant' ? 'image/webp' : session.contentType,
+    buffer,
+  }
+}
+
+/** Existing Assistant transport remains image-only, independently of Agent upload policy. */
+export async function readOrganizationAssistantImage(input: ReadOrganizationAttachmentInput) {
+  if (input.principal.kind !== 'session')
+    throw new OrchestrationError('not_found', 'Attachment not found')
+  const { session } = await authorizeOrganizationChatAttachment(input)
   if (session.fileSize > ASSISTANT_IMAGE_MAX_BYTES)
     throw new OrchestrationError('payload_too_large', 'Image exceeds the 5 MB limit')
   const buffer = await readImageBytes(session.finalKey, session.contentType, input.signal)

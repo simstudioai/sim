@@ -27,12 +27,7 @@ export const NATIVE_SURFACE_OCCLUSION_SELECTOR = '[data-native-surface-occlusion
 
 export type BrowserPanelSnapshotLayer = 'modal' | 'popover'
 
-export type BrowserPanelOverlay =
-  | 'credentials'
-  | 'downloads'
-  | 'resources'
-  | 'suggestions'
-  | 'toolbar'
+export type BrowserPanelOverlay = 'downloads' | 'resources' | 'suggestions' | 'toolbar'
 
 export interface BrowserPanelOverlayController {
   /** True when the renderer overlay owns the painted frame; false when fallback handled it. */

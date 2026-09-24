@@ -7,6 +7,8 @@ import {
   cn,
   disclosureChevronClass,
   OverflowText,
+  RowActions,
+  rowActionsGroupClass,
   toast,
 } from '@sim/emcn'
 import { ChevronRight, Folder, FolderOpen, Lock, MoreHorizontal } from '@sim/emcn/icons'
@@ -14,13 +16,10 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
-import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
+import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { generateSubfolderName } from '@/lib/workspaces/naming'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import {
-  SidebarRowAction,
-  SidebarRowActions,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
+import { SidebarRowAction } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
@@ -504,7 +503,7 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
         aria-label={`${folder.name} folder, ${isExpanded ? 'expanded' : 'collapsed'}`}
         className={cn(
           chipVariants({ active: isSelected || isContextMenuOpen, fullWidth: true }),
-          'group/sidebar-row',
+          rowActionsGroupClass,
           (isDragging || (isAnyDragActive && isSelected)) && 'opacity-50'
         )}
         onClick={handleFolderSelect}
@@ -550,7 +549,7 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
             >
               <OverflowText label={folder.name} className='flex-1 text-[var(--text-body)]' />
             </div>
-            <SidebarRowActions
+            <RowActions
               open={isContextMenuOpen}
               revealOnHover={!isAnyDragActive}
               indicator={
@@ -571,7 +570,7 @@ export const FolderItem = memo(function FolderItem({ workspaceId, folder }: Fold
               >
                 <MoreHorizontal className='size-[16px] text-[var(--text-icon)]' />
               </SidebarRowAction>
-            </SidebarRowActions>
+            </RowActions>
           </div>
         )}
       </div>

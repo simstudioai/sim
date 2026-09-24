@@ -339,11 +339,11 @@ function decodeCharacterReference(raw: string, code: number): string {
  * A false positive therefore does not merely pass text through untouched — it
  * deletes the bracketed span and flattens the document's line structure. Plain
  * text routinely contains angle brackets that are not markup: an email address
- * (`Reply from John <john@acme.com>`), a markdown autolink
+ * (`Reply from John <john@acme.com>`, or `<a@acme.com>`, whose name is a tag's), a markdown autolink
  * (`<https://acme.com>`), or a placeholder (`<redacted>`).
  */
 const HTML_TAG_PATTERN =
-  /<\/?(?:p|div|br|hr|ul|ol|li|h[1-6]|table|thead|tbody|tr|td|th|span|strong|em|b|i|u|a|code|pre|blockquote|img|figure)\b[^>]*>/i
+  /<\/?(?:p|div|br|hr|ul|ol|li|h[1-6]|table|thead|tbody|tr|td|th|span|strong|em|b|i|u|a|code|pre|blockquote|img|figure)(?=[\s/>])[^>]*>/i
 
 /**
  * Reports whether a value carries real HTML markup and is therefore worth routing
@@ -362,15 +362,25 @@ export function looksLikeHtml(value: string): boolean {
  * punctuation as numeric references, which previously reached the index verbatim.
  */
 export function htmlToPlainText(html: string): string {
-  const text = html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(HTML_ENTITY_PATTERN, (raw: string, hex?: string, decimal?: string, named?: string) => {
+  return decodeHtmlEntities(html.replace(/<[^>]*>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * Decodes HTML character references without touching markup or whitespace. Use for text a
+ * provider HTML-escapes but does not mark up, such as Gmail message snippets.
+ */
+export function decodeHtmlEntities(text: string): string {
+  return text.replace(
+    HTML_ENTITY_PATTERN,
+    (raw: string, hex?: string, decimal?: string, named?: string) => {
       if (named !== undefined) return NAMED_ENTITIES[named] ?? raw
       if (hex !== undefined) return decodeCharacterReference(raw, Number.parseInt(hex, 16))
       if (decimal !== undefined) return decodeCharacterReference(raw, Number.parseInt(decimal, 10))
       return raw
-    })
-  return text.replace(/\s+/g, ' ').trim()
+    }
+  )
 }
 
 /**

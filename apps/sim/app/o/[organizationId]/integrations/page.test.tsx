@@ -98,3 +98,25 @@ describe('integrations page Slack context', () => {
     expect(mocks.context).not.toHaveBeenCalled()
   })
 })
+
+it('preserves a live Slack reconnect chip through navigation and login without an indexed source', async () => {
+  const query = {
+    connectorType: 'slack',
+    connectionMode: 'live',
+    optionId: 'slack-option',
+    provider: 'slack',
+    credentialId: 'own-account',
+  }
+  const selected = { ...props, searchParams: Promise.resolve(query) }
+  const page = await OrganizationIntegrationsPage(selected)
+  expect(page.props.connectionRequest).toEqual({
+    userId: 'viewer',
+    target: { type: 'link', ...query },
+  })
+  authMockFns.mockGetSession.mockResolvedValue(null)
+  await expect(OrganizationIntegrationsPage(selected)).rejects.toThrow('Redirect')
+  const redirect = new URL(mocks.redirect.mock.calls[0][0], 'https://sim.test')
+  const callback = new URL(redirect.searchParams.get('callbackUrl')!, 'https://sim.test')
+  for (const [key, value] of Object.entries(query))
+    expect(callback.searchParams.get(key)).toBe(value)
+})

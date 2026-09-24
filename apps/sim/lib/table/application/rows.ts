@@ -8,17 +8,18 @@ import {
 import { db } from '@sim/db'
 import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { isPlainRecord } from '@sim/utils/object'
+import { isPlainRecord, toRecord } from '@sim/utils/object'
 import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isPrivateSecretProvenanceScopeCompatible } from '@/lib/execution/durable-secret-provenance'
 import type {
   BulkDeleteByIdsResult,
   BulkOperationResult,
+  EnrichmentRunDetail,
   Filter,
   ReplaceRowsResult,
   RowData,
+  RowExecutionMetadata,
   RowExecutions,
   Sort,
   SortSpec,
@@ -27,6 +28,7 @@ import type {
   TableRow,
   TableRowSecretProvenanceWrite,
   TableRowsCursor,
+  WorkflowGroup,
 } from '@/lib/table'
 import {
   batchInsertRows,
@@ -54,6 +56,10 @@ import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized
 import { resolveActiveTableContext } from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
 import {
+  hasTableRowDeliveryObserver,
+  reportTableRowDelivery,
+} from '@/lib/table/application/row-delivery-observer'
+import {
   resolveRowWriteProvenance,
   type TableRowProvenanceEnvelope,
 } from '@/lib/table/application/row-secret-provenance'
@@ -71,6 +77,10 @@ import { columnTypeOf } from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { signalTableRowsChanged, signalTableRowsChangedByActor } from '@/lib/table/events'
 import { CSV_MAX_BATCH_SIZE } from '@/lib/table/import'
+import {
+  getTableQueryAvailability,
+  TABLE_QUERY_UNAVAILABLE_REASON,
+} from '@/lib/table/query-availability'
 import { isTablePredicate, predicateToFilter } from '@/lib/table/query-builder/converters'
 import {
   validatePredicate,
@@ -105,7 +115,7 @@ export class TableRowsValidationError extends OrchestrationError {
 
 export class TableV2FeatureDisabledError extends OrchestrationError {
   constructor() {
-    super('forbidden', 'The v2 table query API is not enabled for this workspace')
+    super('forbidden', TABLE_QUERY_UNAVAILABLE_REASON)
     this.name = 'TableV2FeatureDisabledError'
   }
 }
@@ -153,14 +163,66 @@ interface TableResult {
 
 type TableRowsProvenance = ReturnType<TableRowProvenanceReader['exportProvenance']>
 
+/** Provenance is read when the caller asked for it or an internal transport observes delivery. */
 function createAuthorizedRowsProvenanceReader(
   workspaceId: string,
   attributedUserId: string,
-  include: boolean | undefined
+  include?: boolean
 ): TableRowProvenanceReader | undefined {
-  return include
+  return include || hasTableRowDeliveryObserver()
     ? new TableRowProvenanceReader({ userId: attributedUserId, workspaceId })
     : undefined
+}
+
+/**
+ * Reports the provenance of the rows a use case is about to return to an observing
+ * transport, and hands it back only when the caller itself asked for it.
+ */
+async function deliverRowsProvenance(
+  reader: TableRowProvenanceReader | undefined,
+  rows: readonly { data: RowData }[],
+  options: {
+    /** The caller itself asked for the provenance back. */
+    include?: boolean
+    /** The result also carries run-state or enrichment error text, which has no provenance. */
+    unprovenancedErrorText?: boolean
+  } = {}
+): Promise<TableRowsProvenance | undefined> {
+  if (!reader) return undefined
+  const provenance = reader.exportProvenance()
+  await reportTableRowDelivery(
+    provenance,
+    rows.map((row) => row.data),
+    { unprovenancedErrorText: options.unprovenancedErrorText ?? false }
+  )
+  return options.include ? provenance : undefined
+}
+
+function isNonEmptyText(value: unknown): boolean {
+  return typeof value === 'string' && value.length > 0
+}
+
+/** Whether one group's run state carries error text: its run `error` or any `blockErrors` entry. */
+function executionHasErrorText(execution: RowExecutionMetadata): boolean {
+  return (
+    isNonEmptyText(execution.error) ||
+    Object.values(execution.blockErrors ?? {}).some(isNonEmptyText)
+  )
+}
+
+/** Whether any group in a row's run state carries error text. */
+function runStateHasErrorText(executions: RowExecutions): boolean {
+  return Object.values(executions).some(executionHasErrorText)
+}
+
+/**
+ * Whether an enrichment cascade carries provider error text. The blob is schemaless JSONB,
+ * so it is read as defensively as the v2 presenter projects it.
+ */
+function enrichmentDetailHasErrorText(detail: EnrichmentRunDetail | null): boolean {
+  const providers: unknown = detail?.providers
+  if (!Array.isArray(providers)) return false
+  return providers.some((provider) => isNonEmptyText(toRecord(provider).error))
 }
 
 function requestId(input: TableScopedInput): string {
@@ -422,8 +484,12 @@ export interface ListTableRowsResult extends TableResult {
 export const listTableRows = defineAuthorizedTableUseCase({
   operation: tableOperations.listRows,
   resolveContext: ({ input }: { input: ListTableRowsInput }) => resolveActiveTableContext(input),
-  async execute({ input, context }): Promise<ListTableRowsResult> {
+  async execute({ principal, input, context }): Promise<ListTableRowsResult> {
     requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_QUERY_LIMIT, 'Limit')
+    const readProvenance = createAuthorizedRowsProvenanceReader(
+      context.workspaceId,
+      actorUserId(principal, context.billedAccountUserId)
+    )
     try {
       const cursor = input.cursor ? decodeCursor(input.cursor) : undefined
       if (cursor) assertCursorQueryBinding(cursor, {})
@@ -437,8 +503,14 @@ export const listTableRows = defineAuthorizedTableUseCase({
           withExecutions: input.includeRunState ?? false,
           runStateBudgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES,
         },
-        requestId(input)
+        requestId(input),
+        readProvenance
       )
+      await deliverRowsProvenance(readProvenance, result.rows, {
+        unprovenancedErrorText:
+          input.includeRunState === true &&
+          result.rows.some((row) => runStateHasErrorText(row.executions)),
+      })
       return {
         table: context.table,
         rows: result.rows,
@@ -490,13 +562,15 @@ export const queryTableRows = defineAuthorizedTableUseCase({
       if (input.requireV2Feature) {
         const orgId = await getWorkspaceOrganizationId(context.workspaceId)
         if (
-          !(await isFeatureEnabled('tables-v2-api', {
-            // An actorless run has no user to match a per-user rule against, and a
-            // missing one resolves the admin clause to `false` without a query — so
-            // the gate only ever narrows here, never widens.
-            userId: resolvePrincipalSubjectUserId(principal),
-            orgId,
-          }))
+          !(
+            await getTableQueryAvailability({
+              // An actorless run has no user to match a per-user rule against, and a
+              // missing one resolves the admin clause to `false` without a query — so
+              // the gate only ever narrows here, never widens.
+              userId: resolvePrincipalSubjectUserId(principal),
+              orgId,
+            })
+          ).enabled
         ) {
           throw new TableV2FeatureDisabledError()
         }
@@ -580,7 +654,12 @@ export const queryTableRows = defineAuthorizedTableUseCase({
       return {
         table: context.table,
         ...result,
-        secretProvenance: readProvenance?.exportProvenance(),
+        secretProvenance: await deliverRowsProvenance(readProvenance, result.rows, {
+          include: input.includePersistedSecretProvenance,
+          unprovenancedErrorText:
+            input.includeRunState === true &&
+            result.rows.some((row) => runStateHasErrorText(row.executions)),
+        }),
       }
     } catch (error) {
       rethrowQueryValidation(error)
@@ -666,7 +745,10 @@ export const readTableRow = defineAuthorizedTableUseCase({
       table: context.table,
       row,
       ...(runState ? { runState } : {}),
-      secretProvenance: readProvenance?.exportProvenance(),
+      secretProvenance: await deliverRowsProvenance(readProvenance, [row], {
+        include: input.includePersistedSecretProvenance,
+        unprovenancedErrorText: runState !== undefined && runStateHasErrorText(runState),
+      }),
     }
   },
 })
@@ -677,15 +759,23 @@ export interface ReadTableRowEnrichmentInput extends TableScopedInput {
 }
 
 export interface ReadTableRowEnrichmentResult extends TableResult {
+  /** The stored row, whose cells hold whatever the group's runs have written. */
+  row: TableRowSummary
+  /** The group asked about, resolved from the table schema. */
+  group: WorkflowGroup
+  /** The group's most recent run on this row, or null when it has never run. */
+  runState: RowExecutionMetadata | null
+  /** The enrichment cascade breakdown, or null when none was recorded. */
   detail: Awaited<ReturnType<typeof loadEnrichmentDetail>>
 }
 
 /**
- * The enrichment cascade breakdown — provider outcomes, cost, timing — for one
- * cell. Deliberately kept off the hot grid read and fetched on demand by the
- * details panel; `null` for a cell with no recorded run, or a run predating the
- * feature. The row id and group id are validated first so an unknown id 404s
- * instead of being indistinguishable from "no enrichment run yet".
+ * One group's outcome on one row: its run state, the row it wrote into, and
+ * the enrichment cascade breakdown — provider outcomes, cost, timing — kept off
+ * the hot grid read and fetched on demand. The row id and group id are
+ * validated first so an unknown id 404s instead of being indistinguishable
+ * from "no run yet"; a row that exists always answers, with `runState: null`
+ * when the group has never run for it.
  *
  * Shares {@link tableOperations.readRow}: this is a projection of the same row,
  * under the same role, so it is not a second semantic operation.
@@ -694,18 +784,40 @@ export const readTableRowEnrichmentDetail = defineAuthorizedTableUseCase({
   operation: tableOperations.readRow,
   resolveContext: ({ input }: { input: ReadTableRowEnrichmentInput }) =>
     resolveActiveTableContext(input),
-  async execute({ input, context }): Promise<ReadTableRowEnrichmentResult> {
-    const rowExists = await getRowSummaryById(context.tableId, input.rowId, context.workspaceId)
-    if (!rowExists) throw new OrchestrationError('not_found', 'Row not found')
-    const groupExists = (context.table.schema.workflowGroups ?? []).some(
-      (group) => group.id === input.groupId
+  async execute({ principal, input, context }): Promise<ReadTableRowEnrichmentResult> {
+    const readProvenance = createAuthorizedRowsProvenanceReader(
+      context.workspaceId,
+      actorUserId(principal, context.billedAccountUserId)
     )
-    if (!groupExists) {
+    const row = await getRowSummaryById(
+      context.tableId,
+      input.rowId,
+      context.workspaceId,
+      readProvenance
+    )
+    if (!row) throw new OrchestrationError('not_found', 'Row not found')
+    const group = (context.table.schema.workflowGroups ?? []).find(
+      (candidate) => candidate.id === input.groupId
+    )
+    if (!group) {
       throw new OrchestrationError('not_found', 'Workflow group not found')
     }
+    const [executions, detail] = await Promise.all([
+      loadExecutionsForRow(db, input.rowId, { budgetBytes: TABLE_LIMITS.MAX_ROW_RUN_STATE_BYTES }),
+      loadEnrichmentDetail(db, context.tableId, input.rowId, input.groupId),
+    ])
+    const runState = executions[input.groupId] ?? null
+    await deliverRowsProvenance(readProvenance, [row], {
+      unprovenancedErrorText:
+        (runState !== null && executionHasErrorText(runState)) ||
+        enrichmentDetailHasErrorText(detail),
+    })
     return {
       table: context.table,
-      detail: await loadEnrichmentDetail(db, context.tableId, input.rowId, input.groupId),
+      row,
+      group,
+      runState,
+      detail,
     }
   },
 })
@@ -803,7 +915,9 @@ export const createTableRows = defineAuthorizedTableUseCase({
         kind: 'single',
         table: context.table,
         row,
-        secretProvenance: readProvenance?.exportProvenance(),
+        secretProvenance: await deliverRowsProvenance(readProvenance, [row], {
+          include: input.includePersistedSecretProvenance,
+        }),
       }
     }
     if (input.rows.length < 1 || input.rows.length > TABLE_LIMITS.MAX_BATCH_INSERT_SIZE) {
@@ -856,7 +970,9 @@ export const createTableRows = defineAuthorizedTableUseCase({
       kind: 'batch',
       table: context.table,
       rows: created,
-      secretProvenance: readProvenance?.exportProvenance(),
+      secretProvenance: await deliverRowsProvenance(readProvenance, created, {
+        include: input.includePersistedSecretProvenance,
+      }),
     }
   },
   afterSuccess: ({ context, input, result }) => {
@@ -1161,7 +1277,9 @@ export const updateTableRow = defineAuthorizedTableUseCase({
       table: context.table,
       row,
       changed: Object.keys(data).length > 0,
-      secretProvenance: readProvenance?.exportProvenance(),
+      secretProvenance: await deliverRowsProvenance(readProvenance, [row], {
+        include: input.includePersistedSecretProvenance,
+      }),
     }
   },
   afterSuccess: ({ context, input, result }) => {
@@ -1484,7 +1602,9 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
       table: context.table,
       row: result.row,
       operation: result.operation,
-      secretProvenance: readProvenance?.exportProvenance(),
+      secretProvenance: await deliverRowsProvenance(readProvenance, [result.row], {
+        include: input.includePersistedSecretProvenance,
+      }),
     }
   },
   afterSuccess: ({ context }) => signalTableRowsChanged(context.tableId),

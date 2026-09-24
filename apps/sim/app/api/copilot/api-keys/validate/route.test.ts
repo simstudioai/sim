@@ -125,20 +125,20 @@ vi.mock('@/lib/billing/core/usage-log', () => ({
   deriveBillingContext: mockDeriveBillingContext,
 }))
 
-vi.mock('@/lib/copilot/application/authorize-chat-callback', () => ({
+vi.mock('@/lib/mothership/application/authorize-chat-callback', () => ({
   authorizeCopilotChatCallback: mockAuthorizeCallback,
   checkCopilotContinuationBilling: mockCheckContinuationBilling,
 }))
 
-vi.mock('@/lib/copilot/chat/organization-chats', () => ({
+vi.mock('@/lib/mothership/chat/organization-chats', () => ({
   authorizeOrganizationChatDelegation: { execute: mockAuthorizeOrganizationChat },
 }))
 
-vi.mock('@/lib/copilot/request/http', () => ({
+vi.mock('@/lib/mothership/request/http', () => ({
   checkInternalApiKey: mockCheckInternalApiKey,
 }))
 
-vi.mock('@/lib/copilot/request/otel', () => ({
+vi.mock('@/lib/mothership/request/otel', () => ({
   withIncomingGoSpan: (
     _headers: unknown,
     _span: unknown,

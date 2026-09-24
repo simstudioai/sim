@@ -8,6 +8,7 @@ import {
   startSlackAgentStream,
   stopSlackAgentStream,
 } from '@/lib/webhooks/slack-agent-api'
+import { SlackDeliveryError } from '@/lib/webhooks/slack-delivery-error'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -107,6 +108,39 @@ describe('Slack agent API transport', () => {
     })
   })
 
+  it('accepts an acknowledgment larger than 64 KB without losing the delivery receipt', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            ok: true,
+            message: { text: 'x'.repeat(150_000) },
+          })
+        )
+      )
+    )
+    await expect(
+      appendSlackAgentStream('token', 'C1', '1.2', [{ type: 'markdown_text', text: 'last part' }])
+    ).resolves.toBeUndefined()
+  })
+
+  it.each([
+    () => new Response('not json', { status: 200 }),
+    () => new Response(JSON.stringify({ ok: true, text: 'x'.repeat(4 * 1024 * 1024) })),
+  ])('classifies an unreadable acknowledgment as uncertain without a retry', async (response) => {
+    const fetchMock = vi.fn().mockResolvedValue(response())
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(
+      appendSlackAgentStream('token', 'C1', '1.2', [{ type: 'markdown_text', text: 'answer' }])
+    ).rejects.toMatchObject({
+      method: 'chat.appendStream',
+      outcome: 'uncertain',
+      code: 'unreadable_acknowledgment',
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('sets the human initiator when creating a processing session', async () => {
     const fetchMock = vi
       .fn()
@@ -149,6 +183,26 @@ describe('Slack agent API transport', () => {
         'processing'
       )
     ).rejects.toThrow('missing_scope')
+  })
+
+  it('exposes an explicit size rejection to the delivery controller without a transport retry', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ ok: false, error: 'msg_too_long' }), { status: 200 })
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    const appended = appendSlackAgentStream('token', 'C1', '1.2', [
+      { type: 'markdown_text', text: 'undelivered suffix' },
+    ])
+    await expect(appended).rejects.toBeInstanceOf(SlackDeliveryError)
+    await expect(appended).rejects.toMatchObject({
+      method: 'chat.appendStream',
+      outcome: 'rejected',
+      code: 'msg_too_long',
+      httpStatus: 200,
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('fails fast when Slack does not recognize the stop-event subscription', async () => {

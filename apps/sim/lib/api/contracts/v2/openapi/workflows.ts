@@ -115,6 +115,7 @@ const EMPTY_LINT_EXAMPLE = {
   invalidConnectionTargets: [],
   fieldIssues: [],
   unresolvedReferences: [],
+  tableFieldIssues: [],
   notes: [],
 } as const
 
@@ -182,6 +183,7 @@ const RUN_RESULT_EXAMPLE = {
     workflowId: WORKFLOW_ID,
     status: 'completed',
     output: { result: 'Ticket routed to Support' },
+    blockOutputs: null,
     error: null,
     startedAt: '2026-08-09T18:04:10.000Z',
     endedAt: '2026-08-09T18:04:11.000Z',
@@ -334,7 +336,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.replaceState,
       operationId: 'replaceWorkflowState',
       summary: 'Replace Workflow State',
-      description: `Replace the draft graph atomically; concurrent writes are last-write-wins. Recompute containers from blocks and preserve omitted variables. Foreign IDs return \`409\`; lint is advisory. The live deployment is unchanged. \`dryRun=true\` validates without saving, auditing, or notifying; \`needsRedeployment\` describes the pre-write state. ${WORKSPACE_API_KEY_DENIED}`,
+      description: `Atomically replace the draft graph; row-locked concurrent writes are last-write-wins. Block, edge, or subflow IDs owned by another workflow return \`409\`. Deployments remain immutable snapshots; schedules and webhook registrations are unchanged. Deploy to publish edits. Lint is advisory. Use \`dryRun=true\` to validate without writing. ${WORKSPACE_API_KEY_DENIED}`,
       errors: RESOURCE_MUTATION_ERRORS,
       success: jsonSuccess('The draft graph was replaced.'),
     }),
@@ -416,6 +418,7 @@ const declaredRoutes = [
                   },
                 ],
                 unresolvedReferences: [],
+                tableFieldIssues: [],
                 notes: [],
               },
               warnings: [],
@@ -760,8 +763,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.read,
       operationId: 'getWorkflowDeployment',
       summary: 'Get Workflow Deployment',
-      description:
-        'Get the live version, latest deployment attempt, readiness, draft changes (`needsRedeployment`), and public API access. With `isPublicApi: true`, anyone with the execution URL can run the workflow and consume billed usage without an API key. Hosted chat is managed separately.',
+      description: `Read live status, deployment time, latest attempt readiness and failure, draft divergence (\`needsRedeployment\`), anonymous execution access (\`isPublicApi\`), and registered webhook URLs. This read exposes public API access and webhook URLs; see their field descriptions for security and delivery details.\n\n${WORKFLOW_DEPLOYMENT_VS_CHAT}`,
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('The current deployment state.'),
     }),
@@ -799,6 +801,13 @@ const declaredRoutes = [
                 activatedAt: '2026-06-12T10:30:00.000Z',
                 error: null,
               },
+              webhooks: [
+                {
+                  blockId: 'blk_01J8ZK3QW4M6X2R9T7B5C0V3',
+                  provider: 'generic',
+                  url: 'https://www.sim.ai/api/webhooks/trigger/leads',
+                },
+              ],
             },
           },
         ]
@@ -901,6 +910,7 @@ const declaredRoutes = [
               warnings: [],
               activeDeployment: null,
               latestDeploymentAttempt: null,
+              archivedMcpTools: [],
             },
           },
         ]
@@ -959,17 +969,12 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.export,
       operationId: 'exportWorkflow',
       summary: 'Export Workflow',
-      description: `Export a portable, secret-sanitized workflow; Set includeReferences=true to include non-secret source reference identities for mapped import; default exports keep their existing sanitized shape. Exporting records an audit event. ${HEAD_MIRRORS_GET} ${FOLDER_TREE_TOO_LARGE}`,
+      description: `Export a portable, secret-sanitized workflow. Use includeReferences=true for non-secret source identities and field occurrences used by mapped imports. Use includeWorkspaceBindings=true to retain non-secret workspace bindings for a same-workspace round trip; default exports clear those bindings. Credentials and secrets are cleared either way. Exporting records an audit event. ${HEAD_MIRRORS_GET} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The workflow export payload.'),
     }),
     {
-      query: documentedSchema(
-        v2ExportWorkflowContract.query,
-        'ExportWorkflowQuery',
-        'Export workflow query',
-        'Export reference options.'
-      ),
+      query: v2ExportWorkflowContract.query,
       params: v2ExportWorkflowContract.params,
       response: documentedSchema(
         v2ExportWorkflowContract.response.schema,
@@ -1028,6 +1033,12 @@ const declaredRoutes = [
               folderPath: '/Operations',
               createdAt: WORKFLOW_EXAMPLE.createdAt,
               updatedAt: WORKFLOW_EXAMPLE.updatedAt,
+              blocks: [
+                { id: 'block_start', type: 'starter', name: 'Start' },
+                { id: 'block_triage', type: 'agent', name: 'Triage' },
+                { id: 'block_reply', type: 'response', name: 'Reply' },
+              ],
+              warnings: ['Triage: knowledgeBaseId was stripped by export; set it before running'],
             },
           },
         ]
@@ -1036,6 +1047,7 @@ const declaredRoutes = [
   ),
   defineOpenApiRoute(
     v2ListChatDeploymentsContract,
+
     workflowOperation({
       applicationOperation: chatDeploymentOperations.list,
       operationId: 'listChatDeployments',
@@ -1311,7 +1323,7 @@ const declaredRoutes = [
       operationId: 'cancelRunV2',
       summary: 'Cancel Workflow Run',
       description:
-        'Request cancellation of a running, queued, or paused workflow run. Terminal runs return successfully without changes. A table workflow-group run returns `409` if its cell can no longer accept cancellation.',
+        'Request cancellation of a running, queued, or paused workflow run. Cancelling a run already in a terminal state is a `200` no-op answered with `success: false` and an `already_*` reason. A run produced by a table workflow group is a `409` when its cell can no longer accept the cancellation.',
       errors: RESOURCE_CONFLICT_ERRORS,
       success: jsonSuccess('The cancellation outcome.'),
     }),

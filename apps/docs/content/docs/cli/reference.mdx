@@ -357,7 +357,9 @@ sim blocks list [options]
 | `--search <value>` | No | Case-insensitive substring match against the block id, name, and description. |
 | `--category <value>` | No | Restrict to one toolbar category. Accepted values: `blocks`, `tools`, `triggers`. |
 | `--capability <value>` | No | Restrict to blocks that can start a workflow — the `triggers` category, blocks declaring `triggerAllowed`, and blocks with trigger-mode fields. Accepted values: `trigger`. |
-| `--source <value>` | No | Restrict to built-in blocks or this workspace's deployed custom blocks. Accepted values: `builtin`, `custom`. |
+| `--source <value>` | No | Restrict to shipped blocks or to this workspace’s deployed custom blocks. Accepted values: `builtin`, `custom`. |
+| `--include-sunset` | No | Include `legacy` and `deprecated` blocks. Off by default: a sunset block keeps executing where it is already placed, but it is not offered for new authoring. Each returned entry carries `sunset.replacedBy`, the block to build with instead. |
+| `--no-include-sunset` | No | Send --include-sunset as false. |
 | `--sort-by <value>` | No | Field used to sort the result. Sorting by `name` is case-sensitive and follows the storage collation, so do not rely on a case-insensitive order. Accepted values: `id`, `name`, `category`. |
 | `--sort-order <value>` | No | Sort direction. Accepted values: `asc`, `desc`. |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
@@ -406,6 +408,9 @@ sim connector-types list [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--search <value>` | No | Case-insensitive substring match against the connector name. |
+| `--detail <value>` | No | Projection of each item. `summary` (the default) carries the identifier, name, description, and auth mode; `full` adds the version, the complete auth settings, the `sourceConfig` field schema, incremental-sync support, and tag definitions. Accepted values: `summary`, `full`. |
+| `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
+| `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
 
 </CommandTable>
 
@@ -742,7 +747,7 @@ sim files batch-delete [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--file-ids <value...>` | Yes | File identifiers to update. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--file-ids <value...>` | Yes | File identifiers to delete. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
@@ -1180,7 +1185,7 @@ sim files share set <fileId> [options]
 | --- | --- | --- |
 | `--is-active <true\|false>` | Yes | Whether the share should resolve. Disabling preserves the token and the whole access configuration, so re-enabling restores the share as it was; enabling rewrites the credentials the resulting mode does not use. Accepted values: `true`, `false`. |
 | `--auth-type <value>` | No | How access to the share is gated. The stored mode is kept when omitted. Enabling `public` clears the stored password and empties `allowedEmails`; `password` empties `allowedEmails`; `email` and `sso` clear the stored password. Accepted values: `public`, `password`, `email`, `sso`. |
-| `--password <value>` | No | Password for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. |
+| `--password <value>` | No | Password of 15 to 1024 characters for a password-gated share. Kept when omitted; enabling `password` with neither a supplied nor a stored password is a 400. Taken literally, except that a request from the Sim agent resolves a whole-value `&#123;&#123;ENV_VAR&#125;&#125;` reference to that variable before the rules apply. |
 | `--allowed-emails <value...>` | No | Allowed addresses or `@domain` patterns for email and SSO shares. Kept when omitted; enabling `email` or `sso` with an empty resulting list is a 400. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 
 </CommandTable>
@@ -1245,7 +1250,7 @@ sim files read <fileId> [options]
 
 | Argument | Required | Description |
 | --- | --- | --- |
-| `fileId` | Yes | File identifier. |
+| `fileId` | Yes | File identifier, or the file’s VFS path: `files/&lt;folder&gt;/&lt;name&gt;`, or `uploads/&lt;name&gt;` for a Chat upload. |
 
 </CommandTable>
 
@@ -2157,8 +2162,8 @@ sim knowledge connectors create <knowledgeBaseId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--connector-type <value>` | Yes | Registered connector type. |
-| `--credential-id <value>` | No | OAuth credential identifier for connectors that require OAuth. |
-| `--api-key <value>` | No | Write-only API key for connectors that use API-key authentication. |
+| `--credential-id <value>` | No | OAuth credential identifier for connector types whose `auth.mode` is `oauth` (see connector types); omit it for `apiKey` connectors. |
+| `--api-key <value>` | No | Write-only API key for connector types whose `auth.mode` is `apiKey` (see connector types), or a personal access token for an OAuth connector that also accepts one, such as GitHub. Send it instead of `credentialId`. Pass a raw key, or a secret reference written as the whole value `&#123;&#123;SECRET_NAME&#125;&#125;`, which the server resolves; `$SECRET_NAME` is not a reference. |
 | `--source-config <json\|@file>` | Yes | Connector-specific source selection and filtering configuration. (JSON, or @path / @- to read a file or stdin). |
 | `--sync-interval-minutes <value>` | No | Scheduled synchronization interval in minutes; zero disables scheduling. |
 
@@ -2748,9 +2753,12 @@ sim logs stats [options]
 | `--folder <value...>` | No | Folder path as shown in the app; the leading / is optional (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--trigger <value...>` | No | Comma-separated trigger types to include. An empty entry is rejected. The vocabulary is open, so an unrecognized member selects no runs; the literal `all` disables this filter. (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--level <value>` | No | Severity level to include. Accepted values: `info`, `error`. |
+| `--include-handled-errors` | No | Whether runs with a handled block error are counted as `handledErrorRuns`, and whether `level=error` also selects them. Off by default: counting them scans each run’s stored trace. |
+| `--no-include-handled-errors` | No | Send --include-handled-errors as false. |
 | `--start-date <value>` | No | Only include runs started at or after this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
 | `--end-date <value>` | No | Only include runs started at or before this UTC ISO 8601 timestamp, e.g. `2026-08-06T00:00:00Z`. A date without a time, or a timestamp carrying a UTC offset instead of `Z`, is rejected, as is year `0000`, which names no storable instant. |
-| `--segment-count <value>` | No | Number of time buckets, up to 500. Exactly this many are returned, each at least one minute wide. Short windows extend past the requested end and include empty trailing buckets. |
+| `--segment-count <value>` | No | Number of equal time buckets to divide the window into, from 1 to 500. It is the ceiling on how many buckets a series carries: with `includeEmpty=true` exactly this many are returned, otherwise only the buckets holding at least one run. Buckets are never narrower than one minute, so on a short window the series extends past the end of the window rather than being compressed, and the trailing buckets are empty. |
+| `--include-empty <value>` | No | Whether buckets with no runs are included in every series. Off by default, so each series carries only the buckets that hold at least one run; set it to publish exactly `segmentCount` buckets per series, empty ones included. The listed spellings are the whole accepted vocabulary and are case-sensitive; any other value is rejected. Accepted values: `true`, `1`, `yes`, `on`, `y`, `enabled`, `false`, `0`, `no`, `off`, `n`, `disabled`. |
 
 </CommandTable>
 
@@ -2783,6 +2791,8 @@ sim logs list [options]
 | `--include-final-output` | No | Include final output in JSON or YAML output (implies full detail). |
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `100`. |
 | `--cursor <value>` | No | Continue from nextCursor returned by a previous result. |
+| `--include-handled-errors` | No | Whether `level=error` also selects runs that finished at `info` after a block error was recovered by an error path. Off by default: such a run succeeded, so it is an error only to a caller auditing error handling. Every row reports `hasHandledErrors` whether or not this is set. Job runs carry no block trace, so the flag never widens that branch. |
+| `--no-include-handled-errors` | No | Send --include-handled-errors as false. |
 | `--status <value>` | No | Comma-separated execution statuses to include, from `pending` \| `running` \| `paused` \| `redacting` \| `completed` \| `failed` \| `cancelled`. An empty entry is rejected. ANDed with `level`, which reports severity rather than lifecycle. |
 | `--workflow-name <value>` | No | Case-insensitive substring match against the run's workflow name. Runs whose workflow has been deleted match nothing, because the name is no longer joinable. |
 | `--include-job-runs` | No | Include Chat and Sim-agent jobs alongside workflow runs. Jobs use `kind: "job"` and have no workflow or cost ledger. Workflow, folder, model, or status filters exclude jobs. This option is valid only when sorting by `startedAt`. |
@@ -4461,7 +4471,7 @@ sim tables groups create <tableId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--group <json\|@file>` | Yes | Workflow or enrichment producer definition. (JSON, or @path / @- to read a file or stdin). |
-| `--output-columns <json\|@file>` | Yes | Columns created for producer outputs. (JSON, or @path / @- to read a file or stdin). |
+| `--output-columns <json\|@file>` | No | Columns to create for producer outputs. An entry naming a column the table already has attaches that column to the group instead of creating it (its `type` must match), and an output whose column already exists may omit its entry entirely — so `[]` attaches existing columns only. (JSON, or @path / @- to read a file or stdin). |
 | `--auto-run` | No | Whether to schedule existing rows after group creation. |
 | `--no-auto-run` | No | Send --auto-run as false. |
 
@@ -5005,7 +5015,7 @@ sim tables dispatches get <tableId> <dispatchId>
 
 ### sim tables dispatches list
 
-List Active Run Dispatches
+List Run Dispatches
 
 ```bash
 sim tables dispatches list <tableId>
@@ -5472,7 +5482,7 @@ sim tables delete <tableId> [options]
 
 ### sim tables enrichment get
 
-Get Enrichment Run Detail
+Get Row Group Run
 
 ```bash
 sim tables enrichment get <tableId> <rowId> <groupId>
@@ -6060,7 +6070,7 @@ sim workflows operations apply <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--dry-run` | No | Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified. |
+| `--dry-run` | No | Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs. |
 | `--no-dry-run` | No | Send --dry-run as false. |
 | `--operations <json\|@file>` | Yes | Edits to apply, in a single batch, keyed by operation_type: [&#123;"operation_type":"add","block_id":"my-fn","params":&#123;"type":"function","name":"My Fn","inputs":&#123;"code":"return &#123;ok:true&#125;"&#125;&#125;&#125;,&#123;"operation_type":"edit","block_id":"&lt;uuid&gt;","params":&#123;"name":"Renamed","connections":&#123;"success":"my-fn"&#125;&#125;&#125;,&#123;"operation_type":"delete","block_id":"&lt;uuid&gt;"&#125;]. Also extract_from_subflow, whose params carry &#123;"subflowId":"&lt;loop-id&gt;"&#125;, and insert_into_subflow, which creates a block and so takes an add’s params plus that subflowId (JSON, or @path / @- to read a file or stdin). |
 | `--atomic` | No | Fail the whole batch when any operation is declined or any block input would be dropped. The default applies what it can and reports the rest in `skipped` and `inputValidationErrors`; `true` writes nothing and answers `409` instead. |
@@ -6154,7 +6164,7 @@ sim workflows runs get <runId> [options]
 | --- | --- | --- |
 | `--workflow <workflowId>` | Yes | Workflow ID. |
 | `--include-output` | No | Include the final output in JSON or YAML output. |
-| `--select-output <value...>` | No | Include blockId or blockId.path values in JSON or YAML output; block names are not resolved on a finished run (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--select-output <value...>` | No | Include blockName.path or blockId.path values (e.g. agent_1.content) in JSON or YAML output; names resolve against the workflow’s current blocks, and missing paths are omitted (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-file-base64` | No | Inline each produced file's bytes as base64. Requires `includeOutput`. A file above the inline ceiling answers `413` naming its download path; fetch large files from `downloadPath` instead. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Per-file inline ceiling, lowering but never raising the server limit of 16 MiB. |
@@ -6459,7 +6469,7 @@ sim workflows chat publish <workflowId> [options]
 | `--description <value>` | No | Description shown to visitors. Omitted clears it. |
 | `--customizations <json\|@file>` | No | Presentation overrides. Omitted fields take platform defaults. (JSON, or @path / @- to read a file or stdin). |
 | `--auth-type <value>` | No | How visitors are gated. `public` leaves the chat open to anyone holding the URL. Accepted values: `public`, `password`, `email`, `sso`. |
-| `--password <value>` | No | Write-only password. Required whenever `authType` is `password`, and rejected otherwise. Never readable back. |
+| `--password <value>` | No | Write-only password of 15 to 1024 characters, not only whitespace. Required whenever `authType` is `password`, and rejected otherwise. Never readable back. Taken literally, except that a request from the Sim agent resolves a whole-value `&#123;&#123;ENV_VAR&#125;&#125;` reference to that variable before the rules apply. |
 | `--allowed-emails <json\|@file>` | No | Email addresses or domains admitted under `email` and `sso` gating. At least one is required for those modes. (JSON, or @path / @- to read a file or stdin). |
 | `--output-configs <json\|@file>` | No | Block outputs to surface to visitors. Omitted surfaces none. (JSON, or @path / @- to read a file or stdin). |
 | `--include-thinking` | No | Allow visitors to receive provider thinking events. |
@@ -6555,14 +6565,14 @@ sim workflows run <workflowId> [options]
 | `--input <json\|@file>` | No | Trigger input as JSON (JSON, or @path / @- to read a file or stdin). |
 | `--async` | No | Queue the run and return immediately. |
 | `--execution-timeout-seconds <value>` | No | Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true`; otherwise returns `400`. |
-| `--select-output <value...>` | No | Return streamed outputs as blockName.path or childWorkflowId.blockName.path; selecting a child workflow applies to every invocation, requires --follow (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
+| `--select-output <value...>` | No | Return blockName.path values (e.g. agent_1.content), or childWorkflowId.blockName.path for a child workflow (applies to every invocation) — in blockOutputs on a sync run, or from the streamed result with --follow; missing paths are omitted. Not available with --async (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
 | `--include-file-base64` | No | Inline eligible output files as base64 content. Rejected when `async` is true. |
 | `--no-include-file-base64` | No | Send --include-file-base64 as false. |
 | `--base64-max-bytes <value>` | No | Maximum total bytes of file content to inline as base64, lowering but never raising the server limit of 16 MiB. Rejected when `async` is true. |
 | `--run-id <value>` | No | One-shot identifier for this run; NOT an idempotency key — reusing a claimed value fails with RUN_ID_CONFLICT instead of replaying the first result, and a fresh value starts another run. |
 | `--manual` | No | Run the current saved workflow state instead of the active deployment. |
-| `--trigger <blockId>` | No | Enter a manual run through this runnable trigger (requires --manual). |
-| `--mock-payload` | No | Use the selected trigger's server-derived mock payload (requires --manual). |
+| `--trigger <blockId>` | No | Enter the run through this runnable trigger; runs the current saved workflow state (implies --manual). |
+| `--mock-payload` | No | Use the selected trigger's server-derived mock payload; runs the current saved workflow state (implies --manual). |
 | `--from-block <blockId>` | No | Run manually from this saved workflow block. |
 | `--source-run <runId>` | No | Prior run whose persisted state supplies upstream outputs (requires --from-block). |
 | `--follow` | No | Stream the run as it happens; progress on stderr, result on stdout. The stream reports only success and output, so the result omits the run id and timings a non-streaming run returns. |
@@ -6596,6 +6606,8 @@ sim workflows export <workflowId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--include-references` | No | Include non-secret resource identities for mapped import. |
+| `--include-workspace-bindings` | No | Whether to keep workspace-scoped bindings — table, knowledge base, document, folder, channel, and other resource selectors — in the exported state. Defaults to false, the sharing-safe export in which those ids are cleared because they resolve nowhere else. Send true for a same-workspace round trip so the re-imported workflow can run without re-selecting them. Credentials, passwords, and table sub-block values are cleared either way. |
+| `--no-include-workspace-bindings` | No | Send --include-workspace-bindings as false. |
 
 </CommandTable>
 
@@ -6705,7 +6717,7 @@ sim workflows state replace <workflowId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
-| `--dry-run` | No | Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified. |
+| `--dry-run` | No | Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs. |
 | `--no-dry-run` | No | Send --dry-run as false. |
 | `--blocks <json\|@file>` | Yes | Blocks keyed by block id. (JSON, or @path / @- to read a file or stdin). |
 | `--edges <json\|@file>` | Yes | Directed connections between blocks. (JSON, or @path / @- to read a file or stdin). |

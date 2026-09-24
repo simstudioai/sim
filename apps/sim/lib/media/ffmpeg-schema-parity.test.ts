@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { TOOL_RUNTIME_SCHEMAS } from '@/lib/copilot/generated/tool-schemas-v1'
 import { FFMPEG_LIMITS } from '@/lib/media/ffmpeg-limits'
+import { TOOL_RUNTIME_SCHEMAS } from '@/lib/mothership/generated/tool-schemas-v1'
 
 /**
  * The ffmpeg bounds live twice: here, where the executor enforces them, and in

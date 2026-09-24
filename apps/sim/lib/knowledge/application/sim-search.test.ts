@@ -699,3 +699,37 @@ describe('organization Search setup', () => {
     expect(mocks.createOrganizationKnowledgeBase).not.toHaveBeenCalled()
   })
 })
+
+describe('Mothership Search setup authorization', () => {
+  const delegated = {
+    kind: 'organization_delegated',
+    serviceId: 'copilot',
+    subjectUserId: 'user-1',
+    organizationId: 'org-1',
+    delegationId: 'source-setup',
+    audience: 'sim:knowledge',
+    issuedAt: new Date(),
+    expiresAt: new Date(Date.now() + 60_000),
+    resourceScope: { chatId: 'chat' },
+  } as const
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mocks.resolveWorkspace.mockResolvedValue({ organizationId: 'org-1' })
+  })
+  it.each(['owner', 'admin', 'member'])(
+    'rechecks the real %s before presenting setup',
+    async (role) => {
+      queueTableRows(member, [{ role }])
+      const action = prepareSearchSource.authorize({
+        principal: delegated,
+        input: { organizationId: 'org-1', connectorType: 'google_drive', accessMode: 'members' },
+      })
+      if (role === 'member') await expect(action).rejects.toMatchObject({ code: 'forbidden' })
+      else await expect(action).resolves.toBeUndefined()
+      expect(mocks.createOrganizationKnowledgeBase).not.toHaveBeenCalled()
+      expect(mocks.ensureAccounts).not.toHaveBeenCalled()
+      expect(mocks.enroll).not.toHaveBeenCalled()
+    }
+  )
+})

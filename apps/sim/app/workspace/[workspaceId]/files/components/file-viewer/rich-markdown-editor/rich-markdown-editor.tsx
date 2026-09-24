@@ -22,10 +22,11 @@ import { useSession } from '@/lib/auth/auth-client'
 import {
   buildFileSelectionLabel,
   truncateSelectionText,
-} from '@/lib/copilot/chat/selection-context'
+} from '@/lib/mothership/chat/selection-context'
 import type { FileDownloadSource } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
-import { FindBar } from '@/app/workspace/[workspaceId]/components'
+import { inter } from '@/app/_styles/fonts/inter/inter'
+import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar/find-bar'
 import { FileSaveConflict } from '@/app/workspace/[workspaceId]/files/components/file-viewer/file-save-conflict'
 import { PreviewLoadingFrame } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-shared'
 import {
@@ -118,8 +119,10 @@ function warnRichMarkdownPasteLimit(reason?: 'paste' | 'formatting') {
  * {@link ReadOnlyPlaceholder} render into, so the two are geometrically identical and the placeholder →
  * live swap never reflows. Shared as one constant to keep them in lockstep.
  */
-const EDITOR_SURFACE_CLASS =
-  'mx-auto flex w-full max-w-[48rem] flex-1 flex-col px-8 py-6 selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)] dark:selection:bg-[var(--selection-dark)] dark:selection:text-white'
+const EDITOR_SURFACE_CLASS = cn(
+  'mx-auto flex w-full max-w-[48rem] flex-1 flex-col px-8 py-6 selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)] dark:selection:bg-[var(--selection-dark)] dark:selection:text-white',
+  inter.variable
+)
 
 /** ProseMirror block positions do not correspond to markdown source line numbers. */
 function buildEditorSelectionContext(

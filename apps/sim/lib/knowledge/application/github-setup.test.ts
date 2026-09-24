@@ -307,6 +307,62 @@ describe('GitHub setup lifecycle', () => {
     expect(m.list).not.toHaveBeenCalled()
     expect(m.reader).not.toHaveBeenCalled()
   })
+  it('rechecks an installation left on GitHub settings and completes the original attempt', async () => {
+    const state = new URL((await start()).url).searchParams.get('state')!
+    m.list.mockResolvedValue({
+      available: true,
+      needsUserConnection: false,
+      installations: [installation],
+    })
+    expect(new URL((await start()).url).pathname).toBe('/credential-groups/complete')
+    await expect(status()).resolves.toEqual({ status: 'completed', credential: resultCredential })
+    expect(m.connect).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        principal,
+        input: expect.objectContaining({
+          organizationId: input.organizationId,
+          installationId: '42',
+        }),
+      })
+    )
+    await callback(state)
+    expect(m.connect).toHaveBeenCalledOnce()
+  })
+  it('keeps incomplete installation checks pending without replacing callback state', async () => {
+    const initial = await start()
+    const attempt = await readGitHubSetupAttempt(scope)
+    await expect(start()).resolves.toEqual(initial)
+    expect(await readGitHubSetupAttempt(scope)).toEqual(attempt)
+    expect(m.connect).not.toHaveBeenCalled()
+  })
+  it('lets the user choose after explicitly adding another organization without a callback', async () => {
+    m.list.mockResolvedValue({
+      available: true,
+      needsUserConnection: false,
+      installations: [installation],
+    })
+    const state = new URL((await start('install')).url).searchParams.get('state')!
+    m.list.mockResolvedValue({
+      available: true,
+      needsUserConnection: false,
+      installations: [installation, secondInstallation],
+    })
+    expect(new URL((await start()).url).pathname).toBe('/knowledge/github/setup')
+    await expect(status()).resolves.toEqual({
+      status: 'choosing',
+      installations: [installation, secondInstallation],
+    })
+    expect(m.connect).not.toHaveBeenCalled()
+    expect(new URL((await callback(state)).url).pathname).toBe('/knowledge/github/setup')
+    expect(m.connect).not.toHaveBeenCalled()
+  })
+  it('does not replace an installation attempt when a connection check has a transient failure', async () => {
+    await start()
+    m.list.mockRejectedValueOnce(new Error('GitHub unavailable'))
+    await expect(start()).rejects.toThrow('GitHub unavailable')
+    await expect(status()).resolves.toEqual({ status: 'pending' })
+    expect(m.connect).not.toHaveBeenCalled()
+  })
   it.each([{ userId: 'other-user' }, { sessionId: 'other-browser' }])(
     'cannot read or consume another initiating session: %s',
     async (change) => {
@@ -502,6 +558,26 @@ function deferred<T>() {
 }
 
 describe('GitHub setup atomic claims', () => {
+  it('cancellation during an installation recheck prevents a late grant', async () => {
+    await start()
+    const entered = deferred<void>()
+    const listed = deferred<{
+      available: boolean
+      needsUserConnection: boolean
+      installations: (typeof installation)[]
+    }>()
+    m.list.mockImplementationOnce(() => {
+      entered.resolve()
+      return listed.promise
+    })
+    const pending = start()
+    await entered.promise
+    await cancel()
+    listed.resolve({ available: true, needsUserConnection: false, installations: [installation] })
+    await expect(pending).rejects.toMatchObject({ code: 'conflict' })
+    expect(m.connect).not.toHaveBeenCalled()
+    await expect(status()).resolves.toEqual({ status: 'expired' })
+  })
   it('never wraps nested authorized operations in a global-pool transaction', async () => {
     m.list.mockImplementationOnce(async () => {
       expect(db.transaction).not.toHaveBeenCalled()

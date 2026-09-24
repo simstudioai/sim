@@ -357,7 +357,8 @@ describe('Slack member access selection', () => {
     expect(dialog).toBeDefined()
     expect(dialog?.querySelector('input[placeholder="Sim Bot"]')).not.toBeNull()
     expect(dialog?.textContent).toContain('Additional permissions')
-    expect(dialog?.textContent).toContain('Member access')
+    expect(dialog?.textContent).toContain('18 selected')
+    expect(dialog?.textContent).not.toContain('Member access')
     expect(dialog?.textContent).toContain('Slash commands')
     await clickButton('Close', dialog)
 

@@ -5,8 +5,9 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCaptureEvent } = vi.hoisted(() => ({
+const { mockCaptureEvent, mockCredentials } = vi.hoisted(() => ({
   mockCaptureEvent: vi.fn(),
+  mockCredentials: vi.fn(() => ({ data: [] })),
 }))
 
 vi.mock('next/navigation', () => ({
@@ -17,7 +18,7 @@ vi.mock('@/lib/posthog/client', () => ({ captureEvent: mockCaptureEvent }))
 vi.mock('@sim/utils/random', () => ({ randomFloat: () => 0 }))
 
 vi.mock('@/hooks/queries/credentials', () => ({
-  useWorkspaceCredentials: () => ({ data: [] }),
+  useWorkspaceCredentials: mockCredentials,
 }))
 vi.mock('@/hooks/queries/oauth/oauth-connections', () => ({
   useOAuthConnections: () => ({ data: [] }),
@@ -42,12 +43,16 @@ let root: Root | null = null
 let container: HTMLDivElement | null = null
 const onSelectPrompt = vi.fn()
 
-function mount() {
+function mount(organizationId?: string) {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  act(() => root?.render(<SuggestedActions onSelectPrompt={onSelectPrompt} />))
+  act(() =>
+    root?.render(
+      <SuggestedActions organizationId={organizationId} onSelectPrompt={onSelectPrompt} />
+    )
+  )
 }
 
 function heading(): string {
@@ -63,6 +68,7 @@ function rows(): HTMLButtonElement[] {
 beforeEach(() => {
   onSelectPrompt.mockClear()
   mockCaptureEvent.mockClear()
+  mockCredentials.mockClear()
 })
 
 afterEach(() => {
@@ -87,4 +93,27 @@ describe('SuggestedActions', () => {
     act(() => action?.click())
     expect(onSelectPrompt).toHaveBeenCalledWith('Create a CRM with sample data.')
   })
+})
+
+it('uses org integration suggestions as prompts without opening workspace OAuth', () => {
+  mount('organization-1')
+  act(() =>
+    rows()
+      .find((row) => row.textContent === 'Integrate with Slack')
+      ?.click()
+  )
+  expect(onSelectPrompt).toHaveBeenCalledWith('Integrate with Slack.')
+  expect(container?.querySelector('[data-testid="connect-modal"]')).toBeNull()
+  expect(mockCredentials).toHaveBeenCalledWith({ workspaceId: undefined, enabled: false })
+})
+
+it('keeps workspace integration suggestions connected to their OAuth flow', () => {
+  mount()
+  act(() =>
+    rows()
+      .find((row) => row.textContent === 'Integrate with Slack')
+      ?.click()
+  )
+  expect(container?.querySelector('[data-testid="connect-modal"]')).not.toBeNull()
+  expect(onSelectPrompt).not.toHaveBeenCalled()
 })

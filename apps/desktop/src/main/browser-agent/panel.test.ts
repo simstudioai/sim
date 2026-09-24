@@ -30,7 +30,7 @@ function freshPanel(): PanelModule {
 const PANEL_RECT = { x: 400, y: 64, width: 600, height: 800 }
 
 /** A panel showing one tab. */
-function showPanel(panel: PanelModule) {
+function showPanel(panel: PanelModule, onGeometryChanged?: () => void) {
   const win = new BrowserWindow()
   const view = new WebContentsView()
   const active = { id: 'tab-1', scopeId: 'chat-test', view }
@@ -40,6 +40,7 @@ function showPanel(panel: PanelModule) {
     backgroundColor: () => '#0c0c0c',
     restoreActiveScope: () => {},
     onViewDetached: () => {},
+    onGeometryChanged,
   })
   panel.activatePanelScope('chat-test')
   panel.setPanelBounds(PANEL_RECT, win)
@@ -276,6 +277,20 @@ describe('panel chat scope', () => {
 
     panel.setPanelBounds(PANEL_RECT, win)
     expect(view.webContents.invalidate).toHaveBeenCalledTimes(2)
+  })
+
+  it('dismisses field-anchored UI when the browser resource is hidden', () => {
+    const onGeometryChanged = vi.fn()
+    const { win, view } = showPanel(panel, onGeometryChanged)
+    onGeometryChanged.mockClear()
+
+    panel.setPanelBounds(null, win)
+
+    expect(view.setVisible).toHaveBeenLastCalledWith(false)
+    expect(onGeometryChanged).toHaveBeenCalledOnce()
+    expect(win.contentView.removeChildView).not.toHaveBeenCalled()
+    panel.layout()
+    expect(onGeometryChanged).toHaveBeenCalledOnce()
   })
 
   it('reports the exact applied native rectangle in renderer viewport coordinates', async () => {
