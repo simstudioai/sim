@@ -49,7 +49,12 @@ const logger = createLogger('ChatDeploy')
 
 const IDENTIFIER_PATTERN = /^[a-z0-9-]+$/
 
-function DeployFieldError({ children, id }: { children: ReactNode; id?: string }) {
+interface DeployFieldErrorProps {
+  children: ReactNode
+  id?: string
+}
+
+function DeployFieldError({ children, id }: DeployFieldErrorProps) {
   return (
     <p id={id} role='alert' className='mt-[6.5px] text-[var(--text-error)] text-caption'>
       {children}
