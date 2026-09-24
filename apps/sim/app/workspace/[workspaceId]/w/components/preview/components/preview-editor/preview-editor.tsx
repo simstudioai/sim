@@ -43,6 +43,7 @@ import {
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
 import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-context-menu'
+import { READONLY_PREVIEW_STYLES } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-editor/preview-readonly-styles'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
 import { getBlock } from '@/blocks'
 import { BlockTile } from '@/blocks/block-tile'
@@ -53,31 +54,6 @@ import { useWorkflowState } from '@/hooks/queries/workflows'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
-
-/**
- * CSS override to show full opacity and prevent interaction in readonly preview mode.
- * Extracted to avoid duplicating the style block in multiple places.
- */
-const READONLY_PREVIEW_STYLES = `
-  .readonly-preview,
-  .readonly-preview * {
-    cursor: default !important;
-  }
-  .readonly-preview [disabled],
-  .readonly-preview [data-disabled],
-  .readonly-preview input,
-  .readonly-preview textarea,
-  .readonly-preview [role="combobox"],
-  .readonly-preview [role="slider"],
-  .readonly-preview [role="switch"],
-  .readonly-preview [role="checkbox"] {
-    opacity: 1 !important;
-    pointer-events: none;
-  }
-  .readonly-preview .opacity-50 {
-    opacity: 1 !important;
-  }
-`
 
 /**
  * Format a value for display as JSON string
@@ -606,7 +582,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
   return (
     <div className='flex-1 overflow-y-auto overflow-x-hidden pt-2 pb-2'>
       {/* Type Selection - matches SubflowEditor */}
-      <div>
+      <div data-preview-readonly>
         <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
           {isLoop ? 'Loop Type' : 'Parallel Type'}
         </Label>
@@ -629,7 +605,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
         </Label>
 
         {isCountMode ? (
-          <div>
+          <div data-preview-readonly>
             <Input
               type='text'
               value={iterations.toString()}
@@ -1433,7 +1409,6 @@ function PreviewEditorContent({
                           ...subBlockValues,
                           __canonicalModes: canonicalModeOverrides,
                         }}
-                        disabled={true}
                       />
                       {index < visibleSubBlocks.length - 1 && (
                         <FieldDivider

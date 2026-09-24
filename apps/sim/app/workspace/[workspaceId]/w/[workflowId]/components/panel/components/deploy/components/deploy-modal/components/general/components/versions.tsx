@@ -231,7 +231,7 @@ export function Versions({
               className={cn(
                 'flex h-[36px] cursor-pointer items-center px-4 transition-colors duration-100',
                 isSelected
-                  ? 'bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] hover-hover:bg-[color-mix(in_srgb,var(--accent)_15%,transparent)]'
+                  ? 'bg-[color-mix(in_srgb,hsl(var(--accent))_10%,transparent)] hover-hover:bg-[color-mix(in_srgb,hsl(var(--accent))_15%,transparent)]'
                   : 'hover-hover:bg-[var(--surface-6)] dark:hover-hover:bg-[var(--border)]'
               )}
               onClick={() => handleRowClick(v.version)}
