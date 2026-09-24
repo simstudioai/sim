@@ -370,7 +370,13 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
       role='tab'
       aria-selected={Boolean(tab.active)}
       aria-keyshortcuts={closeable ? 'Delete' : undefined}
-      aria-label={tab.pinned ? tab.title : undefined}
+      aria-label={
+        tab.attention && !tab.active
+          ? `${tab.title}, Background activity`
+          : tab.pinned
+            ? tab.title
+            : undefined
+      }
       data-tab-strip-button={tab.id}
       tabIndex={focusable ? 0 : -1}
       className={cn(
@@ -411,7 +417,7 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
             'size-1.5 shrink-0 rounded-full bg-[var(--brand-blue)]',
             tab.pinned && 'absolute right-1 bottom-1'
           )}
-          aria-label='Background activity'
+          aria-hidden='true'
         />
       )}
     </Button>
@@ -466,10 +472,7 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
           open={tab.active}
           indicator={
             tab.attention && !tab.active ? (
-              <span
-                className='size-1.5 rounded-full bg-[var(--brand-blue)]'
-                aria-label='Background activity'
-              />
+              <span className='size-1.5 rounded-full bg-[var(--brand-blue)]' aria-hidden='true' />
             ) : undefined
           }
           className='-translate-y-1/2 absolute top-1/2 right-0.5 z-20'

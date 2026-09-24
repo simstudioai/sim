@@ -131,12 +131,13 @@ describe('TabStrip interactions', () => {
     mount(renderStrip(items, vi.fn(), onClose))
 
     const slot = stripItem('two').querySelector('[data-row-actions]')
-    expect(slot?.querySelector('[aria-label="Background activity"]')).not.toBeNull()
+    expect(slot?.querySelector('[data-row-action-indicator]')).not.toBeNull()
+    expect(tabButton('two').getAttribute('aria-label')).toBe('Two, Background activity')
     const close = slot?.querySelector<HTMLButtonElement>('[aria-label="Close Two"]')
     expect(close).not.toBeNull()
-    expect(tabButton('two').querySelector('[aria-label="Background activity"]')).toBeNull()
-    expect(stripItem('one').querySelector('[aria-label="Background activity"]')).toBeNull()
-    expect(tabButton('pinned').querySelector('[aria-label="Background activity"]')).not.toBeNull()
+    expect(tabButton('two').querySelector('[data-row-actions]')).toBeNull()
+    expect(tabButton('one').hasAttribute('aria-label')).toBe(false)
+    expect(tabButton('pinned').getAttribute('aria-label')).toBe('Pinned, Background activity')
     act(() => close?.click())
     expect(onClose).toHaveBeenCalledWith('two')
   })
@@ -474,9 +475,10 @@ describe('TabStrip interactions', () => {
   it('shows background activity without marking that tab selected', () => {
     mount(renderStrip(tabs.map((tab) => ({ ...tab, attention: tab.id === 'two' }))))
 
-    expect(stripItem('two').querySelector('[aria-label="Background activity"]')).not.toBeNull()
+    expect(stripItem('two').querySelector('[data-row-action-indicator]')).not.toBeNull()
+    expect(tabButton('two').getAttribute('aria-label')).toBe('Two, Background activity')
     expect(tabButton('two').getAttribute('aria-selected')).toBe('false')
-    expect(tabButton('one').querySelector('[aria-label="Background activity"]')).toBeNull()
+    expect(tabButton('one').hasAttribute('aria-label')).toBe(false)
   })
 
   it('does not reserve phantom space after a pointer close', () => {
