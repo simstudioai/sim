@@ -21,8 +21,16 @@ export interface LiveAccount {
 }
 
 export interface NativeDocument {
-  /** Server-only GitLab permission evidence from the same response as the content. */
+  /**
+   * Server-only permission evidence from the same response as the content. Only a verifier
+   * bound to the client that produced it may consume it; it is never projected to callers.
+   */
   accessMetadata?: Record<string, unknown>
+  /**
+   * Identifies one item a provider returns from several collections of the same account, such
+   * as a meeting on each attendee's calendar. Only the first verified copy is kept.
+   */
+  dedupeKey?: string
   id: string
   container?: string
   containerName?: string
@@ -40,7 +48,11 @@ export interface NativeDocument {
 
 export interface NativePage {
   documents: NativeDocument[]
+  /** Continues this exact query and account; implies more results exist. */
   nextCursor?: string
+  /** More matches exist beyond this page but cannot be continued through it. */
+  hasMore?: boolean
+  /** Coverage is degraded: a collection failed, a cap applied, or evidence was dropped. */
   partial?: boolean
   message?: string
 }
@@ -52,6 +64,8 @@ export interface NativeClient {
       query?: Record<string, string | string[]>
       body?: unknown
       googleService?: 'sheets'
+      /** Reuse this client's earlier response to the same GET instead of requesting it again. */
+      memo?: boolean
     }
   ): Promise<unknown>
   text(path: string, query?: Record<string, string>): Promise<string>

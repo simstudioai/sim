@@ -1,6 +1,11 @@
-import { hasDateBounds, nativeDateBounds, nativeText } from '@/lib/sim-search/live/dates'
+import {
+  dateSortDirection,
+  hasDateBounds,
+  nativeDateBounds,
+  nativeText,
+} from '@/lib/sim-search/live/dates'
 import { array, NativeSearchError, object, segment, string } from '@/lib/sim-search/live/http'
-import { collectNativePages } from '@/lib/sim-search/live/pages'
+import { collectNativePages, joinMessages } from '@/lib/sim-search/live/pages'
 import type {
   NativeClient,
   NativeDocument,
@@ -41,6 +46,84 @@ function githubDocument(row: Record<string, unknown>, kind: string): NativeDocum
   }
 }
 
+/**
+ * Code search rejects a `q` over 1,000 UTF-8 bytes with qualifiers counted, although the
+ * documentation cites only 256 characters of text. Batches keep a small margin under it.
+ */
+const GITHUB_CODE_QUERY_BYTES = 980
+/**
+ * Issue and repository search limit only free text to 256 characters and accept roughly 4,000
+ * bytes of repository qualifiers; batches leave room for type and date qualifiers appended later.
+ */
+const GITHUB_ISSUE_QUERY_BYTES = 3800
+/** Batches per kind; each code batch spends one of GitHub's ten code searches per minute. */
+const GITHUB_MAX_REPOSITORY_BATCHES = 4
+
+type GitHubKind = 'issues' | 'code' | 'repositories'
+const CODE_EXCLUDED_BY_DATES = 'Code has no dates and is excluded from date-filtered searches.'
+
+/** Code has no file dates, so a date-bounded search covers issues and pull requests only. */
+function githubKinds(input: NativeSearchInput): GitHubKind[] {
+  const kind = input.native?.kind
+  if (kind === 'issues' || kind === 'code' || kind === 'repositories') return [kind]
+  if (kind)
+    throw new NativeSearchError(
+      'unavailable',
+      'GitHub search supports issues, code, or repositories.'
+    )
+  return hasDateBounds(input.filters) ? ['issues'] : ['issues', 'code']
+}
+
+/**
+ * Splits repositories into qualifier batches that keep each query within `maxBytes`. A
+ * repository whose qualifier cannot fit beside the query at all is left out.
+ */
+function repositoryBatches(query: string, names: readonly string[], maxBytes: number): string[][] {
+  const base = Buffer.byteLength(query)
+  const batches: string[][] = []
+  let batch: string[] = []
+  let bytes = base
+  for (const name of names) {
+    const term = Buffer.byteLength(` repo:${name}`)
+    if (base + term > maxBytes) continue
+    if (bytes + term > maxBytes) {
+      if (batches.push(batch) === GITHUB_MAX_REPOSITORY_BATCHES) return batches
+      batch = []
+      bytes = base
+    }
+    batch.push(name)
+    bytes += term
+  }
+  if (batch.length) batches.push(batch)
+  return batches
+}
+
+/** `key:value` or `key:"quoted value"`, excluding URLs such as `https://…`. */
+const GITHUB_QUALIFIER = /^-?[a-z][\w-]*:(?!\/\/)\S/i
+
+/** Search terms, quoted phrases, and `key:"quoted value"` qualifiers as GitHub tokenizes them. */
+const githubTokens = (query: string) => query.match(/-?[\w-]+:"[^"]*"|-?"[^"]*"|\S+/g) ?? []
+
+/**
+ * Groups free text so appended qualifiers apply to all of it. GitHub treats a qualifier inside
+ * parentheses as search text, so qualifiers stay outside the group. A query that already uses
+ * parentheses or boolean operators is structured by its author and is left as written.
+ */
+function groupGitHubText(query: string): string {
+  if (!query || /[()]/.test(query) || /(?:^|\s)(?:AND|OR|NOT)(?=\s|$)/.test(query)) return query
+  const tokens = githubTokens(query)
+  const qualifiers = tokens.filter((token) => GITHUB_QUALIFIER.test(token))
+  const text = tokens.filter((token) => !GITHUB_QUALIFIER.test(token)).join(' ')
+  return [text ? `(${text})` : '', ...qualifiers].filter(Boolean).join(' ')
+}
+
+/** GitHub rejects more than 256 characters of search text; qualifiers do not count toward it. */
+const GITHUB_TEXT_CHARACTERS = 256
+const githubTextLength = (query: string) =>
+  githubTokens(query)
+    .filter((token) => !GITHUB_QUALIFIER.test(token))
+    .join(' ').length
+
 export async function searchGitHub(
   client: NativeClient,
   input: NativeSearchInput
@@ -64,50 +147,78 @@ export async function searchGitHub(
         documents: [],
         message: 'No repositories are accessible through this GitHub connection.',
       }
-    const batches: string[][] = []
-    for (let offset = 0; offset < names.length; offset += 25)
-      batches.push(names.slice(offset, offset + 25))
-    const pages: Promise<NativePage>[] = []
-    for (const names of batches) {
-      pages.push(
-        searchGitHub(client, {
-          ...input,
-          native: {
-            provider: 'github',
-            ...input.native,
-            query: `${query} ${names.map((name) => `repo:${name}`).join(' ')}`,
-          },
-        })
+    const kinds = githubKinds(input)
+    const planned = kinds.map((kind) => ({
+      kind,
+      repositories: repositoryBatches(
+        query,
+        names,
+        kind === 'code' ? GITHUB_CODE_QUERY_BYTES : GITHUB_ISSUE_QUERY_BYTES
+      ),
+    }))
+    const batches = planned.filter(({ repositories }) => repositories.length)
+    const skipped = planned.filter(({ repositories }) => !repositories.length)
+    if (!batches.length)
+      throw new NativeSearchError(
+        'unavailable',
+        'This query is too long to scope to your GitHub repositories. Shorten it or add a repo: qualifier.'
       )
-    }
+    const searched = Math.min(
+      ...batches.map(({ repositories }) =>
+        repositories.reduce((count, batch) => count + batch.length, 0)
+      )
+    )
+    /** Batches merge within their kind first, so a kind with more batches cannot crowd out another. */
     const result = await collectNativePages(
-      pages,
+      batches.map(({ kind, repositories }) =>
+        collectNativePages(
+          repositories.map((batch) =>
+            searchGitHub(client, {
+              ...input,
+              native: {
+                provider: 'github',
+                ...input.native,
+                kind,
+                query: [query, ...batch.map((name) => `repo:${name}`)].filter(Boolean).join(' '),
+              },
+            })
+          ),
+          ''
+        )
+      ),
       'Searched repositories you own, collaborate on, or access through organization membership. Use a repo: qualifier to narrow results.'
     )
+    const capped = repositories.length === 100 || searched < names.length
     return {
       ...result,
-      partial: result.partial || repositories.length === 100,
-      message:
-        repositories.length === 100
-          ? `${result.message} Only the 100 most recently pushed repositories were searched; target a repository for broader coverage.`
-          : result.message,
+      partial: result.partial || capped || skipped.length > 0,
+      message: joinMessages([
+        result.message,
+        ...skipped.map(
+          ({ kind }) =>
+            `GitHub ${kind} search was skipped because the query is too long to scope to repositories.`
+        ),
+        !input.native?.kind && !kinds.includes('code') ? CODE_EXCLUDED_BY_DATES : undefined,
+        capped
+          ? `Only the ${searched} most recently pushed repositories were searched; target a repository for broader coverage.`
+          : undefined,
+      ]),
     }
   }
-  if (!input.native?.kind)
+  if (!input.native?.kind) {
+    const kinds = githubKinds(input)
     return collectNativePages(
-      ['issues', 'code'].map((kind) =>
+      kinds.map((kind) =>
         searchGitHub(client, {
           ...input,
-          native: {
-            provider: 'github',
-            ...input.native,
-            query,
-            kind: kind === 'code' ? 'code' : 'issues',
-          },
+          native: { provider: 'github', ...input.native, query, kind },
         })
       ),
-      'Searched GitHub issues, pull requests, and code.'
+      kinds.includes('code')
+        ? 'Searched GitHub issues, pull requests, and code.'
+        : `Searched GitHub issues and pull requests. ${CODE_EXCLUDED_BY_DATES}`
     )
+  }
   if (
     input.native.kind === 'issues' &&
     !/(?:^|\s)(?:is|type):(?:issue|pr|pull-request)(?:\s|$)/i.test(query)
@@ -121,12 +232,7 @@ export async function searchGitHub(
       ),
       'Searched issues and pull requests separately.'
     )
-  const kind = input.native?.kind ?? 'issues'
-  if (!['issues', 'code', 'repositories'].includes(kind))
-    throw new NativeSearchError(
-      'unavailable',
-      'GitHub search supports issues, code, or repositories.'
-    )
+  const [kind] = githubKinds(input)
   if (kind === 'code' && hasDateBounds(input.filters))
     throw new NativeSearchError(
       'unavailable',
@@ -134,16 +240,22 @@ export async function searchGitHub(
     )
   const dates = nativeDateBounds(input)
   const text = nativeText(input)
+  /** GitHub ORs repeated qualifiers, so both bounds must share one `updated:` range. */
+  const updated =
+    dates.start && dates.end
+      ? `updated:${dates.start}..${dates.end}`
+      : dates.start
+        ? `updated:>=${dates.start}`
+        : dates.end
+          ? `updated:<=${dates.end}`
+          : ''
   const datedQuery =
-    kind === 'issues'
-      ? [
-          text ? `(${text})` : '',
-          dates.start ? `updated:>=${dates.start}` : '',
-          dates.end ? `updated:<=${dates.end}` : '',
-        ]
-          .filter(Boolean)
-          .join(' ')
-      : text
+    kind === 'issues' ? [groupGitHubText(text), updated].filter(Boolean).join(' ') : text
+  if (githubTextLength(text) > GITHUB_TEXT_CHARACTERS)
+    throw new NativeSearchError(
+      'unavailable',
+      'GitHub search text is limited to 256 characters. Shorten the query.'
+    )
   const page = input.native?.cursor ?? '1'
   if (!/^\d{1,3}$/.test(page) || Number(page) < 1)
     throw new NativeSearchError('unavailable', 'Invalid GitHub page.')
@@ -154,8 +266,8 @@ export async function searchGitHub(
         q: hasDateBounds(input.filters) ? datedQuery : text,
         per_page: String(input.limit),
         page,
-        ...(kind === 'issues' && input.filters?.sortBy && input.filters.sortBy !== 'relevance'
-          ? { sort: 'updated', order: input.filters.sortBy === 'oldest' ? 'asc' : 'desc' }
+        ...(kind === 'issues' && dateSortDirection(input.filters)
+          ? { sort: 'updated', order: dateSortDirection(input.filters) }
           : {}),
       },
     })
@@ -175,7 +287,8 @@ export async function searchGitHub(
   return {
     documents: array(data.items).map((row) => githubDocument(row, kind)),
     nextCursor,
-    partial: data.incomplete_results === true || total > 1000,
+    hasMore: total > 1000,
+    partial: data.incomplete_results === true,
     message:
       kind === 'code'
         ? 'GitHub REST code search covers the default branch and files below 384 KB; code queries have a separate rate limit. Read results for file contents.'

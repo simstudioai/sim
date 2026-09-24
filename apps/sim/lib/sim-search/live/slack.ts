@@ -1,4 +1,4 @@
-import { nativeDateBounds, nativeText } from '@/lib/sim-search/live/dates'
+import { dateSortDirection, nativeDateBounds, nativeText } from '@/lib/sim-search/live/dates'
 import { array, NativeSearchError, object, string } from '@/lib/sim-search/live/http'
 import {
   slackConversationName,
@@ -78,11 +78,8 @@ export async function searchSlack(
         limit: Math.min(input.limit, 20),
         ...(dates.start ? { after: Math.floor(Date.parse(dates.start) / 1000) - 1 } : {}),
         ...(dates.end ? { before: Math.ceil(Date.parse(dates.end) / 1000) } : {}),
-        ...(input.filters?.sortBy && input.filters.sortBy !== 'relevance'
-          ? {
-              sort: 'timestamp',
-              sort_dir: input.filters.sortBy === 'oldest' ? 'asc' : 'desc',
-            }
+        ...(dateSortDirection(input.filters)
+          ? { sort: 'timestamp', sort_dir: dateSortDirection(input.filters) }
           : {}),
         ...(input.native?.cursor ? { cursor: input.native.cursor } : {}),
         ...(input.native?.termClauses ? { term_clauses: input.native.termClauses } : {}),

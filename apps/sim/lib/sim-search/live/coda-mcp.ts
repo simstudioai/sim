@@ -190,11 +190,8 @@ export async function searchCodaMcp(
   return {
     documents,
     nextCursor,
-    partial:
-      documents.length < rows.length ||
-      Boolean(nextCursor) ||
-      result.hasMore === true ||
-      hasDateBounds(input.filters),
+    hasMore: result.hasMore === true,
+    partial: documents.length < rows.length || hasDateBounds(input.filters),
     message:
       (query
         ? 'Coda content search includes pages and table rows. Narrow the query or target a document for more results.'

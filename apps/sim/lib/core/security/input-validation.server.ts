@@ -357,6 +357,19 @@ export interface SecureFetchOptions {
   /** Hide credential-derived URL details from validation logs. */
   logUrlValidationDetails?: boolean
   /**
+   * Ask for a gzip or brotli body. The body is decoded before it is returned, and
+   * `maxResponseBytes` bounds the decoded bytes, so a compression bomb still stops at the cap.
+   */
+  acceptCompressed?: boolean
+  /**
+   * Reuses keep-alive connections to the same pinned address across requests. A connection is
+   * only ever reused for the IP it was opened to, so every request keeps its DNS pinning. The
+   * owner must call {@link PinnedConnectionPool.destroy} once its requests have finished. Bun
+   * keeps sockets in its own per-address pool, so there reuse spans pools and `destroy` releases
+   * only the agents.
+   */
+  connectionPool?: PinnedConnectionPool
+  /**
    * Where this request's URL came from. Carried on the options so the same
    * policy is re-applied to every redirect hop rather than re-derived — a hop
    * evaluated under a laxer policy than the origin is how a redirect chain
@@ -444,6 +457,43 @@ function resolveRedirectUrl(baseUrl: string, location: string): string {
     return new URL(location, baseUrl).toString()
   } catch {
     throw new Error(`Invalid redirect location: ${location}`)
+  }
+}
+
+/** Keep-alive agents keyed by protocol, host, port, and the pinned address they connect to. */
+export interface PinnedConnectionPool {
+  /** Undefined once destroyed, so a late request falls back to a single-use pinned agent. */
+  agent(isHttps: boolean, host: string, port: number, resolvedIP: string): http.Agent | undefined
+  destroy(): void
+}
+
+/**
+ * Creates a request-scoped pool of pinned keep-alive agents. Reusing a connection skips the TCP
+ * and TLS handshakes that otherwise dominate short provider API calls.
+ */
+export function createPinnedConnectionPool(): PinnedConnectionPool {
+  const agents = new Map<string, http.Agent>()
+  let destroyed = false
+  return {
+    agent(isHttps, host, port, resolvedIP) {
+      if (destroyed) return undefined
+      const key = JSON.stringify([isHttps, host, port, resolvedIP])
+      let agent = agents.get(key)
+      if (!agent) {
+        const options: http.AgentOptions = {
+          keepAlive: true,
+          lookup: createPinnedLookup(resolvedIP),
+        }
+        agent = isHttps ? new https.Agent(options) : new http.Agent(options)
+        agents.set(key, agent)
+      }
+      return agent
+    },
+    destroy() {
+      destroyed = true
+      for (const agent of agents.values()) agent.destroy()
+      agents.clear()
+    },
   }
 }
 
@@ -1088,6 +1138,11 @@ export async function secureFetchWithPinnedIP(
     const port = parsed.port ? Number.parseInt(parsed.port, 10) : defaultPort
 
     let agent: http.Agent | undefined
+    /**
+     * Bun ignores a `lookup` set on an Agent and honors one on the request, while Node honors
+     * both. A pinned direct connection sets it in both places so pinning holds in either runtime.
+     */
+    let pinnedLookup: LookupFunction | undefined
     if (outboundDispatcher) {
       agent = undefined
     } else if (options.proxyUrl) {
@@ -1096,12 +1151,17 @@ export async function secureFetchWithPinnedIP(
       // targets tunnel via CONNECT, http targets use absolute-URI forwarding.
       agent = isHttps ? new HttpsProxyAgent(options.proxyUrl) : new HttpProxyAgent(options.proxyUrl)
     } else {
-      const lookup = createPinnedLookup(resolvedIP)
-      const agentOptions: http.AgentOptions = { lookup }
-      agent = isHttps ? new https.Agent(agentOptions) : new http.Agent(agentOptions)
+      pinnedLookup = createPinnedLookup(resolvedIP)
+      agent =
+        options.connectionPool?.agent(isHttps, parsed.hostname, port, resolvedIP) ??
+        (isHttps
+          ? new https.Agent({ lookup: pinnedLookup })
+          : new http.Agent({ lookup: pinnedLookup }))
     }
 
     const { 'accept-encoding': _, ...sanitizedHeaders } = options.headers ?? {}
+    /** Raw deflate streams are ambiguous to decode, so only gzip and brotli are requested. */
+    if (options.acceptCompressed) sanitizedHeaders['accept-encoding'] = 'gzip, br'
     if (!Object.keys(sanitizedHeaders).some((name) => name.toLowerCase() === 'user-agent')) {
       sanitizedHeaders['user-agent'] = DEFAULT_USER_AGENT
     }
@@ -1123,6 +1183,7 @@ export async function secureFetchWithPinnedIP(
       method: options.method || 'GET',
       headers: sanitizedHeaders,
       agent,
+      ...(pinnedLookup ? { lookup: pinnedLookup } : {}),
       timeout: options.timeout || 300000,
     }
 
@@ -1265,7 +1326,13 @@ export async function secureFetchWithPinnedIP(
         statusCode === 204 ||
         statusCode === 205 ||
         statusCode === 304
-      const contentLength = headersRecord['content-length']
+      /**
+       * An encoded body's Content-Length is its wire size, not the decoded size the cap bounds,
+       * so only an identity body is rejected up front; the decoded stream is capped as it reads.
+       */
+      const contentLength = headersRecord['content-encoding']
+        ? undefined
+        : headersRecord['content-length']
       if (contentLength && !isBodylessResponse) {
         const parsedLength = Number.parseInt(contentLength, 10)
         if (Number.isFinite(parsedLength) && parsedLength > maxResponseBytes) {

@@ -1,5 +1,6 @@
 import type { LiveSearchProvider } from '@/lib/api/contracts/mothership-assistant-tools'
 import type { ResourceOwner } from '@/lib/core/resource-scope'
+import type { PinnedConnectionPool } from '@/lib/core/security/input-validation.server'
 import {
   resolveConnectorAccessToken,
   resolveConnectorTokenUserId,
@@ -41,12 +42,19 @@ export async function createLiveServiceSession(input: {
   member: NativeClient | null
   mcp?: CodaMcpClient
   signal: AbortSignal
+  /** Reuses connections for the source credential's requests; owned by the caller. */
+  pool?: PinnedConnectionPool
 }): Promise<LiveServiceSession | undefined> {
-  const { provider, policy, member, signal } = input
+  const { provider, policy, member, signal, pool } = input
   if (policy.accessMode !== 'service_account' || provider === 'gitlab') return undefined
   if (provider === 'github') {
     if (!member) throw new NativeSearchError('reconnect', 'Connect your personal GitHub account.')
-    return createGitHubServiceVerifier(await loadLiveGitHubSources(input.owner), member, signal)
+    return createGitHubServiceVerifier(
+      await loadLiveGitHubSources(input.owner),
+      member,
+      signal,
+      pool
+    )
   }
   if (!policy.sourceId)
     throw new NativeSearchError('unavailable', 'Ask an admin to select a service account source.')
@@ -86,6 +94,7 @@ export async function createLiveServiceSession(input: {
         config: source.config,
         policy: sourcePolicy,
         signal,
+        pool,
       })),
     }
   }
@@ -93,6 +102,7 @@ export async function createLiveServiceSession(input: {
     origin: LIVE_SEARCH_PROVIDER_CATALOG[provider].origin,
     accessToken: token.accessToken,
     signal,
+    pool,
   })
   if (provider === 'coda')
     return {

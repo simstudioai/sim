@@ -1,4 +1,5 @@
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
+import { compareStrings } from '@sim/utils/string'
 import { z } from 'zod'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type {
@@ -19,37 +20,37 @@ import {
   resourceScopeFromOwner,
   resourceScopeKey,
 } from '@/lib/core/resource-scope'
+import { createPinnedConnectionPool } from '@/lib/core/security/input-validation.server'
+import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/availability'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/citation'
-import { listLiveAccounts, resolveLiveAccount } from '@/lib/sim-search/live/accounts'
-import { createCodaMcpClient, readCodaMcp, searchCodaMcp } from '@/lib/sim-search/live/coda-mcp'
+import { measureSearchStage } from '@/lib/knowledge/search/diagnostics'
+import { matchPassage } from '@/lib/knowledge/search/snippet'
 import {
+  type LiveAccountSession,
+  openLiveAccountSession,
+} from '@/lib/sim-search/live/account-session'
+import {
+  listLiveAccounts,
+  resolveListedLiveAccount,
+  resolveLiveAccount,
+} from '@/lib/sim-search/live/accounts'
+import {
+  dateSortDirection,
   hasDateBounds,
   matchesSourceDates,
   sourceDate,
   sourceDateType,
 } from '@/lib/sim-search/live/dates'
-import { createAdminGitLabSession } from '@/lib/sim-search/live/gitlab-admin'
-import { createNativeClient, NativeSearchError } from '@/lib/sim-search/live/http'
-import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
-import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
-import { LIVE_SEARCH_PROVIDER_CATALOG } from '@/lib/sim-search/live/provider-catalog'
-import {
-  NATIVE_SEARCH_GUIDANCE,
-  readNativeProvider,
-  searchNativeProvider,
-} from '@/lib/sim-search/live/providers'
-import { searchWithinPolicy } from '@/lib/sim-search/live/scoped-search'
-import { createLiveServiceSession } from '@/lib/sim-search/live/service-session'
-import type {
-  LiveAccount,
-  NativeDocument,
-  NativePage,
-  NativeSearchInput,
-} from '@/lib/sim-search/live/types'
+import { NativeSearchError } from '@/lib/sim-search/live/http'
+import { joinMessages } from '@/lib/sim-search/live/pages'
+import { loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
+import { LIVE_SEARCH_PROVIDER_IDS } from '@/lib/sim-search/live/provider-catalog'
+import { NATIVE_SEARCH_GUIDANCE } from '@/lib/sim-search/live/providers'
+import type { LiveAccount, NativeDocument } from '@/lib/sim-search/live/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -137,27 +138,42 @@ export function matchesLiveFilters(
   }
   return true
 }
-function resultFor(
+/** A provider result with the reference that binds it to this member, scope, and account. */
+interface LiveCandidate {
+  document: NativeDocument
+  documentId: string
+}
+
+function candidateFor(
   document: NativeDocument,
   account: LiveAccount,
   owner: ResourceOwner,
-  userId: string,
+  userId: string
+): LiveCandidate {
+  return {
+    document,
+    documentId: encodeLiveReference({
+      v: 1,
+      user: userId,
+      scope: resourceScopeKey(resourceScopeFromOwner(owner)),
+      account: account.id,
+      provider: account.provider,
+      id: document.id,
+      ...(document.container ? { container: document.container } : {}),
+      ...(document.kind ? { kind: document.kind } : {}),
+      ...(document.revision ? { revision: document.revision } : {}),
+      ...(document.threadId ? { threadId: document.threadId } : {}),
+    }),
+  }
+}
+
+function resultFor(
+  { document, documentId }: LiveCandidate,
+  account: LiveAccount,
   rank: number,
+  previewQuery: string,
   registry?: ResolvedSecretTraceRegistry
 ): WorkspaceKnowledgeSearchResult {
-  const documentId = encodeLiveReference({
-    v: 1,
-    user: userId,
-    scope: resourceScopeKey(resourceScopeFromOwner(owner)),
-    account: account.id,
-    provider: account.provider,
-    id: document.id,
-    ...(document.container ? { container: document.container } : {}),
-    ...(document.kind ? { kind: document.kind } : {}),
-    ...(document.revision ? { revision: document.revision } : {}),
-    ...(document.threadId ? { threadId: document.threadId } : {}),
-  })
-  // The shared UI wire shape retains its index fields; live results never use them as identifiers.
   return {
     documentId,
     knowledgeBaseId: '',
@@ -178,10 +194,81 @@ function resultFor(
     sourceDate: sourceDate(document, account.provider) ?? null,
     sourceDateType: sourceDateType(account.provider, document),
     author: document.author ? safeContent(document.author, registry) : null,
-    content: safeContent(document.content, registry).slice(0, 1800),
+    content: matchPassage(safeContent(document.content, registry), previewQuery, PREVIEW_CHARACTERS)
+      .content,
     chunkIndex: 0,
     similarity: 1 / (60 + rank),
   }
+}
+
+/** Accounts searched at once; bounds token refresh and provider fan-out in large organizations. */
+const ACCOUNT_CONCURRENCY = 4
+/** Candidates verified at once; each verification is one or more provider requests. */
+const VERIFY_CONCURRENCY = 5
+const MAX_ACCOUNTS = 20
+/** Previews center on the query's longest matching term, like indexed passages. */
+const PREVIEW_CHARACTERS = 1800
+/** Characters one read returns, the same page budget indexed document reads use. */
+const READ_WINDOW_CHARACTERS = 8000
+
+/**
+ * Verifies candidates in rank order. A revoked grant fails the whole account; any other
+ * verification failure only omits that candidate, and is reported as incomplete coverage.
+ */
+async function verifyCandidates(session: LiveAccountSession, candidates: LiveCandidate[]) {
+  const outcomes = await mapWithConcurrency(
+    candidates,
+    VERIFY_CONCURRENCY,
+    async ({ document }) => {
+      try {
+        return (await session.verify(document)) ? ('permitted' as const) : ('denied' as const)
+      } catch (error) {
+        if (error instanceof NativeSearchError && error.status === 'reconnect') throw error
+        return error instanceof NativeSearchError && error.status === 'rate_limited'
+          ? ('rate_limited' as const)
+          : ('unverified' as const)
+      }
+    }
+  )
+  return {
+    permitted: candidates.filter((_, index) => outcomes[index] === 'permitted'),
+    unverified: outcomes.some((outcome) => outcome === 'unverified' || outcome === 'rate_limited'),
+    rateLimited: outcomes.includes('rate_limited'),
+  }
+}
+
+/** Keeps the first of candidates a provider marked as the same item, such as a shared meeting. */
+function firstOfEachDocument(candidates: LiveCandidate[]): LiveCandidate[] {
+  const seen = new Set<string>()
+  return candidates.filter(({ document }) => {
+    if (!document.dedupeKey) return true
+    if (seen.has(document.dedupeKey)) return false
+    seen.add(document.dedupeKey)
+    return true
+  })
+}
+
+/** Whether a result lacks the date metadata the requested date filters need. */
+function lacksFilterDate(
+  document: NativeDocument,
+  provider: string,
+  filters?: WorkspaceSearchFilters
+): boolean {
+  return (
+    (Boolean(filters?.startDate || filters?.endDate) && !sourceDate(document, provider)) ||
+    (Boolean(filters?.modifiedAfter || filters?.modifiedBefore) &&
+      !Number.isFinite(Date.parse(document.modifiedAt ?? '')))
+  )
+}
+
+/** Stable account order so equal-rank results from different accounts always merge the same way. */
+function compareAccounts(left: LiveAccount, right: LiveAccount): number {
+  return (
+    LIVE_SEARCH_PROVIDER_IDS.indexOf(left.provider) -
+      LIVE_SEARCH_PROVIDER_IDS.indexOf(right.provider) ||
+    compareStrings(left.displayName, right.displayName) ||
+    compareStrings(left.id, right.id)
+  )
 }
 
 export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
@@ -202,221 +289,218 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
       throw new OrchestrationError('validation', 'Invalid live search query or result limit')
     if (input.filters)
       input = { ...input, filters: workspaceSearchFiltersSchema.parse(input.filters) }
+    const filters = input.filters
     if (
-      input.filters?.startDate &&
-      input.filters.endDate &&
-      Date.parse(input.filters.startDate) >= Date.parse(input.filters.endDate)
+      filters?.startDate &&
+      filters.endDate &&
+      Date.parse(filters.startDate) >= Date.parse(filters.endDate)
     )
       throw new OrchestrationError('validation', 'endDate must be after startDate')
     const queries = input.nativeQueries
       ? nativeSearchQueriesSchema.parse(input.nativeQueries)
       : undefined
-    if (queries?.some((query) => !query.query) && !hasDateBounds(input.filters))
+    if (queries?.some((query) => !query.query) && !hasDateBounds(filters))
       throw new OrchestrationError('validation', 'Empty native queries require a date bound')
     const searchSignal = input.signal
       ? AbortSignal.any([input.signal, AbortSignal.timeout(20_000)])
       : AbortSignal.timeout(20_000)
-    const policies = await loadLiveSearchPolicies(input)
-    const allAccounts = await listLiveAccounts(input, userId)
-    const eligible = allAccounts.filter(
-      (account) =>
-        (!input.filters?.source || input.filters.source === account.provider) &&
-        (!queries ||
-          queries.some(
-            (query) =>
-              query.provider === account.provider &&
-              (!query.accountId || query.accountId === account.id)
-          ))
-    )
-    const selected = eligible.slice(0, 20)
-    const accounts: LiveSearchAccountStatus[] = []
-    const results: WorkspaceKnowledgeSearchResult[] = []
-    // Four accounts at a time bounds token refresh and API fanout across large organizations.
-    for (let offset = 0; offset < selected.length; offset += 4) {
-      const batch = await Promise.all(
-        selected.slice(offset, offset + 4).map(async (account) => {
-          const status = {
-            accountId: account.id,
-            provider: account.provider,
-            displayName: account.displayName,
-          }
-          const signal = AbortSignal.any([searchSignal, AbortSignal.timeout(12_000)])
-          try {
-            signal.throwIfAborted()
-            const resolved = await resolveLiveAccount(input, userId, account.id)
-            const client =
-              resolved.account.type === 'managed_mcp'
-                ? null
-                : createNativeClient({
-                    origin:
-                      'origin' in resolved
-                        ? resolved.origin
-                        : LIVE_SEARCH_PROVIDER_CATALOG[account.provider].origin,
-                    accessToken: resolved.accessToken,
-                    signal,
-                  })
-            const native = queries?.find(
-              (query) =>
-                query.provider === account.provider &&
-                (!query.accountId || query.accountId === account.id)
-            )
-            let policy = livePolicyFor(policies, account.provider)
-            const admin =
-              'adminSource' in resolved && client
-                ? await createAdminGitLabSession({
-                    owner: input,
-                    userId,
-                    source: resolved.adminSource,
-                    token: resolved.accessToken,
-                    client,
-                    signal,
-                  })
-                : undefined
-            const mcp = client
-              ? undefined
-              : await createCodaMcpClient(input, userId, account.id, signal)
-            const service = await createLiveServiceSession({
-              owner: input,
-              userId,
-              provider: account.provider,
-              policy,
-              member: client,
-              mcp,
-              signal,
-            })
-            if (service) policy = service.policy
-            const verify =
-              service?.verify ??
-              createPolicyVerifier(
-                account.provider,
-                policy,
-                client,
-                'origin' in resolved
-                  ? resolved.origin
-                  : LIVE_SEARCH_PROVIDER_CATALOG[account.provider].origin,
-                mcp
-              )
-            const searchInput: NativeSearchInput = {
-              filters: input.filters,
-              policy,
-              query: input.query,
-              native,
-              limit: input.topK,
-              scopes: resolved.account.scopes,
-            }
-            const scopedInput = service?.scopeSearch
-              ? service.scopeSearch(searchInput)
-              : searchInput
-            const page: NativePage =
-              scopedInput === null
-                ? { documents: [] }
-                : admin
-                  ? await admin.search(scopedInput)
-                  : await searchWithinPolicy(account.provider, client, scopedInput, (scoped) =>
-                      client
-                        ? searchNativeProvider(account.provider, client, scoped)
-                        : searchCodaMcp(mcp!, scoped)
-                    )
-            const permitted: NativeDocument[] = []
-            let unverified = false
-            for (const document of page.documents) {
-              try {
-                if ((await verify(document)) && (!admin || (await admin.verify(document))))
-                  permitted.push(document)
-              } catch (error) {
-                if (error instanceof NativeSearchError && error.status === 'reconnect') throw error
-                unverified = true
-              }
-            }
-            const rows = permitted
-              .filter((document) => document.id)
-              .map((document, index) => ({
-                document,
-                result: resultFor(
-                  document,
-                  account,
-                  input,
-                  userId,
-                  index + 1,
-                  input.resultSecretRegistry
-                ),
-              }))
-            const matching = rows
-              .filter(({ document, result }) =>
-                matchesLiveFilters(document, result.documentId, account.provider, input.filters)
-              )
-              .map(({ result }) => result)
-            return {
-              status: {
-                ...status,
-                status:
-                  (input.filters?.sortBy &&
-                    input.filters.sortBy !== 'relevance' &&
-                    rows.some(
-                      ({ document }) =>
-                        !Number.isFinite(Date.parse(sourceDate(document, account.provider) ?? ''))
-                    )) ||
-                  unverified ||
-                  service?.partial ||
-                  page.partial ||
-                  page.nextCursor ||
-                  matching.length < rows.length
-                    ? ('partial' as const)
-                    : ('ok' as const),
-                message:
-                  [
-                    page.message,
-                    service?.partial
-                      ? 'Service account verification covered a bounded subset of the configured users. Narrow the source user list for complete coverage; external Drive users can only search files also visible to the source administrator.'
-                      : undefined,
-                    (input.filters?.startDate || input.filters?.endDate) &&
-                    rows.some(
-                      ({ document }) =>
-                        !Number.isFinite(Date.parse(sourceDate(document, account.provider) ?? ''))
-                    )
-                      ? 'Some results lacked date metadata and were excluded; date coverage is incomplete.'
-                      : undefined,
-                    input.filters?.sortBy && input.filters.sortBy !== 'relevance'
-                      ? 'Date order covers retrieved results; follow continuation before claiming an overall earliest or latest match.'
-                      : undefined,
-                  ]
-                    .filter(Boolean)
-                    .join(' ') || undefined,
-                nextCursor: page.nextCursor,
-              },
-              results: matching,
-            }
-          } catch (error) {
-            input.signal?.throwIfAborted()
-            const failure =
-              error instanceof NativeSearchError
-                ? error
-                : signal.aborted
-                  ? new NativeSearchError(
-                      'timeout',
-                      'Provider search timed out. Narrow the query or try again.'
-                    )
-                  : new NativeSearchError(
-                      'unavailable',
-                      'This account could not be searched. Check the connection and try again.'
-                    )
-            return {
-              status: {
-                ...status,
-                status: failure.status,
-                message: failure.message,
-                retryAfterSeconds: failure.retryAfterSeconds,
-              },
-              results: [],
-            }
-          }
-        })
+    const nativeFor = (account: LiveAccount) =>
+      queries?.find(
+        (query) =>
+          query.provider === account.provider &&
+          (!query.accountId || query.accountId === account.id)
       )
-      for (const item of batch) {
-        accounts.push(item.status)
-        results.push(...item.results)
+    const [policies, allAccounts] = await Promise.all([
+      measureSearchStage('live.policies', () => loadLiveSearchPolicies(input)),
+      measureSearchStage('live.accounts', () => listLiveAccounts(input, userId)),
+    ])
+    const eligible = allAccounts
+      .filter(
+        (account) =>
+          (!filters?.source || filters.source === account.provider) &&
+          (!queries || nativeFor(account))
+      )
+      .sort(compareAccounts)
+    const selected = eligible.slice(0, MAX_ACCOUNTS)
+    const direction = dateSortDirection(filters)
+    const dateSorted = Boolean(direction)
+    const pool = createPinnedConnectionPool()
+    const searchAccount = async (
+      account: LiveAccount
+    ): Promise<{ status: LiveSearchAccountStatus; results: WorkspaceKnowledgeSearchResult[] }> => {
+      const status = {
+        accountId: account.id,
+        provider: account.provider,
+        displayName: account.displayName,
+      }
+      /** Cancels requests still in flight once the account settles, including after a failure. */
+      const settled = new AbortController()
+      const signal = AbortSignal.any([searchSignal, AbortSignal.timeout(12_000), settled.signal])
+      try {
+        signal.throwIfAborted()
+        const resolved = await measureSearchStage('live.resolve', () =>
+          resolveListedLiveAccount(input, userId, account)
+        )
+        const session = await measureSearchStage('live.session', () =>
+          openLiveAccountSession({ owner: input, userId, resolved, policies, signal, pool })
+        )
+        const native = nativeFor(account)
+        const page = await measureSearchStage('live.search', () =>
+          session.search({
+            filters,
+            policy: session.policy,
+            query: input.query,
+            native,
+            limit: input.topK,
+            scopes: resolved.account.scopes,
+          })
+        )
+        const candidates = page.documents
+          .filter((document) => document.id)
+          .map((document) => candidateFor(document, account, input, userId))
+        /**
+         * Local filters run first so provider verification is spent only on eligible results.
+         * Undated results are verified too, so their exclusion is reported only when readable.
+         */
+        const { permitted, unverified, rateLimited } = await measureSearchStage('live.verify', () =>
+          verifyCandidates(
+            session,
+            candidates.filter(
+              ({ document, documentId }) =>
+                matchesLiveFilters(document, documentId, account.provider, filters) ||
+                lacksFilterDate(document, account.provider, filters)
+            )
+          )
+        )
+        const matching = firstOfEachDocument(
+          permitted.filter(({ document, documentId }) =>
+            matchesLiveFilters(document, documentId, account.provider, filters)
+          )
+        )
+        const undatedExcluded = permitted.some(({ document }) =>
+          lacksFilterDate(document, account.provider, filters)
+        )
+        const undatedUnsorted =
+          dateSorted && matching.some(({ document }) => !sourceDate(document, account.provider))
+        const moreUnsorted = dateSorted && Boolean(page.nextCursor || page.hasMore)
+        /** More matches exist that no cursor can reach, so coverage is short. */
+        const moreUnreachable = Boolean(page.hasMore && !page.nextCursor)
+        /** A continuable page with nothing readable proves nothing about the pages after it. */
+        const emptyContinuable = Boolean(page.nextCursor && !matching.length)
+        const degraded =
+          unverified ||
+          session.servicePartial ||
+          page.partial ||
+          undatedExcluded ||
+          undatedUnsorted ||
+          moreUnsorted ||
+          moreUnreachable ||
+          emptyContinuable
+        return {
+          status: {
+            ...status,
+            status: degraded ? 'partial' : 'ok',
+            message: joinMessages([
+              page.message,
+              session.servicePartial
+                ? 'Service account verification covered a bounded subset of the configured users. Narrow the source user list for complete coverage; external Drive users can only search files also visible to the source administrator.'
+                : undefined,
+              unverified
+                ? rateLimited
+                  ? 'The provider rate-limited verification, so some results were omitted. Try again later.'
+                  : 'Some results could not be verified against the source settings and were omitted.'
+                : undefined,
+              undatedExcluded
+                ? 'Some results lacked date metadata and were excluded; date coverage is incomplete.'
+                : undefined,
+              dateSorted
+                ? 'Date order covers retrieved results; follow continuation before claiming an overall earliest or latest match.'
+                : undefined,
+              moreUnreachable
+                ? 'More matches exist than this search could return. Narrow the query or target one source.'
+                : undefined,
+              emptyContinuable
+                ? 'No readable matches on this page. Continue with nextCursor for more.'
+                : undefined,
+            ]),
+            nextCursor: page.nextCursor,
+          },
+          results: matching.map((candidate, index) =>
+            resultFor(
+              candidate,
+              account,
+              index + 1,
+              native?.query || input.query,
+              input.resultSecretRegistry
+            )
+          ),
+        }
+      } catch (error) {
+        input.signal?.throwIfAborted()
+        const failure =
+          error instanceof NativeSearchError
+            ? error
+            : signal.aborted
+              ? new NativeSearchError(
+                  'timeout',
+                  'Provider search timed out. Narrow the query or try again.'
+                )
+              : new NativeSearchError(
+                  'unavailable',
+                  'This account could not be searched. Check the connection and try again.'
+                )
+        return {
+          status: {
+            ...status,
+            status: failure.status,
+            message: failure.message,
+            retryAfterSeconds: failure.retryAfterSeconds,
+          },
+          results: [],
+        }
+      } finally {
+        settled.abort()
       }
     }
+    let searched: Awaited<ReturnType<typeof searchAccount>>[]
+    try {
+      searched = await mapWithConcurrency(selected, ACCOUNT_CONCURRENCY, searchAccount)
+    } finally {
+      pool.destroy()
+    }
+    const seen = new Set<string>()
+    const ranked = searched
+      .flatMap(({ results }, account) => results.map((result) => ({ account, result })))
+      .sort(({ result: a }, { result: b }) => {
+        if (!dateSorted) return b.similarity - a.similarity
+        const left = Date.parse(a.sourceDate ?? '')
+        const right = Date.parse(b.sourceDate ?? '')
+        if (!Number.isFinite(left)) return Number.isFinite(right) ? 1 : b.similarity - a.similarity
+        if (!Number.isFinite(right)) return -1
+        return (direction === 'asc' ? left - right : right - left) || b.similarity - a.similarity
+      })
+      .filter(({ result }) => {
+        const key = result.sourceUrl || result.documentId
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+    /**
+     * An account's cursor continues after its own page, so it would skip that account's results
+     * cut from this merge. Those accounts drop the cursor and point to a targeted search instead.
+     */
+    const truncated = new Set(ranked.slice(input.topK).map(({ account }) => account))
+    const accounts: LiveSearchAccountStatus[] = searched.map(({ status }, index) => {
+      if (!truncated.has(index)) return status
+      const { nextCursor: _, ...rest } = status
+      return {
+        ...rest,
+        message: joinMessages([
+          status.message,
+          'More matches ranked below the returned results. Search this account alone to see them.',
+        ]),
+      }
+    })
     for (const query of queries ?? []) {
       if (
         !selected.some(
@@ -433,34 +517,12 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           message: 'No connection with this provider is configured and approved in this scope.',
         })
     }
-    const seen = new Set<string>()
-    const ranked = results
-      .sort((a, b) => {
-        if (!input.filters?.sortBy || input.filters.sortBy === 'relevance')
-          return b.similarity - a.similarity
-        const left = Date.parse(a.sourceDate ?? '')
-        const right = Date.parse(b.sourceDate ?? '')
-        if (!Number.isFinite(left)) return Number.isFinite(right) ? 1 : b.similarity - a.similarity
-        if (!Number.isFinite(right)) return -1
-        return (
-          (input.filters.sortBy === 'oldest' ? left - right : right - left) ||
-          b.similarity - a.similarity
-        )
-      })
-      .filter((item) => {
-        const key = item.sourceUrl || item.documentId
-        if (seen.has(key)) return false
-        seen.add(key)
-        return true
-      })
     return {
       query: input.query,
-      results: ranked.slice(0, input.topK),
+      results: ranked.slice(0, input.topK).map(({ result }) => result),
       retrieval: {
         status:
-          accounts.some((account) => account.status !== 'ok') ||
-          eligible.length > selected.length ||
-          ranked.length > input.topK
+          accounts.some((account) => account.status !== 'ok') || eligible.length > selected.length
             ? 'partial'
             : 'complete',
         timedOutLegs: [],
@@ -500,95 +562,40 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
       (input.filters?.documentIds && !input.filters.documentIds.includes(input.documentId))
     )
       throw new OrchestrationError('not_found', 'Document is outside the selected search filters')
-    const resolved = await resolveLiveAccount(input, userId, reference.account)
+    const [resolved, policies] = await Promise.all([
+      resolveLiveAccount(input, userId, reference.account),
+      loadLiveSearchPolicies(input),
+    ])
     if (resolved.account.provider !== reference.provider)
       throw new OrchestrationError('not_found', 'Document account changed')
     const signal = input.signal
       ? AbortSignal.any([input.signal, AbortSignal.timeout(15_000)])
       : AbortSignal.timeout(15_000)
-    const client =
-      resolved.account.type === 'managed_mcp'
-        ? null
-        : createNativeClient({
-            origin:
-              'origin' in resolved
-                ? resolved.origin
-                : LIVE_SEARCH_PROVIDER_CATALOG[reference.provider].origin,
-            accessToken: resolved.accessToken,
-            signal,
-          })
-    let policy = livePolicyFor(await loadLiveSearchPolicies(input), reference.provider)
-    const admin =
-      'adminSource' in resolved && client
-        ? await createAdminGitLabSession({
-            owner: input,
-            userId,
-            source: resolved.adminSource,
-            token: resolved.accessToken,
-            client,
-            signal,
-          })
-        : undefined
-    const mcp = client
-      ? undefined
-      : await createCodaMcpClient(input, userId, reference.account, signal)
-    const service = await createLiveServiceSession({
-      owner: input,
-      userId,
-      provider: reference.provider,
-      policy,
-      member: client,
-      mcp,
-      signal,
-    })
-    if (service) policy = service.policy
-    const verify =
-      service?.verify ??
-      createPolicyVerifier(
-        reference.provider,
-        policy,
-        client,
-        'origin' in resolved
-          ? resolved.origin
-          : LIVE_SEARCH_PROVIDER_CATALOG[reference.provider].origin,
-        mcp
-      )
-    if (!(await verify(reference)) || (admin && !(await admin.verify(reference))))
-      throw new OrchestrationError(
-        'not_found',
-        'Document is outside your organization’s search scope'
-      )
-    const document = admin
-      ? await admin.read(reference)
-      : client
-        ? await readNativeProvider(reference.provider, client, reference, policy, input.filters)
-        : await readCodaMcp(mcp!, reference.id)
-    const currentPolicy = livePolicyFor(await loadLiveSearchPolicies(input), reference.provider)
-    const currentService = await createLiveServiceSession({
-      owner: input,
-      userId,
-      provider: reference.provider,
-      policy: currentPolicy,
-      member: client,
-      mcp,
-      signal,
-    })
-    const verifyCurrent =
-      currentService?.verify ??
-      createPolicyVerifier(
-        reference.provider,
-        currentPolicy,
-        client,
-        'origin' in resolved
-          ? resolved.origin
-          : LIVE_SEARCH_PROVIDER_CATALOG[reference.provider].origin,
-        mcp
-      )
-    if (!(await verifyCurrent(document)))
-      throw new OrchestrationError(
-        'not_found',
-        'Document is outside your organization’s search scope'
-      )
+    const pool = createPinnedConnectionPool()
+    let document: NativeDocument
+    try {
+      const session = await openLiveAccountSession({
+        owner: input,
+        userId,
+        resolved,
+        policies,
+        signal,
+        pool,
+      })
+      if (!(await session.verify(reference)))
+        throw new OrchestrationError(
+          'not_found',
+          'Document is outside your organization’s search scope'
+        )
+      document = await measureSearchStage('live.read', () => session.read(reference, input.filters))
+      if (!(await session.verifyCurrent(document)))
+        throw new OrchestrationError(
+          'not_found',
+          'Document is outside your organization’s search scope'
+        )
+    } finally {
+      pool.destroy()
+    }
     if (!matchesLiveFilters(document, input.documentId, reference.provider, input.filters))
       throw new OrchestrationError('not_found', 'Document is outside the selected search filters')
     const content = safeContent(document.content, input.resultSecretRegistry)
@@ -603,7 +610,7 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
         'validation',
         'This document changed. Read again from the beginning'
       )
-    const end = Math.min(content.length, start + 8000)
+    const end = Math.min(content.length, start + READ_WINDOW_CHARACTERS)
     return {
       documentId: input.documentId,
       knowledgeBaseId: '',

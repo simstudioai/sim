@@ -72,6 +72,7 @@ import {
   isIndexableConnectorFile,
   isSkippableMicrosoftGraphFolderError,
   isSkippedDocument,
+  looksLikeHtml,
   MICROSOFT_GRAPH_MAX_CURSOR_ENCODED_BYTES,
   MICROSOFT_GRAPH_MAX_ITEM_ID_BYTES,
   MICROSOFT_GRAPH_MAX_PENDING_FOLDERS,
@@ -1752,5 +1753,16 @@ describe('BoundedLines', () => {
       lines.push('hello')
       expect(lines.join()).toBe('# room\n\nhello')
     })
+  })
+})
+
+describe('looksLikeHtml', () => {
+  it('recognizes elements with valid tag syntax', () => {
+    for (const markup of ['<p>', '</p>', '<br>', '<br/>', '<a href="x">', '<td class="c">'])
+      expect(looksLikeHtml(`text ${markup} text`)).toBe(true)
+  })
+  it('does not mistake an address whose name starts like a tag for markup', () => {
+    for (const text of ['Invite <a@acme.com>', 'From <b.smith@acme.com>', '<i.e. later>'])
+      expect(looksLikeHtml(text)).toBe(false)
   })
 })

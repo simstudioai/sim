@@ -1,5 +1,6 @@
 /** @vitest-environment node */
 import { describe, expect, it, vi } from 'vitest'
+import { withJsonMemo } from '@/lib/sim-search/live/http'
 import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
 import {
   defaultLiveSearchPolicy,
@@ -242,5 +243,20 @@ describe('organization search scope enforcement', () => {
     })
     expect(await verify({ id: 'https://coda.io:444/d/doc' })).toBe(false)
     expect(await verify({ id: 'https://evil.test/d/doc' })).toBe(false)
+  })
+  it('shares metadata within a client unless the verifier must read it fresh', async () => {
+    const api = client({
+      '/drive/v3/files/doc': { id: 'doc', parents: ['root'] },
+      '/drive/v3/files/root': { id: 'root', parents: [] },
+    })
+    const session = withJsonMemo(api)
+    const verify = createPolicyVerifier('google_drive', selected(['root']), session, '')
+    await verify({ id: 'doc' })
+    await verify({ id: 'doc' })
+    expect(api.json).toHaveBeenCalledTimes(2)
+    await createPolicyVerifier('google_drive', selected(['root']), session, '', undefined, {
+      fresh: true,
+    })({ id: 'doc' })
+    expect(api.json).toHaveBeenCalledTimes(4)
   })
 })
