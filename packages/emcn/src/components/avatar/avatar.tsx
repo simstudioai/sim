@@ -130,13 +130,14 @@ const Avatar = React.forwardRef<React.ElementRef<typeof AvatarPrimitive.Root>, A
   ({ className, size, status, name, src, children, ...props }, ref) => {
     const hidden = props['aria-hidden'] === true || props['aria-hidden'] === 'true'
     const label = name?.trim()
+    const labelled = Boolean(label) && !hidden
     return (
       <AvatarSizeContext.Provider value={size}>
         <div className='relative inline-flex'>
           <AvatarPrimitive.Root
             ref={ref}
             className={cn(avatarVariants({ size }), className)}
-            {...(label && !hidden
+            {...(labelled
               ? { role: 'img', 'aria-label': status ? `${label}, ${status}` : label }
               : {})}
             {...props}
@@ -150,11 +151,17 @@ const Avatar = React.forwardRef<React.ElementRef<typeof AvatarPrimitive.Root>, A
               </>
             )}
           </AvatarPrimitive.Root>
+          {/**
+           * A named avatar carries its status in its own label, and a hidden one
+           * carries nothing; only a composed avatar announces the dot itself.
+           */}
           {status && (
             <span
               data-slot='avatar-status'
               className={cn(avatarStatusVariants({ status, size }))}
-              aria-hidden
+              {...(labelled || hidden
+                ? { 'aria-hidden': true }
+                : { role: 'img', 'aria-label': `Status: ${status}` })}
             />
           )}
         </div>
@@ -206,4 +213,11 @@ const AvatarFallback = React.forwardRef<
 })
 AvatarFallback.displayName = 'AvatarFallback'
 
-export { Avatar, AvatarImage, AvatarFallback, avatarVariants, avatarStatusVariants }
+export {
+  Avatar,
+  AvatarImage,
+  AvatarFallback,
+  avatarVariants,
+  avatarStatusVariants,
+  avatarFallbackVariants,
+}

@@ -85,6 +85,18 @@ describe('Avatar', () => {
     )
   })
 
+  it('announces the status dot itself on a composed avatar', async () => {
+    const view = await mount(
+      <Avatar status='away'>
+        <AvatarFallback>AL</AvatarFallback>
+      </Avatar>
+    )
+    const dot = view.querySelector('[data-slot="avatar-status"]')
+    expect(dot?.getAttribute('role')).toBe('img')
+    expect(dot?.getAttribute('aria-label')).toBe('Status: away')
+    expect(dot?.hasAttribute('aria-hidden')).toBe(false)
+  })
+
   it('never labels an image with an empty name', async () => {
     const view = await mount(<Avatar size='xs' name='  ' />)
     expect(view.querySelector('[role="img"]')).toBeNull()
