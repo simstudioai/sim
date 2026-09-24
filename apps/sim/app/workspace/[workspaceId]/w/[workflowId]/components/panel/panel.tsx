@@ -741,7 +741,7 @@ export const Panel = memo(function Panel() {
             <div className='flex gap-1.5'>
               <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
-                  <Button aria-label='Workflow actions' className='size-[30px]'>
+                  <Button aria-label='Workflow actions' iconSize='regular'>
                     <MoreHorizontal className='size-[14px]' />
                   </Button>
                 </DropdownMenuTrigger>
@@ -802,7 +802,7 @@ export const Panel = memo(function Panel() {
               </DropdownMenu>
               <Button
                 aria-label={isChatOpen ? 'Close chat' : 'Open chat'}
-                className='size-[30px]'
+                iconSize='regular'
                 variant={isChatOpen ? 'active' : 'default'}
                 onClick={() => setIsChatOpen(!isChatOpen)}
               >
@@ -853,43 +853,28 @@ export const Panel = memo(function Panel() {
           <div className='flex shrink-0 items-center justify-between px-2 pt-3.5'>
             <div className='flex gap-1'>
               {isCopilotTabAvailable && (
-                <Button
-                  className={`h-[28px] truncate rounded-md border py-[5px] text-small ${
-                    _hasHydrated && activeTab === 'copilot'
-                      ? 'border-[var(--border-1)]'
-                      : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]'
-                  }`}
-                  variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
+                <Chip
+                  active={_hasHydrated && activeTab === 'copilot'}
                   onClick={() => handleTabClick('copilot')}
                   data-tab-button='copilot'
                 >
                   Chat
-                </Button>
+                </Chip>
               )}
-              <Button
-                className={`h-[28px] rounded-md border py-[5px] text-small ${
-                  _hasHydrated && activeTab === 'toolbar'
-                    ? 'border-[var(--border-1)]'
-                    : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]'
-                }`}
-                variant={_hasHydrated && activeTab === 'toolbar' ? 'active' : 'ghost'}
+              <Chip
+                active={_hasHydrated && activeTab === 'toolbar'}
                 onClick={() => handleTabClick('toolbar')}
                 data-tab-button='toolbar'
               >
                 Toolbar
-              </Button>
-              <Button
-                className={`h-[28px] rounded-md border py-[5px] text-small ${
-                  _hasHydrated && activeTab === 'editor'
-                    ? 'border-[var(--border-1)]'
-                    : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]'
-                }`}
-                variant={_hasHydrated && activeTab === 'editor' ? 'active' : 'ghost'}
+              </Chip>
+              <Chip
+                active={_hasHydrated && activeTab === 'editor'}
                 onClick={() => handleTabClick('editor')}
                 data-tab-button='editor'
               >
                 Editor
-              </Button>
+              </Chip>
             </div>
           </div>
 
