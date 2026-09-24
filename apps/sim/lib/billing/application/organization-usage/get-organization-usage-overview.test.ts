@@ -95,18 +95,28 @@ describe('getOrganizationUsageOverview', () => {
     setEnvFlags({ isBillingEnabled: false, isHosted: false })
   })
 
-  it('reads every member tied at the card cutoff, so each visible row is named', async () => {
+  it('reads names only for the kept rows, however large a tie at the cutoff', async () => {
     mocks.readUsageGroups.mockResolvedValue(
-      Array.from({ length: 12 }, (_, index) => ({ key: `u${index}`, cost: 0.01, events: 1 }))
+      Array.from({ length: 12 }, (_, index) => ({
+        key: `u${String(index).padStart(2, '0')}`,
+        cost: 0.01,
+        events: 1,
+      }))
     )
     mocks.readUsageEntities.mockImplementation(
       async (_dimension: string, ids: string[]) =>
-        new Map(ids.map((id) => [id, { name: id === 'u11' ? 'Ada' : `Member ${id}` }]))
+        new Map(ids.map((id) => [id, { name: `Member ${id}` }]))
     )
     const { members } = await run({})
-    expect(mocks.readUsageEntities.mock.calls[0]?.[1]).toHaveLength(12)
-    expect(members.rows[0]?.label).toBe('Ada')
-    expect(members.rows.every((row) => !row.label.startsWith('u'))).toBe(true)
+    expect(mocks.readUsageEntities.mock.calls[0]?.[1]).toEqual(['u00', 'u01', 'u02', 'u03', 'u04'])
+    expect(members.rows.map((row) => row.label)).toEqual([
+      'Member u00',
+      'Member u01',
+      'Member u02',
+      'Member u03',
+      'Member u04',
+    ])
+    expect(members.other.rowCount).toBe(7)
   })
 
   it('reconciles the stack and the headline to one figure', async () => {

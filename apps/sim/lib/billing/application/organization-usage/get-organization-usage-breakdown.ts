@@ -7,6 +7,7 @@ import { organizationUsageOperations } from '@/lib/billing/application/organizat
 import {
   foldUsageBreakdown,
   mergeRowsByKey,
+  rankUsageRows,
   resolveUsageAnalyticsWindow,
   USAGE_NULL_KEY_LABELS,
   type UsageAnalyticsWindow,
@@ -138,16 +139,14 @@ export async function buildUsageBreakdown({
    * Names are hydrated for the surviving keys only — joining inside the aggregate
    * would break the index-only scan the member dimension depends on.
    *
-   * Sorted before cutting: the breakdown query only groups, so Postgres returns its
-   * aggregate in arbitrary order. The fold below breaks cost ties by label, so every
-   * row tied with the last visible one can still win a place — and a label is only
-   * right once its name is read. So the read covers the top `limit` and the whole tie
-   * at the cutoff, never a guessed margin that a larger tie outruns.
+   * Cut with the fold's own ranking, so the rows read here are exactly the rows it
+   * keeps: the breakdown query only groups, and Postgres returns its aggregate in
+   * arbitrary order. The ranking breaks ties by key, never by a name not yet read, so
+   * the read is bounded by `limit` however large a tie at the cutoff.
    */
-  const byCost = [...rows].sort((left, right) => right.cost - left.cost)
-  const cutoffCost = byCost[limit - 1]?.cost
-  const rankedIds = byCost
-    .filter((row, index) => index < limit || row.cost === cutoffCost)
+  const rankBy = dimension === 'byok' ? 'tokens' : 'cost'
+  const rankedIds = rankUsageRows(rows, rankBy)
+    .slice(0, limit)
     .map((row) => row.key)
     .filter((key): key is string => Boolean(key))
   const entities = NAMED_DIMENSIONS.has(dimension)
@@ -175,13 +174,7 @@ export async function buildUsageBreakdown({
 
   // BYOK is denominated in tokens and every row costs zero, so ranking it by cost
   // would order the list alphabetically and call the result "top providers".
-  const fold = foldUsageBreakdown(
-    rows,
-    totalCost,
-    labelFor,
-    limit,
-    dimension === 'byok' ? 'tokens' : 'cost'
-  )
+  const fold = foldUsageBreakdown(rows, totalCost, labelFor, limit, rankBy)
   const tokensByKey = new Map(
     rows.map((row) => [row.key ?? '', (row.inputTokens ?? 0) + (row.outputTokens ?? 0)])
   )
