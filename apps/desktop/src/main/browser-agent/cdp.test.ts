@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
@@ -16,6 +17,7 @@ import {
   ensureInstrumented,
   evaluateInIsolatedFrame,
   insertText,
+  PRIMARY_CLICK,
   releaseFileInput,
   resolveFileInput,
   setColorScheme,
@@ -253,6 +255,24 @@ describe('browser-agent CDP instrumentation', () => {
         },
       ],
     ])
+  })
+
+  it('holds the button down for holdMs before releasing it', async () => {
+    const contents = new WebContentsView().webContents
+    const types = () =>
+      vi.mocked(contents.debugger.sendCommand).mock.calls.map(([, params]) => toRecord(params).type)
+    vi.useFakeTimers()
+    try {
+      const click = clickAt(contents, 5, 6, false, { ...PRIMARY_CLICK, holdMs: 1500 })
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(types()).toEqual(['mousePressed'])
+
+      await vi.advanceTimersByTimeAsync(500)
+      await click
+      expect(types()).toEqual(['mousePressed', 'mouseReleased'])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('releases the mouse after a partial click failure', async () => {

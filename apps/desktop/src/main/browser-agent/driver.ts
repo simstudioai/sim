@@ -1122,6 +1122,9 @@ const POINTER_BUTTONS: ReadonlySet<string> = new Set(['left', 'right', 'middle']
 const MAX_KEY_REPEAT = 50
 
 /** The optional click gesture shared by `browser_click` and `browser_click_at`. */
+/** Longest press-and-hold a click may request; well inside the click tool's watchdog. */
+const MAX_POINTER_HOLD_MS = 10_000
+
 function pointerClick(params: Record<string, unknown>): cdp.PointerClick {
   const button = str(params, 'button') ?? 'left'
   if (!POINTER_BUTTONS.has(button)) throw new ToolError('button must be left, right, or middle.')
@@ -1133,10 +1136,20 @@ function pointerClick(params: Record<string, unknown>): cdp.PointerClick {
   if (!Array.isArray(names) || names.length > 4 || names.some((name) => typeof name !== 'string')) {
     throw new ToolError('modifiers must be a list of modifier names such as ["Shift"] or ["Mod"].')
   }
+  const holdMs = num(params, 'holdMs') ?? 0
+  if (!Number.isInteger(holdMs) || holdMs < 0 || holdMs > MAX_POINTER_HOLD_MS) {
+    throw new ToolError(
+      `holdMs must be a whole number of milliseconds from 0 to ${MAX_POINTER_HOLD_MS}.`
+    )
+  }
+  if (holdMs > 0 && clickCount !== 1) {
+    throw new ToolError('holdMs applies to a single press; use clickCount 1.')
+  }
   return {
     button: button as cdp.PointerClick['button'],
     clickCount,
     modifiers: cdpModifiers(parseModifiers(names)),
+    holdMs,
   }
 }
 

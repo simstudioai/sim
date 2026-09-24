@@ -954,9 +954,16 @@ export interface PointerClick {
   clickCount: 1 | 2 | 3
   /** CDP modifier bitmask (Alt=1, Ctrl=2, Meta=4, Shift=8). */
   modifiers: number
+  /** How long the button stays down before release; press-and-hold controls need it. */
+  holdMs: number
 }
 
-export const PRIMARY_CLICK: PointerClick = { button: 'left', clickCount: 1, modifiers: 0 }
+export const PRIMARY_CLICK: PointerClick = {
+  button: 'left',
+  clickCount: 1,
+  modifiers: 0,
+  holdMs: 0,
+}
 
 const BUTTON_MASKS: Record<PointerClick['button'], number> = { left: 1, right: 2, middle: 4 }
 const agentContextClicks = new WeakMap<WebContents, number>()
@@ -984,7 +991,7 @@ export async function clickAt(
   click: PointerClick = PRIMARY_CLICK
 ): Promise<void> {
   if (moveBeforePress) await moveMouse(contents, x, y)
-  const { button, clickCount, modifiers } = click
+  const { button, clickCount, modifiers, holdMs } = click
   const buttons = BUTTON_MASKS[button]
   let pressed = false
   try {
@@ -1005,6 +1012,7 @@ export async function clickAt(
         modifiers,
         clickCount: count,
       })
+      if (holdMs > 0) await sleep(holdMs)
       await sendInput(contents, 'Input.dispatchMouseEvent', {
         type: 'mouseReleased',
         x,

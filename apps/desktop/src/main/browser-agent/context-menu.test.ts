@@ -228,7 +228,12 @@ describe('attachAgentContextMenu', () => {
       ContextMenuListener,
     ][]
     const onContextMenu = listeners.find(([event]) => event === 'context-menu')![1]
-    await clickAt(contents, 10, 20, false, { button: 'right', clickCount: 1, modifiers: 0 })
+    await clickAt(contents, 10, 20, false, {
+      button: 'right',
+      clickCount: 1,
+      modifiers: 0,
+      holdMs: 0,
+    })
     vi.mocked(Menu.buildFromTemplate).mockClear()
 
     onContextMenu({}, params())
@@ -252,7 +257,12 @@ describe('attachAgentContextMenu', () => {
       ][]
       const onInput = listeners.find(([event]) => event === 'input-event')?.[1]
       const onContextMenu = listeners.find(([event]) => event === 'context-menu')![1]
-      await clickAt(contents, 10, 20, false, { button: 'right', clickCount: 1, modifiers: 0 })
+      await clickAt(contents, 10, 20, false, {
+        button: 'right',
+        clickCount: 1,
+        modifiers: 0,
+        holdMs: 0,
+      })
       vi.mocked(Menu.buildFromTemplate).mockClear()
 
       onInput?.({}, { type: inputEvent })
