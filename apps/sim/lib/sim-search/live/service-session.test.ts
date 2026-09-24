@@ -148,6 +148,16 @@ describe('service credential isolation', () => {
       createLiveServiceSession({ ...base, member: null, provider: 'github', policy: configured })
     ).rejects.toThrow('personal GitHub account')
   })
+  it('passes the caller connection pool to the GitHub verifier', async () => {
+    const pool = { agent: vi.fn(), destroy: vi.fn() }
+    await createLiveServiceSession({
+      ...base,
+      provider: 'github',
+      policy: { ...policy, sourceId: undefined },
+      pool,
+    })
+    expect(mocks.github).toHaveBeenCalledWith(expect.anything(), api, base.signal, pool)
+  })
 })
 
 describe('Confluence source namespace', () => {

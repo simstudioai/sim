@@ -52,8 +52,8 @@ function githubDocument(row: Record<string, unknown>, kind: string): NativeDocum
  */
 const GITHUB_CODE_QUERY_BYTES = 980
 /**
- * Issue search limits only its free text to 256 characters and accepts roughly 4,000 bytes of
- * repository qualifiers; batches leave room for the type and date qualifiers appended later.
+ * Issue and repository search limit only free text to 256 characters and accept roughly 4,000
+ * bytes of repository qualifiers; batches leave room for type and date qualifiers appended later.
  */
 const GITHUB_ISSUE_QUERY_BYTES = 3800
 /** Batches per kind; each code batch spends one of GitHub's ten code searches per minute. */
@@ -74,17 +74,22 @@ function githubKinds(input: NativeSearchInput): GitHubKind[] {
   return hasDateBounds(input.filters) ? ['issues'] : ['issues', 'code']
 }
 
-/** Splits repositories into qualifier batches that keep each query within `maxBytes`. */
+/**
+ * Splits repositories into qualifier batches that keep each query within `maxBytes`. A
+ * repository whose qualifier cannot fit beside the query at all is left out.
+ */
 function repositoryBatches(query: string, names: readonly string[], maxBytes: number): string[][] {
+  const base = Buffer.byteLength(query)
   const batches: string[][] = []
   let batch: string[] = []
-  let bytes = Buffer.byteLength(query)
+  let bytes = base
   for (const name of names) {
     const term = Buffer.byteLength(` repo:${name}`)
-    if (batch.length && bytes + term > maxBytes) {
+    if (base + term > maxBytes) continue
+    if (bytes + term > maxBytes) {
       if (batches.push(batch) === GITHUB_MAX_REPOSITORY_BATCHES) return batches
       batch = []
-      bytes = Buffer.byteLength(query)
+      bytes = base
     }
     batch.push(name)
     bytes += term
@@ -133,31 +138,42 @@ export async function searchGitHub(
         message: 'No repositories are accessible through this GitHub connection.',
       }
     const kinds = githubKinds(input)
-    const batches = kinds.map((kind) => ({
+    const planned = kinds.map((kind) => ({
       kind,
       repositories: repositoryBatches(
         query,
         names,
-        kind === 'issues' ? GITHUB_ISSUE_QUERY_BYTES : GITHUB_CODE_QUERY_BYTES
+        kind === 'code' ? GITHUB_CODE_QUERY_BYTES : GITHUB_ISSUE_QUERY_BYTES
       ),
     }))
+    const batches = planned.filter(({ repositories }) => repositories.length)
+    const skipped = planned.filter(({ repositories }) => !repositories.length)
+    if (!batches.length)
+      throw new NativeSearchError(
+        'unavailable',
+        'This query is too long to scope to your GitHub repositories. Shorten it or add a repo: qualifier.'
+      )
     const searched = Math.min(
       ...batches.map(({ repositories }) =>
         repositories.reduce((count, batch) => count + batch.length, 0)
       )
     )
+    /** Batches merge within their kind first, so a kind with more batches cannot crowd out another. */
     const result = await collectNativePages(
-      batches.flatMap(({ kind, repositories }) =>
-        repositories.map((batch) =>
-          searchGitHub(client, {
-            ...input,
-            native: {
-              provider: 'github',
-              ...input.native,
-              kind,
-              query: [query, ...batch.map((name) => `repo:${name}`)].filter(Boolean).join(' '),
-            },
-          })
+      batches.map(({ kind, repositories }) =>
+        collectNativePages(
+          repositories.map((batch) =>
+            searchGitHub(client, {
+              ...input,
+              native: {
+                provider: 'github',
+                ...input.native,
+                kind,
+                query: [query, ...batch.map((name) => `repo:${name}`)].filter(Boolean).join(' '),
+              },
+            })
+          ),
+          ''
         )
       ),
       'Searched repositories you own, collaborate on, or access through organization membership. Use a repo: qualifier to narrow results.'
@@ -165,9 +181,13 @@ export async function searchGitHub(
     const capped = repositories.length === 100 || searched < names.length
     return {
       ...result,
-      partial: result.partial || capped,
+      partial: result.partial || capped || skipped.length > 0,
       message: joinMessages([
         result.message,
+        ...skipped.map(
+          ({ kind }) =>
+            `GitHub ${kind} search was skipped because the query is too long to scope to repositories.`
+        ),
         !input.native?.kind && !kinds.includes('code') ? CODE_EXCLUDED_BY_DATES : undefined,
         capped
           ? `Only the ${searched} most recently pushed repositories were searched; target a repository for broader coverage.`

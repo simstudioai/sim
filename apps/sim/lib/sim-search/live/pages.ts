@@ -39,7 +39,7 @@ export async function collectNativePages(
     hasMore: pages.some((page) => page.hasMore || page.nextCursor),
     message: joinMessages([
       guidance,
-      ...pages.filter((page) => page.partial).map((page) => page.message),
+      ...pages.filter((page) => page.partial || page.hasMore).map((page) => page.message),
       ...failures.map((error) =>
         error instanceof NativeSearchError ? error.message : 'One collection could not be searched.'
       ),

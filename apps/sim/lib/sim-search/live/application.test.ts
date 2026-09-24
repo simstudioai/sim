@@ -16,6 +16,10 @@ const mocks = vi.hoisted(() => ({
   adminVerify: vi.fn(),
   json: vi.fn(),
   service: vi.fn(),
+  destroyPool: vi.fn(),
+}))
+vi.mock('@/lib/core/security/input-validation.server', () => ({
+  createPinnedConnectionPool: () => ({ agent: vi.fn(), destroy: mocks.destroyPool }),
 }))
 vi.mock('@/lib/sim-search/live/service-session', () => ({
   createLiveServiceSession: mocks.service,
@@ -401,11 +405,85 @@ describe('authorized live retrieval', () => {
       expect(status.message).toContain('Search this account alone')
     }
   })
+  it('drops the cursor only for the account whose results were cut from the merge', async () => {
+    const gmail = { ...account, id: 'mail', provider: 'gmail', displayName: 'Mail' }
+    mocks.accounts.mockResolvedValue([account, gmail])
+    mocks.search.mockImplementation(async (provider: string) => ({
+      documents: (provider === 'gmail' ? [1, 2] : [1]).map((rank) => ({
+        ...document,
+        id: `${provider}-${rank}`,
+        url: `https://docs.google.com/${provider}-${rank}`,
+      })),
+      nextCursor: 'next',
+    }))
+    const result = await searchLiveKnowledge.execute({ principal, input: { ...input, topK: 2 } })
+    const statusOf = (id: string) => result.live?.accounts.find((row) => row.accountId === id)
+    expect(result.results.map((row) => decodeLiveReference(row.documentId).id)).not.toContain(
+      'gmail-2'
+    )
+    expect(statusOf('mail')?.nextCursor).toBeUndefined()
+    expect(statusOf('account')).toMatchObject({ nextCursor: 'next' })
+  })
+  it('reports a dated search partial when the provider has more it cannot continue', async () => {
+    mocks.search.mockResolvedValue({ documents: [document], hasMore: true })
+    const result = await searchLiveKnowledge.execute({
+      principal,
+      input: {
+        ...input,
+        filters: { startDate: '2026-08-01T00:00:00Z', endDate: '2026-10-01T00:00:00Z' },
+      },
+    })
+    expect(result.results).toHaveLength(1)
+    expect(result.live?.accounts[0]).toMatchObject({
+      status: 'partial',
+      message: expect.stringContaining('date range'),
+    })
+  })
+  it('applies date filters before spending provider verification', async () => {
+    const verify = vi.fn(async () => true)
+    mocks.service.mockResolvedValue({ policy: defaultLiveSearchPolicy(), verify, partial: false })
+    const outside = {
+      ...document,
+      id: 'outside',
+      url: 'https://docs.google.com/outside',
+      modifiedAt: '2026-01-01T00:00:00Z',
+    }
+    mocks.search.mockResolvedValue({ documents: [document, outside] })
+    const result = await searchLiveKnowledge.execute({
+      principal,
+      input: {
+        ...input,
+        filters: { startDate: '2026-08-01T00:00:00Z', endDate: '2026-10-01T00:00:00Z' },
+      },
+    })
+    expect(result.results.map((row) => decodeLiveReference(row.documentId).id)).toEqual(['doc'])
+    expect(verify).toHaveBeenCalledExactlyOnceWith(document)
+  })
+  it('releases the connection pool once, even when the search is cancelled mid-flight', async () => {
+    await searchLiveKnowledge.execute({ principal, input })
+    expect(mocks.destroyPool).toHaveBeenCalledOnce()
+    mocks.destroyPool.mockClear()
+    const controller = new AbortController()
+    mocks.search.mockImplementation(async () => {
+      controller.abort()
+      throw new NativeSearchError('unavailable', 'Cancelled')
+    })
+    await expect(
+      searchLiveKnowledge.execute({ principal, input: { ...input, signal: controller.signal } })
+    ).rejects.toThrow()
+    expect(mocks.destroyPool).toHaveBeenCalledOnce()
+  })
   it('reports partial coverage when more matches exist but none could be returned', async () => {
     mocks.search.mockResolvedValue({ documents: [], hasMore: true })
     const result = await searchLiveKnowledge.execute({ principal, input })
     expect(result.retrieval.status).toBe('partial')
-    expect(result.live?.accounts[0]?.message).toContain('More matches exist')
+    expect(result.live?.accounts[0]?.message).toContain('More matches may exist')
+  })
+  it('reports partial coverage when a continuable page returned nothing readable', async () => {
+    mocks.search.mockResolvedValue({ documents: [], nextCursor: 'next' })
+    const result = await searchLiveKnowledge.execute({ principal, input })
+    expect(result.retrieval.status).toBe('partial')
+    expect(result.live?.accounts[0]).toMatchObject({ status: 'partial', nextCursor: 'next' })
   })
   it('rejects invalid dates before resolving provider credentials', async () => {
     await expect(

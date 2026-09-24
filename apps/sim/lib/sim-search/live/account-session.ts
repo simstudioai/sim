@@ -73,7 +73,7 @@ export async function openLiveAccountSession(
   const mcp = client ? undefined : await createCodaMcpClient(owner, userId, account.id, signal)
 
   /** A service source replaces the member policy and verifies with its own credential. */
-  const sourceBoundary = async (memberPolicy: LiveSearchPolicy) => {
+  const sourceBoundary = async (memberPolicy: LiveSearchPolicy, fresh = false) => {
     const service = await createLiveServiceSession({
       owner,
       userId,
@@ -85,7 +85,9 @@ export async function openLiveAccountSession(
       pool: input.pool,
     })
     if (service) return service
-    const verifyPolicy = createPolicyVerifier(provider, memberPolicy, client, origin, mcp)
+    const verifyPolicy = createPolicyVerifier(provider, memberPolicy, client, origin, mcp, {
+      fresh,
+    })
     return {
       policy: memberPolicy,
       partial: false,
@@ -117,7 +119,8 @@ export async function openLiveAccountSession(
     },
     async verifyCurrent(document) {
       const current = await sourceBoundary(
-        livePolicyFor(await loadLiveSearchPolicies(owner), provider)
+        livePolicyFor(await loadLiveSearchPolicies(owner), provider),
+        true
       )
       return current.verify(document)
     },

@@ -126,6 +126,19 @@ describe('Coda MCP content search', () => {
     expect(page).toMatchObject({ partial: true, documents: [{ id: 'coda://docs/doc' }] })
     expect(page.message).toContain('Date filters apply to returned timestamps in Sim')
   })
+  it('reports more results without claiming degraded coverage', async () => {
+    const call = vi.fn<CodaMcpClient['call']>().mockResolvedValue({
+      results: [{ uri: 'coda://docs/doc', title: 'Launch' }],
+      hasMore: true,
+    })
+    expect(await searchCodaMcp({ call }, input)).toMatchObject({ hasMore: true, partial: false })
+    expect(
+      await searchCodaMcp(
+        { call },
+        { ...input, filters: { startDate: '2026-09-01', endDate: '2026-09-30' } }
+      )
+    ).toMatchObject({ hasMore: true, partial: true })
+  })
   it('rejects page-scoped document filters before calling the provider', async () => {
     const call = vi.fn<CodaMcpClient['call']>()
     await expect(

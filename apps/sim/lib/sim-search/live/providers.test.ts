@@ -233,6 +233,51 @@ describe('native search endpoints', () => {
     expect(result.partial).toBe(true)
     expect(result.message).toMatch(/Only the \d+ most recently pushed repositories were searched/)
   })
+  it('interleaves GitHub kinds before batches so one kind cannot crowd out another', async () => {
+    const api = client()
+    const repositories = Array.from({ length: 100 }, (_, index) => ({
+      full_name: `simstudioai/repository-with-a-long-name-${index}`,
+    }))
+    api.json.mockImplementation(async (path) => {
+      if (path === '/user/repos') return repositories
+      return path === '/search/code'
+        ? { items: [{ path: 'src/a.ts', repository: { full_name: 'org/repo' } }], total_count: 1 }
+        : { items: [{ number: 1, title: 'Issue' }], total_count: 1 }
+    })
+    const result = await searchGitHub(api, input)
+    const count = (path: string) => api.json.mock.calls.filter(([called]) => called === path).length
+    expect(count('/search/code')).toBeGreaterThan(count('/search/issues') / 2)
+    expect(result.documents.slice(0, 2).map(({ kind }) => kind)).toEqual(['issues', 'code'])
+  })
+  it('batches GitHub repository search like issue search, not by the code query limit', async () => {
+    const api = client()
+    const repositories = Array.from({ length: 100 }, (_, index) => ({
+      full_name: `simstudioai/repository-with-a-long-name-${index}`,
+    }))
+    api.json.mockImplementation(async (path) =>
+      path === '/user/repos' ? repositories : { items: [], total_count: 0 }
+    )
+    await searchGitHub(api, {
+      ...input,
+      native: { provider: 'github', query: 'launch', kind: 'repositories' },
+    })
+    const searches = api.json.mock.calls.filter(([path]) => path === '/search/repositories')
+    expect(searches.length).toBeGreaterThan(0)
+    expect(searches.length).toBeLessThanOrEqual(2)
+  })
+  it('skips code search when the query leaves no room for a repository qualifier', async () => {
+    const api = client()
+    api.json.mockImplementation(async (path) =>
+      path === '/user/repos' ? [{ full_name: 'org/repo' }] : { items: [], total_count: 0 }
+    )
+    const result = await searchGitHub(api, { ...input, query: 'x'.repeat(975) })
+    const searches = api.json.mock.calls.filter(([path]) => path.startsWith('/search/'))
+    expect(searches.map(([path]) => path)).toEqual(['/search/issues', '/search/issues'])
+    expect(result).toMatchObject({
+      partial: true,
+      message: expect.stringContaining('code search was skipped'),
+    })
+  })
   it('keeps GitHub qualifiers outside the grouped text of a dated search', async () => {
     const api = client()
     api.json.mockImplementation(async (path) =>
@@ -455,6 +500,27 @@ describe('native search endpoints', () => {
       api.json.mock.calls.filter(([path]) => path === '/api/v4/projects/42/search')
     ).toHaveLength(3)
     expect(api.json.mock.calls.some(([path]) => path === '/api/v4/search')).toBe(false)
+  })
+  it('reads GitLab merge request assignees from the deprecated single assignee', async () => {
+    const api = client()
+    const search = (row: Record<string, unknown>) => {
+      api.json.mockResolvedValueOnce([
+        {
+          iid: 7,
+          project_id: 4,
+          web_url: 'https://gitlab.com/org/repo/-/merge_requests/7',
+          ...row,
+        },
+      ])
+      return searchGitLab(api, {
+        ...input,
+        native: { provider: 'gitlab', query: 'launch', kind: 'merge_requests', project: '4' },
+      })
+    }
+    expect(await search({ assignee: { id: 3 } })).toMatchObject({
+      documents: [{ accessMetadata: { assigneeIds: [3] } }],
+    })
+    expect(await search({})).toMatchObject({ documents: [{ accessMetadata: { assigneeIds: [] } }] })
   })
   it('binds GitLab code references and links to the searched revision', async () => {
     const api = client()

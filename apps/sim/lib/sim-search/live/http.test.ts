@@ -6,7 +6,7 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
   secureFetchWithValidation: mocks.fetch,
 }))
 
-import { createNativeClient } from '@/lib/sim-search/live/http'
+import { createNativeClient, NativeSearchError, withJsonMemo } from '@/lib/sim-search/live/http'
 
 describe('native search network boundary', () => {
   beforeEach(() => {
@@ -141,6 +141,18 @@ describe('native search network boundary', () => {
       expect.objectContaining({ acceptCompressed: true, connectionPool: pool })
     )
   })
+  it('reuses a memoized response, including a failure, only when asked to', async () => {
+    const json = vi
+      .fn()
+      .mockRejectedValueOnce(new NativeSearchError('rate_limited', 'Later'))
+      .mockResolvedValue({ ok: true })
+    const client = withJsonMemo({ json, text: vi.fn() })
+    await expect(client.json('/labels', { memo: true })).rejects.toThrow('Later')
+    await expect(client.json('/labels', { memo: true })).rejects.toThrow('Later')
+    expect(json).toHaveBeenCalledTimes(1)
+    await expect(client.json('/labels')).resolves.toEqual({ ok: true })
+    expect(json).toHaveBeenCalledTimes(2)
+  })
   it('does not issue any request after cancellation', async () => {
     const controller = new AbortController()
     controller.abort()
@@ -151,5 +163,43 @@ describe('native search network boundary', () => {
     })
     await expect(client.json('/api/assistant.search.context')).rejects.toThrow()
     expect(mocks.fetch).not.toHaveBeenCalled()
+  })
+  it('memoizes a repeated GET by path and query, never a request with a body', async () => {
+    mocks.fetch.mockImplementation(async () => new Response('{"ok":true}', { status: 200 }))
+    const client = createNativeClient({
+      origin: 'https://slack.com',
+      accessToken: 'private',
+      signal: new AbortController().signal,
+    })
+    await client.json('/api/team.info', { query: { team: 'a' }, memo: true })
+    await client.json('/api/team.info', { query: { team: 'a' }, memo: true })
+    expect(mocks.fetch).toHaveBeenCalledTimes(1)
+    await client.json('/api/team.info', { query: { team: 'b' }, memo: true })
+    expect(mocks.fetch).toHaveBeenCalledTimes(2)
+    await client.json('/api/search', { body: { query: 'launch' }, memo: true })
+    await client.json('/api/search', { body: { query: 'launch' }, memo: true })
+    expect(mocks.fetch).toHaveBeenCalledTimes(4)
+  })
+  it('reports a Google RESOURCE_EXHAUSTED 403 as a rate limit', async () => {
+    mocks.fetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: { status: 'RESOURCE_EXHAUSTED' } }), { status: 403 })
+    )
+    const client = createNativeClient({
+      origin: 'https://www.googleapis.com',
+      accessToken: 'private',
+      signal: new AbortController().signal,
+    })
+    await expect(client.json('/drive/v3/files')).rejects.toMatchObject({ status: 'rate_limited' })
+  })
+  it('reads a quota-shaped 403 body only from Google origins', async () => {
+    mocks.fetch.mockResolvedValue(
+      new Response(JSON.stringify({ error: { status: 'RESOURCE_EXHAUSTED' } }), { status: 403 })
+    )
+    const client = createNativeClient({
+      origin: 'https://slack.com',
+      accessToken: 'private',
+      signal: new AbortController().signal,
+    })
+    await expect(client.json('/api/search.messages')).rejects.toMatchObject({ status: 'reconnect' })
   })
 })

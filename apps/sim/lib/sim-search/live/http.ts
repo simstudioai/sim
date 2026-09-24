@@ -115,8 +115,9 @@ export function createNativeClient(input: {
 }
 
 /**
- * Answers a repeated `memo` GET from the client's earlier response. A client lives for one
- * search or read, so a memoized response never outlives the request that authorized it.
+ * Answers a repeated `memo` GET from the client's earlier response, including a failure, so a
+ * rate-limited endpoint is not requested again. A client lives for one search or read, so a
+ * memoized response never outlives the request that authorized it.
  */
 export function withJsonMemo(client: NativeClient): NativeClient {
   const memo = new Map<string, Promise<unknown>>()
@@ -130,7 +131,6 @@ export function withJsonMemo(client: NativeClient): NativeClient {
       if (!pending) {
         pending = client.json(...request)
         memo.set(key, pending)
-        pending.catch(() => memo.delete(key))
       }
       return pending
     },

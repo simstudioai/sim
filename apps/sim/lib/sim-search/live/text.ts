@@ -1,5 +1,5 @@
 import { convert, type HtmlToTextOptions } from 'html-to-text'
-import { decodeHtmlEntities, looksLikeHtml } from '@/connectors/utils'
+import { decodeHtmlEntities, htmlToPlainText, looksLikeHtml } from '@/connectors/utils'
 
 /**
  * How a provider encodes a text field: `plain` is used as-is, `escaped` is HTML-escaped text
@@ -15,22 +15,60 @@ type ProviderTextFormat = 'plain' | 'escaped' | 'html' | 'auto'
  */
 const INVISIBLE_CHARACTER =
   '[\\u00AD\\u061C\\u115F\\u1160\\u17B4\\u17B5\\u180E\\u200B\\u200C\\u200E\\u200F\\u202A-\\u202E\\u2060-\\u2064\\u2066-\\u206F\\u3164\\uFEFF\\uFFA0]|\\u034F|\\u200D(?!\\p{Extended_Pictographic})'
-/** A run of invisible characters with the spaces between them, as preheader padding is built. */
-const INVISIBLE_RUN = new RegExp(`(?:[^\\S\\n]*(?:${INVISIBLE_CHARACTER}))+[^\\S\\n]*`, 'gu')
+/**
+ * A run of invisible characters with the spaces between them, as preheader padding is built.
+ * The lookbehind starts a match only at the beginning of a space run, which keeps long runs of
+ * spaces linear instead of rescanning them from every position.
+ */
+const INVISIBLE_RUN = new RegExp(
+  `(?<![^\\S\\n\\uFEFF])(?:[^\\S\\n\\uFEFF]*(?:${INVISIBLE_CHARACTER}))+[^\\S\\n\\uFEFF]*`,
+  'gu'
+)
+/** Trailing spaces on a line, matched only from the start of their run for the same reason. */
+const TRAILING_SPACES = /(?<![^\S\n])[^\S\n]+$/gm
+/** A lone joiner or direction mark inside a word shapes it (Persian, Indic, Hebrew, Arabic). */
+const MEANINGFUL_MARK = /^[‌‍‎‏؜⁦-⁩]$/u
+/** Real whitespace; the byte-order mark counts as whitespace in JavaScript but is not spacing. */
+const SPACING = /[^\S﻿]/
 
-/** Markup becomes text only: links keep their visible text, and non-text elements are dropped. */
+/**
+ * Markup becomes text only: links keep their visible text, non-text elements are dropped, each
+ * table row keeps its cells on one line, and nesting depth is bounded.
+ */
 const HTML_TO_TEXT: HtmlToTextOptions = {
   wordwrap: false,
+  limits: { maxDepth: 512 },
+  formatters: {
+    cell(element, walk, builder) {
+      walk(element.children, builder)
+      builder.addInline(' ', { noWordTransform: true })
+    },
+  },
   selectors: [
     { selector: 'a', options: { ignoreHref: true } },
     { selector: 'img', format: 'skip' },
     { selector: 'script', format: 'skip' },
     { selector: 'style', format: 'skip' },
+    { selector: 'table', format: 'block' },
+    { selector: 'tr', format: 'block' },
+    { selector: 'td', format: 'cell' },
+    { selector: 'th', format: 'cell' },
+    { selector: 'dt', format: 'block' },
+    { selector: 'dd', format: 'block' },
     ...(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as const).map((selector) => ({
       selector,
       options: { uppercase: false },
     })),
   ],
+}
+
+/** Markup the converter cannot walk keeps its text through the flat tag-stripping path. */
+function markupText(html: string): string {
+  try {
+    return convert(html, HTML_TO_TEXT)
+  } catch {
+    return htmlToPlainText(html)
+  }
 }
 
 /**
@@ -40,15 +78,17 @@ const HTML_TO_TEXT: HtmlToTextOptions = {
 export function providerText(value: string, format: ProviderTextFormat = 'plain'): string {
   let text = value
   if (format === 'html' || (format === 'auto' && looksLikeHtml(text))) {
-    text = convert(text, HTML_TO_TEXT)
+    text = markupText(text)
   } else if (format === 'escaped') {
     text = decodeHtmlEntities(text)
   }
-  /** Padding collapses to one space, or to nothing inside a word; other spacing is kept. */
-  text = text.replace(INVISIBLE_RUN, (run) => (/\s/.test(run) ? ' ' : ''))
+  /** Padding collapses to one space; a stray mark inside a word is dropped unless it shapes it. */
+  text = text.replace(INVISIBLE_RUN, (run) =>
+    SPACING.test(run) ? ' ' : MEANINGFUL_MARK.test(run) ? run : ''
+  )
   if (format === 'escaped') return text.replace(/\s+/g, ' ').trim()
   return text
-    .replace(/[^\S\n]+$/gm, '')
+    .replace(TRAILING_SPACES, '')
     .replace(/\n{3,}/g, '\n\n')
     .replace(/^\n+|\n+$/g, '')
 }

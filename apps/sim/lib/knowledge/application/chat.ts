@@ -22,6 +22,7 @@ import {
 } from '@/lib/knowledge/application/chat-citations'
 import { organizationSearchChatOperation } from '@/lib/knowledge/application/chat-operations'
 import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load-search-integrations'
+import { stripInteractiveTags } from '@/lib/mothership/chat/interactive-tags'
 import { persistCopilotChatTurn } from '@/lib/mothership/chat/messages-store'
 import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
 import {
@@ -201,7 +202,13 @@ export const organizationSearchChat: OperationUseCase<
         buildPersistedAssistantMessage(result, messageId, 'assistant'),
         registry
       )
-      const answer = resolveSearchChatCitations(assistantMessage.content, result.toolCalls)
+      /** MCP clients receive text; interactive Chat cards stay only in the saved transcript. */
+      const answer = resolveSearchChatCitations(
+        stripInteractiveTags(assistantMessage.content),
+        result.toolCalls
+      )
+      if (!answer.content.trim())
+        throw new OrchestrationError('internal', 'The assistant returned no answer. Try again.')
       if (!isResolvedSecretModelContentUnchanged(answer, registry)) {
         throw new OrchestrationError('internal', 'Search answer could not be returned safely')
       }

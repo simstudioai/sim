@@ -39,13 +39,15 @@ export function createPolicyVerifier(
   policy: LiveSearchPolicy,
   client: NativeClient | null,
   origin: string,
-  mcp?: CodaMcpClient
+  mcp?: CodaMcpClient,
+  /** A fresh verifier reads provider metadata again instead of reusing this client's responses. */
+  options: { fresh?: boolean } = {}
 ): PolicyVerifier {
   if (!requiresScopedRetrieval(provider, policy)) return async () => true
   const json = (path: string, query?: Record<string, string>) => {
     if (!client)
       throw new NativeSearchError('unavailable', 'This connection cannot verify the search scope.')
-    return client.json(path, { query, memo: true })
+    return client.json(path, { query, memo: !options.fresh })
   }
   const restricted = policy.mode === 'selected' || policy.excluded.length > 0
   const siteAllowed = (value: string) => {

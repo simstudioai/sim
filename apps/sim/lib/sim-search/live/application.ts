@@ -372,17 +372,21 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
             )
           )
         )
-        const readable = firstOfEachDocument(permitted)
-        const matching = readable.filter(({ document, documentId }) =>
-          matchesLiveFilters(document, documentId, account.provider, filters)
+        const matching = firstOfEachDocument(
+          permitted.filter(({ document, documentId }) =>
+            matchesLiveFilters(document, documentId, account.provider, filters)
+          )
         )
-        const undatedExcluded = readable.some(({ document }) =>
+        const undatedExcluded = permitted.some(({ document }) =>
           lacksFilterDate(document, account.provider, filters)
         )
         const undatedUnsorted =
           dateSorted && matching.some(({ document }) => !sourceDate(document, account.provider))
         const moreUnsorted = dateSorted && Boolean(page.nextCursor || page.hasMore)
-        const moreUnreachable = Boolean(page.hasMore && !page.nextCursor && !matching.length)
+        /** Nothing readable came back, yet the provider has more: an empty page proves nothing. */
+        const moreWithoutResults = Boolean((page.hasMore || page.nextCursor) && !matching.length)
+        /** A dated listing should cover its window; uncontinuable extra matches leave it short. */
+        const moreInDateRange = Boolean(hasDateBounds(filters) && page.hasMore && !page.nextCursor)
         const degraded =
           unverified ||
           session.servicePartial ||
@@ -390,7 +394,8 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           undatedExcluded ||
           undatedUnsorted ||
           moreUnsorted ||
-          moreUnreachable
+          moreWithoutResults ||
+          moreInDateRange
         return {
           status: {
             ...status,
@@ -409,8 +414,11 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
               dateSorted
                 ? 'Date order covers retrieved results; follow continuation before claiming an overall earliest or latest match.'
                 : undefined,
-              moreUnreachable
-                ? 'More matches exist than this search returned. Narrow the query or target one source.'
+              moreWithoutResults
+                ? 'More matches may exist beyond this page. Continue with nextCursor when present, narrow the query, or target one source.'
+                : undefined,
+              moreInDateRange && !moreWithoutResults
+                ? 'More matches exist in this date range than were returned. Narrow the range or target one source.'
                 : undefined,
             ]),
             nextCursor: page.nextCursor,

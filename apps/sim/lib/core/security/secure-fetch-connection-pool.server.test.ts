@@ -86,9 +86,35 @@ describe('secureFetchWithPinnedIP connection reuse', () => {
       pool.destroy()
     }
   })
+
+  it('falls back to a single-use agent for a request after the pool is destroyed', async () => {
+    const server = await startServer((_req, res) => res.end('ok'))
+    const pool = createPinnedConnectionPool()
+    pool.destroy()
+    expect(pool.agent(false, '127.0.0.1', 80, '127.0.0.1')).toBeUndefined()
+    const response = await secureFetchWithPinnedIP(server.origin, '127.0.0.1', {
+      profile: 'configuredEndpoint',
+      connectionPool: pool,
+    })
+    await expect(response.text()).resolves.toBe('ok')
+  })
 })
 
 describe('secureFetchWithPinnedIP compressed responses', () => {
+  it('caps the decoded size of a compressed body it asked for', async () => {
+    const bomb = gzipSync(Buffer.alloc(64 * 1024, 0x41))
+    const server = await startServer((_req, res) => {
+      res.writeHead(200, { 'Content-Encoding': 'gzip' })
+      res.end(bomb)
+    })
+    const response = await secureFetchWithPinnedIP(server.origin, '127.0.0.1', {
+      profile: 'configuredEndpoint',
+      acceptCompressed: true,
+      maxResponseBytes: 1024,
+    })
+    expect(bomb.length).toBeLessThan(1024)
+    await expect(response.text()).rejects.toThrow(/response body/i)
+  })
   it('asks for compression only when requested and returns the decoded body', async () => {
     const encodings: (string | undefined)[] = []
     const server = await startServer((req, res) => {
@@ -109,7 +135,7 @@ describe('secureFetchWithPinnedIP compressed responses', () => {
       profile: 'configuredEndpoint',
     })
     await expect(plain.json()).resolves.toEqual({ ok: true })
-    expect(encodings).toEqual(['gzip, deflate, br', undefined])
+    expect(encodings).toEqual(['gzip, br', undefined])
   })
 })
 

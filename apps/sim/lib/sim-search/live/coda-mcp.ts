@@ -44,22 +44,11 @@ export async function createCodaMcpClient(
       throw new NativeSearchError('reconnect', 'Coda connection changed. Search again.')
     return current
   }
-  /**
-   * The first provider load reuses the grant checked moments earlier in the same step; any later
-   * load, such as a token refresh inside the MCP client, reads the current grant again.
-   */
-  const providerLoader = (checked: typeof initial) => {
-    let first: typeof initial | undefined = checked
-    return async () => {
-      const current = first ?? (await loadCurrent())
-      first = undefined
-      return createManagedMcpAuthProvider(current)
-    }
-  }
+  const loadProvider = async () => createManagedMcpAuthProvider(await loadCurrent())
   const tools = await mcpService.discoverManagedMcpTools(
     initial.mcpServerId,
     initial.scope,
-    { credentialId, loadProvider: providerLoader(initial) },
+    { credentialId, loadProvider },
     signal,
     { requireComplete: true }
   )
@@ -75,13 +64,13 @@ export async function createCodaMcpClient(
           `Coda no longer advertises ${name}. Reconnect or update the connector.`
         )
       validateToolArguments(tool, args)
-      const current = await loadCurrent()
+      await loadCurrent()
       const result = await mcpService.executeManagedMcpTool({
         connectionId: credentialId,
         serverId: initial.mcpServerId,
         scope: initial.scope,
         toolCall: { name, arguments: args },
-        loadAuthProvider: providerLoader(current),
+        loadAuthProvider: loadProvider,
         signal,
         timeoutMs: 10_000,
       })

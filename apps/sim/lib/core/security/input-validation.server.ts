@@ -357,14 +357,16 @@ export interface SecureFetchOptions {
   /** Hide credential-derived URL details from validation logs. */
   logUrlValidationDetails?: boolean
   /**
-   * Ask for a gzip, deflate, or brotli body. The body is decoded before it is returned, and
+   * Ask for a gzip or brotli body. The body is decoded before it is returned, and
    * `maxResponseBytes` bounds the decoded bytes, so a compression bomb still stops at the cap.
    */
   acceptCompressed?: boolean
   /**
    * Reuses keep-alive connections to the same pinned address across requests. A connection is
    * only ever reused for the IP it was opened to, so every request keeps its DNS pinning. The
-   * owner must call {@link PinnedConnectionPool.destroy} once its requests have finished.
+   * owner must call {@link PinnedConnectionPool.destroy} once its requests have finished. Bun
+   * keeps sockets in its own per-address pool, so there reuse spans pools and `destroy` releases
+   * only the agents.
    */
   connectionPool?: PinnedConnectionPool
   /**
@@ -1158,7 +1160,8 @@ export async function secureFetchWithPinnedIP(
     }
 
     const { 'accept-encoding': _, ...sanitizedHeaders } = options.headers ?? {}
-    if (options.acceptCompressed) sanitizedHeaders['accept-encoding'] = 'gzip, deflate, br'
+    /** Raw deflate streams are ambiguous to decode, so only gzip and brotli are requested. */
+    if (options.acceptCompressed) sanitizedHeaders['accept-encoding'] = 'gzip, br'
     if (!Object.keys(sanitizedHeaders).some((name) => name.toLowerCase() === 'user-agent')) {
       sanitizedHeaders['user-agent'] = DEFAULT_USER_AGENT
     }

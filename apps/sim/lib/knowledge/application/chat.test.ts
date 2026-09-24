@@ -303,6 +303,23 @@ describe('organization Search Assistant chat', () => {
     expect(dbChainMockFns.update).toHaveBeenCalledOnce()
   })
 
+  it('drops interactive Chat tags from the MCP answer but keeps them in the transcript', async () => {
+    const tags = '<options>{"1":"Open it"}</options><question>Which kit?</question>'
+    mocks.lifecycle.mockResolvedValue(createResult({ content: `Violet suitcase.${tags}` }))
+    const result = await execute()
+    expect(result.content).toBe('Violet suitcase.')
+    const [, messages] = mocks.persist.mock.calls[0]
+    expect(JSON.stringify(messages)).toContain('<options>')
+    expect(JSON.stringify(messages)).toContain('<question>')
+  })
+
+  it('refuses an answer that is only interactive Chat tags', async () => {
+    mocks.lifecycle.mockResolvedValue(
+      createResult({ content: '<options>{"1":"Open it"}</options>' })
+    )
+    await expect(execute()).rejects.toThrow('The assistant returned no answer')
+  })
+
   it('fails closed when retrieval makes provenance incomplete', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     mocks.lifecycle.mockImplementation(async () => {
