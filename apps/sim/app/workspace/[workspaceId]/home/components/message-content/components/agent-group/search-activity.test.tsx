@@ -70,9 +70,9 @@ describe('inline search activity', () => {
         tools={[{ ...completedSearch('search-1', 'Launch review'), params: tool.params }]}
       />
     )
-    expect(header().getAttribute('aria-expanded')).toBe('true')
-    act(() => header().click())
     expect(header().getAttribute('aria-expanded')).toBe('false')
+    act(() => header().click())
+    expect(header().getAttribute('aria-expanded')).toBe('true')
   })
 
   it('renders a completed query field from partial streamed arguments and retains stopped status', () => {
@@ -80,7 +80,7 @@ describe('inline search activity', () => {
     render(<SearchActivity tools={[streamed]} />)
     expect(container.textContent).toContain('launch review')
     render(<SearchActivity tools={[{ ...streamed, status: 'cancelled' }]} />)
-    expect(container.textContent).toContain('Search stopped')
+    expect(container.textContent).toBe('launch review · stopped')
     expect(container.textContent).not.toContain('Searched sources')
   })
 
@@ -98,6 +98,11 @@ describe('inline search activity', () => {
       'checked sources',
       { ...tool, toolName: 'search_sources', status: 'success', params: { action: 'list' } },
       'Checked connected sources',
+    ],
+    [
+      'failed sources check',
+      { ...tool, toolName: 'search_sources', status: 'error', params: { action: 'list' } },
+      'Checking connected sources',
     ],
   ] as const)(
     'labels a %s search and leaves it static unless its lane names it live',
@@ -205,26 +210,27 @@ function completedSearch(id: string, title: string): ToolCallData {
 it('keeps all ranked matches in each query and preserves disclosure state when later queries arrive', () => {
   const first = completedSearch('one', 'First query')
   render(<SearchActivity tools={[first]} />)
+  expect(header().getAttribute('aria-expanded')).toBe('false')
+  act(() => header().click())
+  expect(header().getAttribute('aria-expanded')).toBe('true')
   expect(container.querySelectorAll('a')).toHaveLength(3)
   expect(container.textContent).toContain('First query first')
   expect(container.textContent).not.toContain('First query duplicate')
   expect(container.textContent).not.toContain('Unsafe result')
   expect(container.textContent).toContain('example.com')
-  expect(header().getAttribute('aria-expanded')).toBe('true')
-  act(() => header().click())
-  expect(header().getAttribute('aria-expanded')).toBe('false')
   render(<SearchActivity tools={[first, completedSearch('two', 'Second query')]} />)
-  expect(header().getAttribute('aria-expanded')).toBe('false')
+  expect(header().getAttribute('aria-expanded')).toBe('true')
   const headers = container.querySelectorAll<HTMLElement>('[role="button"]')
-  expect(headers[1].getAttribute('aria-expanded')).toBe('true')
+  expect(headers[1].getAttribute('aria-expanded')).toBe('false')
   expect(container.querySelectorAll('a')).toHaveLength(3)
-  act(() => header().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+  act(() => headers[1].dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
   expect(container.querySelectorAll('a')).toHaveLength(6)
   expect(container.querySelectorAll('[role="region"]')).toHaveLength(2)
 })
 
 it('falls back to a document icon when a source favicon is unavailable', () => {
   render(<SearchActivity tools={[completedSearch('one', 'First query')]} />)
+  act(() => header().click())
   const firstLink = container.querySelector('a')!
   expect(firstLink.querySelector('img')).not.toBeNull()
   act(() => firstLink.querySelector('img')!.dispatchEvent(new Event('error')))
@@ -235,8 +241,8 @@ it('falls back to a document icon when a source favicon is unavailable', () => {
 it('distinguishes empty search results from interrupted calls and never previews failed output', () => {
   render(<SearchActivity tools={[{ ...completedSearch('one', 'First query'), status: 'error' }]} />)
   expect(container.querySelectorAll('a')).toHaveLength(0)
-  expect(container.textContent).toContain('Search failed')
-  expect(container.textContent).not.toContain('No results found')
+  expect(container.textContent).toBe('First query')
+  expect(container.querySelector('[role="button"]')).toBeNull()
   render(
     <SearchActivity
       tools={[
@@ -248,5 +254,147 @@ it('distinguishes empty search results from interrupted calls and never previews
       ]}
     />
   )
-  expect(container.textContent).toContain('No results found')
+  expect(container.textContent).toBe('Launch review · in:launch review · no results')
+})
+
+describe('described search rows', () => {
+  const described: ToolCallData = { ...tool, activityDescription: 'Searching launch review notes' }
+  const headerText = () => container.querySelector('[role="status"]')!.textContent
+  const outcomeSuffix = () => container.querySelector('[role="status"] + span')
+
+  it.each([
+    ['executing', 'Searching launch review notes', undefined],
+    ['success', 'Searched launch review notes', ' · 3 results'],
+    ['error', 'Searching launch review notes', undefined],
+    ['rejected', 'Searching launch review notes', ' · declined'],
+    ['cancelled', 'Stopped searching launch review notes', undefined],
+    ['interrupted', 'Stopped searching launch review notes', undefined],
+    ['skipped', 'Skipped searching launch review notes', undefined],
+  ] as const)('titles a %s call with the shared status wording', (status, title, suffix) => {
+    render(
+      <SearchActivity
+        tools={[
+          {
+            ...completedSearch('one', 'Launch review'),
+            params: tool.params,
+            activityDescription: described.activityDescription,
+            status,
+          },
+        ]}
+      />
+    )
+    expect(headerText()).toBe(title)
+    expect(outcomeSuffix()?.textContent).toBe(suffix)
+  })
+
+  it('reads in progress only while running, and never on a finished call', () => {
+    render(<SearchActivity tools={[described]} liveToolId={described.id} />)
+    expect(headerText()).toBe('Searching launch review notes')
+    expect(container.querySelector('[class*="shimmer"]')).not.toBeNull()
+    render(<SearchActivity tools={[{ ...described, status: 'success' }]} />)
+    expect(headerText()).toBe('Searched launch review notes')
+    expect(container.querySelector('[class*="shimmer"]')).toBeNull()
+  })
+
+  it('moves the raw query into one truncated line at the top of the body', () => {
+    render(<SearchActivity tools={[described]} />)
+    expect(header().getAttribute('aria-expanded')).toBe('true')
+    const body = container.querySelector(`#${CSS.escape(header().getAttribute('aria-controls')!)}`)!
+    const queryLine = body.querySelector('.text-caption')!
+    expect(queryLine.textContent).toBe('Launch review · in:launch review')
+    expect(queryLine.className).toContain('whitespace-nowrap')
+    expect(queryLine.className).toContain('overflow-hidden')
+    expect(headerText()).not.toContain('Launch review')
+  })
+
+  it('shows the query only once when there is no description', () => {
+    render(<SearchActivity tools={[completedSearch('one', 'Launch review')]} />)
+    act(() => header().click())
+    expect(container.textContent?.match(/Launch review(?! first| second| third)/g)).toHaveLength(1)
+  })
+
+  it('opens while running, closes on completion, and keeps a manual choice either way', () => {
+    render(<SearchActivity tools={[described]} />)
+    expect(header().getAttribute('aria-expanded')).toBe('true')
+    render(<SearchActivity tools={[{ ...described, status: 'success' }]} />)
+    expect(header().getAttribute('aria-expanded')).toBe('false')
+
+    act(() => root.unmount())
+    root = createRoot(container)
+    render(<SearchActivity tools={[described]} />)
+    act(() => header().click())
+    expect(header().getAttribute('aria-expanded')).toBe('false')
+    render(<SearchActivity tools={[{ ...described, status: 'success' }]} />)
+    expect(header().getAttribute('aria-expanded')).toBe('false')
+    act(() => header().click())
+    expect(header().getAttribute('aria-expanded')).toBe('true')
+
+    act(() => root.unmount())
+    root = createRoot(container)
+    render(<SearchActivity tools={[described]} />)
+    act(() => header().click())
+    act(() => header().click())
+    render(<SearchActivity tools={[{ ...described, status: 'success' }]} />)
+    expect(header().getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('renders a reloaded message with every finished search collapsed', () => {
+    render(
+      <SearchActivity
+        tools={[
+          { ...completedSearch('one', 'First query'), activityDescription: 'Searching specs' },
+          completedSearch('two', 'Second query'),
+          { ...described, id: 'three', status: 'error' },
+        ]}
+      />
+    )
+    const headers = [...container.querySelectorAll<HTMLElement>('[role="button"]')]
+    expect(headers.map((row) => row.getAttribute('aria-expanded'))).toEqual([
+      'false',
+      'false',
+      'false',
+    ])
+    expect(container.querySelectorAll('a')).toHaveLength(0)
+  })
+
+  it('keeps a failed search silent: static neutral title, no failure text or error styling', () => {
+    render(<SearchActivity tools={[{ ...tool, status: 'error' }]} />)
+    expect(container.querySelector('[role="button"]')).toBeNull()
+    expect(container.textContent).toBe('Launch review · in:launch review')
+    render(
+      <SearchActivity tools={[{ ...completedSearch('one', 'x'), ...described, status: 'error' }]} />
+    )
+    expect(header().getAttribute('aria-expanded')).toBe('false')
+    expect(headerText()).toBe('Searching launch review notes')
+    expect(outcomeSuffix()).toBeNull()
+    expect(container.querySelector('[class*="shimmer"]')).toBeNull()
+    act(() => header().click())
+    expect(container.querySelectorAll('a')).toHaveLength(0)
+    expect(container.textContent).toBe(
+      'Searching launch review notesLaunch review · in:launch review'
+    )
+    expect(container.textContent).not.toMatch(/fail/i)
+    expect(container.innerHTML).not.toContain('--text-error')
+  })
+
+  it('keeps user-initiated and empty outcomes as muted suffixes', () => {
+    render(<SearchActivity tools={[{ ...described, status: 'rejected' }]} />)
+    expect(outcomeSuffix()?.textContent).toBe(' · declined')
+    expect(outcomeSuffix()?.className).toContain('text-[var(--text-tertiary)]')
+    render(<SearchActivity tools={[{ ...tool, status: 'skipped' }]} />)
+    expect(outcomeSuffix()?.textContent).toBe(' · skipped')
+    render(<SearchActivity tools={[completedSearch('one', 'First query')]} />)
+    expect(outcomeSuffix()?.textContent).toBe(' · 3 results')
+    expect(container.innerHTML).not.toContain('--text-error')
+  })
+
+  it('lays results out in dense rows with a matching bounded list', () => {
+    render(<SearchActivity tools={[completedSearch('one', 'First query')]} />)
+    act(() => header().click())
+    expect(container.querySelector('[role="region"]')!.className).toContain('max-h-[152px]')
+    for (const link of container.querySelectorAll('a')) {
+      expect(link.className).toContain('h-8')
+      expect(link.className).not.toContain('h-10')
+    }
+  })
 })

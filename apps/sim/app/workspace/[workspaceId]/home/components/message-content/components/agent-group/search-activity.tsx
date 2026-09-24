@@ -1,16 +1,21 @@
 'use client'
 
 import { useState } from 'react'
-import { cn } from '@sim/emcn'
+import { cn, OverflowText } from '@sim/emcn'
 import { Search } from '@sim/emcn/icons'
 import { toStringOrNull } from '@sim/utils/coerce'
 import { toArray, toRecord } from '@sim/utils/object'
-import { ActivityStatus } from '@/components/ui/activity-status'
+import { ACTIVITY_LABEL_CLASS, ActivityStatus } from '@/components/ui/activity-status'
 import {
   collectRetrievalCitationEvidence,
   parseCitationRecord,
 } from '@/lib/mothership/chat/citation-evidence'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
+import {
+  getToolInProgressTitle,
+  getToolStatusDisplayTitle,
+  normalizeToolActivityDescription,
+} from '@/lib/mothership/tools/tool-display'
 import { ActivityDisclosure } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-disclosure'
 import { SearchActivityResults } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/search-activity-results'
 import { indexSourcesByUrl } from '@/app/workspace/[workspaceId]/home/components/message-content/sources-by-url'
@@ -38,20 +43,60 @@ function searchQueries(tool: ToolCallData): string[] {
   return [...new Set([...(query?.trim() ? [query.trim()] : []), ...nativeQueries])]
 }
 
-function searchStatus(tool: ToolCallData): string | undefined {
+/**
+ * What a finished search came to, as a header suffix in the " · N stopped"
+ * style of tool group headers, so the outcome reads while the row is
+ * collapsed. A described stop or skip already leads its title with the
+ * outcome, so it gets no suffix. A failure stays silent and keeps the neutral
+ * title tool rows give errored calls.
+ */
+function searchOutcome(
+  tool: ToolCallData,
+  described: boolean,
+  resultCount: number,
+  noResults: boolean
+): string | undefined {
   switch (tool.status) {
-    case ToolCallStatus.error:
-      return 'Search failed'
     case ToolCallStatus.rejected:
-      return 'Search declined'
+      return 'declined'
     case ToolCallStatus.cancelled:
     case ToolCallStatus.interrupted:
-      return 'Search stopped'
+      return described ? undefined : 'stopped'
     case ToolCallStatus.skipped:
-      return 'Search skipped'
+      return described ? undefined : 'skipped'
+    case ToolCallStatus.success:
+      if (noResults) return 'no results'
+      return resultCount > 0
+        ? `${resultCount} ${resultCount === 1 ? 'result' : 'results'}`
+        : undefined
     default:
       return undefined
   }
+}
+
+/**
+ * The header title: the model's description of the call, in the tense and
+ * outcome wording tool rows use, else the query text, else what the call is
+ * doing. Tense follows liveness: a finished call reads as succeeded, stopped,
+ * skipped, or in the neutral wording, never as still running.
+ */
+function searchTitle(
+  tool: ToolCallData,
+  description: string | undefined,
+  queryText: string,
+  working: boolean
+): string {
+  if (description) {
+    const title = working ? getToolInProgressTitle : getToolStatusDisplayTitle
+    return title(tool.displayTitle, tool.status, tool.toolName, description)
+  }
+  if (queryText) return queryText
+  if (tool.toolName === 'search_sources') {
+    return tool.status === ToolCallStatus.success
+      ? 'Checked connected sources'
+      : 'Checking connected sources'
+  }
+  return 'Preparing query'
 }
 
 interface SearchQueryActivityProps {
@@ -60,60 +105,64 @@ interface SearchQueryActivityProps {
   isLive: boolean
 }
 
-/** Each search call owns a stable result snapshot, so later searches never replace it. */
+/**
+ * Each search call owns a stable result snapshot, so later searches never
+ * replace it. A row is open while its call runs and closes once it finishes;
+ * a toggle by the user sticks for that row.
+ */
 function SearchQueryActivity({ tool, isLive }: SearchQueryActivityProps) {
-  const [expanded, setExpanded] = useState(true)
-  const queries = searchQueries(tool)
-  const status = searchStatus(tool)
+  const [manualExpanded, setManualExpanded] = useState<boolean | null>(null)
+  const done = isToolDone(tool.status)
+  const expanded = manualExpanded ?? !done
+  const description = normalizeToolActivityDescription(tool.activityDescription)
+  const queryText = searchQueries(tool).join(' · ')
   const evidence = collectRetrievalCitationEvidence([
     { toolCall: { name: tool.toolName, status: tool.status, result: tool.result } },
   ])
   const sources = [...indexSourcesByUrl(evidence.values()).values()]
   const output = parseCitationRecord(tool.result?.output)
   const data = parseCitationRecord(output?.data) ?? output
-  const noResults =
+  const noResults = Boolean(
     tool.toolName === 'search_workspace' &&
-    tool.status === ToolCallStatus.success &&
-    tool.result?.success &&
-    output?.success !== false &&
-    Array.isArray(data?.results) &&
-    data.results.length === 0
+      tool.status === ToolCallStatus.success &&
+      tool.result?.success &&
+      output?.success !== false &&
+      Array.isArray(data?.results) &&
+      data.results.length === 0
+  )
 
-  const label = queries.length
-    ? queries.join(' · ')
-    : tool.toolName === 'search_sources'
-      ? isToolDone(tool.status)
-        ? 'Checked connected sources'
-        : 'Checking connected sources'
-      : 'Preparing query'
+  const title = searchTitle(tool, description, queryText, isLive || !done)
+  const outcome = searchOutcome(tool, Boolean(description), sources.length, noResults)
+  const showQuery = Boolean(description && queryText)
 
   return (
     <ActivityDisclosure
       header={
-        <ActivityStatus label={label} isActive={isLive} icon={<Search className='size-[14px]' />} />
+        <>
+          <ActivityStatus
+            label={title}
+            isActive={isLive}
+            icon={<Search className='size-[14px]' />}
+          />
+          {outcome && (
+            <span className={cn('shrink-0 whitespace-pre', ACTIVITY_LABEL_CLASS)}>
+              {` · ${outcome}`}
+            </span>
+          )}
+        </>
       }
       expanded={expanded}
-      onToggle={() => setExpanded(!expanded)}
+      onToggle={() => setManualExpanded(!expanded)}
       isStreaming={false}
-      collapsible={sources.length > 0 || Boolean(status) || Boolean(noResults)}
+      collapsible={showQuery || sources.length > 0}
       unbounded
     >
-      <div className='ml-[7px] border-[var(--border)] border-l pb-2 pl-4'>
-        {sources.length > 0 && <SearchActivityResults sources={sources} query={label} />}
-        {noResults && (
-          <span className='text-[var(--text-muted)] text-caption'>No results found</span>
+      <div className='ml-[7px] flex flex-col gap-1 border-[var(--border)] border-l pb-1 pl-4'>
+        {showQuery && (
+          <OverflowText label={queryText} className='text-[var(--text-muted)] text-caption' />
         )}
-        {status && (
-          <span
-            className={cn(
-              'text-caption',
-              tool.status === ToolCallStatus.error
-                ? 'text-[var(--text-error)]'
-                : 'text-[var(--text-muted)]'
-            )}
-          >
-            {status}
-          </span>
+        {sources.length > 0 && (
+          <SearchActivityResults sources={sources} query={queryText || title} />
         )}
       </div>
     </ActivityDisclosure>
