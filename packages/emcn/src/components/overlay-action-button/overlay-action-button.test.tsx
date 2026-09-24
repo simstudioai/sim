@@ -43,28 +43,32 @@ const PREVIOUS = [
 ] as const
 
 describe('OverlayActionButton', () => {
-  it.each(PREVIOUS)('preserves the previous $name markup', ({ props, variant, className }) => {
-    const view = mount(
-      <>
-        <Button variant={variant} aria-label='Copy' className={`${className} shrink-0`}>
-          <svg className='size-[10px]' aria-hidden='true' />
-        </Button>
-        <OverlayActionButton {...props} aria-label='Copy' className='shrink-0'>
-          <svg className='size-[10px]' aria-hidden='true' />
-        </OverlayActionButton>
-      </>
-    )
-    const [previous, current] = view.querySelectorAll('button')
-    /** The old border-1 token aliases border; class order changes when recipes are composed. */
-    for (const button of [previous, current]) {
-      button.className = button.className
-        .replaceAll('--border-1', '--border')
-        .split(/\s+/)
-        .sort()
-        .join(' ')
+  it.each(PREVIOUS)(
+    'preserves the previous $name visual treatment',
+    ({ props, variant, className }) => {
+      const view = mount(
+        <>
+          <Button variant={variant} aria-label='Copy' className={`${className} shrink-0`}>
+            <svg className='size-[10px]' aria-hidden='true' />
+          </Button>
+          <OverlayActionButton {...props} aria-label='Copy' className='shrink-0'>
+            <svg className='size-[10px]' aria-hidden='true' />
+          </OverlayActionButton>
+        </>
+      )
+      const [previous, current] = view.querySelectorAll('button')
+      /** The old border-1 token aliases border; its hover border repeats the resting border. */
+      for (const button of [previous, current]) {
+        button.className = button.className
+          .replaceAll('--border-1', '--border')
+          .split(/\s+/)
+          .filter((token) => token !== 'hover-hover:border-[var(--border)]')
+          .sort()
+          .join(' ')
+      }
+      expect(current.outerHTML).toBe(previous.outerHTML)
     }
-    expect(current.outerHTML).toBe(previous.outerHTML)
-  })
+  )
 
   it('forwards refs and native props through a tooltip and suppresses disabled clicks', () => {
     vi.useFakeTimers()

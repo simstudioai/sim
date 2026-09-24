@@ -107,12 +107,12 @@ describe('Button shared action geometry', () => {
     expect(baseOnly).not.toContain('sm:size')
   })
 
-  it('offers the existing muted keyboard ring without changing the default', () => {
+  it('offers the shared keyboard ring without changing the default', () => {
     const before = renderToStaticMarkup(
       <Button
         variant='ghost'
         size='sm'
-        className='focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--text-muted)_30%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)]'
+        className='focus-visible:ring-2 focus-visible:ring-[var(--text-icon)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)]'
       >
         Open
       </Button>

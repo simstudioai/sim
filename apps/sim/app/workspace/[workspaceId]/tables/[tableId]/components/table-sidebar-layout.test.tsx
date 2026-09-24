@@ -45,6 +45,7 @@ describe('table sidebar layout', () => {
     expect(dialog.getAttribute('aria-label')).toBe('Configure workflow')
     expect(dialog.classList.contains('translate-x-0')).toBe(true)
     expect(dialog.classList.contains('shadow-overlay')).toBe(true)
+    expect(dialog.hasAttribute('inert')).toBe(false)
 
     input.value = 'Edited workflow'
     scrollBody.scrollTop = 64
@@ -56,9 +57,11 @@ describe('table sidebar layout', () => {
     expect(scrollBody.scrollTop).toBe(64)
     expect(dialog.classList.contains('translate-x-full')).toBe(true)
     expect(dialog.classList.contains('shadow-overlay')).toBe(false)
+    expect(dialog.hasAttribute('inert')).toBe(true)
 
     render(true)
     expect(dialog.classList.contains('translate-x-0')).toBe(true)
+    expect(dialog.hasAttribute('inert')).toBe(false)
     expect(input.value).toBe('Edited workflow')
     expect(scrollBody.scrollTop).toBe(64)
   })
