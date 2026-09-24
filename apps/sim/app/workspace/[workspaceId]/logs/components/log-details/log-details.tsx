@@ -159,7 +159,8 @@ export const WorkflowOutputSection = memo(
           <Code.Viewer
             code={jsonString}
             language='json'
-            className='max-h-[300px] min-h-0 max-w-full rounded-md border-0 bg-[var(--surface-4)]! [word-break:break-all] dark:bg-[var(--surface-3)]!'
+            appearance='inspection'
+            className='max-h-[300px] min-h-0 max-w-full [word-break:break-all]'
             wrapText
             searchQuery={isSearchActive ? searchQuery : undefined}
             currentMatchIndex={currentMatchIndex}
