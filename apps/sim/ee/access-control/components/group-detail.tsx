@@ -28,6 +28,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useQueryState } from 'nuqs'
+import { MemberAvatar } from '@/components/member-avatar/member-avatar'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { isAccessControlAllowlistRow } from '@/lib/permission-groups/block-access'
@@ -47,10 +48,7 @@ import {
   groupTabParam,
   groupTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
-import {
-  MemberAvatar,
-  MemberRow,
-} from '@/app/workspace/[workspaceId]/settings/components/member-list'
+import { MemberRow } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'

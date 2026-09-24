@@ -562,7 +562,7 @@ const Pagination = memo(function Pagination({
 })
 
 interface CellContentProps {
-  /** Pre-rendered icon node (svg/img/span avatar); auto-sized to the chip icon size. */
+  /** Pre-rendered icon node (a glyph or a `MemberAvatar`); auto-sized to the chip icon size. */
   icon?: ReactNode
   label: string
   content?: ReactNode

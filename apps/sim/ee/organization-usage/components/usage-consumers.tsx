@@ -29,12 +29,12 @@ import {
   xAIIcon,
   ZaiIcon,
 } from '@/components/icons'
+import { MemberAvatar } from '@/components/member-avatar/member-avatar'
 import type {
   OrganizationUsageBreakdown,
   OrganizationUsageBreakdownRow,
   UsageBreakdownDimension,
 } from '@/lib/api/contracts/organization-usage'
-import { MemberAvatar } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import {
   type RowAction,
   RowActionsMenu,

@@ -25,6 +25,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { MemberAvatar } from '@/components/member-avatar/member-avatar'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { captureEvent } from '@/lib/posthog/client'
 import {
@@ -79,10 +80,7 @@ import {
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
-import {
-  OwnerAvatar,
-  ownerCell,
-} from '@/app/workspace/[workspaceId]/components/resource/components/owner-cell'
+import { ownerCell } from '@/app/workspace/[workspaceId]/components/resource/components/owner-cell'
 import {
   FilesEmptyState,
   ResourceNoResults,
@@ -1938,7 +1936,7 @@ function FilesContent() {
       (members ?? []).map((m) => ({
         value: m.userId,
         label: m.name,
-        iconElement: <OwnerAvatar name={m.name} image={m.image} />,
+        iconElement: <MemberAvatar name={m.name} image={m.image} />,
       })),
     [members]
   )

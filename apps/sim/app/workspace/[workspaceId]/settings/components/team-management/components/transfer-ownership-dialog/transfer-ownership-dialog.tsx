@@ -2,9 +2,6 @@
 
 import { useMemo, useState } from 'react'
 import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
   Badge,
   Banner,
   ChipConfirmModal,
@@ -15,7 +12,7 @@ import {
   Skeleton,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { getUserColor } from '@/lib/workspaces/colors'
+import { MemberAvatar } from '@/components/member-avatar/member-avatar'
 import type { RosterMember } from '@/hooks/queries/organization'
 
 interface TransferOwnershipDialogProps {
@@ -167,21 +164,13 @@ export function TransferOwnershipDialog({
                           aria-pressed={isSelected}
                           onClick={() => setSelectedUserId(m.userId)}
                           className={cn(
-                            'flex w-full items-center gap-3 px-3 py-2 text-left transition-colors',
+                            'flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors',
                             isSelected
                               ? 'bg-[var(--surface-active)]'
                               : 'hover-hover:bg-[var(--surface-hover)]'
                           )}
                         >
-                          <Avatar className='size-8 shrink-0'>
-                            {m.image && <AvatarImage src={m.image} alt={m.name} />}
-                            <AvatarFallback
-                              style={{ background: getUserColor(m.userId || m.email) }}
-                              className='border-0 text-white'
-                            >
-                              {m.name.charAt(0).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
+                          <MemberAvatar name={m.name} image={m.image} />
                           <div className='min-w-0 flex-1'>
                             <div className='flex items-center gap-2'>
                               <OverflowText

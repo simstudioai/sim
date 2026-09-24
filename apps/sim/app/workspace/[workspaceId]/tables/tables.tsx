@@ -8,6 +8,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { MemberAvatar } from '@/components/member-avatar/member-avatar'
 import type { TableDefinition } from '@/lib/table'
 import { generateUniqueTableName, MAX_TABLE_BATCH_ITEMS } from '@/lib/table/constants'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -39,10 +40,7 @@ import {
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { reportBulkOutcome } from '@/app/workspace/[workspaceId]/components/resource/bulk-outcome'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
-import {
-  OwnerAvatar,
-  ownerCell,
-} from '@/app/workspace/[workspaceId]/components/resource/components/owner-cell'
+import { ownerCell } from '@/app/workspace/[workspaceId]/components/resource/components/owner-cell'
 import {
   ResourceNoResults,
   TablesEmptyState,
@@ -721,7 +719,7 @@ function TablesContent() {
       (members ?? []).map((m) => ({
         value: m.userId,
         label: m.name,
-        iconElement: <OwnerAvatar name={m.name} image={m.image} />,
+        iconElement: <MemberAvatar name={m.name} image={m.image} />,
       })),
     [members]
   )

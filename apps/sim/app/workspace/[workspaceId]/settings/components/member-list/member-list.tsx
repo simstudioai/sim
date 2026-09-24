@@ -2,39 +2,12 @@
 
 import type { ReactNode } from 'react'
 import { OverflowText } from '@sim/emcn'
+import { MemberAvatar } from '@/components/member-avatar/member-avatar'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 const ROW_CLASSES = 'flex items-center gap-2.5 p-2'
 const ROW_STATUS_CLASSES = 'shrink-0 text-[var(--text-muted)] text-caption'
-
-interface MemberAvatarProps {
-  name: string
-  image: string | null
-}
-
-/**
- * 14px circular avatar used in member rows. Falls back to the first letter of
- * the member's name when no image is available.
- */
-export function MemberAvatar({ name, image }: MemberAvatarProps) {
-  if (image) {
-    return (
-      <img
-        src={image}
-        alt={name}
-        referrerPolicy='no-referrer'
-        className='size-[14px] shrink-0 rounded-full border border-[var(--border)] object-cover'
-      />
-    )
-  }
-
-  return (
-    <span className='flex size-[14px] shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-3)] font-medium text-[8px] text-[var(--text-secondary)]'>
-      {name.charAt(0).toUpperCase()}
-    </span>
-  )
-}
 
 interface MemberRowProps {
   name: string

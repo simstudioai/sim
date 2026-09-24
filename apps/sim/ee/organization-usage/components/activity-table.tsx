@@ -11,9 +11,9 @@ import {
   TableRow,
 } from '@sim/emcn'
 import { formatDuration } from '@sim/utils/formatting'
+import { MemberAvatar } from '@/components/member-avatar/member-avatar'
 import type { OrganizationActivityBreakdown } from '@/lib/api/contracts/organization-activity'
 import type { ActivityDimension } from '@/lib/billing/core/organization-activity'
-import { MemberAvatar } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { formatFailureRate } from '@/ee/organization-usage/components/activity-summary'
 
 interface ActivityTableProps {

@@ -5,6 +5,7 @@ import { Chip, ChipConfirmModal, ChipModalTabs, toast } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
+import { MemberAvatar } from '@/components/member-avatar/member-avatar'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { CredentialGroupEnrollment } from '@/lib/api/contracts/credential-groups'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
@@ -17,7 +18,6 @@ import {
   credentialGroupTabParam,
   credentialGroupTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
-import { MemberAvatar } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'

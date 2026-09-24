@@ -67,7 +67,7 @@ export function CredentialMembersSection({ credentialId, isAdmin }: CredentialMe
             return (
               <MemberRow
                 key={member.id}
-                member={member}
+                member={{ ...member, userImage: member.userImage ?? null }}
                 roleOptions={MEMBER_ROLE_OPTIONS}
                 lockReason={lockReason}
                 canManage={isAdmin}
