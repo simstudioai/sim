@@ -376,6 +376,7 @@ export function LongInput({
               />
               <div
                 ref={overlayRef}
+                data-preview-full-opacity={isPreview || undefined}
                 className={cn(
                   'absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-2 py-2 font-sans text-sm',
                   (isPreview || disabled) && 'opacity-50',

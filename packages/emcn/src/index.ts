@@ -15,6 +15,7 @@ export {
   CODE_LINE_HEIGHT_PX,
   Code,
   calculateGutterWidth,
+  codeViewerAppearanceVariants,
   getCodeEditorProps,
 } from './components/code/code'
 export {

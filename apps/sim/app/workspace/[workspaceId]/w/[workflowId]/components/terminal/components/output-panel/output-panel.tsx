@@ -66,7 +66,8 @@ const OutputCodeContent = React.memo(function OutputCodeContent({
       code={code}
       showGutter
       language={language}
-      className='m-0 min-h-full rounded-none border-0 bg-[var(--bg)] dark:bg-[var(--bg)]'
+      appearance='flat'
+      className='m-0 min-h-full'
       paddingLeft={8}
       gutterStyle={{ backgroundColor: 'transparent' }}
       wrapText={wrapText}
