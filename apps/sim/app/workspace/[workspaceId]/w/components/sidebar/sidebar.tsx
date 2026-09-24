@@ -15,6 +15,8 @@ import {
   Library,
   Loader,
   OverflowText,
+  RowActions,
+  rowActionsGroupClass,
   scrollFadeAttributes,
   scrollFadeClass,
   Tooltip,
@@ -75,7 +77,6 @@ import {
   SidebarFooter,
   SidebarNavChip,
   type SidebarNavItemData,
-  SidebarRowActions,
   SidebarSection,
   SidebarTooltip,
   StatusNotice,
@@ -245,7 +246,7 @@ const SidebarChatItem = memo(function SidebarChatItem({
             active: isCurrentRoute || isSelected || isMenuOpen,
             fullWidth: true,
           }),
-          'group/sidebar-row'
+          rowActionsGroupClass
         )}
         onClick={(e) => {
           if (e.metaKey || e.ctrlKey) return
@@ -263,7 +264,7 @@ const SidebarChatItem = memo(function SidebarChatItem({
       >
         <OverflowText label={chat.name} className='flex-1 text-[var(--text-body)]' />
         {chat.id !== 'new' && (
-          <SidebarRowActions
+          <RowActions
             open={isMenuOpen}
             indicator={
               showStatusDot ? (
@@ -288,7 +289,7 @@ const SidebarChatItem = memo(function SidebarChatItem({
             >
               <MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />
             </SidebarRowAction>
-          </SidebarRowActions>
+          </RowActions>
         )}
       </ChatNavigationLink>
     </SidebarTooltip>
