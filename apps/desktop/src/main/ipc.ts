@@ -9,6 +9,8 @@ import {
   isCurrentBrowserToolName,
 } from '@sim/browser-protocol'
 import {
+  ComputerUseError,
+  type ComputerUseToolFailure,
   type DesktopNotificationPayload,
   type DesktopServerChangeResult,
   type DesktopServerConfiguration,
@@ -2102,6 +2104,11 @@ export function registerIpcHandlers(deps: IpcDeps): void {
                 throw new Error('Computer Use session ended.')
               return { scopeId: authorization.chatId, input: authorization.args }
             })
+          } catch (error) {
+            /** Electron drops custom Error properties; keep native dispatch certainty in data. */
+            if (error instanceof ComputerUseError)
+              return { kind: 'error', error: error.details } satisfies ComputerUseToolFailure
+            throw error
           } finally {
             event.sender.removeListener('destroyed', cancelOwnedTool)
             event.sender.removeListener('render-process-gone', cancelOwnedTool)

@@ -1,4 +1,5 @@
 /** @vitest-environment jsdom */
+import { ComputerUseError } from '@sim/desktop-bridge'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -54,6 +55,52 @@ describe('computer action delivery', () => {
     )
   })
 
+  it('reports confirmed zero dispatch as recoverable while preserving delivery deduplication', async () => {
+    const id = nextId()
+    mocks.execute.mockRejectedValueOnce(
+      new ComputerUseError({
+        code: 'activation_required',
+        message: 'Activate and observe the app first.',
+        dispatchState: 'not_started',
+      })
+    )
+    mocks.complete.mockRejectedValueOnce(new Error('offline'))
+    await executeComputerToolOnClient(id, { action: 'list_apps' }, now())
+    await executeComputerToolOnClient(id, { action: 'list_apps' }, now())
+    expect(mocks.execute).toHaveBeenCalledOnce()
+    expect(mocks.complete).toHaveBeenLastCalledWith(
+      id,
+      'error',
+      'Activate and observe the app first.',
+      {
+        code: 'activation_required',
+        dispatchState: 'not_started',
+        doNotRetry: false,
+        outcomeUnknown: false,
+      }
+    )
+    await executeComputerToolOnClient(nextId(), { action: 'list_apps' }, now())
+    expect(mocks.execute).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    new Error('activation_required: not_started'),
+    new ComputerUseError({
+      code: 'activation_required',
+      message: 'Activate and observe the app first.',
+    }),
+  ])('keeps unknown IPC outcomes protected without explicit native proof', async (error) => {
+    const id = nextId()
+    mocks.execute.mockRejectedValueOnce(error)
+    await executeComputerToolOnClient(id, { action: 'list_apps' }, now())
+    expect(mocks.complete).toHaveBeenLastCalledWith(
+      id,
+      'error',
+      expect.any(String),
+      expect.objectContaining({ doNotRetry: true, outcomeUnknown: true })
+    )
+  })
+
   it('strips UI activity and runs each action only once across redelivery', async () => {
     const id = nextId()
     await executeComputerToolOnClient(
@@ -105,6 +152,52 @@ describe('computer action delivery', () => {
     expect(mocks.execute).toHaveBeenCalledTimes(1)
     expect(mocks.complete).toHaveBeenCalledTimes(2)
   })
+  it('reports partial input and its observation without repeating the batch on delivery retry', async () => {
+    const id = nextId()
+    mocks.execute.mockResolvedValueOnce({
+      kind: 'action',
+      action: 'input_sequence',
+      bundleId: 'com.example.Fixture',
+      dispatched: true,
+      verified: false,
+      sequence: { completedSteps: 1, totalSteps: 2, error: 'Editor focus changed.' },
+      observation: {
+        kind: 'state',
+        bundleId: 'com.example.Fixture',
+        snapshotId: 'after',
+        windowId: '1',
+        windows: [],
+        nodes: [],
+        truncated: false,
+      },
+    })
+    mocks.complete.mockRejectedValueOnce(new Error('offline'))
+    const input = {
+      action: 'input_sequence',
+      bundleId: 'com.example.Fixture',
+      snapshotId: 'before',
+      elementId: 'editor',
+      steps: [
+        { action: 'press_key', key: 'Tab' },
+        { action: 'type_text', text: 'must not type' },
+      ],
+      observeAfter: {},
+    }
+    await executeComputerToolOnClient(id, input, now())
+    await executeComputerToolOnClient(id, input, now())
+    expect(mocks.execute).toHaveBeenCalledOnce()
+    expect(mocks.complete).toHaveBeenCalledTimes(2)
+    expect(mocks.complete).toHaveBeenLastCalledWith(
+      id,
+      'success',
+      expect.stringContaining('stopped after 1/2 completed steps'),
+      expect.objectContaining({
+        sequence: { completedSteps: 1, totalSteps: 2, error: 'Editor focus changed.' },
+        observation: expect.objectContaining({ snapshotId: 'after' }),
+      })
+    )
+  })
+
   it('cancels native work when Stop aborts the stream', async () => {
     const controller = new AbortController()
     let resolveAction: ((value: { kind: 'apps'; apps: [] }) => void) | undefined

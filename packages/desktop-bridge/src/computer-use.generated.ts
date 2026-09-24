@@ -18,6 +18,18 @@ const SnapshotId = z
 const ElementId = z.string().min(1).max(128).describe("Element reference from that snapshot.");
 const WindowId = z.string().min(1).max(128).describe("Window reference from that snapshot.");
 const Coordinate = z.number().nonnegative().max(100_000);
+const ObserveAfter = {
+  observeAfter: z
+    .strictObject({ includeScreenshot: z.boolean().optional() })
+    .optional()
+    .describe(
+      "Every mutation returns fresh app state by default. Set includeScreenshot to true to include an image; otherwise no screenshot is captured. Observation failure never retries the action.",
+    ),
+};
+const InputSequenceStep = z.discriminatedUnion("action", [
+  z.strictObject({ action: z.literal("type_text"), text: z.string().max(32_000) }),
+  z.strictObject({ action: z.literal("press_key"), key: z.string().min(1).max(128) }),
+]);
 const ElementTarget = { bundleId: BundleId, snapshotId: SnapshotId, elementId: ElementId };
 const WindowTarget = { bundleId: BundleId, snapshotId: SnapshotId, windowId: WindowId };
 const PointTarget = { ...WindowTarget, x: Coordinate, y: Coordinate };
@@ -42,7 +54,7 @@ const ScrollOffsets = {
 export const ComputerUseSchema = z.union([
   z.strictObject({ action: z.literal("status") }),
   z.strictObject({ action: z.literal("list_apps") }),
-  z.strictObject({ action: z.literal("activate_app"), bundleId: BundleId }),
+  z.strictObject({ action: z.literal("activate_app"), bundleId: BundleId, ...ObserveAfter }),
   z.strictObject({
     action: z.literal("get_app_state"),
     bundleId: BundleId,
@@ -52,28 +64,62 @@ export const ComputerUseSchema = z.union([
       .optional()
       .describe("Set true to include an image of the selected window."),
   }),
-  z.strictObject({ action: z.literal("click"), ...ElementTarget, ...ClickOptions }),
-  z.strictObject({ action: z.literal("click"), ...PointTarget, ...ClickOptions }),
+  z.strictObject({ action: z.literal("click"), ...ElementTarget, ...ObserveAfter, ...ClickOptions }),
+  z.strictObject({ action: z.literal("click"), ...PointTarget, ...ObserveAfter, ...ClickOptions }),
   z.strictObject({
     action: z.literal("type_text"),
+    ...ObserveAfter,
     ...ElementTarget,
     text: z.string().max(32_000).describe("Literal text to type into the observed editable element."),
   }),
   z.strictObject({
     action: z.literal("press_key"),
+    ...ObserveAfter,
     ...WindowTarget,
     key: z.string().min(1).max(128).describe("One key or chord, such as Enter, Tab, Escape, or Cmd+A."),
   }),
-  z.strictObject({ action: z.literal("scroll"), ...ElementTarget, ...ScrollOffsets }),
-  z.strictObject({ action: z.literal("scroll"), ...PointTarget, ...ScrollOffsets }),
-  z.strictObject({ action: z.literal("drag"), ...PointTarget, toX: Coordinate, toY: Coordinate }),
+  z.strictObject({ action: z.literal("scroll"), ...ElementTarget, ...ObserveAfter, ...ScrollOffsets }),
+  z.strictObject({ action: z.literal("scroll"), ...PointTarget, ...ObserveAfter, ...ScrollOffsets }),
+  z.strictObject({
+    action: z.literal("drag"),
+    ...PointTarget,
+    ...ObserveAfter,
+    toX: Coordinate,
+    toY: Coordinate,
+  }),
   z.strictObject({
     action: z.literal("set_value"),
+    ...ObserveAfter,
     ...ElementTarget,
     value: z.string().max(32_000).describe("Replacement value for an accessibility-writable element."),
   }),
   z.strictObject({
+    action: z.literal("input_sequence"),
+    ...ElementTarget,
+    ...ObserveAfter,
+    activateFirst: z
+      .boolean()
+      .optional()
+      .describe(
+        "Set true to explicitly activate this app before the keyboard batch. Defaults to false; editor, window, and geometry checks still apply.",
+      ),
+    steps: z
+      .array(InputSequenceStep)
+      .min(1)
+      .max(32)
+      .refine(
+        (steps) =>
+          steps.reduce((total, step) => total + (step.action === "type_text" ? step.text.length : 0), 0) <=
+          32_000,
+        "Combined sequence text exceeds 32000 UTF-16 code units",
+      )
+      .describe(
+        "Sequential input into this observed editor. Stops if editor/window focus changes. At most 32 steps and 32000 total text code units; never automatically retry a partial sequence.",
+      ),
+  }),
+  z.strictObject({
     action: z.literal("perform_action"),
+    ...ObserveAfter,
     ...ElementTarget,
     accessibilityAction: z.string().min(1).max(128).describe("Exact action advertised by this element."),
   }),
@@ -113,6 +159,9 @@ const ComputerUseNodeSchema = z.strictObject({
   label: z.string().max(8192).optional(),
   value: z.string().max(32_000).optional(),
   enabled: z.boolean().optional(),
+  focused: z.boolean().optional(),
+  editable: z.boolean().optional(),
+  placeholder: z.string().max(1024).optional(),
   actions: z.array(z.string().max(128)).max(128),
   windowId: WindowId.optional(),
   x: z.number().optional().describe("Global screen coordinate in points, not window-local."),
@@ -156,18 +205,35 @@ export const ComputerUseResultSchema = z.discriminatedUnion("kind", [
       "drag",
       "set_value",
       "perform_action",
+      "input_sequence",
     ]),
     bundleId: BundleId,
     dispatched: z.literal(true),
     verified: z.boolean(),
+    sequence: z
+      .strictObject({
+        completedSteps: z.number().int().min(0).max(32),
+        totalSteps: z.number().int().min(1).max(32),
+        error: z.string().min(1).max(2000).optional(),
+      })
+      .optional(),
+    observation: ComputerUseSnapshotSchema.optional(),
+    observationError: z.string().min(1).max(2000).optional(),
   }),
 ]);
 export type ComputerUseResult = z.infer<typeof ComputerUseResultSchema>;
+
+export const ComputerUseNativeErrorSchema = z.strictObject({
+  code: z.string().min(1).max(128),
+  message: z.string().min(1).max(2000),
+  dispatchState: z.literal("not_started").optional(),
+});
+export type ComputerUseNativeError = z.infer<typeof ComputerUseNativeErrorSchema>;
 
 export const ComputerUseNativeReplySchema = z.union([
   z.strictObject({ id: z.string().min(1).max(128), result: ComputerUseResultSchema }),
   z.strictObject({
     id: z.string().min(1).max(128),
-    error: z.strictObject({ code: z.string().min(1).max(128), message: z.string().min(1).max(2000) }),
+    error: ComputerUseNativeErrorSchema,
   }),
 ]);
