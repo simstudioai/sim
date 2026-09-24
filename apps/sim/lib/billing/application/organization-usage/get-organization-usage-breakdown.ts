@@ -138,15 +138,16 @@ export async function buildUsageBreakdown({
    * Names are hydrated for the surviving keys only — joining inside the aggregate
    * would break the index-only scan the member dimension depends on.
    *
-   * Sorted before slicing: the breakdown query only groups, so Postgres returns its
-   * aggregate in arbitrary order. Slicing that directly hydrated an arbitrary subset
-   * while the fold below ranks by cost, so a top row whose name was never fetched
-   * fell through to `?? key` and rendered a raw id. The margin over `limit` covers
-   * the fold's label tiebreak pulling in a row just past the cut.
+   * Sorted before cutting: the breakdown query only groups, so Postgres returns its
+   * aggregate in arbitrary order. The fold below breaks cost ties by label, so every
+   * row tied with the last visible one can still win a place — and a label is only
+   * right once its name is read. So the read covers the top `limit` and the whole tie
+   * at the cutoff, never a guessed margin that a larger tie outruns.
    */
-  const rankedIds = [...rows]
-    .sort((left, right) => right.cost - left.cost)
-    .slice(0, limit * 2)
+  const byCost = [...rows].sort((left, right) => right.cost - left.cost)
+  const cutoffCost = byCost[limit - 1]?.cost
+  const rankedIds = byCost
+    .filter((row, index) => index < limit || row.cost === cutoffCost)
     .map((row) => row.key)
     .filter((key): key is string => Boolean(key))
   const entities = NAMED_DIMENSIONS.has(dimension)

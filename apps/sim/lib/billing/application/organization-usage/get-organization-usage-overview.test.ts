@@ -95,6 +95,20 @@ describe('getOrganizationUsageOverview', () => {
     setEnvFlags({ isBillingEnabled: false, isHosted: false })
   })
 
+  it('reads every member tied at the card cutoff, so each visible row is named', async () => {
+    mocks.readUsageGroups.mockResolvedValue(
+      Array.from({ length: 12 }, (_, index) => ({ key: `u${index}`, cost: 0.01, events: 1 }))
+    )
+    mocks.readUsageEntities.mockImplementation(
+      async (_dimension: string, ids: string[]) =>
+        new Map(ids.map((id) => [id, { name: id === 'u11' ? 'Ada' : `Member ${id}` }]))
+    )
+    const { members } = await run({})
+    expect(mocks.readUsageEntities.mock.calls[0]?.[1]).toHaveLength(12)
+    expect(members.rows[0]?.label).toBe('Ada')
+    expect(members.rows.every((row) => !row.label.startsWith('u'))).toBe(true)
+  })
+
   it('reconciles the stack and the headline to one figure', async () => {
     const result = await run({})
     const point = result.series.find((entry) => entry.timestamp === today)
