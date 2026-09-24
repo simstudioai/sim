@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { deflateSync } from 'zlib'
+import { PDFDocument, StandardFonts } from 'pdf-lib'
 import { describe, expect, it } from 'vitest'
 import { MAX_PDF_TEXT_CHARS, PdfParser } from '@/lib/file-parsers/pdf-parser'
 import { openPdfDocument } from '@/lib/file-parsers/pdfjs-server'
@@ -136,6 +137,52 @@ function parseBomb(): Promise<FileParseResult> {
   return bombParse
 }
 
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+
+/** Day numbers of `month` (0-based) in 2026, one array per calendar week. */
+function calendarWeeks(month: number): string[][] {
+  const firstWeekday = new Date(Date.UTC(2026, month, 1)).getUTCDay()
+  const days = new Date(Date.UTC(2026, month + 1, 0)).getUTCDate()
+  const weeks: string[][] = [[]]
+  for (let day = 1; day <= days; day++) {
+    if (weeks[weeks.length - 1].length > 0 && (firstWeekday + day - 1) % 7 === 0) weeks.push([])
+    weeks[weeks.length - 1].push(String(day))
+  }
+  return weeks
+}
+
+/**
+ * A quarter of 2026 laid out as three month grids side by side, drawn the way
+ * calendar producers draw them: each visual row across all three months before
+ * the next row.
+ */
+async function buildQuarterCalendarPdf(): Promise<Buffer> {
+  const doc = await PDFDocument.create()
+  const font = await doc.embedFont(StandardFonts.Helvetica)
+  const page = doc.addPage([612, 792])
+  const size = 8
+  const cell = 20
+  const monthX = [40, 220, 400]
+  const names = ['January 2026', 'February 2026', 'March 2026']
+  page.drawText('2026 Calendar', { x: 220, y: 740, size: 14, font })
+  for (let row = 0; row < 8; row++) {
+    const y = 700 - row * 14
+    for (const [month, x] of monthX.entries()) {
+      if (row === 0) page.drawText(names[month], { x, y, size, font })
+      if (row === 1) {
+        WEEKDAYS.forEach((day, i) => page.drawText(day, { x: x + i * cell, y, size, font }))
+      }
+      if (row < 2) continue
+      const weeks = calendarWeeks(month)
+      const week = weeks[row - 2]
+      if (!week) continue
+      const offset = row === 2 ? 7 - week.length : 0
+      week.forEach((day, i) => page.drawText(day, { x: x + (offset + i) * cell, y, size, font }))
+    }
+  }
+  return Buffer.from(await doc.save())
+}
+
 describe('PdfParser', () => {
   it('preloads the server worker instead of relying on a runtime-relative worker path', async () => {
     const previousWorker: unknown = Reflect.get(globalThis, 'pdfjsWorker')
@@ -229,4 +276,13 @@ describe('PdfParser', () => {
       code: 'encrypted_file',
     })
   })
+
+  it('reads side-by-side calendar months one month at a time', async () => {
+    const result = await new PdfParser().parseBuffer(await buildQuarterCalendarPdf())
+
+    const months = ['January 2026', 'February 2026', 'March 2026'].map((name, month) =>
+      [name, WEEKDAYS.join(' '), ...calendarWeeks(month).map((week) => week.join(' '))].join('\n')
+    )
+    expect(result.content).toBe(['2026 Calendar', ...months].join('\n\n'))
+  }, 30_000)
 })

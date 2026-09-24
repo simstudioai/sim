@@ -34,6 +34,8 @@ export interface PdfLine {
   y?: number
   /** Height of the line's dominant item; 0 when unknown. */
   height: number
+  /** First line of a layout block read out of stream order; always starts a new paragraph. */
+  blockStart?: boolean
 }
 
 export type PdfLineSeparator = '' | ' ' | '\n'
@@ -167,6 +169,7 @@ export class PdfLineBuilder {
   private prevEndX: number | undefined
   private prevY = 0
   private lineHeight = 0
+  private blockStart = false
 
   /**
    * Separator the geometry rules call for before `str`; '' at line start or
@@ -211,7 +214,10 @@ export class PdfLineBuilder {
     }
     const text = this.parts.join('')
     if (text.trim().length > 0) {
-      this.lines.push({ text, y: this.lineY, height: this.dominantHeight })
+      const line: PdfLine = { text, y: this.lineY, height: this.dominantHeight }
+      if (this.blockStart) line.blockStart = true
+      this.lines.push(line)
+      this.blockStart = false
     }
     this.parts = []
     this.lineY = undefined
@@ -220,6 +226,12 @@ export class PdfLineBuilder {
     this.prevEndX = undefined
     this.prevY = 0
     this.lineHeight = 0
+  }
+
+  /** Closes the current line and marks the next non-blank line as the start of a layout block. */
+  startBlock(): void {
+    this.endLine()
+    this.blockStart = true
   }
 
   finish(): PdfLine[] {
@@ -441,13 +453,14 @@ function separatorBetween(
 ): ' ' | '\n' | '\n\n' {
   const a = lines[index - 1]
   const b = lines[index]
+  if (b.blockStart) return '\n\n'
   if (a.y === undefined || b.y === undefined) return '\n'
   const dy = a.y - b.y
   const maxHeight = Math.max(a.height, b.height)
   if (maxHeight > 0 ? Math.abs(dy) < SAME_ROW_RATIO * maxHeight : dy === 0) return ' '
   if (dy < 0) return isRowReturn(dy, pitch) ? ' ' : '\n\n'
   const next = lines[index + 1]
-  if (next?.y !== undefined && isRowReturn(b.y - next.y, pitch)) return ' '
+  if (next?.y !== undefined && !next.blockStart && isRowReturn(b.y - next.y, pitch)) return ' '
   if (maxHeight > 0 && Math.abs(a.height - b.height) > HEIGHT_CHANGE_RATIO * maxHeight)
     return '\n\n'
   const scale = bodyHeight > 0 ? Math.max(1, maxHeight / bodyHeight) : 1
