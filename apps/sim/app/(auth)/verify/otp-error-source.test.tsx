@@ -135,7 +135,9 @@ afterEach(() => {
 describe('OTP error provenance', () => {
   it('keeps the chat code valid on resend failure and marks only a failed verification invalid', async () => {
     act(() => root.render(<EmailAuth identifier='chat-1' />))
-    act(() => changeInput(container.querySelector('#email')!, 'member@example.com'))
+    act(() =>
+      changeInput(container.querySelector<HTMLInputElement>('#email')!, 'member@example.com')
+    )
     await act(async () => button('Continue').click())
 
     mocks.chatRequest.mockRejectedValueOnce(new Error('Delivery failed'))
@@ -145,7 +147,7 @@ describe('OTP error provenance', () => {
 
     mocks.chatVerify.mockRejectedValueOnce(new Error('Incorrect code'))
     await act(async () =>
-      changeInput(container.querySelector('[data-testid="otp-code"]')!, '123456')
+      changeInput(container.querySelector<HTMLInputElement>('[data-testid="otp-code"]')!, '123456')
     )
     expect(container.textContent).toContain('Incorrect code')
     expectOtpInvalid(true)
@@ -153,7 +155,9 @@ describe('OTP error provenance', () => {
 
   it('keeps the public-file code valid on resend failure and marks only a failed verification invalid', async () => {
     act(() => root.render(<PublicFileEmailAuth token='share-1' />))
-    act(() => changeInput(container.querySelector('#email')!, 'member@example.com'))
+    act(() =>
+      changeInput(container.querySelector<HTMLInputElement>('#email')!, 'member@example.com')
+    )
     await act(async () => button('Continue').click())
 
     mocks.fileRequest.mockRejectedValueOnce(new Error('Delivery failed'))
@@ -163,7 +167,7 @@ describe('OTP error provenance', () => {
 
     mocks.fileVerify.mockRejectedValueOnce(new Error('Incorrect code'))
     await act(async () =>
-      changeInput(container.querySelector('[data-testid="otp-code"]')!, '123456')
+      changeInput(container.querySelector<HTMLInputElement>('[data-testid="otp-code"]')!, '123456')
     )
     expect(container.textContent).toContain('Incorrect code')
     expectOtpInvalid(true)
