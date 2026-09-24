@@ -4,7 +4,9 @@
 import {
   act,
   type ButtonHTMLAttributes,
+  cloneElement,
   type InputHTMLAttributes,
+  type ReactElement,
   type ReactNode,
   type Ref,
 } from 'react'
@@ -21,6 +23,9 @@ const {
   mockHandleRunWorkflow,
   mockReadSSEEvents,
   mockRevokeObjectURL,
+  mockTooltipPointerEnter,
+  executionState,
+  registryState,
   WorkflowAttachmentUploadErrorMock,
 } = vi.hoisted(() => {
   class WorkflowAttachmentUploadErrorMock extends Error {
@@ -61,16 +66,14 @@ const {
     mockHandleRunWorkflow: vi.fn(),
     mockReadSSEEvents: vi.fn(),
     mockRevokeObjectURL: vi.fn(),
+    mockTooltipPointerEnter: vi.fn(),
+    executionState: { isExecuting: false },
+    registryState: { activeWorkflowId: 'workflow-1' },
     WorkflowAttachmentUploadErrorMock,
   }
 })
 
 vi.mock('@sim/emcn', () => ({
-  Badge: ({
-    children,
-    className: _className,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props}>{children}</button>,
   Button: ({
     children,
     className: _className,
@@ -104,7 +107,10 @@ vi.mock('@sim/emcn', () => ({
   PopoverTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Tooltip: {
     Root: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    Trigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    Trigger: ({ children }: { children: ReactElement }) =>
+      cloneElement(children as ReactElement<{ onPointerEnter?: () => void }>, {
+        onPointerEnter: mockTooltipPointerEnter,
+      }),
     Content: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   },
   Trash: () => <span data-icon='Trash' />,
@@ -199,7 +205,7 @@ vi.mock('@/stores/chat/store', () => ({
 }))
 
 vi.mock('@/stores/execution', () => ({
-  useIsCurrentWorkflowExecuting: () => false,
+  useIsCurrentWorkflowExecuting: () => executionState.isExecuting,
 }))
 
 vi.mock('@/stores/operation-queue/store', () => ({
@@ -214,7 +220,7 @@ vi.mock('@/stores/terminal', () => ({
 
 vi.mock('@/stores/workflows/registry/store', () => ({
   useWorkflowRegistry: (selector: (state: { activeWorkflowId: string }) => unknown) =>
-    selector({ activeWorkflowId: 'workflow-1' }),
+    selector(registryState),
 }))
 
 vi.mock('@/stores/workflows/subblock/store', () => ({
@@ -234,6 +240,7 @@ vi.mock('@/stores/chat/utils', () => ({
 }))
 
 import { Chat } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/chat'
+import { MAX_CHAT_FILES } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/hooks'
 
 let container: HTMLDivElement
 let root: Root
@@ -280,6 +287,8 @@ describe('floating chat attachment uploads', () => {
   beforeEach(async () => {
     vi.useFakeTimers()
     vi.clearAllMocks()
+    executionState.isExecuting = false
+    registryState.activeWorkflowId = 'workflow-1'
     mockCreateObjectURL.mockReturnValue('blob:diagram-preview')
     mockReadSSEEvents.mockResolvedValue(undefined)
     vi.stubGlobal('FileReader', mockFileReader)
@@ -306,6 +315,70 @@ describe('floating chat attachment uploads', () => {
     vi.runOnlyPendingTimers()
     vi.useRealTimers()
     vi.unstubAllGlobals()
+  })
+
+  it('opens file selection through a named native action', () => {
+    const action = container.querySelector<HTMLButtonElement>('button[aria-label="Attach file"]')
+    const fileInput = container.querySelector<HTMLInputElement>('#floating-chat-file-input')
+    expect(action?.type).toBe('button')
+    expect(action?.disabled).toBe(false)
+    expect(action?.querySelector('[data-icon="Paperclip"]')).not.toBeNull()
+    expect(fileInput).not.toBeNull()
+
+    const openPicker = vi.fn()
+    if (fileInput) fileInput.click = openPicker
+    act(() => action?.click())
+    expect(openPicker).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['executing', 'no workflow'] as const)('prevents file selection with %s', (condition) => {
+    executionState.isExecuting = condition === 'executing'
+    registryState.activeWorkflowId = condition === 'no workflow' ? '' : 'workflow-1'
+    act(() => root.render(<Chat />))
+
+    const action = container.querySelector<HTMLButtonElement>('button[aria-label="Attach file"]')
+    const fileInput = container.querySelector<HTMLInputElement>('#floating-chat-file-input')
+    expect(action?.disabled).toBe(true)
+    expect(fileInput?.disabled).toBe(true)
+
+    const openPicker = vi.fn()
+    if (fileInput) fileInput.click = openPicker
+    act(() => action?.click())
+    expect(openPicker).not.toHaveBeenCalled()
+  })
+
+  it('keeps the tooltip hover target available when attachment is disabled', () => {
+    executionState.isExecuting = true
+    act(() => root.render(<Chat />))
+
+    const action = container.querySelector<HTMLButtonElement>('button[aria-label="Attach file"]')
+    const trigger = action?.parentElement
+    expect(action?.disabled).toBe(true)
+    expect(trigger?.tagName).toBe('SPAN')
+    expect(trigger?.hasAttribute('disabled')).toBe(false)
+
+    act(() => trigger?.dispatchEvent(new Event('pointerover', { bubbles: true })))
+    expect(mockTooltipPointerEnter).toHaveBeenCalledTimes(1)
+  })
+
+  it('disables attachment selection at the file limit', () => {
+    const fileInput = container.querySelector<HTMLInputElement>('#floating-chat-file-input')
+    if (!fileInput) throw new Error('Expected file input')
+    Object.defineProperty(fileInput, 'files', {
+      configurable: true,
+      value: Array.from(
+        { length: MAX_CHAT_FILES },
+        (_, index) => new File(['x'], `file-${index}.txt`)
+      ),
+    })
+    act(() => fileInput.dispatchEvent(new Event('change', { bubbles: true })))
+
+    const action = container.querySelector<HTMLButtonElement>('button[aria-label="Attach file"]')
+    expect(action?.disabled).toBe(true)
+    const openPicker = vi.fn()
+    fileInput.click = openPicker
+    act(() => action?.click())
+    expect(openPicker).not.toHaveBeenCalled()
   })
 
   it('uses uploaded URLs for message previews without base64 conversion', async () => {
