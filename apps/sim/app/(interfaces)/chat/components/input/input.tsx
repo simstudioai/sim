@@ -182,7 +182,7 @@ export const ChatInput: React.FC<{
                       ) : (
                         <div className='flex h-full w-full flex-col items-center justify-center gap-0.5 text-[var(--text-muted)]'>
                           <Paperclip className='size-[18px]' />
-                          <span className='max-w-[48px] truncate px-[2px] text-[9px]'>
+                          <span className='max-w-[48px] truncate px-[2px] text-micro'>
                             {file.name.split('.').pop()}
                           </span>
                         </div>
@@ -215,7 +215,7 @@ export const ChatInput: React.FC<{
             onKeyDown={handleKeyDown}
             placeholder={isDragOver ? 'Drop files here...' : 'Enter a message...'}
             rows={1}
-            className='m-0 h-auto min-h-[24px] w-full resize-none overflow-y-auto overflow-x-hidden border-0 bg-transparent p-1 text-[15px] text-[var(--text-primary)] leading-[24px] caret-[var(--text-primary)] outline-hidden [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
+            className='m-0 h-auto min-h-[24px] w-full resize-none overflow-y-auto overflow-x-hidden border-0 bg-transparent p-1 text-[var(--text-primary)] text-base leading-[24px] caret-[var(--text-primary)] outline-hidden [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
           />
 
           <div className='flex items-center justify-between'>

@@ -28,8 +28,12 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
   const [sent, setSent] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<{
+    kind: 'verification' | 'request'
+    message: string
+  } | null>(null)
   const [countdown, setCountdown] = useState(0)
+  const isInvalidOtp = error?.kind === 'verification'
 
   useEffect(() => {
     if (countdown <= 0) return
@@ -39,7 +43,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
 
   const sendCode = async () => {
     if (!quickValidateEmail(normalizeEmail(email)).isValid) {
-      setError('Please enter a valid email address.')
+      setError({ kind: 'request', message: 'Please enter a valid email address.' })
       return
     }
     setError(null)
@@ -48,7 +52,10 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
       setSent(true)
       setOtp('')
     } catch (err) {
-      setError(getErrorMessage(err, 'Failed to send verification code'))
+      setError({
+        kind: 'request',
+        message: getErrorMessage(err, 'Failed to send verification code'),
+      })
     }
   }
 
@@ -59,7 +66,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
       await verifyOtp.mutateAsync({ email: normalizeEmail(email), otp: code })
       router.refresh()
     } catch (err) {
-      setError(getErrorMessage(err, 'Invalid verification code'))
+      setError({ kind: 'verification', message: getErrorMessage(err, 'Invalid verification code') })
     }
   }
 
@@ -71,7 +78,10 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
       setError(null)
     } catch (err) {
       setCountdown(0)
-      setError(getErrorMessage(err, 'Failed to resend verification code'))
+      setError({
+        kind: 'request',
+        message: getErrorMessage(err, 'Failed to resend verification code'),
+      })
     }
   }
 
@@ -104,10 +114,10 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
                 setEmail(e.target.value)
                 setError(null)
               }}
-              className='h-[34px]'
+              size='lg'
               error={Boolean(error)}
             />
-            {error ? <p className='text-[var(--text-error)] text-xs'>{error}</p> : null}
+            {error ? <p className='text-[var(--text-error)] text-xs'>{error.message}</p> : null}
           </div>
 
           <AuthSubmitButton
@@ -143,21 +153,20 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
               if (value.length === 6) verifyCode(value)
             }}
             disabled={verifyOtp.isPending}
-            className={cn('gap-2', error && 'otp-error')}
+            className={cn('gap-2', isInvalidOtp && 'otp-error')}
+            aria-invalid={isInvalidOtp}
           >
             <InputOTPGroup>
               {[0, 1, 2, 3, 4, 5].map((i) => (
-                <InputOTPSlot
-                  key={i}
-                  index={i}
-                  className={cn(error && 'border-[var(--text-error)]')}
-                />
+                <InputOTPSlot key={i} index={i} invalid={isInvalidOtp} />
               ))}
             </InputOTPGroup>
           </InputOTP>
         </div>
 
-        {error ? <p className='text-center text-[var(--text-error)] text-xs'>{error}</p> : null}
+        {error ? (
+          <p className='text-center text-[var(--text-error)] text-xs'>{error.message}</p>
+        ) : null}
 
         <AuthSubmitButton
           type='button'
@@ -188,7 +197,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
           </p>
         </div>
 
-        <div className='text-center font-light text-sm'>
+        <div className='text-center font-normal text-sm'>
           <button
             onClick={() => {
               setSent(false)

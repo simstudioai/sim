@@ -162,7 +162,13 @@ export {
   type InfoCardProps,
 } from './info-card/info-card'
 export { Input, type InputProps } from './input/input'
-export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './input-otp/input-otp'
+export {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSeparator,
+  InputOTPSlot,
+  type InputOTPSlotProps,
+} from './input-otp/input-otp'
 export { Label } from './label/label'
 export { Lightbox, type LightboxProps } from './lightbox/lightbox'
 export { focusFirstTextInput, focusFirstTextInputIn } from './modal/auto-focus'
@@ -210,6 +216,10 @@ export {
 } from './popover/popover'
 export { POPOVER_ANIMATION_CLASSES } from './popover/popover-animation'
 export { ProgressItem } from './progress-item/progress-item'
+export {
+  ResourceEmptyState,
+  type ResourceEmptyStateProps,
+} from './resource-empty-state/resource-empty-state'
 export { SecretInput } from './secret-input/secret-input'
 export { SecretReveal } from './secret-reveal/secret-reveal'
 export { WORDMARK_PATHS, WORDMARK_VIEW_BOX } from './sim-wordmark/paths'

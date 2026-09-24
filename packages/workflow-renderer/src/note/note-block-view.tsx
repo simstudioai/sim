@@ -1017,7 +1017,7 @@ export function NoteBlockView({
                     }
                   }}
                   className={cn(
-                    'nodrag nopan nowheel h-7 w-full min-w-0 select-text border-none bg-transparent px-0 text-[17px] text-current caret-current outline-hidden focus-visible:outline-hidden',
+                    'nodrag nopan nowheel h-7 w-full min-w-0 select-text border-none bg-transparent px-0 text-current text-md caret-current outline-hidden focus-visible:outline-hidden',
                     colorOption.selectionClassName,
                     !isEnabled && 'opacity-50'
                   )}
@@ -1033,14 +1033,14 @@ export function NoteBlockView({
                     !isEnabled && 'opacity-50'
                   )}
                 >
-                  <OverflowSpan value={name ?? ''} className='text-[17px] text-current'>
+                  <OverflowSpan value={name ?? ''} className='text-current text-md'>
                     {renderMarkedName(name ?? '', nameSearchRange)}
                   </OverflowSpan>
                 </button>
               ) : (
                 <OverflowSpan
                   value={name ?? ''}
-                  className={cn('text-[17px] text-current', !isEnabled && 'opacity-50')}
+                  className={cn('text-current text-md', !isEnabled && 'opacity-50')}
                 >
                   {renderMarkedName(name ?? '', nameSearchRange)}
                 </OverflowSpan>

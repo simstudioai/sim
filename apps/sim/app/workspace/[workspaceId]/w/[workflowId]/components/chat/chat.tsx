@@ -130,7 +130,7 @@ function ChatFilePreview({ file, onRemove }: ChatFilePreviewProps) {
       ) : (
         <div className='min-w-0 flex-1'>
           <div className='truncate font-medium text-[var(--white)] text-micro'>{file.name}</div>
-          <div className='text-[9px] text-[var(--text-tertiary)]'>{formatFileSize(file.size)}</div>
+          <div className='text-[var(--text-tertiary)] text-micro'>{formatFileSize(file.size)}</div>
         </div>
       )}
 

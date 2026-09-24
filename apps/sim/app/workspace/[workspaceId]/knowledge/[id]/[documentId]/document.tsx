@@ -1,7 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
-import { Badge, ChipCombobox, ChipConfirmModal, chipContentLabelClass, cn } from '@sim/emcn'
+import {
+  Badge,
+  ChipCombobox,
+  ChipConfirmModal,
+  chipContentLabelClass,
+  cn,
+  ResourceEmptyState,
+} from '@sim/emcn'
 import {
   ChevronDown,
   ChevronUp,
@@ -38,7 +45,6 @@ import type {
 import {
   EMPTY_CELL_PLACEHOLDER,
   Resource,
-  ResourceNotFound,
   SearchHighlight,
 } from '@/app/workspace/[workspaceId]/components'
 import {
@@ -1163,7 +1169,7 @@ export function Document({
    */
   if (documentError && !documentData) {
     return (
-      <ResourceNotFound
+      <ResourceEmptyState
         icon={FileX}
         title='Document not found'
         description='This document may have been deleted or moved'

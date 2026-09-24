@@ -79,9 +79,9 @@ describe('email type scale mirrors the globals.css @theme scale', () => {
     )
   })
 
-  it('sm is Tailwind stock 14px — the size text-sm resolves to in chip chrome', () => {
+  it('sm adopts Tailwind stock 0.875rem, matching 14px email text at the default root', () => {
     expect(typography.fontSize.sm).toBe('14px')
-    expect(tailwindFontSize.sm).toBeUndefined()
+    expect(tailwindFontSize.sm).toBe('0.875rem')
     expect(chipGeometryClass).toContain('text-sm')
   })
 

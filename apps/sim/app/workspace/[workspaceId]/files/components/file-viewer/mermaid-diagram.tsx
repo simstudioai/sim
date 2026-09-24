@@ -49,9 +49,9 @@ function MermaidSourcePreview({
   return (
     <div className='my-4 overflow-hidden rounded-lg border border-[var(--border)]'>
       <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-3)] px-3 py-1.5'>
-        <span className='text-[11px] text-[var(--text-tertiary)]'>mermaid</span>
+        <span className='text-[var(--text-tertiary)] text-xs leading-[inherit]'>mermaid</span>
         {(isRendering || status) && (
-          <span className='text-[11px] text-[var(--text-muted)]'>
+          <span className='text-[var(--text-muted)] text-xs leading-[inherit]'>
             {isRendering ? 'Rendering…' : status}
           </span>
         )}

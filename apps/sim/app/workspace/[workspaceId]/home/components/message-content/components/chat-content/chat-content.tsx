@@ -58,7 +58,7 @@ const LANG_ALIASES: Record<string, string> = {
 
 const PROSE_CLASSES = cn(
   'prose prose-base dark:prose-invert max-w-none',
-  'font-[family-name:var(--font-inter)] antialiased break-words tracking-[0]',
+  'font-inter antialiased break-words tracking-[0]',
   'prose-headings:font-semibold prose-headings:tracking-[0] prose-headings:text-[var(--text-primary)]',
   'prose-headings:mb-3 prose-headings:mt-6 first:prose-headings:mt-0',
   'prose-p:text-base prose-p:leading-[25px] prose-p:text-[var(--text-primary)]',

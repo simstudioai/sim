@@ -112,6 +112,23 @@ function copilotDraftKey(
 ): string | undefined {
   return workflowId ? `${workspaceId}:workflow-copilot:${workflowId}:${chatId ?? 'new'}` : undefined
 }
+
+interface PanelTabChipProps {
+  tab: PanelTab
+  active: boolean
+  onClick: () => void
+  children: string
+}
+
+function PanelTabChip({ tab, active, onClick, children }: PanelTabChipProps) {
+  return (
+    <Chip active={active} aria-pressed={active} onClick={onClick} data-tab-button={tab}>
+      <span className={active ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}>
+        {children}
+      </span>
+    </Chip>
+  )
+}
 /**
  * Panel component with resizable width and tab navigation that persists across page refreshes.
  *
@@ -853,43 +870,28 @@ export const Panel = memo(function Panel() {
           <div className='flex shrink-0 items-center justify-between px-2 pt-3.5'>
             <div className='flex gap-1'>
               {isCopilotTabAvailable && (
-                <Button
-                  className={`h-[28px] truncate rounded-md border py-[5px] text-[12.5px] ${
-                    _hasHydrated && activeTab === 'copilot'
-                      ? 'border-[var(--border-1)]'
-                      : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]'
-                  }`}
-                  variant={_hasHydrated && activeTab === 'copilot' ? 'active' : 'ghost'}
+                <PanelTabChip
+                  tab='copilot'
+                  active={_hasHydrated && activeTab === 'copilot'}
                   onClick={() => handleTabClick('copilot')}
-                  data-tab-button='copilot'
                 >
                   Chat
-                </Button>
+                </PanelTabChip>
               )}
-              <Button
-                className={`h-[28px] rounded-md border py-[5px] text-[12.5px] ${
-                  _hasHydrated && activeTab === 'toolbar'
-                    ? 'border-[var(--border-1)]'
-                    : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]'
-                }`}
-                variant={_hasHydrated && activeTab === 'toolbar' ? 'active' : 'ghost'}
+              <PanelTabChip
+                tab='toolbar'
+                active={_hasHydrated && activeTab === 'toolbar'}
                 onClick={() => handleTabClick('toolbar')}
-                data-tab-button='toolbar'
               >
                 Toolbar
-              </Button>
-              <Button
-                className={`h-[28px] rounded-md border py-[5px] text-[12.5px] ${
-                  _hasHydrated && activeTab === 'editor'
-                    ? 'border-[var(--border-1)]'
-                    : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]'
-                }`}
-                variant={_hasHydrated && activeTab === 'editor' ? 'active' : 'ghost'}
+              </PanelTabChip>
+              <PanelTabChip
+                tab='editor'
+                active={_hasHydrated && activeTab === 'editor'}
                 onClick={() => handleTabClick('editor')}
-                data-tab-button='editor'
               >
                 Editor
-              </Button>
+              </PanelTabChip>
             </div>
           </div>
 

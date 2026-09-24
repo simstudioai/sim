@@ -435,7 +435,7 @@ function ConnectionsSection({
               }
             >
               <div className='relative flex size-[14px] shrink-0 items-center justify-center overflow-hidden rounded-sm bg-violet-500'>
-                <span className='text-[9px] text-white'>V</span>
+                <span className='text-micro text-white'>V</span>
               </div>
               <OverflowText
                 label='Variables'
@@ -484,7 +484,7 @@ function ConnectionsSection({
               }
             >
               <div className='relative flex size-[14px] shrink-0 items-center justify-center overflow-hidden rounded-sm bg-cool-gray-500'>
-                <span className='text-[9px] text-white'>E</span>
+                <span className='text-micro text-white'>E</span>
               </div>
               <OverflowText
                 label='Secrets'
