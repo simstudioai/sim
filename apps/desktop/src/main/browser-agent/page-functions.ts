@@ -41,6 +41,8 @@ declare global {
       observedRoots: WeakSet<ParentNode>
     }>
     __simAgentNextElementId?: number
+    /** Elements an earlier snapshot of this document listed; a later snapshot marks the rest `new`. */
+    __simAgentShownElements?: WeakSet<Element>
     /** Why the last __simAgentResolveElement call returned null — read by the
      * shared stale-error producers so a refusal names its cause instead of
      * the blanket "the page changed". Cleared on every successful resolve. */
@@ -160,6 +162,11 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
     context: string
   }> = []
   window.__simAgentElements = registry
+  const previouslyShown = window.__simAgentShownElements
+  const shown = previouslyShown ?? new WeakSet<Element>()
+  window.__simAgentShownElements = shown
+  /** Whether an element appeared since the previous snapshot; the first snapshot marks nothing. */
+  const isNew = (el: Element): boolean => previouslyShown !== undefined && !shown.has(el)
   const lines: string[] = []
   let truncated = false
   let refCount = 0
@@ -553,6 +560,8 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
         parts.push(`${attribute}=${value}`)
       }
     }
+    if (isNew(el)) parts.push('new')
+    shown.add(el)
     const suffix = parts.length > 0 ? ` ${parts.join(' ')}` : ''
     const lineIndex = lines.length
     if (push(`${indent}- ${role} ${quote(name)} [ref=${id}]${suffix}`)) {
@@ -574,8 +583,10 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
     if (!text) return
     const id = registerElement(el, roleFor(el), text)
     textLineCount++
+    const marker = isNew(el) ? ' new' : ''
+    shown.add(el)
     const lineIndex = lines.length
-    if (push(`${indent}- text ${quote(text)} [ref=${id}]`)) refLineIndexes[id] = lineIndex
+    if (push(`${indent}- text ${quote(text)} [ref=${id}]${marker}`)) refLineIndexes[id] = lineIndex
   }
 
   const headingLevel = (el: Element): number | null => {

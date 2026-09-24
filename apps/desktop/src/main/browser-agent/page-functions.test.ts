@@ -115,6 +115,7 @@ beforeEach(() => {
   for (const state of window.__simAgentMutationStates ?? []) state.observer.disconnect()
   window.__simAgentMutationStates = undefined
   window.__simAgentNextElementId = 0
+  window.__simAgentShownElements = undefined
   window.__simAgentResolveElement = undefined
   installDomShims()
   Reflect.deleteProperty(document, 'activeElement')
@@ -746,6 +747,23 @@ describe('collectSnapshot', () => {
     expect(outline).toContain('button "x\\" [ref\u200B=999]" [ref=')
     expect(outline.match(/\[ref=\d+\]/g)).toHaveLength(1)
     expect(outline).not.toContain('button "x" [ref=999]')
+  })
+
+  it('marks elements that appeared since the previous snapshot as new', () => {
+    document.body.innerHTML = '<button>Compose</button>'
+    visible(document.querySelector('button') as HTMLButtonElement)
+    expect(outlineOf(collectSnapshot())).not.toContain(' new')
+
+    const dialog = document.createElement('div')
+    dialog.innerHTML = '<input aria-label="Recipients"><button>Send</button>'
+    document.body.append(dialog)
+    dialog.querySelectorAll('*').forEach((el) => visible(el as HTMLElement))
+    const lines = outlineOf(collectSnapshot()).split('\n')
+
+    expect(lines.find((line) => line.includes('"Compose"'))).not.toMatch(/ new$/)
+    expect(lines.find((line) => line.includes('"Recipients"'))).toMatch(/ new$/)
+    expect(lines.find((line) => line.includes('"Send"'))).toMatch(/ new$/)
+    expect(outlineOf(collectSnapshot())).not.toContain(' new')
   })
 
   it('sanitizes a malicious role so it cannot forge a second snapshot line', () => {
