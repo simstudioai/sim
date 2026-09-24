@@ -103,6 +103,7 @@ export type ModelSelection = z.infer<typeof ModelSelectionSchema>;
 /** Desktop capabilities and bounded session hints, supplied by Sim for this turn. */
 export const DesktopContextSchema = z.object({
   localFiles: z.boolean().optional(),
+  computerUse: z.boolean().default(false),
   browser: z.boolean().default(false),
   terminal: z.boolean().default(false),
   terminals: z

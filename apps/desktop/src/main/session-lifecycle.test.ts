@@ -122,11 +122,12 @@ describe('tearDownSession', () => {
     expect(order).toEqual(['revoke', 'local', 'browser', 'session', 'cache'])
   })
 
-  it('does not erase local data when the recovery marker cannot be written', async () => {
+  it('stops runtime work without erasing local data when the recovery marker cannot be written', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'sim-account-recovery-'))
     const blockedParent = join(directory, 'blocked')
     initializeAccountDataRecovery(join(blockedParent, 'teardown-required.json'))
     writeFileSync(blockedParent, 'not a directory')
+    const stopLocalActions = vi.fn()
     const clearHandoffState = vi.fn(async () => {})
     const clearBrowserProfile = vi.fn(async () => {})
     const clearStorageData = vi.fn(async () => {})
@@ -140,10 +141,12 @@ describe('tearDownSession', () => {
           clearHandoffState,
           { filePath: '/tmp/events.log', record: vi.fn() },
           clearBrowserProfile,
-          async () => {}
+          async () => {},
+          stopLocalActions
         )
       ).rejects.toThrow('recovery marker')
 
+      expect(stopLocalActions).toHaveBeenCalledOnce()
       expect(clearHandoffState).not.toHaveBeenCalled()
       expect(clearBrowserProfile).not.toHaveBeenCalled()
       expect(clearStorageData).not.toHaveBeenCalled()
@@ -197,6 +200,7 @@ describe('createSessionLifecycleCoordinator', () => {
       appSession: session,
       origin: () => APP,
       events: { filePath: '/tmp/events.log', record: vi.fn() },
+      stopLocalActions: vi.fn(),
       clearHandoffState,
       clearBrowserProfile: vi.fn(async () => {}),
       getWindows: () => [first, second],
@@ -226,6 +230,54 @@ describe('createSessionLifecycleCoordinator', () => {
     expect(clearHandoffState).toHaveBeenCalledOnce()
   })
 
+  it.each(['menu', 'navigation'] as const)(
+    'stops local actions synchronously before a delayed %s sign-out request',
+    async (trigger) => {
+      let finishRevoke: () => void = () => {}
+      const revoke = new Promise<void>((resolve) => {
+        finishRevoke = resolve
+      })
+      const win = new BrowserWindow()
+      vi.mocked(win.webContents.getURL).mockReturnValue(`${APP}/home`)
+      vi.mocked(win.webContents.executeJavaScript).mockImplementationOnce(() => revoke)
+      const stopLocalActions = vi.fn()
+      const clearHandoffState = vi.fn(async () => {})
+      const coordinator = createSessionLifecycleCoordinator({
+        appSession: {
+          cookies: { on: vi.fn() },
+          clearStorageData: vi.fn(async () => {}),
+          clearCache: vi.fn(async () => {}),
+        } as unknown as Session,
+        origin: () => APP,
+        events: { filePath: '/tmp/events.log', record: vi.fn() },
+        stopLocalActions,
+        clearHandoffState,
+        clearBrowserProfile: vi.fn(async () => {}),
+        getWindows: () => [win],
+      })
+      if (trigger === 'menu') {
+        void coordinator.signOut()
+      } else {
+        coordinator.attachWindow(win)
+        const windowEventCalls = vi.mocked(win.webContents.on).mock.calls as unknown as Array<
+          [string, (...args: unknown[]) => unknown]
+        >
+        const navigation = windowEventCalls.find(([event]) => event === 'did-navigate-in-page')?.[1]
+        if (!navigation) throw new Error('Missing navigation listener')
+        navigation({}, `${APP}/login?fromLogout=true`)
+      }
+      expect(stopLocalActions).toHaveBeenCalledOnce()
+      expect(win.webContents.executeJavaScript).toHaveBeenCalledOnce()
+      expect(stopLocalActions.mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(win.webContents.executeJavaScript).mock.invocationCallOrder[0]
+      )
+      expect(clearHandoffState).not.toHaveBeenCalled()
+      finishRevoke()
+      await expect(coordinator.awaitTeardown()).resolves.toBe(true)
+      expect(clearHandoffState).toHaveBeenCalledOnce()
+    }
+  )
+
   it('shares one awaitable teardown and does not open login when clearing fails', async () => {
     let releaseBrowserClear: (() => void) | undefined
     const browserClear = new Promise<void>((resolve) => {
@@ -242,6 +294,7 @@ describe('createSessionLifecycleCoordinator', () => {
       } as unknown as Session,
       origin: () => APP,
       events: { filePath: '/tmp/events.log', record: vi.fn() },
+      stopLocalActions: vi.fn(),
       clearHandoffState: vi.fn(async () => {}),
       clearBrowserProfile: vi.fn(() => browserClear),
       getWindows: () => [win],

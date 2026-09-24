@@ -1,8 +1,18 @@
+import { release } from 'node:os'
 import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OpenDialogOptions, Session, WebContents } from 'electron'
-import { app, BrowserWindow, crashReporter, dialog, net, session, shell } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  crashReporter,
+  dialog,
+  globalShortcut,
+  net,
+  session,
+  shell,
+} from 'electron'
 import {
   beginAccountDataTeardown,
   completeDeploymentScopedTeardown,
@@ -36,6 +46,8 @@ import {
   setPanelFocused as setBrowserAgentPanelFocused,
 } from '@/main/browser-agent/session'
 import { attachClientInfo } from '@/main/client-info'
+import { NativeComputerUseClient } from '@/main/computer-use/native-client'
+import { ComputerUseService } from '@/main/computer-use/service'
 import {
   APP_NAME_FOR_CHANNEL,
   channelForOrigin,
@@ -65,7 +77,7 @@ import {
   registerLocalPageScheme,
 } from '@/main/local-pages'
 import { installApplicationMenu } from '@/main/menu'
-import { openExternalSafe } from '@/main/navigation'
+import { isAppOrigin, openExternalSafe } from '@/main/navigation'
 import { createEventLog, installMainProcessFailureObservers } from '@/main/observability'
 import { ScopedEventRouter } from '@/main/scoped-event-router'
 import { installGlobalGuards } from '@/main/security-guards'
@@ -145,6 +157,61 @@ function main(): void {
     grantStore: createEncryptedLocalFilesystemGrantStore(
       join(userDataPath, 'local-filesystem-grants.json')
     ),
+  })
+  const computerNative = new NativeComputerUseClient(
+    join(
+      app.isPackaged ? process.resourcesPath : join(__dirname, 'native'),
+      'Sim Computer Use.app',
+      'Contents',
+      'MacOS',
+      'SimComputerUse'
+    ),
+    () => computerUse.invalidateSnapshots()
+  )
+  let computerStopShortcutRegistered = false
+  const computerStopShortcut = 'CommandOrControl+Shift+Escape'
+  const computerUse = new ComputerUseService({
+    config,
+    supported: process.platform === 'darwin' && Number.parseInt(release(), 10) >= 23,
+    native: computerNative,
+    openPermissionSettings: (permission) =>
+      shell.openExternal(
+        permission === 'accessibility'
+          ? 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
+          : 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
+      ),
+    setStopShortcutActive: (active) => {
+      if (active && !computerStopShortcutRegistered) {
+        computerStopShortcutRegistered = globalShortcut.register(computerStopShortcut, () =>
+          computerUse.cancel()
+        )
+      } else if (!active && computerStopShortcutRegistered) {
+        globalShortcut.unregister(computerStopShortcut)
+        computerStopShortcutRegistered = false
+      }
+      return computerStopShortcutRegistered
+    },
+    approveApp: async (target, signal) => {
+      const result = await dialog.showMessageBox({
+        type: 'question',
+        title: 'Computer Use',
+        message: `Allow Mothership to use ${target.displayName}?`,
+        detail: `Mothership can read and operate this app, including taking screenshots. App: ${target.bundleId}`,
+        buttons: ['Allow for This Task', 'Always Allow', 'Cancel'],
+        defaultId: 2,
+        cancelId: 2,
+        noLink: true,
+        signal,
+      })
+      return result.response === 0 ? 'once' : result.response === 1 ? 'always' : 'deny'
+    },
+    onActivity: (activity) => {
+      for (const win of getWindows()) {
+        if (isAppOrigin(win.webContents.getURL(), appOrigin())) {
+          win.webContents.send('computer-use:activity', activity)
+        }
+      }
+    },
   })
   const scopeEvents = new ScopedEventRouter()
   const terminal = new TerminalRegistry({
@@ -285,6 +352,7 @@ function main(): void {
       origin: appOrigin,
       events,
       getWindows,
+      stopLocalActions: () => computerUse.cancel(),
       clearHandoffState: async () => {
         const stores = [
           { label: 'sign-in handoff state', clear: () => handoff.clear() },
@@ -309,6 +377,7 @@ function main(): void {
           { label: 'terminal sessions', clear: () => terminal.dispose() },
           { label: 'task resource state', clear: clearDesktopChatSessions },
           { label: 'local filesystem grants', clear: () => localFilesystem.forgetAll() },
+          { label: 'computer use', clear: () => computerUse.reset() },
         ]
         const outcomes = await Promise.allSettled(
           stores.map(({ clear }) => Promise.resolve().then(clear))
@@ -537,7 +606,10 @@ function main(): void {
     preloadPath,
     isPackaged: app.isPackaged,
     getParentWindow: getMainWindow,
-    prepareDeploymentScopedStateChange: () => beginAccountDataTeardown('deployment', appOrigin()),
+    prepareDeploymentScopedStateChange: () => {
+      computerUse.cancel()
+      return beginAccountDataTeardown('deployment', appOrigin())
+    },
     clearDeploymentScopedState: async () => {
       await waitForAccountDataMutations()
       // allSettled, not sequential awaits: these are independent stores, and a
@@ -546,6 +618,7 @@ function main(): void {
       // access. Each failure is named so the picker can say what survived.
       const stores = [
         { label: 'local file access', clear: () => localFilesystem.forgetAll() },
+        { label: 'computer use', clear: () => computerUse.reset() },
         {
           label: 'built-in browser sessions',
           clear: () => clearAgentBrowserProfile({ settingsPersistence: 'server-repair' }),
@@ -627,6 +700,8 @@ function main(): void {
     // now be released without leaving a cancelled quit in a degraded state.
     tray?.destroy()
     tray = null
+    computerUse.cancel()
+    if (computerStopShortcutRegistered) globalShortcut.unregister(computerStopShortcut)
     localFilesystem.close()
     quiesceBrowserSessions()
     terminal.dispose()
@@ -664,6 +739,7 @@ function main(): void {
       const stores = [
         { label: 'built-in browser sessions', clear: () => clearAgentBrowserProfile() },
         { label: 'local filesystem grants', clear: () => localFilesystem.forgetAll() },
+        { label: 'computer use', clear: () => computerUse.reset() },
         {
           label: 'browser site history',
           clear: () => {
@@ -760,6 +836,7 @@ function main(): void {
         scopeEvents.sendTerminal(scopeId, 'terminal:command', { ...event, scopeId }),
     })
     registerIpcHandlers({
+      computerUse,
       appOrigin,
       allowHttpLocalhost,
       accountDataAvailable,

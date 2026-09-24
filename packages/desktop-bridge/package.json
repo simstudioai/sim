@@ -17,6 +17,10 @@
     "./local-filesystem-limits": {
       "types": "./src/local-filesystem-limits.ts",
       "default": "./src/local-filesystem-limits.ts"
+    },
+    "./computer-use": {
+      "types": "./src/computer-use.generated.ts",
+      "default": "./src/computer-use.generated.ts"
     }
   },
   "scripts": {
@@ -29,7 +33,8 @@
   "dependencies": {
     "@sim/browser-protocol": "workspace:*",
     "@sim/terminal-protocol": "workspace:*",
-    "@sim/utils": "workspace:*"
+    "@sim/utils": "workspace:*",
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",

@@ -210,6 +210,16 @@ export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void
       deps.startClientLocalFilesystemTool(rawId, name, localFilesystemArgs ?? {})
     }
   }
+  if (
+    name === 'computer' &&
+    !isPartial &&
+    !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
+    node?.kind === 'tool' &&
+    node.status === 'running' &&
+    !node.result
+  ) {
+    deps.startClientComputerTool(rawId, payload.arguments ?? {}, parsed.ts)
+  }
   if (isCurrentBrowserToolName(name) && !isPartial) {
     const shouldStartBrowserTool =
       !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&

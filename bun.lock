@@ -512,6 +512,7 @@
         "@sim/browser-protocol": "workspace:*",
         "@sim/terminal-protocol": "workspace:*",
         "@sim/utils": "workspace:*",
+        "zod": "4.3.6",
       },
       "devDependencies": {
         "@sim/tsconfig": "workspace:*",

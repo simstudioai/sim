@@ -14,6 +14,7 @@ import { Chip, cn, Tooltip, toast } from '@sim/emcn'
 import { Paperclip, Plus, Slash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
+import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
 import { MOTHERSHIP_ADD_CONTEXT_EVENT } from '@/lib/mothership/events'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
@@ -568,6 +569,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       onDragOver={handleContainerDragOver}
       onDrop={handleContainerDrop}
     >
+      <ComputerUseActivity />
       <AnimatedPlaceholderEffect textareaRef={textareaRef} isInitialView={isInitialView} />
 
       <AttachedFilesList
