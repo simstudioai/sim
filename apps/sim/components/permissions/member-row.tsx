@@ -1,7 +1,6 @@
 'use client'
 
-import { Chip, ChipDropdown, cn, OverflowText } from '@sim/emcn'
-import { MemberAvatar } from '@/components/member-avatar/member-avatar'
+import { Avatar, Chip, ChipDropdown, cn, OverflowText } from '@sim/emcn'
 import type { MemberRole } from './member-role-options'
 import { RoleLockTooltip } from './role-lock'
 
@@ -55,7 +54,12 @@ export function MemberRow<TRole extends string = MemberRole>({
       )}
     >
       <div className='flex min-w-0 items-center gap-2.5'>
-        <MemberAvatar name={member.userName || member.userEmail || '?'} image={member.userImage} />
+        <Avatar
+          size='xs'
+          name={member.userName || member.userEmail || '?'}
+          src={member.userImage}
+          aria-hidden
+        />
         <div className='flex min-w-0 flex-col'>
           <OverflowText
             label={member.userName || member.userEmail || member.userId}

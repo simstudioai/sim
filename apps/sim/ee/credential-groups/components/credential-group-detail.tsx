@@ -1,11 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipConfirmModal, ChipModalTabs, toast } from '@sim/emcn'
+import { Avatar, Chip, ChipConfirmModal, ChipModalTabs, toast } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
-import { MemberAvatar } from '@/components/member-avatar/member-avatar'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { CredentialGroupEnrollment } from '@/lib/api/contracts/credential-groups'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
@@ -283,7 +282,7 @@ export function CredentialGroupDetail({ workspaceId, groupId }: CredentialGroupD
                       return (
                         <SettingsResourceRow
                           key={enrollment.id}
-                          icon={<MemberAvatar name={enrollment.email} image={null} />}
+                          icon={<Avatar size='xs' name={enrollment.email} aria-hidden />}
                           iconVariant='custom'
                           title={enrollment.email}
                           description={

@@ -251,11 +251,12 @@ and — on activatable rows only — the hover band. Never hand-roll any of it, 
   `RESOURCE_TILE_FILL` for a glyph, `RESOURCE_TILE_PLAIN` for a brand logo or favicon.
 
 
-**One member avatar.** Every member list, owner cell, and ranking renders
-`MemberAvatar` from `components/member-avatar/member-avatar` — a 14px photo, or the
-initial on the neutral disc. Never hand-roll an avatar or give a person a
-`getUserColor` hash; per-person colors belong to live collaboration (presence,
-cursors), where the color matches that person's cursor.
+**One member avatar.** Every member list, owner cell, and ranking renders emcn
+`<Avatar size='xs' name={…} src={…} aria-hidden />` — a 14px photo, or the initial
+on the neutral disc (`aria-hidden` because the name is always beside it). Never
+hand-roll an avatar or give a person a `getUserColor` hash; per-person colors
+belong to live collaboration (presence, cursors), where the color matches that
+person's cursor.
 
 ## Header action order
 

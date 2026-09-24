@@ -55,8 +55,8 @@ For each page component, confirm the checklist in `.claude/rules/sim-settings-pa
    `.claude/rules/sim-settings-pages.md` for the token map and the row
    title/subtitle pairing convention):
    `git grep -nE "text-\[1[0-8]px\]" -- 'apps/sim/**/settings/' 'apps/sim/ee/'` — should
-   be 0. Display type above the scale (`text-[40px]` hero headings, the `text-[8px]`
-   member-avatar initial) is deliberate and out of scope.
+   be 0. Display type above the scale (`text-[40px]` hero headings) is deliberate
+   and out of scope.
 4. Confirm each page imports `SettingsPanel` and that its `NavigationItem` has an
    accurate `description` of consistent length with its peers.
    - Editable pages: confirm Save/Discard go through `SaveDiscardActions` and

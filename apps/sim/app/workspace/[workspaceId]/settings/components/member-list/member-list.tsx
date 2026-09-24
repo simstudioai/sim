@@ -1,8 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { OverflowText } from '@sim/emcn'
-import { MemberAvatar } from '@/components/member-avatar/member-avatar'
+import { Avatar, OverflowText } from '@sim/emcn'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
@@ -29,7 +28,7 @@ interface MemberRowProps {
 export function MemberRow({ name, email, image, status, roleControl, menu }: MemberRowProps) {
   return (
     <div className={ROW_CLASSES}>
-      <MemberAvatar name={name} image={image} />
+      <Avatar size='xs' name={name} src={image} aria-hidden />
       <OverflowText label={email} className='flex-1 text-[var(--text-body)] text-sm' />
       <span className={ROW_STATUS_CLASSES}>{status}</span>
       {roleControl}

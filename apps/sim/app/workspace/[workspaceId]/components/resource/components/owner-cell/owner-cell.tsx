@@ -1,4 +1,4 @@
-import { MemberAvatar } from '@/components/member-avatar/member-avatar'
+import { Avatar } from '@sim/emcn'
 import type { ResourceCell } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import type { WorkspaceMember } from '@/hooks/queries/workspace'
 
@@ -22,7 +22,7 @@ export function ownerCell(
   if (!member) return { label: null }
 
   return {
-    icon: <MemberAvatar name={member.name} image={member.image} />,
+    icon: <Avatar size='xs' name={member.name} src={member.image} aria-hidden />,
     label: member.name,
   }
 }

@@ -2,6 +2,7 @@
 
 import { type ReactNode, useCallback, useId, useMemo, useRef, useState } from 'react'
 import {
+  Avatar,
   Checkbox,
   Chip,
   ChipConfirmModal,
@@ -28,7 +29,6 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useQueryState } from 'nuqs'
-import { MemberAvatar } from '@/components/member-avatar/member-avatar'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { isAccessControlAllowlistRow } from '@/lib/permission-groups/block-access'
@@ -331,7 +331,7 @@ function AddMembersModal({
                           className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                         >
                           <Checkbox checked={isSelected} />
-                          <MemberAvatar name={name} image={member.user?.image ?? null} />
+                          <Avatar size='xs' name={name} src={member.user?.image} aria-hidden />
                           <div className='min-w-0 flex-1'>
                             <OverflowText
                               label={name}

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import {
+  Avatar,
   Badge,
   Banner,
   ChipConfirmModal,
@@ -12,7 +13,6 @@ import {
   Skeleton,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
-import { MemberAvatar } from '@/components/member-avatar/member-avatar'
 import type { RosterMember } from '@/hooks/queries/organization'
 
 interface TransferOwnershipDialogProps {
@@ -170,7 +170,7 @@ export function TransferOwnershipDialog({
                               : 'hover-hover:bg-[var(--surface-hover)]'
                           )}
                         >
-                          <MemberAvatar name={m.name} image={m.image} />
+                          <Avatar size='xs' name={m.name} src={m.image} aria-hidden />
                           <div className='min-w-0 flex-1'>
                             <div className='flex items-center gap-2'>
                               <OverflowText
