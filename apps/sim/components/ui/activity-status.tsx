@@ -8,6 +8,10 @@ export const ACTIVITY_ICON_SLOT_CLASS = 'flex size-[14px] shrink-0 items-center 
 /** An activity row: the icon column, then the text column one `gap-2` to its right. */
 export const ACTIVITY_ROW_CLASS = 'flex min-w-0 items-center gap-2'
 
+/** Activity label text, muted until the row is hovered. */
+export const ACTIVITY_LABEL_CLASS =
+  'text-[var(--text-tertiary)] text-base leading-5 group-hover/agent:text-[var(--text-body)]'
+
 export interface ActivityStatusProps {
   label: string
   isActive: boolean
@@ -28,7 +32,7 @@ export function ActivityStatus({ label, isActive, icon }: ActivityStatusProps) {
       )}
       <OverflowText
         label={label}
-        className='text-[var(--text-tertiary)] text-base leading-5 group-hover/agent:text-[var(--text-body)]'
+        className={ACTIVITY_LABEL_CLASS}
         focusTarget='nearest-interactive'
       >
         {isActive ? (
