@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-19",
+  "updatedAt": "2026-09-23",
   "integrations": [
     {
       "type": "onepassword",
@@ -22460,8 +22460,8 @@
       "type": "slack_v2",
       "slug": "slack",
       "name": "Slack",
-      "description": "Send and manage Slack messages, Agent Sessions, streamed replies, views, reactions, conversations, and canvases",
-      "longDescription": "Integrate Slack messaging and administration into a workflow. Custom Slack bots can manage Agent Sessions, stream incremental Markdown or structured chunks, react to Agent Session events, and configure Agent View suggested prompts. Standard messaging and management operations support both the Sim app and custom bot credentials.",
+      "description": "Send and manage Slack messages, Agent Sessions, streamed replies, views, reactions, conversations, Lists, and canvases",
+      "longDescription": "Integrate Slack messaging and administration into a workflow. Custom Slack bots can manage Agent Sessions, stream incremental Markdown or structured chunks, react to Agent Session events, and configure Agent View suggested prompts. Lists operations require a custom Slack bot with lists:read/lists:write scopes and a paid Slack plan. Standard messaging and Canvas operations support both the Sim app and custom bot credentials.",
       "bgColor": "#611f69",
       "iconName": "SlackIcon",
       "docsUrl": "https://docs.sim.ai/integrations/slack",
@@ -22595,6 +22595,34 @@
           "description": "Delete a Slack canvas by its canvas ID"
         },
         {
+          "name": "Create List",
+          "description": "Create a Slack List with an optional column schema. Requires a paid Slack plan."
+        },
+        {
+          "name": "Rename List",
+          "description": "Rename an existing Slack List."
+        },
+        {
+          "name": "Read List Items",
+          "description": "Read a page of Slack List rows and optionally its column schema. Pass nextCursor as cursor to continue; an empty nextCursor ends pagination."
+        },
+        {
+          "name": "Get List Item",
+          "description": "Read a Slack List row and its parent List column schema."
+        },
+        {
+          "name": "Create List Item",
+          "description": "Create a Slack List row using real column IDs and typed cell values. Text columns require rich_text, not text."
+        },
+        {
+          "name": "Update List Items",
+          "description": "Update cells across Slack List rows. Each cell requires row_id, column_id, and one typed value. Use empty arrays to clear array-valued cells, or false to clear a checkbox."
+        },
+        {
+          "name": "Delete List Item",
+          "description": "Delete a row from an existing Slack List."
+        },
+        {
           "name": "Create Conversation",
           "description": "Create a new public or private channel in a Slack workspace."
         },
@@ -22647,7 +22675,7 @@
           "description": "Set the purpose (description) for a Slack channel (max 250 characters)."
         }
       ],
-      "operationCount": 45,
+      "operationCount": 52,
       "triggers": [
         {
           "id": "slack_oauth",

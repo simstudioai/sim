@@ -52,4 +52,17 @@ describe('Slack personal-token scope policy', () => {
     expect(tools.slack_get_canvas.oauth?.requiredScopes).toEqual(['files:read'])
     expect(tools.slack_edit_canvas.oauth?.requiredScopes).toEqual(['canvases:write'])
   })
+
+  it.each([
+    'slack_lists_create',
+    'slack_lists_update',
+    'slack_lists_items_list',
+    'slack_lists_items_info',
+    'slack_lists_items_create',
+    'slack_lists_items_update',
+    'slack_lists_items_delete',
+  ])('restricts %s to custom bots and excludes it from personal execution', (toolId) => {
+    expect(tools[toolId].oauth?.credentialKind).toBe('service-account')
+    expect(isAssistantIntegrationTool(tools[toolId])).toBe(false)
+  })
 })
