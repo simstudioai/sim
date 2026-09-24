@@ -12,6 +12,10 @@ import {
 import { getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
 import { getNewestRunningTool } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-content'
+import {
+  getSearchActivitySources,
+  SearchActivityDetails,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/search-activity-details'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import {
   getActivityAttentionKey,
@@ -72,8 +76,9 @@ function getToolActivityInterruptions(tools: ToolCallData[]): string[] {
 
 /**
  * An executing call whose streamed arguments do not name its action yet, so its
- * title is only its tool's placeholder: a `sim_cli` call before its command
- * parses ("Running CLI command") or a `run_code` call before its arguments
+ * title is only its tool's placeholder: a search before its arguments arrive,
+ * a `sim_cli` call before its command parses ("Running CLI command"),
+ * a `run_code` call before its arguments
  * resolve, while their parameters hold at most the activity, and an
  * integration gateway call before its description streams ("Calling integration").
  * A call awaiting approval is never untitled, so its permission card keeps the
@@ -87,7 +92,9 @@ function isAwaitingTitle(tool: ToolCallData): boolean {
     return !(typeof description === 'string' && description.trim())
   }
   return (
-    (tool.toolName === 'sim_cli' || tool.toolName === RunCode.id) &&
+    (tool.toolName === 'sim_cli' ||
+      tool.toolName === RunCode.id ||
+      tool.toolName === 'search_workspace') &&
     Object.keys(tool.params ?? {}).every((key) => key === 'activity')
   )
 }
@@ -109,13 +116,12 @@ export function getActivityHeaderTool(
   if (!isAwaitingTitle(statusTool)) return statusTool
   return (
     getActivityStatusTool(
-      tools.filter(
-        (tool) =>
-          tool.id !== statusTool.id &&
-          !isAwaitingTitle(tool) &&
-          !needsToolInput(tool) &&
-          !isFailedTool(tool)
-      )
+      tools
+        .slice(
+          0,
+          tools.findIndex((tool) => tool.id === statusTool.id)
+        )
+        .filter((tool) => !isAwaitingTitle(tool) && !needsToolInput(tool) && !isFailedTool(tool))
     ) ?? statusTool
   )
 }
@@ -204,6 +210,8 @@ export function ToolActivityGroup({
   /** Tense follows liveness: a live group, or one with a call still running, reads in progress. */
   const working = isLive || tools.some((tool) => !isToolDone(tool.status))
   const attentionKey = getActivityAttentionKey(tools)
+  const entries = tools.map((tool) => ({ tool, sources: getSearchActivitySources(tool) }))
+  const hasSearchDetails = entries.some(({ sources }) => sources !== undefined)
 
   return (
     <ToolCallComponent
@@ -228,18 +236,25 @@ export function ToolActivityGroup({
           activityKey={headerTool.id}
           attentionKey={attentionKey}
           expandedLabel={tools.length > 1 ? groupedActivity?.title : undefined}
-          collapsible={tools.length > 1}
+          collapsible={tools.length > 1 || hasSearchDetails}
           expanded={expanded}
           onToggle={() => setExpanded(!expanded)}
           isStreaming={working && autoScrollActivity}
+          unbounded={entries.some(({ sources }) => (sources?.length ?? 0) > 0)}
         >
           <div className='flex min-w-0 flex-col gap-1.5 py-0.5'>
-            {tools.map((tool) => (
+            {entries.map(({ tool, sources }, index) => (
               <Fragment key={tool.id}>
-                {tool.id === headerTool.id ? (
+                {tools.length === 1 ? null : tool.id === headerTool.id ? (
                   <ActivityStatus {...status} />
                 ) : (
                   <ToolCallComponent {...tool} toolCallId={tool.id} />
+                )}
+                {sources && (
+                  <SearchActivityDetails
+                    sources={sources}
+                    label={`Search results for step ${index + 1}: ${getToolTitle(tool)}`}
+                  />
                 )}
               </Fragment>
             ))}

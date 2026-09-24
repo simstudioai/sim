@@ -1091,9 +1091,9 @@ describe('turn wait ownership', () => {
     expect(ownsWait(parseBlocks(blocks, true), true)).toBe(true)
   })
 
-  it('leaves the gap after a finished trailing search, which shows static results, to thinking', () => {
+  it('keeps the search activity live between calls in an open lane', () => {
     const blocks = [mainToolCall('read', 'read'), searchCall('search', 'success')]
-    expect(ownsWait(parseBlocks(blocks, true), true)).toBe(false)
+    expect(ownsWait(parseBlocks(blocks, true), true)).toBe(true)
   })
 
   it('lets the open group own the gap once a later non-search call follows a search', () => {

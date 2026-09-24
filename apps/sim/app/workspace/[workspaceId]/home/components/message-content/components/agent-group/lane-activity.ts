@@ -9,7 +9,6 @@ import type {
   AgentGroupItem,
   NestedAgentGroup,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
-import { isSearchActivityTool } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/search-activity'
 import { needsToolInput } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-interactions'
 import { type ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -27,10 +26,9 @@ function canHoldIndicator(tool: ToolCallData): boolean {
   return !needsToolInput(tool) && tool.toolName !== RETIRED_BROWSER_REQUEST_TAKEOVER_ID
 }
 
-/** A run of consecutive calls the main lane renders together, as one group or one search list. */
+/** A run of consecutive calls the main lane renders together, as one activity group. */
 export interface ActivityRun {
   tools: ToolCallData[]
-  isSearch: boolean
 }
 
 export type MainLaneEntry =
@@ -38,8 +36,8 @@ export type MainLaneEntry =
   | { type: 'item'; item: AgentGroupItem; index: number }
 
 /**
- * How the main lane lays out its items: consecutive calls form runs, a search
- * call never shares a run with another kind of call, and an interaction stands
+ * How the main lane lays out its items: consecutive calls form runs,
+ * including search and document reads, and an interaction stands
  * on its own and closes the run before it.
  */
 export function splitMainLane(items: AgentGroupItem[]): MainLaneEntry[] {
@@ -47,9 +45,8 @@ export function splitMainLane(items: AgentGroupItem[]): MainLaneEntry[] {
   let run: ActivityRun | undefined
   for (const [index, item] of items.entries()) {
     if (item.type === 'tool' && !isStandaloneItem(item)) {
-      const isSearch = isSearchActivityTool(item.data)
-      if (!run || run.isSearch !== isSearch) {
-        run = { tools: [], isSearch }
+      if (!run) {
+        run = { tools: [] }
         entries.push({ type: 'run', run })
       }
       run.tools.push(item.data)
@@ -142,13 +139,10 @@ export interface LaneActivityInput {
   isOpen: boolean
 }
 
-/**
- * The latest call of the main lane's last run, which owns the trailing gap. A
- * finished search shows static results, so its gap is never a call's.
- */
+/** The latest call of the main lane's last run, which owns the trailing gap. */
 function getMainTrailingCall(items: AgentGroupItem[]): ToolCallData | undefined {
   const last = splitMainLane(items).at(-1)
-  return last?.type === 'run' && !last.run.isSearch ? last.run.tools.at(-1) : undefined
+  return last?.type === 'run' ? last.run.tools.at(-1) : undefined
 }
 
 /**
@@ -204,12 +198,11 @@ export interface TurnLiveIndicators {
  *   call anywhere in the lane, across all of its runs and the lanes nested in
  *   it. With none running and the lane open, the latest call of its trailing
  *   run owns the gap, and is live only if it succeeded; an error, rejection,
- *   stop, skip, or interruption hands the wait to the thinking row. A finished
- *   main-lane search shows static results, so its gap is never live. A subagent
+ *   stop, skip, or interruption hands the wait to the thinking row. A subagent
  *   lane's trailing call is its latest call, and an open subagent lane with
  *   narration but no calls shows its own "Thinking" header.
- * - Only the run holding the live call shimmers: its tool group header, or its
- *   one search row. A parent lane whose live call sits in a nested lane defers
+ * - Only the run holding the live call shimmers through its tool group header.
+ *   A parent lane whose live call sits in a nested lane defers
  *   to that lane while the nested lane is still working and visible; a nested
  *   lane that has ended hands its last call back to the parent.
  * - A header reads in the present tense exactly while it is live or its call

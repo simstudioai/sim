@@ -150,6 +150,10 @@ describe('in-progress activity header', () => {
     ['a CLI call before its command parses', pendingCli],
     ['a code call before its arguments resolve', tool('run_code', 'Running code', 'executing')],
     ['a gateway call before its description streams', pendingGateway],
+    [
+      'a search before its arguments arrive',
+      tool('search_workspace', 'Searching documents', 'executing'),
+    ],
   ])('holds the previous call for %s', (_case, pending) => {
     const tools = [read, pending]
     expect(getActivityHeaderTool(tools, pending)).toBe(read)
@@ -162,6 +166,10 @@ describe('in-progress activity header', () => {
     const failed = tool('grep', 'Searching', 'error')
     const tools = [read, failed, pendingGateway, pendingCli]
     expect(getActivityHeaderTool(tools, pendingCli)).toBe(read)
+  })
+
+  it('never borrows a later parallel call as the previous header', () => {
+    expect(getActivityHeaderTool([pendingCli, read], pendingCli)).toBe(pendingCli)
   })
 
   it('never holds a failed call, falling back to the new call itself', () => {
@@ -189,6 +197,10 @@ describe('in-progress activity header', () => {
   })
 
   it.each([
+    [
+      'a parsed search query',
+      tool('search_workspace', 'Searching documents', 'executing', { query: 'launch' }),
+    ],
     ['a parsed CLI command', tool('cli_workflows_list', 'Listing workflows', 'executing')],
     [
       'resolved code arguments',

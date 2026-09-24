@@ -2,7 +2,6 @@ import { type ComponentType, Fragment, type ReactNode } from 'react'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
 import { splitMainLane } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/lane-activity'
-import { SearchActivity } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/search-activity'
 import { ToolActivityGroup } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 
@@ -37,10 +36,8 @@ export function MainAgentActivity({
         </Fragment>
       )
     }
-    const { tools, isSearch } = entry.run
-    return isSearch ? (
-      <SearchActivity key={tools[0].id} tools={tools} liveToolId={liveToolId} />
-    ) : (
+    const { tools } = entry.run
+    return (
       <ToolActivityGroup
         key={tools[0].id}
         tools={tools}

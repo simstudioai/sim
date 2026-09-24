@@ -110,7 +110,7 @@ describe('flat expanded activity layout', () => {
     expect(reservedSlot(column)?.classList).toContain(ICON_SLOT)
   })
 
-  it('stacks main-lane blocks one gap-3 apart and search queries one gap-1.5 apart', () => {
+  it('keeps search and ordinary tool rows in the same history with shared spacing', () => {
     render('mothership', [
       tool('a'),
       {
@@ -138,9 +138,13 @@ describe('flat expanded activity layout', () => {
     expect(blocks.contains(statuses()[0])).toBe(true)
     expect(blocks.classList).toContain('gap-3')
     expect(blocks.classList).not.toContain('gap-1.5')
-    const queries = statuses().filter((status) => status.textContent === 'first')
-    const searchList = queries[0].closest('.flex-col.gap-1\\.5')!
-    expect(searchList).not.toBeNull()
-    expect(searchList.parentElement?.closest('.flex-col.gap-3')).toBe(blocks)
+    expect(statuses()).toHaveLength(1)
+    expand()
+    const rows = statuses().slice(1)
+    expect(rows).toHaveLength(3)
+    for (const row of rows) {
+      expect(row.closest('.flex-col')!.classList).toContain('gap-1.5')
+      expect(iconSlot(row).classList).toContain(ICON_SLOT)
+    }
   })
 })
