@@ -116,7 +116,11 @@ vi.mock('@/main/browser-agent/registry', () => ({
   ),
 }))
 
-import type { ComputerUseAppPermission, DesktopPreferences } from '@sim/desktop-bridge'
+import {
+  type ComputerUseAppPermission,
+  ComputerUseError,
+  type DesktopPreferences,
+} from '@sim/desktop-bridge'
 import type { ComputerUseResult } from '@sim/desktop-bridge/computer-use'
 import type { WebContents } from 'electron'
 import { clipboard, ipcMain, shell } from 'electron'
@@ -856,6 +860,30 @@ describe('registerIpcHandlers', () => {
     for (const event of ['destroyed', 'render-process-gone', 'did-start-navigation'])
       expect(sender.listenerCount(event)).toBe(0)
   }
+
+  it('preserves native pre-dispatch certainty in serializable IPC data', async () => {
+    const { native, execute } = computerFixture()
+    const error = {
+      code: 'activation_required',
+      message: 'Activate and observe the app first.',
+      dispatchState: 'not_started' as const,
+    }
+    native.request.mockRejectedValueOnce(new ComputerUseError(error))
+    const owner = computerSender(vi.fn(async () => computerAuthorization()))
+    const result = await execute(owner, 'sim_tool_safe_failure', { action: 'status' })
+    expect(structuredClone(result)).toEqual({ kind: 'error', error })
+    expectComputerListenersRemoved(owner.sender)
+  })
+
+  it('does not label an unstructured native failure as safely undispatched', async () => {
+    const { native, execute } = computerFixture()
+    native.request.mockRejectedValueOnce(new Error('Helper disconnected after input.'))
+    const owner = computerSender(vi.fn(async () => computerAuthorization()))
+    await expect(execute(owner, 'sim_tool_unknown_failure', { action: 'status' })).rejects.toThrow(
+      'Helper disconnected'
+    )
+    expectComputerListenersRemoved(owner.sender)
+  })
 
   it.each(['destroyed', 'render-process-gone', 'did-start-navigation'])(
     'cancels authorization pending on owning renderer %s',
