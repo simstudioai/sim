@@ -1,14 +1,13 @@
 'use client'
 
 import {
-  Chip,
-  ChipDropdown,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuItemLabel,
   DropdownMenuRadioGroup,
-  DropdownMenuTrigger,
 } from '@sim/emcn'
+import { Brain, Check, Sparkles } from '@sim/emcn/icons'
 import {
   MOTHERSHIP_MODEL_OPTIONS,
   MOTHERSHIP_SIMPLE_EFFORT_OPTIONS,
@@ -16,10 +15,11 @@ import {
   resolveMothershipModelSettings,
 } from '@/lib/mothership/model-options'
 import { FastModeToggle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/fast-mode-toggle'
+import { ModelSettingTrigger } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-setting-trigger'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 
-/** Reasoning effort and Fast mode for Build chat composers. */
+/** Model, reasoning effort, and Fast mode for Build chat composers. */
 export function ModelSelector() {
   const advanced = useFeatureFlag('mothership-model-selector')
   const selection = useMothershipEffortStore((state) => state.modelSelection)
@@ -34,8 +34,13 @@ export function ModelSelector() {
     ? mothershipEffortOptions(modelSelection.model)
     : MOTHERSHIP_SIMPLE_EFFORT_OPTIONS
   const setEffort = useMothershipEffortStore((state) => state.setEffort)
+  const effortLabel = options.find((option) => option.value === effort)?.label ?? effort
+  const modelLabel =
+    MOTHERSHIP_MODEL_OPTIONS.find((option) => option.value === modelSelection.model)?.label ??
+    modelSelection.model
+
   return (
-    <div className='flex items-center'>
+    <div className='flex items-center gap-[inherit]'>
       {advanced && (
         <>
           {modelSelection.model !== 'claude-opus-5-5' && (
@@ -45,26 +50,28 @@ export function ModelSelector() {
               description='Faster responses at a higher price'
             />
           )}
-          <ChipDropdown
-            variant='default'
-            className='border-0'
-            aria-label='Model'
-            value={modelSelection.model}
-            options={MOTHERSHIP_MODEL_OPTIONS}
-            matchTriggerWidth={false}
-            onChange={(value) => {
-              const model = MOTHERSHIP_MODEL_OPTIONS.find((option) => option.value === value)
-              if (model) setModel(model.value)
-            }}
-          />
+          <DropdownMenu modal={false}>
+            <ModelSettingTrigger
+              label='Model'
+              valueLabel={modelLabel}
+              icon={Sparkles}
+              showChevron
+            />
+            <DropdownMenuContent side='top' align='end'>
+              {MOTHERSHIP_MODEL_OPTIONS.map((option) => (
+                <DropdownMenuItem key={option.value} onSelect={() => setModel(option.value)}>
+                  <DropdownMenuItemLabel label={option.label} />
+                  {modelSelection.model === option.value && (
+                    <Check className='ml-auto! size-[16px]!' />
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </>
       )}
       <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Chip aria-label='Reasoning effort' className={advanced ? undefined : '-ml-2'}>
-            {options.find((option) => option.value === effort)?.label}
-          </Chip>
-        </DropdownMenuTrigger>
+        <ModelSettingTrigger label='Reasoning effort' valueLabel={effortLabel} icon={Brain} />
         <DropdownMenuContent side='top' align='start'>
           <DropdownMenuRadioGroup aria-label='Reasoning effort'>
             {options.map((option) => (

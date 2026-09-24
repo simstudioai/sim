@@ -28,7 +28,11 @@ export function GrowingTextarea({
       ref={inputRef}
       value={value}
       rows={1}
-      className={cn(TEXTAREA_BASE_CLASSES, compact && 'px-0 py-[3px]', className)}
+      className={cn(
+        TEXTAREA_BASE_CLASSES,
+        compact && 'whitespace-pre px-0 py-[3px] [overflow-wrap:normal]',
+        className
+      )}
     />
   )
 }

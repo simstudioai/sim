@@ -883,6 +883,8 @@ it('offers the advanced models and each model’s supported efforts', async () =
   await act(async () =>
     model.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
   )
+  expect(document.body.style.pointerEvents).not.toBe('none')
+  expect(model.getAttribute('aria-description')).toBe('GPT-6 Astra')
   const models = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')]
   expect(models.map((item) => item.textContent)).toEqual(['GPT-6 Astra', 'GPT-6 Sol', 'Opus 5.5'])
   await act(async () => models[1].click())
