@@ -28,6 +28,7 @@
       "!**/public/fallback-*.js",
       "!**/apps/sim/tools/generated",
       "!**/apps/sim/lib/mothership/generated/**",
+      "!**/packages/desktop-bridge/src/computer-use.generated.ts",
       "!**/apps/docs/.source",
       "!**/apps/desktop/release",
       "!**/venv",
