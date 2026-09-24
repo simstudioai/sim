@@ -604,17 +604,21 @@ describe('organization setup entry points', () => {
         connector({ id: 'new-gmail', connectorType: 'gmail', accessMode: 'admin' })
       )
     )
-    expect(mocks.updateSearchIntegration).toHaveBeenCalledWith(
-      {
-        organizationId: 'org-1',
-        connectorType: 'gmail',
-        approved: true,
-        policy: expect.objectContaining({
-          accessMode: 'service_account',
-          sourceId: 'new-gmail',
-        }),
-      },
-      expect.any(Object)
+    await vi.waitFor(
+      () =>
+        expect(mocks.updateSearchIntegration).toHaveBeenCalledWith(
+          {
+            organizationId: 'org-1',
+            connectorType: 'gmail',
+            approved: true,
+            policy: expect.objectContaining({
+              accessMode: 'service_account',
+              sourceId: 'new-gmail',
+            }),
+          },
+          expect.any(Object)
+        ),
+      { interval: 1 }
     )
     expect(mocks.push).not.toHaveBeenCalled()
     await act(async () => mocks.updateSearchIntegration.mock.calls[0][1].onSuccess())
