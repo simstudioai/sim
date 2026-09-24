@@ -10,9 +10,10 @@ interface CanvasControlButtonProps
   'aria-label': string
 }
 
+/** Square action in the canvas navigation toolbar. */
 export const CanvasControlButton = forwardRef<HTMLButtonElement, CanvasControlButtonProps>(
   ({ active = false, ...props }, ref) => (
-    <Button {...props} ref={ref} variant={active ? 'active' : 'quiet'} iconSize='regular' />
+    <Button {...props} ref={ref} variant={active ? 'active' : 'ghost-hover'} iconSize='regular' />
   )
 )
 

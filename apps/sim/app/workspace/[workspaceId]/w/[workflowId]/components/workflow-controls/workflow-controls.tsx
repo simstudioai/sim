@@ -117,7 +117,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
                     )}
                   </CanvasControlButton>
                 </Tooltip.Trigger>
-                <Button aria-label='Change canvas mode' variant='quiet' size='icon'>
+                <Button aria-label='Change canvas mode' variant='ghost-hover' size='icon'>
                   <ChevronDown
                     className={cn(disclosureChevronClass, isCanvasModeOpen && 'rotate-180')}
                   />

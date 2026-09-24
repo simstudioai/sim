@@ -1,6 +1,7 @@
 import { type ButtonHTMLAttributes, forwardRef } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../../lib/cn'
+import { chipHoverSurfaceClass } from '../chip/chip-chrome'
 
 /**
  * `size='icon'` is the square 20px icon-only button — a chip field's trailing
@@ -40,6 +41,7 @@ const buttonVariants = cva(
         tertiary:
           'bg-[var(--brand-accent)] text-[var(--text-inverse)] hover-hover:text-[var(--text-inverse)] hover-hover:bg-[var(--brand-accent-hover)] dark:bg-[var(--brand-accent)] dark:hover-hover:bg-[var(--brand-accent-hover)] dark:text-[var(--text-inverse)] dark:hover-hover:text-[var(--text-inverse)]',
         ghost: 'text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)]',
+        'ghost-hover': `text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)] ${chipHoverSurfaceClass}`,
         subtle:
           'text-[var(--text-body)] hover-hover:text-[var(--text-body)] hover-hover:bg-[var(--surface-4)]',
         'ghost-secondary': 'text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]',
