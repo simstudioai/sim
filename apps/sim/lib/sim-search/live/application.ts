@@ -28,6 +28,7 @@ import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contex
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/citation'
 import { measureSearchStage } from '@/lib/knowledge/search/diagnostics'
+import { RRF_K } from '@/lib/knowledge/search/recency'
 import { matchPassage } from '@/lib/knowledge/search/snippet'
 import {
   type LiveAccountSession,
@@ -49,7 +50,7 @@ import { NativeSearchError } from '@/lib/sim-search/live/http'
 import { joinMessages } from '@/lib/sim-search/live/pages'
 import { loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 import { LIVE_SEARCH_PROVIDER_IDS } from '@/lib/sim-search/live/provider-catalog'
-import { NATIVE_SEARCH_GUIDANCE } from '@/lib/sim-search/live/providers'
+import { liveSearchGuidance } from '@/lib/sim-search/live/providers'
 import type { LiveAccount, NativeDocument } from '@/lib/sim-search/live/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -197,7 +198,7 @@ function resultFor(
     content: matchPassage(safeContent(document.content, registry), previewQuery, PREVIEW_CHARACTERS)
       .content,
     chunkIndex: 0,
-    similarity: 1 / (60 + rank),
+    similarity: 1 / (RRF_K + rank),
   }
 }
 
@@ -261,6 +262,16 @@ function lacksFilterDate(
   )
 }
 
+/** One native query paired with its index in the request, or neither for a plain-query search. */
+interface NativeTarget {
+  native?: NativeSearchQuery
+  queryIndex?: number
+}
+
+function targetsAccount(query: NativeSearchQuery, account: LiveAccount): boolean {
+  return query.provider === account.provider && (!query.accountId || query.accountId === account.id)
+}
+
 /** Stable account order so equal-rank results from different accounts always merge the same way. */
 function compareAccounts(left: LiveAccount, right: LiveAccount): number {
   return (
@@ -306,15 +317,13 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     const searchSignal = input.signal
       ? AbortSignal.any([input.signal, AbortSignal.timeout(20_000)])
       : AbortSignal.timeout(20_000)
-    /** An account's native queries, one per kind; `undefined` searches it with the plain query. */
-    const nativesFor = (account: LiveAccount): (NativeSearchQuery | undefined)[] =>
+    /** An account's native queries with their request index; none searches it with the plain query. */
+    const nativesFor = (account: LiveAccount): NativeTarget[] =>
       queries
-        ? queries.filter(
-            (query) =>
-              query.provider === account.provider &&
-              (!query.accountId || query.accountId === account.id)
-          )
-        : [undefined]
+        ? [...queries.entries()]
+            .filter(([, query]) => targetsAccount(query, account))
+            .map(([queryIndex, native]) => ({ native, queryIndex }))
+        : [{}]
     const [policies, allAccounts] = await Promise.all([
       measureSearchStage('live.policies', () => loadLiveSearchPolicies(input)),
       measureSearchStage('live.accounts', () => listLiveAccounts(input, userId)),
@@ -339,7 +348,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
       resolved: Awaited<ReturnType<typeof resolveListedLiveAccount>>,
       session: Awaited<ReturnType<typeof openLiveAccountSession>>,
       native: NativeSearchQuery | undefined,
-      status: Pick<LiveSearchAccountStatus, 'accountId' | 'provider' | 'displayName' | 'kind'>
+      status: Pick<LiveSearchAccountStatus, 'accountId' | 'provider' | 'displayName' | 'queryIndex'>
     ): Promise<SearchedQuery> => {
       const page = await measureSearchStage('live.search', () =>
         session.search({
@@ -435,16 +444,16 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     /** One session per account serves each of its native queries, each reported on its own. */
     const searchAccount = async (account: LiveAccount): Promise<SearchedQuery[]> => {
       const natives = nativesFor(account)
-      const statusFor = (native: NativeSearchQuery | undefined) => ({
+      const statusFor = ({ queryIndex }: NativeTarget) => ({
         accountId: account.id,
         provider: account.provider,
         displayName: account.displayName,
-        ...(native?.kind ? { kind: native.kind } : {}),
+        ...(queryIndex === undefined ? {} : { queryIndex }),
       })
       /** Cancels requests still in flight once the account settles, including after a failure. */
       const settled = new AbortController()
       const signal = AbortSignal.any([searchSignal, AbortSignal.timeout(12_000), settled.signal])
-      const failed = (error: unknown, native: NativeSearchQuery | undefined): SearchedQuery => {
+      const failed = (error: unknown, target: NativeTarget): SearchedQuery => {
         input.signal?.throwIfAborted()
         const failure =
           error instanceof NativeSearchError
@@ -460,7 +469,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
                 )
         return {
           status: {
-            ...statusFor(native),
+            ...statusFor(target),
             status: failure.status,
             message: failure.message,
             retryAfterSeconds: failure.retryAfterSeconds,
@@ -485,14 +494,14 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           })
         )
         return await Promise.all(
-          natives.map((native) =>
-            searchQuery(account, resolved, session, native, statusFor(native)).catch((error) =>
-              failed(error, native)
+          natives.map((target) =>
+            searchQuery(account, resolved, session, target.native, statusFor(target)).catch(
+              (error) => failed(error, target)
             )
           )
         )
       } catch (error) {
-        return natives.map((native) => failed(error, native))
+        return natives.map((target) => failed(error, target))
       } finally {
         settled.abort()
       }
@@ -503,28 +512,38 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     } finally {
       pool.destroy()
     }
-    const seen = new Set<string>()
-    const ranked = searched
-      .flatMap(({ results }, query) => results.map((result) => ({ query, result })))
-      .sort(({ result: a }, { result: b }) => {
-        if (!dateSorted) return b.similarity - a.similarity
-        const left = Date.parse(a.sourceDate ?? '')
-        const right = Date.parse(b.sourceDate ?? '')
-        if (!Number.isFinite(left)) return Number.isFinite(right) ? 1 : b.similarity - a.similarity
-        if (!Number.isFinite(right)) return -1
-        return (direction === 'asc' ? left - right : right - left) || b.similarity - a.similarity
-      })
-      .filter(({ result }) => {
+    /**
+     * Reciprocal rank fusion: every result scores 1 / (RRF_K + rank) within its own query, so a
+     * document that several queries return sums those scores and outranks one found once.
+     */
+    const fused = new Map<string, { queries: number[]; result: WorkspaceKnowledgeSearchResult }>()
+    for (const [query, { results }] of searched.entries()) {
+      for (const result of results) {
         const key = result.sourceUrl || result.documentId
-        if (seen.has(key)) return false
-        seen.add(key)
-        return true
-      })
+        const match = fused.get(key)
+        if (match) {
+          match.queries.push(query)
+          match.result = {
+            ...match.result,
+            similarity: match.result.similarity + result.similarity,
+          }
+        } else fused.set(key, { queries: [query], result })
+      }
+    }
+    const ranked = [...fused.values()].sort(({ result: a }, { result: b }) => {
+      if (!dateSorted) return b.similarity - a.similarity
+      const left = Date.parse(a.sourceDate ?? '')
+      const right = Date.parse(b.sourceDate ?? '')
+      if (!Number.isFinite(left)) return Number.isFinite(right) ? 1 : b.similarity - a.similarity
+      if (!Number.isFinite(right)) return -1
+      return (direction === 'asc' ? left - right : right - left) || b.similarity - a.similarity
+    })
     /**
      * A query's cursor continues after its own page, so it would skip that query's results cut
-     * from this merge. Those queries drop the cursor and point to a targeted search instead.
+     * from this merge, including a fused result it shares with another query. Those queries drop
+     * the cursor and point to a targeted search instead.
      */
-    const truncated = new Set(ranked.slice(input.topK).map(({ query }) => query))
+    const truncated = new Set(ranked.slice(input.topK).flatMap(({ queries }) => queries))
     const accounts: LiveSearchAccountStatus[] = searched.map(({ status }, index) => {
       if (!truncated.has(index)) return status
       const { nextCursor: _, ...rest } = status
@@ -536,18 +555,12 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
         ]),
       }
     })
-    for (const query of queries ?? []) {
-      if (
-        !selected.some(
-          (account) =>
-            account.provider === query.provider &&
-            (!query.accountId || query.accountId === account.id)
-        )
-      )
+    for (const [queryIndex, query] of (queries ?? []).entries()) {
+      if (!selected.some((account) => targetsAccount(query, account)))
         accounts.push({
           accountId: query.accountId ?? '',
           provider: query.provider,
-          ...(query.kind ? { kind: query.kind } : {}),
+          queryIndex,
           displayName: query.provider,
           status: 'reconnect',
           message: 'No connection with this provider is configured and approved in this scope.',
@@ -563,7 +576,15 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
             : 'complete',
         timedOutLegs: [],
       },
-      live: { backend: 'live', accounts, guidance: NATIVE_SEARCH_GUIDANCE },
+      live: {
+        backend: 'live',
+        accounts,
+        guidance: liveSearchGuidance(
+          accounts
+            .filter((account) => account.status !== 'reconnect')
+            .map(({ provider }) => provider)
+        ),
+      },
     }
   },
 })
@@ -697,7 +718,7 @@ export const listLiveSearchAccounts = defineAuthorizedKnowledgeUseCase({
             ? 'reconnect_for_rts'
             : 'provider_checked_at_search',
       })),
-      guidance: NATIVE_SEARCH_GUIDANCE,
+      guidance: liveSearchGuidance(accounts.map((account) => account.provider)),
     }
   },
 })

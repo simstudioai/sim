@@ -6,6 +6,7 @@ import { readGitHub, searchGitHub } from '@/lib/sim-search/live/github'
 import { readGitLab, searchGitLab } from '@/lib/sim-search/live/gitlab'
 import { readDrive, searchCalendar, searchDrive, searchGmail } from '@/lib/sim-search/live/google'
 import { withJsonMemo } from '@/lib/sim-search/live/http'
+import { LIVE_SEARCH_PROVIDERS, liveSearchGuidance } from '@/lib/sim-search/live/providers'
 import { readSlack, searchSlack } from '@/lib/sim-search/live/slack'
 import type { NativeClient } from '@/lib/sim-search/live/types'
 
@@ -383,6 +384,13 @@ describe('native search endpoints', () => {
         author: 'octocat',
       },
     ])
+  })
+  it('leaves code out of a default GitHub search that uses boolean operators', async () => {
+    const api = client()
+    api.json.mockResolvedValue({ items: [], total_count: 0 })
+    const result = await searchGitHub(api, { ...input, query: 'repo:org/repo launch OR deploy' })
+    expect(api.json.mock.calls.map(([path]) => path)).toEqual(['/search/issues', '/search/issues'])
+    expect(result.message).toContain('Code search has no AND/OR/NOT operators')
   })
   it('bounds GitHub commit search dates to one author-date range', async () => {
     const api = client()
@@ -778,5 +786,20 @@ describe('native search endpoints', () => {
     })
     expect(result).toMatchObject({ partial: true, hasMore: true, nextCursor: '2' })
     expect(api.json.mock.calls[0][0]).toBe('/search/code')
+  })
+})
+
+describe('native query guidance', () => {
+  it('gives every provider a complete query card', () => {
+    for (const [provider, { guide }] of Object.entries(LIVE_SEARCH_PROVIDERS))
+      for (const [field, text] of Object.entries(guide))
+        expect(text.trim(), `${provider}.${field}`).not.toBe('')
+  })
+
+  it('lists only the given providers, once each, in catalog order', () => {
+    const lines = liveSearchGuidance(['github', 'slack', 'github']).split('\n')
+    expect(lines).toHaveLength(3)
+    expect(lines.slice(1).map((line) => line.split(':')[0])).toEqual(['slack', 'github'])
+    expect(liveSearchGuidance([]).split('\n')).toHaveLength(1)
   })
 })

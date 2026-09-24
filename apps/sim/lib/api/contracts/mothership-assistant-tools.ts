@@ -4,6 +4,21 @@ import { LIVE_SEARCH_PROVIDER_IDS } from '@/lib/sim-search/live/provider-catalog
 export const liveSearchProviderSchema = z.enum(LIVE_SEARCH_PROVIDER_IDS)
 export type LiveSearchProvider = z.output<typeof liveSearchProviderSchema>
 
+/**
+ * Native queries one call may send to the same provider account. Alternatives run as separate
+ * provider searches and fuse into one ranking, so the bound keeps a call within the provider's
+ * burst limits (Slack allows about ten searches per user per minute) while leaving room for the
+ * four GitHub or GitLab kinds.
+ */
+export const MAX_NATIVE_QUERIES_PER_ACCOUNT = 4
+
+/**
+ * Providers whose `kind` selects a separate search endpoint. They take one query per kind: their
+ * query languages already join alternatives with OR, and each extra query fans out into several
+ * repository or project requests against strict search rate limits.
+ */
+const KIND_PROVIDERS: ReadonlySet<LiveSearchProvider> = new Set(['github', 'gitlab'])
+
 const nativeSearchKindSchema = z.enum([
   'issues',
   'code',
@@ -12,9 +27,6 @@ const nativeSearchKindSchema = z.enum([
   'merge_requests',
   'wiki',
 ])
-
-/** Providers whose `kind` selects a separate search endpoint; others ignore it. */
-const KIND_PROVIDERS: ReadonlySet<LiveSearchProvider> = new Set(['github', 'gitlab'])
 
 /** Queries are data for fixed read-only provider endpoints, never URLs or credentials. */
 export const nativeSearchQuerySchema = z
@@ -37,38 +49,38 @@ export const nativeSearchQueriesSchema = z
   .min(1)
   .max(9)
   .superRefine((queries, context) => {
-    /**
-     * Each account runs one query per kind: GitHub and GitLab kinds are separate endpoints, so
-     * one call can search several of them for the same account. A query without a kind covers
-     * the provider's default kinds and conflicts with any other query for that account.
-     */
-    const kindOf = (query: NativeSearchQuery) =>
-      KIND_PROVIDERS.has(query.provider) ? query.kind : undefined
+    /** A query without an account ID targets every account of its provider. */
+    const overlaps = (left: NativeSearchQuery, right: NativeSearchQuery) =>
+      left.provider === right.provider &&
+      (!left.accountId || !right.accountId || left.accountId === right.accountId)
+    /** The search a query runs, ignoring its account and any kind its provider does not use. */
+    const searchKey = ({ accountId: _, kind, ...query }: NativeSearchQuery) =>
+      JSON.stringify({ ...query, kind: KIND_PROVIDERS.has(query.provider) ? kind : undefined })
     for (const [index, query] of queries.entries()) {
-      if (
-        queries
-          .slice(0, index)
-          .some(
-            (previous) =>
-              previous.provider === query.provider &&
-              (!previous.accountId || !query.accountId || previous.accountId === query.accountId) &&
-              (!kindOf(previous) || !kindOf(query) || kindOf(previous) === kindOf(query))
-          )
+      const addIssue = (message: string) =>
+        context.addIssue({ code: 'custom', path: [index], message })
+      const earlier = queries.slice(0, index).filter((previous) => overlaps(previous, query))
+      if (earlier.some((previous) => searchKey(previous) === searchKey(query)))
+        addIssue('Duplicate native query.')
+      else if (
+        KIND_PROVIDERS.has(query.provider) &&
+        earlier.some((previous) => !previous.kind || !query.kind || previous.kind === query.kind)
       )
-        context.addIssue({
-          code: 'custom',
-          path: [index],
-          message:
-            'Use one query per provider account and kind per call. Combine alternatives with OR in one query, or refine in another call.',
-        })
+        addIssue(
+          'Send one GitHub or GitLab query per account and kind; join alternatives with OR in one query (GitHub code search has no OR, so search code alternatives in another call).'
+        )
+      else if (earlier.length >= MAX_NATIVE_QUERIES_PER_ACCOUNT)
+        addIssue(
+          `Send at most ${MAX_NATIVE_QUERIES_PER_ACCOUNT} native queries per provider account in one call; queries without an accountId count toward every account of their provider.`
+        )
     }
   })
 
 export const liveSearchAccountStatusSchema = z.object({
   accountId: z.string(),
   provider: liveSearchProviderSchema,
-  /** The native query kind this status and its cursor belong to. */
-  kind: nativeSearchKindSchema.optional(),
+  /** Index of the native query in the request that this status and its cursor belong to. */
+  queryIndex: z.number().int().min(0).optional(),
   displayName: z.string(),
   status: z.enum(['ok', 'partial', 'reconnect', 'rate_limited', 'unavailable', 'timeout']),
   message: z.string().optional(),
@@ -137,7 +149,7 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
     nativeQueries: nativeSearchQueriesSchema
       .optional()
       .describe(
-        'Live search only: provider-native queries (Drive q, Gmail operators, Jira JQL, Confluence CQL, GitHub qualifiers, Slack RTS). GitHub kind commits searches commit messages with author:, committer:, author-date:, and repo: qualifiers. Send one query per account, or one per kind for GitHub and GitLab (e.g. issues and commits together); combine alternatives with OR. Omit for simple cross-provider terms. Use the returned live guidance and account IDs.'
+        `Live search only: queries in a provider's own language (Drive q, Gmail operators, JQL, CQL, GitHub qualifiers, Slack RTS). Up to ${MAX_NATIVE_QUERIES_PER_ACCOUNT} per account run separately and merge; GitHub and GitLab take one per kind. Write them from the returned live guidance and account IDs; each account status names the queryIndex its cursor belongs to. Omit for simple cross-provider terms.`
       ),
     query: z
       .string()

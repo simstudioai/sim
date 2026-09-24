@@ -59,7 +59,7 @@ vi.mock('@/lib/sim-search/live/accounts', () => ({
   }),
 }))
 vi.mock('@/lib/sim-search/live/providers', () => ({
-  NATIVE_SEARCH_GUIDANCE: 'Live coverage',
+  liveSearchGuidance: (providers: string[]) => `Live coverage: ${[...new Set(providers)]}`,
   searchNativeProvider: mocks.search,
   readNativeProvider: mocks.read,
 }))
@@ -526,7 +526,7 @@ describe('authorized live retrieval', () => {
     ).rejects.toThrow()
     expect(mocks.search).toHaveBeenCalledOnce()
   })
-  it('searches each GitHub kind of one account through one session and reports it separately', async () => {
+  it('searches each native query of one account through one session and reports it separately', async () => {
     const github = { ...account, id: 'github-account', provider: 'github', providerId: 'github' }
     mocks.accounts.mockResolvedValue([github])
     mocks.resolveAccount.mockResolvedValue({ account: github, accessToken: 'secret' })
@@ -553,19 +553,94 @@ describe('authorized live retrieval', () => {
     expect(result.live?.accounts).toEqual([
       expect.objectContaining({
         accountId: 'github-account',
-        kind: 'issues',
+        queryIndex: 0,
         status: 'rate_limited',
         retryAfterSeconds: 30,
       }),
       expect.objectContaining({
         accountId: 'github-account',
-        kind: 'commits',
+        queryIndex: 1,
         status: 'partial',
         nextCursor: '2',
       }),
     ])
   })
-  it('reports each targeted kind of an unconnected account for reconnection', async () => {
+  it('fuses alternative queries so a document several of them return ranks first', async () => {
+    const slack = { ...account, id: 'slack-account', provider: 'slack', providerId: 'slack' }
+    mocks.accounts.mockResolvedValue([slack])
+    mocks.resolveAccount.mockResolvedValue({
+      account: { ...slack, scopes: ['search:read.public'] },
+      accessToken: 'secret',
+    })
+    const message = (id: string) => ({
+      ...document,
+      id,
+      title: id,
+      url: `https://example.slack.com/archives/C1/p${id}`,
+    })
+    mocks.search.mockImplementation(async (_provider, _client, search) => ({
+      documents:
+        search.native.query === 'trip'
+          ? [message('1'), message('2')]
+          : [message('3'), message('2')],
+    }))
+    const result = await searchLiveKnowledge.execute({
+      principal,
+      input: {
+        ...input,
+        query: '',
+        nativeQueries: ['trip', 'travel'].map((query) => ({
+          provider: 'slack' as const,
+          accountId: 'slack-account',
+          query,
+        })),
+      },
+    })
+    expect(mocks.search).toHaveBeenCalledTimes(2)
+    expect(result.results.map((row) => decodeLiveReference(row.documentId).id)).toEqual([
+      '2',
+      '1',
+      '3',
+    ])
+    expect(result.live?.accounts.map((status) => status.queryIndex)).toEqual([0, 1])
+    expect(result.live?.guidance).toBe('Live coverage: slack')
+  })
+
+  it('drops the cursor of every query whose shared result falls below the limit', async () => {
+    const slack = { ...account, id: 'slack-account', provider: 'slack', providerId: 'slack' }
+    mocks.accounts.mockResolvedValue([slack])
+    mocks.resolveAccount.mockResolvedValue({
+      account: { ...slack, scopes: ['search:read.public'] },
+      accessToken: 'secret',
+    })
+    const message = (id: string) => ({
+      ...document,
+      id,
+      title: id,
+      url: `https://example.slack.com/archives/C1/p${id}`,
+    })
+    mocks.search.mockImplementation(async (_provider, _client, search) => ({
+      documents: [message('1'), message('2')],
+      nextCursor: 'next',
+    }))
+    const result = await searchLiveKnowledge.execute({
+      principal,
+      input: {
+        ...input,
+        query: '',
+        topK: 1,
+        nativeQueries: ['trip', 'travel'].map((query) => ({
+          provider: 'slack' as const,
+          accountId: 'slack-account',
+          query,
+        })),
+      },
+    })
+    expect(result.results.map((row) => decodeLiveReference(row.documentId).id)).toEqual(['1'])
+    expect(result.live?.accounts.map((status) => status.nextCursor)).toEqual([undefined, undefined])
+  })
+
+  it('reports each native query of an unconnected account for reconnection', async () => {
     const nativeQueries = (['issues', 'commits'] as const).map((kind) => ({
       provider: 'github' as const,
       query: 'repo:org/repo launch',
@@ -576,9 +651,10 @@ describe('authorized live retrieval', () => {
       input: { ...input, query: '', nativeQueries },
     })
     expect(result.live?.accounts).toEqual([
-      expect.objectContaining({ provider: 'github', kind: 'issues', status: 'reconnect' }),
-      expect.objectContaining({ provider: 'github', kind: 'commits', status: 'reconnect' }),
+      expect.objectContaining({ provider: 'github', queryIndex: 0, status: 'reconnect' }),
+      expect.objectContaining({ provider: 'github', queryIndex: 1, status: 'reconnect' }),
     ])
+    expect(result.live?.guidance).toBe('Live coverage: ')
   })
   it('rejects invalid dates before resolving provider credentials', async () => {
     await expect(
