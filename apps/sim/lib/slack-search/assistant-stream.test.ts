@@ -205,6 +205,7 @@ describe('Slack lazy stream lifecycle', () => {
     expect(api.start).not.toHaveBeenCalled()
     await stream.onEvent(toolCall())
     expect(api.start).toHaveBeenCalledOnce()
+    expect(api.start.mock.calls[0][3]).toBe('plan')
     expect(api.start.mock.calls[0][2]).toEqual([
       { type: 'markdown_text', text: '\n' },
       { type: 'markdown_text', text: '\n\n' },
@@ -895,7 +896,7 @@ describe('Slack Assistant delivery', () => {
       'Connect here '
     )
   })
-  it('streams only main public answer text and preserves the original thread', async () => {
+  it('streams only main public answer text in plan mode and preserves the original thread', async () => {
     const { stream } = setup()
     await stream.start()
     await stream.onEvent({
@@ -908,7 +909,7 @@ describe('Slack Assistant delivery', () => {
       'test-token',
       { channel: 'D1', threadTs: '1.1' },
       [{ type: 'markdown_text', text: 'Hello world. ' }],
-      'timeline',
+      'plan',
       expect.any(AbortSignal)
     )
     expect(deliveredText()).toBe('Hello world. ')
