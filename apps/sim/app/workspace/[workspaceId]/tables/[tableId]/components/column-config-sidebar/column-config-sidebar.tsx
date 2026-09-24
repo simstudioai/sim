@@ -5,7 +5,6 @@ import {
   Button,
   ChipCombobox,
   ChipInput,
-  cn,
   FieldDivider,
   Label,
   Switch,
@@ -29,6 +28,10 @@ import {
   TableSidebarHeader,
   TableSidebarHeaderAction,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-sidebar-header/table-sidebar-header'
+import {
+  TableSidebarScrollBody,
+  TableSidebarShell,
+} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-sidebar-layout'
 import { useAddTableColumn, useUpdateColumn } from '@/hooks/queries/tables'
 import { SelectOptionsEditor } from '../select-field'
 import { columnTypeOptionsForTable } from './column-types'
@@ -100,18 +103,11 @@ export function ColumnConfigSidebar(props: ColumnConfigSidebarProps) {
   // different column / mode remounts and re-seeds state from props.
   const open = props.config !== null
   return (
-    <aside
-      role='dialog'
-      aria-label='Configure column'
-      className={cn(
-        'absolute top-0 right-0 bottom-0 z-[var(--z-modal)] flex w-[400px] flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)] transition-transform duration-200 ease-out',
-        open ? 'translate-x-0 shadow-overlay' : 'translate-x-full'
-      )}
-    >
+    <TableSidebarShell open={open} aria-label='Configure column'>
       {props.config && (
         <ColumnConfigBody key={configKey(props.config)} {...props} config={props.config} />
       )}
-    </aside>
+    </TableSidebarShell>
   )
 }
 
@@ -274,7 +270,7 @@ function ColumnConfigBody({
         </TableSidebarHeaderAction>
       </TableSidebarHeader>
 
-      <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [overflow-anchor:none]'>
+      <TableSidebarScrollBody>
         {/* `disabled` on the fieldset reaches every native control inside,
             including the comboboxes' trigger buttons; `contents` keeps the
             existing layout. Values stay readable and selectable. */}
@@ -383,7 +379,7 @@ function ColumnConfigBody({
             </>
           )}
         </fieldset>
-      </div>
+      </TableSidebarScrollBody>
 
       <div className='flex items-center justify-end gap-2 border-[var(--border)] border-t px-2 py-3'>
         <Button variant='default' size='sm' onClick={onClose}>

@@ -1,13 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipInput, cn } from '@sim/emcn'
+import { ChipInput } from '@sim/emcn'
 import { Search, X } from '@sim/emcn/icons'
 import type { ColumnDefinition, WorkflowGroup } from '@/lib/table'
 import {
   TableSidebarHeader,
   TableSidebarHeaderAction,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-sidebar-header/table-sidebar-header'
+import { TableSidebarShell } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-sidebar-layout'
 import { ALL_ENRICHMENTS } from '@/enrichments'
 import { getEnrichment } from '@/enrichments/registry'
 import type { EnrichmentConfig as EnrichmentDef } from '@/enrichments/types'
@@ -31,16 +32,9 @@ interface EnrichmentsSidebarProps {
  */
 export function EnrichmentsSidebar({ open, ...rest }: EnrichmentsSidebarProps) {
   return (
-    <aside
-      role='dialog'
-      aria-label='Enrichments'
-      className={cn(
-        'absolute top-0 right-0 bottom-0 z-[var(--z-modal)] flex w-[400px] flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)] transition-transform duration-200 ease-out',
-        open ? 'translate-x-0 shadow-overlay' : 'translate-x-full'
-      )}
-    >
+    <TableSidebarShell open={open} aria-label='Enrichments'>
       {open && <EnrichmentsSidebarBody {...rest} />}
-    </aside>
+    </TableSidebarShell>
   )
 }
 
