@@ -2,6 +2,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { compactRetrievalCitations } from '@/lib/mothership/chat/retrieval-citations'
 import { MainAgentActivity } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/main-agent-activity'
 import { ToolCallItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
@@ -309,6 +310,26 @@ describe('search in shared tool activity', () => {
     expect(headerText()).toBe('Searched documents')
     expect(header()).toBeNull()
     expect(container.textContent).not.toContain('No results')
+  })
+
+  function renderReloadedEmptySearch(status: 'partial' | 'complete') {
+    const output = compactRetrievalCitations('search_workspace', {
+      success: true,
+      data: { results: [], retrieval: { status, timedOutLegs: [] } },
+    })
+    render([{ ...tool, status: 'success', result: { success: true, output } }])
+  }
+
+  it('never claims no results for a reloaded partial empty search', () => {
+    renderReloadedEmptySearch('partial')
+    expect(header()).toBeNull()
+    expect(container.textContent).not.toContain('No results')
+  })
+
+  it('still reports no results for a reloaded complete empty search', () => {
+    renderReloadedEmptySearch('complete')
+    expand()
+    expect(container.textContent).toContain('No results')
   })
 
   it('preserves available source matches when retrieval is partial', () => {
