@@ -70,15 +70,22 @@ export interface SearchIndexDeletionStore {
   /** Chunks of these documents; read only by a dry run. */
   countChunks(documentIds: readonly string[]): Promise<number>
   /** Deletes at most `limit` chunks of these documents in one transaction; returns how many. */
-  deleteChunkBatch(documentIds: readonly string[], limit: number): Promise<number>
+  deleteChunkBatch(
+    knowledgeBaseId: string,
+    documentIds: readonly string[],
+    limit: number
+  ): Promise<number>
   /**
-   * In one transaction: share-locks the knowledge base and re-checks it is a search index, locks
-   * the documents, and, when none has a chunk left, queues their storage cleanup and deletes them.
+   * In one transaction: share-locks the knowledge base and its connectors and re-decides the
+   * guard, locks the documents, and, when none has a chunk left, queues their storage cleanup and
+   * deletes them. With `resetConnectors`, the same transaction resets the connectors' listing
+   * cursors, so a run stopped partway never leaves a connector that would skip deleted documents.
    */
   deleteDocuments(
     knowledgeBaseId: string,
     documentIds: readonly string[],
-    requestId: string
+    requestId: string,
+    resetConnectors: boolean
   ): Promise<DeleteDocumentsOutcome>
   /** Pending storage cleanup events, counted up to `cap`. */
   pendingStorageCleanup(cap: number): Promise<number>
@@ -320,7 +327,7 @@ export async function deleteSearchIndexDocuments(
     ) {
       for (;;) {
         const deleted = await retry('delete chunk batch', () =>
-          store.deleteChunkBatch(documentIds, chunkBatchSize)
+          store.deleteChunkBatch(knowledgeBaseId, documentIds, chunkBatchSize)
         )
         summary.chunksDeleted += deleted
         if (deleted === 0) break
@@ -328,7 +335,12 @@ export async function deleteSearchIndexDocuments(
         if (deleted < chunkBatchSize) break
       }
       outcome = await retry('delete documents', () =>
-        store.deleteDocuments(knowledgeBaseId, documentIds, options.requestId)
+        store.deleteDocuments(
+          knowledgeBaseId,
+          documentIds,
+          options.requestId,
+          options.resetConnectors !== false
+        )
       )
     }
     if (outcome.kind === 'chunks-remain') {

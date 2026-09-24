@@ -8,13 +8,15 @@ import {
   knowledgeProjectionDirty,
   outboxEvent,
 } from '@sim/db/schema'
-import { and, asc, count, eq, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, asc, count, eq, gt, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type { DbTransaction } from '@/lib/db/types'
 import {
   enqueueKnowledgeStorageCleanup,
   KNOWLEDGE_STORAGE_CLEANUP_EVENT,
 } from '@/lib/knowledge/documents/storage-cleanup'
 import {
+  evaluateDeletionGuard,
+  SearchIndexDeletionRefused,
   type SearchIndexDeletionStore,
   STOPPED_CONNECTOR_STATUSES,
 } from '@/scripts/dormant-org-search/search-index-deletion'
@@ -30,6 +32,129 @@ async function enterBoundedTransaction(tx: DbTransaction, timeouts: DeletionTime
     sql`SELECT set_config('lock_timeout', ${`${timeouts.lockTimeoutMs}ms`}, true),
       set_config('statement_timeout', ${`${timeouts.statementTimeoutMs}ms`}, true)`
   )
+}
+
+/**
+ * Re-decides the deletion guard inside a deleting transaction, holding the base and its
+ * connectors `FOR SHARE` until commit. A resume or a sync claim updates the connector row, so it
+ * waits for this page to commit and the next page's guard refuses it: no page can delete
+ * documents under a sync that started after the page-level guard ran.
+ */
+async function lockGuard(tx: DbTransaction, knowledgeBaseId: string) {
+  const [base] = await tx
+    .select({
+      id: knowledgeBase.id,
+      isSearchIndex: knowledgeBase.isSearchIndex,
+      deletedAt: knowledgeBase.deletedAt,
+      workspaceId: knowledgeBase.workspaceId,
+      organizationId: knowledgeBase.organizationId,
+      userId: knowledgeBase.userId,
+    })
+    .from(knowledgeBase)
+    .where(eq(knowledgeBase.id, knowledgeBaseId))
+    .for('share')
+    .limit(1)
+  const connectors = await tx
+    .select({
+      id: knowledgeConnector.id,
+      status: knowledgeConnector.status,
+      syncLockToken: knowledgeConnector.syncLockToken,
+      memberSyncLockToken: knowledgeConnector.memberSyncLockToken,
+      deletedAt: knowledgeConnector.deletedAt,
+      detachedAt: knowledgeConnector.detachedAt,
+    })
+    .from(knowledgeConnector)
+    .where(eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId))
+    .orderBy(asc(knowledgeConnector.id))
+    .for('share')
+  const reasons = evaluateDeletionGuard(
+    base ?? null,
+    connectors.map((row) => ({
+      id: row.id,
+      status: row.status,
+      syncLockHeld: row.syncLockToken !== null,
+      memberSyncLockHeld: row.memberSyncLockToken !== null,
+      deletedAt: row.deletedAt,
+      detachedAt: row.detachedAt,
+    }))
+  )
+  if (!base || reasons.length > 0) throw new SearchIndexDeletionRefused(reasons)
+  return base
+}
+
+/**
+ * Makes every stopped connector of the base list its sources from scratch when it resumes: the
+ * same columns the app clears when a connector must list everything again (an access mode
+ * switch, a source change), plus the directory checkpoint, and every member made due. Runs in
+ * each deleting transaction, so a run stopped partway never leaves a connector whose cursors
+ * would skip the documents already deleted; rows already reset are left alone.
+ */
+async function resetCursors(tx: DbTransaction, knowledgeBaseId: string, now: Date) {
+  const connectors = await tx
+    .update(knowledgeConnector)
+    .set({
+      lastSyncAt: null,
+      lastSyncDocCount: null,
+      listingCheckpoint: null,
+      directoryCheckpoint: null,
+      memberTombstoneCursor: null,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+        isNull(knowledgeConnector.deletedAt),
+        isNull(knowledgeConnector.detachedAt),
+        inArray(knowledgeConnector.status, [...STOPPED_CONNECTOR_STATUSES]),
+        isNull(knowledgeConnector.syncLockToken),
+        isNull(knowledgeConnector.memberSyncLockToken),
+        or(
+          isNotNull(knowledgeConnector.lastSyncAt),
+          isNotNull(knowledgeConnector.lastSyncDocCount),
+          isNotNull(knowledgeConnector.listingCheckpoint),
+          isNotNull(knowledgeConnector.directoryCheckpoint),
+          isNotNull(knowledgeConnector.memberTombstoneCursor)
+        )
+      )
+    )
+    .returning({ id: knowledgeConnector.id })
+  const stopped = tx
+    .select({ id: knowledgeConnector.id })
+    .from(knowledgeConnector)
+    .where(
+      and(
+        eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
+        isNull(knowledgeConnector.deletedAt),
+        isNull(knowledgeConnector.detachedAt),
+        inArray(knowledgeConnector.status, [...STOPPED_CONNECTOR_STATUSES])
+      )
+    )
+  const members = await tx
+    .update(knowledgeConnectorMember)
+    .set({
+      listingCheckpoint: null,
+      changeCursor: null,
+      memberSyncedThrough: null,
+      lastCompleteListingAt: null,
+      lastListedCount: null,
+      nextAttemptAt: null,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        inArray(knowledgeConnectorMember.connectorId, stopped),
+        or(
+          isNotNull(knowledgeConnectorMember.listingCheckpoint),
+          isNotNull(knowledgeConnectorMember.changeCursor),
+          isNotNull(knowledgeConnectorMember.memberSyncedThrough),
+          isNotNull(knowledgeConnectorMember.lastCompleteListingAt),
+          isNotNull(knowledgeConnectorMember.lastListedCount),
+          isNotNull(knowledgeConnectorMember.nextAttemptAt)
+        )
+      )
+    )
+    .returning({ id: knowledgeConnectorMember.id })
+  return { connectors: connectors.length, members: members.length }
 }
 
 /**
@@ -101,9 +226,10 @@ export function drizzleSearchIndexDeletionStore(
       return Number(row?.chunks ?? 0)
     },
 
-    async deleteChunkBatch(documentIds, limit) {
+    async deleteChunkBatch(knowledgeBaseId, documentIds, limit) {
       return db.transaction(async (tx) => {
         await enterBoundedTransaction(tx, timeouts)
+        await lockGuard(tx, knowledgeBaseId)
         const batch = tx
           .select({ id: embedding.id })
           .from(embedding)
@@ -117,23 +243,10 @@ export function drizzleSearchIndexDeletionStore(
       })
     },
 
-    async deleteDocuments(knowledgeBaseId, documentIds, requestId) {
+    async deleteDocuments(knowledgeBaseId, documentIds, requestId, resetConnectors) {
       return db.transaction(async (tx) => {
         await enterBoundedTransaction(tx, timeouts)
-        const [owner] = await tx
-          .select({
-            workspaceId: knowledgeBase.workspaceId,
-            organizationId: knowledgeBase.organizationId,
-            userId: knowledgeBase.userId,
-            isSearchIndex: knowledgeBase.isSearchIndex,
-          })
-          .from(knowledgeBase)
-          .where(eq(knowledgeBase.id, knowledgeBaseId))
-          .for('share')
-          .limit(1)
-        if (!owner?.isSearchIndex) {
-          throw new Error('The knowledge base stopped being a search index during the run')
-        }
+        const owner = await lockGuard(tx, knowledgeBaseId)
         /** Locks the documents against a late indexing commit between the chunk check and the delete. */
         const docs = await tx
           .select({ id: document.id, fileUrl: document.fileUrl })
@@ -171,6 +284,7 @@ export function drizzleSearchIndexDeletionStore(
           .delete(document)
           .where(inArray(document.id, ids))
           .returning({ id: document.id })
+        if (resetConnectors) await resetCursors(tx, knowledgeBaseId, new Date())
         return {
           kind: 'deleted',
           deleted: deleted.length,
@@ -221,50 +335,7 @@ export function drizzleSearchIndexDeletionStore(
     async resetConnectorCursors(knowledgeBaseId) {
       return db.transaction(async (tx) => {
         await enterBoundedTransaction(tx, timeouts)
-        const now = new Date()
-        /**
-         * The same columns the app clears when a connector must list everything again (an access
-         * mode switch, a source change), limited to stopped connectors no sync holds.
-         */
-        const connectors = await tx
-          .update(knowledgeConnector)
-          .set({
-            lastSyncAt: null,
-            lastSyncDocCount: null,
-            listingCheckpoint: null,
-            memberTombstoneCursor: null,
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(knowledgeConnector.knowledgeBaseId, knowledgeBaseId),
-              isNull(knowledgeConnector.deletedAt),
-              isNull(knowledgeConnector.detachedAt),
-              inArray(knowledgeConnector.status, [...STOPPED_CONNECTOR_STATUSES]),
-              isNull(knowledgeConnector.syncLockToken),
-              isNull(knowledgeConnector.memberSyncLockToken)
-            )
-          )
-          .returning({ id: knowledgeConnector.id })
-        if (connectors.length === 0) return { connectors: 0, members: 0 }
-        const members = await tx
-          .update(knowledgeConnectorMember)
-          .set({
-            listingCheckpoint: null,
-            changeCursor: null,
-            memberSyncedThrough: null,
-            lastCompleteListingAt: null,
-            lastListedCount: null,
-            updatedAt: now,
-          })
-          .where(
-            inArray(
-              knowledgeConnectorMember.connectorId,
-              connectors.map((connector) => connector.id)
-            )
-          )
-          .returning({ id: knowledgeConnectorMember.id })
-        return { connectors: connectors.length, members: members.length }
+        return resetCursors(tx, knowledgeBaseId, new Date())
       })
     },
   }

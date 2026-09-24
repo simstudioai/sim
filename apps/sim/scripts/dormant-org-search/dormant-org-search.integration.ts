@@ -262,13 +262,25 @@ describe('dormant organization search runbook in PostgreSQL', () => {
         sleep,
       })
     ).rejects.toThrow('not an organization search index')
+    /** A deleting transaction re-decides the guard itself, so a resume between pages cannot race it. */
+    await expect(
+      store.deleteChunkBatch(indexId, indexDocumentIds.slice(0, 1), 10)
+    ).rejects.toBeInstanceOf(SearchIndexDeletionRefused)
+    await expect(
+      store.deleteDocuments(indexId, indexDocumentIds.slice(0, 1), 'fixture', true)
+    ).rejects.toBeInstanceOf(SearchIndexDeletionRefused)
     expect((await rowsOf(indexId)).documents).toBe(DOCUMENTS)
   })
 
   it('deletes the search index in resumable pages, queues storage cleanup, and marks nothing', async () => {
     await db
       .update(knowledgeConnector)
-      .set({ status: 'paused' })
+      .set({
+        status: 'paused',
+        lastSyncAt: new Date(),
+        listingCheckpoint: { cursor: 'fixture' },
+        directoryCheckpoint: { phase: 'complete' },
+      })
       .where(eq(knowledgeConnector.id, indexConnectorId))
     const store = drizzleSearchIndexDeletionStore(timeouts)
     const options = {
@@ -295,6 +307,16 @@ describe('dormant organization search runbook in PostgreSQL', () => {
     })
     expect(first).toMatchObject({ pages: 1, documentsDeleted: 3, done: false })
     expect((await rowsOf(indexId)).documents).toBe(DOCUMENTS - 3)
+    /** A run stopped after one page already leaves the connector listing from scratch on resume. */
+    const [partial] = await db
+      .select()
+      .from(knowledgeConnector)
+      .where(eq(knowledgeConnector.id, indexConnectorId))
+    expect(partial).toMatchObject({
+      lastSyncAt: null,
+      listingCheckpoint: null,
+      directoryCheckpoint: null,
+    })
 
     const rest = await deleteSearchIndexDocuments(store, {
       ...options,
@@ -304,7 +326,7 @@ describe('dormant organization search runbook in PostgreSQL', () => {
     expect(rest).toMatchObject({
       documentsDeleted: DOCUMENTS - 3,
       done: true,
-      connectorsReset: { connectors: 1, members: 0 },
+      connectorsReset: { connectors: 0, members: 0 },
       standaloneDocumentsRemain: false,
       projectionMarks: { before: 0, after: 0 },
     })
@@ -343,6 +365,7 @@ describe('dormant organization search runbook in PostgreSQL', () => {
       status: 'paused',
       lastSyncAt: null,
       listingCheckpoint: null,
+      directoryCheckpoint: null,
     })
     const [kbRow] = await db.select().from(knowledgeBase).where(eq(knowledgeBase.id, indexId))
     expect(kbRow).toMatchObject({ isSearchIndex: true, deletedAt: null })

@@ -65,7 +65,7 @@ class FakeStore implements SearchIndexDeletionStore {
   async countChunks(ids: readonly string[]) {
     return ids.reduce((sum, id) => sum + (this.documents.get(id)?.chunks ?? 0), 0)
   }
-  async deleteChunkBatch(ids: readonly string[], limit: number) {
+  async deleteChunkBatch(_knowledgeBaseId: string, ids: readonly string[], limit: number) {
     this.mutations.push('deleteChunkBatch')
     let deleted = 0
     for (const id of ids) {
@@ -78,7 +78,7 @@ class FakeStore implements SearchIndexDeletionStore {
     }
     return deleted
   }
-  async deleteDocuments(_kb: string, ids: readonly string[]) {
+  async deleteDocuments(_kb: string, ids: readonly string[], _requestId: string, _reset: boolean) {
     this.mutations.push('deleteDocuments')
     for (const id of ids) {
       const late = this.lateChunks.get(id)

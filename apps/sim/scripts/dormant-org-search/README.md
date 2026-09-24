@@ -152,12 +152,14 @@ Source-connected documents are not metered as uploaded storage, so there is no s
 
 The **knowledge base row and its paused connectors are kept**: their configuration, credentials, members, permission snapshots and sync history. Re-enabling is then a matter of resuming the connectors, with nothing to set up again.
 
-Once no connector-owned document remains, the run clears each stopped connector's listing state. These are the same columns the app clears when a connector must list everything again (an access-mode switch or a source change):
+Every page that deletes documents also clears each stopped connector's listing state, in the same transaction, so a run stopped partway never leaves a connector that would skip what was already deleted. These are the columns the app clears when a connector must list everything again (an access-mode switch or a source change), plus the directory checkpoint and each member's retry time:
 
-- `lastSyncAt`, `lastSyncDocCount`, `listingCheckpoint` and `memberTombstoneCursor` on `knowledge_connector`
-- `listingCheckpoint`, `changeCursor`, `memberSyncedThrough`, `lastCompleteListingAt` and `lastListedCount` on its `knowledge_connector_member` rows
+- `lastSyncAt`, `lastSyncDocCount`, `listingCheckpoint`, `directoryCheckpoint` and `memberTombstoneCursor` on `knowledge_connector`
+- `listingCheckpoint`, `changeCursor`, `memberSyncedThrough`, `lastCompleteListingAt`, `lastListedCount` and `nextAttemptAt` (so every member is due) on its `knowledge_connector_member` rows
 
-Without this, a resumed connector would sync incrementally from its old cursor ("changed since last sync"). It would never re-list the documents deleted here, and the index would stay silently incomplete. Partition work rows (`knowledge_connector_partition`) belong to the old listing generation, and the next full listing replaces them. `--no-connector-reset` skips the reset. The reset runs only when the run reaches the end with no connector documents left: a run resumed with `--after-id` checks for documents before its cursor and says so.
+Without this, a resumed connector would sync incrementally from its old cursor ("changed since last sync"), skip directory reconciliation behind a `complete` checkpoint, or leave members waiting on a future retry. It would never re-list the documents deleted here, and the index would stay silently incomplete. Partition work rows (`knowledge_connector_partition`) belong to the old listing generation, and the next full listing replaces them. `--no-connector-reset` skips the reset. When a run finishes with no connector documents left, it resets once more to catch rows a page could not (for example a member added mid-run).
+
+Each deleting transaction also re-decides the guard while holding the knowledge base and its connectors `FOR SHARE`. Resuming a connector or claiming a sync updates the connector row, so it waits for the page in flight to commit, and the next page refuses.
 
 ### Duration and monitoring
 
