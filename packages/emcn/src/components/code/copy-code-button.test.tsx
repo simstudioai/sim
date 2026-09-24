@@ -12,9 +12,33 @@ describe('CopyCodeButton', () => {
     'names the icon-only button in the %s appearance',
     (appearance) => {
       const markup = renderToStaticMarkup(<CopyCodeButton code='example' appearance={appearance} />)
+      const host = document.createElement('div')
+      host.innerHTML = markup
+      const button = host.querySelector('button')
 
       expect(markup).toContain('aria-label="Copy code"')
       expect(markup).toContain('type="button"')
+      expect(button).not.toBeNull()
+      for (const className of [
+        'flex',
+        'items-center',
+        'gap-1',
+        'rounded',
+        'px-1.5',
+        'py-0.5',
+        'text-xs',
+      ]) {
+        expect(button?.classList.contains(className)).toBe(true)
+      }
+
+      const codeHeaderClasses = [
+        'text-[var(--text-tertiary)]',
+        'hover-hover:bg-[var(--surface-5)]',
+        'hover-hover:text-[var(--text-secondary)]',
+      ]
+      for (const className of codeHeaderClasses) {
+        expect(button?.classList.contains(className)).toBe(appearance === 'code-header')
+      }
     }
   )
 
