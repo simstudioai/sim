@@ -85,6 +85,28 @@ describe('CodeSearchOverlay', () => {
     expect(parentClick).not.toHaveBeenCalled()
   })
 
+  it('keeps preview search compact in a floating overlay with a usable input ref', () => {
+    const { overlay, input } = renderOverlay({
+      inputKind: 'plain',
+      className: 'top-10 right-[8px]',
+    })
+    expect(overlay.getAttribute('role')).toBe('presentation')
+    expect(overlay.className).toContain('top-10 right-[8px]')
+    expect(overlay.hasAttribute('data-toolbar-root')).toBe(false)
+    expect(input.parentElement?.className).toContain('h-[23px]')
+    expect(inputRef.current).toBe(input)
+
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    act(() => {
+      setter?.call(input, 'preview')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      overlay.querySelector<HTMLButtonElement>('[aria-label="Next match"]')?.click()
+    })
+    expect(callbacks.onQueryChange).toHaveBeenCalledWith('preview')
+    expect(callbacks.onNext).toHaveBeenCalledTimes(1)
+    expect(parentClick).not.toHaveBeenCalled()
+  })
+
   it('retains the attached terminal edge, marker, wider tally, and disabled navigation', () => {
     const { overlay, input } = renderOverlay({
       appearance: 'attached',
