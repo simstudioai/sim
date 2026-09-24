@@ -5,6 +5,7 @@ interface TableSidebarHeaderProps {
   children: ReactNode
 }
 
+/** Shared header row for table configuration sidebars. */
 export function TableSidebarHeader({ children }: TableSidebarHeaderProps) {
   return (
     <div className='flex min-h-[48px] items-center justify-between border-[var(--border)] border-b px-3 py-[8.5px]'>
@@ -17,6 +18,7 @@ interface TableSidebarHeaderActionProps extends ButtonHTMLAttributes<HTMLButtonE
   'aria-label': string
 }
 
+/** Button treatment for actions in a table sidebar header. */
 export const TableSidebarHeaderAction = forwardRef<
   HTMLButtonElement,
   TableSidebarHeaderActionProps
