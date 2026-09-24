@@ -271,6 +271,13 @@ describe('pendingToolWaitBudgetMs', () => {
     ).toBe(195_000)
   })
 
+  it('reserves the whole computer action budget before the lifecycle adds delivery grace', () => {
+    expect(pendingToolWaitBudgetMs({ name: 'computer', status: 'executing' })).toBe(90_000)
+    expect(pendingToolWaitBudgetMs({ name: 'computer', status: 'awaiting_approval' })).toBe(
+      TOOL_WATCHDOG_LONG_RUNNING_MS
+    )
+  })
+
   it('falls back to the tool\u2019s own watchdog once it is actually executing', () => {
     expect(pendingToolWaitBudgetMs({ name: 'terminal_run', status: 'executing' })).toBe(
       TOOL_WATCHDOG_DEFAULT_MS

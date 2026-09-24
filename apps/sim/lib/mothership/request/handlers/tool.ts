@@ -304,17 +304,17 @@ export async function prePersistClientExecutableToolCall(
     toolName: data.toolName,
     args: data.arguments,
     sealedContext,
-    // Browser and terminal actions cross a second, native authorization
-    // boundary. Leave those rows pending until Electron atomically claims
-    // them — the authorize endpoint only hands over a pending call, so a row
-    // that arrives already running can never be executed natively. All other
-    // client tools retain the established "already dispatched" running state.
-    // A gated tool is likewise pending: nothing has been dispatched yet.
+    /**
+     * Native desktop actions remain pending until Electron atomically claims
+     * them at authorization. Gated tools also await dispatch; other client
+     * tools retain their established already-dispatched running state.
+     */
     status:
       gated ||
       isCurrentBrowserToolName(data.toolName) ||
       isTerminalToolName(data.toolName) ||
-      data.toolName === 'import_local_files'
+      data.toolName === 'import_local_files' ||
+      data.toolName === 'computer'
         ? MothershipStreamV1AsyncToolRecordStatus.pending
         : MothershipStreamV1AsyncToolRecordStatus.running,
   }).catch((err) => {

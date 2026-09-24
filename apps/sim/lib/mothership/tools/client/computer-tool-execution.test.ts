@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
@@ -29,6 +29,31 @@ describe('computer action delivery', () => {
     mocks.complete.mockResolvedValue(undefined)
     mocks.pageExit.mockResolvedValue(undefined)
   })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('allows the full action budget, then cancels and reports an uncertain result', async () => {
+    vi.useFakeTimers()
+    mocks.execute.mockImplementationOnce(() => new Promise(() => {}))
+    const id = nextId()
+    const execution = executeComputerToolOnClient(id, { action: 'list_apps' }, now())
+
+    await vi.advanceTimersByTimeAsync(89_999)
+    expect(mocks.cancel).not.toHaveBeenCalled()
+    expect(mocks.complete).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    await execution
+    expect(mocks.cancel).toHaveBeenCalledExactlyOnceWith(id)
+    expect(mocks.complete).toHaveBeenCalledExactlyOnceWith(
+      id,
+      'cancelled',
+      expect.stringContaining('timed out'),
+      { doNotRetry: true, outcomeUnknown: true }
+    )
+  })
+
   it('strips UI activity and runs each action only once across redelivery', async () => {
     const id = nextId()
     await executeComputerToolOnClient(
