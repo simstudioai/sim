@@ -22,6 +22,10 @@ vi.mock('@/lib/mothership/chat/lifecycle', () => ({
 }))
 vi.mock('@/lib/mothership/request/session/buffer', () => ({ readEvents: mockReadEvents }))
 
+vi.mock('@/lib/mothership/async-runs/repository', () => ({
+  getLatestRunForStream: vi.fn().mockResolvedValue({ chatId: 'chat-1', status: 'cancelled' }),
+}))
+
 vi.mock('@/lib/mothership/chat/messages-store', () => ({
   appendCopilotChatMessages: mockAppendCopilotChatMessages,
 }))
@@ -30,6 +34,7 @@ vi.mock('@/lib/mothership/chat-status', () => ({
   publishChatStatusChanged: mockPublishStatusChanged,
 }))
 
+import { getLatestRunForStream } from '@/lib/mothership/async-runs/repository'
 import { POST } from '@/app/api/copilot/chat/stop/route'
 
 const stopRequest = (request: NextRequest) => POST(request, undefined)
@@ -169,6 +174,7 @@ describe('copilot chat stop route', () => {
           status: 'executing',
         },
       },
+      { ...envelope, seq: 3, type: 'complete', payload: { status: 'cancelled' } },
     ])
     const request = createRequest({ chatId: 'chat-1', streamId: 'stream-1' })
     expect((await request.clone().text()).length).toBeLessThan(1024)
@@ -182,13 +188,53 @@ describe('copilot chat stop route', () => {
       expect.arrayContaining([
         expect.objectContaining({
           type: 'tool',
-          toolCall: expect.objectContaining({ id: 'call-1', params: { code: 'preserve me' } }),
+          toolCall: expect.objectContaining({
+            id: 'call-1',
+            state: 'cancelled',
+            params: { code: 'preserve me' },
+          }),
         }),
         { type: 'complete', status: 'cancelled' },
       ])
     )
     expect(dbChainMockFns.set.mock.calls[0][0].conversationId).toBeNull()
     expect(mockPublishStatusChanged).toHaveBeenCalledOnce()
+  })
+
+  it.each(['active', 'other-chat', 'missing'])(
+    'does not read replay for an unfinalized or mismatched run: %s',
+    async (state) => {
+      vi.mocked(getLatestRunForStream).mockResolvedValueOnce(
+        state === 'missing'
+          ? null
+          : ({
+              chatId: state === 'other-chat' ? 'other-chat' : 'chat-1',
+              status: state === 'active' ? 'active' : 'cancelled',
+            } as Awaited<ReturnType<typeof getLatestRunForStream>>)
+      )
+      const response = await stopRequest(createRequest({ chatId: 'chat-1', streamId: 'stream-1' }))
+      expect(response.status).toBe(200)
+      expect(getLatestRunForStream).toHaveBeenCalledWith('stream-1', 'user-1')
+      expect(mockReadEvents).not.toHaveBeenCalled()
+      expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not finalize a contiguous prefix before the final event is flushed', async () => {
+    mockReadEvents.mockResolvedValue([
+      {
+        v: 1,
+        seq: 1,
+        ts: '2026-09-24T19:00:00Z',
+        stream: { streamId: 'stream-1' },
+        type: 'text',
+        payload: { channel: 'assistant', text: 'incomplete prefix' },
+      },
+    ])
+    const response = await stopRequest(createRequest({ chatId: 'chat-1', streamId: 'stream-1' }))
+    expect(response.status).toBe(200)
+    expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 
   it.each([{ seqs: [] }, { seqs: [2, 3] }, { seqs: [1, 3] }])(

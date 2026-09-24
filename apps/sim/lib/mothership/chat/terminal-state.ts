@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { copilotChats, copilotMessages, copilotRuns } from '@sim/db/schema'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { getLatestRunForStream } from '@/lib/mothership/async-runs/repository'
 import { buildLiveAssistantMessage } from '@/lib/mothership/chat/effective-transcript'
 import { appendCopilotChatMessages } from '@/lib/mothership/chat/messages-store'
 import {
@@ -16,6 +17,7 @@ import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { withCopilotSpan } from '@/lib/mothership/request/otel'
 import { readEvents } from '@/lib/mothership/request/session/buffer'
+import { isTerminalStreamStatus } from '@/lib/mothership/request/session/contract'
 import { StreamControllerSupersededError } from '@/lib/mothership/request/session/controller-lease'
 import { toStreamBatchEvent } from '@/lib/mothership/request/session/types'
 
@@ -39,13 +41,21 @@ export interface FinalizeAssistantTurnResult {
   outcome: (typeof CopilotChatFinalizeOutcome)[keyof typeof CopilotChatFinalizeOutcome]
 }
 
-/** Rebuild a stopped response only when the server still has its complete event prefix. */
+/** Only the matching terminal run and a gap-free replay through its final event can be persisted. */
 export async function readStoppedAssistantMessage(
-  streamId: string
+  streamId: string,
+  chatId: string,
+  userId?: string
 ): Promise<PersistedMessage | null> {
+  const run = await getLatestRunForStream(streamId, userId)
+  if (run?.chatId !== chatId || !isTerminalStreamStatus(run.status)) return null
   const events = await readEvents(streamId, '0')
   /** StreamWriter starts at 1; Redis may trim oldest events or skip corrupt entries. */
-  if (events.length === 0 || !events.every((event, index) => event.seq === index + 1)) return null
+  if (
+    events.at(-1)?.type !== 'complete' ||
+    !events.every((event, index) => event.seq === index + 1)
+  )
+    return null
   const replay = buildLiveAssistantMessage({
     streamId,
     events: events.map(toStreamBatchEvent),
@@ -176,7 +186,7 @@ export async function finalizeAssistantTurn({
         if (assistantMessage && canAppendAssistant) {
           let response = assistantMessage
           if (preferServerReplay) {
-            const replay = await readStoppedAssistantMessage(userMessageId)
+            const replay = await readStoppedAssistantMessage(userMessageId, chatId, userId)
             /** A stopped client's snapshot may be empty; preserve canonical output before the first finalizer commits. */
             const replayHasContent =
               !!replay?.content.trim() ||
