@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChipSelectOption } from '@sim/emcn'
-import { Button, ChipConfirmModal, ChipSelect, Tooltip, toast } from '@sim/emcn'
+import { ChipConfirmModal, ChipSelect, Tooltip, toast } from '@sim/emcn'
 import { Database, FolderPlus, Pencil, Plus, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -23,7 +23,6 @@ import type {
 } from '@/app/workspace/[workspaceId]/components'
 import {
   EMPTY_CELL_PLACEHOLDER,
-  FILTER_SECTION_LABEL_CLASS,
   OwnerAvatar,
   ownerCell,
   Resource,
@@ -70,6 +69,7 @@ import {
   DeleteKnowledgeBaseModal,
   EditKnowledgeBaseModal,
   KnowledgeBaseContextMenu,
+  KnowledgeFilterHeading,
   KnowledgeListContextMenu,
 } from '@/app/workspace/[workspaceId]/knowledge/components'
 import KnowledgeLoading from '@/app/workspace/[workspaceId]/knowledge/loading'
@@ -1334,18 +1334,11 @@ function KnowledgeContent() {
     () => (
       <div className='flex w-[260px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-2'>
-          <div className='flex h-5 items-center justify-between'>
-            <span className={FILTER_SECTION_LABEL_CLASS}>Connectors</span>
-            {connectorFilter.length > 0 && (
-              <Button
-                variant='ghost'
-                onClick={() => setConnectorFilter([])}
-                className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-secondary)]'
-              >
-                Clear
-              </Button>
-            )}
-          </div>
+          <KnowledgeFilterHeading
+            title='Connectors'
+            active={connectorFilter.length > 0}
+            onClear={() => setConnectorFilter([])}
+          />
           <ChipSelect
             showSelectedCheck
             dropdownWidth='trigger'
@@ -1358,18 +1351,11 @@ function KnowledgeContent() {
           />
         </div>
         <div className='flex flex-col gap-2'>
-          <div className='flex h-5 items-center justify-between'>
-            <span className={FILTER_SECTION_LABEL_CLASS}>Content</span>
-            {contentFilter.length > 0 && (
-              <Button
-                variant='ghost'
-                onClick={() => setContentFilter([])}
-                className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-secondary)]'
-              >
-                Clear
-              </Button>
-            )}
-          </div>
+          <KnowledgeFilterHeading
+            title='Content'
+            active={contentFilter.length > 0}
+            onClear={() => setContentFilter([])}
+          />
           <ChipSelect
             showSelectedCheck
             dropdownWidth='trigger'
@@ -1383,18 +1369,11 @@ function KnowledgeContent() {
         </div>
         {memberOptions.length > 0 && (
           <div className='flex flex-col gap-2'>
-            <div className='flex h-5 items-center justify-between'>
-              <span className={FILTER_SECTION_LABEL_CLASS}>Owner</span>
-              {ownerFilter.length > 0 && (
-                <Button
-                  variant='ghost'
-                  onClick={() => setOwnerFilter([])}
-                  className='-mr-1 h-auto px-1 py-0.5 text-[var(--text-muted)] text-xs hover-hover:text-[var(--text-secondary)]'
-                >
-                  Clear
-                </Button>
-              )}
-            </div>
+            <KnowledgeFilterHeading
+              title='Owner'
+              active={ownerFilter.length > 0}
+              onClear={() => setOwnerFilter([])}
+            />
             <ChipSelect
               placeholder='All'
               showAllOption

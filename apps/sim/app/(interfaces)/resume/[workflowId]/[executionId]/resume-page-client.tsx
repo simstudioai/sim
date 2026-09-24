@@ -783,17 +783,18 @@ export default function ResumeExecutionPage({
           </div>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <Button
+              <Chip
                 variant='outline'
-                size='sm'
+                type='button'
                 onClick={handleRefreshExecution}
                 disabled={refreshingExecution}
-                className='gap-1.5 px-2.5'
+                leftAdornment={
+                  <RefreshCw className={cn('size-[14px]', refreshingExecution && 'animate-spin')} />
+                }
                 aria-label='Refresh execution details'
               >
-                <RefreshCw className={cn('size-[14px]', refreshingExecution && 'animate-spin')} />
                 Refresh
-              </Button>
+              </Chip>
             </Tooltip.Trigger>
             <Tooltip.Content>Refresh</Tooltip.Content>
           </Tooltip.Root>
@@ -1022,7 +1023,8 @@ export default function ResumeExecutionPage({
                             placeholder='{"example": "value"}'
                             rows={6}
                             spellCheck={false}
-                            className='min-h-[180px] font-mono'
+                            monospace
+                            className='min-h-[180px]'
                           />
                         </div>
                       </div>
