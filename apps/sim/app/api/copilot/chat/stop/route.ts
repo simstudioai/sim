@@ -11,7 +11,10 @@ import {
   type PersistedMessage,
   withStoppedContentBlock,
 } from '@/lib/mothership/chat/persisted-message'
-import { finalizeAssistantTurn } from '@/lib/mothership/chat/terminal-state'
+import {
+  finalizeAssistantTurn,
+  readStoppedAssistantMessage,
+} from '@/lib/mothership/chat/terminal-state'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import {
   CopilotChatFinalizeOutcome,
@@ -61,23 +64,28 @@ export const POST = withRouteHandler((req: NextRequest) =>
         : hasContent
           ? [{ type: 'text', channel: 'assistant', content }]
           : []
-      const assistantMessage: PersistedMessage = withStoppedContentBlock(
-        normalizeMessage({
-          id: generateId(),
-          role: 'assistant',
-          content,
-          timestamp: new Date().toISOString(),
-          contentBlocks: assistantBlocks,
-          ...(requestId ? { requestId } : {}),
-        })
-      )
+      const assistantMessage: PersistedMessage | null =
+        hasContent || hasBlocks
+          ? withStoppedContentBlock(
+              normalizeMessage({
+                id: generateId(),
+                role: 'assistant',
+                content,
+                timestamp: new Date().toISOString(),
+                contentBlocks: assistantBlocks,
+                ...(requestId ? { requestId } : {}),
+              })
+            )
+          : await readStoppedAssistantMessage(streamId)
+      /** The run owner retains the full response if replay was trimmed or has not started. */
+      if (!assistantMessage) return NextResponse.json({ success: true })
       const result = await finalizeAssistantTurn({
         chatId,
         userId: session.user.id,
         userMessageId: streamId,
         assistantMessage,
         streamMarkerPolicy: 'active-or-cleared',
-        preferServerReplay: true,
+        preferServerReplay: hasContent || hasBlocks,
       })
       span.setAttribute(TraceAttr.CopilotStopAppendedAssistant, result.appendedAssistant)
       const stopOutcome = !result.found

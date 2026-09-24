@@ -1,19 +1,12 @@
 import type { Context } from '@opentelemetry/api'
 import { sleep } from '@sim/utils/helpers'
 import { toRecordOrNull } from '@sim/utils/object'
-import {
-  COPILOT_BILLING_PROTOCOL,
-  COPILOT_BILLING_PROTOCOL_HEADER,
-} from '@/lib/billing/core/billing-attribution'
-import { env } from '@/lib/core/config/env'
 import { AbortRequest, type AbortResponse } from '@/lib/mothership/generated/protocol'
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { fetchGo } from '@/lib/mothership/request/go/fetch'
+import { mothershipRequestHeaders } from '@/lib/mothership/request/headers'
 import { AbortReason } from '@/lib/mothership/request/session/abort'
-import {
-  getMothershipBaseURL,
-  getMothershipSourceEnvHeaders,
-} from '@/lib/mothership/server/agent-url'
+import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
 
 export const DEFAULT_EXPLICIT_ABORT_TIMEOUT_MS = 3000
 
@@ -32,14 +25,7 @@ export async function requestExplicitStreamAbort(params: {
     otelContext,
   } = params
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    [COPILOT_BILLING_PROTOCOL_HEADER]: COPILOT_BILLING_PROTOCOL.legacy,
-  }
-  if (env.COPILOT_API_KEY) {
-    headers['x-api-key'] = env.COPILOT_API_KEY
-  }
-  Object.assign(headers, getMothershipSourceEnvHeaders())
+  const headers = mothershipRequestHeaders()
 
   const controller = new AbortController()
   const timeout = setTimeout(

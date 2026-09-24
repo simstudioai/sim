@@ -152,7 +152,6 @@ import {
   type ReconnectReplaySelection,
   reconcileLiveAssistantTurn,
   selectReconnectReplayState,
-  toRawPersistedContentBlock,
 } from './message-reconcile'
 import {
   clearQueuedSendHandoffClaim,
@@ -3078,12 +3077,10 @@ export function useChat(
     }
   }, [recoverActiveStreamFromRedis])
 
-  const persistPartialResponse = useCallback(
+  const persistStoppedResponse = useCallback(
     async (overrides?: {
       chatId?: string
       streamId?: string
-      content?: string
-      blocks?: ContentBlock[]
       // `stopGeneration` must snapshot these BEFORE clearActiveTurn()
       // nulls the refs, or the fetch sees undefined.
       requestId?: string
@@ -3093,30 +3090,8 @@ export function useChat(
       const streamId = overrides?.streamId ?? streamIdRef.current
       if (!chatId || !streamId) return
 
-      const content = overrides?.content ?? streamingContentRef.current
       const requestId = overrides?.requestId ?? streamRequestIdRef.current
       const traceparent = overrides?.traceparent ?? streamTraceparentRef.current
-
-      const sourceBlocks = overrides?.blocks ?? streamingBlocksRef.current
-      const storedBlocks = sourceBlocks
-        .map((block) => {
-          const persisted = toRawPersistedContentBlock(block)
-          if (
-            persisted?.toolCall &&
-            (persisted.toolCall.state === 'executing' || persisted.toolCall.state === 'cancelled')
-          ) {
-            persisted.toolCall = {
-              ...persisted.toolCall,
-              state: 'cancelled',
-              display: { title: 'Stopped by user' },
-            }
-          }
-          return persisted
-        })
-        .filter((block) => block !== null)
-      if (storedBlocks.length > 0) {
-        storedBlocks.push({ type: 'complete', status: 'cancelled' })
-      }
 
       try {
         const res = await fetch(stopPathRef.current, {
@@ -3129,8 +3104,6 @@ export function useChat(
           body: JSON.stringify({
             chatId,
             streamId,
-            content,
-            ...(storedBlocks.length > 0 && { contentBlocks: storedBlocks }),
             ...(requestId ? { requestId } : {}),
           }),
         })
@@ -4330,7 +4303,6 @@ export function useChat(
         throw err
       }
 
-      const stopContentSnapshot = streamingContentRef.current
       const stopNow = Date.now()
       const stopBlocksSnapshot = streamingBlocksRef.current.map((block) => ({
         ...block,
@@ -4489,11 +4461,9 @@ export function useChat(
             }
 
             if (wasSending && resolvedChatId) {
-              await persistPartialResponse({
+              await persistStoppedResponse({
                 chatId: resolvedChatId,
                 streamId: sid,
-                content: stopContentSnapshot,
-                blocks: stopBlocksSnapshot,
                 requestId: stopRequestIdSnapshot,
                 traceparent: stopTraceparentSnapshot,
               })
@@ -4560,7 +4530,7 @@ export function useChat(
       cancelActiveBrowserTools,
       invalidateChatQueries,
       notifyTurnEnded,
-      persistPartialResponse,
+      persistStoppedResponse,
       queryClient,
       resolveChatIdForStream,
       resetEphemeralPreviewState,
@@ -4785,9 +4755,11 @@ export function useChat(
 
   const sendQueuedMessageImmediately = useCallback(
     async (id?: string) => {
-      const queue = useMothershipQueueStore.getState().queues[chatKeyRef.current]
+      const queueState = useMothershipQueueStore.getState()
+      const chatKey = chatKeyRef.current
+      const queue = queueState.queues[chatKey]
       const msg = id === undefined ? queue?.[0] : queue?.find((queued) => queued.id === id)
-      if (!msg) return
+      if (!msg || queueState.editing[chatKey] === msg.id) return
       if (queuedMessageDispatchIdsRef.current.has(msg.id)) return
       const admissionPending = hasPendingChatAdmission()
 

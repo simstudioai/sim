@@ -39,6 +39,28 @@ export interface FinalizeAssistantTurnResult {
   outcome: (typeof CopilotChatFinalizeOutcome)[keyof typeof CopilotChatFinalizeOutcome]
 }
 
+/** Rebuild a stopped response only when the server still has its complete event prefix. */
+export async function readStoppedAssistantMessage(
+  streamId: string
+): Promise<PersistedMessage | null> {
+  const events = await readEvents(streamId, '0')
+  /** StreamWriter starts at 1; Redis may trim oldest events or skip corrupt entries. */
+  if (events.length === 0 || !events.every((event, index) => event.seq === index + 1)) return null
+  const replay = buildLiveAssistantMessage({
+    streamId,
+    events: events.map(toStreamBatchEvent),
+    status: 'cancelled',
+  })
+  if (!replay) return null
+  return withStoppedContentBlock({
+    ...replay,
+    content: redactSensitiveContent(replay.content),
+    ...(replay.contentBlocks
+      ? { contentBlocks: mergeAndRedactPersistedBlocks(replay.contentBlocks) }
+      : {}),
+  })
+}
+
 /**
  * Clear the active stream marker for a chat and optionally append the assistant
  * message once for its turn, including user steering accepted within that turn.
@@ -154,17 +176,7 @@ export async function finalizeAssistantTurn({
         if (assistantMessage && canAppendAssistant) {
           let response = assistantMessage
           if (preferServerReplay) {
-            const events = await readEvents(userMessageId, '0')
-            /** StreamWriter starts at 1; Redis trims oldest events and skips corrupt entries. */
-            const replayIsComplete =
-              events.length > 0 && events.every((event, index) => event.seq === index + 1)
-            const replay = replayIsComplete
-              ? buildLiveAssistantMessage({
-                  streamId: userMessageId,
-                  events: events.map(toStreamBatchEvent),
-                  status: 'cancelled',
-                })
-              : null
+            const replay = await readStoppedAssistantMessage(userMessageId)
             /** A stopped client's snapshot may be empty; preserve canonical output before the first finalizer commits. */
             const replayHasContent =
               !!replay?.content.trim() ||
