@@ -176,11 +176,11 @@ export function ConnectSlackBotModal({
   const requestUrl = buildSlackCustomBotRequestUrl(credentialId)
 
   const descriptionError = getAgentDescriptionError(appDescription)
-  const slashCommandsError = searchOnly ? null : getSlashCommandsError(slashCommands)
+  const slashCommandsError = searchOnly || isReconnect ? null : getSlashCommandsError(slashCommands)
   const manifestConfigurationError = descriptionError ?? slashCommandsError
 
   const manifestJson = useMemo(() => {
-    if (manifestConfigurationError) return ''
+    if (isReconnect || manifestConfigurationError) return ''
     const capabilities = searchOnly ? DEFAULT_CAPABILITIES : selected
     const managedUserAuthorization = capabilities.has(
       SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY.id
@@ -207,6 +207,7 @@ export function ConnectSlackBotModal({
     })
     return JSON.stringify(manifest, null, 2)
   }, [
+    isReconnect,
     manifestConfigurationError,
     selected,
     appName,
@@ -287,6 +288,7 @@ export function ConnectSlackBotModal({
       >
         <StepConfigure
           searchOnly={searchOnly}
+          reconnect={isReconnect}
           appName={appName}
           onAppNameChange={setAppName}
           appDescription={appDescription}
@@ -301,7 +303,7 @@ export function ConnectSlackBotModal({
           onMemberAccessChange={setMemberAccess}
         />
       </Wizard.Step>
-      <Wizard.Step title={isReconnect ? 'Update the app in Slack' : 'Create the app in Slack'}>
+      <Wizard.Step title={isReconnect ? 'Open your app in Slack' : 'Create the app in Slack'}>
         <StepCreate manifestJson={manifestJson} reconnect={isReconnect} />
       </Wizard.Step>
       <Wizard.Step title='Paste your Signing Secret' canAdvance={signingSecret.trim().length > 0}>
@@ -349,6 +351,7 @@ function SubStep({ n, children }: SubStepProps) {
 
 interface StepConfigureProps {
   searchOnly: boolean
+  reconnect: boolean
   appName: string
   onAppNameChange: (next: string) => void
   appDescription: string
@@ -364,6 +367,7 @@ interface StepConfigureProps {
 }
 function StepConfigure({
   searchOnly,
+  reconnect,
   appName,
   onAppNameChange,
   appDescription,
@@ -377,6 +381,7 @@ function StepConfigure({
   memberAccess,
   onMemberAccessChange,
 }: StepConfigureProps) {
+  const canConfigureApp = !searchOnly && !reconnect
   const allSelected = capabilityIds.length === CUSTOM_BOT_CAPABILITIES.length
 
   return (
@@ -393,11 +398,13 @@ function StepConfigure({
         title='Description'
         value={appDescription}
         onChange={onAppDescriptionChange}
-        placeholder="Optional — shown on the bot's Slack profile"
+        placeholder={
+          reconnect ? 'Optional description' : "Optional — shown on the bot's Slack profile"
+        }
         maxLength={140}
         error={descriptionError}
       />
-      {!searchOnly && (
+      {canConfigureApp && (
         <ChipModalField
           type='custom'
           title='Additional permissions'
@@ -418,22 +425,23 @@ function StepConfigure({
           />
         </ChipModalField>
       )}
-      {!searchOnly && capabilityIds.includes(SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY.id) && (
-        <ChipModalField
-          type='dropdown'
-          title='Member access'
-          value={memberAccess}
-          onChange={(value) => {
-            if (value === 'search' || value === 'workflow') onMemberAccessChange(value)
-          }}
-          options={[
-            { value: 'search', label: 'Search documents' },
-            { value: 'workflow', label: 'Workflow tools' },
-          ]}
-          hint='Choose the same access when configuring this app for member accounts.'
-        />
-      )}
-      {!searchOnly && (
+      {canConfigureApp &&
+        capabilityIds.includes(SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY.id) && (
+          <ChipModalField
+            type='dropdown'
+            title='Member access'
+            value={memberAccess}
+            onChange={(value) => {
+              if (value === 'search' || value === 'workflow') onMemberAccessChange(value)
+            }}
+            options={[
+              { value: 'search', label: 'Search documents' },
+              { value: 'workflow', label: 'Workflow tools' },
+            ]}
+            hint='Choose the same access when configuring this app for member accounts.'
+          />
+        )}
+      {canConfigureApp && (
         <SlashCommandsEditor
           commands={slashCommands}
           onChange={onSlashCommandsChange}
@@ -522,6 +530,29 @@ interface StepCreateProps {
   reconnect: boolean
 }
 function StepCreate({ manifestJson, reconnect }: StepCreateProps) {
+  if (reconnect) {
+    return (
+      <SubStepList>
+        <SubStep n={1}>
+          Open your existing app on the{' '}
+          <a
+            href='https://api.slack.com/apps'
+            target='_blank'
+            rel='noopener noreferrer'
+            className='text-[var(--brand-secondary)] underline underline-offset-2'
+          >
+            Slack Apps page
+          </a>
+          .
+        </SubStep>
+        <SubStep n={2}>
+          Keep its existing App Manifest and permissions. Reconnecting updates only the credentials
+          saved in Sim.
+        </SubStep>
+      </SubStepList>
+    )
+  }
+
   return (
     <div className='space-y-4'>
       <SubStepList>
@@ -544,23 +575,11 @@ function StepCreate({ manifestJson, reconnect }: StepCreateProps) {
           .
         </SubStep>
         <SubStep n={3}>
-          {reconnect ? (
-            'Open your existing app, then App Manifest.'
-          ) : (
-            <>
-              Click <strong>Create New App</strong> → <strong>From a manifest</strong> and pick your
-              workspace.
-            </>
-          )}
+          Click <strong>Create New App</strong> → <strong>From a manifest</strong> and pick your
+          workspace.
         </SubStep>
         <SubStep n={4}>
-          {reconnect ? (
-            'Update the manifest and reinstall the app if Slack requests new permissions.'
-          ) : (
-            <>
-              Paste your manifest, then click <strong>Next</strong> → <strong>Create</strong>.
-            </>
-          )}
+          Paste your manifest, then click <strong>Next</strong> → <strong>Create</strong>.
         </SubStep>
       </SubStepList>
     </div>

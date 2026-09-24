@@ -120,4 +120,24 @@ describe('custom Slack bot permission selection', () => {
       expect(botScopes()).not.toContain(scope)
     }
   })
+  it.each([{ workspaceId: 'workspace-test' }, { organizationId: 'organization-test' }])(
+    'preserves the existing Slack app configuration when reconnecting %j',
+    (owner) => {
+      act(() =>
+        root.render(
+          <ConnectSlackBotModal
+            {...owner}
+            credentialId='existing-bot'
+            initialDisplayName='Existing bot'
+            open
+            onOpenChange={vi.fn()}
+          />
+        )
+      )
+      expect(container.querySelector('pre')).toBeNull()
+      expect(container.querySelector('select')).toBeNull()
+      expect(container.textContent).toContain('Keep its existing App Manifest and permissions.')
+      expect(container.textContent).not.toContain('Copy your manifest')
+    }
+  )
 })
