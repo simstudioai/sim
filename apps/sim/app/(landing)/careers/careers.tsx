@@ -51,7 +51,7 @@ export default async function Careers({ searchParams }: CareersProps) {
           Careers at Sim, a platform to build autonomous AI agents for enterprise systems. Sim
           connects integrations into a knowledge graph of company data and processes, which teams
           use to build and monitor agents and workflows running in production. Join our team of 10
-          in San Francisco; visa sponsorship is available.
+          in San Francisco.
         </p>
 
         <h1
@@ -69,8 +69,7 @@ export default async function Careers({ searchParams }: CareersProps) {
         <p className='max-w-[60ch] text-pretty text-[var(--text-body)] text-lg leading-[1.5] max-sm:text-base'>
           We're a team of 10 working full-time, in person in San Francisco. We have a flat
           organization: you'll work directly with the founders and own your work from idea to
-          execution. We sponsor visas. New graduates are welcome; projects, internships, and
-          independent work count.
+          execution. New graduates are welcome; projects, internships, and independent work count.
         </p>
       </section>
 
