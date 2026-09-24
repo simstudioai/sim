@@ -1,5 +1,6 @@
 /** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
+import { slackListsAccessSetTool } from '@/tools/slack_lists/access_set'
 import { slackListsCreateTool } from '@/tools/slack_lists/create'
 import { slackListsItemsCreateTool } from '@/tools/slack_lists/items_create'
 import { slackListsItemsDeleteTool } from '@/tools/slack_lists/items_delete'
@@ -21,6 +22,7 @@ const richText = [
   },
 ]
 const tools = [
+  slackListsAccessSetTool,
   slackListsCreateTool,
   slackListsUpdateTool,
   slackListsItemsListTool,
@@ -31,6 +33,88 @@ const tools = [
 ]
 
 describe('Slack Lists requests', () => {
+  it('updates task tracking without renaming the List and preserves false', () => {
+    expect(
+      slackListsUpdateTool.request.body!({ ...auth, listId: ' F123 ', todoMode: false })
+    ).toEqual({ id: 'F123', todo_mode: false })
+  })
+  it('encodes an updated List description without replacing other settings', () => {
+    expect(
+      slackListsUpdateTool.request.body!({
+        ...auth,
+        listId: 'F123',
+        description: 'Updated description',
+      })
+    ).toMatchObject({
+      id: 'F123',
+      description_blocks: [
+        {
+          type: 'rich_text',
+          elements: [
+            {
+              type: 'rich_text_section',
+              elements: [{ type: 'text', text: 'Updated description' }],
+            },
+          ],
+        },
+      ],
+    })
+  })
+  it('rejects a List update with no changes', () => {
+    expect(() => slackListsUpdateTool.request.body!({ ...auth, listId: 'F123' })).toThrow(
+      'Provide a List name, description, or task tracking setting'
+    )
+  })
+
+  it.each(['read', 'write', 'owner'] as const)('grants %s access to users', (accessLevel) => {
+    expect(
+      slackListsAccessSetTool.request.body!({
+        ...auth,
+        listId: ' F123 ',
+        accessLevel,
+        userIds: '[" U123 ","U456"]',
+      })
+    ).toEqual({ list_id: 'F123', access_level: accessLevel, user_ids: ['U123', 'U456'] })
+  })
+  it('grants channel access using channel_ids', () => {
+    expect(
+      slackListsAccessSetTool.request.body!({
+        ...auth,
+        listId: 'F123',
+        accessLevel: 'write',
+        channelIds: ['C123'],
+      })
+    ).toEqual({ list_id: 'F123', access_level: 'write', channel_ids: ['C123'] })
+  })
+  it.each([
+    {},
+    { userIds: ['U123'], channelIds: ['C123'] },
+    { userIds: [] },
+    { channelIds: [] },
+    { userIds: [' '] },
+    { channelIds: '[1]' },
+    { userIds: '{}' },
+    { userIds: 'U123' },
+  ])('rejects invalid share recipients %j before sending', (recipients) => {
+    expect(() =>
+      slackListsAccessSetTool.request.body!({
+        ...auth,
+        listId: 'F123',
+        accessLevel: 'read',
+        ...recipients,
+      })
+    ).toThrow()
+  })
+  it('rejects ownership grants to channels', () => {
+    expect(() =>
+      slackListsAccessSetTool.request.body!({
+        ...auth,
+        listId: 'F123',
+        accessLevel: 'owner',
+        channelIds: ['C123'],
+      })
+    ).toThrow('Owner access can only be granted to users')
+  })
   it('creates columns and encodes description as rich text', () => {
     expect(
       slackListsCreateTool.request.body!({
@@ -180,6 +264,7 @@ describe('Slack Lists requests', () => {
   it('uses only resolved credentials and action-specific scopes', () => {
     for (const tool of tools) {
       expect(tool.oauth?.provider).toBe('slack')
+      expect(tool.oauth?.credentialKind).toBe('service-account')
       expect(tool.oauth?.requiredScopes).toEqual([
         ['slack_lists_items_list', 'slack_lists_items_info'].includes(tool.id)
           ? 'lists:read'
@@ -193,6 +278,18 @@ describe('Slack Lists requests', () => {
 })
 
 describe('Slack Lists responses', () => {
+  it('confirms sharing only when Slack reports success', async () => {
+    expect(await slackListsAccessSetTool.transformResponse!(Response.json({ ok: true }))).toEqual({
+      success: true,
+      output: { ok: true },
+    })
+    await expect(
+      slackListsAccessSetTool.transformResponse!(
+        Response.json({ ok: false, error: 'restricted_action' })
+      )
+    ).rejects.toThrow('restricted_action')
+    await expect(slackListsAccessSetTool.transformResponse!(Response.json({}))).rejects.toThrow()
+  })
   it('returns column IDs on creation without inventing an omitted schema', async () => {
     expect(
       (

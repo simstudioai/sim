@@ -49,7 +49,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTrigger, isTriggerValid } from '@/triggers'
 import { SYSTEM_SUBBLOCK_IDS } from '@/triggers/constants'
-import { SIM_SUBSCRIBED_EVENTS } from '@/triggers/slack/shared'
+import { SIM_SUBSCRIBED_EVENTS, slackEventById } from '@/triggers/slack/shared'
 import { resolveBlockTriggerId } from '@/triggers/webhook-url'
 
 const logger = createLogger('DeployWebhookSync')
@@ -448,6 +448,18 @@ export async function resolveWebhookConfigForBlock(input: {
           error: {
             message:
               'The selected Slack bot can run actions but cannot receive events because it has no signing secret. Reconnect it with a signing secret.',
+            status: 400,
+          },
+        }
+      }
+      const eventType =
+        typeof providerConfig.eventType === 'string' ? providerConfig.eventType : null
+      if (eventType && slackEventById.get(eventType)?.legacy) {
+        return {
+          success: false,
+          error: {
+            message:
+              'Legacy Assistant events require a native Sim Slack connection. Choose an Agent View event for a custom bot.',
             status: 400,
           },
         }
