@@ -51,6 +51,14 @@ const NAMED_KEYS: Record<string, KeyDescriptor> = {
   '`': { key: '`', code: 'Backquote', keyCode: 192 },
   plus: { key: '+', code: 'Equal', keyCode: 187 },
   insert: { key: 'Insert', code: 'Insert', keyCode: 45 },
+  control: { key: 'Control', code: 'ControlLeft', keyCode: 17 },
+  ctrl: { key: 'Control', code: 'ControlLeft', keyCode: 17 },
+  shift: { key: 'Shift', code: 'ShiftLeft', keyCode: 16 },
+  alt: { key: 'Alt', code: 'AltLeft', keyCode: 18 },
+  option: { key: 'Alt', code: 'AltLeft', keyCode: 18 },
+  meta: { key: 'Meta', code: 'MetaLeft', keyCode: 91 },
+  cmd: { key: 'Meta', code: 'MetaLeft', keyCode: 91 },
+  command: { key: 'Meta', code: 'MetaLeft', keyCode: 91 },
   ...Object.fromEntries(
     Array.from({ length: 12 }, (_, index) => [
       `f${index + 1}`,
@@ -100,6 +108,14 @@ const BASE_FOR_SHIFTED_CHARACTER: Record<string, string> = Object.fromEntries(
   Object.entries(SHIFTED_CHARACTERS).map(([base, shifted]) => [shifted, base])
 )
 
+/** Modifier keys in the order a chord presses them, each with the flag its key-down sets. */
+const MODIFIER_KEYS: readonly { flag: keyof KeyModifiers; descriptor: KeyDescriptor }[] = [
+  { flag: 'ctrl', descriptor: NAMED_KEYS.control },
+  { flag: 'alt', descriptor: NAMED_KEYS.alt },
+  { flag: 'shift', descriptor: NAMED_KEYS.shift },
+  { flag: 'meta', descriptor: NAMED_KEYS.meta },
+]
+
 export interface KeyModifiers {
   ctrl: boolean
   meta: boolean
@@ -144,6 +160,8 @@ export function parseKeyCombo(
   const modifiers = parseModifiers(parts.slice(0, -1), platform)
   const keyPart = parts[parts.length - 1]
   const named = NAMED_KEYS[keyPart.toLowerCase()]
+  const ownModifier = named && MODIFIER_KEYS.find((modifier) => modifier.descriptor === named)
+  if (ownModifier) modifiers[ownModifier.flag] = true
   if (named) {
     const key = modifiers.shift ? (SHIFTED_CHARACTERS[named.key] ?? named.key) : named.key
     return { ...named, key, ...modifiers }
@@ -298,6 +316,39 @@ export function buildKeyDispatchPlan(
 }
 
 /**
+ * The separate modifier key presses around a chord's main key: a real keyboard sends Control, then
+ * Shift, then Y, and releases in reverse, so pages that track held keys see each modifier. Each
+ * key-down carries the modifiers held so far, and each key-up the ones still held.
+ */
+export function modifierKeyEvents(
+  rawCombo: ParsedCombo,
+  platform: NodeJS.Platform = process.platform
+): { downs: cdp.CdpKeyEvent[]; ups: cdp.CdpKeyEvent[] } {
+  const combo = normalizeComboForPlatform(rawCombo, platform)
+  const held = { ctrl: false, meta: false, shift: false, alt: false }
+  const downs: cdp.CdpKeyEvent[] = []
+  const ups: cdp.CdpKeyEvent[] = []
+  for (const { flag, descriptor } of MODIFIER_KEYS) {
+    if (!combo[flag] || descriptor.key === combo.key) continue
+    held[flag] = true
+    const event = {
+      key: descriptor.key,
+      code: descriptor.code,
+      windowsVirtualKeyCode: descriptor.keyCode,
+    }
+    downs.push({ ...event, type: 'rawKeyDown', modifiers: cdpModifiers(held) })
+    ups.unshift({ ...event, type: 'keyUp', modifiers: 0 })
+  }
+  let remaining = { ...held }
+  for (const up of ups) {
+    const flag = MODIFIER_KEYS.find((modifier) => modifier.descriptor.key === up.key)?.flag
+    if (flag) remaining = { ...remaining, [flag]: false }
+    up.modifiers = cdpModifiers(remaining)
+  }
+  return { downs, ups }
+}
+
+/**
  * Presses a combo through the trusted pipeline. Throws on CDP failure.
  *
  * Electron normally lets modified key events escape a focused WebContents to
@@ -308,6 +359,7 @@ export function buildKeyDispatchPlan(
  */
 export async function dispatchKeyCombo(contents: WebContents, combo: ParsedCombo): Promise<void> {
   const [down, up] = buildKeyDispatchPlan(combo)
+  const modifierKeys = modifierKeyEvents(combo)
   const isolatesApplicationMenu = combo.ctrl || combo.meta || combo.alt
   if (isolatesApplicationMenu) {
     const depth = applicationMenuIsolationDepth.get(contents) ?? 0
@@ -320,14 +372,18 @@ export async function dispatchKeyCombo(contents: WebContents, combo: ParsedCombo
     // CDP acknowledgement during navigation/process swap. In that ambiguous
     // case cleanup is required and a synthetic retry could double-act.
     keyDownDispatched = true
+    for (const event of modifierKeys.downs) await cdp.dispatchKeyEvent(contents, event)
     await cdp.dispatchKeyEvent(contents, down)
     await cdp.dispatchKeyEvent(contents, up)
+    for (const event of modifierKeys.ups) await cdp.dispatchKeyEvent(contents, event)
   } catch (error) {
     if (keyDownDispatched && !contents.isDestroyed()) {
       // Like pointer cleanup, this is best effort. The original key-up may
       // have reached Blink before its CDP response was lost; a duplicate
       // release is harmless, while omitting it can leave input state stuck.
-      await cdp.dispatchKeyEvent(contents, up).catch(() => {})
+      for (const release of [up, ...modifierKeys.ups]) {
+        await cdp.dispatchKeyEvent(contents, release).catch(() => {})
+      }
     }
     throw new KeyDispatchError(
       getErrorMessage(error, 'Trusted key dispatch failed'),
