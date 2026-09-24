@@ -78,36 +78,53 @@ describe('Assistant execution contracts', () => {
     expect(searchWorkspaceInputSchema.safeParse({}).success).toBe(false)
   })
 
-  it('accepts one native query per provider account and kind', () => {
+  it('accepts up to four distinct native queries per provider account', () => {
+    const accepts = (nativeQueries: Record<string, string>[]) =>
+      searchWorkspaceInputSchema.safeParse({ query: 'launch', nativeQueries }).success
+    const slack = { provider: 'slack', accountId: 'account' }
+    const alternatives = ['trip', 'travel', 'visiting', 'vacation', 'holiday'].map((query) => ({
+      ...slack,
+      query,
+    }))
+    expect(accepts(alternatives.slice(0, 4))).toBe(true)
+    expect(accepts(alternatives)).toBe(false)
+    expect(
+      accepts([...alternatives.slice(0, 4), { ...alternatives[4]!, accountId: 'other' }])
+    ).toBe(true)
+  })
+
+  it('counts an account-wide native query against the busiest targeted account', () => {
+    const accepts = (nativeQueries: Record<string, string>[]) =>
+      searchWorkspaceInputSchema.safeParse({ query: 'launch', nativeQueries }).success
+    const on = (accountId: string, query: string) => ({ provider: 'slack', accountId, query })
+    const everywhere = { provider: 'slack', query: 'everywhere' }
+    expect(accepts([on('a', '1'), on('b', '2'), on('c', '3'), on('d', '4'), everywhere])).toBe(true)
+    expect(
+      accepts([on('a', '1'), on('a', '2'), on('a', '3'), on('b', '4'), on('b', '5'), everywhere])
+    ).toBe(true)
+    expect(accepts([on('a', '1'), on('a', '2'), on('a', '3'), on('a', '4'), everywhere])).toBe(
+      false
+    )
+  })
+
+  it('rejects a native query that repeats a search on the same account', () => {
+    const accepts = (nativeQueries: Record<string, string>[]) =>
+      searchWorkspaceInputSchema.safeParse({ query: 'launch', nativeQueries }).success
+    const trip = { provider: 'slack', accountId: 'account', query: 'trip' }
+    expect(accepts([trip, trip])).toBe(false)
+    expect(accepts([trip, { provider: 'slack', query: 'trip' }])).toBe(false)
+    expect(accepts([trip, { ...trip, kind: 'issues' }])).toBe(false)
+    expect(accepts([trip, { ...trip, accountId: 'other' }])).toBe(true)
+  })
+
+  it('takes one GitHub or GitLab query per account and kind', () => {
     const accepts = (nativeQueries: Record<string, string>[]) =>
       searchWorkspaceInputSchema.safeParse({ query: 'launch', nativeQueries }).success
     const github = { provider: 'github', accountId: 'account', query: 'repo:org/repo launch' }
-    expect(
-      accepts([
-        { ...github, kind: 'issues' },
-        { ...github, kind: 'commits' },
-      ])
-    ).toBe(true)
-    expect(
-      accepts([
-        { ...github, kind: 'issues' },
-        { ...github, kind: 'issues' },
-      ])
-    ).toBe(false)
-    expect(accepts([{ ...github, kind: 'issues' }, github])).toBe(false)
-    expect(
-      accepts([
-        { ...github, kind: 'issues' },
-        { ...github, accountId: 'other', kind: 'issues' },
-      ])
-    ).toBe(true)
-    const gmail = { provider: 'gmail', query: 'subject:launch' }
-    expect(
-      accepts([
-        { ...gmail, kind: 'issues' },
-        { ...gmail, kind: 'code' },
-      ])
-    ).toBe(false)
+    const kinds = ['issues', 'commits', 'code', 'repositories'].map((kind) => ({ ...github, kind }))
+    expect(accepts(kinds)).toBe(true)
+    expect(accepts([kinds[0]!, { ...kinds[0]!, query: 'repo:org/repo deploy' }])).toBe(false)
+    expect(accepts([kinds[0]!, github])).toBe(false)
     expect(
       searchWorkspaceInputSchema.safeParse({ nativeQueries: [{ provider: 'github', query: '' }] })
         .success

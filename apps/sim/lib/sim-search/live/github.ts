@@ -95,10 +95,24 @@ const GITHUB_DATE_FIELD: Partial<Record<GitHubKind, 'updated' | 'author-date'>> 
   issues: 'updated',
   commits: 'author-date',
 }
-const CODE_EXCLUDED_BY_DATES = 'Code has no dates and is excluded from date-filtered searches.'
+/** Whether a query uses GitHub's boolean operators: upper-case AND/OR/NOT outside quoted phrases. */
+const hasGitHubBoolean = (query: string) =>
+  githubTokens(query).some((token) => /^(?:AND|OR|NOT)$/.test(token))
 
-/** Code has no file dates, so a date-bounded search covers issues and pull requests only. */
-function githubKinds(input: NativeSearchInput): GitHubKind[] {
+/**
+ * Why a search without a kind leaves out code: code search has no file dates and, as legacy REST
+ * code search, no boolean operators, so it would silently match nothing for such a query.
+ */
+function codeExclusion(input: NativeSearchInput): string | undefined {
+  if (hasDateBounds(input.filters))
+    return 'Code has no dates and is excluded from date-filtered searches.'
+  if (hasGitHubBoolean(input.native?.query ?? input.query))
+    return 'Code search has no AND/OR/NOT operators and is excluded from boolean searches; search code alternatives with kind code.'
+  return undefined
+}
+
+/** The kinds a search runs: its explicit kind, or issues plus code unless code is excluded. */
+function githubKinds(input: NativeSearchInput, exclusion = codeExclusion(input)): GitHubKind[] {
   const kind = input.native?.kind
   if (isGitHubKind(kind)) return [kind]
   if (kind)
@@ -106,7 +120,7 @@ function githubKinds(input: NativeSearchInput): GitHubKind[] {
       'unavailable',
       `GitHub search supports these kinds: ${GITHUB_KINDS.join(', ')}.`
     )
-  return hasDateBounds(input.filters) ? ['issues'] : ['issues', 'code']
+  return exclusion ? ['issues'] : ['issues', 'code']
 }
 
 /**
@@ -145,7 +159,7 @@ const githubTokens = (query: string) => query.match(/-?[\w-]+:"[^"]*"|-?"[^"]*"|
  * parentheses or boolean operators is structured by its author and is left as written.
  */
 function groupGitHubText(query: string): string {
-  if (!query || /[()]/.test(query) || /(?:^|\s)(?:AND|OR|NOT)(?=\s|$)/.test(query)) return query
+  if (!query || /[()]/.test(query) || hasGitHubBoolean(query)) return query
   const tokens = githubTokens(query)
   const qualifiers = tokens.filter((token) => GITHUB_QUALIFIER.test(token))
   const text = tokens.filter((token) => !GITHUB_QUALIFIER.test(token)).join(' ')
@@ -183,7 +197,8 @@ export async function searchGitHub(
         documents: [],
         message: 'No repositories are accessible through this GitHub connection.',
       }
-    const kinds = githubKinds(input)
+    const exclusion = input.native?.kind ? undefined : codeExclusion(input)
+    const kinds = githubKinds(input, exclusion)
     const planned = kinds.map((kind) => ({
       kind,
       repositories: repositoryBatches(
@@ -234,7 +249,7 @@ export async function searchGitHub(
           ({ kind }) =>
             `GitHub ${kind} search was skipped because the query is too long to scope to repositories.`
         ),
-        !input.native?.kind && !kinds.includes('code') ? CODE_EXCLUDED_BY_DATES : undefined,
+        exclusion,
         capped
           ? `Only the ${searched} most recently pushed repositories were searched; target a repository for broader coverage.`
           : undefined,
@@ -242,7 +257,8 @@ export async function searchGitHub(
     }
   }
   if (!input.native?.kind) {
-    const kinds = githubKinds(input)
+    const exclusion = codeExclusion(input)
+    const kinds = githubKinds(input, exclusion)
     return collectNativePages(
       kinds.map((kind) =>
         searchGitHub(client, {
@@ -250,9 +266,9 @@ export async function searchGitHub(
           native: { provider: 'github', ...input.native, query, kind },
         })
       ),
-      kinds.includes('code')
-        ? 'Searched GitHub issues, pull requests, and code.'
-        : `Searched GitHub issues and pull requests. ${CODE_EXCLUDED_BY_DATES}`
+      exclusion
+        ? `Searched GitHub issues and pull requests. ${exclusion}`
+        : 'Searched GitHub issues, pull requests, and code.'
     )
   }
   if (
