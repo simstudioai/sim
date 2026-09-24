@@ -28,7 +28,7 @@ interface MemberRowProps {
 export function MemberRow({ name, email, image, status, roleControl, menu }: MemberRowProps) {
   return (
     <div className={ROW_CLASSES}>
-      <Avatar size='xs' name={name} src={image} aria-hidden />
+      <Avatar size='xs' name={name} src={image} />
       <OverflowText label={email} className='flex-1 text-[var(--text-body)] text-sm' />
       <span className={ROW_STATUS_CLASSES}>{status}</span>
       {roleControl}

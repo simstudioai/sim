@@ -75,6 +75,16 @@ describe('Avatar', () => {
     expect(view.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('Ada Lovelace')
   })
 
+  it('announces a status as part of the person, not as a second image', async () => {
+    const view = await mount(<Avatar size='sm' name='Ada' status='online' />)
+    const images = view.querySelectorAll('[role="img"]')
+    expect(images).toHaveLength(1)
+    expect(images[0]?.getAttribute('aria-label')).toBe('Ada, online')
+    expect(view.querySelector('[data-slot="avatar-status"]')?.getAttribute('aria-hidden')).toBe(
+      'true'
+    )
+  })
+
   it('never labels an image with an empty name', async () => {
     const view = await mount(<Avatar size='xs' name='  ' />)
     expect(view.querySelector('[role="img"]')).toBeNull()

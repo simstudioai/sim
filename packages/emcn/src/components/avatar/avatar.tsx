@@ -94,9 +94,9 @@ type AvatarProps = AvatarBaseProps &
   (
     | {
         /**
-         * A person's name, used as the accessible label — pass `aria-hidden` where the
-         * name is already visible beside it. The avatar renders `src` with the name's
-         * initial as its fallback.
+         * A person's name, used as the accessible label (with any `status`) — pass
+         * `aria-hidden` where the name is already visible beside it. The avatar renders
+         * `src` with the name's initial as its fallback.
          */
         name: string
         /** Photo for the person; the initial shows while it loads, or if it fails. */
@@ -136,7 +136,9 @@ const Avatar = React.forwardRef<React.ElementRef<typeof AvatarPrimitive.Root>, A
           <AvatarPrimitive.Root
             ref={ref}
             className={cn(avatarVariants({ size }), className)}
-            {...(label && !hidden ? { role: 'img', 'aria-label': label } : {})}
+            {...(label && !hidden
+              ? { role: 'img', 'aria-label': status ? `${label}, ${status}` : label }
+              : {})}
             {...props}
           >
             {name === undefined ? (
@@ -151,10 +153,8 @@ const Avatar = React.forwardRef<React.ElementRef<typeof AvatarPrimitive.Root>, A
           {status && (
             <span
               data-slot='avatar-status'
-              role='img'
               className={cn(avatarStatusVariants({ status, size }))}
-              aria-label={`Status: ${status}`}
-              aria-hidden={hidden || undefined}
+              aria-hidden
             />
           )}
         </div>
