@@ -18,8 +18,13 @@ interface MirrorProps {
   overlayRef?: Ref<HTMLDivElement>
 }
 
-type MirroredInputProps = InputHTMLAttributes<HTMLInputElement> & MirrorProps
-type MirroredTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & MirrorProps
+interface MirroredInputProps extends InputHTMLAttributes<HTMLInputElement>, MirrorProps {
+  ref?: Ref<HTMLInputElement>
+}
+
+interface MirroredTextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement>, MirrorProps {
+  ref?: Ref<HTMLTextAreaElement>
+}
 
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
   if (typeof ref === 'function') ref(value)
@@ -98,7 +103,7 @@ export function MirroredInput({
   value,
   ref,
   ...props
-}: MirroredInputProps & { ref?: Ref<HTMLInputElement> }) {
+}: MirroredInputProps) {
   const mirror = useMirror(ref, overlayRef, value)
 
   return (
@@ -109,9 +114,10 @@ export function MirroredInput({
         value={value}
         className={cn(
           'text-transparent caret-foreground transition-[background-color,border-color,text-decoration-color]',
-          className
+          className,
+          mirror.isComposing && 'text-[var(--text-primary)]'
         )}
-        style={{ ...style, ...(mirror.isComposing && { color: 'var(--text-primary)' }) }}
+        style={style}
         onScroll={(event) => {
           mirror.syncScroll()
           onScroll?.(event)
@@ -137,8 +143,8 @@ export function MirroredInput({
       <div
         ref={mirror.setOverlayRef}
         aria-hidden='true'
-        className={overlayClassName}
-        style={{ ...overlayStyle, ...(mirror.isComposing && { visibility: 'hidden' }) }}
+        className={cn(overlayClassName, mirror.isComposing && 'invisible')}
+        style={overlayStyle}
       >
         {overlay}
       </div>
@@ -162,7 +168,7 @@ export function MirroredTextarea({
   value,
   ref,
   ...props
-}: MirroredTextareaProps & { ref?: Ref<HTMLTextAreaElement> }) {
+}: MirroredTextareaProps) {
   const mirror = useMirror(ref, overlayRef, value)
 
   return (
@@ -173,9 +179,10 @@ export function MirroredTextarea({
         value={value}
         className={cn(
           'text-transparent caret-foreground transition-[background-color,border-color,text-decoration-color]',
-          className
+          className,
+          mirror.isComposing && 'text-[var(--text-primary)]'
         )}
-        style={{ ...style, ...(mirror.isComposing && { color: 'var(--text-primary)' }) }}
+        style={style}
         onScroll={(event) => {
           mirror.syncScroll()
           onScroll?.(event)
@@ -201,8 +208,8 @@ export function MirroredTextarea({
       <div
         ref={mirror.setOverlayRef}
         aria-hidden='true'
-        className={overlayClassName}
-        style={{ ...overlayStyle, ...(mirror.isComposing && { visibility: 'hidden' }) }}
+        className={cn(overlayClassName, mirror.isComposing && 'invisible')}
+        style={overlayStyle}
       >
         {overlay}
       </div>
