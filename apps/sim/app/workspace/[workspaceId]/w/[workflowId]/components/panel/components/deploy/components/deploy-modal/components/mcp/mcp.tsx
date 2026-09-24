@@ -541,9 +541,7 @@ export function McpDeploy({
       ))}
 
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-          Tool name
-        </Label>
+        <Label className='mb-[6.5px] block pl-0.5 text-small'>Tool name</Label>
         <ChipInput
           value={toolName}
           onChange={(e) => setToolName(e.target.value)}
@@ -562,9 +560,7 @@ export function McpDeploy({
       </div>
 
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-          Description
-        </Label>
+        <Label className='mb-[6.5px] block pl-0.5 text-small'>Description</Label>
         <Textarea
           placeholder={
             workflowDescriptionFallback
@@ -579,7 +575,7 @@ export function McpDeploy({
 
       {inputFormat.length > 0 && (
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
+          <Label className='mb-[6.5px] block pl-0.5 text-small'>
             Parameters ({inputFormat.length})
           </Label>
           <p className='mb-[6.5px] pl-0.5 text-[var(--text-secondary)] text-xs'>
@@ -627,9 +623,7 @@ export function McpDeploy({
       )}
 
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-          Servers
-        </Label>
+        <Label className='mb-[6.5px] block pl-0.5 text-small'>Servers</Label>
         <ChipCombobox
           options={serverOptions}
           multiSelect
