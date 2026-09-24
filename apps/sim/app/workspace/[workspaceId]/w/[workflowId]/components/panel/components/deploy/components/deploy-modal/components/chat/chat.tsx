@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import {
   ChipButtonGroup,
   ChipButtonGroupItem,
@@ -48,6 +48,14 @@ import {
 const logger = createLogger('ChatDeploy')
 
 const IDENTIFIER_PATTERN = /^[a-z0-9-]+$/
+
+function DeployFieldError({ children, id }: { children: ReactNode; id?: string }) {
+  return (
+    <p id={id} role='alert' className='mt-[6.5px] text-[var(--text-error)] text-caption'>
+      {children}
+    </p>
+  )
+}
 
 interface ChatDeployProps {
   workflowId: string
@@ -382,11 +390,7 @@ export function ChatDeploy({
               className='w-full'
               disablePortal
             />
-            {errors.outputBlocks && (
-              <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>
-                {errors.outputBlocks}
-              </p>
-            )}
+            {errors.outputBlocks && <DeployFieldError>{errors.outputBlocks}</DeployFieldError>}
           </div>
 
           <div className='flex items-center justify-between gap-3 px-2'>
@@ -539,7 +543,7 @@ const getDomainPrefix = (() => {
   return () => prefix
 })()
 
-function IdentifierInput({
+export function IdentifierInput({
   value,
   onChange,
   originalIdentifier,
@@ -547,6 +551,7 @@ function IdentifierInput({
   onValidationChange,
   isEditingExisting = false,
 }: IdentifierInputProps) {
+  const errorId = useId()
   const { isChecking, error, isValid } = useIdentifierValidation(
     value,
     originalIdentifier,
@@ -590,6 +595,8 @@ function IdentifierInput({
             onChange={(e) => handleChange(e.target.value)}
             required
             disabled={disabled}
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? errorId : undefined}
             className={cn(
               'rounded-none border-0 bg-transparent pl-0 shadow-none disabled:bg-transparent disabled:opacity-100',
               (isChecking || (isValid && value)) && 'pr-8'
@@ -617,7 +624,7 @@ function IdentifierInput({
           )}
         </div>
       </div>
-      {error && <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{error}</p>}
+      {error && <DeployFieldError id={errorId}>{error}</DeployFieldError>}
       <p className='mt-[6.5px] truncate text-[var(--text-secondary)] text-xs'>
         {isEditingExisting && value ? (
           <>
@@ -745,9 +752,7 @@ function AuthSelector({
             }
           />
           {canRevealPassword && revealPasswordMutation.isError && (
-            <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>
-              Failed to load the current password
-            </p>
+            <DeployFieldError>Failed to load the current password</DeployFieldError>
           )}
           <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
             {getPasswordHelperText(hasExistingPassword)}
@@ -772,7 +777,7 @@ function AuthSelector({
         </div>
       )}
 
-      {error && <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{error}</p>}
+      {error && <DeployFieldError>{error}</DeployFieldError>}
     </div>
   )
 }
