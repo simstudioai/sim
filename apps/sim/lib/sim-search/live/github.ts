@@ -281,7 +281,8 @@ export async function searchGitHub(
    */
   const dateField = GITHUB_DATE_FIELD[kind]
   const nativeDateRange =
-    dateField !== undefined && new RegExp(`(?:^|\\s)${dateField}:`, 'i').test(text)
+    dateField !== undefined &&
+    githubTokens(text).some((token) => token.toLowerCase().startsWith(`${dateField}:`))
   const dateRange =
     !dateField || nativeDateRange
       ? ''

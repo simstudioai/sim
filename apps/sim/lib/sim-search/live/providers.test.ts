@@ -412,6 +412,22 @@ describe('native search endpoints', () => {
       'repo:org/repo author:@me author-date:>=2026-09-22'
     )
   })
+  it('still bounds dates when the date qualifier only appears inside a quoted phrase', async () => {
+    const api = client()
+    api.json.mockResolvedValue({ items: [], total_count: 0 })
+    await searchGitHub(api, {
+      ...input,
+      native: {
+        provider: 'github',
+        query: 'repo:org/repo "release author-date: notes"',
+        kind: 'commits',
+      },
+      filters: { startDate: '2026-09-16T00:00:00Z' },
+    })
+    expect(api.json.mock.calls[0][1]?.query?.q).toBe(
+      '("release author-date: notes") repo:org/repo author-date:>=2026-09-16T00:00:00.000Z'
+    )
+  })
   it('reads a GitHub commit with a bounded changed-file list', async () => {
     const api = client()
     api.json.mockResolvedValue({
