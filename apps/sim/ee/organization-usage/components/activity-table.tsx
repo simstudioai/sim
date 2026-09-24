@@ -79,7 +79,7 @@ export function ActivityTable({ rows, dimension, onSelectWorkspace }: ActivityTa
                   </Chip>
                 ) : (
                   <div className='flex min-w-0 items-center gap-2.5'>
-                    {isMember && <MemberAvatar name={row.label} image={null} />}
+                    {isMember && <MemberAvatar name={row.label} image={row.image ?? null} />}
                     <OverflowText label={row.label} className='text-[var(--text-body)] text-sm' />
                   </div>
                 )}

@@ -18,7 +18,7 @@ import {
   usageBucketTimestamps,
   usageWindowBounds,
 } from '@/lib/billing/core/usage-analytics'
-import { readUsageDays, readUsageMemberProfiles } from '@/lib/billing/core/usage-analytics-queries'
+import { readUsageDays } from '@/lib/billing/core/usage-analytics-queries'
 import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   type BillingUsageLogSource,
@@ -47,9 +47,7 @@ export interface OrganizationUsageOverviewResult {
     credits: number
     sources: Partial<Record<BillingUsageLogSource, number>>
   }>
-  members: OrganizationUsageBreakdownResult & {
-    rows: Array<OrganizationUsageBreakdownResult['rows'][number] & { image: string | null }>
-  }
+  members: OrganizationUsageBreakdownResult
 }
 
 /**
@@ -95,15 +93,6 @@ export const getOrganizationUsageOverview = defineAuthorizedOrganizationUsageUse
         window,
         dimension: 'member',
         limit: ORGANIZATION_USAGE_OVERVIEW_ROW_LIMIT,
-      }).then(async (breakdown) => {
-        const profiles = await readUsageMemberProfiles(breakdown.rows.map((row) => row.id))
-        return {
-          ...breakdown,
-          rows: breakdown.rows.map((row) => ({
-            ...row,
-            image: profiles.get(row.id)?.image ?? null,
-          })),
-        }
       }),
       subscription
         ? getOrgUsageLimit(

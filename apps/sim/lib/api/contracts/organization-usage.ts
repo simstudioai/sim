@@ -217,8 +217,6 @@ export const organizationUsageBreakdownRowSchema = z.object({
   /** Model dimensions only; BYOK rows carry no cost, so this is their only usage figure. */
   tokens: z.number().int().optional().describe('Input and output tokens for model or BYOK groups.'),
 })
-export type OrganizationUsageBreakdownRow = z.output<typeof organizationUsageBreakdownRowSchema>
-
 export const organizationUsageBreakdownResponseSchema = z.object({
   dimension: usageBreakdownDimensionSchema,
   rows: z
@@ -244,7 +242,20 @@ export const organizationUsageBreakdownResponseSchema = z.object({
       'Whole credits represented by this breakdown; workflow includes only workflow-attributed usage.'
     ),
 })
-export type OrganizationUsageBreakdown = z.output<typeof organizationUsageBreakdownResponseSchema>
+
+/**
+ * The dashboard's breakdown row: member rows add an avatar, which the public v2
+ * breakdown (the shared schema above) omits.
+ */
+const organizationUsageBreakdownViewRowSchema = organizationUsageBreakdownRowSchema.extend({
+  image: z.string().optional(),
+})
+export type OrganizationUsageBreakdownRow = z.output<typeof organizationUsageBreakdownViewRowSchema>
+
+const organizationUsageBreakdownViewSchema = organizationUsageBreakdownResponseSchema.extend({
+  rows: z.array(organizationUsageBreakdownViewRowSchema),
+})
+export type OrganizationUsageBreakdown = z.output<typeof organizationUsageBreakdownViewSchema>
 
 /** Rows on each overview card; the matching tab holds the full ranking. */
 export const ORGANIZATION_USAGE_OVERVIEW_ROW_LIMIT = 5
@@ -270,10 +281,10 @@ export const organizationUsageOverviewResponseSchema = organizationUsageSummaryR
       )
       .max(1000)
       .describe('Chronological buckets, including buckets with no usage.'),
-    /** The Members tab's ranking, cut to the card, with each member's avatar. */
-    members: organizationUsageBreakdownResponseSchema.extend({
+    /** The Members tab's ranking, cut to the card. */
+    members: organizationUsageBreakdownViewSchema.extend({
       rows: z
-        .array(organizationUsageBreakdownRowSchema.extend({ image: z.string().nullable() }))
+        .array(organizationUsageBreakdownViewRowSchema)
         .max(ORGANIZATION_USAGE_OVERVIEW_ROW_LIMIT),
     }),
   })
@@ -310,7 +321,7 @@ export const getOrganizationUsageBreakdownContract = defineRouteContract({
   path: '/api/organizations/[id]/usage/breakdown',
   params: z.object({ id: organizationIdSchema }),
   query: organizationUsageBreakdownQuerySchema,
-  response: { mode: 'json', schema: organizationUsageBreakdownResponseSchema },
+  response: { mode: 'json', schema: organizationUsageBreakdownViewSchema },
 })
 
 export const listOrganizationUsageEventsContract = defineRouteContract({

@@ -63,14 +63,14 @@ beforeAll(async () => {
   await connection.unsafe(`
     CREATE TABLE workspace (id text PRIMARY KEY, name text, organization_id text);
     CREATE TABLE workflow (id text PRIMARY KEY, name text);
-    CREATE TABLE "user" (id text PRIMARY KEY, name text);
+    CREATE TABLE "user" (id text PRIMARY KEY, name text, image text);
     CREATE TABLE workflow_execution_logs (id text PRIMARY KEY, workspace_id text, workflow_id text,
       trigger text, started_at timestamp, status text, total_duration_ms integer);
     CREATE TABLE copilot_chats (id text PRIMARY KEY, workspace_id text, organization_id text);
     CREATE TABLE copilot_runs (id text PRIMARY KEY, chat_id text, execution_id text, user_id text, started_at timestamp);
     INSERT INTO workspace VALUES ('w1', 'Support', 'org'), ('w2', 'Sales', 'org'), ('foreign', 'Private', 'other');
     INSERT INTO workflow VALUES ('f1', 'Triage'), ('f2', 'Follow up');
-    INSERT INTO "user" VALUES ('m1', 'Alex'), ('m2', 'Sam');
+    INSERT INTO "user" VALUES ('m1', 'Alex', 'alex.png'), ('m2', 'Sam', NULL);
     INSERT INTO workflow_execution_logs VALUES
       ('l1', 'w1', 'f1', 'manual', '2026-03-08 08:00:00', 'completed', 1000),
       ('l2', 'w1', 'f1', 'api', '2026-03-09 06:59:59', 'failed', 3000),
@@ -180,6 +180,8 @@ describe.skipIf(!databaseUrl)('organization activity SQL', () => {
       ['m1', 2, 0],
       ['m2', 1, 0],
     ])
+    expect(members.rows[0]?.image).toBe('alex.png')
+    expect(members.rows[1]).not.toHaveProperty('image')
     const workflows = await readActivityBreakdown(scope, 'workflow', 'duration', 0)
     expect(workflows.rows[0]).toMatchObject({ id: 'f1', averageDurationMs: 2000, workflowRuns: 3 })
     expect(workflows.rows.find((row) => row.id === 'deleted:w2')).toMatchObject({

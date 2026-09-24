@@ -29,7 +29,6 @@ import { ActivityPanel } from '@/ee/organization-usage/components/activity-panel
 import { OrganizationActivityOverview } from '@/ee/organization-usage/components/activity-summary'
 import { UsageConsumers } from '@/ee/organization-usage/components/usage-consumers'
 import { UsageCredits } from '@/ee/organization-usage/components/usage-credits'
-import { UsageMemberAvatar } from '@/ee/organization-usage/components/usage-member-avatar'
 import { UsageTopCards } from '@/ee/organization-usage/components/usage-top-cards'
 import {
   COLLAPSED_ROW_COUNT,
@@ -376,11 +375,6 @@ export function UsageMonitoring({
                     /** Push detail navigation so Back returns to this list. */
                     onSelectRow: (row) =>
                       void setState({ workspace: row.id, expanded: null }, { history: 'push' }),
-                  }
-                : {})}
-              {...(tab === 'member'
-                ? {
-                    renderLeading: (row) => <UsageMemberAvatar id={row.id} name={row.label} />,
                   }
                 : {})}
               {...(canManageCredits

@@ -1,6 +1,6 @@
 'use client'
 
-import type { ComponentType, ReactNode } from 'react'
+import type { ComponentType } from 'react'
 import { cn, disclosureChevronClass, formatChartCompactNumber } from '@sim/emcn'
 import { ArrowRight, ChevronDown } from '@sim/emcn/icons'
 import {
@@ -34,6 +34,7 @@ import type {
   OrganizationUsageBreakdownRow,
   UsageBreakdownDimension,
 } from '@/lib/api/contracts/organization-usage'
+import { MemberAvatar } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import {
   type RowAction,
   RowActionsMenu,
@@ -89,8 +90,8 @@ export const USAGE_PROVIDER_ICON_IDS = Object.keys(PROVIDER_ICONS)
 
 interface UsageConsumerRowProps {
   row: OrganizationUsageBreakdownRow
-  /** Replaces the provider mark, e.g. with a member's avatar. */
-  leading?: ReactNode
+  /** Member rows lead with the member's avatar where other rows show a provider mark. */
+  isMember: boolean
   /** BYOK rows carry no cost, so tokens are the only usage they can show. */
   showTokensOnly: boolean
   onSelect?: (row: OrganizationUsageBreakdownRow) => void
@@ -128,7 +129,7 @@ export const USAGE_ROW_CLASSES = 'flex w-full items-center gap-2.5 rounded-lg p-
  */
 function UsageConsumerRow({
   row,
-  leading,
+  isMember,
   showTokensOnly,
   onSelect,
   actions,
@@ -151,8 +152,11 @@ function UsageConsumerRow({
         onSelect && 'transition-colors hover-hover:bg-[var(--surface-active)]'
       )}
     >
-      {leading ??
-        (ProviderIcon && <ProviderIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />)}
+      {isMember ? (
+        <MemberAvatar name={row.label} image={row.image ?? null} />
+      ) : (
+        ProviderIcon && <ProviderIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+      )}
       <span className='min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>{row.label}</span>
       <div
         className='h-[4px] w-[64px] shrink-0 overflow-hidden rounded-full bg-[var(--border)]'
@@ -189,8 +193,6 @@ interface UsageConsumersProps {
   onSelectRow?: (row: OrganizationUsageBreakdownRow) => void
   /** Set on Members, where a row can open the shared manage-credits modal. */
   rowActions?: (row: OrganizationUsageBreakdownRow) => RowAction[]
-  /** Leading visual per row, in place of the provider mark. */
-  renderLeading?: (row: OrganizationUsageBreakdownRow) => ReactNode
   /**
    * Opens the truncated tail. Omitted when the list is already showing everything the
    * API will return, which is the one case where the `Other` row has nothing to open.
@@ -206,7 +208,6 @@ export function UsageConsumers({
   isPlaceholderData,
   onSelectRow,
   rowActions,
-  renderLeading,
   onExpandOther,
 }: UsageConsumersProps) {
   if (isError) {
@@ -245,7 +246,7 @@ export function UsageConsumers({
         <UsageConsumerRow
           key={`${dimension}-${row.id}`}
           row={row}
-          leading={renderLeading?.(row)}
+          isMember={dimension === 'member'}
           showTokensOnly={showTokensOnly}
           {...(onExpandOther && trailingSlot ? { reservedTrailing: trailingSlot } : {})}
           {...(onSelectRow && row.id ? { onSelect: onSelectRow } : {})}

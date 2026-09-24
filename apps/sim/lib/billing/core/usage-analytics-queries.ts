@@ -68,26 +68,6 @@ export async function readUsageTimeSeries(
     .from(buckets)
 }
 
-export interface UsageMemberProfile {
-  name: string
-  image: string | null
-}
-
-/** Names and avatars for the ranked members only, after the aggregate has picked them. */
-export async function readUsageMemberProfiles(
-  ids: string[],
-  executor: DbClient = dbReplica
-): Promise<Map<string, UsageMemberProfile>> {
-  if (ids.length === 0) return new Map()
-  const rows = await executor
-    .select({ id: user.id, name: user.name, email: user.email, image: user.image })
-    .from(user)
-    .where(inArray(user.id, ids))
-  return new Map(
-    rows.map((row) => [row.id, { name: row.name?.trim() || row.email, image: row.image }])
-  )
-}
-
 export interface UsageTotals {
   cost: number
 }
@@ -331,7 +311,7 @@ export async function readUsageGroups({
 /**
  * Ranked totals for one dimension.
  *
- * Aggregate-first: names are hydrated by {@link readUsageEntityNames} for the
+ * Aggregate-first: names and avatars are hydrated by {@link readUsageEntities} for the
  * surviving keys only. Joining inside the aggregate would break index-only for
  * `member` and force a nested loop across the whole window.
  */
@@ -391,22 +371,35 @@ export async function readUsageBreakdown(
   return maxRows === undefined ? query : query.limit(maxRows + 1)
 }
 
+export interface UsageEntity {
+  name: string
+  image?: string
+}
+
 /**
- * Display names for the top-N keys of an entity-backed dimension.
+ * Names, and member avatars, for the top-N keys of an entity-backed dimension.
  *
  * Members fall back to email because a user may have no name set, and an empty row
  * label is worse than an address.
  */
-export async function readUsageEntityNames(
+export async function readUsageEntities(
   dimension: UsageBreakdownDimension,
   ids: string[],
   executor: DbClient = dbReplica
-): Promise<Map<string, string>> {
+): Promise<Map<string, UsageEntity>> {
   if (ids.length === 0) return new Map()
 
   if (dimension === 'member') {
-    const profiles = await readUsageMemberProfiles(ids, executor)
-    return new Map([...profiles].map(([id, profile]) => [id, profile.name]))
+    const rows = await executor
+      .select({ id: user.id, name: user.name, email: user.email, image: user.image })
+      .from(user)
+      .where(inArray(user.id, ids))
+    return new Map(
+      rows.map((row) => [
+        row.id,
+        { name: row.name?.trim() || row.email, ...(row.image ? { image: row.image } : {}) },
+      ])
+    )
   }
 
   if (dimension === 'workspace') {
@@ -414,7 +407,7 @@ export async function readUsageEntityNames(
       .select({ id: workspace.id, name: workspace.name })
       .from(workspace)
       .where(inArray(workspace.id, ids))
-    return new Map(rows.map((row) => [row.id, row.name]))
+    return new Map(rows.map((row) => [row.id, { name: row.name }]))
   }
 
   if (dimension === 'workflow') {
@@ -422,7 +415,7 @@ export async function readUsageEntityNames(
       .select({ id: workflow.id, name: workflow.name })
       .from(workflow)
       .where(inArray(workflow.id, ids))
-    return new Map(rows.map((row) => [row.id, row.name]))
+    return new Map(rows.map((row) => [row.id, { name: row.name }]))
   }
 
   return new Map()

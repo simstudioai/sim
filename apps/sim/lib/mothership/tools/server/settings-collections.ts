@@ -28,6 +28,14 @@ export function settingsPage<T>(rows: readonly T[], page: SettingsPage, key: (ro
   }
 }
 
+/** Avatars are for the dashboard; the model gets names, as it does from the roster. */
+export function projectSettingsUsageBreakdown<T extends { rows: { image?: string }[] }>({
+  rows,
+  ...breakdown
+}: T) {
+  return { ...breakdown, rows: rows.map(({ image: _image, ...row }) => row) }
+}
+
 type Roster = Awaited<ReturnType<typeof readOrganizationRoster.execute>>
 export function projectSettingsRoster(roster: Roster, page = initialSettingsPage) {
   return {

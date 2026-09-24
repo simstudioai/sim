@@ -14,7 +14,11 @@ import {
   type UsageGroupRow,
   type UsageWindowPreset,
 } from '@/lib/billing/core/usage-analytics'
-import { readUsageEntityNames, readUsageGroups } from '@/lib/billing/core/usage-analytics-queries'
+import {
+  readUsageEntities,
+  readUsageGroups,
+  type UsageEntity,
+} from '@/lib/billing/core/usage-analytics-queries'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import { apportionCredits, dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
@@ -47,6 +51,8 @@ export interface OrganizationUsageBreakdownRow {
   share: number
   providerId?: string
   tokens?: number
+  /** Member rows only, when the member has one. */
+  image?: string
 }
 
 export interface OrganizationUsageBreakdownResult {
@@ -143,9 +149,9 @@ export async function buildUsageBreakdown({
     .slice(0, limit * 2)
     .map((row) => row.key)
     .filter((key): key is string => Boolean(key))
-  const names = NAMED_DIMENSIONS.has(dimension)
-    ? await readUsageEntityNames(dimension, rankedIds)
-    : new Map<string, string>()
+  const entities = NAMED_DIMENSIONS.has(dimension)
+    ? await readUsageEntities(dimension, rankedIds)
+    : new Map<string, UsageEntity>()
 
   const labelFor = (key: string | null): string => {
     /**
@@ -163,7 +169,7 @@ export async function buildUsageBreakdown({
     if (dimension === 'model') return key
     // A deleted workspace or workflow nulls its id on the ledger row, so a key that
     // resolves to no name is a live entity we could not read — not a deleted one.
-    return names.get(key) ?? key
+    return entities.get(key)?.name ?? key
   }
 
   // BYOK is denominated in tokens and every row costs zero, so ranking it by cost
@@ -201,6 +207,7 @@ export async function buildUsageBreakdown({
     dimension: dimension,
     rows: fold.rows.map((row, index) => {
       const tokens = tokensByKey.get(row.id) ?? 0
+      const image = entities.get(row.id)?.image
       return {
         id: row.id,
         label: row.label,
@@ -210,6 +217,7 @@ export async function buildUsageBreakdown({
         ...(isModelDimension && tokens > 0 ? { tokens } : {}),
         ...(dimension === 'byok' ? { providerId: row.id } : {}),
         ...(dimension === 'model' && row.id ? { providerId: getProviderFromModel(row.id) } : {}),
+        ...(image ? { image } : {}),
       }
     }),
     other: {
