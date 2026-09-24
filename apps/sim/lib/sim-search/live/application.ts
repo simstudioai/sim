@@ -279,8 +279,13 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     const userId = requirePrincipalSubjectUserId(principal)
     if (input.organizationId) await requireOrganizationSearchAvailable(input.organizationId)
     input.signal?.throwIfAborted()
+    const queries = input.nativeQueries
+      ? nativeSearchQueriesSchema.parse(input.nativeQueries)
+      : undefined
     if (
-      (!input.query.trim() && !hasDateBounds(input.filters)) ||
+      (!input.query.trim() &&
+        !hasDateBounds(input.filters) &&
+        !queries?.some((query) => query.query)) ||
       input.query.length > 2000 ||
       !Number.isInteger(input.topK) ||
       input.topK < 1 ||
@@ -296,9 +301,6 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
       Date.parse(filters.startDate) >= Date.parse(filters.endDate)
     )
       throw new OrchestrationError('validation', 'endDate must be after startDate')
-    const queries = input.nativeQueries
-      ? nativeSearchQueriesSchema.parse(input.nativeQueries)
-      : undefined
     if (queries?.some((query) => !query.query) && !hasDateBounds(filters))
       throw new OrchestrationError('validation', 'Empty native queries require a date bound')
     const searchSignal = input.signal

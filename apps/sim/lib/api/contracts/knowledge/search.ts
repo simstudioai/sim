@@ -196,11 +196,18 @@ export const workspaceKnowledgeSearchBodySchema = resourceOwnerSchema
   })
   .superRefine((body, ctx) => {
     const { modifiedAfter, modifiedBefore, startDate, endDate } = body.filters ?? {}
-    if (!body.query && !startDate && !endDate && !modifiedAfter && !modifiedBefore)
+    if (
+      !body.query &&
+      !body.nativeQueries?.some((query) => query.query) &&
+      !startDate &&
+      !endDate &&
+      !modifiedAfter &&
+      !modifiedBefore
+    )
       ctx.addIssue({
         code: 'custom',
         path: ['query'],
-        message: 'A search query or date bound is required',
+        message: 'A search query, native query, or date bound is required',
       })
     if (startDate && endDate && Date.parse(endDate) <= Date.parse(startDate))
       ctx.addIssue({

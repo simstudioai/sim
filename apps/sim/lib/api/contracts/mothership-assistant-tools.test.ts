@@ -73,5 +73,12 @@ describe('Assistant execution contracts', () => {
       topK: 20,
     })
     expect(TOOL_CATALOG.read_document?.parameters).toMatchObject({ required: ['documentId'] })
+    const nativeQueries = [{ provider: 'github', query: 'author:@me', kind: 'commits' }]
+    expect(searchWorkspaceInputSchema.parse({ nativeQueries })).toMatchObject({ query: '' })
+    expect(searchWorkspaceInputSchema.safeParse({}).success).toBe(false)
+    expect(
+      searchWorkspaceInputSchema.safeParse({ nativeQueries: [{ provider: 'github', query: '' }] })
+        .success
+    ).toBe(false)
   })
 })

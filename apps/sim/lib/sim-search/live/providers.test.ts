@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { searchAtlassian } from '@/lib/sim-search/live/atlassian'
 import { searchCoda } from '@/lib/sim-search/live/coda'
-import { searchGitHub } from '@/lib/sim-search/live/github'
+import { readGitHub, searchGitHub } from '@/lib/sim-search/live/github'
 import { readGitLab, searchGitLab } from '@/lib/sim-search/live/gitlab'
 import { readDrive, searchCalendar, searchDrive, searchGmail } from '@/lib/sim-search/live/google'
 import { withJsonMemo } from '@/lib/sim-search/live/http'
@@ -332,6 +332,131 @@ describe('native search endpoints', () => {
     expect(api.json.mock.calls[0][1]?.query?.q).toBe(
       'repo:org/repo is:issue updated:>=2026-09-20T00:00:00.000Z'
     )
+  })
+  it('searches GitHub commits by author date across affiliated repositories', async () => {
+    const api = client()
+    api.json.mockImplementation(async (path) =>
+      path === '/user/repos'
+        ? [{ full_name: 'org/repo' }]
+        : {
+            total_count: 1,
+            items: [
+              {
+                sha: 'abc1234def',
+                html_url: 'https://github.com/org/repo/commit/abc1234def',
+                repository: { full_name: 'org/repo' },
+                author: { login: 'octocat' },
+                commit: {
+                  message: 'fix: launch checklist\n\nDetails',
+                  author: { name: 'Octo Cat', date: '2026-09-21T10:00:00.000-07:00' },
+                },
+              },
+            ],
+          }
+    )
+    const result = await searchGitHub(api, {
+      ...input,
+      query: '',
+      native: { provider: 'github', query: 'author:@me', kind: 'commits' },
+      filters: { startDate: '2026-09-16T00:00:00Z', sortBy: 'newest' },
+    })
+    const searches = api.json.mock.calls.filter(([path]) => path.startsWith('/search/'))
+    expect(searches.map(([path, options]) => [path, options?.query])).toEqual([
+      [
+        '/search/commits',
+        expect.objectContaining({
+          q: 'author:@me repo:org/repo author-date:>=2026-09-16T00:00:00.000Z',
+          sort: 'author-date',
+          order: 'desc',
+        }),
+      ],
+    ])
+    expect(result.documents).toEqual([
+      {
+        id: 'abc1234def',
+        container: 'org/repo',
+        kind: 'commits',
+        title: 'org/repo · fix: launch checklist',
+        url: 'https://github.com/org/repo/commit/abc1234def',
+        content: 'fix: launch checklist\n\nDetails',
+        modifiedAt: '2026-09-21T17:00:00.000Z',
+        author: 'octocat',
+      },
+    ])
+  })
+  it('bounds GitHub commit search dates to one author-date range', async () => {
+    const api = client()
+    api.json.mockResolvedValue({ items: [], total_count: 0 })
+    await searchGitHub(api, {
+      ...input,
+      native: { provider: 'github', query: 'repo:org/repo author:octocat', kind: 'commits' },
+      filters: { startDate: '2026-09-20T00:00:00Z', endDate: '2026-09-24T00:00:00Z' },
+    })
+    expect(api.json.mock.calls[0][1]?.query?.q).toBe(
+      'repo:org/repo author:octocat author-date:2026-09-20T00:00:00.000Z..2026-09-24T00:00:00.000Z'
+    )
+  })
+  it('keeps the date range a native GitHub query already sets instead of ORing another', async () => {
+    const api = client()
+    api.json.mockResolvedValue({ items: [], total_count: 0 })
+    await searchGitHub(api, {
+      ...input,
+      native: {
+        provider: 'github',
+        query: 'repo:org/repo author:@me author-date:>=2026-09-22',
+        kind: 'commits',
+      },
+      filters: { startDate: '2026-09-16T00:00:00Z' },
+    })
+    expect(api.json.mock.calls[0][1]?.query?.q).toBe(
+      'repo:org/repo author:@me author-date:>=2026-09-22'
+    )
+  })
+  it('still bounds dates when the date qualifier only appears inside a quoted phrase', async () => {
+    const api = client()
+    api.json.mockResolvedValue({ items: [], total_count: 0 })
+    await searchGitHub(api, {
+      ...input,
+      native: {
+        provider: 'github',
+        query: 'repo:org/repo "release author-date: notes"',
+        kind: 'commits',
+      },
+      filters: { startDate: '2026-09-16T00:00:00Z' },
+    })
+    expect(api.json.mock.calls[0][1]?.query?.q).toBe(
+      '("release author-date: notes") repo:org/repo author-date:>=2026-09-16T00:00:00.000Z'
+    )
+  })
+  it('reads a GitHub commit with a bounded changed-file list', async () => {
+    const api = client()
+    api.json.mockResolvedValue({
+      sha: 'abc1234def',
+      html_url: 'https://github.com/org/repo/commit/abc1234def',
+      author: null,
+      commit: {
+        message: 'fix: launch',
+        author: { name: 'Octo Cat', date: '2026-09-21T17:00:00Z' },
+      },
+      files: [{ status: 'modified', filename: 'src/launch.ts', additions: 3, deletions: 1 }],
+    })
+    const document = await readGitHub(api, 'abc1234', 'org/repo', 'commits')
+    expect(api.json).toHaveBeenCalledWith('/repos/org/repo/commits/abc1234', {
+      query: { per_page: '30' },
+    })
+    expect(document).toMatchObject({
+      id: 'abc1234def',
+      container: 'org/repo',
+      author: 'Octo Cat',
+      content: 'fix: launch\n\nFiles changed:\nmodified src/launch.ts (+3 -1)',
+    })
+  })
+  it.each(['main', '../abc1234', 'abc12'])('rejects the GitHub commit reference %s', async (id) => {
+    const api = client()
+    await expect(readGitHub(api, id, 'org/repo', 'commits')).rejects.toThrow(
+      'Invalid GitHub commit reference'
+    )
+    expect(api.json).not.toHaveBeenCalled()
   })
   it('searches Atlassian sites in parallel and reads accessible sites once per client', async () => {
     const api = client()

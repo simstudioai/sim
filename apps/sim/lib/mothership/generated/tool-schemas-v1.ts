@@ -5972,7 +5972,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         nativeQueries: {
           description:
-            'Live search only: provider-native queries (Drive q, Gmail operators, Jira JQL, Confluence CQL, GitHub qualifiers, Slack RTS). Omit for simple cross-provider terms. Use the returned live guidance and account IDs.',
+            'Live search only: provider-native queries (Drive q, Gmail operators, Jira JQL, Confluence CQL, GitHub qualifiers, Slack RTS). GitHub kind commits searches commit messages with author:, committer:, author-date:, and repo: qualifiers. Omit for simple cross-provider terms. Use the returned live guidance and account IDs.',
           minItems: 1,
           maxItems: 9,
           type: 'array',
@@ -6004,7 +6004,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
               },
               kind: {
                 type: 'string',
-                enum: ['issues', 'code', 'repositories', 'merge_requests', 'wiki'],
+                enum: ['issues', 'code', 'repositories', 'commits', 'merge_requests', 'wiki'],
               },
               project: {
                 type: 'string',
