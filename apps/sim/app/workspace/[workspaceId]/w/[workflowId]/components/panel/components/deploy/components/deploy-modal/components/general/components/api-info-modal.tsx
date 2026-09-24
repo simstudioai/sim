@@ -13,6 +13,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  FieldCard,
   Label,
 } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -237,31 +238,24 @@ export function ApiInfoModal({ open, onOpenChange, workflowId }: ApiInfoModalPro
             <ChipModalField type='custom' title={`Parameters (${inputFormat.length})`}>
               <div className='flex flex-col gap-2'>
                 {inputFormat.map((field) => (
-                  <div
+                  <FieldCard
                     key={field.name}
-                    className='overflow-hidden rounded-sm border border-[var(--border-1)]'
+                    title={field.name}
+                    badge={
+                      <Badge variant='type' size='sm'>
+                        {field.type || 'string'}
+                      </Badge>
+                    }
                   >
-                    <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
-                      <div className='flex min-w-0 flex-1 items-center gap-2'>
-                        <span className='block truncate text-[var(--text-tertiary)] text-sm'>
-                          {field.name}
-                        </span>
-                        <Badge variant='type' size='sm'>
-                          {field.type || 'string'}
-                        </Badge>
-                      </div>
+                    <div className='flex flex-col gap-1.5'>
+                      <Label className='text-small'>Description</Label>
+                      <ChipInput
+                        value={paramDescriptions[field.name] || ''}
+                        onChange={(e) => handleParamDescriptionChange(field.name, e.target.value)}
+                        placeholder={`Enter description for ${field.name}`}
+                      />
                     </div>
-                    <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
-                      <div className='flex flex-col gap-1.5'>
-                        <Label className='text-small'>Description</Label>
-                        <ChipInput
-                          value={paramDescriptions[field.name] || ''}
-                          onChange={(e) => handleParamDescriptionChange(field.name, e.target.value)}
-                          placeholder={`Enter description for ${field.name}`}
-                        />
-                      </div>
-                    </div>
-                  </div>
+                  </FieldCard>
                 ))}
               </div>
             </ChipModalField>

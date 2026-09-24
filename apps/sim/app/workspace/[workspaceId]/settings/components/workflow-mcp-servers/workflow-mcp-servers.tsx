@@ -18,6 +18,7 @@ import {
   ChipSelect,
   Code,
   type ComboboxOption,
+  FieldCard,
   Label,
   useCopyToClipboard,
 } from '@sim/emcn'
@@ -713,36 +714,29 @@ function ServerDetailView({
                 return hasParams ? (
                   <div className='flex flex-col gap-2'>
                     {Object.entries(properties).map(([name, prop]) => (
-                      <div
+                      <FieldCard
                         key={name}
-                        className='overflow-hidden rounded-sm border border-[var(--border-1)]'
+                        title={name}
+                        badge={
+                          <Badge variant='type' size='sm'>
+                            {prop.type || 'any'}
+                          </Badge>
+                        }
                       >
-                        <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
-                          <div className='flex min-w-0 flex-1 items-center gap-2'>
-                            <span className='block truncate text-[var(--text-tertiary)] text-base'>
-                              {name}
-                            </span>
-                            <Badge variant='type' size='sm'>
-                              {prop.type || 'any'}
-                            </Badge>
-                          </div>
+                        <div className='flex flex-col gap-1.5'>
+                          <Label>Description</Label>
+                          <ChipInput
+                            value={editingParameterDescriptions[name] || ''}
+                            onChange={(e) =>
+                              setEditingParameterDescriptions((prev) => ({
+                                ...prev,
+                                [name]: e.target.value,
+                              }))
+                            }
+                            placeholder={`Enter description for ${name}`}
+                          />
                         </div>
-                        <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
-                          <div className='flex flex-col gap-1.5'>
-                            <Label>Description</Label>
-                            <ChipInput
-                              value={editingParameterDescriptions[name] || ''}
-                              onChange={(e) =>
-                                setEditingParameterDescriptions((prev) => ({
-                                  ...prev,
-                                  [name]: e.target.value,
-                                }))
-                              }
-                              placeholder={`Enter description for ${name}`}
-                            />
-                          </div>
-                        </div>
-                      </div>
+                      </FieldCard>
                     ))}
                   </div>
                 ) : (

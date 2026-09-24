@@ -1,7 +1,16 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Badge, Button, Chip, ChipConfirmModal, cn, Tooltip, toast } from '@sim/emcn'
+import {
+  Badge,
+  Chip,
+  ChipConfirmModal,
+  CollapsibleCard,
+  cn,
+  OverflowText,
+  Tooltip,
+  toast,
+} from '@sim/emcn'
 import { ArrowLeft, ChevronDown, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -535,59 +544,53 @@ export function MCP() {
                 const requiredParams = tool.inputSchema?.required || []
 
                 return (
-                  <div
+                  <CollapsibleCard
                     key={tool.name}
-                    className='overflow-hidden rounded-md border border-[var(--border-1)] bg-[var(--surface-3)]'
-                  >
-                    <Button
-                      type='button'
-                      variant='ghost'
-                      onClick={() => hasParams && toggleToolExpanded(tool.name)}
-                      className={cn(
-                        'flex h-auto w-full items-start justify-between rounded-none px-2.5 py-2 text-left text-sm',
-                        hasParams && 'cursor-pointer hover-hover:bg-[var(--surface-4)]'
-                      )}
-                      disabled={!hasParams}
-                    >
-                      <div className='flex-1'>
-                        <div className='flex h-[16px] items-center gap-1.5'>
-                          <p className='text-[var(--text-primary)] text-sm leading-none'>
-                            {tool.name}
-                          </p>
-                          {issues.length > 0 && (
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <div className='flex items-center'>
-                                  <Badge variant={getIssueBadgeVariant(issues[0].issue)} size='sm'>
-                                    {getIssueBadgeLabel(issues[0].issue)}
-                                  </Badge>
-                                </div>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content>
-                                Update in: {affectedWorkflows.join(', ')}
-                              </Tooltip.Content>
-                            </Tooltip.Root>
-                          )}
-                        </div>
-                        {tool.description && (
-                          <p className='mt-1 text-[var(--text-tertiary)] text-sm'>
-                            {tool.description}
-                          </p>
-                        )}
-                      </div>
-                      {hasParams && (
-                        <ChevronDown
-                          className={cn(
-                            'mt-0.5 size-[14px] shrink-0 text-[var(--text-muted)] transition-transform duration-200',
-                            isExpanded && 'rotate-180'
-                          )}
+                    collapsed={!isExpanded || !hasParams}
+                    disabled={!hasParams}
+                    onToggleCollapse={() => toggleToolExpanded(tool.name)}
+                    title={
+                      <>
+                        <OverflowText
+                          label={tool.name}
+                          className='text-[var(--text-primary)]'
+                          focusTarget='nearest-interactive'
                         />
-                      )}
-                    </Button>
-
+                        {tool.description && (
+                          <span className='mt-1 block whitespace-normal'>{tool.description}</span>
+                        )}
+                      </>
+                    }
+                    badge={
+                      <>
+                        {issues.length > 0 && (
+                          <Tooltip.Root>
+                            <Tooltip.Trigger asChild>
+                              <span className='flex shrink-0 items-center'>
+                                <Badge variant={getIssueBadgeVariant(issues[0].issue)} size='sm'>
+                                  {getIssueBadgeLabel(issues[0].issue)}
+                                </Badge>
+                              </span>
+                            </Tooltip.Trigger>
+                            <Tooltip.Content>
+                              Update in: {affectedWorkflows.join(', ')}
+                            </Tooltip.Content>
+                          </Tooltip.Root>
+                        )}
+                        {hasParams && (
+                          <ChevronDown
+                            className={cn(
+                              'size-[14px] shrink-0 text-[var(--text-muted)] transition-transform duration-200',
+                              isExpanded && 'rotate-180'
+                            )}
+                          />
+                        )}
+                      </>
+                    }
+                  >
                     {isExpanded && hasParams && (
-                      <div className='border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 py-2'>
-                        <p className='mb-1.5 text-[var(--text-muted)] text-caption uppercase tracking-wide'>
+                      <>
+                        <p className='text-[var(--text-muted)] text-caption uppercase tracking-wide'>
                           Parameters
                         </p>
                         <div className='flex flex-col gap-1.5'>
@@ -631,9 +634,9 @@ export function MCP() {
                             }
                           )}
                         </div>
-                      </div>
+                      </>
                     )}
-                  </div>
+                  </CollapsibleCard>
                 )
               })}
             </div>

@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { act, type ReactNode, useState } from 'react'
-import { CollapsibleCard } from '@sim/emcn'
+import { CollapsibleCard, FieldCard } from '@sim/emcn'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -62,6 +62,38 @@ describe('CollapsibleCard', () => {
     }
   )
 
+  it('prevents disabled header activation without disabling independent actions', () => {
+    const toggle = vi.fn()
+    const action = vi.fn()
+    mount(
+      <CollapsibleCard
+        title='Status'
+        disabled
+        collapsed
+        onToggleCollapse={toggle}
+        actions={
+          <button type='button' onClick={action}>
+            Refresh
+          </button>
+        }
+      >
+        Content
+      </CollapsibleCard>
+    )
+    const trigger = container!.querySelector<HTMLElement>('[role="button"]')!
+    expect(trigger.tabIndex).toBe(-1)
+    expect(trigger.getAttribute('aria-disabled')).toBe('true')
+    act(() => {
+      trigger.click()
+      trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      trigger.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }))
+      container!.querySelector<HTMLButtonElement>('button')!.click()
+    })
+    expect(toggle).not.toHaveBeenCalled()
+    expect(action).toHaveBeenCalledTimes(1)
+    expect(container!.textContent).not.toContain('Content')
+  })
+
   it('keeps enabled and disabled actions outside the collapse target', () => {
     const toggle = vi.fn()
     const add = vi.fn()
@@ -102,4 +134,20 @@ describe('CollapsibleCard', () => {
     expect(toggle).not.toHaveBeenCalled()
     expect(parentClick).not.toHaveBeenCalled()
   })
+})
+
+it('keeps static FieldCard content visible without a collapse target', () => {
+  mount(
+    <FieldCard title='query' badge={<span>string</span>} data-field='query'>
+      <input aria-label='Description' defaultValue='Search terms' />
+    </FieldCard>
+  )
+  const card = container!.querySelector('[data-field="query"]')!
+  const input = card.querySelector('input')!
+  expect(card.textContent).toContain('query')
+  expect(card.textContent).toContain('string')
+  expect(card.querySelector('[role="button"], button, [aria-expanded]')).toBeNull()
+  act(() => card.querySelector<HTMLElement>('[data-overflow-text]')!.click())
+  expect(card.querySelector('input')).toBe(input)
+  expect(input.value).toBe('Search terms')
 })

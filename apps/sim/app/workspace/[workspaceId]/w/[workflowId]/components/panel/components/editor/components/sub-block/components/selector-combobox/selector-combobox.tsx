@@ -263,7 +263,8 @@ export function SelectorCombobox({
                 <Button
                   type='button'
                   variant='ghost'
-                  className='h-auto shrink-0 p-0'
+                  size='icon'
+                  className='shrink-0'
                   disabled={disabled || readOnly}
                   aria-label={`Remove ${optionMap.get(id)?.label ?? id}`}
                   onClick={() => handleMultiChange(selectedValues.filter((v) => v !== id))}
