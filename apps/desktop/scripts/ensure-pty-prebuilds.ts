@@ -16,11 +16,11 @@
 import { execFileSync } from 'node:child_process'
 import { createHash, timingSafeEqual } from 'node:crypto'
 import {
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
-  renameSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
@@ -103,7 +103,7 @@ async function fetchPrebuild(arch: string, version: string): Promise<void> {
     const target = packageDir(arch)
     mkdirSync(dirname(target), { recursive: true })
     rmSync(target, { recursive: true, force: true })
-    renameSync(join(staging, 'package'), target)
+    cpSync(join(staging, 'package'), target, { recursive: true, force: true })
   } finally {
     rmSync(staging, { recursive: true, force: true })
   }
