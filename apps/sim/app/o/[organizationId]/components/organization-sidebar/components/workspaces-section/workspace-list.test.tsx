@@ -146,9 +146,9 @@ describe('WorkspaceList rail view', () => {
     expect(document.querySelector('input')).toBeNull()
   })
 
-  it('shows the loading row while the list resolves', async () => {
+  it('keeps the list quiet while it resolves', async () => {
     workspacesState.isLoading = true
     await render()
-    expect(document.body.textContent).toContain('Loading...')
+    expect(document.body.textContent).not.toContain('Loading...')
   })
 })

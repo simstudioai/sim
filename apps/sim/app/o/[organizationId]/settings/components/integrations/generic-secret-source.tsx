@@ -16,10 +16,11 @@ import {
 } from '@sim/emcn'
 import { KeySquare } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
+import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import type { GenericSecretSource } from '@/lib/api/contracts/organization-secrets'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
-import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
+import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import {
@@ -29,6 +30,19 @@ import {
 
 export const GENERIC_SECRETS_SOURCE_TYPE = 'generic-secrets'
 export const GENERIC_SECRETS_META = { name: 'Generic Secrets', icon: KeySquare }
+
+/** Generic secrets belong to the organization rather than an external provider. */
+export function GenericSecretSourceIcon() {
+  const { organization } = useOrganizationContext()
+  return (
+    <IdentityTile
+      size='lg'
+      initial={(organization.name.trim()[0] || 'O').toUpperCase()}
+      logoUrl={organization.logo}
+      alt={organization.name}
+    />
+  )
+}
 
 interface GenericSecretSourceModalProps {
   organizationId: string
@@ -113,7 +127,7 @@ export function GenericSecretSourceRow({
     <>
       <SettingsResourceRow
         iconVariant='custom'
-        icon={<IntegrationTile blockType={GENERIC_SECRETS_SOURCE_TYPE} icon={KeySquare} />}
+        icon={<GenericSecretSourceIcon />}
         title='Generic Secrets'
         description={source.mode === 'organization' ? 'Organization' : 'Member'}
         trailing={

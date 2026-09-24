@@ -10,7 +10,7 @@ const BUILD_PLACEHOLDER = {
   ],
 } as const
 const SEARCH_PLACEHOLDER = {
-  prefix: 'Search for ',
+  prefix: 'Ask about ',
   suffixes: [
     'project updates...',
     'answers across your sources...',

@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipDropdown, cn, Tooltip } from '@sim/emcn'
-import { Search } from '@sim/emcn/icons'
+import { ChipDropdown, Tooltip } from '@sim/emcn'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 
@@ -20,9 +19,8 @@ export function ConversationModeSelector({
 }: ConversationModeSelectorProps) {
   const planEnabled = useFeatureFlag('mothership-plan-mode')
   const [open, setOpen] = useState(false)
-  const search = value === 'assistant'
   const options = [
-    ...(searchEnabled ? [{ value: 'assistant', label: 'Search' }] : []),
+    ...(searchEnabled ? [{ value: 'assistant', label: 'Ask' }] : []),
     { value: 'agent', label: 'Build' },
     ...(planEnabled ? [{ value: 'plan', label: 'Plan' }] : []),
   ]
@@ -30,12 +28,10 @@ export function ConversationModeSelector({
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
-        <span className={cn('inline-flex shrink-0', search && '-mx-2')}>
+        <span className='inline-flex shrink-0'>
           <ChipDropdown
-            variant='default'
-            className='border-0'
-            iconOnly={search}
-            leftIcon={search ? Search : undefined}
+            variant='ghost'
+            shape='round'
             aria-label='Conversation mode'
             options={options}
             value={value}

@@ -11,7 +11,10 @@ import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/auth-client'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
-import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
+import {
+  getMothershipAttachmentPreviewUrl,
+  getMothershipAttachmentUrl,
+} from '@/lib/mothership/chat/attachment-preview'
 import { createSearchResource } from '@/lib/mothership/resources/search'
 import { Composer } from '@/app/o/[organizationId]/home/components/composer'
 import { GetStarted } from '@/app/o/[organizationId]/home/components/get-started'
@@ -40,6 +43,7 @@ import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { getWorkspaceFilesQueryOptions } from '@/hooks/queries/workspace-files'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import { useOrganizationChatModeStore } from '@/stores/organization-chat-mode/store'
 import type { ChatContext } from '@/stores/panel'
 
@@ -61,7 +65,12 @@ export function OrganizationHome(props: OrganizationHomeProps) {
   if (!mothershipAvailable || (!canBuild && !searchAccess.memberScoped)) return null
   /** Preferences are browser-persisted and keyed by user; never paint a guessed mode first. */
   if (!isClient || !session?.user?.id) return <HomeFallback />
-  return <OrganizationHomeContent key={`${organization.id}:${props.chatId ?? 'new'}`} {...props} />
+  return (
+    <OrganizationHomeContent
+      key={`${session.user.id}:${organization.id}:${props.chatId ?? 'new'}`}
+      {...props}
+    />
+  )
 }
 
 function OrganizationHomeContent({
@@ -93,8 +102,6 @@ function OrganizationHomeContent({
         : rememberedMode === 'assistant' && searchAccess.memberScoped
           ? 'assistant'
           : 'agent')
-  const [draft, setDraft] = useState('')
-  const [restoredContexts, setRestoredContexts] = useState<ChatContext[]>([])
   const controller = useResourcePanelController()
   const queryClient = useQueryClient()
   const chat = useChat({ organizationId: organization.id }, chatId, {
@@ -103,6 +110,26 @@ function OrganizationHomeContent({
     onResourceEvent: controller.onResourceEvent,
     activeResourceState: controller.activeResourceState,
   })
+  const initialDraftKey = `${userId}:organization:${organization.id}:${chatId ?? 'new'}`
+  const draftKey = `${userId}:organization:${organization.id}:${chat.resolvedChatId ?? chatId ?? 'new'}`
+  const savedDraft = useMothershipDraftsStore.getState().drafts
+  const initialDraft = savedDraft[draftKey] ?? savedDraft[initialDraftKey]
+  const draft = useMothershipDraftsStore(
+    (state) => (state.drafts[draftKey] ?? state.drafts[initialDraftKey])?.text ?? ''
+  )
+  const setDraft = useCallback(
+    (text: string, contexts?: ChatContext[]) => {
+      const store = useMothershipDraftsStore.getState()
+      store.setDraft(draftKey, { ...store.drafts[draftKey], text, contexts })
+    },
+    [draftKey]
+  )
+  const [restoredContexts, setRestoredContexts] = useState<ChatContext[]>(
+    () => initialDraft?.contexts ?? []
+  )
+  useEffect(() => {
+    useMothershipDraftsStore.getState().migrateDraft(initialDraftKey, draftKey)
+  }, [initialDraftKey, draftKey])
   const hasChat = Boolean(chatId || chat.messages.length)
   const canSelectMode =
     !hasChat && mothershipAvailable && canBuild && (searchAccess.memberScoped || planEnabled)
@@ -168,7 +195,25 @@ function OrganizationHomeContent({
     userId: session?.user?.id,
     organizationId: organization.id,
     requestMode,
+    initialAttachments: initialDraft?.fileAttachments,
   })
+  useEffect(() => {
+    const store = useMothershipDraftsStore.getState()
+    const fileAttachments = files.attachedFiles
+      .filter((file) => !file.uploading && file.key)
+      .map((file) => ({
+        id: file.id,
+        key: file.key!,
+        filename: file.name,
+        media_type: file.type,
+        size: file.size,
+        path: file.path,
+      }))
+    store.setDraft(draftKey, {
+      ...(store.drafts[draftKey] ?? { text: '' }),
+      fileAttachments,
+    })
+  }, [draftKey, files.attachedFiles])
   useEffect(() => {
     if (chat.error) toast.error(chat.error)
   }, [chat.error])
@@ -241,7 +286,7 @@ function OrganizationHomeContent({
         path: file.path,
       }))
     if (!message && !attachments.length) return
-    setDraft('')
+    useMothershipDraftsStore.getState().clearDraft(draftKey)
     send(message, attachments.length ? attachments : undefined, contexts)
     setRestoredContexts([])
     files.clearAttachedFiles()
@@ -277,7 +322,7 @@ function OrganizationHomeContent({
     )
 
   const content = (
-    <div className='flex h-full min-h-0 min-w-[240px] flex-1 flex-col bg-[var(--bg)]'>
+    <div className='flex h-full min-h-0 min-w-[min(480px,100%)] flex-1 flex-col bg-[var(--bg)]'>
       {hasChat ? (
         <MothershipChat
           SearchConnectionComponent={SearchIntegrationConnection}
@@ -299,7 +344,7 @@ function OrganizationHomeContent({
             if (queued) {
               const queuedMode = queued.requestMode ?? requestMode
               setSelectedMode(queuedMode)
-              setDraft(queued.content)
+              setDraft(queued.content, queued.contexts)
               setRestoredContexts(queued.contexts ?? [])
               files.restoreAttachedFiles(
                 (queued.fileAttachments ?? []).map((file) => ({
@@ -308,7 +353,10 @@ function OrganizationHomeContent({
                   name: file.filename,
                   type: file.media_type,
                   size: file.size,
-                  path: file.path || getMothershipAttachmentPreviewUrl(file) || '',
+                  path:
+                    file.path ||
+                    getMothershipAttachmentPreviewUrl(file) ||
+                    getMothershipAttachmentUrl(file),
                   previewUrl: getMothershipAttachmentPreviewUrl(file),
                   uploading: false,
                 }))

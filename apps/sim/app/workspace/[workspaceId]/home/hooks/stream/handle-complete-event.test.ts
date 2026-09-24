@@ -122,7 +122,7 @@ describe('completed answer source panel', () => {
     )
   })
   it.each(['closed', 'open-empty', 'open-with-content'])(
-    'leaves the %s panel exactly alone without a valid citation',
+    'keeps the %s panel focus and discards interim results without a valid citation',
     () => {
       const ctx = context([
         blocks[0],
@@ -135,7 +135,11 @@ describe('completed answer source panel', () => {
       }
       handleCompleteEvent(ctx, event())
       expect(ctx.deps.addResource).not.toHaveBeenCalled()
-      expect(ctx.deps.removeResource).not.toHaveBeenCalled()
+      expect(ctx.deps.removeResource).toHaveBeenCalledWith(
+        'search',
+        'search:workspace:ws-1',
+        'ws-1'
+      )
       expect(ctx.deps.setResources).not.toHaveBeenCalled()
       expect(ctx.deps.setActiveResourceId).not.toHaveBeenCalled()
       expect(ctx.deps.onResourceEventRef.current).not.toHaveBeenCalled()
@@ -147,6 +151,27 @@ describe('completed answer source panel', () => {
     handleCompleteEvent(ctx, event(status))
     expect(ctx.deps.addResource).not.toHaveBeenCalled()
   })
+  it.each(['complete', 'error', 'cancelled'] as const)(
+    'retains an already visible search on %s without citations',
+    (status) => {
+      const ctx = context([])
+      const search = {
+        type: 'search' as const,
+        id: 'search:workspace:ws-1',
+        workspaceId: 'ws-1',
+        title: 'Search results',
+        search: {
+          query: 'previous query',
+          scope: { kind: 'workspace' as const, workspaceId: 'ws-1' },
+        },
+      }
+      ctx.deps.resourcesRef.current = [search]
+      ctx.state.liveSearchResource = search
+      handleCompleteEvent(ctx, event(status))
+      expect(ctx.deps.removeResource).not.toHaveBeenCalled()
+      expect(ctx.deps.onResourceEventRef.current).not.toHaveBeenCalled()
+    }
+  )
   it('leaves flag-off, replayed, and stale turns focus-free', () => {
     for (const kind of ['off', 'replay', 'stale']) {
       const ctx = context()

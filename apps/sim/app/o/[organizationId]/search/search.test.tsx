@@ -8,6 +8,7 @@ import type { ResourceScope } from '@/lib/core/resource-scope'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import type { useSpeechToText } from '@/hooks/use-speech-to-text'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 
 const mocks = vi.hoisted(() => ({
   search: vi.fn(),
@@ -77,6 +78,7 @@ let container: HTMLDivElement
 beforeEach(() => {
   vi.clearAllMocks()
   localStorage.clear()
+  useMothershipDraftsStore.setState({ drafts: {} })
   mocks.mothershipAvailable = true
   vi.stubGlobal(
     'ResizeObserver',
@@ -138,7 +140,7 @@ async function render(searchParams = '') {
   await act(async () =>
     root.render(
       <NuqsTestingAdapter hasMemory searchParams={searchParams} onUrlUpdate={mocks.urlUpdate}>
-        <OrganizationSearch />
+        <OrganizationSearch userId='reader' />
       </NuqsTestingAdapter>
     )
   )
@@ -194,7 +196,7 @@ describe('organization Search query navigation', () => {
     }
   )
 
-  it('replaces the field draft and results when the committed URL query changes without remounting the page', async () => {
+  it('keeps committed URL navigation independent of the saved editable draft', async () => {
     await render('?q=Orion')
     expectVisibleQuery('Orion')
     await editDraft('Unsubmitted draft')
@@ -204,9 +206,56 @@ describe('organization Search query navigation', () => {
     expect(container.textContent).not.toContain('Orion launch plan')
 
     await render('?q=Orion')
-    expectVisibleQuery('Orion')
+    expect(searchInput().value).toBe('Unsubmitted draft')
+    expect(container.querySelector('a[data-source-link]')?.textContent).toBe('Orion launch plan')
     expect(container.textContent).not.toContain('Vega launch plan')
     expect(mocks.urlUpdate).not.toHaveBeenCalled()
+  })
+
+  it('keeps edits for separate committed queries across storage rehydration', async () => {
+    await render('?q=Orion')
+    await editDraft('Orion follow-up')
+    await render('?q=Vega')
+    await editDraft('Vega follow-up')
+    await act(async () => root.unmount())
+    const saved = localStorage.getItem('mothership-drafts:v1')!
+    useMothershipDraftsStore.setState({ drafts: {} })
+    localStorage.setItem('mothership-drafts:v1', saved)
+    await useMothershipDraftsStore.persist.rehydrate()
+    root = createRoot(container)
+
+    await render('?q=Orion')
+    expect(searchInput().value).toBe('Orion follow-up')
+    await render('?q=Vega')
+    expect(searchInput().value).toBe('Vega follow-up')
+    await render('')
+    expect(searchInput().value).toBe('Vega follow-up')
+  })
+
+  it('submits one query without clearing another query’s latest draft', async () => {
+    await render('?q=Orion')
+    await editDraft('Orion follow-up')
+    await render('?q=Vega')
+    await editDraft('Vega follow-up')
+    await render('?q=Orion')
+    await act(async () =>
+      searchInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    )
+    expectVisibleQuery('Orion follow-up')
+    await render('')
+    expect(searchInput().value).toBe('Vega follow-up')
+    await editDraft('Vega revised')
+    await render('?q=Vega')
+    expect(searchInput().value).toBe('Vega revised')
+    await render('')
+    await act(async () =>
+      searchInput().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    )
+    expectVisibleQuery('Vega revised')
+    await render('?q=Vega')
+    expectVisibleQuery('Vega')
+    await render('')
+    expect(searchInput().value).toBe('')
   })
 
   it.each(['Enter', 'button'] as const)(
@@ -265,4 +314,40 @@ it('hands document summaries to Search chat even when Build is the default', asy
     requestMode: 'assistant',
     assistantSearch: { source: 'slack', documentIds: ['document-Orion'] },
   })
+})
+
+it.each(['', '?q=Orion'])(
+  'restores an unsent draft after remount and localStorage rehydration (%s)',
+  async (params) => {
+    await render(params)
+    await editDraft('Launch review follow-up')
+    await act(async () => root.unmount())
+    const saved = localStorage.getItem('mothership-drafts:v1')!
+    useMothershipDraftsStore.setState({ drafts: {} })
+    localStorage.setItem('mothership-drafts:v1', saved)
+    await useMothershipDraftsStore.persist.rehydrate()
+    root = createRoot(container)
+    await render(params)
+    expect(searchInput().value).toBe('Launch review follow-up')
+    expect(mocks.urlUpdate).not.toHaveBeenCalled()
+  }
+)
+
+it('preserves a deliberately emptied Search input through remount', async () => {
+  await render('?q=Orion')
+  await editDraft('')
+  await act(async () => root.unmount())
+  root = createRoot(container)
+  await render('?q=Orion')
+  expect(searchInput().value).toBe('')
+  expect(container.querySelector('a[data-source-link]')?.textContent).toBe('Orion launch plan')
+})
+
+it('restores the latest unsent draft when Search is reopened from navigation without a query', async () => {
+  await render('?q=Orion')
+  await editDraft('Unsent follow-up')
+  await render('')
+  expect(searchInput().value).toBe('Unsent follow-up')
+  expect(container.querySelector('a[data-source-link]')).toBeNull()
+  expect(mocks.urlUpdate).not.toHaveBeenCalled()
 })

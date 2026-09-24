@@ -4,6 +4,16 @@ export interface RetrievalCitationBlock {
   toolCall?: { name: string; status: string; result?: { success: boolean; output?: unknown } }
 }
 
+type RetrievalCitationSource = {
+  url: string
+  title?: string
+  siteName?: string
+  connectorType?: string
+  author?: string
+  updatedAt?: string
+  snippet?: string
+}
+
 export function parseCitationRecord(value: unknown): Record<string, unknown> | null {
   if (typeof value === 'string') {
     try {
@@ -17,7 +27,7 @@ export function parseCitationRecord(value: unknown): Record<string, unknown> | n
 
 /** Only successful retrieval tool results may supply source destinations. */
 export function collectRetrievalCitationEvidence(blocks: readonly RetrievalCitationBlock[]) {
-  const evidence = new Map<string, Record<string, unknown>>()
+  const evidence = new Map<string, RetrievalCitationSource>()
   for (const block of blocks) {
     const call = block.toolCall
     if (
@@ -48,6 +58,7 @@ export function collectRetrievalCitationEvidence(blocks: readonly RetrievalCitat
       if (evidence.has(result.citationId)) continue
       const siteName =
         typeof result.siteName === 'string' ? result.siteName : result.knowledgeBaseName
+      const updatedAt = result.sourceDate ?? result.sourceModifiedAt
       evidence.set(result.citationId, {
         url: result.citationUrl,
         ...(typeof result.documentName === 'string' ? { title: result.documentName } : {}),
@@ -56,9 +67,7 @@ export function collectRetrievalCitationEvidence(blocks: readonly RetrievalCitat
           ? { connectorType: result.connectorType }
           : {}),
         ...(typeof result.author === 'string' ? { author: result.author } : {}),
-        ...(typeof (result.sourceDate ?? result.sourceModifiedAt) === 'string'
-          ? { updatedAt: result.sourceDate ?? result.sourceModifiedAt }
-          : {}),
+        ...(typeof updatedAt === 'string' ? { updatedAt } : {}),
         ...(typeof result.content === 'string' ? { snippet: result.content.slice(0, 500) } : {}),
       })
     }

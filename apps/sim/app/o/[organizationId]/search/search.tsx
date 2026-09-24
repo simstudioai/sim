@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { ComposerActionButton, toast } from '@sim/emcn'
 import { ArrowUp } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
@@ -18,17 +18,42 @@ import { SearchResultsView } from '@/app/o/[organizationId]/search/search-result
 import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
 import { useVoiceInput } from '@/hooks/use-voice-input'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
+
+interface OrganizationSearchProps {
+  userId: string
+}
 
 interface SearchFieldProps {
+  userId: string
   initialValue: string
   onSubmit: (value: string) => void
 }
 
 /** Search commits a query on submit while retaining an independent editable draft. */
-function SearchField({ initialValue, onSubmit }: SearchFieldProps) {
+function SearchField({ userId, initialValue, onSubmit }: SearchFieldProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const { organization } = useOrganizationContext()
-  const [value, setValue] = useState(initialValue)
+  const latestDraftKey = `${userId}:organization:${organization.id}:search`
+  const latestDraft = useMothershipDraftsStore((state) => state.drafts[latestDraftKey])
+  const ownerQuery = initialValue || latestDraft?.searchQuery || ''
+  const draftKey = `${latestDraftKey}:query:${encodeURIComponent(ownerQuery)}`
+  const draft = useMothershipDraftsStore((state) => state.drafts[draftKey])
+  const value =
+    draft?.text ?? (latestDraft?.searchQuery === ownerQuery ? latestDraft.text : initialValue)
+  const setValue = (text: string) => {
+    const { setDraft } = useMothershipDraftsStore.getState()
+    const payload = { text, searchQuery: ownerQuery }
+    setDraft(draftKey, payload)
+    setDraft(latestDraftKey, payload)
+  }
+  const submit = () => {
+    if (!value.trim()) return
+    const { clearDraft } = useMothershipDraftsStore.getState()
+    clearDraft(draftKey)
+    if (latestDraft?.searchQuery === ownerQuery) clearDraft(latestDraftKey)
+    onSubmit(value)
+  }
   const voice = useVoiceInput({
     organizationId: organization.id,
     getValue: () => value,
@@ -44,7 +69,7 @@ function SearchField({ initialValue, onSubmit }: SearchFieldProps) {
         inputRef={inputRef}
         value={value}
         onChange={setValue}
-        onSubmit={() => onSubmit(value)}
+        onSubmit={submit}
         floating={!initialValue.trim()}
         voiceControl={
           voice.isSupported && (
@@ -58,7 +83,7 @@ function SearchField({ initialValue, onSubmit }: SearchFieldProps) {
         submitControl={
           <ComposerActionButton
             type='button'
-            onClick={() => onSubmit(value)}
+            onClick={submit}
             disabled={!canSubmit}
             aria-label='Search'
             active={canSubmit}
@@ -76,13 +101,13 @@ function SearchField({ initialValue, onSubmit }: SearchFieldProps) {
 }
 
 /** Raw organization search remains independent of assistant conversations. */
-export function OrganizationSearch() {
+export function OrganizationSearch({ userId }: OrganizationSearchProps) {
   const { searchAccess } = useOrganizationContext()
   if (!searchAccess.memberScoped) return null
-  return <OrganizationSearchContent />
+  return <OrganizationSearchContent userId={userId} />
 }
 
-function OrganizationSearchContent() {
+function OrganizationSearchContent({ userId }: OrganizationSearchProps) {
   const { organization, mothershipAvailable } = useOrganizationContext()
   const router = useRouter()
   const [{ q }, setParams] = useQueryStates(organizationSearchParsers, organizationSearchUrlKeys)
@@ -103,7 +128,7 @@ function OrganizationSearchContent() {
   }
   return (
     <SearchResultsView
-      composer={<SearchField key={q} initialValue={q} onSubmit={submit} />}
+      composer={<SearchField key={q} userId={userId} initialValue={q} onSubmit={submit} />}
       query={q.trim()}
       onSummarize={summarize}
     />

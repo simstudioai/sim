@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
-import type { SidebarState } from './types'
+import type { SidebarState } from '@/stores/sidebar/types'
 
 /**
  * The widest the expanded sidebar may be at a given viewport width: 30% of the
@@ -91,7 +91,7 @@ export const useSidebarStore = create<SidebarState>()(
         const { isCollapsed, sidebarWidth } = get()
         const nextCollapsed = !isCollapsed
         const expandedWidth = clampSidebarWidth(sidebarWidth)
-        set({ isCollapsed: nextCollapsed })
+        set({ isCollapsed: nextCollapsed, sidebarWidth: expandedWidth })
         applyCollapsedCookie(nextCollapsed)
         applySidebarWidths(expandedWidth, nextCollapsed)
       },
@@ -116,7 +116,7 @@ export const useSidebarStore = create<SidebarState>()(
       onRehydrateStorage: () => (state) => {
         if (state) {
           state.setHasHydrated(true)
-          applySidebarWidths(clampSidebarWidth(state.sidebarWidth), state.isCollapsed)
+          state.syncWidth()
         }
       },
       /** Only width is persisted; collapse lives in the cookie. */

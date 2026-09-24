@@ -83,7 +83,7 @@ const PROSE_CLASSES = cn(
   'prose-li:my-1',
   'prose-ul:my-4 prose-ol:my-4',
   'prose-strong:font-semibold prose-strong:text-[var(--text-primary)]',
-  'prose-a:text-[var(--text-primary)] prose-a:underline prose-a:decoration-dashed prose-a:underline-offset-4',
+  'prose-a:text-[var(--text-primary)] prose-a:no-underline',
   'prose-hr:border-[var(--border)] prose-hr:my-6',
   'prose-table:my-0'
 )
@@ -355,7 +355,7 @@ const MARKDOWN_COMPONENTS = {
     return (
       <a
         href={href}
-        className='text-[var(--text-primary)] underline decoration-dashed underline-offset-4'
+        className='rounded-sm text-[var(--text-primary)] no-underline hover:bg-[var(--surface-5)]'
         target='_blank'
         rel='noopener noreferrer'
       >

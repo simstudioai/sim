@@ -1,0 +1,49 @@
+'use client'
+
+import { useState } from 'react'
+import { cn } from '@sim/emcn'
+import { FileText } from '@sim/emcn/icons'
+import { stripVersionSuffix } from '@sim/utils/string'
+import { faviconUrl } from '@/lib/core/utils/favicon'
+import { blockTypeToIconMap } from '@/lib/integrations/icon-mapping'
+import { externalLinkHostname } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/external-link'
+import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { BrandIcon, type StyleableIcon } from '@/blocks/brand-icon'
+
+/**
+ * Brand marks by base block type. A connector id names the same product as its
+ * integration block (`confluence`, `google_drive`), so the block's mark serves
+ * the chip — through the catalog icon map rather than the connector registry,
+ * which would drag seventy connector modules into every surface that renders
+ * chat. Versioned catalog types (`gmail_v2`) collapse onto their base name.
+ */
+const BRAND_ICON_BY_BASE_TYPE: ReadonlyMap<string, StyleableIcon> = new Map(
+  Object.entries(blockTypeToIconMap).map(([type, icon]) => [stripVersionSuffix(type), icon])
+)
+
+interface SourceIconProps {
+  source: SourceTagData
+  size?: 'default' | 'inline'
+}
+
+/** Shared connector mark, favicon and document fallback across all source presentations. */
+export function SourceIcon({ source, size = 'default' }: SourceIconProps) {
+  const [failedHostname, setFailedHostname] = useState<string | null>(null)
+  const hostname = externalLinkHostname(source.url)
+  const ConnectorIcon = source.connectorType
+    ? BRAND_ICON_BY_BASE_TYPE.get(stripVersionSuffix(source.connectorType))
+    : undefined
+  const className = cn('shrink-0', size === 'inline' ? 'size-[12px]' : 'size-[14px]')
+  if (ConnectorIcon) return <BrandIcon icon={ConnectorIcon} className={className} />
+  if (hostname && failedHostname !== hostname) {
+    return (
+      <img
+        src={faviconUrl(hostname, 32)}
+        alt=''
+        className={cn(className, 'rounded-sm')}
+        onError={() => setFailedHostname(hostname)}
+      />
+    )
+  }
+  return <FileText aria-hidden className={cn(className, 'text-[var(--text-icon)]')} />
+}

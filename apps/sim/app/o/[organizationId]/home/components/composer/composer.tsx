@@ -43,7 +43,7 @@ interface ComposerProps {
   /** On the empty home the placeholder types itself and the field is taller; in a chat it is the plain footer input. */
   isInitialView: boolean
   isSending: boolean
-  onChange: (value: string) => void
+  onChange: (value: string, contexts?: ChatContext[]) => void
   restoredContexts?: ChatContext[]
   onSubmit: (text: string, contexts?: ChatContext[]) => void
   onStop: () => void
@@ -91,6 +91,7 @@ export function Composer({
     organizationId: organization.id,
     contextsEnabled: !imagesOnly,
     initialValue: value,
+    initialContexts: restoredContexts,
     onPasteFiles: files.processFiles,
   })
   const { textareaRef } = editor
@@ -105,13 +106,16 @@ export function Composer({
       if (value) textareaRef.current?.focus()
     }
   }, [value, textareaRef])
+  const lastContexts = useRef(editor.contexts)
   useEffect(() => {
     if (editorRef.current.getValue() !== editor.value) return
-    if (editor.value !== lastPublished.current) {
-      lastPublished.current = editor.value
-      onChange(editor.value)
+    const plainValue = editorRef.current.getPlainValue()
+    if (plainValue !== lastPublished.current || editor.contexts !== lastContexts.current) {
+      lastPublished.current = plainValue
+      lastContexts.current = editor.contexts
+      onChange(plainValue, editor.contexts.length ? editor.contexts : undefined)
     }
-  }, [editor.value, onChange])
+  }, [editor.value, editor.contexts, onChange])
   useEffect(() => {
     if (!restoredContexts) return
     // A queued skill may belong to a workspace whose picker has never opened here.
@@ -182,29 +186,6 @@ export function Composer({
 
   const leadingControls = (
     <>
-      {showModeSelector && (
-        <ConversationModeSelector
-          value={requestMode}
-          searchEnabled={searchEnabled}
-          onChange={
-            onModeChange
-              ? (mode) => {
-                  if (
-                    mode === 'assistant' &&
-                    (editor.getActiveContexts().length > 0 ||
-                      files.attachedFiles.some((file) => !isAssistantImageType(file.type)))
-                  ) {
-                    toast.info(
-                      'Remove resource and skill mentions and non-image attachments before switching to Search.'
-                    )
-                    return
-                  }
-                  onModeChange(mode)
-                }
-              : undefined
-          }
-        />
-      )}
       {imagesOnly && !showModeSelector && (
         <Search className='size-[16px] shrink-0 text-[var(--text-icon)]' />
       )}
@@ -224,6 +205,29 @@ export function Composer({
         </Tooltip.Root>
       )}
       {!imagesOnly && contextPicker('skills', Slash, 'Skills')}
+      {showModeSelector && (
+        <ConversationModeSelector
+          value={requestMode}
+          searchEnabled={searchEnabled}
+          onChange={
+            onModeChange
+              ? (mode) => {
+                  if (
+                    mode === 'assistant' &&
+                    (editor.getActiveContexts().length > 0 ||
+                      files.attachedFiles.some((file) => !isAssistantImageType(file.type)))
+                  ) {
+                    toast.info(
+                      'Remove resource and skill mentions and non-image attachments before switching to Ask.'
+                    )
+                    return
+                  }
+                  onModeChange(mode)
+                }
+              : undefined
+          }
+        />
+      )}
     </>
   )
   const voiceControl = voice.isSupported && (

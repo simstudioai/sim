@@ -1,5 +1,7 @@
 'use client'
 
+import { useRef } from 'react'
+import { cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
@@ -13,6 +15,8 @@ interface SourcesResourceContentProps {
 
 /** The chat already owns this evidence; opening the panel never repeats provider searches. */
 export function SourcesResourceContent({ resource, chatId }: SourcesResourceContentProps) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const edges = useScrollEdges(scrollRef)
   const history = useMothershipChatHistory(chatId)
   const address = resource.sources
   const persisted = history.data?.messages.find(
@@ -26,21 +30,31 @@ export function SourcesResourceContent({ resource, chatId }: SourcesResourceCont
     ? collectCitedMessageSources(message.contentBlocks ?? [], message.content)
     : []
   return (
-    <div className='h-full overflow-y-auto px-4 py-3' aria-label='Cited sources'>
-      <div className='mb-3 font-medium text-[var(--text-primary)] text-sm'>
-        Sources{sources.length ? ` · ${sources.length}` : ''}
+    <div
+      ref={scrollRef}
+      className={cn('h-full overflow-y-auto p-2', scrollFadeClass)}
+      {...scrollFadeAttributes(edges)}
+      aria-label='Cited sources'
+    >
+      <div>
+        <h2 className='px-2 py-2 text-[var(--text-body)] text-small'>
+          Sources
+          <span className='text-[var(--text-muted)]'>
+            {sources.length ? ` · ${sources.length}` : ''}
+          </span>
+        </h2>
+        {sources.length ? (
+          sources.map((source) => <SourceCard key={source.url} source={source} />)
+        ) : (
+          <p className='px-2 py-2 text-[var(--text-muted)] text-small'>
+            {history.isPending
+              ? 'Loading sources…'
+              : history.isError
+                ? 'Unable to load sources. Try reopening this conversation.'
+                : 'No cited sources are available for this response.'}
+          </p>
+        )}
       </div>
-      {sources.length ? (
-        sources.map((source) => <SourceCard key={source.url} source={source} />)
-      ) : (
-        <p className='text-[var(--text-muted)] text-sm'>
-          {history.isPending
-            ? 'Loading sources…'
-            : history.isError
-              ? 'Unable to load sources. Try reopening this conversation.'
-              : 'No cited sources are available for this response.'}
-        </p>
-      )}
     </div>
   )
 }

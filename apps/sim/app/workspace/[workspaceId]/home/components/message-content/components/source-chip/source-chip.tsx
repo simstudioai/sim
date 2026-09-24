@@ -1,27 +1,12 @@
 'use client'
 
 import { chipFilledFillTokens, chipHoverSurfaceClass, cn, OverflowText, Tooltip } from '@sim/emcn'
-import { stripVersionSuffix } from '@sim/utils/string'
-import { faviconUrl } from '@/lib/core/utils/favicon'
-import { blockTypeToIconMap } from '@/lib/integrations/icon-mapping'
 import {
   externalLinkHostname,
   handleExternalLinkClick,
-  hideBrokenFavicon,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/external-link'
+import { SourceIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip/source-icon'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import { BrandIcon, type StyleableIcon } from '@/blocks/brand-icon'
-
-/**
- * Brand marks by base block type. A connector id names the same product as its
- * integration block (`confluence`, `google_drive`), so the block's mark serves
- * the chip — through the catalog icon map rather than the connector registry,
- * which would drag seventy connector modules into every surface that renders
- * chat. Versioned catalog types (`gmail_v2`) collapse onto their base name.
- */
-export const BRAND_ICON_BY_BASE_TYPE: ReadonlyMap<string, StyleableIcon> = new Map(
-  Object.entries(blockTypeToIconMap).map(([type, icon]) => [stripVersionSuffix(type), icon])
-)
 
 /** The source's site or provider, separate from its document title. */
 export function sourceSiteName(source: SourceTagData): string {
@@ -47,13 +32,9 @@ interface SourceChipProps {
  * for a citation. Opens the document like any external link in the reply.
  */
 export function SourceChip({ source }: SourceChipProps) {
-  const hostname = externalLinkHostname(source.url)
   /** Slack's connector prefixes channel titles with `#channel: `; direct messages omit `#`. */
   const slackChannel =
     source.connectorType === 'slack' ? source.title?.match(/^(#[^:\s]+): /)?.[1] : undefined
-  const ConnectorIcon = source.connectorType
-    ? BRAND_ICON_BY_BASE_TYPE.get(source.connectorType)
-    : undefined
 
   return (
     <Tooltip.Root>
@@ -64,21 +45,12 @@ export function SourceChip({ source }: SourceChipProps) {
           rel='noopener noreferrer'
           onClick={(event) => handleExternalLinkClick(event, source.url)}
           className={cn(
-            'not-prose inline-flex h-[20px] max-w-[220px] shrink-0 items-center gap-1 rounded-full px-1.5 align-middle text-[var(--text-body)] text-caption no-underline transition-colors',
+            'not-prose inline-flex h-[20px] max-w-[160px] shrink-0 items-center gap-1 rounded-full px-1.5 align-middle text-[var(--text-body)] text-caption no-underline transition-colors',
             chipFilledFillTokens,
             chipHoverSurfaceClass
           )}
         >
-          {ConnectorIcon ? (
-            <BrandIcon icon={ConnectorIcon} className='size-[12px] shrink-0' />
-          ) : hostname ? (
-            <img
-              src={faviconUrl(hostname, 32)}
-              alt=''
-              className='size-[12px] shrink-0 rounded-[3px]'
-              onError={hideBrokenFavicon}
-            />
-          ) : null}
+          <SourceIcon source={source} size='inline' />
           <OverflowText label={slackChannel ?? sourceLabel(source)} tooltipEnabled={false} />
         </a>
       </Tooltip.Trigger>

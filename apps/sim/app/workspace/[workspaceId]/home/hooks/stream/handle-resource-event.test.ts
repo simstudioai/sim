@@ -644,7 +644,7 @@ it('refreshes organization policy and its server layout only within the owning o
   expect(deps.addResource).not.toHaveBeenCalled()
 })
 
-it('shows live search results while the answer is running', () => {
+it('caches interim searches without replacing the previous answer panel', () => {
   const onResourceEvent = vi.fn()
   const deps = makeStreamLoopDeps({
     citedSourcesEnabled: true,
@@ -686,14 +686,15 @@ it('shows live search results while the answer is running', () => {
     },
   }
   handleResourceEvent(ctx, event)
-  expect(deps.removeResource).toHaveBeenCalledWith('sources', 'cited-sources', undefined)
+  expect(deps.removeResource).not.toHaveBeenCalled()
   expect(ctx.state.liveSearchResource).toEqual({
     type: 'search',
     id: 'search:organization:org',
     workspaceId: undefined,
   })
-  expect(deps.addResource).toHaveBeenCalledWith(event.payload.resource)
-  expect(onResourceEvent).toHaveBeenCalledWith('search:organization:org')
+  expect(deps.addResource).not.toHaveBeenCalled()
+  expect(deps.setResources).not.toHaveBeenCalled()
+  expect(onResourceEvent).not.toHaveBeenCalled()
   expect(deps.queryClient.setQueryData).toHaveBeenCalledWith(
     [
       ...knowledgeKeys.search(
@@ -709,5 +710,5 @@ it('shows live search results while the answer is running', () => {
     data
   )
   handleResourceEvent(ctx, event)
-  expect(deps.removeResource).toHaveBeenCalledOnce()
+  expect(deps.removeResource).not.toHaveBeenCalled()
 })

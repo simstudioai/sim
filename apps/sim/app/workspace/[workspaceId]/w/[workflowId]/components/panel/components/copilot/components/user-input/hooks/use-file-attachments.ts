@@ -5,7 +5,10 @@ import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
+import {
+  getMothershipAttachmentPreviewUrl,
+  getMothershipAttachmentUrl,
+} from '@/lib/mothership/chat/attachment-preview'
 import { assertMultiFileUploadAdmission } from '@/lib/uploads/client/admission'
 import { runWithConcurrency, WHOLE_FILE_PARALLEL_UPLOADS } from '@/lib/uploads/client/concurrency'
 import { uploadInternalFileSession } from '@/lib/uploads/client/session-upload'
@@ -17,7 +20,10 @@ import {
 } from '@/lib/uploads/shared/assistant-images'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { resolveFileType } from '@/lib/uploads/utils/file-utils'
-import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
+import type {
+  ChatRequestMode,
+  FileAttachmentForApi,
+} from '@/app/workspace/[workspaceId]/home/types'
 
 const logger = createLogger('useFileAttachments')
 
@@ -89,6 +95,7 @@ interface UseFileAttachmentsProps {
   requestMode?: ChatRequestMode
   disabled?: boolean
   isLoading?: boolean
+  initialAttachments?: FileAttachmentForApi[]
 }
 
 /**
@@ -102,11 +109,23 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
   const { userId, workspaceId, organizationId, requestMode, disabled, isLoading } = props
   const imagesOnly = Boolean(organizationId) && requestMode !== 'agent' && requestMode !== 'plan'
 
-  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>(() =>
+    (props.initialAttachments ?? []).map((file) => ({
+      id: file.id,
+      name: file.filename,
+      size: file.size,
+      type: file.media_type,
+      key: file.key,
+      path:
+        file.path || getMothershipAttachmentPreviewUrl(file) || getMothershipAttachmentUrl(file),
+      previewUrl: getMothershipAttachmentPreviewUrl(file),
+      uploading: false,
+    }))
+  )
   const [dragCounter, setDragCounter] = useState(0)
   const isDragging = dragCounter > 0
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const attachedFilesRef = useRef<AttachedFile[]>([])
+  const attachedFilesRef = useRef<AttachedFile[]>(attachedFiles)
   const uploadControllersRef = useRef(new Map<string, AbortController>())
 
   const updateAttachedFiles = useCallback((update: (files: AttachedFile[]) => AttachedFile[]) => {

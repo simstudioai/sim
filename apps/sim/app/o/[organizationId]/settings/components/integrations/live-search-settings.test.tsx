@@ -28,7 +28,7 @@ vi.mock('next/navigation', async (importOriginal) => ({
 }))
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
   useOrganizationContext: () => ({
-    organization: { id: 'org' },
+    organization: { id: 'org', name: 'Example organization', logo: null },
     viewer: { isAdmin: mocks.admin },
     searchAccess: { memberScoped: true, sourceMirrored: true },
   }),
