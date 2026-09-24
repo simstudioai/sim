@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 
+import { readFileSync } from 'node:fs'
 import { act, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -74,12 +75,15 @@ import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/prev
 const workflowState = { blocks: {}, edges: [] } as WorkflowState
 let host: HTMLDivElement | undefined
 let root: ReturnType<typeof createRoot> | undefined
+let cursorStyles: HTMLStyleElement | undefined
 
 afterEach(() => {
   if (root) act(() => root?.unmount())
   host?.remove()
+  cursorStyles?.remove()
   root = undefined
   host = undefined
+  cursorStyles = undefined
   vi.unstubAllGlobals()
 })
 
@@ -135,5 +139,69 @@ describe('PreviewWorkflow cursors', () => {
     expect(previews[1].style.getPropertyValue('--preview-cursor')).toBe('grab')
     expect(previews[1]).toHaveAttribute('data-preview-grab')
     expect(previews[1]).toHaveClass('interactive-nodes')
+  })
+
+  it('applies the production cursor CSS only within each mounted preview', () => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      }
+    )
+
+    // JSDOM computes stylesheet rules but cannot keep an element in :active after
+    // a pointer event. Map that pseudo-class to an attribute for this CSS test.
+    cursorStyles = document.createElement('style')
+    cursorStyles.textContent = readFileSync(
+      'app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-workflow.css',
+      'utf8'
+    ).replaceAll(':active', '[data-test-active]')
+    document.head.appendChild(cursorStyles)
+
+    host = document.createElement('div')
+    document.body.appendChild(host)
+    root = createRoot(host)
+
+    const render = (first: 'grab' | 'default', second: 'grab' | 'pointer') =>
+      act(() =>
+        root?.render(
+          <>
+            <PreviewWorkflow workflowState={workflowState} cursorStyle={first} />
+            <PreviewWorkflow
+              workflowState={workflowState}
+              cursorStyle={second}
+              onNodeClick={() => {}}
+            />
+          </>
+        )
+      )
+
+    render('grab', 'pointer')
+
+    const previews = host.querySelectorAll<HTMLElement>('.preview-mode')
+    expect(previews).toHaveLength(2)
+    const panes = Array.from(
+      previews,
+      (preview) => preview.querySelector<HTMLElement>('.react-flow__pane')!
+    )
+    const nodes = Array.from(
+      previews,
+      (preview) => preview.querySelector<HTMLElement>('.react-flow__node')!
+    )
+
+    for (const element of [...panes, ...nodes]) element.setAttribute('data-test-active', '')
+
+    expect(getComputedStyle(panes[0]).cursor).toBe('grabbing')
+    expect(getComputedStyle(nodes[0]).cursor).toBe('grabbing')
+    expect(getComputedStyle(panes[1]).cursor).toBe('var(--preview-cursor)')
+    expect(getComputedStyle(nodes[1]).cursor).toBe('pointer')
+
+    render('default', 'grab')
+
+    expect(getComputedStyle(panes[0]).cursor).toBe('var(--preview-cursor)')
+    expect(getComputedStyle(nodes[0]).cursor).not.toBe('grabbing')
+    expect(getComputedStyle(panes[1]).cursor).toBe('grabbing')
+    expect(getComputedStyle(nodes[1]).cursor).toBe('pointer')
   })
 })
