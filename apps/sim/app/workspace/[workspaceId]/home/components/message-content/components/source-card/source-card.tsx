@@ -162,7 +162,7 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
             rel='noopener noreferrer'
             data-source-link=''
             onClick={(event) => handleExternalLinkClick(event, source.url)}
-            className='min-w-0 flex-1 text-[var(--text-primary)] text-small no-underline [overflow-wrap:anywhere] focus-visible:rounded-sm focus-visible:outline focus-visible:outline-[var(--text-icon)]'
+            className='min-w-0 flex-1 text-[var(--text-body)] text-small no-underline [overflow-wrap:anywhere] focus-visible:rounded-sm focus-visible:outline focus-visible:outline-[var(--text-icon)]'
           >
             {sourceLabel(source)}
           </a>
