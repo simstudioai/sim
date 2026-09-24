@@ -523,19 +523,21 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     }
     /**
      * Reciprocal rank fusion: every result scores 1 / (RRF_K + rank) within its own query, so a
-     * document that several queries return sums those scores and outranks one found once.
+     * document that several queries return sums those scores (once per query) and outranks one
+     * found once.
      */
     const fused = new Map<string, { queries: number[]; result: WorkspaceKnowledgeSearchResult }>()
     for (const [query, { results }] of searched.entries()) {
       for (const { key, result } of results) {
         const match = fused.get(key)
-        if (match) {
+        if (!match) fused.set(key, { queries: [query], result })
+        else if (!match.queries.includes(query)) {
           match.queries.push(query)
           match.result = {
             ...match.result,
             similarity: match.result.similarity + result.similarity,
           }
-        } else fused.set(key, { queries: [query], result })
+        }
       }
     }
     const ranked = [...fused.values()].sort(({ result: a }, { result: b }) => {

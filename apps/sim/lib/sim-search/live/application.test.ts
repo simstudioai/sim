@@ -674,6 +674,43 @@ describe('authorized live retrieval', () => {
     expect(result.results).toHaveLength(1)
   })
 
+  it('scores an item once per query even when one query returns it twice', async () => {
+    const slack = { ...account, id: 'slack-account', provider: 'slack', providerId: 'slack' }
+    mocks.accounts.mockResolvedValue([slack])
+    mocks.resolveAccount.mockResolvedValue({
+      account: { ...slack, scopes: ['search:read.public'] },
+      accessToken: 'secret',
+    })
+    const message = (id: string, link = id) => ({
+      ...document,
+      id,
+      url: `https://example.slack.com/archives/C1/p${link}`,
+    })
+    mocks.search.mockImplementation(async (_provider, _client, search) => ({
+      documents:
+        search.native.query === 'trip'
+          ? [message('1', 'shared'), message('2', 'shared'), message('3')]
+          : [message('3'), message('4')],
+    }))
+    const result = await searchLiveKnowledge.execute({
+      principal,
+      input: {
+        ...input,
+        query: '',
+        nativeQueries: ['trip', 'travel'].map((query) => ({
+          provider: 'slack' as const,
+          accountId: 'slack-account',
+          query,
+        })),
+      },
+    })
+    expect(result.results.map((row) => decodeLiveReference(row.documentId).id)).toEqual([
+      '3',
+      '1',
+      '4',
+    ])
+  })
+
   it('reports each native query of an unconnected account for reconnection', async () => {
     const nativeQueries = (['issues', 'commits'] as const).map((kind) => ({
       provider: 'github' as const,
