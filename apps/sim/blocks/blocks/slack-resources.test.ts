@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { SLACK_MANAGED_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { getSubBlocksDependingOnChange } from '@/lib/workflows/subblocks/dependencies'
 import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { getSlackV2ActionSubBlocks, SlackBlock, SlackV2Block } from '@/blocks/blocks/slack'
 import { buildSlackManifest } from '@/triggers/slack/capabilities'
@@ -28,6 +29,24 @@ function mapParams(params: Record<string, unknown>) {
 }
 
 describe('Slack List and Canvas operations', () => {
+  it('only offers List ownership for user recipients', () => {
+    const options = SlackV2Block.subBlocks.find((field) => field.id === 'listAccessLevel')!.options
+    if (typeof options !== 'function') throw new Error('Expected recipient-aware access levels')
+    expect(options({ values: { listShareTarget: 'channels' } }).map(({ id }) => id)).toEqual([
+      'read',
+      'write',
+    ])
+    expect(options({ values: { listShareTarget: 'users' } }).map(({ id }) => id)).toEqual([
+      'read',
+      'write',
+      'owner',
+    ])
+    expect(options().map(({ id }) => id)).toContain('owner')
+    expect(
+      getSubBlocksDependingOnChange(SlackV2Block.subBlocks, 'listShareTarget').map(({ id }) => id)
+    ).toContain('listAccessLevel')
+  })
+
   it('shares with only the selected recipient kind and defaults to view access', () => {
     expect(
       mapParams({

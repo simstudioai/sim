@@ -3349,10 +3349,13 @@ function getSlackV2ListSubBlocks(): SubBlockConfig[] {
       id: 'listAccessLevel',
       title: 'Access Level',
       type: 'dropdown',
-      options: [
+      dependsOn: ['listShareTarget'],
+      options: ({ values } = { values: {} }) => [
         { label: 'Can view', id: 'read' },
         { label: 'Can edit', id: 'write' },
-        { label: 'Owner (users only)', id: 'owner' },
+        ...(values.listShareTarget === 'channels'
+          ? []
+          : [{ label: 'Owner (users only)', id: 'owner' }]),
       ],
       value: () => 'read',
       required: true,
