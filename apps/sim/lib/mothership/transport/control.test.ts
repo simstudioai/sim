@@ -2,12 +2,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const handlers = vi.hoisted(() => ({
+  memory: vi.fn(),
   read: vi.fn(),
   status: vi.fn(),
   prepare: vi.fn(),
   wake: vi.fn(),
   workspace: vi.fn(),
   catalog: vi.fn(),
+}))
+vi.mock('@/lib/mothership/memory/application/read-scope', () => ({
+  MEMORY_SCOPE_AUDIENCE: 'memory',
+  readMemoryScope: { execute: handlers.memory },
 }))
 vi.mock('@/lib/mothership/integrations/application/catalog', () => ({
   INTEGRATION_CATALOG_AUDIENCE: 'catalog',
@@ -205,4 +210,26 @@ it('routes catalog reads through catalog-specific delegated authority', async ()
     }),
     input,
   })
+})
+
+it('routes memory through the same use case for both delivery scopes', async () => {
+  handlers.memory.mockResolvedValue({ userId: 'user', organizationId: 'org', workspaceId: null })
+  for (const owner of [scope, { userId: 'user', organizationId: 'org', chatId: 'chat' }]) {
+    expect(
+      (
+        await executeSimControl({
+          ...request({ kind: 'memory_scope', input: { chatId: 'chat' } }),
+          scope: owner,
+        })
+      ).status
+    ).toBe(200)
+    expect(handlers.memory).toHaveBeenLastCalledWith({
+      input: { chatId: 'chat' },
+      principal: expect.objectContaining({
+        subjectUserId: 'user',
+        audience: 'memory',
+        resourceScope: { chatId: 'chat' },
+      }),
+    })
+  }
 })
