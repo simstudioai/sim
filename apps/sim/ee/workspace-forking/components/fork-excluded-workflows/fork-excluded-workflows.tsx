@@ -1,9 +1,10 @@
 'use client'
 
 import { useId, useMemo, useState } from 'react'
-import { Checkbox, ChevronDown, cn, OverflowText, toast } from '@sim/emcn'
+import { Checkbox, cn, OverflowText, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { ForkDisclosureTrigger } from '@/ee/workspace-forking/components/fork-disclosure-trigger'
 import { useUpdateForkExcludedWorkflows } from '@/ee/workspace-forking/hooks/workspace-fork'
 import { useFolders } from '@/hooks/queries/folders'
 import { useWorkflows } from '@/hooks/queries/workflows'
@@ -200,26 +201,17 @@ function ExcludedFolderRow({
           onCheckedChange={() => onToggle(folder.descendantWorkflowIds, headerState !== true)}
           disabled={disabled}
         />
-        <button
-          type='button'
-          className='flex min-w-0 items-center gap-1.5 text-left hover:text-[var(--text-primary)]'
-          onClick={() => setExpanded((value) => !value)}
+        <ForkDisclosureTrigger
+          label={`${folder.name} (${selectedCount > 0 ? `${selectedCount}/${total}` : total})`}
+          expanded={expanded}
+          onToggle={() => setExpanded((value) => !value)}
+          className='min-w-0 gap-1.5'
         >
-          <OverflowText
-            label={`${folder.name} (${selectedCount > 0 ? `${selectedCount}/${total}` : total})`}
-          >
-            {folder.name}{' '}
-            <span className='text-[var(--text-muted)]'>
-              ({selectedCount > 0 ? `${selectedCount}/${total}` : total})
-            </span>
-          </OverflowText>
-          <ChevronDown
-            className={cn(
-              'size-[14px] shrink-0 text-[var(--text-icon)] transition-transform',
-              expanded && 'rotate-180'
-            )}
-          />
-        </button>
+          {folder.name}{' '}
+          <span className='text-[var(--text-muted)]'>
+            ({selectedCount > 0 ? `${selectedCount}/${total}` : total})
+          </span>
+        </ForkDisclosureTrigger>
       </div>
       {expanded ? (
         <div className='relative'>

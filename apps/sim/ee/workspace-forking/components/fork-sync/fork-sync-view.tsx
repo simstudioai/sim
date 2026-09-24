@@ -3,13 +3,11 @@
 import { type Dispatch, Fragment, type SetStateAction, useMemo, useState } from 'react'
 import {
   Badge,
-  ChevronDown,
   Chip,
   ChipCombobox,
   ChipInput,
   ChipSwitch,
   CollapsibleCard,
-  cn,
   FieldDivider,
   Label,
   OverflowText,
@@ -26,6 +24,7 @@ import type {
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { ForkDisclosureTrigger } from '@/ee/workspace-forking/components/fork-disclosure-trigger'
 import {
   FileKindRow,
   ResourceKindRow,
@@ -610,22 +609,18 @@ function MappingKindRow({ controller, group, summary }: MappingKindRowProps) {
   const badge = kindStatusBadge(summary)
   return (
     <div className='flex flex-col'>
-      <button
-        type='button'
-        onClick={() => setOpen((value) => !value)}
-        className='flex w-full items-center gap-2 text-left text-[var(--text-body)] text-sm transition-colors hover:text-[var(--text-primary)]'
-      >
-        <OverflowText label={group.label} className='flex-1' />
-        <Badge variant={badge.variant} size='sm' dot>
-          {badge.label}
-        </Badge>
-        <ChevronDown
-          className={cn(
-            'size-[14px] shrink-0 text-[var(--text-icon)] transition-transform',
-            open && 'rotate-180'
-          )}
-        />
-      </button>
+      <ForkDisclosureTrigger
+        label={group.label}
+        expanded={open}
+        onToggle={() => setOpen((value) => !value)}
+        className='w-full gap-2 text-[var(--text-body)] text-sm transition-colors'
+        labelClassName='flex-1'
+        trailing={
+          <Badge variant={badge.variant} size='sm' dot>
+            {badge.label}
+          </Badge>
+        }
+      />
       {open ? (
         <div className='flex flex-col pt-3 pb-1'>
           {group.items.map((entry, index) => (
