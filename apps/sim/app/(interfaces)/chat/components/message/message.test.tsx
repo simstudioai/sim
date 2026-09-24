@@ -5,7 +5,8 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@sim/emcn')>()),
   Button: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) => (
     <button type='button' {...props}>
       {children}
