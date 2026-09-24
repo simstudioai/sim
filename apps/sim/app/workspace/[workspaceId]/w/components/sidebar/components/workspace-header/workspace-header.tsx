@@ -48,7 +48,6 @@ import {
   type WorkspaceCreationPolicy,
   workspaceKeys,
 } from '@/hooks/queries/workspace'
-import { useOrganizationNavigationHref } from '@/hooks/use-organization-navigation'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
@@ -78,6 +77,7 @@ function DisabledReasonTooltip({ reason, children }: DisabledReasonTooltipProps)
 }
 
 interface WorkspaceHeaderProps {
+  organizationHref: string | null
   /** The active workspace object */
   activeWorkspace?: { name: string } | null
   /** Current workspace ID */
@@ -126,6 +126,7 @@ interface WorkspaceHeaderProps {
  * Workspace header component that displays workspace name and switcher.
  */
 function WorkspaceHeaderImpl({
+  organizationHref,
   activeWorkspace,
   workspaceId,
   workspaces,
@@ -272,7 +273,6 @@ function WorkspaceHeaderImpl({
 
   const { navigateToSettings } = useSettingsNavigation()
   const queryClient = useQueryClient()
-  const organizationHref = useOrganizationNavigationHref()
 
   const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
   const isWorkspaceReady = !isWorkspacesLoading && activeWorkspaceFull !== null

@@ -6,14 +6,9 @@ import { createRoot, type Root } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockNavigateToSettings, mockWorkspacePermissions, organizationList } = vi.hoisted(() => ({
+const { mockNavigateToSettings, mockWorkspacePermissions } = vi.hoisted(() => ({
   mockNavigateToSettings: vi.fn(),
-  organizationList: { data: [] as { id: string }[] | undefined },
   mockWorkspacePermissions: { canAdmin: true, canEdit: true, canRead: true },
-}))
-
-vi.mock('@/hooks/queries/organization', () => ({
-  useOrganizationList: () => organizationList,
 }))
 
 const onWorkspaceSwitch = vi.fn()
@@ -107,6 +102,7 @@ function render(overrides: Partial<Parameters<typeof WorkspaceHeader>[0]> = {}) 
 function header(overrides: Partial<Parameters<typeof WorkspaceHeader>[0]> = {}) {
   return (
     <WorkspaceHeader
+      organizationHref={null}
       activeWorkspace={{ name: "Emir's Workspace" }}
       workspaceId='ws-emir'
       workspaces={WORKSPACES}
@@ -165,7 +161,6 @@ function typeInto(input: HTMLInputElement, value: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  organizationList.data = []
   Object.assign(mockWorkspacePermissions, { canAdmin: true, canEdit: true, canRead: true })
   // jsdom implements neither; the component scrolls the active row into view.
   Element.prototype.scrollIntoView = vi.fn()
@@ -409,21 +404,20 @@ describe('WorkspaceHeader context navigation', () => {
   it.each([null, 'another-organization', 'viewer-organization'])(
     'links to the viewer organization landing independently of workspace host %s',
     (organizationId) => {
-      organizationList.data = [{ id: 'viewer-organization' }]
-      render({ workspaces: WORKSPACES.map((workspace) => ({ ...workspace, organizationId })) })
-      expect(document.querySelector('a[href="/o"]')).toHaveTextContent('Back to organization')
-      expect(document.querySelector('a[href^="/o/"]')).toBeNull()
+      render({
+        organizationHref: '/o/viewer-organization/home',
+        workspaces: WORKSPACES.map((workspace) => ({ ...workspace, organizationId })),
+      })
+      expect(document.querySelector('a[href="/o/viewer-organization/home"]')).toHaveTextContent(
+        'Back to organization'
+      )
     }
   )
 
-  it.each([[], undefined])(
-    'hides organization navigation without loaded memberships: %j',
-    (data) => {
-      organizationList.data = data
-      render()
-      expect(document.body).not.toHaveTextContent('Back to organization')
-    }
-  )
+  it('hides organization navigation without an eligible destination', () => {
+    render({ organizationHref: null })
+    expect(document.body).not.toHaveTextContent('Back to organization')
+  })
 
   it('keeps settings in the profile menu instead of duplicating it in the switcher', () => {
     render()

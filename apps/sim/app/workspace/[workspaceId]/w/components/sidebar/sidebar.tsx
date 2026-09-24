@@ -136,7 +136,6 @@ import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import type { Workspace } from '@/hooks/queries/workspace'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import { useMothershipChatEvents } from '@/hooks/use-mothership-chat-events'
-import { useOrganizationNavigationHref } from '@/hooks/use-organization-navigation'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useFolderStore } from '@/stores/folders/store'
@@ -333,6 +332,10 @@ const HIDDEN_STYLE = { display: 'none' } as const
  */
 const DRAG_EXEMPT_CLASS = '[-webkit-app-region:no-drag]'
 
+interface SidebarProps {
+  organizationHref: string | null
+}
+
 /**
  * Sidebar component with resizable width that persists across page refreshes.
  *
@@ -349,7 +352,7 @@ const DRAG_EXEMPT_CLASS = '[-webkit-app-region:no-drag]'
  *
  * @returns Sidebar with workflows panel
  */
-export const Sidebar = memo(function Sidebar() {
+export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps) {
   const { isCollapsed: isCollapsedProp, isPeeking } = useSidebarChrome()
   const isCollapsed = isCollapsedProp && !isPeeking
   const params = useParams()
@@ -820,7 +823,6 @@ export const Sidebar = memo(function Sidebar() {
       onNavigate: () => handleOpenSettings(id),
     }))
 
-  const organizationHref = useOrganizationNavigationHref()
   if (organizationHref) {
     profileNavigationLinks.push({
       label: 'Organization',
@@ -1305,6 +1307,7 @@ export const Sidebar = memo(function Sidebar() {
               )}
             >
               <WorkspaceHeader
+                organizationHref={organizationHref}
                 activeWorkspace={activeWorkspace ?? routeWorkspace}
                 workspaceId={workspaceId}
                 workspaces={workspaces}
