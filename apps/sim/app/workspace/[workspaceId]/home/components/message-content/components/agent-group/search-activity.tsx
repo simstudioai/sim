@@ -78,7 +78,8 @@ function searchOutcome(
  * The header title: the model's description of the call, in the tense and
  * outcome wording tool rows use, else the query text, else what the call is
  * doing. Tense follows liveness: a finished call reads as succeeded, stopped,
- * skipped, or in the neutral wording, never as still running.
+ * skipped, or in the neutral wording, never as still running. A sources check
+ * that never ran reads as a bare noun, leaving its suffix to say why.
  */
 function searchTitle(
   tool: ToolCallData,
@@ -92,7 +93,10 @@ function searchTitle(
   }
   if (queryText) return queryText
   if (tool.toolName === 'search_sources') {
-    return isToolDone(tool.status) ? 'Checked connected sources' : 'Checking connected sources'
+    if (!isToolDone(tool.status)) return 'Checking connected sources'
+    return tool.status === ToolCallStatus.success || tool.status === ToolCallStatus.error
+      ? 'Checked connected sources'
+      : 'Connected sources'
   }
   return 'Preparing query'
 }
