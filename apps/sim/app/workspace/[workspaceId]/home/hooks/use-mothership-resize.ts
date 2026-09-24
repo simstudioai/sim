@@ -118,6 +118,7 @@ function syncDividerValue(handle: HTMLElement, el: HTMLElement, maxWidth = measu
 export function useMothershipResize(desktopScopeId: string) {
   const mothershipRef = useRef<HTMLDivElement | null>(null)
   const cleanupRef = useRef<(() => void) | null>(null)
+  const focusedDividerRef = useRef<HTMLElement | null>(null)
   const desktopScopeIdRef = useRef(desktopScopeId)
   desktopScopeIdRef.current = desktopScopeId
 
@@ -256,11 +257,14 @@ export function useMothershipResize(desktopScopeId: string) {
     const clampWidth = () => {
       rafId = null
       const el = mothershipRef.current
-      const pinned = el?.style.width
-      if (!el || !pinned) return
+      if (!el) return
+      const pinned = el.style.width
+      const divider = focusedDividerRef.current
+      const reportsToDivider = divider !== null && document.activeElement === divider
+      if (!pinned && !reportsToDivider) return
       const maxWidth = measureMaxWidth(el)
-      if (Number.parseFloat(pinned) <= maxWidth) return
-      writeWidthInstantly(el, maxWidth)
+      if (pinned && Number.parseFloat(pinned) > maxWidth) writeWidthInstantly(el, maxWidth)
+      if (reportsToDivider) syncDividerValue(divider, el, maxWidth)
     }
 
     const handleWindowResize = () => {
@@ -288,8 +292,9 @@ export function useMothershipResize(desktopScopeId: string) {
     syncDividerValue(e.currentTarget, el, maxWidth)
   }, [])
 
-  /** Reports the current width when the divider takes focus. */
+  /** Reports the current width when the divider takes focus, and while it keeps focus. */
   const handleResizeFocus = useCallback((e: React.FocusEvent<HTMLElement>) => {
+    focusedDividerRef.current = e.currentTarget
     const el = mothershipRef.current
     if (el) syncDividerValue(e.currentTarget, el)
   }, [])

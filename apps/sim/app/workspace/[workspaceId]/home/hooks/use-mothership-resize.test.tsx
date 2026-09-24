@@ -198,6 +198,31 @@ describe('useMothershipResize keyboard divider', () => {
     await unmount()
   })
 
+  it('keeps a focused divider reporting the width a window resize clamps it to', async () => {
+    const { separator, panel, press, unmount } = await mountDivider()
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0)
+      return 1
+    })
+    await act(async () => separator.focus())
+    press('End')
+    const wideMax = maxPanelWidth(VIEWPORT, CONTAINER)
+    expect(separator.getAttribute('aria-valuenow')).toBe(String(Math.round(wideMax)))
+
+    const narrowViewport = 800
+    vi.stubGlobal('innerWidth', narrowViewport)
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+    })
+
+    const narrowMax = Math.round(maxPanelWidth(narrowViewport, CONTAINER))
+    expect(narrowMax).toBeLessThan(Math.round(wideMax))
+    expect(panel.style.width).toBe(`${maxPanelWidth(narrowViewport, CONTAINER)}px`)
+    expect(separator.getAttribute('aria-valuemax')).toBe(String(narrowMax))
+    expect(separator.getAttribute('aria-valuenow')).toBe(String(narrowMax))
+    await unmount()
+  })
+
   it('leaves modified and unrelated keys to the rest of the page', async () => {
     const { panel, press, unmount } = await mountDivider()
     for (const event of [
