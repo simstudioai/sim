@@ -1,4 +1,5 @@
 import { browserToolRendererTimeoutMs, isCurrentBrowserToolName } from '@sim/browser-protocol'
+import { COMPUTER_USE_TOOL_TIMEOUT_MS } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { isTerminalToolName, resolveRunWaitMs } from '@sim/terminal-protocol'
 import { toError } from '@sim/utils/errors'
@@ -271,6 +272,7 @@ export function pendingToolWaitBudgetMs(
   const executableName = toolCall?.execName ?? toolCall?.name
   if (desktopDeviceId && executableName && isDesktopToolCall(executableName, toolCall?.params))
     return CLIENT_TOOL_RESULT_TIMEOUT_MS
+  if (executableName === 'computer') return COMPUTER_USE_TOOL_TIMEOUT_MS
   if (executableName && isCurrentBrowserToolName(executableName)) {
     return browserToolRendererTimeoutMs(executableName, toolCall?.params)
   }

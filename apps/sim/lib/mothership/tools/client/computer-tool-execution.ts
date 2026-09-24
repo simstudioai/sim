@@ -1,3 +1,4 @@
+import { COMPUTER_USE_TOOL_TIMEOUT_MS } from '@sim/desktop-bridge'
 import { ComputerUseSchema } from '@sim/desktop-bridge/computer-use'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -17,7 +18,6 @@ import { computerToolResultForModel } from '@/lib/mothership/tools/client/comput
 const logger = createLogger('ComputerToolExecution')
 const MAX_EVENT_AGE_MS = 120_000
 const MAX_UNDELIVERED_RESULTS = 8
-const MAX_ACTION_MS = 90_000
 const replayLedger = new BrowserToolReplayLedger({
   storageKey: 'sim:computer-tool-ledger:v1',
   legacyStoragePrefix: 'sim:computer-tool-executed:',
@@ -147,7 +147,7 @@ export async function executeComputerToolOnClient(
           timer = setTimeout(() => {
             cancel()
             rejectTimeout(new Error('Computer action timed out; its effect may be incomplete'))
-          }, MAX_ACTION_MS)
+          }, COMPUTER_USE_TOOL_TIMEOUT_MS)
         }),
       ])
       execution.completion = cancelled
