@@ -6,9 +6,11 @@ import { BlockTileView } from '@sim/workflow-renderer'
 import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  StatusDisplay,
+  TerminalRowButton,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components'
 import { ROW_STYLES } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
-import { StatusDisplay } from './status-display'
-import { TerminalRowButton } from './terminal-row-button'
 
 let root: Root
 let host: HTMLDivElement
@@ -43,6 +45,7 @@ describe('TerminalRowButton', () => {
     const button = host.querySelector('button')!
     expect(button.type).toBe('button')
     expect(button.getAttribute('aria-expanded')).toBe('true')
+    expect(button.getAttribute('aria-pressed')).toBe('true')
     expect(button.getAttribute('data-entry-id')).toBe('entry-1')
     expect(button.className).toBe(ROW_STYLES.rowSelected)
     act(() => button.focus())
@@ -59,7 +62,15 @@ describe('TerminalRowButton', () => {
     const button = host.querySelector('button')!
     expect(button.className).toBe(ROW_STYLES.row)
     expect(button.hasAttribute('aria-expanded')).toBe(false)
+    expect(button.hasAttribute('aria-pressed')).toBe(false)
     expect(button.textContent).toBe('Block output')
+  })
+
+  it('exposes the unselected state only for selectable rows', () => {
+    act(() => {
+      root.render(<TerminalRowButton selected={false}>Other output</TerminalRowButton>)
+    })
+    expect(host.querySelector('button')?.getAttribute('aria-pressed')).toBe('false')
   })
 
   it('keeps the running status inline inside a native button', () => {
