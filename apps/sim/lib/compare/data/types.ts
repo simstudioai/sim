@@ -116,12 +116,11 @@ export interface ComparisonFacts {
     byok: Fact
   }
   security: {
-    soc2: Fact
+    /** Every compliance certification and attestation a product claims: SOC 2, ISO 27001, GDPR, HIPAA, PCI, FedRAMP, and the report scope or access conditions attached to them. */
+    compliance: Fact
     dataResidency: Fact
     rbac: Fact
     auditLogging: Fact
-    /** Compliance certifications beyond a bare SOC2 mention. HIPAA, ISO 27001, GDPR-specific attestations, PCI, FedRAMP, etc. */
-    additionalCompliance: Fact
     /** Admin-configurable restrictions on which LLM providers/models members may use, and which specific tools/integrations a role can call. Finer-grained than plain workspace admin/write/read. */
     modelAndToolGovernance: Fact
     /** Restricting which specific stored credentials/connections a role or permission group may use, distinct from feature-level RBAC or integration-level allow/deny. */
@@ -134,6 +133,8 @@ export interface ComparisonFacts {
     piiRedaction: Fact
     /** SAML/OIDC single sign-on with organization auto-provisioning on first login. */
     sso: Fact
+    /** SCIM 2.0 directory provisioning: creating, updating and deactivating members from an identity provider, and any group or role mapping that comes with it. Distinct from SSO, which only authenticates an existing user. */
+    scim: Fact
     /** Admin-configurable bounds on how long a signed-in session may live: an absolute lifetime cap from sign-in and/or an inactivity timeout, enforced org-wide. Distinct from SSO itself and from a fixed platform-wide session length the customer cannot change. */
     sessionPolicy: Fact
     /** Whether integrations/tools/skills come from a vetted first-party catalog authored and reviewed by the vendor, versus an open marketplace where any third party can publish and users install executable code from unvetted authors. */

@@ -214,16 +214,16 @@ export const stackaiProfile: CompetitorProfile = {
       },
       versionControlDepth: {
         value:
-          'Version history with diff/compare and rollback via revert; no branching or client-side undo/redo',
+          "Version history with diff/compare and rollback via revert; branching and client-side undo/redo are not described anywhere in StackAI's version-control documentation",
         detail:
           'Every save creates a full version snapshot; a compare tool diffs nodes, prompts/LLM config, and connections between versions. Any version can be reverted, which creates a new version and preserves history.',
         shortValue: 'Version history, diff, and rollback',
-        confidence: 'verified',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://www.stackai.com/blog/the-agentic-development-life-cycle-how-to-manage-ai-agents-at-scale',
             label: 'The Agentic Development Life Cycle - StackAI blog',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -258,7 +258,7 @@ export const stackaiProfile: CompetitorProfile = {
       },
       dataTables: {
         value:
-          "No: the Table node lets a workflow upload a CSV or XLSX file and query it with LLM-generated SQL, but only as a one-off input to that workflow run. That's different from a persistent, spreadsheet-like data table shared across a workspace, with defined row/column limits and spreadsheet-style keyboard navigation.",
+          "No: the Table node lets a workflow upload a CSV file and query it with LLM-generated SQL — the LLM turns a natural-language prompt into a SQL query and runs it against the uploaded CSV as a database table — but only as a one-off input to that workflow run. StackAI's documentation lists only CSV file upload as a Table node data source, with no mention of XLSX/Excel support. That's different from a persistent, spreadsheet-like data table shared across a workspace, with defined row/column limits and spreadsheet-style keyboard navigation.",
         detail:
           'There is no standalone "Tables" product surface with persistent grid storage independent of a single workflow run.',
         shortValue: 'No, only per-workflow CSV analysis',
@@ -267,7 +267,7 @@ export const stackaiProfile: CompetitorProfile = {
           {
             url: 'https://www.stackai.com/blog/how-to-build-spreadsheet-ai-agent',
             label: 'Build Spreadsheet AI Agent blog',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -373,14 +373,24 @@ export const stackaiProfile: CompetitorProfile = {
       },
       evaluationGuardrails: {
         value:
-          'Retrieval grounding, tool-call validation, and output enforcement are covered in vendor guidance, but there is no dedicated first-party evaluation or guardrails feature.',
-        shortValue: 'Guardrail guidance, no dedicated product',
+          'Retrieval grounding, tool-call validation, and output enforcement are covered in vendor guidance rather than a dedicated first-party guardrails product, but StackAI does ship a dedicated first-party evaluation feature: the Evaluator View, which batch-tests an agent against CSV-uploaded test cases and grades each output with a separate LLM judge, either against a customizable evaluation prompt or by comparison to a gold-standard answer.',
+        shortValue: 'No guardrails product, but has Evaluator View',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://www.stackai.com/insights/how-to-design-ai-agent-guardrails-best-practices-for-input-validation-output-filtering-and-safety-controls',
             label: 'How to Design AI Agent Guardrails - StackAI insights',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.stackai.com/welcome-to-stackai/overview/platform-overview',
+            label: 'Platform Overview - StackAI Docs',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.stackai.com/agentic-adoption-and-security/observability/evaluator',
+            label: 'Evaluator View - StackAI Docs',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -446,19 +456,24 @@ export const stackaiProfile: CompetitorProfile = {
       },
       nativeChatDeployment: {
         value:
-          'Yes: builders can publish a workflow or agent as a hosted Chat Assistant interface, alongside form, batch run, Slack, Teams, and API deployment targets. A chat widget can also be embedded on external sites via a copy-paste snippet.',
+          'Yes: builders can publish a workflow or agent as a hosted Chat Assistant interface, alongside form, batch run, Slack, Teams, and API deployment targets. A chat widget can also be embedded on external sites as a Website Chatbot interface — StackAI\'s docs describe this as embedding "a chat widget on any webpage" without detailing the exact embed mechanism.',
         shortValue: 'Yes, native chat + embeddable widget',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.stackai.com/welcome-to-stackai/overview/platform-overview',
             label: 'Platform Overview',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.stackai.com/getting-started/start-here',
             label: 'Start Here',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.stackai.com/interface-and-deployment/end-user-interfaces',
+            label: 'End-User Interfaces - StackAI Docs',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -542,14 +557,14 @@ export const stackaiProfile: CompetitorProfile = {
       integrationCount: {
         value: '70+ enterprise integrations',
         detail:
-          'StackAI documentation states it connects to 70+ apps and services, including Notion, Airtable, AWS, BigQuery, GitHub, Google Workspace, HubSpot, MongoDB, and MCP. Some marketing pages cite a higher "100+" figure, but the documented apps list supports 70+.',
+          'StackAI documentation states it connects to 70+ apps and services, including Notion, Airtable, BigQuery, GitHub, Gmail, Google Sheets, HubSpot, MongoDB, and MCP. AWS appears in StackAI\'s docs only as an LLM-hosting option (AWS Bedrock), not as a separate app-integration node, and there is no integration literally named "Google Workspace" — only individual nodes like Gmail, Google Sheets, and Google Docs. Some marketing pages cite a higher "100+" figure, but the documented apps list supports 70+.',
         shortValue: '70+ integrations',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.stackai.com/workflow-builder/apps',
             label: 'StackAI Apps documentation (70+ apps and services)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -695,10 +710,13 @@ export const stackaiProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type II, audited by Modern Assurance',
-        shortValue: 'SOC 2 Type II certified',
-        confidence: 'verified',
+      compliance: {
+        value:
+          'SOC 2 Type II (audited by Modern Assurance) and ISO 27001 certified, and audited against HIPAA in the same review cycle as its SOC 2 Type II audit, though the public Trust Center page itself lists only SOC 2 and ISO 27001, not HIPAA',
+        detail:
+          'The Trust Center confirms SOC 2 Type II and ISO 27001, DPAs with OpenAI and Anthropic, and a May 2025 penetration test with a Low risk rating. A separate StackAI blog post states the company "was also audited against HIPAA standards during the same period as the SOC 2 Type II audit." GDPR compliance is referenced on the Enterprise pricing page but has no dedicated audit source.',
+        shortValue: 'SOC 2 Type II and ISO 27001; HIPAA audited',
+        confidence: 'estimated',
         sources: [
           { url: 'https://trust.stackai.com/', label: 'StackAI Trust Center', asOf: '2026-07-02' },
           {
@@ -706,6 +724,7 @@ export const stackaiProfile: CompetitorProfile = {
             label: 'StackAI SOC 2 Type II & HIPAA blog',
             asOf: '2026-07-02',
           },
+          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-07-02' },
         ],
       },
       dataResidency: {
@@ -744,23 +763,6 @@ export const stackaiProfile: CompetitorProfile = {
             label: 'StackAI API Reference: Analytics',
             asOf: '2026-07-08',
           },
-        ],
-      },
-      additionalCompliance: {
-        value:
-          'ISO 27001 certified, and audited against HIPAA in the same review cycle as its SOC 2 Type II audit, though the public Trust Center page itself lists only SOC 2 and ISO 27001, not HIPAA',
-        detail:
-          'The Trust Center confirms SOC 2 Type II and ISO 27001, DPAs with OpenAI and Anthropic, and a May 2025 penetration test with a Low risk rating. A separate StackAI blog post states the company "was also audited against HIPAA standards during the same period as the SOC 2 Type II audit." GDPR compliance is referenced on the Enterprise pricing page but has no dedicated audit source.',
-        shortValue: 'ISO 27001 certified; HIPAA audited, GDPR marketing-only',
-        confidence: 'estimated',
-        sources: [
-          { url: 'https://trust.stackai.com/', label: 'StackAI Trust Center', asOf: '2026-07-02' },
-          {
-            url: 'https://www.stackai.com/blog/soc2-type2-hipaa',
-            label: 'StackAI SOC 2 Type II & HIPAA blog',
-            asOf: '2026-07-02',
-          },
-          { url: 'https://www.stackai.com/pricing', label: 'StackAI Pricing', asOf: '2026-07-02' },
         ],
       },
       modelAndToolGovernance: {
@@ -843,6 +845,13 @@ export const stackaiProfile: CompetitorProfile = {
             asOf: '2026-07-08',
           },
         ],
+      },
+      scim: {
+        value:
+          "Not publicly documented: no StackAI page reviewed states that SCIM 2.0 directory provisioning is supported. StackAI's Authentication and MFA, RBAC and Groups, and AI Governance docs describe SAML-based SSO with identity providers such as Okta and Entra ID, inheritance of groups and permissions from the IdP, and a default role for newly provisioned SSO users, but none names SCIM or describes users or groups being created, updated, or deactivated from an IdP directory; the public security page likewise lists only Identity Provider connection for SAML login and role-mapping. This is an absence of published evidence, not a confirmed gap: SCIM may be offered to Enterprise customers without being documented publicly.",
+        shortValue: 'Not publicly documented; could not confirm',
+        confidence: 'unknown',
+        sources: [],
       },
       sessionPolicy: {
         value:
@@ -1035,7 +1044,7 @@ export const stackaiProfile: CompetitorProfile = {
         value:
           'Acquired by Asana in a deal worth approximately $75 million, announced May 28, 2026. StackAI is now a subsidiary of Asana rather than an independent company',
         detail:
-          'Founders Antoni Rosinol and Bernardo Aceituno joined Asana as part of the acquisition. Prior to the acquisition, StackAI had raised just under $20M total: a ~$3M seed round in 2023 led by Gradient Ventures (with Y Combinator, Soma Capital, and others participating), and a $16M Series A in May 2025 led by Lobby Capital and LifeX Ventures, with Gradient Ventures and Epakon Capital returning.',
+          'Founders Antoni Rosinol and Bernardo Aceituno joined Asana as part of the acquisition. Prior to the acquisition, StackAI had raised just under $20M total: a ~$3M seed round announced in May 2024 led by Gradient Ventures (with Y Combinator, Soma Capital, and others participating), and a $16M Series A in May 2025 led by Lobby VC and LifeX Ventures, with Gradient Ventures, Y Combinator, and Epakon Capital returning.',
         shortValue: 'Now a subsidiary of Asana (acquired 2026)',
         confidence: 'verified',
         sources: [
@@ -1047,12 +1056,17 @@ export const stackaiProfile: CompetitorProfile = {
           {
             url: 'https://www.stackai.com/blog/stack-ai-raises-16m-series-a-to-create-ai-agents-for-every-job',
             label: 'StackAI Raises $16M Series A - StackAI blog',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://www.stackai.com/blog/stack-ai-raises-3m-seed-round',
+            label: "StackAI's $3M Seed Round - StackAI blog",
+            asOf: '2026-09-15',
           },
           {
             url: 'https://www.ycombinator.com/companies/stackai',
             label: 'StackAI - Y Combinator company page',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },

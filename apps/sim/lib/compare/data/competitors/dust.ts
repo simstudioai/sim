@@ -54,7 +54,7 @@ export const dustProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.dust.tt/docs/changelog#gitops-sync-for-skills-&-agent-configurations-with-github-action',
         label: 'GitOps sync for Skills & Agent configurations | Dust changelog',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -65,7 +65,7 @@ export const dustProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.dust.tt/docs/skills',
         label: 'Skills | Dust Docs',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -76,7 +76,7 @@ export const dustProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.dust.tt/docs/scheduling-your-agent-beta',
         label: 'Schedules | Dust Docs',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -88,7 +88,7 @@ export const dustProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.dust.tt/docs/client-side-mcp-server',
         label: 'Client Side MCP Server (Preview) | Dust Docs',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -99,7 +99,7 @@ export const dustProfile: CompetitorProfile = {
       source: {
         url: 'https://blog.dust.tt/introducing-frames-interactive-data-visualized/',
         label: 'Introducing Frames: Interactive data, visualized | Dust Blog',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
   ],
@@ -111,9 +111,9 @@ export const dustProfile: CompetitorProfile = {
       shortDescription:
         'Agent builder is form/instruction-based; the older visual block builder is deprecated.',
       source: {
-        url: 'https://docs.dust.tt/reference/dust-apps-core-concepts',
+        url: 'https://docs.dust.tt/docs/developer-platform/legacy-dust-apps/dust-apps-core-concepts',
         label: 'Dust Apps: Core Concepts | Dust Docs',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -126,7 +126,7 @@ export const dustProfile: CompetitorProfile = {
       source: {
         url: 'https://dust.tt/blog/evaluation-to-maintenance',
         label: 'From Evaluation to Maintenance | Dust Blog',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -138,7 +138,7 @@ export const dustProfile: CompetitorProfile = {
       source: {
         url: 'https://github.com/dust-tt/dust/blob/main/LICENSE',
         label: 'dust-tt/dust LICENSE (GitHub)',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
     {
@@ -150,7 +150,7 @@ export const dustProfile: CompetitorProfile = {
       source: {
         url: 'https://docs.dust.tt/docs/table-queries',
         label: 'Table queries | Dust Docs',
-        asOf: '2026-07-02',
+        asOf: '2026-09-15',
       },
     },
   ],
@@ -167,12 +167,12 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://deepwiki.com/dust-tt/dust/3.2-agent-builder-interface',
             label: 'Agent Builder Interface | dust-tt/dust | DeepWiki',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
-            url: 'https://docs.dust.tt/reference/dust-apps-core-concepts',
+            url: 'https://docs.dust.tt/docs/developer-platform/legacy-dust-apps/dust-apps-core-concepts',
             label: 'Dust Apps: Core Concepts | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -180,14 +180,24 @@ export const dustProfile: CompetitorProfile = {
         value:
           'Low for simple no-code agents from a template; steeper for custom MCP tool integrations, Query Tables/SQL, and GitOps-managed configurations',
         detail:
-          'Dust markets itself as a no-code agent builder for business users starting from templates with Sidekick guidance, while custom MCP servers, SQL-based Query Tables, and Git-based configuration management assume technical familiarity.',
+          "Dust markets itself as a no-code agent builder that lets business teams build and deploy agents connected to company data without engineering support (per Dust's own blog); separately, Dust's product documentation describes starting from a template gallery with Sidekick-guided instruction drafting as the typical on-ramp, while custom MCP servers, SQL-based Query Tables, and Git-based configuration management assume more technical familiarity.",
         shortValue: 'Easy for templated agents, steeper for custom tools/SQL/GitOps',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://dust.tt/blog/no-code-ai-agent-builder',
             label: 'No-Code AI Agent Builder | Dust Blog',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/agent-builder-sidekick',
+            label: 'Agent Builder Sidekick | Dust Docs',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/templates',
+            label: 'Templates | Dust Docs',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -202,7 +212,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://github.com/dust-tt/dust/blob/main/LICENSE',
             label: 'dust-tt/dust LICENSE (GitHub)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -217,22 +227,27 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/changelog#-eu-data-hosting-option-available',
             label: 'EU data hosting option available | Dust changelog',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
       templates: {
         value:
-          'Yes: a Template Gallery of pre-built agents organized by department/use case (Sales, Customer Support, Marketing, Engineering, Data Analytics, Knowledge Management, Recruiting, Product Design, Collaboration)',
+          "Yes: a template gallery of pre-built agents, with Dust's separate Use Cases & Guides documentation organized by department/use case (Sales, Customer Support, Marketing, Engineering, Data Analytics, Knowledge, Recruiting & People, Product, Collaboration)",
         detail:
-          "Selecting a template opens a Sidekick-guided creation flow pre-loaded with the template's instructions and suggested tools/data sources; templates are organized by department/use case including Sales, Customer Support, Marketing, Engineering, Data Analytics, Knowledge Management, Recruiting, Product Design, and Collaboration. The builder reviews, adjusts, and publishes from there.",
-        shortValue: 'Template gallery organized by department/use case',
+          "Selecting a template opens a Sidekick-guided creation flow pre-loaded with the template's context; Sidekick drafts instructions and suggests tools/data sources for the builder to review, adjust, and publish. Dust's current Templates doc page no longer itself enumerates categories and instead points to a separate Use Cases & Guides section, which organizes use cases by department: Sales, Customer Support, Marketing, Engineering, Data Analytics, Knowledge, Recruiting & People, Product, and Collaboration.",
+        shortValue: 'Template gallery; Use Cases & Guides organized by department',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.dust.tt/docs/templates',
             label: 'Templates | Dust Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/user-documentation/getting-started/use-cases-and-guides/index',
+            label: 'Use Cases & Guides | Dust Docs',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -247,7 +262,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://github.com/dust-tt/dust/blob/main/LICENSE',
             label: 'dust-tt/dust LICENSE (GitHub)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -262,7 +277,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/changelog#gitops-sync-for-skills-&-agent-configurations-with-github-action',
             label: 'GitOps sync for Skills & Agent configurations | Dust changelog',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -277,12 +292,12 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/changelog#-prompt-version-history',
             label: 'Prompt version history | Dust changelog',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://deepwiki.com/dust-tt/dust/3.1-agent-configuration-and-management',
             label: 'Agent Configuration and Management | dust-tt/dust | DeepWiki',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -290,14 +305,14 @@ export const dustProfile: CompetitorProfile = {
         value:
           "No: Dust calls itself 'multiplayer AI', with shared conversations, mentions, notifications, and to-dos between people and agents in a workspace, but this is asynchronous collaboration, not live concurrent editing of the same agent configuration with synced cursors",
         detail:
-          "Dust's own materials describe a shared workspace where 'teams and agents work in the same workspace with shared projects, context, conversations, to-dos, notifications' rather than live co-editing of a single agent's configuration.",
+          "Dust's own materials describe a shared workspace: its Collaboration docs describe users and AI agents working together in shared conversations through @mentions, notifications, and conversation sharing (not live co-editing of a single agent's configuration), and Dust's homepage separately describes 'shared access to company knowledge, connected tools, conversations, and notifications' between people and agents.",
         shortValue: 'Shared async workspace, not live co-editing of one config',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.dust.tt/docs/collaboration',
             label: 'Collaboration | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -312,7 +327,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/file-generation',
             label: 'File Generation | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -327,7 +342,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/table-queries',
             label: 'Table queries | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -342,12 +357,12 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://blog.dust.tt/introducing-frames-interactive-data-visualized/',
             label: 'Introducing Frames: Interactive data, visualized | Dust Blog',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
-            url: 'https://docs.dust.tt/changelog/dust-agents-can-now-create-and-edit-google-drive-documents',
+            url: 'https://docs.dust.tt/docs/changelog',
             label: 'Dust Agents Can Now Create and Edit Google Drive Documents | Dust changelog',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -362,7 +377,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/run-agent',
             label: 'Run agent | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -377,12 +392,12 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/skills',
             label: 'Skills | Dust Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.dust.tt/docs/run-agent',
             label: 'Run agent | Dust Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -390,16 +405,17 @@ export const dustProfile: CompetitorProfile = {
     aiCapabilities: {
       multiLlmSupport: {
         value:
-          'Yes: agents can be configured with a choice of model (e.g. GPT-4 Turbo, Claude 3, Gemini Pro, Mistral Large) and a Reasoning Effort setting, selectable per agent',
+          'Yes: agents can be configured with a choice of specific model from multiple providers, or one of three curated auto-model tiers (Basic, Standard, Premium) that Dust benchmarks and updates, plus a reasoning-effort setting (None, Light, Medium, High) selectable per agent when a specific model is chosen',
         detail:
-          'Advanced agent settings let a builder pick the model and a reasoning-effort level (Light, Medium, High); Dust docs name GPT-4 Turbo, Claude 3, Gemini Pro, and Mistral Large as selectable models.',
-        shortValue: 'GPT-4 Turbo, Claude 3, Gemini Pro, Mistral Large selectable per agent',
+          "Dust's model-selection docs list current per-tier models including GPT 5.6 Luna, Claude Sonnet 4.6, Claude Opus 4.8, Claude Opus 5, GPT 5.6 Sol, Gemini 3.1 Pro, Gemini 3.7 Flash, Gemini 3.1 Flash Lite, Mistral Small, Mistral Medium 3.5, and Mistral Large; reasoning effort (None/Light/Medium/High) only applies when a specific model, rather than an auto tier, is selected.",
+        shortValue:
+          'Specific models or Basic/Standard/Premium auto-tiers; reasoning effort None/Light/Medium/High',
         confidence: 'verified',
         sources: [
           {
-            url: 'https://docs.dust.tt/docs/what-settings-model-should-i-use',
-            label: 'What settings / model should I use? | Dust Docs',
-            asOf: '2026-07-08',
+            url: 'https://docs.dust.tt/docs/user-documentation/agents/model-selection',
+            label: 'Model selection | Dust Docs',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -414,7 +430,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://blog.dust.tt/introducing-multi-tool-assistants/',
             label: 'Introducing: multi-tool agents | Dust Blog',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -429,7 +445,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/agent-builder-sidekick',
             label: 'Agent Builder Sidekick | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -444,7 +460,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/understanding-retrieval-augmented-generation-rag-and-the-search-method-in-dust',
             label: 'Understanding Retrieval Augmented Generation (RAG) | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -459,12 +475,12 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/remote-mcp-server',
             label: 'Adding an MCP Server | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.dust.tt/docs/client-side-mcp-server',
             label: 'Client Side MCP Server (Preview) | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -479,7 +495,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://dust.tt/blog/evaluation-to-maintenance',
             label: 'From Evaluation to Maintenance | Dust Blog',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -487,35 +503,40 @@ export const dustProfile: CompetitorProfile = {
         value:
           "Yes: MCP tool execution uses a stakes-tiered approval model (high/medium/low-stake tools, with argument-level approval required for certain medium-stake tool parameters), not a simple 'always ask' vs. auto-execute toggle, and Dust's own guidance recommends human approval before irreversible agent actions",
         detail:
-          "Dust's MCP tool architecture tiers tools by stake level and requires argument-level approval for certain medium-stake tool parameters before execution, and Dust recommends 'mandatory steps, and human approval points before any irreversible action' for consequential agent actions. This is a graduated tool-execution approval model, not a single named workflow node like a dedicated approval action in a workflow tool.",
+          "Dust's MCP tool architecture tiers tools by stake level and requires argument-level approval for certain medium-stake tool parameters before execution. Separately, Dust's own guidance on agent workflow design lists 'human approval checkpoints' as one recommended pattern for high-stakes decisions or sensitive workflows, so agents don't take critical actions autonomously — presented as one design pattern among several (alongside sequential execution, multi-agent collaboration, and parallel processing), not as a mandatory platform-wide gate.",
         shortValue: 'Stakes-tiered MCP approval model; documented best-practice guidance',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://deepwiki.com/dust-tt/dust/4-agent-system',
             label: 'MCP Tool System | dust-tt/dust | DeepWiki',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://dust.tt/blog/ai-agent-workflows',
             label: 'AI agent workflows: How they work and how to build your own | Dust Blog',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
       generativeMedia: {
         value:
-          "Partial: native image generation (via Google's gemini-3-pro-image model) with reference-image consistency (up to 14 reference images) and parallel generation is built in; there is no dedicated native video-generation block, though a separate 'Voice and sound generation' tool exists for audio",
+          "Partial: native image generation is built in, with reference-image consistency (up to 14 reference images per generation, per current docs) and parallel generation; the underlying default model is not consistently documented — a January 2026 changelog entry named Google's Gemini 3 Pro Image, while an April 2026 changelog entry states GPT Image 2 (OpenAI) is 'already the default image generation model on Dust,' and the current image-generation doc page does not itself name a model; there is no dedicated native video-generation block, though a separate 'Voice and sound generation' tool exists for audio",
         detail:
-          "Dust's Image Generation capability uses Google's gemini-3-pro-image model, supports up to 14 reference images for visual consistency across a series, and can run multiple generations in parallel; generated images are filtered for safety. A separate 'Voice and sound generation' tool provides native audio generation, but no dedicated native video-generation block was found.",
+          "Dust's current Image Generation docs page supports up to 14 reference images for visual consistency across a series and can run multiple generations in parallel, but does not itself name an underlying model. Dust's changelog shows the model attribution changed over time: a January 28, 2026 entry ('More Powerful Image Generation with Gemini 3 Pro') states image generation was upgraded to Google's Gemini 3 Pro model, while a later April 22, 2026 entry ('GPT Image 2: Enhanced Image Generation Now Default on Dust') states OpenAI's GPT Image 2 'is now the default for all image creation on Dust' and that 'GPT Image 2 is already the default image generation model on Dust' — superseding the earlier Gemini attribution. A separate 'Voice and sound generation' tool provides native audio generation, but no dedicated native video-generation block was found.",
         shortValue:
-          'Native image gen (gemini-3-pro-image) + reference images; separate audio tool; no native video',
+          'Native image gen + reference images; default model undocumented/conflicting; no native video',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.dust.tt/docs/image-generation',
             label: 'Image Generation | Dust Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/changelog',
+            label: 'Image generation model changelog entries | Dust changelog',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -530,7 +551,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://blog.dust.tt/introducing-multi-tool-assistants/',
             label: 'Introducing: multi-tool agents | Dust Blog',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -553,7 +574,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/skills',
             label: 'Skills | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -568,7 +589,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/dust-in-teams',
             label: 'Dust in Teams | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -584,7 +605,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://community.dust.tt/x/03help/6ku3a37chfyo/how-to-access-documents-from-the-dust-agent-a-guid',
             label: 'How to Access Documents from the Dust Agent | Dust Community',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -599,7 +620,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/image-generation',
             label: 'Image Generation | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -622,7 +643,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/tools',
             label: 'Tools | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -630,16 +651,22 @@ export const dustProfile: CompetitorProfile = {
     integrations: {
       integrationCount: {
         value:
-          '50+ native connections (Slack, Notion, Google Drive, Confluence, GitHub, Salesforce, HubSpot, Zendesk, and more), plus MCP servers for further extensibility',
+          "20+ native data-source connectors (Slack, Notion, Google Drive, Confluence, GitHub, Salesforce, and more) plus dozens of further MCP-based tool integrations, per Dust's own current pricing page; earlier Dust marketing materials cited a higher '50+ business tools' figure, and some third-party listings cite still-higher figures (100+) that likely include MCP-based and community integrations beyond the core native-connector count",
         detail:
-          "Dust's enterprise page states 'native integrations to 50+ business tools'; some third-party listings cite higher figures (100+) that likely include MCP-based and community integrations beyond the core native connector count.",
-        shortValue: '50+ native connections per Dust',
+          "Dust's pricing page states 'Connectors to 20+ data sources' and 'Connect Slack, Notion, GitHub, Drive + 20 more — or any tool via MCP.' Dust's enterprise page no longer states a specific integration count (it lists example tools — Notion, Slack, Salesforce, GitHub — without a number); some third-party listings cite higher figures (100+) that likely include MCP-based and community integrations beyond the core native connector count.",
+        shortValue:
+          "20+ native connectors per Dust's current pricing page (was previously cited as 50+)",
         confidence: 'estimated',
         sources: [
           {
+            url: 'https://dust.tt/home/pricing',
+            label: 'Dust Pricing',
+            asOf: '2026-09-15',
+          },
+          {
             url: 'https://dust.tt/home/enterprise',
             label: 'Dust for Enterprise',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -655,7 +682,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/triggers',
             label: 'Triggers | Dust Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -670,7 +697,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/val-town',
             label: 'Val Town | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -685,17 +712,17 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/user-documentation/admins/tools-management/computer-admin-setup.md',
             label: 'Computer Admin Setup | Dust Docs',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.dust.tt/docs/computer',
             label: 'Computer | Dust Docs',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.dust.tt/docs/tools',
             label: 'Tools | Dust Docs',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -710,27 +737,42 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/client-side-mcp-server',
             label: 'Client Side MCP Server (Preview) | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.dust.tt/reference/developer-platform-overview',
             label: 'Developer platform | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       extensibilitySdk: {
         value:
-          'MIT-licensed core repository (dust-tt/dust) on GitHub, a documented Developer Platform/API, an official GitHub Action for GitOps config sync, and community-built MCP bridges',
+          'MIT-licensed core repository (dust-tt/dust) on GitHub, a documented Developer Platform/API, a first-party JavaScript client SDK (@dust-tt/client, distributed as an npm package), a first-party Dust CLI (@dust-tt/dust-cli), an official GitHub Action for GitOps config sync, and community-built MCP bridges',
         detail:
-          'There is no separate first-party multi-language client SDK beyond the API/GitHub Action; extensibility instead centers on the open MIT-licensed codebase, the public API, and the MCP ecosystem, including third-party community projects (e.g. a community-built dust-mcp-server bridge).',
-        shortValue: 'Open MIT repo, API, GitHub Action, MCP ecosystem',
+          "Dust's Developer Platform docs name the Dust API, the JavaScript SDK, and the Dust CLI as the three ways to build on Dust programmatically. The JavaScript SDK is a thin client wrapper around the REST API rather than a full multi-language SDK family (no first-party Python/Go/etc. client is documented), so extensibility beyond JS still leans on the open MIT-licensed codebase, the public API, and the MCP ecosystem, including third-party community projects (e.g. a community-built dust-mcp-server bridge).",
+        shortValue: 'Open MIT repo, API, first-party JS SDK + CLI, GitHub Action, MCP ecosystem',
         confidence: 'estimated',
         sources: [
           {
             url: 'https://github.com/dust-tt/dust',
             label: 'dust-tt/dust (GitHub)',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.dust.tt/reference/developer-platform-overview',
+            label: 'Developer platform | Dust Docs',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/developer-platform/overview/javascript-sdk',
+            label: 'JavaScript SDK | Dust Docs',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/developer-platform/dust-cli/dust-cli',
+            label: 'Dust CLI | Dust Docs',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -745,7 +787,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://blog.dust.tt/mcp-emerging-enterprise-ai-os-layer/',
             label: 'MCP and the emerging enterprise AI OS layer | Dust Blog',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -761,7 +803,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://dust.tt/home/pricing',
             label: 'Dust Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -775,27 +817,27 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://dust.tt/home/pricing',
             label: 'Dust Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       freeTier: {
         value:
-          'Yes: a free Business tier for new workspaces, capped at 5 users, 3 connectors, and 5 Spaces, no credit card required',
+          'Yes: a free Business tier for new workspaces, capped at 5 users, 3 connectors, 5 Spaces, and a one-time lifetime allocation of 500 credits (not renewed monthly, unlike paid seats), no credit card required',
         detail:
-          'This free tier is what a new workspace gets by default without a paid subscription. It is distinct from what happens when an existing paid workspace downgrades: canceling removes all users except the earliest-assigned admin, deletes existing connections, and deletes data sources over 50MB combined after a 7-day warning period, while original source data in the connected provider itself is untouched.',
-        shortValue: 'Free for new workspaces: up to 5 users, 3 connectors, 5 Spaces',
+          "This free tier is what a new workspace gets by default without a paid subscription. It is distinct from what happens when an existing paid workspace downgrades: canceling removes all users except the earliest-assigned admin, deletes existing connections, and deletes data sources over 50MB combined after a 7-day warning period, while original source data in the connected provider itself is untouched. Dust's pricing page additionally caps the Free seat type at 500 credits total for the lifetime of the seat, in contrast to Pro (8,000 credits/month) and Max (40,000 credits/month), which reset every billing period — making the free tier primarily suited to brief trial use rather than sustained usage.",
+        shortValue: 'Free tier: 5 users, 3 connectors, 5 Spaces, 500 lifetime credits',
         confidence: 'verified',
         sources: [
           {
             url: 'https://dust.tt/home/pricing',
             label: 'Dust Pricing',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.dust.tt/docs/subscriptions',
             label: 'Subscriptions & Payments | Dust Docs',
-            asOf: '2026-07-04',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -810,22 +852,28 @@ export const dustProfile: CompetitorProfile = {
       },
     },
     security: {
-      soc2: {
-        value: 'Yes: SOC 2 Type II certified, achieved audit readiness with Vanta in three weeks',
+      compliance: {
+        value:
+          "SOC 2 Type II certified, with 80% SOC 2 Type II audit readiness reached using Vanta's automation in three weeks (per Vanta's published case study) and the completed SOC 2 Type II report downloadable through Dust's Trust Center; also GDPR compliant and HIPAA-capable; no ISO 27001, PCI, or FedRAMP",
         detail:
-          "Dust's own security page states SOC 2 Type II certification; a Vanta customer case study describes Dust achieving SOC 2 Type II audit readiness in three weeks using Vanta's automation, reducing compliance workload by roughly 50%. The report is downloadable via Dust's Trust Center.",
-        shortValue: 'SOC 2 Type II certified, report via Trust Center',
-        confidence: 'verified',
+          "Dust's own security page states SOC 2 Type II certification; a Vanta customer case study quotes Dust's CEO stating Vanta got the company to 80% SOC 2 Type II audit readiness in three weeks, and separately reports a 50% reduction in compliance workload. The full, completed SOC 2 Type II report is listed as a downloadable resource on Dust's Trust Center (trust.dust.com). Dust's security page and enterprise materials additionally state GDPR compliance and HIPAA-compliance capability alongside SOC 2 Type II. No source confirms ISO 27001, PCI-DSS, or FedRAMP.",
+        shortValue: 'SOC 2 Type II, GDPR, HIPAA-capable; no ISO/PCI',
+        confidence: 'estimated',
         sources: [
           {
             url: 'https://www.vanta.com/customers/dust',
             label: 'With Vanta, Dust achieved SOC 2 Type II audit readiness in three weeks',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://trust.dust.com/',
             label: 'Dust Trust Center',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://dust.tt/home/security',
+            label: 'Dust Security',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -839,51 +887,49 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/changelog#-eu-data-hosting-option-available',
             label: 'EU data hosting option available | Dust changelog',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       rbac: {
         value:
-          'Yes: three workspace roles (Member, Builder, Admin) plus per-Space access control, where only members of the Spaces an agent uses can see and use that agent',
+          "Yes: three workspace roles — Admin, Manager, Member — plus per-Space access control, where only members of the Spaces an agent uses can see and use that agent. (Dust is in transition from an earlier Member/Builder/Admin model: the legacy Builder role is being replaced by separately grantable permissions for creating and publishing agents/skills, with existing Builders migrated into a transitional 'Builders' group.)",
         detail:
-          'Members can chat with and build agents; Builders additionally manage Folders and use the API; Admins manage workspace settings, connections, and member roles. Spaces (open or restricted) gate which members can see specific data sources, tools, and the agents built on them.',
-        shortValue: 'Member/Builder/Admin roles plus per-Space access gating',
+          "Members use Dust according to their seat, group memberships, and granted permissions; Managers are delegated administrators who can invite/remove members, assign Manager/Member roles, and grant agent/skill creation and publishing permissions to groups; Admins have full administrative access including billing, security, and provisioning. Permissions (create/publish agents, create skills, view audit logs, manage billing, manage security/provisioning) are granted to groups rather than roles directly, and are additive across a person's group memberships. Spaces (open or restricted) separately gate which members can see specific data sources, tools, and the agents built on them.",
+        shortValue:
+          'Admin/Manager/Member roles (Builder role being phased out) plus per-Space access gating',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.dust.tt/docs/access-controls-and-permissions',
             label: 'Access Controls and Permissions | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://docs.dust.tt/docs/user-documentation/admins/admin-governance/workspace-governance-roles-groups-and-permissions.md',
+            label: 'Workspace Governance (Roles, Groups & Permissions) | Dust Docs',
+            asOf: '2026-09-15',
           },
         ],
       },
       auditLogging: {
         value:
-          'Yes: audit logs available on the Enterprise plan, admin-only, with CSV export and continuous streaming to a SIEM (Datadog, Splunk, AWS S3, GCP GCS, custom HTTPS endpoint); no retention period is documented',
+          "Yes: audit logs available on the Enterprise plan, admin-only, with CSV export and continuous streaming to a SIEM (Datadog, Splunk, AWS S3, GCP GCS, custom HTTPS endpoint); a 365-day retention period is stated on Dust's Enterprise marketing page, though not repeated in the Audit Logs documentation itself",
         detail:
-          "Dust's Audit Logs docs confirm the feature is Enterprise-only, accessible to workspace admins under Admin > People & Security > Audit Logs, with full-text search, time-range filtering, manual CSV export, and continuous streaming to external SIEM destinations. No page specifies how many days of audit history are retained.",
-        shortValue: 'Enterprise-tier audit logs with SIEM export; retention period not documented',
+          "Dust's Audit Logs docs confirm the feature is Enterprise-only, accessible to workspace admins under Admin > IT & Security > Audit Logs, with full-text search, time-range filtering, manual CSV export, and continuous streaming to external SIEM destinations (Datadog, Splunk, AWS S3, GCP GCS, custom HTTPS endpoint). Dust's Enterprise marketing page separately states a 365-day retention period for audit logs, though the audit-logs documentation itself does not repeat that figure.",
+        shortValue:
+          "Enterprise-tier audit logs with SIEM export; 365-day retention per Dust's Enterprise page",
         confidence: 'estimated',
         sources: [
           {
             url: 'https://docs.dust.tt/docs/audit-logs',
             label: 'Audit Logs | Dust Docs',
-            asOf: '2026-07-04',
+            asOf: '2026-09-15',
           },
-        ],
-      },
-      additionalCompliance: {
-        value: 'GDPR compliant, HIPAA-capable, SOC 2 Type II; no ISO 27001, PCI, or FedRAMP',
-        detail:
-          "Dust's security page and enterprise materials state GDPR compliance and HIPAA-compliance capability alongside SOC 2 Type II. No source confirms ISO 27001, PCI-DSS, or FedRAMP.",
-        shortValue: 'GDPR, HIPAA-capable, SOC 2 Type II',
-        confidence: 'estimated',
-        sources: [
           {
-            url: 'https://dust.tt/home/security',
-            label: 'Dust Security',
-            asOf: '2026-07-02',
+            url: 'https://dust.tt/home/enterprise',
+            label: 'Dust for Enterprise',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -906,7 +952,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/access-controls-and-permissions',
             label: 'Access Controls and Permissions | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -928,7 +974,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://dust.tt/home/enterprise',
             label: 'Dust for Enterprise',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -941,17 +987,34 @@ export const dustProfile: CompetitorProfile = {
         sources: [],
       },
       sso: {
-        value:
-          'Yes: SSO (e.g. Okta, Entra, JumpCloud) and SCIM user provisioning on the Enterprise plan',
+        value: 'Yes: SSO (SAML, OIDC) on the Enterprise plan, e.g. Okta, Entra, JumpCloud',
         detail:
-          'Enterprise plan materials name SSO and SCIM explicitly, and a third-party enterprise summary lists Okta/Entra/JumpCloud as example supported identity providers.',
-        shortValue: 'SSO and SCIM provisioning, Enterprise plan',
+          'Enterprise plan materials name SSO (SAML, OIDC) explicitly, and a third-party enterprise summary lists Okta/Entra/JumpCloud as example supported identity providers.',
+        shortValue: 'SAML/OIDC SSO on the Enterprise plan',
         confidence: 'verified',
         sources: [
           {
             url: 'https://dust.tt/home/enterprise',
             label: 'Dust for Enterprise',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
+          },
+        ],
+      },
+      scim: {
+        value:
+          "Yes: SCIM 2.0 user and group provisioning, documented as an enterprise feature requiring admin access. Dust states that users are created, updated, and deactivated in Dust automatically from the identity provider; an admin selects their IdP from a list during setup, with Okta given as the worked example and per-IdP documentation recommended because the steps differ by provider. Groups are provisioned alongside users and mapped to Dust roles in settings, replacing an earlier scheme that relied on groups named exactly dust-admins and dust-managers; a user always keeps the highest role granted across their groups (admin outranks manager). Provisioning the relevant groups is also what enables department-segmented analytics. Dust publishes no fixed list of supported identity providers, and manual group management remains available alongside SCIM-provisioned groups. Dust's own Enterprise page separately lists SCIM alongside SSO and role-based permissions as enterprise-readiness features.",
+        shortValue: 'Yes: SCIM user and group provisioning, enterprise',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.dust.tt/docs/users-and-groups-provisioning',
+            label: 'Users and groups provisioning | Dust Docs',
+            asOf: '2026-09-15',
+          },
+          {
+            url: 'https://dust.tt/home/enterprise',
+            label: 'Dust for Enterprise',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -966,38 +1029,38 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/user-documentation/admins/admin-governance/workspace-governance-roles-groups-and-permissions.md',
             label: 'Workspace Governance (Roles, Groups & Permissions) | Dust Docs',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.dust.tt/docs/user-documentation/admins/admin-governance/single-sign-on-sso/saml-sso.md',
             label: 'SAML SSO | Dust Docs',
-            asOf: '2026-08-10',
+            asOf: '2026-09-15',
           },
         ],
       },
       thirdPartyVetting: {
         value:
-          'Partial: native data connections (11 fully-managed sources including Google Drive, Notion, Confluence, GitHub, Salesforce, Microsoft, Snowflake, BigQuery, Zendesk, Gong, and Intercom) are first-party and built/maintained by the Dust team; Slack and dozens of other business tools (Airtable, Asana, HubSpot, Jira, Salesloft, and more) are documented as separate MCP-based Tools rather than native Connections, and agent tools can also be extended with any external MCP server by pasting its public URL, with no Dust-led vetting or review of that server',
+          "Partial: native data connections (12 fully-managed sources including Google Drive, Notion, Confluence, Intercom, GitHub, Microsoft, Snowflake, BigQuery, Zendesk, Gong, Slack, and Salesforce) are first-party, admin-managed connections built/maintained by the Dust team for search/RAG; Slack separately also has an MCP-based 'Slack tools' capability for posting messages and searching in real time, and dozens of other business tools (Airtable, Asana, HubSpot, Jira, Salesloft, and more) are documented as MCP-based Tools rather than native Connections, and agent tools can also be extended with any external MCP server by pasting its public URL, with no Dust-led vetting or review of that server",
         detail:
-          "Docs list 11 fully-managed native Connections under Connections Management, while Dust's own Slack integration docs describe it as 'Slack MCP tools' added by selecting Slack 'from the available MCP servers,' distinct from that native Connections list. Dust's Tools catalog documents dozens of further business-tool integrations (Airtable, Asana, HubSpot, Jira, Salesloft, and more) alongside the ability to add any external MCP server by pasting its public URL, with workspace admins responsible for choosing and authenticating it. No formal Dust review process is described for pasted third-party MCP server URLs, and no publicly documented security incident involving a malicious or compromised third-party MCP server on Dust was found.",
+          "Dust's Connections page lists 12 fully-managed native Connections (Google Drive, Notion, Confluence, Intercom, GitHub, Microsoft, Snowflake, BigQuery, Zendesk, Gong, Slack, and Salesforce), including Slack as a native, admin-managed data-source connection for search/RAG. Separately, Dust's Slack integration docs describe 'Slack tools' — an MCP-based capability added by selecting Slack 'from the available MCP servers' and authenticated with the user's personal credentials — for posting messages and searching in real time. Dust's Tools catalog documents dozens of further business-tool integrations (Airtable, Asana, HubSpot, Jira, Salesloft, and more) alongside the ability to add any external MCP server by pasting its public URL, with workspace admins responsible for choosing and authenticating it. No formal Dust review process is described for pasted third-party MCP server URLs, and no publicly documented security incident involving a malicious or compromised third-party MCP server on Dust was found.",
         shortValue:
-          '11 first-party Connections; Slack + dozens more via MCP-based Tools; open bring-your-own-URL MCP',
+          '12 first-party Connections incl. Slack; Slack also has MCP-based Tools; open bring-your-own MCP',
         confidence: 'verified',
         sources: [
           {
             url: 'https://docs.dust.tt/docs/connections',
             label: 'Connections | Dust Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.dust.tt/docs/slack-mcp',
             label: 'Slack tools | Dust Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.dust.tt/docs/tools',
             label: 'Tools | Dust Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1015,7 +1078,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/workspace-analytics',
             label: 'Workspace Analytics | Dust Docs',
-            asOf: '2026-07-08',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1054,7 +1117,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/triggers',
             label: 'Triggers | Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1085,12 +1148,12 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/docs/triggers',
             label: 'Triggers | Dust Docs',
-            asOf: '2026-07-04',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://docs.dust.tt/docs/scheduling-your-agent-beta',
             label: 'Schedules | Dust Docs',
-            asOf: '2026-07-04',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1107,7 +1170,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://docs.dust.tt/',
             label: 'Dust Docs',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1129,16 +1192,17 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://community.dust.tt/x/03help/vgwnzcrq96s6/using-the-table-queries-tool-for-database-files',
             label: 'Using the Table Queries Tool for Database Files | Dust Community',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
       companyMaturity: {
         value:
-          'Dust, Inc. Founded 2022 in Paris by two former Stripe employees (one also ex-OpenAI). Raised a $40M Series B in May 2026 (co-led by Sequoia and Abstract, with Datadog and Snowflake participating), total funding over $60M. Reports 300,000+ agents deployed across 3,000+ organizations, 70% weekly active usage, and zero churn as of the raise',
+          "Dust, Inc. Founded 2022 in Paris by two former Stripe employees (one also ex-OpenAI). Raised a $40M Series B in May 2026 with participation from Abstract, Sequoia, Snowflake Ventures, and Datadog (per Dust's own announcement, which does not specify a lead investor), bringing total funding to over $60M. Dust's own blog reports 300,000+ agents deployed across 3,000+ organizations. Additional figures reported in press coverage of the raise (70% weekly active usage, zero churn, 240% net revenue retention) could not be independently verified — the relevant Sifted article is paywalled",
         detail:
-          "Customers named in Dust's own materials include Datadog, 1Password, and Qonto (Qonto reports 50+ specialized agents and 50,000+ hours saved annually). As a 2022-founded, venture-backed private company, it carries materially more switching risk than a large, publicly traded incumbent vendor, though it has real enterprise traction and revenue-retention metrics (240% net revenue retention reported at the raise).",
-        shortValue: 'Founded 2022, Paris; $60M+ raised; 3,000+ orgs, 300,000+ agents',
+          "Customers named in Dust's own materials include Datadog, 1Password, and Qonto (Qonto reports 50+ specialized agents and 50,000+ hours saved annually). As a 2022-founded, venture-backed private company, it carries materially more switching risk than a large, publicly traded incumbent vendor. Press coverage of the raise additionally reported strong usage and revenue-retention metrics (70% weekly active usage, zero churn, 240% net revenue retention), but those figures could not be independently verified: the Sifted article reporting them is paywalled and its body text is not accessible.",
+        shortValue:
+          'Founded 2022, Paris; $60M+ raised; 3,000+ orgs, 300,000+ agents (WAU/NRR unverified)',
         confidence: 'verified',
         sources: [
           {
@@ -1149,7 +1213,7 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://dust.tt/blog/series-b-multiplayer-ai',
             label: 'Dust raises $40M Series B to scale multiplayer AI | Dust Blog',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
@@ -1164,12 +1228,12 @@ export const dustProfile: CompetitorProfile = {
           {
             url: 'https://dust.tt/academy',
             label: 'Dust Academy',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
           {
             url: 'https://dust.tt/blog/dust-academy',
             label: 'Introducing the Dust Academy | Dust Blog',
-            asOf: '2026-07-02',
+            asOf: '2026-09-15',
           },
         ],
       },
