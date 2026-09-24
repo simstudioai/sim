@@ -24,7 +24,7 @@ function readPage(items: readonly BufferedItem[]): string {
   return joinLines(collector.finish())
 }
 
-const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const
 const CELL = 16
 const ROW_PITCH = 12
 
@@ -236,6 +236,39 @@ describe('PdfPageCollector', () => {
     }
 
     expect(readPage(items)).toBe(boxes.map((box) => box.rows.join('\n')).join('\n\n'))
+  })
+
+  it('still splits calendar months when dense text elsewhere lowers the page pitch', () => {
+    const { items } = quarterCalendar()
+    for (let i = 0; i < 40; i++) {
+      items.push(
+        placed(`Footnote line ${i} with enough words to read as running text`, 40, 500 - i * 5, 3)
+      )
+    }
+
+    const bands = findInterleavedBands(items)
+
+    expect(bands).toHaveLength(1)
+    expect(bands[0].blocks).toHaveLength(3)
+  })
+
+  it('keeps column groups that share only a single-cell label row by row', () => {
+    const items: BufferedItem[] = []
+    const rows = [
+      ['Amount', 'Amount'],
+      ['100 12', '300 34'],
+      ['200 56', '400 78'],
+      ['500 90', '600 11'],
+    ]
+    rows.forEach((groups, i) => {
+      groups.forEach((group, g) => {
+        group
+          .split(' ')
+          .forEach((cell, c) => items.push(placed(cell, 40 + g * 260 + c * 60, 700 - i * 12)))
+      })
+    })
+
+    expect(findInterleavedBands(items)).toEqual([])
   })
 
   it('keeps stream order when any item has no usable geometry', () => {

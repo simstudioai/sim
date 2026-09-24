@@ -189,7 +189,10 @@ export function findInterleavedBands(entries: readonly BufferedItem[]): Reordere
   if (bodyHeight <= 0) return []
 
   const rows = groupRows(items, bodyHeight)
-  const maxStep = BAND_BREAK_PITCHES * rowPitch(rows)
+  const minGutter = GUTTER_MIN_RATIO * bodyHeight
+  const maxStep =
+    BAND_BREAK_PITCHES *
+    rowPitch(rows.filter((row) => widestGap(rowIntervals(row, minGutter)) >= minGutter))
   const bands: ReorderedBand[] = []
   let start = 0
   while (start < rows.length) {
@@ -283,7 +286,7 @@ function splitBand(band: Band, bodyHeight: number): LayoutRow[][] | undefined {
     gridBlocks.push(rows)
     grids.push(grid)
   }
-  if (gridBlocks.length < 2 || !sharesHeader(gridBlocks)) return undefined
+  if (gridBlocks.length < 2 || !sharesHeader(gridBlocks, minGridGap)) return undefined
   if (!grids.every((grid) => isCongruent(grids[0], grid, bodyHeight))) return undefined
   return blocks
 }
@@ -323,16 +326,18 @@ function extentWidth(intervals: readonly Interval[]): number {
 }
 
 /**
- * Whether every block repeats one header row near its top — `Su Mo Tu We Th Fr
- * Sa` on each month, `Assets Liabilities` on each account. Independent blocks
- * cut from one template carry it; column groups of a single table do not.
+ * Whether every block repeats one multi-cell header row near its top — `Su Mo
+ * Tu We Th Fr Sa` on each month, `Assets Liabilities` on each account.
+ * Independent blocks cut from one template carry it; column groups of a single
+ * table do not, and a lone generic label such as `Amount` never counts.
  */
-function sharesHeader(blocks: readonly LayoutRow[][]): boolean {
+function sharesHeader(blocks: readonly LayoutRow[][], minGridGap: number): boolean {
   const headers = blocks.map(
     (rows) =>
       new Set(
         rows
           .slice(0, HEADER_SEARCH_ROWS)
+          .filter((row) => rowIntervals(row, minGridGap).length >= 2)
           .map(rowText)
           .filter((text) => LETTER.test(text))
       )
@@ -450,7 +455,11 @@ function mergeIntervals(
   return merged
 }
 
-/** Median downward step between consecutive rows; 0 when the page has a single row. */
+/**
+ * Median downward step between consecutive rows; 0 with fewer than two. Only
+ * rows that a gutter divides are passed in, so dense text elsewhere on the page
+ * cannot shrink the pitch a band is measured against.
+ */
 function rowPitch(rows: readonly LayoutRow[]): number {
   const steps: number[] = []
   for (let i = 1; i < rows.length; i++) steps.push(rows[i - 1].y - rows[i].y)

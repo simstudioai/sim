@@ -357,7 +357,7 @@ export function joinLines(lines: readonly PdfLine[], options: JoinLinesOptions =
     const line = lines[i]
     const separator = separatorBetween(lines, i, pitch, bodyHeight)
     const last = parts[parts.length - 1]
-    if (last.endsWith(SOFT_HYPHEN)) {
+    if (last.endsWith(SOFT_HYPHEN) && !line.blockStart) {
       parts[parts.length - 1] = last.slice(0, -1) + line.text
       continue
     }

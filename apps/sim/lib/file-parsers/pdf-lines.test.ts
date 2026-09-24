@@ -192,6 +192,14 @@ describe('joinLines', () => {
 
       expect(joinLines(lines, { headingMarkers: false })).toBe('InfraStructure')
     })
+
+    it('keeps a soft hyphen from joining across a layout block boundary', () => {
+      const [first, second] = paragraph(['Infra\u00AD', 'Structure'], 700)
+
+      expect(joinLines([first, { ...second, blockStart: true }], { headingMarkers: false })).toBe(
+        'Infra\u00AD\n\nStructure'
+      )
+    })
   })
 })
 

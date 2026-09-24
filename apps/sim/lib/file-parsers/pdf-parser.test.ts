@@ -137,7 +137,7 @@ function parseBomb(): Promise<FileParseResult> {
   return bombParse
 }
 
-const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const
 
 /** Day numbers of `month` (0-based) in 2026, one array per calendar week. */
 function calendarWeeks(month: number): string[][] {
