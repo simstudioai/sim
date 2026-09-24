@@ -34,9 +34,7 @@ import { WorkspaceContextMenu } from '@/components/workspaces/workspace-context-
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { WORKSPACE_SEARCH_THRESHOLD } from '@/lib/workspaces/constants'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
-import { getWorkspaceOrganizationHref } from '@/lib/workspaces/organization-navigation'
 import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { SidebarRenameRow } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-rename-row'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
@@ -50,6 +48,7 @@ import {
   type WorkspaceCreationPolicy,
   workspaceKeys,
 } from '@/hooks/queries/workspace'
+import { useOrganizationNavigationHref } from '@/hooks/use-organization-navigation'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 
@@ -273,8 +272,7 @@ function WorkspaceHeaderImpl({
 
   const { navigateToSettings } = useSettingsNavigation()
   const queryClient = useQueryClient()
-  const hostContext = useWorkspaceHostContext()
-  const organizationHref = getWorkspaceOrganizationHref(hostContext)
+  const organizationHref = useOrganizationNavigationHref()
 
   const activeWorkspaceFull = workspaces.find((w) => w.id === workspaceId) || null
   const isWorkspaceReady = !isWorkspacesLoading && activeWorkspaceFull !== null

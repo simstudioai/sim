@@ -6,18 +6,14 @@ import { createRoot, type Root } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockNavigateToSettings, mockWorkspacePermissions, hostContext } = vi.hoisted(() => ({
+const { mockNavigateToSettings, mockWorkspacePermissions, organizationList } = vi.hoisted(() => ({
   mockNavigateToSettings: vi.fn(),
-  hostContext: {
-    hostOrganizationId: null as string | null,
-    viewer: { isHostOrganizationMember: false },
-    features: { organizationSearch: false as boolean | undefined },
-  },
+  organizationList: { data: [] as { id: string }[] | undefined },
   mockWorkspacePermissions: { canAdmin: true, canEdit: true, canRead: true },
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
-  useWorkspaceHostContext: () => hostContext,
+vi.mock('@/hooks/queries/organization', () => ({
+  useOrganizationList: () => organizationList,
 }))
 
 const onWorkspaceSwitch = vi.fn()
@@ -29,7 +25,6 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
   usePathname: () => '/workspace/ws-emir/home',
 }))
-vi.mock('@/lib/auth/auth-client', () => ({ useActiveOrganization: () => ({ data: null }) }))
 vi.mock('@/hooks/use-settings-navigation', () => ({
   useSettingsNavigation: () => ({
     navigateToSettings: mockNavigateToSettings,
@@ -170,9 +165,7 @@ function typeInto(input: HTMLInputElement, value: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  hostContext.hostOrganizationId = null
-  hostContext.viewer.isHostOrganizationMember = false
-  hostContext.features.organizationSearch = false
+  organizationList.data = []
   Object.assign(mockWorkspacePermissions, { canAdmin: true, canEdit: true, canRead: true })
   // jsdom implements neither; the component scrolls the active row into view.
   Element.prototype.scrollIntoView = vi.fn()
@@ -187,8 +180,7 @@ describe('WorkspaceHeader workspace switcher highlight', () => {
   it.each([null, 'organization'])(
     'keeps access requests out of the workspace switcher (%s)',
     (organizationId) => {
-      hostContext.hostOrganizationId = organizationId
-      render()
+      render({ workspaces: WORKSPACES.map((workspace) => ({ ...workspace, organizationId })) })
       expect(document.body).not.toHaveTextContent('My access requests')
       expect(document.body).not.toHaveTextContent('Review access requests')
     }
@@ -414,28 +406,24 @@ describe('WorkspaceHeader workspace switcher highlight', () => {
 })
 
 describe('WorkspaceHeader context navigation', () => {
-  it('links to the current host organization for enrolled members', () => {
-    hostContext.hostOrganizationId = 'host-org'
-    hostContext.viewer.isHostOrganizationMember = true
-    hostContext.features.organizationSearch = true
-    render()
-    expect(document.querySelector('a[href="/o/host-org"]')).toHaveTextContent(
-      'Back to organization'
-    )
-  })
+  it.each([null, 'another-organization', 'viewer-organization'])(
+    'links to the viewer organization landing independently of workspace host %s',
+    (organizationId) => {
+      organizationList.data = [{ id: 'viewer-organization' }]
+      render({ workspaces: WORKSPACES.map((workspace) => ({ ...workspace, organizationId })) })
+      expect(document.querySelector('a[href="/o"]')).toHaveTextContent('Back to organization')
+      expect(document.querySelector('a[href^="/o/"]')).toBeNull()
+    }
+  )
 
-  it.each([
-    { org: null, member: true, enabled: true },
-    { org: 'host-org', member: false, enabled: true },
-    { org: 'host-org', member: true, enabled: false },
-    { org: 'host-org', member: true, enabled: undefined },
-  ])('hides inaccessible organization navigation: %j', ({ org, member, enabled }) => {
-    hostContext.hostOrganizationId = org
-    hostContext.viewer.isHostOrganizationMember = member
-    hostContext.features.organizationSearch = enabled
-    render()
-    expect(document.querySelector('a[href^="/o/"]')).toBeNull()
-  })
+  it.each([[], undefined])(
+    'hides organization navigation without loaded memberships: %j',
+    (data) => {
+      organizationList.data = data
+      render()
+      expect(document.body).not.toHaveTextContent('Back to organization')
+    }
+  )
 
   it('keeps settings in the profile menu instead of duplicating it in the switcher', () => {
     render()

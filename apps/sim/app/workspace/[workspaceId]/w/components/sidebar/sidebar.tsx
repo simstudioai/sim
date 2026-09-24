@@ -49,7 +49,6 @@ import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { captureEvent } from '@/lib/posthog/client'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
-import { getWorkspaceOrganizationHref } from '@/lib/workspaces/organization-navigation'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -137,6 +136,7 @@ import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import type { Workspace } from '@/hooks/queries/workspace'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import { useMothershipChatEvents } from '@/hooks/use-mothership-chat-events'
+import { useOrganizationNavigationHref } from '@/hooks/use-organization-navigation'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useFolderStore } from '@/stores/folders/store'
@@ -820,7 +820,7 @@ export const Sidebar = memo(function Sidebar() {
       onNavigate: () => handleOpenSettings(id),
     }))
 
-  const organizationHref = getWorkspaceOrganizationHref(hostContext)
+  const organizationHref = useOrganizationNavigationHref()
   if (organizationHref) {
     profileNavigationLinks.push({
       label: 'Organization',

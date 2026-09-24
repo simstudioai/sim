@@ -23,7 +23,7 @@ export const WORKSPACES_PATH = '/workspace'
 export const WORKSPACE_SETTINGS_PATH = `${WORKSPACES_PATH}?redirect=settings`
 
 /** Root of the organization surface; `/o` alone resolves like {@link APP_ENTRY_PATH}. */
-const ORGANIZATIONS_PATH = '/o'
+export const ORGANIZATIONS_PATH = '/o'
 
 /**
  * Every destination under one organization's surface, built from one place so the
