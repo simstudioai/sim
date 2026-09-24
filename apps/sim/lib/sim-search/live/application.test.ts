@@ -510,6 +510,22 @@ describe('authorized live retrieval', () => {
     expect(result.retrieval.status).toBe('partial')
     expect(result.live?.accounts[0]).toMatchObject({ status: 'partial', nextCursor: 'next' })
   })
+  it('searches with only a native query and still rejects a search with neither', async () => {
+    const nativeQueries = [{ provider: 'google_drive' as const, query: "name contains 'Q4'" }]
+    await searchLiveKnowledge.execute({ principal, input: { ...input, query: '', nativeQueries } })
+    expect(mocks.search).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ native: expect.objectContaining(nativeQueries[0]) })
+    )
+    await expect(
+      searchLiveKnowledge.execute({
+        principal,
+        input: { ...input, query: '', nativeQueries: [{ provider: 'google_drive', query: '' }] },
+      })
+    ).rejects.toThrow()
+    expect(mocks.search).toHaveBeenCalledOnce()
+  })
   it('rejects invalid dates before resolving provider credentials', async () => {
     await expect(
       searchLiveKnowledge.execute({

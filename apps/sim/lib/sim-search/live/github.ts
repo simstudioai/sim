@@ -13,7 +13,28 @@ import type {
   NativeSearchInput,
 } from '@/lib/sim-search/live/types'
 
+/** A commit as a document: its message is the content and its author date the timeline. */
+function commitDocument(
+  row: Record<string, unknown>,
+  container = string(object(row.repository).full_name)
+): NativeDocument {
+  const commit = object(row.commit)
+  const message = string(commit.message)
+  const authored = Date.parse(string(object(commit.author).date))
+  return {
+    id: string(row.sha),
+    container,
+    kind: 'commits',
+    title: `${container} · ${message.split('\n')[0] || string(row.sha).slice(0, 7)}`,
+    url: string(row.html_url),
+    content: message,
+    ...(Number.isFinite(authored) ? { modifiedAt: new Date(authored).toISOString() } : {}),
+    author: string(object(row.author).login) || string(object(commit.author).name),
+  }
+}
+
 function githubDocument(row: Record<string, unknown>, kind: string): NativeDocument {
+  if (kind === 'commits') return commitDocument(row)
   const repository = object(row.repository)
   const repositoryUrl = string(row.repository_url)
   const container =
@@ -59,17 +80,31 @@ const GITHUB_ISSUE_QUERY_BYTES = 3800
 /** Batches per kind; each code batch spends one of GitHub's ten code searches per minute. */
 const GITHUB_MAX_REPOSITORY_BATCHES = 4
 
-type GitHubKind = 'issues' | 'code' | 'repositories'
+/** Changed files listed when reading a commit, GitHub's default page size. */
+const GITHUB_COMMIT_FILES = 30
+
+const GITHUB_KINDS = ['issues', 'code', 'repositories', 'commits'] as const
+type GitHubKind = (typeof GITHUB_KINDS)[number]
+const isGitHubKind = (kind: string | undefined): kind is GitHubKind =>
+  GITHUB_KINDS.some((supported) => supported === kind)
+/**
+ * The date each kind filters and sorts by: issues by last update, commits by author date. Code
+ * and repository search take no date qualifier.
+ */
+const GITHUB_DATE_FIELD: Partial<Record<GitHubKind, 'updated' | 'author-date'>> = {
+  issues: 'updated',
+  commits: 'author-date',
+}
 const CODE_EXCLUDED_BY_DATES = 'Code has no dates and is excluded from date-filtered searches.'
 
 /** Code has no file dates, so a date-bounded search covers issues and pull requests only. */
 function githubKinds(input: NativeSearchInput): GitHubKind[] {
   const kind = input.native?.kind
-  if (kind === 'issues' || kind === 'code' || kind === 'repositories') return [kind]
+  if (isGitHubKind(kind)) return [kind]
   if (kind)
     throw new NativeSearchError(
       'unavailable',
-      'GitHub search supports issues, code, or repositories.'
+      `GitHub search supports these kinds: ${GITHUB_KINDS.join(', ')}.`
     )
   return hasDateBounds(input.filters) ? ['issues'] : ['issues', 'code']
 }
@@ -240,17 +275,17 @@ export async function searchGitHub(
     )
   const dates = nativeDateBounds(input)
   const text = nativeText(input)
-  /** GitHub ORs repeated qualifiers, so both bounds must share one `updated:` range. */
-  const updated =
+  /** GitHub ORs repeated qualifiers, so both bounds share one range qualifier. */
+  const dateField = GITHUB_DATE_FIELD[kind]
+  const dateRange =
     dates.start && dates.end
-      ? `updated:${dates.start}..${dates.end}`
+      ? `${dateField}:${dates.start}..${dates.end}`
       : dates.start
-        ? `updated:>=${dates.start}`
+        ? `${dateField}:>=${dates.start}`
         : dates.end
-          ? `updated:<=${dates.end}`
+          ? `${dateField}:<=${dates.end}`
           : ''
-  const datedQuery =
-    kind === 'issues' ? [groupGitHubText(text), updated].filter(Boolean).join(' ') : text
+  const datedQuery = dateField ? [groupGitHubText(text), dateRange].filter(Boolean).join(' ') : text
   if (githubTextLength(text) > GITHUB_TEXT_CHARACTERS)
     throw new NativeSearchError(
       'unavailable',
@@ -266,8 +301,8 @@ export async function searchGitHub(
         q: hasDateBounds(input.filters) ? datedQuery : text,
         per_page: String(input.limit),
         page,
-        ...(kind === 'issues' && dateSortDirection(input.filters)
-          ? { sort: 'updated', order: dateSortDirection(input.filters) }
+        ...(dateField && dateSortDirection(input.filters)
+          ? { sort: dateField, order: dateSortDirection(input.filters) }
           : {}),
       },
     })
@@ -332,6 +367,33 @@ export async function readGitHub(
   if (kind === 'repositories') {
     const row = object(await client.json(path))
     return githubDocument(row, 'repositories')
+  }
+  if (kind === 'commits') {
+    if (!/^[0-9a-f]{7,40}$/i.test(id))
+      throw new NativeSearchError('unavailable', 'Invalid GitHub commit reference.')
+    /** Each changed file carries its patch, so the page bounds the response size. */
+    const row = object(
+      await client.json(`${path}/commits/${id}`, {
+        query: { per_page: String(GITHUB_COMMIT_FILES) },
+      })
+    )
+    const files = array(row.files).map(
+      (file) =>
+        `${string(file.status)} ${string(file.filename)} (+${string(file.additions)} -${string(file.deletions)})`
+    )
+    const document = commitDocument(row, repository)
+    return {
+      ...document,
+      content: [
+        document.content,
+        files.length ? `Files changed:\n${files.join('\n')}` : '',
+        files.length === GITHUB_COMMIT_FILES
+          ? `At most ${GITHUB_COMMIT_FILES} changed files are listed.`
+          : '',
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
+    }
   }
   if (!/^\d+$/.test(id))
     throw new NativeSearchError('unavailable', 'Invalid GitHub issue reference.')

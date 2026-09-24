@@ -10,7 +10,9 @@ export const nativeSearchQuerySchema = z
     provider: liveSearchProviderSchema,
     query: z.string().trim().max(2000),
     accountId: z.string().min(1).max(200).optional(),
-    kind: z.enum(['issues', 'code', 'repositories', 'merge_requests', 'wiki']).optional(),
+    kind: z
+      .enum(['issues', 'code', 'repositories', 'commits', 'merge_requests', 'wiki'])
+      .optional(),
     project: z.string().min(1).max(300).optional(),
     cursor: z.string().max(4000).optional(),
     termClauses: z.array(z.string().max(500)).max(10).optional(),
@@ -115,7 +117,7 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
     nativeQueries: nativeSearchQueriesSchema
       .optional()
       .describe(
-        'Live search only: provider-native queries (Drive q, Gmail operators, Jira JQL, Confluence CQL, GitHub qualifiers, Slack RTS). Omit for simple cross-provider terms. Use the returned live guidance and account IDs.'
+        'Live search only: provider-native queries (Drive q, Gmail operators, Jira JQL, Confluence CQL, GitHub qualifiers, Slack RTS). GitHub kind commits searches commit messages with author:, committer:, author-date:, and repo: qualifiers. Omit for simple cross-provider terms. Use the returned live guidance and account IDs.'
       ),
     query: z
       .string()
@@ -138,6 +140,7 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
   .superRefine((input, context) => {
     if (
       !input.query &&
+      !input.nativeQueries?.some((query) => query.query) &&
       !input.startDate &&
       !input.endDate &&
       !input.modifiedAfter &&
@@ -146,7 +149,7 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
       context.addIssue({
         code: 'custom',
         path: ['query'],
-        message: 'Supply search terms or a date bound.',
+        message: 'Supply search terms, a native query, or a date bound.',
       })
     if (
       input.startDate &&
