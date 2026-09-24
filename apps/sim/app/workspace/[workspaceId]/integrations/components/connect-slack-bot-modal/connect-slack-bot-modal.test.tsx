@@ -7,7 +7,12 @@ vi.mock('@sim/emcn', () => ({
   Wizard: Object.assign(({ children }: { children: ReactNode }) => <div>{children}</div>, {
     Step: ({ children }: { children: ReactNode }) => <section>{children}</section>,
   }),
-  ChipModalField: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  ChipModalField: ({ title, children }: { title: string; children?: ReactNode }) => (
+    <div>
+      <span>{title}</span>
+      {children}
+    </div>
+  ),
   ChipDropdown: ({
     value,
     onChange,
@@ -50,6 +55,7 @@ vi.mock('@/triggers/webhook-url', () => ({
   buildSlackCustomBotRequestUrl: () => 'https://sim.test/api/webhooks/slack/custom/test-bot',
 }))
 
+import { SLACK_MANAGED_USER_SCOPES } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
 
 describe('custom Slack bot permission selection', () => {
@@ -74,17 +80,20 @@ describe('custom Slack bot permission selection', () => {
   }
 
   it.each([{ workspaceId: 'workspace-test' }, { organizationId: 'organization-test' }])(
-    'omits Lists and Canvas scopes by default for %j',
+    'includes Lists, Canvas, and full member scopes by default for %j',
     (owner) => {
       act(() => root.render(<ConnectSlackBotModal {...owner} open onOpenChange={vi.fn()} />))
       expect(botScopes()).toContain('chat:write')
       for (const scope of ['lists:read', 'lists:write', 'canvases:read', 'canvases:write']) {
-        expect(botScopes()).not.toContain(scope)
+        expect(botScopes()).toContain(scope)
       }
+      const manifest = JSON.parse(container.querySelector('pre')!.textContent!)
+      expect(manifest.oauth_config.scopes.user).toEqual([...SLACK_MANAGED_USER_SCOPES].sort())
+      expect(container.textContent).not.toContain('Member access')
     }
   )
 
-  it('adds scopes only after selection and resets opt-in permissions when reopened', () => {
+  it('selects all permissions by default, allows deselection, and restores defaults when reopened', () => {
     const onOpenChange = vi.fn()
     const render = (open: boolean) => {
       act(() =>
@@ -99,25 +108,23 @@ describe('custom Slack bot permission selection', () => {
     }
     render(true)
     const permissions = container.querySelector<HTMLSelectElement>('select')!
-    for (const capability of ['action_lists', 'action_canvases']) {
-      expect(
-        permissions.querySelector<HTMLOptionElement>(`option[value="${capability}"]`)!.selected
-      ).toBe(false)
+    for (const option of permissions.options) {
+      expect(option.selected, option.value).toBe(true)
     }
     act(() => {
       for (const capability of ['action_lists', 'action_canvases']) {
         permissions.querySelector<HTMLOptionElement>(`option[value="${capability}"]`)!.selected =
-          true
+          false
       }
       permissions.dispatchEvent(new Event('change', { bubbles: true }))
     })
-    expect(botScopes()).toEqual(
-      expect.arrayContaining(['lists:read', 'lists:write', 'canvases:read', 'canvases:write'])
-    )
+    for (const scope of ['lists:read', 'lists:write', 'canvases:read', 'canvases:write']) {
+      expect(botScopes()).not.toContain(scope)
+    }
     render(false)
     render(true)
     for (const scope of ['lists:read', 'lists:write', 'canvases:read', 'canvases:write']) {
-      expect(botScopes()).not.toContain(scope)
+      expect(botScopes()).toContain(scope)
     }
   })
   it.each([{ workspaceId: 'workspace-test' }, { organizationId: 'organization-test' }])(

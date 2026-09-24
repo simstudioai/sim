@@ -19,10 +19,6 @@ import { SlackIcon } from '@/components/icons'
 import { SlackAppManifest } from '@/components/integrations/slack-app-manifest'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import {
-  SLACK_MANAGED_USER_SCOPES,
-  SLACK_SEARCH_USER_SCOPES,
-} from '@/lib/credential-groups/slack-managed-user-scopes'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import {
   useCreateScopedCredential,
@@ -136,9 +132,6 @@ export function ConnectSlackBotModal({
   const [appName, setAppName] = useState(initialDisplayName ?? '')
   const [appDescription, setAppDescription] = useState(initialDescription ?? '')
   const [selected, setSelected] = useState<Set<string>>(() => new Set(DEFAULT_CAPABILITIES))
-  const [memberAccess, setMemberAccess] = useState<'search' | 'workflow'>(
-    isReconnect ? 'workflow' : 'search'
-  )
   const [slashCommands, setSlashCommands] = useState<SlackSlashCommandDraft[]>([])
   const [signingSecret, setSigningSecret] = useState('')
   const [botToken, setBotToken] = useState('')
@@ -154,7 +147,6 @@ export function ConnectSlackBotModal({
     setAppName(initialDisplayName ?? '')
     setAppDescription(initialDescription ?? '')
     setSelected(new Set(DEFAULT_CAPABILITIES))
-    setMemberAccess(isReconnect ? 'workflow' : 'search')
     setSlashCommands([])
     setSigningSecret('')
     setBotToken('')
@@ -185,12 +177,7 @@ export function ConnectSlackBotModal({
     const managedUserAuthorization = capabilities.has(
       SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY.id
     )
-      ? getSlackManagedUserAuthorizationManifestConfig(
-          getBaseUrl(),
-          searchOnly || memberAccess === 'search'
-            ? SLACK_SEARCH_USER_SCOPES
-            : SLACK_MANAGED_USER_SCOPES
-        )
+      ? getSlackManagedUserAuthorizationManifestConfig(getBaseUrl())
       : undefined
     const manifest = buildSlackManifest(capabilities, {
       appName: appName.trim() || DEFAULT_APP_NAME,
@@ -214,7 +201,6 @@ export function ConnectSlackBotModal({
     appDescription,
     slashCommands,
     requestUrl,
-    memberAccess,
     searchOnly,
   ])
 
@@ -299,8 +285,6 @@ export function ConnectSlackBotModal({
           slashCommandsError={slashCommandsError}
           capabilityIds={capabilityIds}
           onCapabilityIdsChange={setCapabilityIds}
-          memberAccess={memberAccess}
-          onMemberAccessChange={setMemberAccess}
         />
       </Wizard.Step>
       <Wizard.Step title={isReconnect ? 'Open your app in Slack' : 'Create the app in Slack'}>
@@ -362,8 +346,6 @@ interface StepConfigureProps {
   slashCommandsError: string | null
   capabilityIds: string[]
   onCapabilityIdsChange: (next: string[]) => void
-  memberAccess: 'search' | 'workflow'
-  onMemberAccessChange: (access: 'search' | 'workflow') => void
 }
 function StepConfigure({
   searchOnly,
@@ -378,8 +360,6 @@ function StepConfigure({
   slashCommandsError,
   capabilityIds,
   onCapabilityIdsChange,
-  memberAccess,
-  onMemberAccessChange,
 }: StepConfigureProps) {
   const canConfigureApp = !searchOnly && !reconnect
   const allSelected = capabilityIds.length === CUSTOM_BOT_CAPABILITIES.length
@@ -425,22 +405,6 @@ function StepConfigure({
           />
         </ChipModalField>
       )}
-      {canConfigureApp &&
-        capabilityIds.includes(SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY.id) && (
-          <ChipModalField
-            type='dropdown'
-            title='Member access'
-            value={memberAccess}
-            onChange={(value) => {
-              if (value === 'search' || value === 'workflow') onMemberAccessChange(value)
-            }}
-            options={[
-              { value: 'search', label: 'Search documents' },
-              { value: 'workflow', label: 'Workflow tools' },
-            ]}
-            hint='Choose the same access when configuring this app for member accounts.'
-          />
-        )}
       {canConfigureApp && (
         <SlashCommandsEditor
           commands={slashCommands}

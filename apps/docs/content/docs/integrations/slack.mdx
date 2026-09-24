@@ -2184,7 +2184,7 @@ Set the purpose (description) for a Slack channel (max 250 characters).
 
 ### Lists
 
-Lists actions require a custom Slack bot and a paid Slack plan. Enable **Manage Lists** during bot setup. For an existing app, add `lists:read` and `lists:write` in Slack, reinstall it, then reconnect in Sim.
+Lists actions require a custom Slack bot and a paid Slack plan. **Manage Lists** is selected by default during bot setup. For an existing app, add `lists:read` and `lists:write` in Slack, reinstall it, then reconnect in Sim.
 
 - Run **Read List Items** with **Include List Schema** enabled to get the column IDs used in `column_id`. Updates also need the row's `id` as `row_id`.
 - **Initial Fields** and **Cells** accept JSON arrays of typed values. Text uses `rich_text`; checkboxes use booleans. See Slack's [field formats](https://docs.slack.dev/reference/methods/slackLists.items.create/) for examples.
@@ -2192,7 +2192,7 @@ Lists actions require a custom Slack bot and a paid Slack plan. Enable **Manage 
 
 ### Canvases
 
-For custom bots, enable **Manage canvases** during setup. Existing apps need `canvases:write` for changes, `canvases:read` for section lookup, and `files:read` for metadata. Reinstall the app after changing scopes, then reconnect in Sim.
+For custom bots, **Manage canvases** is selected by default during setup. Existing apps need `canvases:write` for changes, `canvases:read` for section lookup, and `files:read` for metadata. Reinstall the app after changing scopes, then reconnect in Sim.
 
 **Edit Canvas** can replace the whole document when **Section ID** is empty. **Get Canvas Info** and **List Canvases** return metadata, not document contents. See Slack's [Canvas guide](https://docs.slack.dev/surfaces/canvases/) for details.
 {/* MANUAL-CONTENT-END */}

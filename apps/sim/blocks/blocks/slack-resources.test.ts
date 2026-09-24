@@ -213,7 +213,7 @@ describe('Slack List and Canvas operations', () => {
     })
   })
 
-  it('keeps Lists scopes out of native connections and includes them in opt-in custom bot setup', () => {
+  it('keeps Lists scopes out of native connections and includes them in custom bot setup', () => {
     for (const scope of ['lists:read', 'lists:write']) {
       expect(getScopesForService('slack')).not.toContain(scope)
       expect(SLACK_MANAGED_USER_SCOPES).not.toContain(scope)
