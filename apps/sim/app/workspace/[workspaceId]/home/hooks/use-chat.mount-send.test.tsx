@@ -1696,6 +1696,139 @@ describe('useChat remount send recovery', () => {
     expect(state.postBodies[0]).toHaveProperty('effort')
   })
 
+  it.each(['initial', 'tail'] as const)(
+    'recovers a silent %s connection after a tool group without refresh or resending',
+    async (connection) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      let unmount: (() => void) | undefined
+      try {
+        const history: MothershipChatHistory = {
+          id: 'chat-silent-stream',
+          title: 'Silent stream',
+          messages: [],
+          activeStreamId: null,
+          resources: [],
+        }
+        const cancelled = vi.fn()
+        const cursors: string[] = []
+        let recovered = false
+        let tailReads = 0
+        let streamId = ''
+        const textEvent = (): MothershipStreamV1EventEnvelope => ({
+          v: 1,
+          seq: 3,
+          ts: new Date().toISOString(),
+          type: 'text',
+          stream: { streamId },
+          payload: { channel: 'assistant', text: 'The work continued.' },
+        })
+        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input)
+          if (url === '/api/mothership/chat' && init?.method === 'POST') {
+            const sent = JSON.parse(String(init.body))
+            state.postBodies.push(sent)
+            streamId = sent.userMessageId
+            const events: MothershipStreamV1EventEnvelope[] = [
+              {
+                v: 1,
+                seq: 1,
+                ts: new Date().toISOString(),
+                type: 'tool',
+                stream: { streamId },
+                payload: {
+                  phase: 'call',
+                  executor: 'go',
+                  mode: 'sync',
+                  toolName: 'run_code',
+                  toolCallId: 'finished-tool',
+                  arguments: { code: 'return 1' },
+                },
+              },
+              {
+                v: 1,
+                seq: 2,
+                ts: new Date().toISOString(),
+                type: 'tool',
+                stream: { streamId },
+                payload: {
+                  phase: 'result',
+                  toolName: 'run_code',
+                  toolCallId: 'finished-tool',
+                  success: true,
+                  output: { value: 1 },
+                },
+              },
+            ]
+            return new Response(
+              new ReadableStream<Uint8Array>({
+                start(controller) {
+                  for (const event of events)
+                    controller.enqueue(
+                      new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`)
+                    )
+                  if (connection === 'tail') controller.close()
+                },
+                cancel: cancelled,
+              }),
+              {
+                headers: {
+                  'Content-Type': 'text/event-stream',
+                  'x-mothership-chat-id': history.id,
+                },
+              }
+            )
+          }
+          if (url.includes('/api/mothership/chat/stream')) {
+            const params = new URL(url, 'https://sim.test').searchParams
+            if (params.get('batch') === 'true') {
+              cursors.push(params.get('after') ?? '')
+              recovered = connection === 'initial' || tailReads > 0
+              return Response.json({
+                success: true,
+                status: 'streaming',
+                events: recovered ? [{ eventId: 3, streamId, event: textEvent() }] : [],
+              })
+            }
+            tailReads++
+            return new Response(new ReadableStream<Uint8Array>({ cancel: cancelled }), {
+              headers: { 'Content-Type': 'text/event-stream' },
+            })
+          }
+          return fetchStub(input, init)
+        })
+        const mounted = renderUseChatInChat(history.id, history)
+        unmount = mounted.unmount
+        const { getResult } = mounted
+        await act(async () => {
+          void getResult().sendMessage('Keep working')
+        })
+        await act(async () => vi.advanceTimersByTimeAsync(0))
+        expect(
+          getResult()
+            .messages.flatMap((message) => message.contentBlocks ?? [])
+            .find((block) => block.toolCall?.id === 'finished-tool')?.toolCall?.status
+        ).toBe('success')
+        expect(recovered).toBe(false)
+        await act(async () => vi.advanceTimersByTimeAsync(45_000))
+        expect(recovered).toBe(true)
+        expect(cursors.every((cursor) => cursor === '2')).toBe(true)
+        expect(cancelled).toHaveBeenCalledTimes(1)
+        expect(
+          getResult()
+            .messages.filter((message) => message.role === 'assistant')
+            .map((message) => message.content)
+        ).toEqual(['The work continued.'])
+        expect(getResult().isSending).toBe(true)
+        expect(getResult().error).toBeNull()
+        expect(state.postBodies).toHaveLength(1)
+        expect(state.abortBodies).toHaveLength(0)
+      } finally {
+        unmount?.()
+        vi.useRealTimers()
+      }
+    }
+  )
+
   it('recovers a running turn after reconnect exhaustion without reloading or resending', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     try {
