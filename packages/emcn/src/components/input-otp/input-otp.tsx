@@ -66,32 +66,39 @@ InputOTPGroup.displayName = 'InputOTPGroup'
  *
  * Uses emcn design tokens for consistent styling with the Input component.
  */
-const InputOTPSlot = React.forwardRef<
-  React.ElementRef<'div'>,
-  React.ComponentPropsWithoutRef<'div'> & { index: number }
->(({ index, className, ...props }, ref) => {
-  const inputOTPContext = React.useContext(OTPInputContext)
-  const { char, hasFakeCaret, isActive } = inputOTPContext.slots[index]
+export interface InputOTPSlotProps extends React.ComponentPropsWithoutRef<'div'> {
+  /** Zero-based position of this slot in the OTP input. */
+  index: number
+  /** Keep the error border visible even while this slot is active. */
+  invalid?: boolean
+}
 
-  return (
-    <div
-      ref={ref}
-      className={cn(
-        'relative flex h-12 w-12 items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] text-[var(--text-primary)] text-lg transition-colors',
-        isActive && 'z-10 border-[var(--text-muted)] ring-1 ring-[var(--text-muted)]',
-        className
-      )}
-      {...props}
-    >
-      {char}
-      {hasFakeCaret && (
-        <div className='pointer-events-none absolute inset-0 flex items-center justify-center'>
-          <div className='h-6 w-px animate-caret-blink bg-[var(--text-primary)] duration-1000 motion-reduce:animate-none' />
-        </div>
-      )}
-    </div>
-  )
-})
+const InputOTPSlot = React.forwardRef<React.ElementRef<'div'>, InputOTPSlotProps>(
+  ({ index, invalid = false, className, ...props }, ref) => {
+    const inputOTPContext = React.useContext(OTPInputContext)
+    const { char, hasFakeCaret, isActive } = inputOTPContext.slots[index]
+
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          'relative flex h-12 w-12 items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] text-[var(--text-primary)] text-lg transition-colors',
+          isActive && 'z-10 border-[var(--text-muted)] ring-1 ring-[var(--text-muted)]',
+          invalid && 'border-[var(--text-error)]',
+          className
+        )}
+        {...props}
+      >
+        {char}
+        {hasFakeCaret && (
+          <div className='pointer-events-none absolute inset-0 flex items-center justify-center'>
+            <div className='h-6 w-px animate-caret-blink bg-[var(--text-primary)] duration-1000 motion-reduce:animate-none' />
+          </div>
+        )}
+      </div>
+    )
+  }
+)
 InputOTPSlot.displayName = 'InputOTPSlot'
 
 /**

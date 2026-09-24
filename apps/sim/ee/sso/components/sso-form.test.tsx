@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from 'react'
+import { act, type InputHTMLAttributes, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,15 +26,16 @@ vi.mock('next/link', () => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
-  Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button type='button' {...props}>
-      {children}
-    </button>
+  ChipLink: ({ href, children }: { href: string; children?: ReactNode }) => (
+    <a href={href}>{children}</a>
   ),
   ChipInput: ({
     error: _error,
+    size: _size,
     ...props
-  }: InputHTMLAttributes<HTMLInputElement> & { error?: boolean }) => <input {...props} />,
+  }: Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> & { error?: boolean; size?: string }) => (
+    <input {...props} />
+  ),
   Label: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   cn: (...values: unknown[]) => values.filter(Boolean).join(' '),
 }))

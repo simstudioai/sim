@@ -127,7 +127,7 @@ export default function SSOAuth({ identifier }: SSOAuthProps) {
                 value={email}
                 onChange={handleEmailChange}
                 onKeyDown={handleKeyDown}
-                className='h-[34px]'
+                size='lg'
                 error={showEmailValidationError && emailErrors.length > 0}
               />
               {showEmailValidationError && emailErrors.length > 0 && (
