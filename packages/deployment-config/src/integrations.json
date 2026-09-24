@@ -22680,19 +22680,19 @@
         },
         {
           "name": "Revoke List Access",
-          "description": ""
+          "description": "Remove access to a Slack List for either users or channels."
         },
         {
           "name": "Start List Export",
-          "description": ""
+          "description": "Start an asynchronous CSV or JSON List export. Use the returned job_id with Get List Export and the same format options."
         },
         {
           "name": "Get List Export",
-          "description": ""
+          "description": "Read a List export job status and its download URL when ready. Format, Include Threads, and Include Attachments must match Start List Export."
         },
         {
           "name": "Delete List Items",
-          "description": ""
+          "description": "Delete multiple rows from a Slack List in one call."
         },
         {
           "name": "Share Canvas",
@@ -22832,7 +22832,7 @@
         },
         {
           "name": "Search Files",
-          "description": "Search files visible to the authorized Slack user. Requires a managed user credential with search:read. Continue using files.paging."
+          "description": "Search files visible to the authorized Slack user. Requires a managed user credential with search:read. Continue using fileSearchResults.paging."
         },
         {
           "name": "Search Messages and Files",

@@ -13,6 +13,8 @@ interface SlackWorkflowField {
   type: 'string' | 'boolean' | 'number' | 'json'
   required: boolean
   enum?: string[]
+  options?: SubBlockConfig['options']
+  dependsOn?: string[]
   default?: string
   allowEmpty?: boolean
   basic?: boolean
@@ -192,6 +194,18 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
         type: 'string',
         required: true,
         enum: ['read', 'write', 'owner'],
+        dependsOn: ['slack_share_canvas_channel_ids'],
+        options: ({ values } = { values: {} }) => {
+          const channels = values.slack_share_canvas_channel_ids
+          const hasChannels = Array.isArray(channels)
+            ? channels.length > 0
+            : typeof channels === 'string' && channels.trim() !== '' && channels.trim() !== '[]'
+          return [
+            { id: 'read', label: 'Can view' },
+            { id: 'write', label: 'Can edit' },
+            ...(!hasChannels ? [{ id: 'owner', label: 'Owner (users only)' }] : []),
+          ]
+        },
         default: 'read',
       },
       {
@@ -1175,7 +1189,7 @@ export const SLACK_WORKFLOW_OPERATIONS: readonly SlackWorkflowOperation[] = [
       {
         id: 'slack_list_user_group_members_include_disabled',
         param: 'include_disabled',
-        title: 'Include Disabled Groups',
+        title: 'Include Disabled Users',
         type: 'boolean',
         required: false,
       },
@@ -1653,7 +1667,8 @@ export function getSlackWorkflowSubBlocks(): SubBlockConfig[] {
         ...(field.type === 'json' ? { language: 'json' as const } : {}),
         ...(field.enum
           ? {
-              options: field.enum.map((value) => ({ id: value, label: value })),
+              options: field.options ?? field.enum.map((value) => ({ id: value, label: value })),
+              ...(field.dependsOn ? { dependsOn: field.dependsOn } : {}),
               ...(field.default === undefined ? {} : { value: () => field.default! }),
             }
           : {}),

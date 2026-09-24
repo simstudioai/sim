@@ -45,6 +45,8 @@ export const slackOpenConversationTool = createSlackWebApiTool({
       (p) => (p.users !== undefined) !== (p.channel !== undefined),
       'Provide exactly one of User IDs or Conversation ID'
     ),
-  output: z.object({ ok: z.literal(true), channel: conversationSchema }),
-  outputs: { ok: { type: 'boolean', description: 'Ok' }, channel: { ...conversationOutput } },
+  output: z
+    .object({ ok: z.literal(true), channel: conversationSchema })
+    .transform(({ channel, ...rest }) => ({ ...rest, conversation: channel })),
+  outputs: { ok: { type: 'boolean', description: 'Ok' }, conversation: { ...conversationOutput } },
 })

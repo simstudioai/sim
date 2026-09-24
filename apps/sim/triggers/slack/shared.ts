@@ -214,6 +214,8 @@ export interface SlackEventCatalogEntry {
   label: string
   /** True when the official shared Sim app already subscribes to the event. */
   simSubscribed: boolean
+  /** Retained for existing workflows; Agent View manifests cannot subscribe to this event. */
+  legacy?: boolean
   /** Contextual filters this event supports. */
   filters: readonly SlackEventFilter[]
 }
@@ -222,9 +224,9 @@ export interface SlackEventCatalogEntry {
  * The full catalog of selectable events for the native OAuth (`slack_app`)
  * trigger, and the single source of truth for event gating. One trigger block
  * fires on exactly one `id`. `simSubscribed` gates which events are offered in
- * Sim mode (the official app), while every event is offered in Custom mode
- * (the bring-your-own app generates a manifest that subscribes to it, driven by
- * its mandatory Agent View events and optional capabilities). `filters` drives both the trigger UI (which filter
+ * Sim mode (the official app). Legacy Assistant events remain in the catalog
+ * for existing workflows but are hidden from new selections because custom apps
+ * use Agent View events instead. `filters` drives both the trigger UI (which filter
  * sub-blocks show) and the ingest route (which checks apply).
  */
 export const SLACK_EVENT_CATALOG: readonly SlackEventCatalogEntry[] = [
@@ -302,11 +304,18 @@ export const SLACK_EVENT_CATALOG: readonly SlackEventCatalogEntry[] = [
     simSubscribed: false,
     filters: [],
   },
-  { id: 'assistant_thread_started', label: 'Assistant opened', simSubscribed: true, filters: [] },
+  {
+    id: 'assistant_thread_started',
+    label: 'Assistant opened',
+    simSubscribed: true,
+    legacy: true,
+    filters: [],
+  },
   {
     id: 'assistant_thread_context_changed',
     label: 'Assistant context changed',
     simSubscribed: true,
+    legacy: true,
     filters: [],
   },
   {
@@ -343,10 +352,11 @@ export const SIM_SUBSCRIBED_EVENTS: readonly string[] = SLACK_EVENT_CATALOG.filt
   (entry) => entry.simSubscribed
 ).map((entry) => entry.id)
 
-/** Dropdown options for the event picker — every selectable event. */
+/** Legacy events still display on saved workflows but cannot be selected for new triggers. */
 export const SLACK_ALL_EVENT_OPTIONS = SLACK_EVENT_CATALOG.map((entry) => ({
   label: entry.label,
   id: entry.id,
+  ...(entry.legacy ? { hidden: true } : {}),
 }))
 
 /**

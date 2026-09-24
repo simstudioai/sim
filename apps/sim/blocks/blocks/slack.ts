@@ -3987,13 +3987,17 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
       type: 'json',
       description: 'Conversation messages, or search results with matches and paging',
     },
-    files: {
+    fileMetadata: {
       type: 'json',
-      description: 'File metadata, or search results with matches and paging',
+      description: 'Slack file metadata (id, name, title, mimetype, permalink)',
     },
-    channel: {
+    fileSearchResults: {
       type: 'json',
-      description: 'Conversation ID or opened conversation details, depending on the operation',
+      description: 'File search results with matches and paging',
+    },
+    conversation: {
+      type: 'json',
+      description: 'Opened or joined conversation details (id, name, is_im, is_mpim)',
     },
 
     listId: { type: 'string', description: 'Created List ID' },

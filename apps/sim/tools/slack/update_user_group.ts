@@ -85,9 +85,15 @@ export const slackUpdateUserGroupTool = createSlackWebApiTool({
     })
     .refine(
       (p) =>
-        [p.name, p.handle, p.description, p.channels, p.additional_channels, p.enable_section].some(
-          (value) => value !== undefined
-        ),
+        [
+          p.name,
+          p.handle,
+          p.description,
+          p.channels,
+          p.additional_channels,
+          p.enable_section,
+          p.include_count,
+        ].some((value) => value !== undefined),
       'Provide at least one user group setting to update'
     ),
   output: z.object({ ok: z.literal(true), usergroup: usergroupSchema.optional() }),

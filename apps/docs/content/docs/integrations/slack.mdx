@@ -2251,7 +2251,7 @@ Start an asynchronous CSV or JSON List export. Use the returned job_id with Get 
 
 ### Slack Get List Export
 
-Read a List export job status and its download URL when ready. Format and inclusion options must match Start List Export.
+Read a List export job status and its download URL when ready. Format, Include Threads, and Include Attachments must match Start List Export.
 
 #### Input
 
@@ -2340,7 +2340,7 @@ Join a public Slack channel as the authenticated bot.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
-| `channel` | object | Conversation |
+| `conversation` | object | Conversation |
 |   ↳ `id` | string | Id |
 |   ↳ `name` | string | Name |
 |   ↳ `creator` | string | Creator |
@@ -2462,7 +2462,7 @@ Open a DM or group DM with 1–8 user IDs, or resume a conversation by ID. Suppl
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
-| `channel` | object | Conversation |
+| `conversation` | object | Conversation |
 |   ↳ `id` | string | Id |
 |   ↳ `name` | string | Name |
 |   ↳ `creator` | string | Creator |
@@ -2725,7 +2725,7 @@ List one page of Slack files matching user, channel, type, or timestamp filters.
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
-| `files` | array | Files |
+| `fileMetadata` | array | Files |
 |   ↳ `id` | string | Id |
 |   ↳ `name` | string | Name |
 |   ↳ `title` | string | Title |
@@ -3261,7 +3261,7 @@ Read the user IDs in a Slack user group.
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `usergroup` | string | Yes | User Group ID |
-| `include_disabled` | boolean | No | Include Disabled Groups |
+| `include_disabled` | boolean | No | Include Disabled Users |
 | `team_id` | string | No | Workspace ID |
 
 #### Output
@@ -3372,7 +3372,7 @@ Search messages visible to the authorized Slack user. Requires a managed user cr
 
 ### Slack Search Files
 
-Search files visible to the authorized Slack user. Requires a managed user credential with search:read. Continue using files.paging.
+Search files visible to the authorized Slack user. Requires a managed user credential with search:read. Continue using fileSearchResults.paging.
 
 #### Input
 
@@ -3392,7 +3392,7 @@ Search files visible to the authorized Slack user. Requires a managed user crede
 | --------- | ---- | ----------- |
 | `ok` | boolean | Ok |
 | `query` | string | Query |
-| `files` | object | Filesearch |
+| `fileSearchResults` | object | Filesearch |
 |   ↳ `matches` | array | Matches |
 |     ↳ `id` | string | Id |
 |     ↳ `name` | string | Name |
@@ -3487,7 +3487,7 @@ Search messages and files visible to the authorized Slack user. Requires a manag
 |     ↳ `page_count` | number | Page count |
 |     ↳ `per_page` | number | Per page |
 |     ↳ `total_count` | number | Total count |
-| `files` | object | Filesearch |
+| `fileSearchResults` | object | Filesearch |
 |   ↳ `matches` | array | Matches |
 |     ↳ `id` | string | Id |
 |     ↳ `name` | string | Name |

@@ -63,14 +63,16 @@ export const slackListFilesTool = createSlackWebApiTool({
     show_files_hidden_by_limit: z.boolean().optional(),
     team_id: z.string().trim().min(1).optional(),
   }),
-  output: z.object({
-    ok: z.literal(true),
-    files: z.array(fileSchema),
-    paging: pagingSchema.optional(),
-  }),
+  output: z
+    .object({
+      ok: z.literal(true),
+      files: z.array(fileSchema),
+      paging: pagingSchema.optional(),
+    })
+    .transform(({ files, ...rest }) => ({ ...rest, fileMetadata: files })),
   outputs: {
     ok: { type: 'boolean', description: 'Ok' },
-    files: { type: 'array', description: 'Files', items: { ...fileOutput } },
+    fileMetadata: { type: 'array', description: 'Files', items: { ...fileOutput } },
     paging: { ...pagingOutput, optional: true },
   },
 })

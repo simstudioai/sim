@@ -24,6 +24,8 @@ export const slackJoinConversationTool = createSlackWebApiTool({
     },
   },
   input: z.object({ channel: z.string().trim().min(1) }),
-  output: z.object({ ok: z.literal(true), channel: conversationSchema }),
-  outputs: { ok: { type: 'boolean', description: 'Ok' }, channel: { ...conversationOutput } },
+  output: z
+    .object({ ok: z.literal(true), channel: conversationSchema })
+    .transform(({ channel, ...rest }) => ({ ...rest, conversation: channel })),
+  outputs: { ok: { type: 'boolean', description: 'Ok' }, conversation: { ...conversationOutput } },
 })

@@ -13,6 +13,7 @@ import {
   extractUserSettableParamIds,
   generateIconMappings,
   getToolInfo,
+  isFactoryToolDeclaration,
   parseConstProperties,
   parsePropertiesContent,
 } from './generate-docs'
@@ -199,6 +200,18 @@ describe('documentation tool metadata', () => {
     15_000
   )
 
+  it('detects factories per declaration in files mixing plain and factory tools', () => {
+    const source = `
+      export const plainTool = { id: 'test_plain', outputs: { file: { type: 'file' } } }
+      export const factoryTool = createTool({ id: 'test_factory', outputs: {} })
+    `
+    expect(isFactoryToolDeclaration('test_plain', source)).toBe(false)
+    expect(isFactoryToolDeclaration('test_factory', source)).toBe(true)
+    const fileTools = fs.readFileSync(path.resolve('apps/sim/tools/file/get.ts'), 'utf8')
+    expect(isFactoryToolDeclaration('file_get', fileTools)).toBe(false)
+    expect(isFactoryToolDeclaration('file_get_content', fileTools)).toBe(false)
+  })
+
   it('uses evaluated outputs for factory-defined tools', async () => {
     const approve = await getToolInfo('sailpoint_approve_access_request')
     const identity = await getToolInfo('sailpoint_get_identity')
@@ -216,6 +229,23 @@ describe('documentation tool metadata', () => {
     expect(file?.outputs.file.properties).toHaveProperty('id')
     expect(file?.outputs).toHaveProperty('comments')
     expect(file?.outputs.response_metadata.properties).toHaveProperty('next_cursor')
+  })
+
+  it('includes descriptions for List workflow operations whose tool IDs use a separate prefix', () => {
+    const catalog = JSON.parse(
+      fs.readFileSync(path.resolve('packages/deployment-config/src/integrations.json'), 'utf8')
+    )
+    const slack = catalog.integrations.find((entry: { slug: string }) => entry.slug === 'slack')
+    for (const name of [
+      'Revoke List Access',
+      'Start List Export',
+      'Get List Export',
+      'Delete List Items',
+    ]) {
+      expect(
+        slack.operations.find((operation: { name: string }) => operation.name === name)?.description
+      ).toMatch(/List/)
+    }
   })
 
   it('keeps legitimate parameters named params', async () => {

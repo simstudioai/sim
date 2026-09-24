@@ -142,6 +142,37 @@ describe('Slack workflow API response contracts', () => {
     ).rejects.toThrow()
   })
 
+  it('projects metadata separately from legacy message channel and stored-file outputs', async () => {
+    const channel = { id: 'D1', is_im: true }
+    for (const tool of [slackOpenConversationTool, slackJoinConversationTool]) {
+      expect((await tool.transformResponse!(Response.json({ ok: true, channel }))).output).toEqual({
+        ok: true,
+        conversation: channel,
+      })
+    }
+    const files = [{ id: 'F1', title: 'Example file' }]
+    expect(
+      (await slackListFilesTool.transformResponse!(Response.json({ ok: true, files }))).output
+    ).toEqual({ ok: true, fileMetadata: files })
+    for (const tool of [slackSearchFilesTool, slackSearchAllTool]) {
+      const sample = responses[tool.id][0]
+      const result = await tool.transformResponse!(Response.json(sample))
+      expect(result.output.fileSearchResults).toEqual(sample.files)
+      expect(result.output).not.toHaveProperty('files')
+    }
+  })
+
+  it('exercises documented DND and emoji fields beyond the minimal success envelopes', async () => {
+    const dnd = responses.slack_get_dnd_info.find((sample) => 'dnd_enabled' in sample)!
+    expect(dnd).toBeDefined()
+    expect((await slackGetDndInfoTool.transformResponse!(Response.json(dnd))).output).toEqual(dnd)
+    const emoji = responses.slack_list_emoji.find((sample) => 'emoji' in sample)!
+    expect(emoji).toBeDefined()
+    expect((await slackListEmojiTool.transformResponse!(Response.json(emoji))).output).toEqual(
+      emoji
+    )
+  })
+
   it('preserves cursor metadata and nullable user profile fields', async () => {
     const result = await slackGetUserProfileTool.transformResponse!(
       Response.json({ ok: true, profile: { fields: null }, ignored: 'provider envelope' })
@@ -161,6 +192,15 @@ describe('Slack workflow API response contracts', () => {
 })
 
 describe('Slack workflow API request contracts', () => {
+  it('allows requesting member counts without changing another group property', () => {
+    for (const include_count of [true, false]) {
+      expect(
+        slackUpdateUserGroupTool.request.body!({ ...auth, usergroup: 'S1', include_count })
+      ).toEqual({ usergroup: 'S1', include_count })
+    }
+    expect(() => slackUpdateUserGroupTool.request.body!({ ...auth, usergroup: 'S1' })).toThrow()
+  })
+
   it('opens a group DM with CSV users and preserves false without sending credentials in the body', () => {
     expect(
       slackOpenConversationTool.request.body!({ ...auth, users: '[" U1 ","U2"]', return_im: false })

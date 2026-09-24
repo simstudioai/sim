@@ -192,6 +192,9 @@ export const SLACK_CAPABILITIES: readonly SlackCapability[] = [
     scopes: [
       'channels:manage',
       'channels:join',
+      'channels:read',
+      'groups:read',
+      'im:read',
       'groups:write',
       'im:write',
       'mpim:write',

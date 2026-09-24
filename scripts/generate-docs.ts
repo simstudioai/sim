@@ -2009,7 +2009,11 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
 
           if (!opDesc && toolsAccess.length > 0) {
             for (const tId of toolsAccess) {
-              if (toolNameMap.get(tId)?.toLowerCase() === label.toLowerCase()) {
+              if (
+                [label, `${config.name} ${label}`].some(
+                  (name) => toolNameMap.get(tId)?.toLowerCase() === name.toLowerCase()
+                )
+              ) {
                 opDesc = toolDescMap.get(tId) || ''
                 if (opDesc) break
               }
@@ -4025,6 +4029,24 @@ export function parsePropertiesContent(
   return properties
 }
 
+/** Only the matching tool declaration determines whether its outputs come from a factory. */
+export function isFactoryToolDeclaration(toolName: string, content: string): boolean {
+  const source = ts.createSourceFile('tool.ts', content, ts.ScriptTarget.Latest, true)
+  for (const statement of source.statements) {
+    if (!ts.isVariableStatement(statement)) continue
+    for (const declaration of statement.declarationList.declarations) {
+      if (!declaration.initializer) continue
+      const { expression } = unwrapExpression(declaration.initializer)
+      if (!ts.isCallExpression(expression)) continue
+      const config = expression.arguments[0]
+      if (!config || !ts.isObjectLiteralExpression(config)) continue
+      if (extractStringPropertyFromContent(config.getText(source), 'id', true) === toolName)
+        return true
+    }
+  }
+  return false
+}
+
 /** Wrapped tool declarations use the canonical evaluated output metadata. */
 function hasWrappedToolBase(toolName: string, content: string): boolean {
   const declarations = sourceObjectDeclarations(content)
@@ -4212,7 +4234,7 @@ export async function getToolInfo(
       description: metadata.description ?? sourceInfo?.description ?? 'No description available',
       params,
       outputs:
-        /=\s*create\w+\s*\(\s*\{/.test(toolFileContent) ||
+        isFactoryToolDeclaration(toolName, toolFileContent) ||
         toolPrefix === 'sailpoint' ||
         toolName === 'file_edit' ||
         hasWrappedToolBase(toolName, toolFileContent)

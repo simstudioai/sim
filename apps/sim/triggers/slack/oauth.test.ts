@@ -44,6 +44,18 @@ describe('Slack trigger extended-scope capability', () => {
     expect(SIM_SUBSCRIBED_EVENTS).not.toEqual(expect.arrayContaining(agentEvents))
   })
 
+  it('keeps legacy Assistant events readable but hides them from new trigger selections', () => {
+    const field = slackOAuthTrigger.subBlocks.find(({ id }) => id === 'eventType')!
+    const options = field.options
+    if (!Array.isArray(options)) throw new Error('Expected event options')
+    for (const id of ['assistant_thread_started', 'assistant_thread_context_changed']) {
+      expect(options.find((option) => option.id === id)).toMatchObject({ hidden: true })
+      expect(SIM_SUBSCRIBED_EVENTS).toContain(id)
+    }
+    for (const id of ['app_home_opened', 'app_context_changed'])
+      expect(options.find((option) => option.id === id)?.hidden).not.toBe(true)
+  })
+
   it('offers a command filter for custom-bot slash command triggers', () => {
     const commandFilter = slackOAuthTrigger.subBlocks.find(
       (subBlock) => subBlock.id === 'commandFilter'

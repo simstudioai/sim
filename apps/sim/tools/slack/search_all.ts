@@ -64,16 +64,18 @@ export const slackSearchAllTool = createSlackWebApiTool({
     highlight: z.boolean().optional(),
     team_id: z.string().trim().min(1).optional(),
   }),
-  output: z.object({
-    ok: z.literal(true),
-    query: z.string(),
-    messages: messageSearchSchema,
-    files: fileSearchSchema,
-  }),
+  output: z
+    .object({
+      ok: z.literal(true),
+      query: z.string(),
+      messages: messageSearchSchema,
+      files: fileSearchSchema,
+    })
+    .transform(({ files, ...rest }) => ({ ...rest, fileSearchResults: files })),
   outputs: {
     ok: { type: 'boolean', description: 'Ok' },
     query: { type: 'string', description: 'Query' },
     messages: { ...messageSearchOutput },
-    files: { ...fileSearchOutput },
+    fileSearchResults: { ...fileSearchOutput },
   },
 })

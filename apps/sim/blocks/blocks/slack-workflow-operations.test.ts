@@ -54,6 +54,30 @@ describe('Slack workflow operations in the existing block', () => {
     }
   )
 
+  it('keeps message output types while exposing conversation and file metadata separately', () => {
+    expect(SlackV2Block.outputs.channel.type).toBe('string')
+    expect(SlackV2Block.outputs.files.type).toBe('file[]')
+    for (const key of ['conversation', 'fileMetadata', 'fileSearchResults'])
+      expect(SlackV2Block.outputs[key].type).toBe('json')
+  })
+
+  it('does not offer Canvas ownership for channels and clears stale access choices', () => {
+    const field = SlackV2Block.subBlocks.find(({ id }) => id === 'slack_share_canvas_access_level')!
+    const options = field.options
+    if (typeof options !== 'function') throw new Error('Expected dynamic access options')
+    for (const channels of ['["C1"]', ['C1'], '<Block.channels>']) {
+      expect(
+        options({ values: { slack_share_canvas_channel_ids: channels } }).map(({ id }) => id)
+      ).toEqual(['read', 'write'])
+    }
+    for (const channels of ['', '[]', [], undefined]) {
+      expect(
+        options({ values: { slack_share_canvas_channel_ids: channels } }).map(({ id }) => id)
+      ).toContain('owner')
+    }
+    expect(field.dependsOn).toEqual(['slack_share_canvas_channel_ids'])
+  })
+
   it('keeps target alternatives available in basic mode', () => {
     for (const [operation, params] of [
       ['open_conversation', ['users', 'channel']],
@@ -161,6 +185,17 @@ describe('Slack custom-app permissions', () => {
     expect(settings.event_subscriptions.bot_events).not.toContain('assistant_thread_started')
     expect(settings.event_subscriptions.bot_events).not.toContain(
       'assistant_thread_context_changed'
+    )
+  })
+
+  it('grants conversation reads when only conversation management is enabled', () => {
+    const manifest = buildSlackManifest(new Set(['action_manage_conversations']), {
+      appName: 'Test',
+      webhookUrl: 'https://example.com/slack',
+    })
+    const oauth = manifest.oauth_config as { scopes: { bot: string[] } }
+    expect(oauth.scopes.bot).toEqual(
+      expect.arrayContaining(['channels:read', 'groups:read', 'im:read', 'mpim:read'])
     )
   })
 

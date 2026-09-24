@@ -7,7 +7,7 @@ export const slackSearchFilesTool = createSlackWebApiTool({
   id: 'slack_search_files',
   name: 'Slack Search Files',
   description:
-    'Search files visible to the authorized Slack user. Requires a managed user credential with search:read. Continue using files.paging.',
+    'Search files visible to the authorized Slack user. Requires a managed user credential with search:read. Continue using fileSearchResults.paging.',
   endpoint: 'search.files',
   method: 'GET',
   oauth: {
@@ -59,10 +59,12 @@ export const slackSearchFilesTool = createSlackWebApiTool({
     highlight: z.boolean().optional(),
     team_id: z.string().trim().min(1).optional(),
   }),
-  output: z.object({ ok: z.literal(true), query: z.string(), files: fileSearchSchema }),
+  output: z
+    .object({ ok: z.literal(true), query: z.string(), files: fileSearchSchema })
+    .transform(({ files, ...rest }) => ({ ...rest, fileSearchResults: files })),
   outputs: {
     ok: { type: 'boolean', description: 'Ok' },
     query: { type: 'string', description: 'Query' },
-    files: { ...fileSearchOutput },
+    fileSearchResults: { ...fileSearchOutput },
   },
 })

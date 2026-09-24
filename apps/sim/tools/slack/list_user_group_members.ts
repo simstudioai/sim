@@ -25,7 +25,7 @@ export const slackListUserGroupMembersTool = createSlackWebApiTool({
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Include Disabled Groups',
+      description: 'Include Disabled Users',
     },
     team_id: {
       type: 'string',
