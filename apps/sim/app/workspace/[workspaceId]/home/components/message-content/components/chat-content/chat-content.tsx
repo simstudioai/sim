@@ -11,7 +11,7 @@ import {
   useState,
 } from 'react'
 import type { Nodes } from 'hast'
-import { defaultRehypePlugins, Streamdown } from 'streamdown'
+import { defaultRehypePlugins, defaultRemarkPlugins, Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 // prismjs core must load before its language components — they register on the
 // global `Prism` it installs (on `window`/`global`); fixes SSR + client order.
@@ -35,6 +35,8 @@ import {
   isInlineFileReference,
 } from '@/lib/mothership/chat/inline-image-reference'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import { HighlightedLines } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/highlighted-lines'
+import { remarkPlainText } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/remark-plain-text'
 import {
   SourceChip,
   sourceLabel,
@@ -65,6 +67,8 @@ const LANG_ALIASES: Record<string, string> = {
   yml: 'yaml',
   py: 'python',
 }
+
+const MARKDOWN_REMARK_PLUGINS = [...Object.values(defaultRemarkPlugins), remarkPlainText]
 
 const PROSE_CLASSES = cn(
   'prose prose-base dark:prose-invert max-w-none',
@@ -308,10 +312,9 @@ const MARKDOWN_COMPONENTS = {
           />
         </div>
         <div className='code-editor-theme bg-[var(--surface-5)] dark:bg-[var(--code-bg)]'>
-          <pre
-            className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[var(--text-primary)] text-small leading-[21px]'
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
+          <pre className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[var(--text-primary)] text-small leading-[21px]'>
+            <HighlightedLines html={html} />
+          </pre>
         </div>
       </div>
     )
@@ -704,6 +707,7 @@ function ChatContentInner({
                     isAnimating={streamingTree}
                     components={MARKDOWN_COMPONENTS}
                     rehypePlugins={imageRehypePlugins}
+                    remarkPlugins={MARKDOWN_REMARK_PLUGINS}
                   >
                     {group.markdown}
                   </Streamdown>
