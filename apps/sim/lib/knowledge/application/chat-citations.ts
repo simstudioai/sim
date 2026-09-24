@@ -12,22 +12,35 @@ export interface SearchChatCitation {
 const CARD_TAGS = 'options|question|usage_upgrade|credential|workspace_resource'
 /** A JSON string owns its escaped quotes and any tag-shaped text inside it. */
 const JSON_STRING = '"(?:\\\\.|[^"\\\\\\r\\n])*"'
-/**
- * A card whose body is a JSON value, a thinking block, or a card opener left unclosed before a
- * JSON payload. A tag-shaped pair or opener in ordinary prose is not a card and stays.
- */
-const INTERACTIVE_CARD = new RegExp(
-  [
-    `<(${CARD_TAGS})>\\s*[[{](?:${JSON_STRING}|[^"<])*?[\\]}]\\s*</\\1>`,
-    '<thinking>[\\s\\S]*?</thinking>',
-    `<(?:${CARD_TAGS})>\\s*[[{][\\s\\S]*$`,
-  ].join('|'),
+/** A closed card candidate; its body is removed only when it parses as a JSON payload. */
+const CLOSED_CARD = new RegExp(
+  `<(${CARD_TAGS})>(\\s*[[{](?:${JSON_STRING}|[^"<])*?[\\]}]\\s*)</\\1>`,
   'g'
 )
+/** A card the model left open, followed by the start of a JSON object with a quoted key. */
+const UNCLOSED_CARD = new RegExp(
+  `<(${CARD_TAGS})>(?![\\s\\S]*</\\1>)\\s*(?:\\{\\s*"|\\[\\s*[{"])[\\s\\S]*$`
+)
+const THINKING = /<thinking>[\s\S]*?<\/thinking>/g
 
-/** Removes interactive Chat cards so a text-only surface receives only the answer prose. */
+function isJsonPayload(body: string): boolean {
+  try {
+    const value: unknown = JSON.parse(body)
+    return typeof value === 'object' && value !== null
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Removes interactive Chat cards so a text-only surface receives only the answer prose. A tag
+ * pair whose body is not a JSON payload is prose that happens to look like a card, and stays.
+ */
 export function stripInteractiveCards(content: string): string {
-  return content.replace(INTERACTIVE_CARD, '')
+  return content
+    .replace(CLOSED_CARD, (card, _tag: string, body: string) => (isJsonPayload(body) ? '' : card))
+    .replace(THINKING, '')
+    .replace(UNCLOSED_CARD, '')
 }
 
 /** Resolves Assistant source tags only against successful, bounded retrieval evidence. */
