@@ -58,12 +58,15 @@ describe('readSoftGateUsageCost on a reporting window', () => {
     mockGetBillingPeriodUsageCost.mockResolvedValueOnce(10).mockResolvedValueOnce(25)
 
     await expect(readSoftGateUsageCost(org, REPORTING)).resolves.toBe(10)
-    /** The cache re-reads its clock only after `ttlResolution` (1 ms) of real time. */
+    /**
+     * The cache refreshes its clock on a 1 ms `ttlResolution` timer scheduled when it last read
+     * the time, so it always fires before a 1 ms sleep queued afterwards.
+     */
     clock.mockReturnValue(start + REPORTING_USAGE_CACHE_TTL_MS - 1)
-    await sleep(2)
+    await sleep(1)
     await expect(readSoftGateUsageCost(org, REPORTING)).resolves.toBe(10)
     clock.mockReturnValue(start + REPORTING_USAGE_CACHE_TTL_MS + 1)
-    await sleep(2)
+    await sleep(1)
     await expect(readSoftGateUsageCost(org, REPORTING)).resolves.toBe(25)
     expect(mockGetBillingPeriodUsageCost).toHaveBeenCalledTimes(2)
   })
