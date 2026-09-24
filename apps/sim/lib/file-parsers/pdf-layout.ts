@@ -286,7 +286,7 @@ function splitBand(band: Band, bodyHeight: number): LayoutRow[][] | undefined {
     gridBlocks.push(rows)
     grids.push(grid)
   }
-  if (gridBlocks.length < 2 || !sharesHeader(gridBlocks, grids)) return undefined
+  if (gridBlocks.length < 2 || !sharesHeader(gridBlocks, grids, minGridGap)) return undefined
   if (!grids.every((grid) => isCongruent(grids[0], grid, bodyHeight))) return undefined
   return blocks
 }
@@ -327,21 +327,26 @@ function extentWidth(intervals: readonly Interval[]): number {
 
 /**
  * Whether every grid repeats one header row near its top that names each of
- * its columns — `Su Mo Tu We Th Fr Sa` over seven day columns, `Assets
- * Liabilities` over two — whether drawn as one text item or one per cell.
- * Independent blocks cut from one template carry it; a table's column groups
- * do not, and a label that does not name every column never counts.
+ * its columns — one cell per column (`Current Assets | Current Liabilities`)
+ * or, when drawn as a single text item, one word per column (`Su Mo Tu We Th
+ * Fr Sa`). Independent blocks cut from one template carry it; a table's column
+ * groups do not, and a lone or repeated group label never counts.
  */
-function sharesHeader(blocks: readonly LayoutRow[][], grids: readonly Interval[][]): boolean {
-  const headers = blocks.map(
-    (rows, i) =>
-      new Set(
-        rows
-          .slice(0, HEADER_SEARCH_ROWS)
-          .map(rowText)
-          .filter((text) => LETTER.test(text) && text.split(/\s+/).length === grids[i].length)
-      )
-  )
+function sharesHeader(
+  blocks: readonly LayoutRow[][],
+  grids: readonly Interval[][],
+  minGridGap: number
+): boolean {
+  const headers = blocks.map((rows, i) => {
+    const columns = grids[i].length
+    const names = rows.slice(0, HEADER_SEARCH_ROWS).filter((row) => {
+      const text = rowText(row)
+      if (!LETTER.test(text)) return false
+      const cells = rowIntervals(row, minGridGap).length
+      return cells === columns || (cells === 1 && text.split(/\s+/).length === columns)
+    })
+    return new Set(names.map(rowText))
+  })
   const [first, ...rest] = headers
   for (const text of first) if (rest.every((header) => header.has(text))) return true
   return false
@@ -409,7 +414,8 @@ function groupRows(items: readonly LayoutItem[], bodyHeight: number): LayoutRow[
   let current: LayoutRow | undefined
   let rowHeight = 0
   for (const item of sorted) {
-    const height = Math.max(item.geometry.height, rowHeight, bodyHeight)
+    /** The row's own heights set the tolerance; the page's body height only fills in when none is known. */
+    const height = Math.max(item.geometry.height, rowHeight) || bodyHeight
     if (current && current.y - item.geometry.y <= ROW_TOLERANCE_RATIO * height) {
       current.items.push(item)
       rowHeight = Math.max(rowHeight, item.geometry.height)

@@ -201,6 +201,52 @@ describe('PdfPageCollector', () => {
     expect(findInterleavedBands(items)).toEqual([])
   })
 
+  it('matches a repeated header whose cells hold several words', () => {
+    const boxes = [
+      {
+        x: 40,
+        rows: [
+          ['Cash', 'Payables'],
+          ['Receivables', 'Accrued wages'],
+        ],
+      },
+      {
+        x: 400,
+        rows: [
+          ['Deposits', 'Loans'],
+          ['Securities', 'Borrowings'],
+        ],
+      },
+    ]
+    const header = ['Current Assets', 'Current Liabilities']
+    const items: BufferedItem[] = []
+    for (let i = 0; i < 3; i++) {
+      for (const box of boxes) {
+        const cells = i === 0 ? header : box.rows[i - 1]
+        cells.forEach((cell, c) => items.push(placed(cell, box.x + c * 110, 700 - i * 12)))
+      }
+    }
+
+    expect(findInterleavedBands(items)[0]?.blocks).toHaveLength(2)
+  })
+
+  it('separates compact small-type grid rows on a page of larger body text', () => {
+    const { items, months } = quarterCalendar()
+    const compact = items.map((item) =>
+      item.geometry ? placed(item.str, item.geometry.x, 400 + (item.geometry.y - 700) / 3, 3) : item
+    )
+    const body = Array.from({ length: 200 }, (_, i) =>
+      placed(`body text line ${i}`, 40, 300 - i * 14, 12)
+    )
+
+    const bands = findInterleavedBands([...compact, ...body])
+
+    expect(bands).toHaveLength(1)
+    expect(bands[0].blocks.map((block) => block.length)).toEqual(
+      months.map((month) => monthRows(month).length)
+    )
+  })
+
   it('keeps a grid of values without repeated headers row by row', () => {
     const words = [
       ['w0 = 603deb10', 'w1 = 15ca71be', 'w2 = 2b73aef0', 'w3 = 857d7781'],
