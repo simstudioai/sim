@@ -193,8 +193,8 @@ export const TOOL_ICONS: Readonly<Record<string, IconComponent>> = {
   workflow: Hammer,
 }
 
-export function getAgentIcon(name: string, fallback: IconComponent = Blimp): IconComponent {
-  return Object.hasOwn(TOOL_ICONS, name) ? TOOL_ICONS[name] : fallback
+export function getAgentIcon(name: string): IconComponent {
+  return Object.hasOwn(TOOL_ICONS, name) ? TOOL_ICONS[name] : Blimp
 }
 
 export function getToolIcon(name: string): IconComponent {

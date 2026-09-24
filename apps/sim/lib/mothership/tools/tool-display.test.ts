@@ -12,10 +12,12 @@ import {
   type ToolCatalogEntry,
   UserTableOperationValues,
 } from '@/lib/mothership/generated/tool-catalog-v1'
+import { CLI_TOOL_TITLES } from '@/lib/mothership/tools/cli-tool-display'
 import { getHiddenToolNames } from '@/lib/mothership/tools/client/hidden-tools'
 import {
   getToolCompletedTitle,
   getToolDisplayTitle,
+  getToolInProgressTitle,
   getToolStatusDisplayTitle,
   getWaitCountdownTitle,
   humanizeToolName,
@@ -1103,5 +1105,39 @@ describe('CLI service display titles', () => {
       })
     ).toBe('Disabling search sources')
     expect(refineStreamingCliToolName('{"args":["settings","organization","invented"]}')).toBeNull()
+  })
+})
+
+describe('getToolInProgressTitle', () => {
+  it.each(Object.keys(CLI_TOOL_TITLES))(
+    'restores the in-progress title of completed %s',
+    (name) => {
+      const title = getToolDisplayTitle(name)
+      expect(getToolInProgressTitle(getToolCompletedTitle(title) ?? title, 'success')).toBe(title)
+    }
+  )
+
+  it.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])(
+    'never reads an inherited property for a model-written %s description',
+    (word) => {
+      const description = `${word} of the invoice parser`
+      expect(getToolStatusDisplayTitle('Reading file', 'success', 'read', description)).toBe(
+        description
+      )
+      expect(getToolInProgressTitle('Reading file', 'success', 'read', description)).toBe(
+        description
+      )
+      expect(getToolStatusDisplayTitle('Reading file', 'cancelled', 'read', description)).toBe(
+        `Stopped: ${description}`
+      )
+    }
+  )
+
+  it('leaves titles without a completed verb unchanged', () => {
+    expect(getToolInProgressTitle('Workflow Agent', 'success')).toBe('Workflow Agent')
+    expect(getToolInProgressTitle('Searching files', 'success')).toBe('Searching files')
+    expect(getToolInProgressTitle('Read the latest inbox emails', 'success')).toBe(
+      'Reading the latest inbox emails'
+    )
   })
 })

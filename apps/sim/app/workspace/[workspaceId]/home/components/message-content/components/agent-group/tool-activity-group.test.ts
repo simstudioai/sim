@@ -1,57 +1,105 @@
 /** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
-import { getToolActivitySummary } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
+import { getCompletedActivityLabel } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
-function tool(id: string, displayTitle: string, status: ToolCallStatus = 'success'): ToolCallData {
-  return { id, toolName: 'sim_cli', displayTitle, status }
+/** A finished activity without a model title is labelled by its action summary. */
+function getToolActivitySummary(tools: ToolCallData[]): string {
+  return getCompletedActivityLabel(tools, undefined)
+}
+
+let toolSeq = 0
+
+function tool(
+  toolName: string,
+  displayTitle: string,
+  status: ToolCallStatus = 'success',
+  params?: Record<string, unknown>
+): ToolCallData {
+  toolSeq += 1
+  return { id: `tool-${toolSeq}`, toolName, displayTitle, status, params }
 }
 
 describe('getToolActivitySummary', () => {
-  it('uses the latest concrete resource action plus the remaining call count', () => {
+  it('names the first three distinct CLI actions without counting the rest', () => {
     expect(
       getToolActivitySummary([
-        tool('read', 'Reading invoice inputs'),
-        tool('edit', 'Editing invoice workflow'),
-        tool('run', 'Running invoice workflow'),
+        tool('cli_tables_list', 'Listed tables'),
+        tool('cli_tables_get', 'Read Invoices'),
+        tool('cli_tables_get', 'Read Customers'),
+        tool('cli_files_read', 'Read notes.md'),
+        tool('cli_workflows_run', 'Ran invoice workflow'),
       ])
-    ).toBe('Ran invoice workflow + 2')
+    ).toBe('Listed, read tables, read files')
   })
 
-  it('keeps model supplied descriptions without replacing them with action categories', () => {
+  it('shares one object across adjacent browser actions', () => {
     expect(
       getToolActivitySummary([
-        { ...tool('read', 'Reading inbox'), activityDescription: 'Read the latest inbox emails' },
+        tool('browser_navigate', 'Opened example.com'),
+        tool('browser_read_text', 'Read page'),
+        tool('browser_click', 'Clicked Sign in'),
+        tool('browser_screenshot', 'Took screenshot'),
       ])
-    ).toBe('Read the latest inbox emails')
+    ).toBe('Navigated, read pages, clicked elements')
+  })
+
+  it('collapses repeated actions so a long run cannot crowd out other kinds', () => {
+    expect(
+      getToolActivitySummary([
+        tool('web_search', 'Searched online for pricing'),
+        tool('web_search', 'Searched online for plans'),
+        tool('web_fetch', 'Fetched pricing page'),
+        tool('run_code', 'Ran code'),
+      ])
+    ).toBe('Searched the web, read web pages, ran code')
+  })
+
+  it('keeps two phrases when only two distinct actions succeeded', () => {
+    expect(
+      getToolActivitySummary([
+        tool('cli_workflows_get', 'Read invoice workflow'),
+        tool('cli_workflows_operations_apply', 'Edited invoice workflow'),
+      ])
+    ).toBe('Read, edited workflows')
   })
 
   it('keeps failed attempts in history without naming or counting them in the summary', () => {
-    expect(
-      getToolActivitySummary([
-        tool('read', 'Reading invoice inputs'),
-        tool('failed', 'Running invoice workflow', 'error'),
-        tool('rejected', 'Editing invoice workflow', 'rejected'),
-      ])
-    ).toBe('Read invoice inputs')
+    const summary = getToolActivitySummary([
+      tool('web_search', 'Searched online for invoices'),
+      tool('browser_navigate', 'Opening billing portal', 'error'),
+      tool('cli_tables_rows_update', 'Updating table row', 'rejected'),
+      tool('read', 'Read invoice inputs'),
+    ])
+    expect(summary).toBe('Searched the web, read files')
+    expect(summary).not.toMatch(/\+\s?\d/)
   })
 
   it('does not claim success when every call failed', () => {
     expect(
       getToolActivitySummary([
-        tool('failed', 'Reading invoice inputs', 'error'),
-        tool('rejected', 'Editing invoice workflow', 'rejected'),
+        tool('read', 'Reading invoice inputs', 'error'),
+        tool('edit_workflow', 'Editing invoice workflow', 'rejected'),
       ])
     ).toBe('2 tool calls')
   })
 
-  it('preserves a concrete custom tool name instead of a generic used tools fallback', () => {
+  it('describes custom and unnamed CLI calls with their own completed titles', () => {
     expect(
       getToolActivitySummary([
-        { ...tool('a', 'Checking inventory'), toolName: 'custom_inventory' },
-        { ...tool('b', 'Reconciled account balances'), toolName: 'custom_reconcile' },
+        tool('custom_inventory', 'Checked inventory'),
+        tool('sim_cli', 'Reconciled account balances'),
       ])
-    ).toBe('Reconciled account balances + 1')
+    ).toBe('Checked inventory, reconciled account balances')
+  })
+
+  it('keeps a single call title and its model supplied description', () => {
+    expect(getToolActivitySummary([tool('cli_tables_list', 'Listed tables')])).toBe('Listed tables')
+    expect(
+      getToolActivitySummary([
+        { ...tool('read', 'Reading inbox'), activityDescription: 'Read the latest inbox emails' },
+      ])
+    ).toBe('Read the latest inbox emails')
   })
 })
 
@@ -67,12 +115,12 @@ describe('interrupted activity summaries', () => {
   it('keeps earlier interruption counts without naming failed calls', () => {
     expect(
       getToolActivitySummary([
-        tool('failed', 'Reading file', 'error'),
-        tool('stopped', 'Running checks', 'interrupted'),
-        tool('skipped', 'Running checks', 'skipped'),
-        tool('finished', 'Reading project notes'),
+        tool('read', 'Reading file', 'error'),
+        tool('terminal', 'Running checks', 'interrupted', { operation: 'run' }),
+        tool('terminal', 'Running checks', 'skipped', { operation: 'run' }),
+        tool('read', 'Read project notes'),
       ])
-    ).toBe('Read project notes + 2 · 1 stopped · 1 skipped')
+    ).toBe('Read project notes · 1 stopped · 1 skipped')
   })
 
   it('does not infer tool failures from workflow results', () => {

@@ -28,16 +28,20 @@ import {
 } from '@/lib/mothership/tools/tool-display'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
-  collectGroupTools,
   hasAgentGroupItemContent,
   hasPendingAgentGroup,
+  isAgentGroupResolved,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-content'
-import { isAgentGroupResolved } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
-import { getActivityStatusTool } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
+import {
+  getTurnLiveIndicators,
+  ownsTurnWait,
+  type TurnLiveIndicators,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/lane-activity'
 import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { WatchActivity } from '@/app/workspace/[workspaceId]/home/components/message-content/components/watch-activity/watch-activity'
 import { collectMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
+import { indexSourcesByUrl } from '@/app/workspace/[workspaceId]/home/components/message-content/sources-by-url'
 import { useToolResourceTitles } from '@/app/workspace/[workspaceId]/home/hooks/use-tool-resource-titles'
 import type {
   ContentBlock,
@@ -71,7 +75,6 @@ interface TextSegment {
 
 interface AgentGroupSegment {
   activity?: ToolActivity
-  completedGroupCount?: number
   error?: string
   type: 'agent_group'
   id: string
@@ -551,7 +554,10 @@ function parseBlocksWithSpanTree(blocks: ContentBlock[]): MessageSegment[] {
   )
 }
 
-/** Activities follow transcript order; unfinished parallel calls share one active group. */
+/**
+ * Activities follow transcript order; unfinished parallel calls share one
+ * active group. Each finished activity keeps its own header and summary.
+ */
 function groupByActivity(segments: MessageSegment[], isStreaming: boolean): MessageSegment[] {
   const labels = new Map<string, ToolActivity>()
   return segments.flatMap((segment, index): MessageSegment[] => {
@@ -584,17 +590,6 @@ function groupByActivity(segments: MessageSegment[], isStreaming: boolean): Mess
     }
     if (!current) return [segment]
     current.isOpen = isOpen
-    /** Finished contiguous activities keep the compact summary and chronological expanded history. */
-    const summaryActivity = [...groups].reverse().find((group) => group.activity)?.activity
-    if (
-      groups.length > 1 &&
-      !isOpen &&
-      summaryActivity &&
-      segment.items.every((item) => item.type === 'tool') &&
-      isAgentGroupResolved(segment.items)
-    ) {
-      return [{ ...segment, activity: summaryActivity, completedGroupCount: groups.length }]
-    }
     const firstWorking = groups.findIndex((group) => !isAgentGroupResolved(group.items))
     if (firstWorking >= 0 && firstWorking < groups.length - 1) {
       const working = groups[firstWorking]
@@ -896,23 +891,15 @@ export function assistantMessageHasRenderableContent(
   )
 }
 
-/** Only suppress the turn indicator when a tool or agent row is visibly active. */
-export function assistantMessageHasVisibleActivity(
+/** The turn's live indicators, decided once by {@link getTurnLiveIndicators} for every lane. */
+function getMessageLiveIndicators(
   segments: MessageSegment[],
-  isStreaming = false
-): boolean {
-  return segments.some((segment) => {
-    if (segment.type !== 'agent_group' || !segment.items.some(hasAgentGroupItemContent)) {
-      return false
-    }
-    const tools = collectGroupTools(segment.items)
-    if (tools.some((tool) => tool.status === 'executing')) return true
-    if (!isStreaming || segment.agentName === 'mothership') return false
-    const statusTool = getActivityStatusTool(tools)
-    return (
-      (segment.isOpen || segment.isDelegating) && (!statusTool || statusTool.status === 'success')
-    )
-  })
+  isStreaming: boolean
+): TurnLiveIndicators {
+  return getTurnLiveIndicators(
+    segments.flatMap((segment) => (segment.type === 'agent_group' ? [segment] : [])),
+    isStreaming
+  )
 }
 
 export function shouldSmoothTextSegment({
@@ -1007,6 +994,7 @@ function MessageContentInner({
     [blocks, fallbackContent, requestMode]
   )
   const titledBlocks = useToolResourceTitles(cited.blocks)
+  const linkSources = useMemo(() => indexSourcesByUrl(cited.sources), [cited.sources])
   const parsed = useMemo(
     () => (titledBlocks.length > 0 ? parseBlocks(titledBlocks, isStreaming) : []),
     [titledBlocks, blockOverlayVersion, isStreaming]
@@ -1049,6 +1037,11 @@ function MessageContentInner({
     [segments]
   )
   const visibleStreamActivityKey = getVisibleStreamActivityKey(segments)
+  /** Decided once per parse, not on every idle-timer or text-reveal render. */
+  const liveIndicators = useMemo(
+    () => getMessageLiveIndicators(segments, isStreaming),
+    [segments, isStreaming]
+  )
 
   // Every visible stream update restarts the quiet-period clock. A layout
   // effect clears an already-visible shimmer before paint, so a chunk from any
@@ -1092,11 +1085,10 @@ function MessageContentInner({
 
   if (segments.length === 0 && !isLast) return null
 
-  /** Active tool and agent rows own the shimmer until the turn is waiting again. */
   // A mid-stream special tag renders nothing until complete, so its bytes are a
   // wait, not output — the shimmer bridges it without the quiet-period delay.
   const thinkingLabel = deriveThinkingLabel(blocks)
-  const hasActivityIndicator = assistantMessageHasVisibleActivity(segments, isStreaming)
+  const hasActivityIndicator = ownsTurnWait(liveIndicators)
   const hasPendingAgents =
     isStreaming &&
     segments.some((segment) => segment.type === 'agent_group' && hasPendingAgentGroup(segment))
@@ -1128,6 +1120,7 @@ function MessageContentInner({
                   messageId={messageId}
                   imageRequestId={imageRequestId}
                   requestMode={requestMode}
+                  linkSources={linkSources}
                   isStreaming={shouldSmoothTextSegment({
                     isStreaming,
                     segmentIndex: i,
@@ -1160,18 +1153,14 @@ function MessageContentInner({
                 >
                   <AgentGroup
                     activity={segment.activity}
-                    completedGroupCount={segment.completedGroupCount}
+                    liveIndicator={liveIndicators.byLane.get(segment.id) ?? null}
                     key={segment.id}
                     agentName={segment.agentName}
                     agentLabel={segment.agentLabel}
                     items={segment.items}
                     isDelegating={segment.isDelegating}
                     isStreaming={isStreaming}
-                    isLaneOpen={
-                      segment.agentName === 'mothership'
-                        ? i === segments.length - 1
-                        : segment.isOpen
-                    }
+                    isLaneOpen={segment.isOpen}
                     error={segment.error}
                   />
                 </div>

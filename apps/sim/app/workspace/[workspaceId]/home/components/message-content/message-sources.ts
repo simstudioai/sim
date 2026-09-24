@@ -3,6 +3,7 @@ import {
   type SourceTagData,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
+import { indexSourcesByUrl } from '@/app/workspace/[workspaceId]/home/components/message-content/sources-by-url'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 
 /**
@@ -11,15 +12,12 @@ import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
  * renders as its answer.
  */
 export function collectMessageSources(texts: readonly string[]): SourceTagData[] {
-  const byUrl = new Map<string, SourceTagData>()
-  for (const text of texts) {
-    for (const segment of parseSpecialTags(text, false).segments) {
-      if (segment.type === 'source' && !byUrl.has(segment.data.url)) {
-        byUrl.set(segment.data.url, segment.data)
-      }
-    }
-  }
-  return [...byUrl.values()]
+  const cited = texts.flatMap((text) =>
+    parseSpecialTags(text, false).segments.flatMap((segment) =>
+      segment.type === 'source' ? [segment.data] : []
+    )
+  )
+  return [...indexSourcesByUrl(cited).values()]
 }
 
 /** Only main-answer citations populate the panel, never every fetched result or an agent's scratch work. */

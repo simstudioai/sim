@@ -5,10 +5,10 @@ import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentGroup } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group'
+import { isAgentGroupResolved } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-content'
 import {
   type AgentGroupItem,
   AgentGroupView,
-  isAgentGroupResolved,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import type { ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
@@ -269,7 +269,7 @@ describe('AgentGroup inline main activity', () => {
     expect(container.textContent).not.toContain('Checking requirements')
   })
 
-  it('counts unresolved calls and waits for a lane boundary before showing completed activity', () => {
+  it('keeps an open activity in progress without a call count until the lane closes', () => {
     vi.useFakeTimers()
     const render = (statuses: ToolCallStatus[], isLaneOpen = true) => {
       act(() =>
@@ -295,13 +295,16 @@ describe('AgentGroup inline main activity', () => {
       act(() => vi.advanceTimersByTime(1000))
       return container.querySelector('[role="status"]')!
     }
-    expect(render(['executing', 'executing', 'success']).textContent).toBe('Reading document 1 + 1')
+    expect(render(['executing', 'executing', 'success']).textContent).toBe('Reading document 1')
     expect(render(['executing', 'success', 'success']).textContent).toBe('Reading document 0')
-    expect(render(['success', 'success', 'success']).textContent).toBe('Read document 2')
-    expect(container.querySelector('[class*="shimmer"]')).toBeNull()
+    const gap = render(['success', 'success', 'success'])
+    expect(gap.textContent).toBe('Reading document 2')
+    expect(gap.querySelector('[class*="shimmer"]')).not.toBeNull()
+    expect(gap.querySelector('svg')).not.toBeNull()
     const completed = render(['success', 'success', 'success'], false)
     expect(completed.textContent).toBe('Built Search API')
-    expect(completed.querySelector('svg')).toBeNull()
+    expect(completed.querySelector('[class*="shimmer"]')).toBeNull()
+    expect(completed.querySelector('svg')).not.toBeNull()
     act(() => container.querySelector<HTMLElement>('[role="button"]')?.click())
     expect(container.querySelector('[data-state="open"] svg')).not.toBeNull()
   })
@@ -344,7 +347,7 @@ describe('AgentGroup inline main activity', () => {
       expect(render({}, 'executing')).toBe('Working…')
       const params = { code: '1', activity: { id: 'check', completedTitle: 'Checked inputs' } }
       expect(render(params, 'executing')).toBe('Running checks')
-      expect(render(params, 'success')).toBe('Ran checks')
+      expect(render(params, 'success')).toBe('Running checks')
       expect(render(params, 'success', false)).toBe('Ran checks')
     }
   )
@@ -387,14 +390,81 @@ describe('AgentGroup inline main activity', () => {
     expect(container.textContent).not.toContain('Built API')
   })
 
-  it('keeps earlier failures in expanded history when completed activities collapse', () => {
+  it.each([
+    [
+      'approval',
+      false,
+      { id: 'b', toolName: 'grep', displayTitle: 'Searching b', status: 'awaiting_approval' },
+    ],
+    [
+      'approval',
+      true,
+      { id: 'b', toolName: 'grep', displayTitle: 'Searching b', status: 'awaiting_approval' },
+    ],
+    [
+      'handoff',
+      false,
+      {
+        id: 'b',
+        toolName: 'terminal',
+        displayTitle: 'Finish signing in',
+        status: 'executing',
+        params: { operation: 'handoff' },
+      },
+    ],
+    [
+      'handoff',
+      true,
+      {
+        id: 'b',
+        toolName: 'terminal',
+        displayTitle: 'Finish signing in',
+        status: 'executing',
+        params: { operation: 'handoff' },
+      },
+    ],
+  ] as const)(
+    'keeps a finished group completed while a later %s waits on the user (streaming=%s)',
+    (_kind, isStreaming, pending) => {
+      act(() =>
+        root.render(
+          createElement(AgentGroupView, {
+            agentName: 'mothership',
+            agentLabel: 'Sim',
+            isStreaming,
+            isLaneOpen: true,
+            items: [
+              {
+                type: 'tool',
+                data: { id: 'a', toolName: 'read', displayTitle: 'Read a', status: 'success' },
+              },
+              { type: 'tool', data: { ...pending } as ToolCallData },
+            ],
+            ToolCallComponent: ({ displayTitle, status, renderStatus }: ToolCallItemProps) =>
+              renderStatus
+                ? renderStatus({
+                    label: displayTitle,
+                    activeLabel: displayTitle.replace(/^Read /, 'Reading '),
+                    isActive: status === 'executing',
+                  })
+                : createElement('div', { 'data-pending': 'true' }, displayTitle),
+          })
+        )
+      )
+      const header = container.querySelector('[role="status"]')
+      expect(header?.textContent).toBe('Read a')
+      expect(header?.querySelector('[class*="shimmer"]')).toBeNull()
+      expect(container.querySelector('[data-pending]')).not.toBeNull()
+    }
+  )
+
+  it('keeps an earlier failure in expanded history under the only successful call', () => {
     act(() =>
       root.render(
         createElement(AgentGroup, {
           agentName: 'mothership',
           agentLabel: 'Sim',
           activity: { id: 'second', completedTitle: 'Checked inputs' },
-          completedGroupCount: 2,
           items: [
             {
               type: 'tool',
@@ -541,7 +611,7 @@ describe('AgentGroup inline main activity', () => {
     expect(container.firstElementChild).toBe(activity)
     expect(container.textContent).toBe('Searching files')
     act(() => vi.advanceTimersByTime(1000))
-    expect(container.textContent).toBe('Reading notes + 1')
+    expect(container.textContent).toBe('Reading notes')
     expect(container.querySelector('[class*="shimmer"]')).not.toBeNull()
     expect(
       container.querySelector<HTMLElement>('[role="button"]')?.getAttribute('aria-expanded')
@@ -556,8 +626,9 @@ describe('AgentGroup inline main activity', () => {
       ],
       false
     )
-    expect(container.textContent).toBe('Read notes + 1')
+    expect(container.textContent).toBe('Searched files, read files')
     expect(container.querySelector('[class*="shimmer"]')).toBeNull()
+    expect(container.querySelector('[role="status"] svg')).not.toBeNull()
     const header = container.querySelector<HTMLElement>('[role="button"]')
     act(() => header?.click())
     expect(header?.getAttribute('aria-expanded')).toBe('true')
@@ -566,7 +637,7 @@ describe('AgentGroup inline main activity', () => {
     )
     act(() => header?.click())
     expect(header?.getAttribute('aria-expanded')).toBe('false')
-    expect(container.textContent).toBe('Read notes + 1')
+    expect(container.textContent).toBe('Searched files, read files')
   })
 
   it('keeps history expanded as new tools arrive', () => {
@@ -686,7 +757,7 @@ describe('AgentGroup inline main activity', () => {
         read,
         { ...wait, data: { ...wait.data, id: 'wait-second', status: 'success' } },
       ])
-      expect(header?.textContent).toBe('Waited + 2')
+      expect(header?.textContent).toBe('Waited, read files')
       expect(container.querySelector('.overflow-y-auto')).toBe(viewport)
       expect(clearIntervalSpy).toHaveBeenCalledTimes(2)
     } finally {
@@ -728,8 +799,8 @@ describe('AgentGroup inline main activity', () => {
         )
       )
       const header = container.querySelector<HTMLElement>('[role="button"]')
-      expect(header?.textContent).toBe('Ran checks + 1')
-      expect(header).toHaveAccessibleName('Ran checks + 1')
+      expect(header?.textContent).toBe('Read files, ran commands')
+      expect(header).toHaveAccessibleName('Read files, ran commands')
       expect(container.querySelectorAll('[data-tool-call-id]')).toHaveLength(0)
       act(() => header?.click())
       expect(
@@ -771,7 +842,7 @@ describe('AgentGroup inline main activity', () => {
                   label: displayTitle,
                   activeLabel: displayTitle,
                   isActive: true,
-                  icon: createElement('svg', { 'data-tool-call-id': toolCallId }),
+                  icon: createElement('svg', { 'data-icon-for': toolCallId }),
                 })
               : status
           },
@@ -884,7 +955,7 @@ describe('AgentGroup inline main activity', () => {
                   label: displayTitle,
                   activeLabel: displayTitle,
                   isActive: true,
-                  icon: createElement('svg', { 'data-tool-call-id': toolCallId }),
+                  icon: createElement('svg', { 'data-icon-for': toolCallId }),
                 })
               : status
           },
@@ -898,6 +969,7 @@ describe('AgentGroup inline main activity', () => {
       )
     ).toEqual(['permission', 'handoff'])
     expect(container.querySelector('[role="status"]')?.textContent).toBe('Reading notes')
+    expect(container.querySelector('[role="status"] [data-icon-for="latest"]')).not.toBeNull()
     expect(
       container.querySelector('[data-tool-call-id="permission"]')?.closest('[data-state]')
     ).toBeNull()

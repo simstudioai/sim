@@ -12,6 +12,11 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: vi.fn(() => ({ data: null, isPending: false })),
 }))
 
+vi.mock('next/navigation', () => ({
+  useParams: () => ({ workspaceId: 'workspace-1' }),
+  useRouter: () => ({ prefetch: vi.fn(), push: vi.fn() }),
+}))
+
 function start(name: string, parentSpanId = 'main'): ContentBlock {
   return { type: 'subagent', content: name, spanId: name, parentSpanId, timestamp: 1 }
 }
@@ -66,51 +71,218 @@ describe('MessageContent shared thinking indicator', () => {
   const groups = () => container.querySelectorAll('[data-agent-group]')
 
   it.each([undefined, 'main'])(
-    'shows thinking after main tools finish and yields to the next tool (spanId=%s)',
+    'keeps an open main activity in progress through gaps without thinking (spanId=%s)',
     (spanId) => {
-      const mainCall = (id: string, status: ToolCallStatus): ContentBlock => ({
+      const inspect = {
+        id: 'inspect',
+        title: 'Inspecting workspace resources',
+        completedTitle: 'Inspected workspace resources',
+      }
+      const call = (
+        id: string,
+        name: string,
+        displayTitle: string,
+        status: ToolCallStatus,
+        activity: Record<string, string> = inspect
+      ): ContentBlock => ({
         type: 'tool_call',
         spanId,
-        toolCall: {
-          id,
-          name: 'sim_cli',
-          status,
-          displayTitle: 'List tables in Alfred',
-          params: {
-            args: ['tables', 'list'],
-            activity: {
-              id: 'inspect',
-              title: 'Inspecting workspace resources',
-              completedTitle: 'Inspected workspace resources',
-            },
-          },
-        },
+        toolCall: { id, name, status, displayTitle, params: { activity } },
       })
-      render([mainCall('first', 'executing')])
-      act(() => vi.advanceTimersByTime(1_500))
-      expect(thinking()).toHaveLength(0)
-      expect(container.querySelector('[class*="shimmer"]')).not.toBeNull()
+      const header = () =>
+        container.querySelector('[data-agent-group]:last-of-type [role="status"]')
+      const shimmering = () => Boolean(header()?.querySelector('[class*="shimmer"]'))
+      const headers: string[] = []
+      const step = (blocks: ContentBlock[], isStreaming = true) => {
+        render(blocks, isStreaming)
+        act(() => vi.advanceTimersByTime(1_500))
+        headers.push(header()?.textContent ?? '')
+      }
 
-      const completed = [mainCall('first', 'success')]
-      render(completed)
-      expect(thinking()).toHaveLength(0)
-      act(() => vi.advanceTimersByTime(1_500))
+      render([])
       expect(thinking()).toHaveLength(1)
-      expect(container.querySelector('[aria-hidden="false"]')?.textContent).toContain('Thinking')
 
-      render([...completed, { type: 'thinking', content: 'Checking the result.', timestamp: 3 }])
-      expect(thinking()).toHaveLength(1)
-      render([...completed, mainCall('next', 'executing')])
+      const list = call('list', 'cli_tables_list', 'Listing tables', 'executing')
+      step([list])
+      expect(thinking()).toHaveLength(0)
+      expect(shimmering()).toBe(true)
+
+      const listed = { ...list, toolCall: { ...list.toolCall!, status: 'success' as const } }
+      step([listed])
+      step([listed, { type: 'thinking', content: 'Checking the result.', timestamp: 3 }])
+      expect(thinking()).toHaveLength(0)
+      expect(shimmering()).toBe(true)
+
+      const get = call('get', 'cli_tables_get', 'Reading table Invoices', 'executing')
+      step([listed, get])
+      expect(thinking()).toHaveLength(0)
+      const got = { ...get, toolCall: { ...get.toolCall!, status: 'success' as const } }
+      step([listed, got])
+      expect(thinking()).toHaveLength(0)
+      expect(shimmering()).toBe(true)
+      expect(headers).toEqual([
+        'Listing tables',
+        'Listing tables',
+        'Listing tables',
+        'Reading table Invoices',
+        'Reading table Invoices',
+      ])
+
+      const draft = {
+        id: 'draft',
+        title: 'Drafting the summary',
+        completedTitle: 'Drafted the summary',
+      }
+      step([listed, got, call('write', 'cli_files_create', 'Creating file', 'executing', draft)])
+      const groupHeaders = () =>
+        [...container.querySelectorAll('[data-agent-group]')].map(
+          (group) => group.querySelector('[role="status"]')?.textContent
+        )
+      expect(groupHeaders()).toEqual(['Inspected workspace resources', 'Creating file'])
       expect(thinking()).toHaveLength(0)
 
-      const finished = [...completed, mainCall('next', 'success')]
-      render(finished)
-      act(() => vi.advanceTimersByTime(1_500))
-      expect(thinking()).toHaveLength(1)
-      render(finished, false)
+      const written = call('write', 'cli_files_create', 'Creating file', 'success', draft)
+      step([listed, got, written])
+      expect(groupHeaders()).toEqual(['Inspected workspace resources', 'Creating file'])
+      expect(thinking()).toHaveLength(0)
+
+      render([listed, got, written], false)
+      expect(groupHeaders()).toEqual(['Inspected workspace resources', 'Created file'])
+      expect(shimmering()).toBe(false)
       expect(thinking()).toHaveLength(0)
     }
   )
+
+  it('returns the turn indicator once prose closes the main activity', () => {
+    const read: ContentBlock = {
+      type: 'tool_call',
+      toolCall: {
+        id: 'docs',
+        name: 'search_docs',
+        status: 'success',
+        displayTitle: 'Searching Sim docs',
+      },
+    }
+    render([read])
+    act(() => vi.advanceTimersByTime(1_500))
+    expect(thinking()).toHaveLength(0)
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Searching Sim docs')
+
+    render([read, { type: 'text', content: 'Found the docs.', timestamp: 3 }])
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Searched Sim docs')
+    act(() => vi.advanceTimersByTime(3_000))
+    expect(thinking()).toHaveLength(1)
+  })
+
+  it.each([
+    ['executing', true],
+    ['success', false],
+  ] as const)(
+    'shows exactly one live indicator around a %s main search',
+    (status, searchIsLive) => {
+      render([
+        {
+          type: 'tool_call',
+          toolCall: {
+            id: 'search',
+            name: 'search_workspace',
+            status,
+            displayTitle: 'Searching documents',
+            params: { query: 'launch review' },
+          },
+        },
+      ])
+      act(() => vi.advanceTimersByTime(1_500))
+      const shimmers = container.querySelectorAll('[data-agent-group] [class*="shimmer"]')
+      expect(shimmers).toHaveLength(searchIsLive ? 1 : 0)
+      expect(thinking()).toHaveLength(searchIsLive ? 0 : 1)
+    }
+  )
+
+  it.each([
+    ['success then error', ['success', 'error'], false],
+    ['success then stopped', ['success', 'cancelled'], false],
+    ['error then success', ['error', 'success'], true],
+    ['success then running', ['success', 'executing'], true],
+  ] as const)('decides the open group from its latest call: %s', (_case, statuses, groupIsLive) => {
+    render(
+      statuses.map(
+        (status, index): ContentBlock => ({
+          type: 'tool_call',
+          toolCall: {
+            id: `call-${index}`,
+            name: 'search_docs',
+            status,
+            displayTitle: `Searching Sim docs ${index}`,
+          },
+        })
+      )
+    )
+    act(() => vi.advanceTimersByTime(1_500))
+    const header = container.querySelector('[data-agent-group] [role="status"]')
+    expect(Boolean(header?.querySelector('[class*="shimmer"]'))).toBe(groupIsLive)
+    expect(thinking()).toHaveLength(groupIsLive ? 0 : 1)
+  })
+
+  it.each(['error', 'cancelled'] as const)(
+    'lets thinking bridge the gap after a %s main call',
+    (status) => {
+      render([
+        {
+          type: 'tool_call',
+          toolCall: { id: 'read', name: 'read', status, displayTitle: 'Reading notes' },
+        },
+      ])
+      act(() => vi.advanceTimersByTime(1_500))
+      expect(thinking()).toHaveLength(1)
+      expect(container.querySelector('[data-agent-group] [class*="shimmer"]')).toBeNull()
+    }
+  )
+
+  describe('subagent lane', () => {
+    const laneCall = (index: number, status: ToolCallStatus): ContentBlock => ({
+      type: 'tool_call',
+      spanId: 'workflow',
+      toolCall: {
+        id: `lane-${index}`,
+        name: 'search_docs',
+        calledBy: 'workflow',
+        status,
+        displayTitle: `Searching Sim docs ${index}`,
+      },
+      timestamp: 2 + index,
+    })
+    const liveHeaders = () =>
+      container.querySelectorAll('[data-agent-group] [role="button"] [class*="shimmer"]')
+
+    it.each([
+      ['success then error', ['success', 'error'], false],
+      ['success then stopped', ['success', 'cancelled'], false],
+      ['error then success', ['error', 'success'], true],
+      ['success then running', ['success', 'executing'], true],
+    ] as const)('decides the open lane from its latest call: %s', (_case, statuses, laneIsLive) => {
+      render([start('workflow'), ...statuses.map((status, index) => laneCall(index, status))])
+      act(() => vi.advanceTimersByTime(1_500))
+      expect(liveHeaders()).toHaveLength(laneIsLive ? 1 : 0)
+      expect(thinking()).toHaveLength(laneIsLive ? 0 : 1)
+    })
+
+    it('keeps exactly one indicator for an open lane without calls', () => {
+      render([start('workflow')])
+      act(() => vi.advanceTimersByTime(1_500))
+      expect(groups()).toHaveLength(0)
+      expect(thinking()).toHaveLength(1)
+
+      render([
+        start('workflow'),
+        { type: 'subagent_text', spanId: 'workflow', content: 'Planning.', timestamp: 2 },
+      ])
+      act(() => vi.advanceTimersByTime(1_500))
+      expect(groups()).toHaveLength(1)
+      expect(liveHeaders()).toHaveLength(1)
+      expect(thinking()).toHaveLength(0)
+    })
+  })
 
   it('shares one indicator across parallel and nested empty agents', () => {
     render([start('workflow'), start('browser'), start('deploy', 'workflow')])
@@ -189,13 +361,16 @@ describe('MessageContent shared thinking indicator', () => {
     )
   })
 
-  it.each(['awaiting_approval', 'cancelled'] as const)(
+  it.each([
+    ['awaiting_approval', 0],
+    ['cancelled', 1],
+  ] as const)(
     'keeps %s tool rows visible while another agent is pending',
-    (status) => {
+    (status, thinkingRows) => {
       render([start('workflow'), start('browser'), tool('workflow', status)])
       expect(groups()).toHaveLength(1)
       expect(container.querySelector('[role="status"]')?.textContent).toContain('workflow notes')
-      expect(thinking()).toHaveLength(1)
+      expect(thinking()).toHaveLength(thinkingRows)
     }
   )
 
@@ -279,5 +454,221 @@ describe('MessageContent shared thinking indicator', () => {
     render(blocks, false)
     expect(thinking()).toHaveLength(0)
     expect(groups()).toHaveLength(0)
+  })
+  describe('one live indicator per lane', () => {
+    const call = (
+      id: string,
+      name: string,
+      status: ToolCallStatus,
+      extra: Partial<NonNullable<ContentBlock['toolCall']>> = {},
+      spanId?: string
+    ): ContentBlock => ({
+      type: 'tool_call',
+      spanId,
+      toolCall: { id, name, status, displayTitle: `Title ${id}`, ...extra },
+      timestamp: 2,
+    })
+    const search = (id: string, status: ToolCallStatus, startedAtMs = 1) =>
+      call(id, 'search_workspace', status, { params: { query: `Query ${id}` }, startedAtMs })
+    const liveRows = () =>
+      [...container.querySelectorAll('[data-agent-group] [class*="shimmer"]')].map(
+        (node) => node.closest('[role="status"]')?.textContent ?? ''
+      )
+    const settle = (blocks: ContentBlock[]) => {
+      render(blocks)
+      act(() => vi.advanceTimersByTime(1_500))
+    }
+
+    it.each([
+      [
+        'a running search before a finished call',
+        [search('s', 'executing'), call('r', 'search_docs', 'success')],
+        'Query s',
+      ],
+      [
+        'a still-streaming search before a finished call',
+        [call('s', 'search_workspace', 'executing'), call('r', 'search_docs', 'success')],
+        'Preparing query',
+      ],
+      [
+        'an older search and a newer call both running',
+        [search('s', 'executing', 1), call('r', 'search_docs', 'executing', { startedAtMs: 2 })],
+        'Title r',
+      ],
+      [
+        'an older call and a newer search both running',
+        [call('r', 'search_docs', 'executing', { startedAtMs: 1 }), search('s', 'executing', 2)],
+        'Query s',
+      ],
+    ] as const)('shows exactly one indicator for %s', (_case, blocks, live) => {
+      settle([...blocks])
+      expect(liveRows()).toEqual([live])
+      expect(thinking()).toHaveLength(0)
+    })
+
+    it.each([
+      [
+        'a pending approval that splits the lane',
+        [
+          call('r', 'search_docs', 'executing'),
+          call('approval', 'edit_workflow', 'awaiting_approval'),
+          call('w', 'web_search', 'success'),
+        ],
+      ],
+      [
+        'a terminal handoff',
+        [
+          call('r', 'search_docs', 'success'),
+          call('handoff', 'terminal', 'executing', {
+            params: { operation: 'handoff', args: { reason: 'Sign in' } },
+          }),
+        ],
+      ],
+      [
+        'a browser takeover',
+        [
+          call('r', 'search_docs', 'success'),
+          call('takeover', 'browser_request_takeover', 'executing', {
+            params: { reason: 'Pick a seat' },
+          }),
+        ],
+      ],
+    ] as const)('shows no indicator and no thinking while waiting on %s', (_case, blocks) => {
+      settle([...blocks])
+      expect(liveRows()).toEqual([])
+      expect(thinking()).toHaveLength(0)
+    })
+
+    it('shows no indicator in a nested lane waiting on an approval', () => {
+      settle([
+        start('workflow'),
+        call('parent', 'search_docs', 'executing', { calledBy: 'workflow' }, 'workflow'),
+        start('deploy', 'workflow'),
+        call('approve', 'deploy_as_api', 'awaiting_approval', { calledBy: 'deploy' }, 'deploy'),
+      ])
+      expect(liveRows()).toEqual([])
+      expect(thinking()).toHaveLength(0)
+    })
+
+    it('keeps a running parallel lane live while the main lane waits on an approval', () => {
+      settle([
+        start('workflow'),
+        call('w', 'search_docs', 'executing', { calledBy: 'workflow' }, 'workflow'),
+        call('approval', 'edit_workflow', 'awaiting_approval'),
+      ])
+      expect(liveRows()).toEqual(['Title w'])
+      expect(thinking()).toHaveLength(0)
+    })
+
+    it('hands the indicator to a visible nested lane instead of shimmering both', () => {
+      settle([
+        start('workflow'),
+        call('parent', 'search_docs', 'success', { calledBy: 'workflow' }, 'workflow'),
+        start('deploy', 'workflow'),
+        call('child', 'search_docs', 'executing', { calledBy: 'deploy' }, 'deploy'),
+      ])
+      expect(liveRows()).toEqual(['Title child'])
+      const parentHeader = container.querySelector<HTMLElement>('[role="button"]')!
+      act(() => parentHeader.click())
+      const live = container.querySelectorAll('[data-agent-group] [class*="shimmer"]')
+      expect(live).toHaveLength(1)
+      expect(parentHeader.contains(live[0])).toBe(false)
+      expect(thinking()).toHaveLength(0)
+    })
+
+    it('keeps the indicator on the parent when a nested lane has already ended', () => {
+      settle([
+        start('workflow'),
+        call('parent', 'search_docs', 'success', { calledBy: 'workflow' }, 'workflow'),
+        start('deploy', 'workflow'),
+        call(
+          'child',
+          'search_docs',
+          'success',
+          { calledBy: 'deploy', displayTitle: 'Searching Sim docs child' },
+          'deploy'
+        ),
+        { type: 'subagent_end', spanId: 'deploy', timestamp: 3 },
+      ])
+      const parentHeader = container.querySelector<HTMLElement>('[role="button"]')!
+      act(() => parentHeader.click())
+      const live = container.querySelectorAll('[data-agent-group] [class*="shimmer"]')
+      expect(live).toHaveLength(1)
+      expect(parentHeader.contains(live[0])).toBe(true)
+      expect(parentHeader.textContent).toContain('Searching Sim docs child')
+      expect(thinking()).toHaveLength(0)
+    })
+
+    it.each([
+      ['main', undefined],
+      ['subagent', 'workflow'],
+    ] as const)(
+      'reads a %s activity whose latest call failed as finished, not in progress',
+      (_lane, spanId) => {
+        const calledBy = spanId ? { calledBy: spanId } : {}
+        settle([
+          ...(spanId ? [start(spanId)] : []),
+          call(
+            'a',
+            'search_docs',
+            'success',
+            { ...calledBy, displayTitle: 'Searching Sim docs a' },
+            spanId
+          ),
+          call('b', 'search_docs', 'error', { ...calledBy, displayTitle: 'Searching b' }, spanId),
+        ])
+        const header = container.querySelector('[data-agent-group] [role="status"]')
+        expect(header?.textContent).toBe('Searched Sim docs a')
+        expect(header?.querySelector('[class*="shimmer"]')).toBeNull()
+        expect(thinking()).toHaveLength(1)
+      }
+    )
+
+    it('shows one indicator for each parallel subagent lane', () => {
+      settle([
+        start('workflow'),
+        start('research'),
+        call('w', 'search_docs', 'executing', { calledBy: 'workflow' }, 'workflow'),
+        call('r', 'web_search', 'executing', { calledBy: 'research' }, 'research'),
+      ])
+      expect(liveRows()).toHaveLength(2)
+      expect(thinking()).toHaveLength(0)
+    })
+
+    it('leaves the wait of an open subagent lane that failed to the thinking row', () => {
+      settle([
+        { ...start('workflow'), error: 'Subagent failed.' },
+        call('w', 'search_docs', 'success', { calledBy: 'workflow' }, 'workflow'),
+      ])
+      expect(liveRows()).toEqual([])
+      expect(thinking()).toHaveLength(1)
+    })
+
+    it.each([
+      ['a stopped call', ['success', 'cancelled'], 'Searched Sim docs a · 1 stopped'],
+      ['only stopped calls', ['cancelled', 'cancelled'], '2 tool calls · 2 stopped'],
+      ['every call succeeded', ['success', 'success'], 'Inspected the docs'],
+    ] as const)(
+      'summarizes a finished activity with %s under one rule',
+      (_case, statuses, header) => {
+        const activity = {
+          id: 'inspect',
+          title: 'Inspecting the docs',
+          completedTitle: 'Inspected the docs',
+        }
+        render(
+          statuses.map((status, index) =>
+            call(['a', 'b'][index], 'search_docs', status, {
+              displayTitle: `Searching Sim docs ${['a', 'b'][index]}`,
+              params: { activity },
+            })
+          ),
+          false
+        )
+        expect(container.querySelector('[data-agent-group] [role="status"]')?.textContent).toBe(
+          header
+        )
+      }
+    )
   })
 })

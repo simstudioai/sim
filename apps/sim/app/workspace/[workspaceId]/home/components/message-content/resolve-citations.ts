@@ -4,7 +4,11 @@ import {
 } from '@/lib/mothership/chat/citation-evidence'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 
-/** Source cards use metadata from successful retrieval, never model-authored IDs or URLs. */
+/**
+ * Source cards use metadata from successful retrieval, never model-authored IDs
+ * or URLs. Also returns every retrieved source, so a plain link the answer
+ * writes to one of them can show that document's title.
+ */
 export function resolveMessageCitations(
   blocks: readonly ContentBlock[],
   fallbackContent: string,
@@ -48,5 +52,6 @@ export function resolveMessageCitations(
       block.content ? { ...block, content: resolve(block.content) } : block
     ),
     fallbackContent: resolve(fallbackContent),
+    sources: [...evidence.values()],
   }
 }

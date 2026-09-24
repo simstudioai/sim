@@ -38,6 +38,13 @@ function blocks(result: unknown = output): ContentBlock[] {
   ]
 }
 describe('evidence-linked citations', () => {
+  it('exposes the retrieved sources that title plain links to them', () => {
+    expect(resolveMessageCitations(blocks(), '').sources).toEqual([
+      expect.objectContaining({ url: 'https://docs.example.test/a', title: 'Actual title' }),
+    ])
+    expect(resolveMessageCitations([], '').sources).toEqual([])
+  })
+
   it('uses returned metadata and escapes source-tag terminators', () => {
     const result = resolveMessageCitations(blocks(), '', true)
     expect(result.blocks[1].content).toContain('Actual title')

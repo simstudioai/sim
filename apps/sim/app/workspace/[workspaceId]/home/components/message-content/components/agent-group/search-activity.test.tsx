@@ -84,6 +84,46 @@ describe('inline search activity', () => {
     expect(container.textContent).not.toContain('Searched sources')
   })
 
+  it.each([
+    ['preparing', { ...tool, params: undefined, streamingArgs: '{"que' }, 'Preparing query'],
+    ['running', tool, 'Launch review'],
+    [
+      'checking sources',
+      { ...tool, toolName: 'search_sources', params: { action: 'list' } },
+      'Checking connected sources',
+    ],
+    ['done', { ...tool, status: 'success' }, 'Launch review'],
+    ['failed', { ...tool, status: 'error' }, 'Launch review'],
+    [
+      'checked sources',
+      { ...tool, toolName: 'search_sources', status: 'success', params: { action: 'list' } },
+      'Checked connected sources',
+    ],
+  ] as const)(
+    'labels a %s search and leaves it static unless its lane names it live',
+    (_state, call, label) => {
+      render(<SearchActivity tools={[call as ToolCallData]} />)
+      const status = container.querySelector('[role="status"]')
+      expect(status?.textContent).toContain(label)
+      expect(status?.querySelector('[class*="shimmer"]')).toBeNull()
+    }
+  )
+
+  it('shimmers only the row holding the lane live call', () => {
+    const first = { ...tool, id: 'first', params: { query: 'First query' } }
+    const second = { ...tool, id: 'second', params: { query: 'Second query' } }
+    const liveLabels = () =>
+      [...container.querySelectorAll('[role="status"]')]
+        .filter((row) => row.querySelector('[class*="shimmer"]'))
+        .map((row) => row.textContent)
+    render(<SearchActivity tools={[first, second]} liveToolId='second' />)
+    expect(liveLabels()).toEqual(['Second query'])
+    render(<SearchActivity tools={[first, second]} liveToolId='first' />)
+    expect(liveLabels()).toEqual(['First query'])
+    render(<SearchActivity tools={[first, second]} />)
+    expect(liveLabels()).toEqual([])
+  })
+
   it('keeps source setup and approval in the interactive tool renderer', () => {
     expect(
       isSearchActivityTool({ ...tool, toolName: 'search_sources', params: { action: 'list' } })

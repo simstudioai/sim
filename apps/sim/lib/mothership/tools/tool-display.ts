@@ -1568,122 +1568,126 @@ export function cliFlagValues(args: ToolArgs, flag: string): string[] {
  * Present-participle to past-tense verb map for completed tool titles. Applied
  * to the leading word only, so "Searching online for X" -> "Searched online
  * for X" while non-gerund labels ("Run Agent", "Folder action") pass through.
+ * A `Map`, because titles include model-written text: a leading word such as
+ * "constructor" must never resolve to an inherited object property.
  */
-const COMPLETED_VERB_REWRITES: Record<string, string> = {
-  Accessing: 'Accessed',
-  Adding: 'Added',
-  Applying: 'Applied',
-  Cancelling: 'Cancelled',
-  Calling: 'Called',
-  Checking: 'Checked',
-  Changing: 'Changed',
-  Clicking: 'Clicked',
-  Closing: 'Closed',
-  Combining: 'Combined',
-  Comparing: 'Compared',
-  Completing: 'Completed',
-  Converting: 'Converted',
-  Crawling: 'Crawled',
-  Creating: 'Created',
-  Deleting: 'Deleted',
-  Connecting: 'Connected',
-  Deploying: 'Deployed',
-  Dragging: 'Dragged',
-  Inserting: 'Inserted',
-  Publishing: 'Published',
-  Unpublishing: 'Unpublished',
-  Analyzing: 'Analyzed',
-  Disabling: 'Disabled',
-  Downloading: 'Downloaded',
-  Duplicating: 'Duplicated',
-  Editing: 'Edited',
-  Enabling: 'Enabled',
-  Executing: 'Executed',
-  Extracting: 'Extracted',
-  Fading: 'Faded',
-  Finding: 'Found',
-  Filling: 'Filled',
-  Gathering: 'Gathered',
-  Generating: 'Generated',
-  Going: 'Went',
-  Fetching: 'Fetched',
-  Tracing: 'Traced',
-  Wiring: 'Wired',
-  Configuring: 'Configured',
-  Looking: 'Looked',
-  Rotating: 'Rotated',
-  Hovering: 'Hovered',
-  Importing: 'Imported',
-  Inspecting: 'Inspected',
-  Listing: 'Listed',
-  Loading: 'Loaded',
-  Managing: 'Managed',
-  Mixing: 'Mixed',
-  Moving: 'Moved',
-  Opening: 'Opened',
-  Overwriting: 'Overwrote',
-  Preparing: 'Prepared',
-  Pressing: 'Pressed',
-  Processing: 'Processed',
-  Promoting: 'Promoted',
-  Querying: 'Queried',
-  Reading: 'Read',
-  Redeploying: 'Redeployed',
-  Reloading: 'Reloaded',
-  Removing: 'Removed',
-  Renaming: 'Renamed',
-  Requesting: 'Requested',
-  Resetting: 'Reset',
-  Resizing: 'Resized',
-  Restoring: 'Restored',
-  Running: 'Ran',
-  Saving: 'Saved',
-  Scanning: 'Scanned',
-  Scraping: 'Scraped',
-  Scrolling: 'Scrolled',
-  Searching: 'Searched',
-  Selecting: 'Selected',
-  Setting: 'Set',
-  Sharing: 'Shared',
-  Steering: 'Steered',
-  Stopping: 'Stopped',
-  Summarizing: 'Summarized',
-  Switching: 'Switched',
-  Syncing: 'Synced',
-  Taking: 'Took',
-  Toggling: 'Toggled',
-  Trimming: 'Trimmed',
-  Typing: 'Typed',
-  Unchecking: 'Unchecked',
-  Undeploying: 'Undeployed',
-  Unsharing: 'Unshared',
-  Updating: 'Updated',
-  Using: 'Used',
-  Validating: 'Validated',
-  Viewing: 'Viewed',
-  Waiting: 'Waited',
-  Writing: 'Wrote',
-  Zooming: 'Zoomed',
-  Activating: 'Activated',
-  Browsing: 'Browsed',
-  Cleaning: 'Cleaned',
-  Counting: 'Counted',
-  Delegating: 'Delegated',
-  Enriching: 'Enriched',
-  Exporting: 'Exported',
-  Following: 'Followed',
-  Granting: 'Granted',
-  Indexing: 'Indexed',
-  Reconnecting: 'Reconnected',
-  Resuming: 'Resumed',
-  Reverting: 'Reverted',
-  Revoking: 'Revoked',
-  Rewriting: 'Rewrote',
-  Rolling: 'Rolled',
-  Starting: 'Started',
-  Unzipping: 'Unzipped',
-  Uploading: 'Uploaded',
-}
+const COMPLETED_VERB_REWRITES = new Map<string, string>(
+  Object.entries({
+    Accessing: 'Accessed',
+    Adding: 'Added',
+    Applying: 'Applied',
+    Cancelling: 'Cancelled',
+    Calling: 'Called',
+    Checking: 'Checked',
+    Changing: 'Changed',
+    Clicking: 'Clicked',
+    Closing: 'Closed',
+    Combining: 'Combined',
+    Comparing: 'Compared',
+    Completing: 'Completed',
+    Converting: 'Converted',
+    Crawling: 'Crawled',
+    Creating: 'Created',
+    Deleting: 'Deleted',
+    Connecting: 'Connected',
+    Deploying: 'Deployed',
+    Dragging: 'Dragged',
+    Inserting: 'Inserted',
+    Publishing: 'Published',
+    Unpublishing: 'Unpublished',
+    Analyzing: 'Analyzed',
+    Disabling: 'Disabled',
+    Downloading: 'Downloaded',
+    Duplicating: 'Duplicated',
+    Editing: 'Edited',
+    Enabling: 'Enabled',
+    Executing: 'Executed',
+    Extracting: 'Extracted',
+    Fading: 'Faded',
+    Finding: 'Found',
+    Filling: 'Filled',
+    Gathering: 'Gathered',
+    Generating: 'Generated',
+    Going: 'Went',
+    Fetching: 'Fetched',
+    Tracing: 'Traced',
+    Wiring: 'Wired',
+    Configuring: 'Configured',
+    Looking: 'Looked',
+    Rotating: 'Rotated',
+    Hovering: 'Hovered',
+    Importing: 'Imported',
+    Inspecting: 'Inspected',
+    Listing: 'Listed',
+    Loading: 'Loaded',
+    Managing: 'Managed',
+    Mixing: 'Mixed',
+    Moving: 'Moved',
+    Opening: 'Opened',
+    Overwriting: 'Overwrote',
+    Preparing: 'Prepared',
+    Pressing: 'Pressed',
+    Processing: 'Processed',
+    Promoting: 'Promoted',
+    Querying: 'Queried',
+    Reading: 'Read',
+    Redeploying: 'Redeployed',
+    Reloading: 'Reloaded',
+    Removing: 'Removed',
+    Renaming: 'Renamed',
+    Requesting: 'Requested',
+    Resetting: 'Reset',
+    Resizing: 'Resized',
+    Restoring: 'Restored',
+    Running: 'Ran',
+    Saving: 'Saved',
+    Scanning: 'Scanned',
+    Scraping: 'Scraped',
+    Scrolling: 'Scrolled',
+    Searching: 'Searched',
+    Selecting: 'Selected',
+    Setting: 'Set',
+    Sharing: 'Shared',
+    Steering: 'Steered',
+    Stopping: 'Stopped',
+    Summarizing: 'Summarized',
+    Switching: 'Switched',
+    Syncing: 'Synced',
+    Taking: 'Took',
+    Toggling: 'Toggled',
+    Trimming: 'Trimmed',
+    Typing: 'Typed',
+    Unchecking: 'Unchecked',
+    Undeploying: 'Undeployed',
+    Unsharing: 'Unshared',
+    Updating: 'Updated',
+    Using: 'Used',
+    Validating: 'Validated',
+    Viewing: 'Viewed',
+    Waiting: 'Waited',
+    Writing: 'Wrote',
+    Zooming: 'Zoomed',
+    Activating: 'Activated',
+    Browsing: 'Browsed',
+    Cleaning: 'Cleaned',
+    Counting: 'Counted',
+    Delegating: 'Delegated',
+    Enriching: 'Enriched',
+    Exporting: 'Exported',
+    Following: 'Followed',
+    Granting: 'Granted',
+    Indexing: 'Indexed',
+    Reconnecting: 'Reconnected',
+    Resuming: 'Resumed',
+    Reverting: 'Reverted',
+    Revoking: 'Revoked',
+    Rewriting: 'Rewrote',
+    Rolling: 'Rolled',
+    Starting: 'Started',
+    Unzipping: 'Unzipped',
+    Uploading: 'Uploaded',
+  })
+)
 
 /**
  * Rewrite a resolved display title to its past-tense form for a successfully
@@ -1692,17 +1696,51 @@ const COMPLETED_VERB_REWRITES: Record<string, string> = {
  * handles the fallback for model-authored and legacy titles.
  */
 export function getToolCompletedTitle(title: string): string | undefined {
-  const spaceIndex = title.indexOf(' ')
-  const firstWord = spaceIndex === -1 ? title : title.slice(0, spaceIndex)
-  const past = COMPLETED_VERB_REWRITES[firstWord]
-  if (!past) return undefined
-  return past + title.slice(firstWord.length)
+  const firstWord = firstWordOf(title)
+  const past = COMPLETED_VERB_REWRITES.get(firstWord)
+  return past ? past + title.slice(firstWord.length) : undefined
+}
+
+/** Past-tense to present-participle map, the exact inverse of {@link COMPLETED_VERB_REWRITES}. */
+const ACTIVE_VERB_REWRITES = new Map<string, string>(
+  [...COMPLETED_VERB_REWRITES].map(([active, past]) => [past, active])
+)
+
+/**
+ * Restore the in-progress wording of a title that {@link getToolCompletedTitle}
+ * already moved to the past tense, so an open activity can keep describing a
+ * finished call as ongoing work ("Searched files" -> "Searching files").
+ * Titles without a known completed verb pass through unchanged.
+ */
+function getToolActiveTitle(title: string): string {
+  const firstWord = firstWordOf(title)
+  const active = ACTIVE_VERB_REWRITES.get(firstWord)
+  return active ? active + title.slice(firstWord.length) : title
+}
+
+/**
+ * The title of a call described as work in progress, the wording an open
+ * activity uses for its latest call: a succeeded call returns to its
+ * in-progress verb, and any other status keeps its status-aware title.
+ */
+export function getToolInProgressTitle(
+  title: string,
+  status: string,
+  toolName?: string,
+  activityDescription?: string
+): string {
+  return status === 'success'
+    ? getToolActiveTitle(
+        getToolStatusDisplayTitle(title, 'executing', toolName, activityDescription)
+      )
+    : getToolStatusDisplayTitle(title, status, toolName, activityDescription)
 }
 
 /** Recognize terminal wording already supplied by the tool store or persisted history. */
 const TERMINAL_TITLE_PREFIXES = new Set(['Failed', 'Attempted', 'Skipped', 'Stopped'])
 
-function firstWordOf(title: string): string {
+/** The leading word of a title, used to find its verb. */
+export function firstWordOf(title: string): string {
   const spaceIndex = title.indexOf(' ')
   return spaceIndex === -1 ? title : title.slice(0, spaceIndex)
 }
@@ -1727,7 +1765,7 @@ function getToolOutcomeTitle(
   ) {
     return outcome + title.slice(statedOutcome.length)
   }
-  if (COMPLETED_VERB_REWRITES[firstWord]) {
+  if (COMPLETED_VERB_REWRITES.has(firstWord)) {
     return `${outcome} ${firstWord.charAt(0).toLowerCase()}${firstWord.slice(1)}${title.slice(firstWord.length)}`
   }
   return `${outcome}: ${title}`
@@ -1746,7 +1784,7 @@ function getNeutralToolActionTitle(title: string): string {
   if (action === title) return title
   const firstWord = firstWordOf(action)
   const gerund = firstWord.charAt(0).toUpperCase() + firstWord.slice(1)
-  return COMPLETED_VERB_REWRITES[gerund] ? gerund + action.slice(firstWord.length) : action
+  return COMPLETED_VERB_REWRITES.has(gerund) ? gerund + action.slice(firstWord.length) : action
 }
 
 /**
