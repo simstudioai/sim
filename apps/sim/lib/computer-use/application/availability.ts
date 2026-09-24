@@ -5,9 +5,9 @@ import {
   type OperationUseCase,
 } from '@/lib/core/application/operation'
 
+/** permission-group-exempt: reports only the deployment-wide rollout switch; actions require chat authorization. */
 const availabilityOperation = defineOperation({
   id: 'desktop.computer.availability',
-  /** permission-group-exempt: reports only the deployment-wide rollout switch; actions require chat authorization. */
   capability: 'none',
   principalKinds: ['session'],
 })
