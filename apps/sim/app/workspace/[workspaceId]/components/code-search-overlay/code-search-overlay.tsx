@@ -1,5 +1,5 @@
 import type { ChangeEvent, Ref } from 'react'
-import { Button, ChipInput, cn, Input } from '@sim/emcn'
+import { Button, ChipInput, cn } from '@sim/emcn'
 import { ArrowDown, ArrowUp, X } from '@sim/emcn/icons'
 
 export interface CodeSearchOverlayProps {
@@ -7,7 +7,7 @@ export interface CodeSearchOverlayProps {
   appearance?: 'floating' | 'attached'
   /** Position relative to the owning code panel. */
   className: string
-  /** Logs use the chip field; previews and terminal output use the plain field. */
+  /** Logs use the 30px chip field; previews and terminal output use compact search. */
   inputKind: 'chip' | 'plain'
   inputRef: Ref<HTMLInputElement>
   query: string
@@ -65,7 +65,7 @@ export function CodeSearchOverlay({
       {inputKind === 'chip' ? (
         <ChipInput {...inputProps} className='mr-0.5 w-[94px]' />
       ) : (
-        <Input {...inputProps} className='mr-0.5 h-[23px] w-[94px] text-caption' />
+        <ChipInput {...inputProps} appearance='compactSearch' className='mr-0.5 w-[94px]' />
       )}
       <span
         className={cn(
