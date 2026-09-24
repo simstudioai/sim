@@ -25,7 +25,12 @@ function connector(overrides: Partial<SearchIndexConnector> = {}): SearchIndexCo
   }
 }
 
-const searchIndex: SearchIndexKnowledgeBase = { id: KB_ID, isSearchIndex: true, deletedAt: null }
+const searchIndex: SearchIndexKnowledgeBase = {
+  id: KB_ID,
+  isSearchIndex: true,
+  organizationId: 'org-1',
+  deletedAt: null,
+}
 
 /** An in-memory knowledge base: documents with chunk counts, plus the calls the run made. */
 class FakeStore implements SearchIndexDeletionStore {
@@ -139,6 +144,9 @@ describe('evaluateDeletionGuard', () => {
     expect(evaluateDeletionGuard(null, [])).toEqual(['knowledge base not found'])
     expect(evaluateDeletionGuard({ ...searchIndex, isSearchIndex: false }, [])).toEqual([
       expect.stringContaining('not an organization search index'),
+    ])
+    expect(evaluateDeletionGuard({ ...searchIndex, organizationId: null }, [])).toEqual([
+      expect.stringContaining('workspace search index'),
     ])
   })
 

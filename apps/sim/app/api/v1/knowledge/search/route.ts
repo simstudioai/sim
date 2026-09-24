@@ -81,20 +81,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       : undefined
     const billingActorUserId = billingAttribution?.actorUserId ?? userId
 
-    /**
-     * Query embeddings incur hosted cost; tag-only searches do not. Workspace
-     * keys resolve their system actor and immutable payer from one workspace read.
-     */
-    if (billingAttribution) {
-      const usage = await checkSearchUsageLimits(billingAttribution)
-      if (usage.isExceeded) {
-        return NextResponse.json(
-          { error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.' },
-          { status: 402 }
-        )
-      }
-    }
-
     const knowledgeBaseIds = Array.isArray(parsed.data.body.knowledgeBaseIds)
       ? parsed.data.body.knowledgeBaseIds
       : [parsed.data.body.knowledgeBaseIds]
@@ -128,6 +114,22 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     /** A search index is readable only while indexed organization search is on. */
     if (!isIndexedOrgSearchEnabled() && accessibleKbs.some((kb) => kb.isSearchIndex)) {
       return NextResponse.json({ error: SEARCH_INDEX_DORMANT_MESSAGE }, { status: 409 })
+    }
+
+    /**
+     * Query embeddings incur hosted cost; tag-only searches do not. Workspace
+     * keys resolve their system actor and immutable payer from one workspace read.
+     * Admission follows the access and dormancy checks, so a request that could
+     * never run is refused for that reason rather than for the caller's usage.
+     */
+    if (billingAttribution) {
+      const usage = await checkSearchUsageLimits(billingAttribution)
+      if (usage.isExceeded) {
+        return NextResponse.json(
+          { error: usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.' },
+          { status: 402 }
+        )
+      }
     }
 
     let structuredFilters: StructuredFilter[] = []

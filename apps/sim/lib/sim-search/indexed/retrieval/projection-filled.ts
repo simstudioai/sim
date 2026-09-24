@@ -69,13 +69,34 @@ const projectionFilled = new LRUCache<
   },
 })
 
-/** Whether every row of the projection carries its mirrored source and ACL; unknown counts as not yet. */
+/**
+ * Whether every row of the projection carries its mirrored source and ACL; unknown counts as not yet.
+ *
+ * Searches that miss the cache together share the first one's read, which is capped to that
+ * search's share. Each caller still waits no longer than its own share, or its own deadline if
+ * nearer, and reads an unanswered probe as unfilled: a caller that joined late, with less of its
+ * leg left, never waits on another search's timetable.
+ */
 export async function isProjectionFilled(
   projection: SourceAclProjection,
   stage: SearchStage,
   budget: SearchBudget | undefined
 ): Promise<boolean> {
-  return (await projectionFilled.fetch(projection, { context: { budget, stage } })) ?? false
+  const answer = projectionFilled.fetch(projection, { context: { budget, stage } })
+  if (!budget) return (await answer) ?? false
+  const waitMs = Math.max(
+    0,
+    Math.min(PROJECTION_FILLED_PROBE_BUDGET_MS, budget.deadline - performance.now())
+  )
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const unanswered = new Promise<undefined>((resolve) => {
+    timer = setTimeout(resolve, waitMs, undefined)
+  })
+  try {
+    return (await Promise.race([answer.catch(() => undefined), unanswered])) ?? false
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /** Forgets whether the projections were filled; the memo is per process and otherwise expires on its own. */

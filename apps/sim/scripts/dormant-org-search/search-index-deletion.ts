@@ -46,6 +46,7 @@ export const STOPPED_CONNECTOR_STATUSES = ['paused', 'disabled'] as const
 export interface SearchIndexKnowledgeBase {
   id: string
   isSearchIndex: boolean
+  organizationId: string | null
   deletedAt: Date | null
 }
 
@@ -146,8 +147,8 @@ export class SearchIndexDeletionRefused extends Error {
 
 /**
  * Why deleting this base's documents is unsafe now, or an empty list. The base must be an
- * organization search index. Every connector that can still write documents — not deleted and not
- * detached — must be stopped, and no sync of either engine may hold its lease: a running sync
+ * organization-owned search index; a workspace search index is out of this tool's scope. Every
+ * connector that can still write documents — not deleted and not detached — must be stopped, and no sync of either engine may hold its lease: a running sync
  * would write documents behind the cursor. A detached connector is refused outright, because its
  * worker is converting the same documents into standalone uploads.
  */
@@ -159,6 +160,8 @@ export function evaluateDeletionGuard(
   const reasons: string[] = []
   if (!knowledgeBase.isSearchIndex) {
     reasons.push('knowledge base is not an organization search index (is_search_index = false)')
+  } else if (!knowledgeBase.organizationId) {
+    reasons.push('knowledge base is a workspace search index, not an organization one')
   }
   for (const connector of connectors) {
     if (connector.deletedAt) continue

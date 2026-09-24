@@ -113,6 +113,50 @@ export function moduleSpecifiers(
   return found
 }
 
+/** The gate function whose call an entry point must make before reaching indexed search. */
+const GATE_FUNCTION = 'isIndexedOrgSearchEnabled'
+
+/**
+ * Whether the file calls the gate, under any local name its import gave it. An entry only
+ * importing the gate proves nothing: it must ask it. That the call guards each use is left to
+ * review of the allowlist, which names every entry explicitly.
+ */
+export function callsGate(file: string, source: string): boolean {
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, false)
+  const localNames = new Set<string>()
+  for (const statement of sourceFile.statements) {
+    if (
+      !ts.isImportDeclaration(statement) ||
+      !ts.isStringLiteralLike(statement.moduleSpecifier) ||
+      normalizeSpecifier(file, statement.moduleSpecifier.text) !== GATE_SPECIFIER
+    )
+      continue
+    const bindings = statement.importClause?.namedBindings
+    if (!bindings || !ts.isNamedImports(bindings)) continue
+    for (const element of bindings.elements) {
+      if ((element.propertyName ?? element.name).text === GATE_FUNCTION) {
+        localNames.add(element.name.text)
+      }
+    }
+  }
+  if (localNames.size === 0) return false
+  let called = false
+  const visit = (node: ts.Node): void => {
+    if (called) return
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      localNames.has(node.expression.text)
+    ) {
+      called = true
+      return
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return called
+}
+
 /** The `@/`-rooted form of a specifier, resolving a relative one against the importing file. */
 function normalizeSpecifier(file: string, specifier: string): string | null {
   if (specifier.startsWith('@/')) return specifier
@@ -125,7 +169,7 @@ function normalizeSpecifier(file: string, specifier: string): string | null {
 export function findBoundaryViolations(files: readonly SourceFile[]): BoundaryViolation[] {
   const violations: BoundaryViolation[] = []
   const importedBarrels = new Map<string, Set<string>>()
-  const importsGate = new Set<string>()
+  const sources = new Map<string, string>()
   for (const { file, source } of files) {
     if (file.startsWith(`${INDEXED_DIR}/`) || isTestFile(file)) continue
     /** Any specifier reaching the directory, absolute or relative, names its `indexed` segment. */
@@ -137,10 +181,7 @@ export function findBoundaryViolations(files: readonly SourceFile[]): BoundaryVi
         (normalized !== USE_CASE_BARREL && !normalized.startsWith(`${USE_CASE_BARREL}/`))
       )
         continue
-      if (normalized === GATE_SPECIFIER) {
-        importsGate.add(file)
-        continue
-      }
+      if (normalized === GATE_SPECIFIER) continue
       const entries = BARREL_ENTRY_FILES[normalized]
       if (!entries) {
         violations.push({
@@ -160,18 +201,19 @@ export function findBoundaryViolations(files: readonly SourceFile[]): BoundaryVi
         })
         continue
       }
+      sources.set(file, source)
       const barrels = importedBarrels.get(file) ?? new Set<string>()
       barrels.add(normalized)
       importedBarrels.set(file, barrels)
     }
   }
   for (const file of importedBarrels.keys()) {
-    if (!importsGate.has(file)) {
+    if (!callsGate(file, sources.get(file) ?? '')) {
       violations.push({
         file,
         line: 1,
         specifier: GATE_SPECIFIER,
-        reason: 'calls dormant indexed search without importing its gate',
+        reason: `reaches dormant indexed search without calling ${GATE_FUNCTION}()`,
       })
     }
   }

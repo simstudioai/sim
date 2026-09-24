@@ -11,6 +11,7 @@ import {
 const ENTRY = 'apps/sim/lib/knowledge/mcp/server.ts'
 const RETRIEVAL_ENTRY = 'apps/sim/lib/knowledge/search/queries.ts'
 const GATE_IMPORT = `import { isIndexedOrgSearchEnabled } from '${GATE_SPECIFIER}'`
+const GATED = `${GATE_IMPORT}\nif (!isIndexedOrgSearchEnabled()) throw new Error('dormant')`
 
 describe('indexed organization search boundary audit', () => {
   it('lets any file read the gate', () => {
@@ -26,11 +27,11 @@ describe('indexed organization search boundary audit', () => {
       findBoundaryViolations([
         {
           file: ENTRY,
-          source: `import { readIndexedKnowledgeDocument } from '${USE_CASE_BARREL}'\n${GATE_IMPORT}`,
+          source: `import { readIndexedKnowledgeDocument } from '${USE_CASE_BARREL}'\n${GATED}`,
         },
         {
           file: RETRIEVAL_ENTRY,
-          source: `import { isProjectionFilled } from '${RETRIEVAL_BARREL}'\n${GATE_IMPORT}`,
+          source: `import { isProjectionFilled } from '${RETRIEVAL_BARREL}'\n${GATED}`,
         },
       ])
     ).toEqual([])
@@ -58,7 +59,7 @@ describe('indexed organization search boundary audit', () => {
       findBoundaryViolations([
         {
           file: ENTRY,
-          source: `import { isProjectionFilled } from '${RETRIEVAL_BARREL}'\n${GATE_IMPORT}`,
+          source: `import { isProjectionFilled } from '${RETRIEVAL_BARREL}'\n${GATED}`,
         },
       ])
     ).toEqual([expect.objectContaining({ file: ENTRY, specifier: RETRIEVAL_BARREL })])
@@ -88,20 +89,30 @@ describe('indexed organization search boundary audit', () => {
     ])
   })
 
-  it('requires an entry that calls in to import the gate', () => {
+  it.each([
+    ['without the gate', `import { readIndexedKnowledgeDocument } from '${USE_CASE_BARREL}'`],
+    [
+      'importing the gate but never calling it',
+      `import { readIndexedKnowledgeDocument } from '${USE_CASE_BARREL}'\n${GATE_IMPORT}`,
+    ],
+  ])('rejects an entry reaching in %s', (_case, source) => {
+    expect(findBoundaryViolations([{ file: ENTRY, source }])).toEqual([
+      expect.objectContaining({
+        file: ENTRY,
+        reason: 'reaches dormant indexed search without calling isIndexedOrgSearchEnabled()',
+      }),
+    ])
+  })
+
+  it('accepts a gate called under an aliased import', () => {
     expect(
       findBoundaryViolations([
         {
           file: ENTRY,
-          source: `import { readIndexedKnowledgeDocument } from '${USE_CASE_BARREL}'`,
+          source: `import { readIndexedKnowledgeDocument } from '${USE_CASE_BARREL}'\nimport { isIndexedOrgSearchEnabled as indexedOn } from '${GATE_SPECIFIER}'\nexport const on = indexedOn()`,
         },
       ])
-    ).toEqual([
-      expect.objectContaining({
-        file: ENTRY,
-        reason: 'calls dormant indexed search without importing its gate',
-      }),
-    ])
+    ).toEqual([])
   })
 
   it('ignores tests, the dormant directory itself, and text that only names the module', () => {

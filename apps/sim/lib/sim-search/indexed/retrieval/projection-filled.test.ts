@@ -46,6 +46,32 @@ describe('projection fill probe', () => {
     expect(query).toHaveBeenCalledOnce()
   })
 
+  it('does not hold a later search past its own share while another search probes', async () => {
+    let answerFirst: (rows: Array<{ unfilled: boolean }>) => void = () => {}
+    vi.spyOn(SearchBudget.prototype, 'query').mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answerFirst = resolve as typeof answerFirst
+        }) as ReturnType<SearchBudget['query']>
+    )
+    const first = isProjectionFilled(
+      'embedding_search',
+      'vector.projection_filled',
+      new SearchBudget('vector', performance.now() + LEG_BUDGET_MS)
+    )
+    const started = performance.now()
+    await expect(
+      isProjectionFilled(
+        'embedding_search',
+        'vector.projection_filled',
+        new SearchBudget('vector', performance.now() + 20)
+      )
+    ).resolves.toBe(false)
+    expect(performance.now() - started).toBeLessThan(PROJECTION_FILLED_PROBE_BUDGET_MS)
+    answerFirst([{ unfilled: false }])
+    await expect(first).resolves.toBe(true)
+  })
+
   it('does not remember a probe its own search cancelled', async () => {
     const query = vi
       .spyOn(SearchBudget.prototype, 'query')

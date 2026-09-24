@@ -171,6 +171,7 @@ export function drizzleSearchIndexDeletionStore(
         .select({
           id: knowledgeBase.id,
           isSearchIndex: knowledgeBase.isSearchIndex,
+          organizationId: knowledgeBase.organizationId,
           deletedAt: knowledgeBase.deletedAt,
         })
         .from(knowledgeBase)
@@ -230,10 +231,24 @@ export function drizzleSearchIndexDeletionStore(
       return db.transaction(async (tx) => {
         await enterBoundedTransaction(tx, timeouts)
         await lockGuard(tx, knowledgeBaseId)
+        /**
+         * Only chunks of documents the connectors still own: a document detachment converted to a
+         * standalone upload after the page was read keeps its chunks, and the page skips it.
+         */
+        const owned = tx
+          .select({ id: document.id })
+          .from(document)
+          .where(
+            and(
+              inArray(document.id, [...documentIds]),
+              eq(document.knowledgeBaseId, knowledgeBaseId),
+              isNotNull(document.connectorId)
+            )
+          )
         const batch = tx
           .select({ id: embedding.id })
           .from(embedding)
-          .where(inArray(embedding.documentId, [...documentIds]))
+          .where(inArray(embedding.documentId, owned))
           .limit(limit)
         const deleted = await tx
           .delete(embedding)

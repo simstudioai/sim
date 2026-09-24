@@ -77,8 +77,12 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution: mockResolveBillingAttribution,
   resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
 }))
+const { mockCheckSearchUsageLimits } = vi.hoisted(() => ({
+  mockCheckSearchUsageLimits: vi.fn(),
+}))
+
 vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
-  checkSearchUsageLimits: vi.fn().mockResolvedValue({ isExceeded: false }),
+  checkSearchUsageLimits: mockCheckSearchUsageLimits,
 }))
 
 vi.mock('@/lib/knowledge/embeddings', () => ({
@@ -124,6 +128,7 @@ const baseKb = (id: string, embeddingModel: string, embeddingDimension = 1536) =
 describe('v1 knowledge search route — per-KB embedding model', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCheckSearchUsageLimits.mockResolvedValue({ isExceeded: false })
     resetEnvFlagsMock()
     mockResolveV1KnowledgeReadAccess.mockResolvedValue({ kind: 'workspace', tokens: ['pub', 'ws'] })
     mockAuthenticateRequest.mockResolvedValue({
@@ -185,6 +190,20 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
     })
     expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled()
     expect(mockExecuteKnowledgeSearch).not.toHaveBeenCalled()
+  })
+
+  it('refuses a dormant search index for its dormancy, not the caller exhausted usage', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    mockCheckSearchUsageLimits.mockResolvedValue({ isExceeded: true, message: 'Over limit' })
+    mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
+      hasAccess: true,
+      knowledgeBase: { ...baseKb('kb-1', 'text-embedding-3-small'), isSearchIndex: true },
+    })
+    const response = await POST(
+      createMockRequest('POST', { workspaceId: 'ws-1', knowledgeBaseIds: 'kb-1', query: 'hello' })
+    )
+    expect(response.status).toBe(409)
+    expect(mockCheckSearchUsageLimits).not.toHaveBeenCalled()
   })
 
   it('searches a workspace knowledge base while indexed organization search is dormant', async () => {
