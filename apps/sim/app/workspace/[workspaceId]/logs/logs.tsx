@@ -1585,7 +1585,13 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
       </div>
 
       {filtersActive && (
-        <Chip variant='border-shadow' fullWidth onClick={handleClearFilters} align='center'>
+        <Chip
+          variant='border-shadow'
+          fullWidth
+          onClick={handleClearFilters}
+          align='center'
+          className='h-[32px]'
+        >
           Clear All Filters
         </Chip>
       )}

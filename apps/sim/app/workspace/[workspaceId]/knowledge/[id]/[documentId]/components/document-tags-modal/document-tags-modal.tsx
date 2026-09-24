@@ -12,7 +12,6 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  handleKeyboardActivation,
   Label,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
@@ -386,13 +385,8 @@ export function DocumentTagsModal({
             {documentTags.map((tag, index) => (
               <div key={tag.displayName} className='space-y-2'>
                 <KnowledgeTagRow
-                  role='button'
-                  tabIndex={0}
-                  onClick={() => startEditingTag(index)}
-                  onKeyDown={(event) => {
-                    if (event.target !== event.currentTarget) return
-                    handleKeyboardActivation(event, () => startEditingTag(index))
-                  }}
+                  onActivate={() => startEditingTag(index)}
+                  activateLabel={`Edit ${tag.displayName}`}
                   name={tag.displayName}
                   typeLabel={FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
                   detail={formatValueForDisplay(tag.value, tag.fieldType)}

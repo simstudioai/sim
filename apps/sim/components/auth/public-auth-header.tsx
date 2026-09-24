@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import styles from './public-auth-header.module.css'
 
 interface PublicAuthHeaderProps {
   title: ReactNode
@@ -12,7 +13,7 @@ export function PublicAuthHeader({ title, description }: PublicAuthHeaderProps) 
       <h1 className='text-balance text-[var(--text-primary)] text-display leading-[110%] tracking-[-0.02em]'>
         {title}
       </h1>
-      <p className='text-[color-mix(in_srgb,var(--text-muted)_60%,transparent)] text-lg leading-[125%] tracking-[0.02em]'>
+      <p className={`${styles.description} text-lg leading-[125%] tracking-[0.02em]`}>
         {description}
       </p>
     </div>

@@ -12,7 +12,6 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   type ComboboxOption,
-  handleKeyboardActivation,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getDocumentIcon } from '@/components/icons/document-icons'
@@ -272,13 +271,8 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                 return (
                   <KnowledgeTagRow
                     key={tag.id}
-                    role='button'
-                    tabIndex={0}
-                    onClick={() => handleViewDocuments(tag)}
-                    onKeyDown={(event) => {
-                      if (event.target !== event.currentTarget) return
-                      handleKeyboardActivation(event, () => handleViewDocuments(tag))
-                    }}
+                    onActivate={() => handleViewDocuments(tag)}
+                    activateLabel={`View documents for ${tag.displayName}`}
                     name={tag.displayName}
                     typeLabel={FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
                     detail={
