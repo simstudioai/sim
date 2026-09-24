@@ -2,6 +2,7 @@
 
 import {
   type Dispatch,
+  type KeyboardEvent,
   type PointerEvent,
   type SetStateAction,
   useCallback,
@@ -185,7 +186,13 @@ export function useChatResourcePanel(
     effectiveActiveResourceIdRef,
     onResourceEvent: handleResourceEvent,
   } = controller
-  const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize(desktopScopeId)
+  const {
+    mothershipRef,
+    handleResizePointerDown,
+    handleResizeKeyDown,
+    handleResizeFocus,
+    clearWidth,
+  } = useMothershipResize(desktopScopeId)
   effectiveActiveResourceIdRef.current = activeResourceId
   const resourceAttentionChatIdRef = useRef(resolvedChatId)
 
@@ -255,6 +262,14 @@ export function useChatResourcePanel(
     [handleResizePointerDown]
   )
 
+  const handleResourceResizeKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      handleResizeKeyDown(event)
+      if (event.defaultPrevented) resourceSelectionOwnedByUserRef.current = true
+    },
+    [handleResizeKeyDown]
+  )
+
   const handleResourceInteraction = useCallback(() => {
     resourceSelectionOwnedByUserRef.current = true
   }, [])
@@ -315,6 +330,8 @@ export function useChatResourcePanel(
     selectResourceFromUser,
     addResourceFromUser,
     handleResourceResizePointerDown,
+    handleResourceResizeKeyDown,
+    handleResourceResizeFocus: handleResizeFocus,
     handleResourceInteraction,
     prepareResourceViewForAgentTurn,
   }

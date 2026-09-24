@@ -67,6 +67,8 @@ it.each([1, 2])(
           activityCount={count}
           onToggle={toggle}
           onResize={vi.fn()}
+          onResizeKeyDown={vi.fn()}
+          onResizeFocus={vi.fn()}
           panel={<div>Resources</div>}
         >
           <div>Conversation</div>
@@ -87,3 +89,39 @@ it.each([1, 2])(
     expect(container.textContent).toContain('Resources')
   }
 )
+
+it('exposes the divider as a focusable separator routing keys and focus to the owner', async () => {
+  const resize = vi.fn()
+  const keyDown = vi.fn()
+  const focus = vi.fn()
+  await act(async () =>
+    root.render(
+      <ChatPanelLayout
+        collapsed={false}
+        label='resource view'
+        onToggle={vi.fn()}
+        onResize={resize}
+        onResizeKeyDown={keyDown}
+        onResizeFocus={focus}
+        panel={<div>Resources</div>}
+      >
+        <div>Conversation</div>
+      </ChatPanelLayout>
+    )
+  )
+  document.body.appendChild(container)
+  const separator = container.querySelector<HTMLDivElement>('[role="separator"]')!
+  expect(separator.getAttribute('aria-label')).toBe('Resize resource view')
+  expect(separator.getAttribute('aria-orientation')).toBe('vertical')
+  expect(separator.tabIndex).toBe(0)
+  await act(async () => separator.focus())
+  expect(document.activeElement).toBe(separator)
+  expect(focus).toHaveBeenCalledOnce()
+  await act(async () => {
+    separator.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }))
+  })
+  expect(keyDown).toHaveBeenCalledOnce()
+  expect(keyDown.mock.calls[0][0].key).toBe('ArrowLeft')
+  expect(resize).not.toHaveBeenCalled()
+  container.remove()
+})

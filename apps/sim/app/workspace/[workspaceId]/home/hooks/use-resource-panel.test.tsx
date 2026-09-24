@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act } from 'react'
+import { act, type KeyboardEvent } from 'react'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -13,6 +13,10 @@ vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-mothership-resize', () => 
   useMothershipResize: () => ({
     mothershipRef: { current: null },
     handleResizePointerDown: vi.fn(),
+    handleResizeKeyDown: (event: { key: string; preventDefault: () => void }) => {
+      if (event.key === 'ArrowLeft') event.preventDefault()
+    },
+    handleResizeFocus: vi.fn(),
     clearWidth: mocks.clearWidth,
   }),
 }))
@@ -99,3 +103,21 @@ it.each([false, true])(
     )
   }
 )
+
+it('claims the resource view only when a divider key actually resizes it', async () => {
+  const press = (key: string) => {
+    const event = {
+      key,
+      defaultPrevented: false,
+      preventDefault() {
+        this.defaultPrevented = true
+      },
+    }
+    panel.handleResourceResizeKeyDown(event as unknown as KeyboardEvent<HTMLDivElement>)
+  }
+  panel.resourceSelectionOwnedByUserRef.current = false
+  press('Tab')
+  expect(panel.resourceSelectionOwnedByUserRef.current).toBe(false)
+  press('ArrowLeft')
+  expect(panel.resourceSelectionOwnedByUserRef.current).toBe(true)
+})
