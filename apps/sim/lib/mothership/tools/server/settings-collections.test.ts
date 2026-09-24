@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   projectSettingsRoster,
+  projectSettingsUsageBreakdown,
   settingsPage,
   settingsPageSchema,
 } from '@/lib/mothership/tools/server/settings-collections'
@@ -57,5 +58,21 @@ describe('bounded Settings collection projections', () => {
     expect(result.members.items[0].name).toHaveLength(300)
     expect(JSON.stringify(result)).not.toContain('private-image')
     expect(JSON.stringify(result)).not.toContain('"workspaces":[')
+  })
+
+  it('keeps member avatars out of the usage breakdown the model reads', () => {
+    const result = projectSettingsUsageBreakdown({
+      dimension: 'member',
+      rows: [
+        { id: 'u1', label: 'Ada', image: 'private-image' },
+        { id: 'u2', label: 'Sam' },
+      ],
+      totalCredits: 3,
+    })
+    expect(result.rows).toEqual([
+      { id: 'u1', label: 'Ada' },
+      { id: 'u2', label: 'Sam' },
+    ])
+    expect(result).toMatchObject({ dimension: 'member', totalCredits: 3 })
   })
 })

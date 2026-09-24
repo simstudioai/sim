@@ -54,6 +54,7 @@ import {
 import { archivedChatSettingsActions } from '@/lib/mothership/tools/server/settings-chats'
 import {
   projectSettingsGroupMember,
+  projectSettingsUsageBreakdown,
   projectSettingsWorkspace,
   readSettingsGroups,
   readSettingsRoster,
@@ -455,11 +456,13 @@ export const settingsOperations: Record<string, Record<string, SettingsOperation
     breakdown: settingsOperation(
       'read',
       organizationUsageBreakdownQuerySchema.strict(),
-      (context, input) =>
-        getOrganizationUsageBreakdown.execute({
-          principal: context.principal,
-          input: { ...dates(input), organizationId: settingsOrganizationId(context) },
-        })
+      async (context, input) =>
+        projectSettingsUsageBreakdown(
+          await getOrganizationUsageBreakdown.execute({
+            principal: context.principal,
+            input: { ...dates(input), organizationId: settingsOrganizationId(context) },
+          })
+        )
     ),
     events: settingsOperation(
       'read',
