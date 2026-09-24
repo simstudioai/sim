@@ -1,6 +1,7 @@
 import { type ButtonHTMLAttributes, forwardRef } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../../lib/cn'
+import { mutedFocusRingClass } from '../../lib/focus-ring'
 
 /**
  * `size='icon'` is the square 20px icon-only button — a chip field's trailing
@@ -37,6 +38,8 @@ const buttonVariants = cva(
         destructive:
           'bg-[var(--text-error)] text-white hover-hover:text-white hover-hover:brightness-106',
         ghost: 'text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)]',
+        'ghost-hover':
+          'text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)] hover-hover:bg-[var(--surface-hover)]',
         /**
          * Destructive action without a filled surface; stays red on hover.
          * @example <Button variant='ghost-destructive'>Delete</Button>
@@ -68,6 +71,9 @@ const buttonVariants = cva(
       shape: {
         round: 'rounded-full',
       },
+      focusRing: {
+        muted: mutedFocusRingClass,
+      },
       iconPadding: {
         sm: 'p-1',
         md: 'p-1.5',
@@ -82,6 +88,7 @@ const buttonVariants = cva(
        */
       { size: 'icon', variant: 'quiet', className: 'text-[var(--text-icon-muted)]' },
       { size: 'icon', variant: 'ghost', className: 'text-[var(--text-icon-muted)]' },
+      { size: 'icon', variant: 'ghost-hover', className: 'text-[var(--text-icon-muted)]' },
     ],
     defaultVariants: {
       variant: 'default',
@@ -125,7 +132,7 @@ export interface ButtonProps
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, iconSize, iconPadding, shape, ...props }, ref) => {
+  ({ className, variant, size, iconSize, iconPadding, shape, focusRing, ...props }, ref) => {
     const baseIconSize = typeof iconSize === 'object' ? iconSize?.base : iconSize
     const smIconSize = typeof iconSize === 'object' ? iconSize?.sm : undefined
     return (
@@ -138,6 +145,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             iconSize: baseIconSize,
             iconPadding,
             shape,
+            focusRing,
           }),
           smIconSize && responsiveIconSizes[smIconSize],
           className

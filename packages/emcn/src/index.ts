@@ -15,6 +15,7 @@ export {
   CODE_LINE_HEIGHT_PX,
   Code,
   calculateGutterWidth,
+  codeViewerAppearanceVariants,
   getCodeEditorProps,
 } from './components/code/code'
 export {
@@ -52,5 +53,6 @@ export { usePrefersReducedMotion } from './hooks/use-prefers-reduced-motion'
 export { useScrollEdges } from './hooks/use-scroll-edges'
 export * from './icons'
 export { cn } from './lib/cn'
+export { mutedFocusRingClass } from './lib/focus-ring'
 export { handleKeyboardActivation, isKeyboardActivation } from './lib/keyboard'
 export { bindPreviewHorizontalWheel, bindPreviewWheelZoom } from './lib/preview-wheel-zoom'

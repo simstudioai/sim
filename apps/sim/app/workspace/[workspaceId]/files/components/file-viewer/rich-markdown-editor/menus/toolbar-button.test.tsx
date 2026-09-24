@@ -41,7 +41,8 @@ describe('ToolbarButton', () => {
     )
 
     const button = host.querySelector('button[aria-label="Add to Chat"]')
-    expect(button?.className).toContain('size-[28px]')
+    expect(button?.classList.contains('size-10')).toBe(true)
+    expect(button?.classList.contains('sm:size-7')).toBe(true)
     expect(button?.querySelector('svg')?.className.baseVal).toContain('size-[12px]')
   })
 

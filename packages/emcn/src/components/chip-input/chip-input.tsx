@@ -14,6 +14,8 @@
  * same 1.5 gap as `Chip`. It shares the chip-field chrome with
  * {@link ChipTextarea}, shows no focus ring — keep the surface calm and rely on
  * the caret for focus. Pass `error` to swap the border to the error token.
+ * `appearance='compactSearch'` owns the existing 23px code-search field
+ * treatment without changing the 30px chip default.
  *
  * @example
  * ```tsx
@@ -27,6 +29,7 @@
  * ```
  */
 import * as React from 'react'
+import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../../lib/cn'
 import {
   chipContentGeometryClass,
@@ -38,8 +41,23 @@ import {
 
 type ChipInputIcon = React.ComponentType<{ className?: string }>
 
-export interface ChipInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
-  /** Control height: 30px by default, or the larger 36px auth spacing scale. */
+/** The compact search field keeps the existing code-viewer input geometry. */
+export const chipInputVariants = cva('', {
+  variants: {
+    appearance: {
+      chip: '',
+      compactSearch: `${chipFieldSurfaceClass} h-[23px] items-center rounded-sm px-2 dark:bg-[var(--surface-5)]`,
+    },
+  },
+  defaultVariants: { appearance: 'chip' },
+})
+
+export interface ChipInputProps
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'>,
+    VariantProps<typeof chipInputVariants> {
+  /** The default chip field or the compact code-search field. */
+  appearance?: VariantProps<typeof chipInputVariants>['appearance']
+  /** Control height for the standard chip appearance: 30px by default, or 36px for auth fields. */
   size?: keyof typeof chipSizeClasses
   /** Leading icon component (e.g. `Search` from `@sim/emcn/icons`). Rendered at 14px in `--text-icon`, with the chip's 1.5 gap. */
   icon?: ChipInputIcon
@@ -62,6 +80,7 @@ export interface ChipInputProps extends Omit<React.InputHTMLAttributes<HTMLInput
 export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
   (
     {
+      appearance = 'chip',
       className,
       inputClassName,
       icon: Icon,
@@ -78,10 +97,11 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
     <div
       className={cn(
         'flex w-full',
-        chipContentGeometryClass,
-        chipRadiusClass,
-        chipSizeClasses[size],
-        chipFieldSurfaceClass,
+        appearance === 'chip' && chipContentGeometryClass,
+        appearance === 'chip' && chipRadiusClass,
+        appearance === 'chip' && chipSizeClasses[size],
+        appearance === 'chip' && chipFieldSurfaceClass,
+        chipInputVariants({ appearance }),
         error && 'border-[var(--text-error)]',
         disabled && 'opacity-50',
         className
@@ -94,8 +114,12 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
         type={type}
         disabled={disabled}
         className={cn(
-          '-ml-1 h-full w-full bg-transparent indent-1 disabled:cursor-not-allowed',
-          chipFieldTextClass,
+          appearance === 'compactSearch'
+            ? 'h-full w-full touch-manipulation scroll-pr-1 bg-transparent font-sans text-[var(--text-primary)] text-caption outline-hidden [letter-spacing:inherit] placeholder:text-[var(--text-muted)] disabled:cursor-not-allowed'
+            : cn(
+                '-ml-1 h-full w-full bg-transparent indent-1 disabled:cursor-not-allowed',
+                chipFieldTextClass
+              ),
           inputClassName
         )}
         {...props}

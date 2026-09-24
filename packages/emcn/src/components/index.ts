@@ -60,7 +60,7 @@ export {
   ChipEmailsInput,
   type ChipEmailsInputProps,
 } from './chip-emails-input/chip-emails-input'
-export { ChipInput, type ChipInputProps } from './chip-input/chip-input'
+export { ChipInput, type ChipInputProps, chipInputVariants } from './chip-input/chip-input'
 export {
   type ChipConfirmAction,
   type ChipConfirmDefaultAction,
@@ -151,7 +151,12 @@ export {
   dropdownMenuRowClass,
 } from './dropdown-menu/dropdown-menu'
 export { Expandable, ExpandableContent } from './expandable/expandable'
-export { DashedDividerLine, FieldDivider } from './field-divider/field-divider'
+export {
+  DashedDividerLine,
+  FieldDisclosure,
+  type FieldDisclosureProps,
+  FieldDivider,
+} from './field-divider/field-divider'
 export { Info } from './info/info'
 export {
   InfoCard,
@@ -200,6 +205,11 @@ export {
   overflowTextClipClass,
   overflowTextFadeClass,
 } from './overflow-text/overflow-text'
+export {
+  OverlayActionButton,
+  type OverlayActionButtonProps,
+  overlayActionButtonVariants,
+} from './overlay-action-button/overlay-action-button'
 export {
   Popover,
   PopoverAnchor,

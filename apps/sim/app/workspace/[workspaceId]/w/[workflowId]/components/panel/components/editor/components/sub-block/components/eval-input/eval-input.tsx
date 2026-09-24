@@ -197,6 +197,7 @@ export function EvalInput({
                   className='text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50'
                 />
                 <div
+                  data-preview-full-opacity={isPreview || undefined}
                   className={cn(
                     'pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm',
                     (isPreview || disabled) && 'opacity-50'

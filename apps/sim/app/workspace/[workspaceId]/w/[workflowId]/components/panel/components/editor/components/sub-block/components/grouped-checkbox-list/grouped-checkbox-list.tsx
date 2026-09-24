@@ -116,7 +116,9 @@ export function GroupedCheckboxList({
       <Chip
         variant='outline'
         fullWidth
-        leftIcon={ManageWorkspace}
+        leftAdornment={
+          <ManageWorkspace className='size-4 shrink-0 opacity-50' data-preview-full-opacity />
+        }
         disabled={disabled}
         onClick={() => setOpen(true)}
         rightAdornment={

@@ -172,7 +172,7 @@ export default function PlaygroundPage() {
                   aria-label='Go back'
                   variant='ghost'
                   onClick={() => router.back()}
-                  className='size-8 p-0'
+                  iconSize='roomy'
                 >
                   <ArrowLeft className='size-4' />
                 </Button>
@@ -187,7 +187,7 @@ export default function PlaygroundPage() {
                   aria-label={isDarkMode ? 'Light mode' : 'Dark mode'}
                   variant='default'
                   onClick={toggleDarkMode}
-                  className='size-8 p-0'
+                  iconSize='roomy'
                 >
                   {isDarkMode ? <Sun className='size-4' /> : <Moon className='size-4' />}
                 </Button>

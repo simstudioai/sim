@@ -1114,6 +1114,7 @@ export function ConditionInput({
                       overlayRefs.current.delete(block.id)
                     }
                   }}
+                  data-preview-full-opacity={isPreview || undefined}
                   className={cn(
                     'pointer-events-none absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-3 py-2 font-sans text-sm',
                     (isPreview || disabled) && 'opacity-50'

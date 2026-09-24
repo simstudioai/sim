@@ -6,7 +6,6 @@ import {
   Chip,
   Code,
   cn,
-  Input,
   Popover,
   PopoverContent,
   PopoverItem,
@@ -14,8 +13,6 @@ import {
   Tooltip,
 } from '@sim/emcn'
 import {
-  ArrowDown,
-  ArrowUp,
   Check,
   Clipboard,
   Download,
@@ -27,6 +24,7 @@ import {
 } from '@sim/emcn/icons'
 import Link from 'next/link'
 import { AgentStreamThinkingChrome } from '@/components/agent-stream/agent-stream-chrome'
+import { CodeSearchOverlay } from '@/app/workspace/[workspaceId]/components/code-search-overlay/code-search-overlay'
 import {
   OutputContextMenu,
   StructuredOutput,
@@ -67,7 +65,8 @@ const OutputCodeContent = React.memo(function OutputCodeContent({
       code={code}
       showGutter
       language={language}
-      className='m-0 min-h-full rounded-none border-0 bg-[var(--bg)] dark:bg-[var(--bg)]'
+      appearance='flat'
+      className='m-0 min-h-full'
       paddingLeft={8}
       gutterStyle={{ backgroundColor: 'transparent' }}
       wrapText={wrapText}
@@ -487,58 +486,19 @@ export const OutputPanel = React.memo(function OutputPanel({
 
         {/* Search Overlay */}
         {isOutputSearchActive && (
-          <div
-            className='absolute top-[30px] right-[8px] z-30 flex h-[34px] items-center gap-1.5 rounded-b-sm border border-[var(--border)] border-t-0 bg-[var(--bg)] px-1.5 shadow-xs'
-            onClick={(e) => e.stopPropagation()}
-            data-toolbar-root
-            data-search-active='true'
-          >
-            <Input
-              ref={outputSearchInputRef}
-              type='text'
-              value={outputSearchQuery}
-              onChange={(e) => setOutputSearchQuery(e.target.value)}
-              placeholder='Search...'
-              className='mr-0.5 h-[23px] w-[94px] text-caption'
-            />
-            <span
-              className={cn(
-                'w-[58px] text-xs',
-                matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
-              )}
-            >
-              {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : 'No results'}
-            </span>
-            <Button
-              variant='ghost'
-              onClick={goToPreviousMatch}
-              aria-label='Previous match'
-              iconPadding='md'
-              className='-m-1.5'
-              disabled={matchCount === 0}
-            >
-              <ArrowUp className='size-[14px]' />
-            </Button>
-            <Button
-              variant='ghost'
-              onClick={goToNextMatch}
-              aria-label='Next match'
-              iconPadding='md'
-              className='-m-1.5'
-              disabled={matchCount === 0}
-            >
-              <ArrowDown className='size-[14px]' />
-            </Button>
-            <Button
-              variant='ghost'
-              onClick={closeOutputSearch}
-              aria-label='Close search'
-              iconPadding='md'
-              className='-m-1.5'
-            >
-              <X className='size-[14px]' />
-            </Button>
-          </div>
+          <CodeSearchOverlay
+            appearance='attached'
+            className='top-[30px] right-[8px]'
+            inputKind='plain'
+            inputRef={outputSearchInputRef}
+            query={outputSearchQuery}
+            onQueryChange={setOutputSearchQuery}
+            matchCount={matchCount}
+            currentMatchIndex={currentMatchIndex}
+            onPrevious={goToPreviousMatch}
+            onNext={goToNextMatch}
+            onClose={closeOutputSearch}
+          />
         )}
 
         {/* Content */}
