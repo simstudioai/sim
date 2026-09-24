@@ -30,6 +30,26 @@ describe('native search network boundary', () => {
       })
     )
   })
+  it('stops at its request budget, which defaults to one search', async () => {
+    mocks.fetch.mockImplementation(async () => new Response('{}', { status: 200 }))
+    const clientWith = (requestBudget?: number) =>
+      createNativeClient({
+        origin: 'https://api.github.com',
+        accessToken: 'private',
+        signal: new AbortController().signal,
+        requestBudget,
+      })
+    const exhaust = async (client: ReturnType<typeof clientWith>, requests: number) => {
+      for (let request = 0; request < requests; request++) await client.json('/user')
+    }
+    await exhaust(clientWith(), 30)
+    const single = clientWith()
+    await exhaust(single, 30)
+    await expect(single.json('/user')).rejects.toThrow('Request budget reached')
+    const shared = clientWith(60)
+    await exhaust(shared, 60)
+    await expect(shared.json('/user')).rejects.toThrow('Request budget reached')
+  })
   it('does not send a token to an absolute or protocol-relative model URL', async () => {
     const client = createNativeClient({
       origin: 'https://api.github.com',

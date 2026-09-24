@@ -526,6 +526,60 @@ describe('authorized live retrieval', () => {
     ).rejects.toThrow()
     expect(mocks.search).toHaveBeenCalledOnce()
   })
+  it('searches each GitHub kind of one account through one session and reports it separately', async () => {
+    const github = { ...account, id: 'github-account', provider: 'github', providerId: 'github' }
+    mocks.accounts.mockResolvedValue([github])
+    mocks.resolveAccount.mockResolvedValue({ account: github, accessToken: 'secret' })
+    mocks.search.mockImplementation(async (_provider, _client, search) =>
+      search.native.kind === 'commits'
+        ? { documents: [], nextCursor: '2' }
+        : Promise.reject(new NativeSearchError('rate_limited', 'Slow down.', 30))
+    )
+    const nativeQueries = (['issues', 'commits'] as const).map((kind) => ({
+      provider: 'github' as const,
+      query: 'repo:org/repo launch',
+      accountId: 'github-account',
+      kind,
+    }))
+    const result = await searchLiveKnowledge.execute({
+      principal,
+      input: { ...input, query: '', nativeQueries },
+    })
+    expect(mocks.resolveAccount).toHaveBeenCalledOnce()
+    expect(mocks.search.mock.calls.map(([, , search]) => search.native.kind)).toEqual([
+      'issues',
+      'commits',
+    ])
+    expect(result.live?.accounts).toEqual([
+      expect.objectContaining({
+        accountId: 'github-account',
+        kind: 'issues',
+        status: 'rate_limited',
+        retryAfterSeconds: 30,
+      }),
+      expect.objectContaining({
+        accountId: 'github-account',
+        kind: 'commits',
+        status: 'partial',
+        nextCursor: '2',
+      }),
+    ])
+  })
+  it('reports each targeted kind of an unconnected account for reconnection', async () => {
+    const nativeQueries = (['issues', 'commits'] as const).map((kind) => ({
+      provider: 'github' as const,
+      query: 'repo:org/repo launch',
+      kind,
+    }))
+    const result = await searchLiveKnowledge.execute({
+      principal,
+      input: { ...input, query: '', nativeQueries },
+    })
+    expect(result.live?.accounts).toEqual([
+      expect.objectContaining({ provider: 'github', kind: 'issues', status: 'reconnect' }),
+      expect.objectContaining({ provider: 'github', kind: 'commits', status: 'reconnect' }),
+    ])
+  })
   it('rejects invalid dates before resolving provider credentials', async () => {
     await expect(
       searchLiveKnowledge.execute({

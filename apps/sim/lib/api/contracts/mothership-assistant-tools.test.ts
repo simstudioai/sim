@@ -76,6 +76,38 @@ describe('Assistant execution contracts', () => {
     const nativeQueries = [{ provider: 'github', query: 'author:@me', kind: 'commits' }]
     expect(searchWorkspaceInputSchema.parse({ nativeQueries })).toMatchObject({ query: '' })
     expect(searchWorkspaceInputSchema.safeParse({}).success).toBe(false)
+  })
+
+  it('accepts one native query per provider account and kind', () => {
+    const accepts = (nativeQueries: Record<string, string>[]) =>
+      searchWorkspaceInputSchema.safeParse({ query: 'launch', nativeQueries }).success
+    const github = { provider: 'github', accountId: 'account', query: 'repo:org/repo launch' }
+    expect(
+      accepts([
+        { ...github, kind: 'issues' },
+        { ...github, kind: 'commits' },
+      ])
+    ).toBe(true)
+    expect(
+      accepts([
+        { ...github, kind: 'issues' },
+        { ...github, kind: 'issues' },
+      ])
+    ).toBe(false)
+    expect(accepts([{ ...github, kind: 'issues' }, github])).toBe(false)
+    expect(
+      accepts([
+        { ...github, kind: 'issues' },
+        { ...github, accountId: 'other', kind: 'issues' },
+      ])
+    ).toBe(true)
+    const gmail = { provider: 'gmail', query: 'subject:launch' }
+    expect(
+      accepts([
+        { ...gmail, kind: 'issues' },
+        { ...gmail, kind: 'code' },
+      ])
+    ).toBe(false)
     expect(
       searchWorkspaceInputSchema.safeParse({ nativeQueries: [{ provider: 'github', query: '' }] })
         .success

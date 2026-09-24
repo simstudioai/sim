@@ -16,15 +16,25 @@ export const liveSearchProviderSchema = z.enum([
 ])
 export type LiveSearchProvider = z.output<typeof liveSearchProviderSchema>
 
+const nativeSearchKindSchema = z.enum([
+  'issues',
+  'code',
+  'repositories',
+  'commits',
+  'merge_requests',
+  'wiki',
+])
+
+/** Providers whose `kind` selects a separate search endpoint; others ignore it. */
+const KIND_PROVIDERS: ReadonlySet<LiveSearchProvider> = new Set(['github', 'gitlab'])
+
 /** Queries are data for fixed read-only provider endpoints, never URLs or credentials. */
 export const nativeSearchQuerySchema = z
   .object({
     provider: liveSearchProviderSchema,
     query: z.string().trim().max(2000),
     accountId: z.string().min(1).max(200).optional(),
-    kind: z
-      .enum(['issues', 'code', 'repositories', 'commits', 'merge_requests', 'wiki'])
-      .optional(),
+    kind: nativeSearchKindSchema.optional(),
     project: z.string().min(1).max(300).optional(),
     cursor: z.string().max(4000).optional(),
     termClauses: z.array(z.string().max(500)).max(10).optional(),
@@ -39,6 +49,13 @@ export const nativeSearchQueriesSchema = z
   .min(1)
   .max(9)
   .superRefine((queries, context) => {
+    /**
+     * Each account runs one query per kind: GitHub and GitLab kinds are separate endpoints, so
+     * one call can search several of them for the same account. A query without a kind covers
+     * the provider's default kinds and conflicts with any other query for that account.
+     */
+    const kindOf = (query: NativeSearchQuery) =>
+      KIND_PROVIDERS.has(query.provider) ? query.kind : undefined
     for (const [index, query] of queries.entries()) {
       if (
         queries
@@ -46,14 +63,15 @@ export const nativeSearchQueriesSchema = z
           .some(
             (previous) =>
               previous.provider === query.provider &&
-              (!previous.accountId || !query.accountId || previous.accountId === query.accountId)
+              (!previous.accountId || !query.accountId || previous.accountId === query.accountId) &&
+              (!kindOf(previous) || !kindOf(query) || kindOf(previous) === kindOf(query))
           )
       )
         context.addIssue({
           code: 'custom',
           path: [index],
           message:
-            'Use one query per provider/account per call; refine in another call or combine native query clauses.',
+            'Use one query per provider account and kind per call. Combine alternatives with OR in one query, or refine in another call.',
         })
     }
   })
@@ -61,6 +79,8 @@ export const nativeSearchQueriesSchema = z
 export const liveSearchAccountStatusSchema = z.object({
   accountId: z.string(),
   provider: liveSearchProviderSchema,
+  /** The native query kind this status and its cursor belong to. */
+  kind: nativeSearchKindSchema.optional(),
   displayName: z.string(),
   status: z.enum(['ok', 'partial', 'reconnect', 'rate_limited', 'unavailable', 'timeout']),
   message: z.string().optional(),
@@ -129,7 +149,7 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
     nativeQueries: nativeSearchQueriesSchema
       .optional()
       .describe(
-        'Live search only: provider-native queries (Drive q, Gmail operators, Jira JQL, Confluence CQL, GitHub qualifiers, Slack RTS). GitHub kind commits searches commit messages with author:, committer:, author-date:, and repo: qualifiers. Omit for simple cross-provider terms. Use the returned live guidance and account IDs.'
+        'Live search only: provider-native queries (Drive q, Gmail operators, Jira JQL, Confluence CQL, GitHub qualifiers, Slack RTS). GitHub kind commits searches commit messages with author:, committer:, author-date:, and repo: qualifiers. Send one query per account, or one per kind for GitHub and GitLab (e.g. issues and commits together); combine alternatives with OR. Omit for simple cross-provider terms. Use the returned live guidance and account IDs.'
       ),
     query: z
       .string()

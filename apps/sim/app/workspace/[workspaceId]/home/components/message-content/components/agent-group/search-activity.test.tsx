@@ -224,6 +224,42 @@ describe('search in shared tool activity', () => {
     expect(container.innerHTML).not.toContain('--text-error')
   })
 
+  it('replaces a failed search with the search that followed it', () => {
+    const retry = completedSearch('two', 'Second query')
+    render([retry])
+    expand()
+    const alone = { text: container.textContent, links: container.querySelectorAll('a').length }
+    render([{ ...completedSearch('one', 'First query'), status: 'error' }, retry])
+    expand()
+    expect({ text: container.textContent, links: container.querySelectorAll('a').length }).toEqual(
+      alone
+    )
+  })
+
+  it('keeps a failed search that no later search retried', () => {
+    const read: ToolCallData = {
+      id: 'read',
+      toolName: 'read_document',
+      displayTitle: 'Reading document',
+      activityDescription: 'Reading the launch plan',
+      status: 'success',
+    }
+    render([read])
+    expect(header()).toBeNull()
+    render([{ ...completedSearch('one', 'First query'), status: 'error' }, read])
+    expect(header()).not.toBeNull()
+    expect(container.textContent).not.toMatch(/failed/i)
+  })
+
+  it('keeps the last search visible when every search failed', () => {
+    render([
+      { ...completedSearch('one', 'First query'), status: 'error' },
+      { ...completedSearch('two', 'Second query'), status: 'error' },
+    ])
+    expect(headerText()).toBe('Searching documents')
+    expect(container.textContent).not.toMatch(/failed/i)
+  })
+
   it.each([
     { success: false, data: { results: [] } },
     {},

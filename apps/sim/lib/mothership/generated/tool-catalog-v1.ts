@@ -6041,7 +6041,7 @@ export const SearchWorkspace: ToolCatalogEntry = {
       },
       nativeQueries: {
         description:
-          'Live search only: provider-native queries (Drive q, Gmail operators, Jira JQL, Confluence CQL, GitHub qualifiers, Slack RTS). GitHub kind commits searches commit messages with author:, committer:, author-date:, and repo: qualifiers. Omit for simple cross-provider terms. Use the returned live guidance and account IDs.',
+          'Live search only: provider-native queries (Drive q, Gmail operators, Jira JQL, Confluence CQL, GitHub qualifiers, Slack RTS). GitHub kind commits searches commit messages with author:, committer:, author-date:, and repo: qualifiers. Send one query per account, or one per kind for GitHub and GitLab (e.g. issues and commits together); combine alternatives with OR. Omit for simple cross-provider terms. Use the returned live guidance and account IDs.',
         minItems: 1,
         maxItems: 9,
         type: 'array',
