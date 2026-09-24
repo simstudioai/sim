@@ -44,9 +44,9 @@ vi.mock('@/lib/logs/folder-expansion', () => ({
   expandFolderIdsWithDescendants: vi.fn(async (_ws: string, ids: string | undefined) => ids),
 }))
 
-import type { ListLogsParams } from './list-logs'
-import { readLogs } from './list-logs'
-import { decodeLogSortCursor } from './sort-cursor'
+import { listLogsQuerySchema } from '@/lib/api/contracts/logs'
+import { type ReadLogsParams, readLogs } from '@/lib/logs/list-logs'
+import { decodeLogSortCursor } from '@/lib/logs/sort-cursor'
 
 afterAll(resetDbChainMock)
 
@@ -99,14 +99,15 @@ function jobRow(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function baseParams(overrides: Partial<ListLogsParams> = {}): ListLogsParams {
+function baseParams(overrides: Partial<ReadLogsParams> = {}): ReadLogsParams {
   return {
     workspaceId: 'ws-1',
     limit: 100,
     sortBy: 'date',
     sortOrder: 'desc',
+    hideCostInfo: false,
     ...overrides,
-  } as ListLogsParams
+  }
 }
 
 describe('readLogs', () => {
@@ -181,6 +182,96 @@ describe('readLogs', () => {
     expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
     expect(result.data).toHaveLength(1)
     expect(result.data[0].workflowId).toBe('wf-1')
+  })
+
+  it('resolves the snapshot on the server and applies its upper bound to both run sources', async () => {
+    const now = '2026-09-24T15:45:00.000Z'
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(now))
+    try {
+      const result = await readLogs(baseParams({ snapshotAt: 'now' }))
+      expect(result.snapshotAt).toBe(now)
+      for (const table of [workflowExecutionLogs, jobExecutionLogs]) {
+        expect(dbChainMockFns.where).toHaveBeenCalledWith(
+          expect.objectContaining({
+            args: expect.arrayContaining([{ type: 'lte', args: [table.startedAt, new Date(now)] }]),
+          })
+        )
+      }
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('counts new workflow and job runs with the same exclusive lower bound as the row query', async () => {
+    const startedAfter = '2026-09-24T15:45:00.000Z'
+    queueTableRows(workflowExecutionLogs, [])
+    queueTableRows(jobExecutionLogs, [])
+    queueTableRows(workflowExecutionLogs, [{ count: 3 }])
+    queueTableRows(jobExecutionLogs, [{ count: 2 }])
+
+    const result = await readLogs(baseParams({ startedAfter, includeTotal: true, limit: 1 }))
+    expect(result.total).toBe(5)
+    for (const table of [workflowExecutionLogs, jobExecutionLogs]) {
+      const matchingCalls = dbChainMockFns.where.mock.calls.filter(([condition]) =>
+        condition.args.some(
+          (item: { type: string; args: unknown[] }) =>
+            item.type === 'gt' &&
+            item.args[0] === table.startedAt &&
+            item.args[1] instanceof Date &&
+            item.args[1].toISOString() === startedAfter
+        )
+      )
+      expect(matchingCalls).toHaveLength(2)
+    }
+  })
+
+  it('validates snapshot boundaries without changing ordinary list requests', () => {
+    expect(listLogsQuerySchema.parse({ workspaceId: 'ws-1' }).snapshotAt).toBeUndefined()
+    for (const field of ['snapshotAt', 'startedAfter']) {
+      expect(
+        listLogsQuerySchema.safeParse({ workspaceId: 'ws-1', [field]: 'invalid' }).success
+      ).toBe(false)
+    }
+  })
+
+  it('counts matching new runs without fetching or sorting log rows', async () => {
+    const startedAfter = '2026-09-24T15:45:00.000Z'
+    queueTableRows(workflowExecutionLogs, [{ count: 3 }])
+    queueTableRows(jobExecutionLogs, [{ count: 2 }])
+
+    const result = await readLogs(baseParams({ countOnly: true, startedAfter, sortBy: 'cost' }))
+
+    expect(result).toEqual({ data: [], nextCursor: null, total: 5 })
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+    for (const table of [workflowExecutionLogs, jobExecutionLogs]) {
+      expect(dbChainMockFns.where).toHaveBeenCalledWith(
+        expect.objectContaining({
+          args: expect.arrayContaining([
+            { type: 'gt', args: [table.startedAt, new Date(startedAfter)] },
+          ]),
+        })
+      )
+    }
+  })
+
+  it('preserves workflow-specific filters for count-only requests', async () => {
+    queueTableRows(workflowExecutionLogs, [{ count: 3 }])
+
+    const result = await readLogs(baseParams({ countOnly: true, workflowIds: 'wf-1' }))
+
+    expect(result.total).toBe(3)
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
+  })
+
+  it('parses the count-only query flag without treating false as true', () => {
+    expect(listLogsQuerySchema.parse({ workspaceId: 'ws-1', countOnly: true }).countOnly).toBe(true)
+    expect(listLogsQuerySchema.parse({ workspaceId: 'ws-1', countOnly: 'false' }).countOnly).toBe(
+      false
+    )
   })
 })
 

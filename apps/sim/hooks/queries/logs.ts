@@ -34,6 +34,8 @@ export type LogSortBy = 'date' | 'duration' | 'cost' | 'status'
 export type LogSortOrder = 'asc' | 'desc'
 
 export const LOG_LIST_STALE_TIME = 30 * 1000
+export const LOG_SNAPSHOT_STALE_TIME = 'static' as const
+export const NEW_LOG_COUNT_STALE_TIME = 10 * 1000
 export const LOG_DETAIL_STALE_TIME = 30 * 1000
 export const LOG_BY_EXECUTION_STALE_TIME = 30 * 1000
 export const LOG_DASHBOARD_STATS_STALE_TIME = 30 * 1000
@@ -46,6 +48,11 @@ export const logKeys = {
   lists: () => [...logKeys.all, 'list'] as const,
   list: (workspaceId: string | undefined, filters: LogFilters) =>
     [...logKeys.lists(), workspaceId ?? '', filters] as const,
+  snapshot: (workspaceId: string | undefined, filters: LogFilters) =>
+    [...logKeys.list(workspaceId, filters), 'snapshot'] as const,
+  newCounts: () => [...logKeys.all, 'newCount'] as const,
+  newCount: (workspaceId: string | undefined, filters: LogFilters, snapshotAt?: string) =>
+    [...logKeys.newCounts(), workspaceId ?? '', filters, snapshotAt ?? ''] as const,
   details: () => [...logKeys.all, 'detail'] as const,
   detail: (workspaceId: string | undefined, logId: string | undefined) =>
     [...logKeys.details(), workspaceId ?? '', logId ?? ''] as const,
@@ -186,6 +193,66 @@ export function useLogsList(
   })
 }
 
+interface LogSnapshotCursor {
+  cursor: string
+  snapshotAt?: string
+}
+
+/** Keeps the displayed list stable until an explicit refresh, including across focus and invalidation. */
+export function useLogsSnapshot(
+  workspaceId: string | undefined,
+  filters: LogFilters,
+  options?: Pick<UseLogsListOptions, 'enabled'>
+) {
+  return useInfiniteQuery({
+    queryKey: logKeys.snapshot(workspaceId, filters),
+    queryFn: async ({ pageParam, signal }) => {
+      const result = await requestJson(listLogsContract, {
+        query: {
+          ...buildListQuery(workspaceId as string, filters, pageParam?.cursor ?? null),
+          snapshotAt: pageParam?.snapshotAt ?? 'now',
+        },
+        signal,
+      })
+      return { logs: result.data, nextCursor: result.nextCursor, snapshotAt: result.snapshotAt }
+    },
+    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
+    staleTime: LOG_SNAPSHOT_STALE_TIME,
+    placeholderData: keepPreviousData,
+    initialPageParam: null as LogSnapshotCursor | null,
+    getNextPageParam: (lastPage): LogSnapshotCursor | undefined =>
+      lastPage.nextCursor
+        ? { cursor: lastPage.nextCursor, snapshotAt: lastPage.snapshotAt }
+        : undefined,
+  })
+}
+
+/** Polls only the count of new matching runs; it never writes to the displayed list. */
+export function useNewLogCount(
+  workspaceId: string | undefined,
+  filters: LogFilters,
+  snapshotAt: string | undefined,
+  options?: Pick<UseLogsListOptions, 'enabled'>
+) {
+  return useQuery({
+    queryKey: logKeys.newCount(workspaceId, filters, snapshotAt),
+    queryFn: async ({ signal }) => {
+      const result = await requestJson(listLogsContract, {
+        query: {
+          ...buildListQuery(workspaceId as string, filters, null),
+          countOnly: true,
+          startedAfter: snapshotAt,
+        },
+        signal,
+      })
+      return result.total ?? 0
+    },
+    enabled: Boolean(workspaceId) && Boolean(snapshotAt) && (options?.enabled ?? true),
+    staleTime: NEW_LOG_COUNT_STALE_TIME,
+    refetchInterval: NEW_LOG_COUNT_STALE_TIME,
+  })
+}
+
 interface UseLogDetailOptions {
   enabled?: boolean
   refetchInterval?:
@@ -260,6 +327,30 @@ async function pollForTerminalExecution(params: {
     if (detail) {
       queryClient.setQueryData(logKeys.byExecution(workspaceId, executionId), detail)
       queryClient.setQueryData(logKeys.detail(workspaceId, detail.id), detail)
+      const confirmedDetail = detail
+      /** Reconcile the acted-on row without inserting new runs into a manual snapshot. */
+      queryClient.setQueriesData<InfiniteData<LogsPage>>({ queryKey: logKeys.lists() }, (old) => {
+        if (!old) return old
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            logs: page.logs.map((log) =>
+              log.executionId === executionId
+                ? {
+                    ...log,
+                    status: confirmedDetail.status,
+                    level: confirmedDetail.level,
+                    duration: confirmedDetail.duration,
+                    cost: confirmedDetail.cost,
+                    pauseSummary: confirmedDetail.pauseSummary,
+                    hasPendingPause: confirmedDetail.hasPendingPause,
+                  }
+                : log
+            ),
+          })),
+        }
+      })
     }
 
     await queryClient.invalidateQueries({ queryKey: logKeys.lists(), refetchType: 'active' })
@@ -410,14 +501,29 @@ export function useCancelExecution(workspaceId: string) {
 
       return { previousQueries, affectedLogId, previousDetail }
     },
-    onError: (_err, _variables, context) => {
+    onError: (_err, { executionId }, context) => {
       for (const [queryKey, data] of context?.previousQueries ?? []) {
-        queryClient.setQueryData(queryKey, data)
+        const previousLog = data?.pages
+          .find((page) => page.logs.some((log) => log.executionId === executionId))
+          ?.logs.find((log) => log.executionId === executionId)
+        if (!previousLog) continue
+        queryClient.setQueryData<InfiniteData<LogsPage>>(queryKey, (current) => {
+          if (!current) return current
+          return {
+            ...current,
+            pages: current.pages.map((page) => ({
+              ...page,
+              logs: page.logs.map((log) =>
+                log.executionId === executionId && log.status === 'cancelling' ? previousLog : log
+              ),
+            })),
+          }
+        })
       }
       if (context?.affectedLogId && context.previousDetail !== undefined) {
-        queryClient.setQueryData(
+        queryClient.setQueryData<WorkflowLogDetail>(
           logKeys.detail(workspaceId, context.affectedLogId),
-          context.previousDetail
+          (current) => (current?.status === 'cancelling' ? context.previousDetail : current)
         )
       }
     },

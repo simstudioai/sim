@@ -33,6 +33,7 @@ import {
   PopoverContent,
   PopoverItem,
   PopoverSection,
+  Tooltip,
   useFloatingTooltip,
   useIsOverflowing,
 } from '@sim/emcn'
@@ -104,6 +105,7 @@ export interface ResourceAction {
   active?: boolean
   onSelect: () => void
   disabled?: boolean
+  tooltip?: string
 }
 
 /**
@@ -259,16 +261,7 @@ export const ResourceHeader = memo(function ResourceHeader({
           <div className={cn(HEADER_ACTION_CLUSTER, 'shrink-0')}>
             {aside}
             {orderHeaderActions(actions).map(({ action }) => (
-              <Chip
-                key={action.id ?? action.text}
-                variant={action.variant}
-                active={action.active}
-                leftIcon={action.icon}
-                onClick={action.onSelect}
-                disabled={action.disabled}
-              >
-                {action.text}
-              </Chip>
+              <ResourceActionChip key={action.id ?? action.text} action={action} />
             ))}
           </div>
         )}
@@ -276,6 +269,31 @@ export const ResourceHeader = memo(function ResourceHeader({
     </div>
   )
 })
+
+interface ResourceActionChipProps {
+  action: ResourceAction
+}
+
+function ResourceActionChip({ action }: ResourceActionChipProps) {
+  const chip = (
+    <Chip
+      variant={action.variant}
+      active={action.active}
+      leftIcon={action.icon}
+      onClick={action.onSelect}
+      disabled={action.disabled}
+    >
+      {action.text}
+    </Chip>
+  )
+  if (!action.tooltip) return chip
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>{chip}</Tooltip.Trigger>
+      <Tooltip.Content>{action.tooltip}</Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
 
 function getBreadcrumbSegmentClassName(
   index: number,

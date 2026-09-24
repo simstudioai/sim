@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { userFileSchema } from '@/lib/api/contracts/primitives'
+import { booleanQueryFlagSchema, userFileSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 const comparisonOperatorSchema = z.enum(['=', '>', '<', '>=', '<=', '!='])
@@ -40,6 +40,12 @@ export const listLogsQuerySchema = logFilterQuerySchema.extend({
   sortOrder: logSortOrderSchema,
   /** Also run a COUNT(*) under the same filters and return it as `total`. */
   includeTotal: z.coerce.boolean().optional(),
+  /** Return only `total`, without fetching or sorting log rows. */
+  countOnly: booleanQueryFlagSchema.optional(),
+  /** Freeze list membership at a server timestamp; reuse the returned value for pagination. */
+  snapshotAt: z.union([z.literal('now'), z.iso.datetime()]).optional(),
+  /** Count or list runs started after the displayed snapshot, within the other filters. */
+  startedAfter: z.iso.datetime().optional(),
 })
 
 export const logDetailQuerySchema = z.object({
@@ -332,7 +338,9 @@ export type WorkflowLogRow = WorkflowLogSummary &
 export const listLogsResponseSchema = z.object({
   data: z.array(workflowLogSummarySchema),
   nextCursor: z.string().nullable(),
-  /** Total rows matching the filters; present only when `includeTotal` was set. */
+  /** Server-resolved upper bound for a manually refreshed list. */
+  snapshotAt: z.iso.datetime().optional(),
+  /** Total rows matching the filters; present when `includeTotal` or `countOnly` was set. */
   total: z.number().optional(),
 })
 
