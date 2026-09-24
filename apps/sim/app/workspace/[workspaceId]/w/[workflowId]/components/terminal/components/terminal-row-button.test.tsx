@@ -45,7 +45,7 @@ describe('TerminalRowButton', () => {
     const button = host.querySelector('button')!
     expect(button.type).toBe('button')
     expect(button.getAttribute('aria-expanded')).toBe('true')
-    expect(button.getAttribute('aria-pressed')).toBe('true')
+    expect(button.getAttribute('aria-current')).toBe('true')
     expect(button.getAttribute('data-entry-id')).toBe('entry-1')
     expect(button.className).toBe(ROW_STYLES.rowSelected)
     act(() => button.focus())
@@ -62,15 +62,15 @@ describe('TerminalRowButton', () => {
     const button = host.querySelector('button')!
     expect(button.className).toBe(ROW_STYLES.row)
     expect(button.hasAttribute('aria-expanded')).toBe(false)
-    expect(button.hasAttribute('aria-pressed')).toBe(false)
+    expect(button.hasAttribute('aria-current')).toBe(false)
     expect(button.textContent).toBe('Block output')
   })
 
-  it('exposes the unselected state only for selectable rows', () => {
+  it('does not mark an unselected output row as current', () => {
     act(() => {
       root.render(<TerminalRowButton selected={false}>Other output</TerminalRowButton>)
     })
-    expect(host.querySelector('button')?.getAttribute('aria-pressed')).toBe('false')
+    expect(host.querySelector('button')?.hasAttribute('aria-current')).toBe(false)
   })
 
   it('keeps the running status inline inside a native button', () => {

@@ -3,7 +3,7 @@ import { cn } from '@sim/emcn'
 import { ROW_STYLES } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 
 export interface TerminalRowButtonProps
-  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-pressed'> {
+  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-current'> {
   /** Use the selected chip surface for the active output row. */
   selected?: boolean
 }
@@ -20,7 +20,7 @@ export function TerminalRowButton({
     <button
       type={type ?? 'button'}
       className={cn(selected ? ROW_STYLES.rowSelected : ROW_STYLES.row, className)}
-      aria-pressed={selected}
+      aria-current={selected ? 'true' : undefined}
       onClick={(event) => {
         event.stopPropagation()
         onClick?.(event)
