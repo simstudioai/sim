@@ -396,6 +396,22 @@ describe('native search endpoints', () => {
       'repo:org/repo author:octocat author-date:2026-09-20T00:00:00.000Z..2026-09-24T00:00:00.000Z'
     )
   })
+  it('keeps the date range a native GitHub query already sets instead of ORing another', async () => {
+    const api = client()
+    api.json.mockResolvedValue({ items: [], total_count: 0 })
+    await searchGitHub(api, {
+      ...input,
+      native: {
+        provider: 'github',
+        query: 'repo:org/repo author:@me author-date:>=2026-09-22',
+        kind: 'commits',
+      },
+      filters: { startDate: '2026-09-16T00:00:00Z' },
+    })
+    expect(api.json.mock.calls[0][1]?.query?.q).toBe(
+      'repo:org/repo author:@me author-date:>=2026-09-22'
+    )
+  })
   it('reads a GitHub commit with a bounded changed-file list', async () => {
     const api = client()
     api.json.mockResolvedValue({

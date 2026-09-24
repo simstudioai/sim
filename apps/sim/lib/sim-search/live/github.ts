@@ -275,17 +275,24 @@ export async function searchGitHub(
     )
   const dates = nativeDateBounds(input)
   const text = nativeText(input)
-  /** GitHub ORs repeated qualifiers, so both bounds share one range qualifier. */
+  /**
+   * GitHub ORs repeated qualifiers, so both bounds share one range qualifier, and a query that
+   * already bounds the same date keeps its own range; results are still checked against the filters.
+   */
   const dateField = GITHUB_DATE_FIELD[kind]
+  const nativeDateRange =
+    dateField !== undefined && new RegExp(`(?:^|\\s)${dateField}:`, 'i').test(text)
   const dateRange =
-    dates.start && dates.end
-      ? `${dateField}:${dates.start}..${dates.end}`
-      : dates.start
-        ? `${dateField}:>=${dates.start}`
-        : dates.end
-          ? `${dateField}:<=${dates.end}`
-          : ''
-  const datedQuery = dateField ? [groupGitHubText(text), dateRange].filter(Boolean).join(' ') : text
+    !dateField || nativeDateRange
+      ? ''
+      : dates.start && dates.end
+        ? `${dateField}:${dates.start}..${dates.end}`
+        : dates.start
+          ? `${dateField}:>=${dates.start}`
+          : dates.end
+            ? `${dateField}:<=${dates.end}`
+            : ''
+  const datedQuery = dateRange ? [groupGitHubText(text), dateRange].filter(Boolean).join(' ') : text
   if (githubTextLength(text) > GITHUB_TEXT_CHARACTERS)
     throw new NativeSearchError(
       'unavailable',
