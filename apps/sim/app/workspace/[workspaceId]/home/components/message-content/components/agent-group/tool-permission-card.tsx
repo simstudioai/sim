@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   ChevronDown,
   Chip,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -14,6 +15,11 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
+import {
+  ACTIVITY_ICON_SLOT_CLASS,
+  ACTIVITY_ROW_CLASS,
+  ActivityTextColumn,
+} from '@/components/ui/activity-status'
 import { requestJson } from '@/lib/api/client/request'
 import { copilotToolPermissionContract } from '@/lib/api/contracts/copilot'
 import { generalSettingsKeys } from '@/hooks/queries/current-user-data'
@@ -132,8 +138,13 @@ export function ToolPermissionCard({
 
   if (expired) {
     return (
-      <div className='flex items-center gap-1.5'>
-        <ShieldCheck className='size-[16px] shrink-0 text-[var(--text-icon)]' />
+      <div className={ACTIVITY_ROW_CLASS}>
+        <span
+          aria-hidden='true'
+          className={cn(ACTIVITY_ICON_SLOT_CLASS, 'text-[var(--text-icon)]')}
+        >
+          <ShieldCheck className='size-full' />
+        </span>
         <span className='truncate text-[var(--text-tertiary)] text-sm'>
           {displayTitle} — this request is no longer active
         </span>
@@ -143,66 +154,76 @@ export function ToolPermissionCard({
 
   return (
     <div className='flex flex-col gap-1'>
-      <div className='flex flex-wrap items-center gap-1'>
-        {/* 16px icon + 2px + the row's 4px gap = the 22px text inset the sibling
-            rows below are tuned to (`pl-[22px]`, and `gap-1.5` on an unmargined
-            icon). Margin and gap add, so this cannot be `mr-1.5`. */}
-        <ShieldCheck className='mr-0.5 size-[16px] shrink-0 text-[var(--text-icon)]' />
-        {preview ? (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <span className='mr-1 min-w-0 flex-1 cursor-default truncate text-[var(--text-body)] text-sm'>
-                {displayTitle}
-              </span>
-            </Tooltip.Trigger>
-            <Tooltip.Content>
-              <div className='max-w-[320px]'>
-                <div className='mb-1 text-xs'>{toolName}</div>
-                <pre className='whitespace-pre-wrap break-all font-mono text-xs'>{preview}</pre>
-              </div>
-            </Tooltip.Content>
-          </Tooltip.Root>
-        ) : (
-          <span className='mr-1 min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>
-            {displayTitle}
-          </span>
-        )}
+      <div className={ACTIVITY_ROW_CLASS}>
+        <span
+          aria-hidden='true'
+          className={cn(ACTIVITY_ICON_SLOT_CLASS, 'text-[var(--text-icon)]')}
+        >
+          <ShieldCheck className='size-full' />
+        </span>
+        <div className='flex min-w-0 flex-1 flex-wrap items-center gap-1'>
+          {preview ? (
+            <Tooltip.Root>
+              <Tooltip.Trigger asChild>
+                <span className='mr-1 min-w-0 flex-1 cursor-default truncate text-[var(--text-body)] text-sm'>
+                  {displayTitle}
+                </span>
+              </Tooltip.Trigger>
+              <Tooltip.Content>
+                <div className='max-w-[320px]'>
+                  <div className='mb-1 text-xs'>{toolName}</div>
+                  <pre className='whitespace-pre-wrap break-all font-mono text-xs'>{preview}</pre>
+                </div>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          ) : (
+            <span className='mr-1 min-w-0 flex-1 truncate text-[var(--text-body)] text-sm'>
+              {displayTitle}
+            </span>
+          )}
 
-        <Chip variant='primary' disabled={busy} onClick={() => void submit('allow', [toolCallId])}>
-          Allow
-        </Chip>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Chip variant='border' rightIcon={ChevronDown} disabled={busy}>
-              Don't ask again
-            </Chip>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align='start'>
-            <DropdownMenuItem onSelect={() => void submit('allow_chat', [toolCallId])}>
-              For this chat
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => void submit('always_allow', [toolCallId])}>
-              For every chat
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Chip disabled={busy} onClick={() => void submit('skip', [toolCallId])}>
-          Skip
-        </Chip>
+          <Chip
+            variant='primary'
+            disabled={busy}
+            onClick={() => void submit('allow', [toolCallId])}
+          >
+            Allow
+          </Chip>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Chip variant='border' rightIcon={ChevronDown} disabled={busy}>
+                Don't ask again
+              </Chip>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='start'>
+              <DropdownMenuItem onSelect={() => void submit('allow_chat', [toolCallId])}>
+                For this chat
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void submit('always_allow', [toolCallId])}>
+                For every chat
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Chip disabled={busy} onClick={() => void submit('skip', [toolCallId])}>
+            Skip
+          </Chip>
+        </div>
       </div>
 
       {showBulkActions && (
-        <div className='flex flex-wrap items-center gap-1 pl-[22px]'>
-          <span className='mr-1 text-[var(--text-tertiary)] text-xs'>
-            {outstandingIds.length} tools need permission
-          </span>
-          <Chip disabled={busy} onClick={() => void submit('allow', outstandingIds)}>
-            Allow all
-          </Chip>
-          <Chip disabled={busy} onClick={() => void submit('skip', outstandingIds)}>
-            Skip all
-          </Chip>
-        </div>
+        <ActivityTextColumn>
+          <div className='flex flex-wrap items-center gap-1'>
+            <span className='mr-1 text-[var(--text-tertiary)] text-xs'>
+              {outstandingIds.length} tools need permission
+            </span>
+            <Chip disabled={busy} onClick={() => void submit('allow', outstandingIds)}>
+              Allow all
+            </Chip>
+            <Chip disabled={busy} onClick={() => void submit('skip', outstandingIds)}>
+              Skip all
+            </Chip>
+          </div>
+        </ActivityTextColumn>
       )}
     </div>
   )

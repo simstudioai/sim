@@ -13,7 +13,7 @@ import {
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import { ActivityDisclosure } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-disclosure'
 import { SearchActivityResults } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/search-activity-results'
-import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { indexSourcesByUrl } from '@/app/workspace/[workspaceId]/home/components/message-content/sources-by-url'
 import { isToolDone } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
 import { type ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
@@ -56,21 +56,19 @@ function searchStatus(tool: ToolCallData): string | undefined {
 
 interface SearchQueryActivityProps {
   tool: ToolCallData
+  /** This row holds its lane's one live indicator. */
+  isLive: boolean
 }
 
 /** Each search call owns a stable result snapshot, so later searches never replace it. */
-function SearchQueryActivity({ tool }: SearchQueryActivityProps) {
+function SearchQueryActivity({ tool, isLive }: SearchQueryActivityProps) {
   const [expanded, setExpanded] = useState(true)
   const queries = searchQueries(tool)
   const status = searchStatus(tool)
   const evidence = collectRetrievalCitationEvidence([
     { toolCall: { name: tool.toolName, status: tool.status, result: tool.result } },
   ])
-  const byUrl = new Map<string, SourceTagData>()
-  for (const source of evidence.values()) {
-    if (!byUrl.has(source.url)) byUrl.set(source.url, source)
-  }
-  const sources = [...byUrl.values()]
+  const sources = [...indexSourcesByUrl(evidence.values()).values()]
   const output = parseCitationRecord(tool.result?.output)
   const data = parseCitationRecord(output?.data) ?? output
   const noResults =
@@ -92,7 +90,7 @@ function SearchQueryActivity({ tool }: SearchQueryActivityProps) {
   return (
     <ActivityDisclosure
       header={
-        <ActivityStatus label={label} isActive={false} icon={<Search className='size-[14px]' />} />
+        <ActivityStatus label={label} isActive={isLive} icon={<Search className='size-[14px]' />} />
       }
       expanded={expanded}
       onToggle={() => setExpanded(!expanded)}
@@ -124,14 +122,19 @@ function SearchQueryActivity({ tool }: SearchQueryActivityProps) {
 
 interface SearchActivityProps {
   tools: ToolCallData[]
+  /** The call holding the lane's live indicator, which only a running search can be. */
+  liveToolId?: string
 }
 
-/** Search history and its results stay inspectable without changing the selected panel. */
-export function SearchActivity({ tools }: SearchActivityProps) {
+/**
+ * Search history and its results stay inspectable without changing the
+ * selected panel. Only the row holding the lane's live call shimmers.
+ */
+export function SearchActivity({ tools, liveToolId }: SearchActivityProps) {
   return (
-    <div className='flex min-w-0 flex-col gap-3'>
+    <div className='flex min-w-0 flex-col gap-1.5'>
       {tools.map((tool) => (
-        <SearchQueryActivity key={tool.id} tool={tool} />
+        <SearchQueryActivity key={tool.id} tool={tool} isLive={tool.id === liveToolId} />
       ))}
     </div>
   )

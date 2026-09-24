@@ -2,7 +2,22 @@ import type {
   AgentGroupItem,
   NestedAgentGroup,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
+import { isToolDone } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
 import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
+
+/**
+ * The newest call that is still in progress, by start time, so parallel calls
+ * hand the live indicator to whichever began last and back as each finishes.
+ */
+export function getNewestRunningTool(tools: ToolCallData[]): ToolCallData | undefined {
+  return tools.reduce<ToolCallData | undefined>(
+    (newest, tool) =>
+      !isToolDone(tool.status) && (!newest || (tool.startedAt ?? 0) >= (newest.startedAt ?? 0))
+        ? tool
+        : newest,
+    undefined
+  )
+}
 
 /** Empty agent lanes share the turn's thinking indicator until they have output. */
 export function hasAgentGroupItemContent(item: AgentGroupItem): boolean {
@@ -41,4 +56,19 @@ export function collectGroupTools(items: AgentGroupItem[]): ToolCallData[] {
   }
   walk(items)
   return tools
+}
+
+/** Every call in the lane, nested lanes included, has finished, and there was work to finish. */
+export function isAgentGroupResolved(items: AgentGroupItem[]): boolean {
+  let hasWork = false
+  for (const item of items) {
+    if (item.type === 'tool') {
+      hasWork = true
+      if (!isToolDone(item.data.status)) return false
+    } else if (item.type === 'agent_group') {
+      hasWork = true
+      if (item.group.isDelegating || !isAgentGroupResolved(item.group.items)) return false
+    }
+  }
+  return hasWork
 }

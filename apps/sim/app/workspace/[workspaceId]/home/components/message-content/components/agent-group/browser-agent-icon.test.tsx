@@ -268,9 +268,7 @@ describe('BrowserAgentIcon', () => {
       expect(container.querySelector('[role="status"]')?.textContent).toBe('Opening first page')
       expect(container.querySelector('[role="button"]')).not.toBeNull()
       act(() => vi.advanceTimersByTime(900))
-      expect(container.querySelector('[role="status"]')?.textContent).toBe(
-        'Opening second page + 1'
-      )
+      expect(container.querySelector('[role="status"]')?.textContent).toBe('Opening second page')
       const nextImage = container.querySelector('img')!
       expect(nextImage).not.toBe(img)
       expect(nextImage.src).toBe('https://example.org/favicon.ico')

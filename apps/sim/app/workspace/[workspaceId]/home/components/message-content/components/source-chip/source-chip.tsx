@@ -2,17 +2,15 @@
 
 import { chipFilledFillTokens, chipHoverSurfaceClass, cn, OverflowText, Tooltip } from '@sim/emcn'
 import {
-  externalLinkHostname,
   handleExternalLinkClick,
+  linkSiteName,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/external-link'
 import { SourceIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip/source-icon'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 
 /** The source's site or provider, separate from its document title. */
 export function sourceSiteName(source: SourceTagData): string {
-  const siteName = source.siteName?.trim()
-  if (siteName) return siteName
-  return (externalLinkHostname(source.url) ?? source.url).replace(/^www\./, '')
+  return linkSiteName(source.url, source.siteName)
 }
 
 /** Citations identify the document; source metadata is the fallback when its title is unavailable. */

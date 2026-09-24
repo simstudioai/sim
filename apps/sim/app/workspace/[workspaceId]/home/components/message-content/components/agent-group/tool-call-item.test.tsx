@@ -36,6 +36,18 @@ describe('ToolCallItem', () => {
     }
   )
 
+  it('decodes escaped characters in a streamed file-edit title instead of truncating it', () => {
+    const markup = renderToStaticMarkup(
+      <ToolCallItem
+        toolName='prepare_file_edit'
+        status='executing'
+        streamingArgs={String.raw`{"operation":"update","title":"Report \"Q3\" draft.md"}`}
+      />
+    )
+
+    expect(markup).toContain('Writing Report &quot;Q3&quot; draft.md')
+  })
+
   it('does not restore a progressive streamed title after the tool settles', () => {
     const markup = renderToStaticMarkup(
       <ToolCallItem
@@ -211,7 +223,7 @@ describe('ToolCallItem', () => {
     expect(markup).toContain('Read recent emails')
   })
 
-  it('paces an iconless header while preserving integration icons on expanded child tools', () => {
+  it('keeps the header brand icon stable from running through completion', () => {
     vi.useFakeTimers()
     const container = document.createElement('div')
     const root = createRoot(container)
@@ -235,29 +247,29 @@ describe('ToolCallItem', () => {
       displayTitle: 'Reading messages',
       status: 'executing',
     }
-    const render = (tools: ToolCallData[], isActive = true) =>
+    const render = (tools: ToolCallData[], isLive = true) =>
       act(() =>
         root.render(
-          <ToolActivityGroup tools={tools} isActive={isActive} ToolCallComponent={ToolCallItem} />
+          <ToolActivityGroup tools={tools} isLive={isLive} ToolCallComponent={ToolCallItem} />
         )
       )
     const header = () => container.querySelector('[role="status"]')!
     try {
       render([first])
       expect(header().textContent).toBe('Reading mail')
-      expect(header().querySelector('svg')).toBeNull()
+      expect(header().querySelector('[data-testid="gmail-icon"]')).not.toBeNull()
       act(() => vi.advanceTimersByTime(100))
       render([{ ...first, status: 'success' }, next])
       expect(header().textContent).toBe('Reading mail')
-      expect(header().querySelector('svg')).toBeNull()
+      expect(header().querySelector('[data-testid="gmail-icon"]')).not.toBeNull()
       act(() => vi.advanceTimersByTime(900))
       expect(header().textContent).toBe('Reading messages')
-      expect(header().querySelector('svg')).toBeNull()
+      expect(header().querySelector('[data-testid="slack-icon"]')).not.toBeNull()
       const disclosure = container.querySelector<HTMLElement>('[role="button"]')!
       act(() => disclosure.click())
       expect(disclosure.getAttribute('aria-expanded')).toBe('true')
       expect(header().textContent).toBe('Reading messages')
-      expect(header().querySelector('svg')).toBeNull()
+      expect(header().querySelector('[data-testid="slack-icon"]')).not.toBeNull()
       const childRows = Array.from(container.querySelectorAll('[role="status"]')).slice(1)
       expect(childRows).toHaveLength(2)
       expect(childRows[0].textContent).toBe('Read mail')
@@ -271,13 +283,15 @@ describe('ToolCallItem', () => {
         ],
         false
       )
-      expect(header().textContent).toBe('Read messages + 1')
-      expect(header().querySelector('svg')).toBeNull()
+      /** Completion keeps the latest call's brand icon rather than switching to another call's. */
+      expect(header().textContent).toBe('Read mail, read messages')
+      expect(header().querySelector('[data-testid="slack-icon"]')).not.toBeNull()
+      expect(header().querySelector('[data-testid="gmail-icon"]')).toBeNull()
       expect(container.querySelector('[data-testid="gmail-icon"]')).not.toBeNull()
       expect(container.querySelector('[data-testid="slack-icon"]')).not.toBeNull()
       render([{ ...next, status: 'success' }], false)
       expect(header().textContent).toBe('Read messages')
-      expect(header().querySelector('svg')).toBeNull()
+      expect(header().querySelector('[data-testid="slack-icon"]')).not.toBeNull()
       expect(container.querySelector('[role="button"]')).toBeNull()
     } finally {
       act(() => root.unmount())

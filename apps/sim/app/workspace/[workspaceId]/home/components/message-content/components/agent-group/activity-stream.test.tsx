@@ -128,10 +128,8 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
       advance(100)
       render([tool('first', 'success'), tool('second')])
       render([tool('first', 'success'), tool('second', status)])
-      const label =
-        status === 'error' || status === 'rejected'
-          ? 'Reading second'
-          : `${status === 'skipped' ? 'Skipped' : 'Stopped'} reading second`
+      /** A stopped or skipped latest call ends the live activity, so it reads as finished. */
+      const label = `Read first · 1 ${status === 'skipped' ? 'skipped' : 'stopped'}`
       expect(header()?.textContent).toBe(label)
       expect(container.querySelector('[class*="shimmer"]')).toBeNull()
       advance(1500)
@@ -146,7 +144,8 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
       advance(100)
       render([tool('first', 'success'), tool('second')])
       render([tool('first', 'success'), tool('second', status)])
-      const label = agentName === 'mothership' ? 'Read first' : 'Reading first'
+      /** A failed latest call ends the live activity, so it reads as finished. */
+      const label = 'Read first'
       expect(header()?.textContent).toBe(label)
       advance(1500)
       expect(header()?.textContent).toBe(label)
@@ -164,7 +163,7 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
     advance(100)
     render([tool('first', 'success'), tool('second')])
     render([tool('first', 'success'), tool('second', 'success')], false)
-    const completed = 'Read second + 1'
+    const completed = 'Read files'
     expect(header()?.textContent).toBe(completed)
     expect(container.querySelector('[class*="shimmer"]')).toBeNull()
     advance(2000)
@@ -241,7 +240,7 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
     }
   )
 
-  it('shows the latest concrete action and keeps the complete history available', () => {
+  it('names the first distinct actions without a count and keeps the complete history', () => {
     render(
       [
         tool('first', 'success'),
@@ -251,7 +250,7 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
       ],
       false
     )
-    expect(header()?.textContent).toBe('Read fourth + 3')
+    expect(header()?.textContent).toBe('Read files, searched files, ran commands')
     const trigger = container.querySelector<HTMLElement>('[role="button"]')!
     act(() => trigger.click())
     expect(container.querySelector('[data-state="open"]')?.textContent).toBe(
@@ -259,48 +258,42 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
     )
   })
 
-  it('keeps narration from prematurely completing an open lane', () => {
-    act(() =>
-      root.render(
-        <AgentGroup
-          agentName={agentName}
-          agentLabel='Sim'
-          isStreaming
-          isLaneOpen
-          items={[
-            ...items([tool('first', 'success')]),
-            { type: 'text', content: 'Checking another source.' },
-            ...items([tool('second', 'success')]),
-          ]}
-        />
+  /** Main lanes never hold narration: prose becomes its own transcript segment. */
+  if (agentName !== 'mothership') {
+    it('keeps narration from prematurely completing an open lane', () => {
+      act(() =>
+        root.render(
+          <AgentGroup
+            agentName={agentName}
+            agentLabel='Sim'
+            isStreaming
+            isLaneOpen
+            items={[
+              ...items([tool('first', 'success')]),
+              { type: 'text', content: 'Checking another source.' },
+              ...items([tool('second', 'success')]),
+            ]}
+          />
+        )
       )
-    )
-    const rows = container.querySelectorAll('[role="status"]')
-    if (agentName === 'mothership') {
-      expect(rows[0].textContent).toBe('Read first')
-      expect(rows[0].querySelector('[class*="shimmer"]')).toBeNull()
-    }
-    const liveRow = rows[rows.length - 1]
-    expect(liveRow.textContent).toBe(agentName === 'mothership' ? 'Read second' : 'Reading second')
-    if (agentName === 'mothership') {
-      expect(liveRow.querySelector('[class*="shimmer"]')).toBeNull()
-    } else {
+      const rows = container.querySelectorAll('[role="status"]')
+      const liveRow = rows[rows.length - 1]
+      expect(liveRow.textContent).toBe('Reading second')
       expect(liveRow.querySelector('[class*="shimmer"]')).not.toBeNull()
-    }
-  })
+    })
+  }
 
-  it('distinguishes a finished tool from an open agent lane', () => {
+  it('keeps a finished tool in progress while its lane stays open', () => {
     render([tool('first')])
     advance(100)
     render([tool('first', 'success')])
-    expect(header()?.textContent).toBe(agentName === 'mothership' ? 'Read first' : 'Reading first')
-    if (agentName === 'mothership') {
-      expect(container.querySelector('[class*="shimmer"]')).toBeNull()
-    } else {
-      expect(container.querySelector('[class*="shimmer"]')).not.toBeNull()
-    }
+    expect(header()?.textContent).toBe('Reading first')
+    expect(container.querySelector('[class*="shimmer"]')).not.toBeNull()
     advance(1500)
-    expect(header()?.textContent).toBe(agentName === 'mothership' ? 'Read first' : 'Reading first')
+    expect(header()?.textContent).toBe('Reading first')
+    render([tool('first', 'success')], false)
+    expect(header()?.textContent).toBe('Read first')
+    expect(container.querySelector('[class*="shimmer"]')).toBeNull()
   })
 
   it('keeps the present-tense intent when expanded while completed collapse uses past tense', () => {
@@ -326,7 +319,7 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
         )
       )
     renderActivity('executing', true)
-    expect(header()?.textContent).toBe('Reading second + 1')
+    expect(header()?.textContent).toBe('Reading second')
     act(() => container.querySelector<HTMLElement>('[role="button"]')!.click())
     expect(header()?.textContent).toBe(activity.title)
     renderActivity('success', false)
@@ -363,7 +356,7 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
       }
     )
 
-    it('does not claim a merged activity completed when its unlabelled validation failed', () => {
+    it('does not claim an activity completed when its unlabelled validation failed', () => {
       const activity = {
         id: 'review',
         title: 'Reviewing invoices',
@@ -375,7 +368,6 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
             agentName='mothership'
             agentLabel='Sim'
             activity={activity}
-            completedGroupCount={2}
             items={items([
               { ...tool('read', 'success'), params: { activity: { id: 'first' } } },
               { ...tool('configure', 'success'), params: { activity } },
@@ -384,7 +376,7 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
           />
         )
       )
-      expect(header()?.textContent).toBe('Read configure + 1')
+      expect(header()?.textContent).toBe('Read files')
       expect(header()?.textContent).not.toContain(activity.completedTitle)
       act(() => container.querySelector<HTMLElement>('[role="button"]')!.click())
       expect(header()?.textContent).toBe(activity.title)
@@ -393,7 +385,7 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
       )
     })
 
-    it('shows active tool names and count, reserving the grouped completed title for lane closure', () => {
+    it('shows the active call without a count, reserving the completed title for lane closure', () => {
       const activity: ToolActivity = {
         id: 'research',
         title: 'Comparing files',
@@ -412,48 +404,15 @@ describe.each(['mothership', 'workflow', 'browser', 'deploy'])('%s activity', (a
           )
         )
       renderActivity([tool('first'), tool('second')], true)
-      expect(header()?.textContent).toBe('Reading second + 1')
+      expect(header()?.textContent).toBe('Reading second')
       expect(container.textContent).not.toContain(activity.completedTitle)
       renderActivity([tool('first', 'success'), tool('second', 'success')], true)
-      expect(header()?.textContent).toBe('Read second')
-      expect(container.querySelector('[class*="shimmer"]')).toBeNull()
+      expect(header()?.textContent).toBe('Reading second')
+      expect(container.querySelector('[class*="shimmer"]')).not.toBeNull()
       renderActivity([tool('first', 'success'), tool('second', 'success')], false)
       expect(header()?.textContent).toBe(activity.completedTitle)
       advance(2000)
       expect(header()?.textContent).toBe(activity.completedTitle)
-    })
-
-    it('shows singleton actions separated by text directly without duplicating their group title', () => {
-      const activity: ToolActivity = {
-        id: 'research',
-        title: 'Comparing files',
-        completedTitle: 'Compared files',
-      }
-      const renderActivity = (open: boolean) =>
-        act(() =>
-          root.render(
-            <AgentGroup
-              agentName='mothership'
-              activity={activity}
-              isStreaming={open}
-              isLaneOpen={open}
-              items={[
-                ...items([tool('first', 'success')]),
-                { type: 'text', content: 'Checking another source.' },
-                ...items([tool('second', 'success')]),
-              ]}
-            />
-          )
-        )
-      renderActivity(true)
-      expect(
-        [...container.querySelectorAll('[role="status"]')].map((row) => row.textContent)
-      ).toEqual(['Read first', 'Read second'])
-      expect(container.querySelector('[class*="shimmer"]')).toBeNull()
-      renderActivity(false)
-      expect(
-        [...container.querySelectorAll('[role="status"]')].map((row) => row.textContent)
-      ).toEqual(['Read first', 'Read second'])
     })
   }
 })

@@ -1,8 +1,11 @@
 'use client'
 
+import { createContext, useContext } from 'react'
 import { Tooltip } from '@sim/emcn'
+import type { LinkPreview } from '@/lib/api/contracts/link-preview'
 import { openInBrowserPanel, shouldOpenInBrowserPanel } from '@/lib/browser-agent/open-in-panel'
 import { faviconUrl } from '@/lib/core/utils/favicon'
+import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { useLinkPreview } from '@/hooks/queries/link-preview'
 
 /** Hides a favicon img that failed to load so the link degrades to plain text. */
@@ -21,6 +24,51 @@ export function externalLinkHostname(href?: string): string | null {
     return new URL(href).hostname
   } catch {
     return null
+  }
+}
+
+/** The site a link belongs to: its known site name, else its hostname without `www.`. */
+export function linkSiteName(url: string, siteName?: string | null): string {
+  return siteName?.trim() || (externalLinkHostname(url) ?? url).replace(/^www\./, '')
+}
+
+/**
+ * A prose link: no fill, a thin muted underline only on hover, and an outline
+ * for keyboard focus.
+ */
+export const PROSE_LINK_CLASS =
+  'not-prose text-[var(--text-primary)] no-underline decoration-1 decoration-[var(--text-muted)] underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--text-primary)]'
+
+/**
+ * The turn's retrieved sources by URL. A link the model writes to a document it
+ * retrieved takes that document's title, which private pages (Gmail, Slack,
+ * Drive) never expose through a link preview.
+ */
+export const LinkSourcesContext = createContext<ReadonlyMap<string, SourceTagData>>(new Map())
+
+export interface ExternalLinkTooltip {
+  title: string
+  /** The site, shown muted beneath the title when it adds information. */
+  siteName?: string
+  /** A description, only ever from the link preview. */
+  description?: string
+}
+
+/**
+ * What a link's tooltip says, never the raw URL: the cited source's title for
+ * this exact URL, else the link preview's title, else the site name.
+ */
+export function getExternalLinkTooltip(
+  href: string,
+  source: SourceTagData | undefined,
+  preview: LinkPreview | undefined
+): ExternalLinkTooltip {
+  const siteName = linkSiteName(href, source?.siteName ?? preview?.siteName)
+  const title = source?.title?.trim() || preview?.title?.trim() || siteName
+  return {
+    title,
+    ...(title !== siteName ? { siteName } : {}),
+    ...(preview?.description?.trim() ? { description: preview.description.trim() } : {}),
   }
 }
 
@@ -47,23 +95,24 @@ export function handleExternalLinkClick(
 }
 
 /**
- * Favicon + understated external link with an OG-preview tooltip. The
- * preview query fires when the link renders, so metadata is normally cached
- * (client and server side) before the first hover; the tooltip shows the
- * destination URL until metadata arrives or when the site has none. Previews
- * are https-only — plain-http links keep the URL tooltip, since fetching them
- * server-side would reach the URL validator's self-host loopback exception.
+ * Favicon + understated external link with a titled tooltip. The favicon is
+ * `align-middle`, like citation chips, so it tracks any font size without an
+ * offset while the link text still wraps. The preview query fires on render, so
+ * metadata is normally cached before the first hover. Previews are https-only:
+ * fetching a plain-http link server-side would reach the URL validator's
+ * self-host loopback exception.
  */
 export function ExternalLink({ href, hostname, children }: ExternalLinkProps) {
+  const source = useContext(LinkSourcesContext).get(href)
   const { data } = useLinkPreview(href.startsWith('https://') ? href : undefined)
-  const preview = data?.preview
+  const tooltip = getExternalLinkTooltip(href, source, data?.preview ?? undefined)
 
   return (
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
         <a
           href={href}
-          className='not-prose rounded-sm text-[var(--text-primary)] no-underline hover:bg-[var(--surface-5)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--text-primary)]'
+          className={PROSE_LINK_CLASS}
           target='_blank'
           rel='noopener noreferrer'
           onClick={(event) => handleExternalLinkClick(event, href)}
@@ -71,24 +120,20 @@ export function ExternalLink({ href, hostname, children }: ExternalLinkProps) {
           <img
             src={faviconUrl(hostname, 32)}
             alt=''
-            className='relative top-[0.5px] mr-[2px] inline size-[12px] rounded-[3px]'
+            className='mr-0.5 inline-block size-[12px] rounded-[3px] align-middle'
             onError={hideBrokenFavicon}
           />
           {children}
         </a>
       </Tooltip.Trigger>
       <Tooltip.Content>
-        {preview ? (
-          <span className='flex flex-col gap-0.5'>
-            {preview.title && <span>{preview.title}</span>}
-            {preview.description && (
-              <span className='line-clamp-2 text-[var(--text-muted)]'>{preview.description}</span>
-            )}
-            <span className='text-[var(--text-muted)]'>{preview.siteName ?? hostname}</span>
-          </span>
-        ) : (
-          <span className='break-all'>{href}</span>
-        )}
+        <span className='flex flex-col gap-0.5'>
+          <span>{tooltip.title}</span>
+          {tooltip.description && (
+            <span className='line-clamp-2 text-[var(--text-muted)]'>{tooltip.description}</span>
+          )}
+          {tooltip.siteName && <span className='text-[var(--text-muted)]'>{tooltip.siteName}</span>}
+        </span>
       </Tooltip.Content>
     </Tooltip.Root>
   )

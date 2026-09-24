@@ -35,6 +35,12 @@ import {
   isInlineFileReference,
 } from '@/lib/mothership/chat/inline-image-reference'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
+import {
+  ExternalLink,
+  externalLinkHostname,
+  LinkSourcesContext,
+  PROSE_LINK_CLASS,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/external-link'
 import { HighlightedLines } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/highlighted-lines'
 import { remarkPlainText } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/remark-plain-text'
 import {
@@ -50,10 +56,10 @@ import {
   WorkspaceResourceDisplay,
   type WorkspaceResourceTagData,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { indexSourcesByUrl } from '@/app/workspace/[workspaceId]/home/components/message-content/sources-by-url'
 import type { WorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/types'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 import { sanitizeChatDisplayContent } from './chat-sanitize'
-import { ExternalLink, externalLinkHostname } from './external-link'
 
 const LANG_ALIASES: Record<string, string> = {
   js: 'javascript',
@@ -347,18 +353,13 @@ const MARKDOWN_COMPONENTS = {
     }
     if (href?.startsWith('mailto:')) {
       return (
-        <a href={href} className='not-prose text-[var(--text-primary)] no-underline'>
+        <a href={href} className={PROSE_LINK_CLASS}>
           {children}
         </a>
       )
     }
     return (
-      <a
-        href={href}
-        className='rounded-sm text-[var(--text-primary)] no-underline hover:bg-[var(--surface-5)]'
-        target='_blank'
-        rel='noopener noreferrer'
-      >
+      <a href={href} className={PROSE_LINK_CLASS} target='_blank' rel='noopener noreferrer'>
         {children}
       </a>
     )
@@ -456,6 +457,8 @@ interface ChatContentProps {
    * nothing (tags are suppressed until complete). A wait from the user's POV.
    */
   onPendingTagChange?: (pending: boolean) => void
+  /** The turn's retrieved sources by URL, which title the answer's plain links to them. */
+  linkSources?: ReadonlyMap<string, SourceTagData>
 }
 
 /** Explicit options keep Streamdown's processor cache scoped to this chat and turn. */
@@ -496,6 +499,7 @@ function ChatContentInner({
   onRevealStateChange,
   onStreamActivityChange,
   onPendingTagChange,
+  linkSources,
 }: ChatContentProps) {
   const { chatId } = useChatSurface()
   const imageRehypePlugins = useMemo<
@@ -631,6 +635,11 @@ function ChatContentInner({
     () => parsed.segments.flatMap((segment) => (segment.type === 'source' ? [segment.data] : [])),
     [parsed]
   )
+  /** Retrieved sources first, then this segment's own citations, first URL wins. */
+  const linkSourcesByUrl = useMemo(
+    () => indexSourcesByUrl(linkSources?.values() ?? [], sourceRefs),
+    [linkSources, sourceRefs]
+  )
 
   const groups: RenderGroup[] = []
   let pendingMarkdown = ''
@@ -691,49 +700,51 @@ function ChatContentInner({
    * the new special block mounts.
    */
   return (
-    <SourceRefsContext.Provider value={sourceRefs}>
-      <WorkspaceRefsContext.Provider
-        value={{ resources: workspaceRefs, onSelect: onWorkspaceResourceSelect }}
-      >
-        <div className='space-y-3'>
-          {groups.map((group, i) => {
-            if (group.kind === 'inline') {
-              return (
-                <div
-                  key={`inline-${i}`}
-                  className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
-                >
-                  <Streamdown
-                    key={streamingTree ? 'stream' : 'settled'}
-                    mode={parserTree ? undefined : 'static'}
-                    animated={fadeActive ? STREAM_ANIMATION : false}
-                    isAnimating={streamingTree}
-                    components={MARKDOWN_COMPONENTS}
-                    rehypePlugins={imageRehypePlugins}
-                    remarkPlugins={MARKDOWN_REMARK_PLUGINS}
+    <LinkSourcesContext.Provider value={linkSourcesByUrl}>
+      <SourceRefsContext.Provider value={sourceRefs}>
+        <WorkspaceRefsContext.Provider
+          value={{ resources: workspaceRefs, onSelect: onWorkspaceResourceSelect }}
+        >
+          <div className='space-y-3'>
+            {groups.map((group, i) => {
+              if (group.kind === 'inline') {
+                return (
+                  <div
+                    key={`inline-${i}`}
+                    className={cn(PROSE_CLASSES, '[&>:first-child]:mt-0 [&>:last-child]:mb-0')}
                   >
-                    {group.markdown}
-                  </Streamdown>
-                </div>
+                    <Streamdown
+                      key={streamingTree ? 'stream' : 'settled'}
+                      mode={parserTree ? undefined : 'static'}
+                      animated={fadeActive ? STREAM_ANIMATION : false}
+                      isAnimating={streamingTree}
+                      components={MARKDOWN_COMPONENTS}
+                      rehypePlugins={imageRehypePlugins}
+                      remarkPlugins={MARKDOWN_REMARK_PLUGINS}
+                    >
+                      {group.markdown}
+                    </Streamdown>
+                  </div>
+                )
+              }
+              return (
+                <SpecialTags
+                  key={`special-${group.index}`}
+                  segment={group.segment}
+                  interactionId={`${messageId ?? 'message'}:${group.index}`}
+                  questionAnswers={questionAnswers}
+                  credentialSubmission={credentialSubmission}
+                  credentialAbandoned={credentialAbandoned}
+                  requestMode={requestMode}
+                  onOptionSelect={onOptionSelect}
+                  onQuestionDismiss={onQuestionDismiss}
+                />
               )
-            }
-            return (
-              <SpecialTags
-                key={`special-${group.index}`}
-                segment={group.segment}
-                interactionId={`${messageId ?? 'message'}:${group.index}`}
-                questionAnswers={questionAnswers}
-                credentialSubmission={credentialSubmission}
-                credentialAbandoned={credentialAbandoned}
-                requestMode={requestMode}
-                onOptionSelect={onOptionSelect}
-                onQuestionDismiss={onQuestionDismiss}
-              />
-            )
-          })}
-        </div>
-      </WorkspaceRefsContext.Provider>
-    </SourceRefsContext.Provider>
+            })}
+          </div>
+        </WorkspaceRefsContext.Provider>
+      </SourceRefsContext.Provider>
+    </LinkSourcesContext.Provider>
   )
 }
 
