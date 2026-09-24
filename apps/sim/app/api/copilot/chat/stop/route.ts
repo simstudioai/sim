@@ -76,7 +76,7 @@ export const POST = withRouteHandler((req: NextRequest) =>
                 ...(requestId ? { requestId } : {}),
               })
             )
-          : await readStoppedAssistantMessage(streamId)
+          : await readStoppedAssistantMessage(streamId, chatId, session.user.id)
       /** The run owner retains the full response if replay was trimmed or has not started. */
       if (!assistantMessage) return NextResponse.json({ success: true })
       const result = await finalizeAssistantTurn({

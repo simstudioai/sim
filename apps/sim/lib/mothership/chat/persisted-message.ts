@@ -358,7 +358,19 @@ export function buildPersistedAssistantMessage(
 }
 
 export function withStoppedContentBlock(message: PersistedMessage): PersistedMessage {
-  const contentBlocks = message.contentBlocks ?? []
+  const contentBlocks = (message.contentBlocks ?? []).map(
+    (block): PersistedContentBlock =>
+      block.toolCall?.state === 'executing'
+        ? {
+            ...block,
+            toolCall: {
+              ...block.toolCall,
+              state: 'cancelled',
+              display: { title: 'Stopped by user' },
+            },
+          }
+        : block
+  )
   const hasAssistantText = contentBlocks.some(
     (block) =>
       block.type === MothershipStreamV1EventType.text &&
@@ -372,7 +384,7 @@ export function withStoppedContentBlock(message: PersistedMessage): PersistedMes
         block.status === MothershipStreamV1CompletionStatus.cancelled
     )
   ) {
-    return message
+    return { ...message, contentBlocks }
   }
 
   return normalizeMessage({

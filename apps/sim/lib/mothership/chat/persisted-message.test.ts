@@ -13,9 +13,44 @@ import {
   normalizeMessage,
   type PersistedMessage,
   stripToolResultOutput,
+  withStoppedContentBlock,
 } from './persisted-message'
 
 describe('persisted-message', () => {
+  it.each([false, true])(
+    'cancels unfinished tools even when the stopped marker already exists: %s',
+    (alreadyStopped) => {
+      const message: PersistedMessage = {
+        id: 'assistant',
+        role: 'assistant',
+        content: '',
+        timestamp: '2026-09-24T19:00:00Z',
+        contentBlocks: [
+          {
+            type: 'tool',
+            toolCall: {
+              id: 'unfinished',
+              name: 'run_code',
+              state: 'executing',
+              params: { code: 'keep me' },
+            },
+          },
+          { type: 'tool', toolCall: { id: 'finished', name: 'read', state: 'success' } },
+          ...(alreadyStopped ? [{ type: 'complete' as const, status: 'cancelled' as const }] : []),
+        ],
+      }
+      const saved = withStoppedContentBlock(message)
+      expect(saved.contentBlocks?.[0].toolCall).toMatchObject({
+        state: 'cancelled',
+        params: { code: 'keep me' },
+        display: { title: 'Stopped by user' },
+      })
+      expect(saved.contentBlocks?.[1].toolCall?.state).toBe('success')
+      expect(saved.contentBlocks?.filter((block) => block.type === 'complete')).toHaveLength(1)
+      expect(message.contentBlocks?.[0].toolCall?.state).toBe('executing')
+    }
+  )
+
   it.each(['success', 'cancelled'] as const)(
     'preserves model-authored activity metadata through persisted %s history and stop validation',
     (status) => {

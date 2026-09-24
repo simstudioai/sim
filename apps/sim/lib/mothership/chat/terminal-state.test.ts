@@ -13,6 +13,10 @@ const { mockAppendCopilotChatMessages, mockReadEvents } = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/mothership/request/session/buffer', () => ({ readEvents: mockReadEvents }))
 
+vi.mock('@/lib/mothership/async-runs/repository', () => ({
+  getLatestRunForStream: vi.fn().mockResolvedValue({ chatId: 'chat-1', status: 'cancelled' }),
+}))
+
 vi.mock('@/lib/mothership/chat/messages-store', () => ({
   appendCopilotChatMessages: mockAppendCopilotChatMessages,
 }))
@@ -72,6 +76,7 @@ describe('finalizeAssistantTurn', () => {
           status: 'executing',
         },
       },
+      { ...envelope, seq: 3, type: 'complete', payload: { status: 'cancelled' } },
     ])
     await finalizeAssistantTurn({
       chatId: 'chat-1',
