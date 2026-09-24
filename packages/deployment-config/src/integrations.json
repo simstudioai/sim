@@ -22460,8 +22460,8 @@
       "type": "slack_v2",
       "slug": "slack",
       "name": "Slack",
-      "description": "Send and manage Slack messages, Agent Sessions, streamed replies, views, reactions, conversations, Lists, and canvases",
-      "longDescription": "Integrate Slack messaging and administration into a workflow. Custom Slack bots can manage Agent Sessions, stream incremental Markdown or structured chunks, react to Agent Session events, and configure Agent View suggested prompts. Lists operations require a custom Slack bot with lists:read/lists:write scopes and a paid Slack plan. Standard messaging and Canvas operations support both the Sim app and custom bot credentials.",
+      "description": "Manage Slack messages, channels, users, files, search, Lists, canvases, and Agent Sessions",
+      "longDescription": "Build Slack workflows with messages, conversations, files, reactions, pins, bookmarks, user groups, profiles, Lists, canvases, and Agent Sessions. Operations that need additional app scopes use custom Slack bots. Lists require lists:read/lists:write and a paid Slack plan. Search, profile updates, and notification changes require a managed Slack user credential authorized through a custom app. Native Sim connections retain their existing permissions. Page through list and search outputs explicitly.",
       "bgColor": "#611f69",
       "iconName": "SlackIcon",
       "docsUrl": "https://docs.sim.ai/integrations/slack",
@@ -22599,8 +22599,8 @@
           "description": "Create a Slack List with an optional column schema. Requires a paid Slack plan."
         },
         {
-          "name": "Rename List",
-          "description": "Rename an existing Slack List."
+          "name": "Update List",
+          "description": "Update a Slack List name, description, or task tracking fields."
         },
         {
           "name": "Share List",
@@ -22677,9 +22677,205 @@
         {
           "name": "Set Conversation Purpose",
           "description": "Set the purpose (description) for a Slack channel (max 250 characters)."
+        },
+        {
+          "name": "Revoke List Access",
+          "description": ""
+        },
+        {
+          "name": "Start List Export",
+          "description": ""
+        },
+        {
+          "name": "Get List Export",
+          "description": ""
+        },
+        {
+          "name": "Delete List Items",
+          "description": ""
+        },
+        {
+          "name": "Share Canvas",
+          "description": "Change access for users or regular channels on a standalone canvas. For sharing, first send the canvas link in Slack to the target. Channel resource canvases cannot be changed this way."
+        },
+        {
+          "name": "Revoke Canvas Access",
+          "description": "Remove user or regular-channel access to a standalone canvas. Channel-granted access must be revoked at the channel level."
+        },
+        {
+          "name": "Join Conversation",
+          "description": "Join a public Slack channel as the authenticated bot."
+        },
+        {
+          "name": "Leave Conversation",
+          "description": "Leave a Slack channel as the authenticated identity."
+        },
+        {
+          "name": "Remove User from Conversation",
+          "description": "Remove a user from a Slack conversation, subject to workspace permissions."
+        },
+        {
+          "name": "Unarchive Conversation",
+          "description": "Restore an archived Slack channel."
+        },
+        {
+          "name": "Close Conversation",
+          "description": "Close a direct message or group direct message for the authenticated identity."
+        },
+        {
+          "name": "Mark Conversation Read",
+          "description": "Move the authenticated identity’s read cursor to a message timestamp."
+        },
+        {
+          "name": "Open Conversation",
+          "description": "Open a DM or group DM with 1–8 user IDs, or resume a conversation by ID. Supply exactly one target; omit the calling user from User IDs."
+        },
+        {
+          "name": "Find User by Email",
+          "description": "Find a Slack user by their email address."
+        },
+        {
+          "name": "List User Conversations",
+          "description": "List one page of conversations accessible to the selected user. Continue with response_metadata.next_cursor."
+        },
+        {
+          "name": "Get User Profile",
+          "description": "Read a Slack user’s profile, status, and custom fields. Omit User ID for the authenticated identity."
+        },
+        {
+          "name": "Update User Profile",
+          "description": "Update a Slack user’s profile or status using a managed user credential. Updating another user requires Slack administrator permissions."
+        },
+        {
+          "name": "Set User Presence",
+          "description": "Set the authenticated identity’s presence to away or automatic."
+        },
+        {
+          "name": "Get File Info",
+          "description": "Read Slack file metadata and one page of legacy file comments. Continue with response_metadata.next_cursor."
+        },
+        {
+          "name": "List Files",
+          "description": "List one page of Slack files matching user, channel, type, or timestamp filters. Continue using paging.page and paging.pages."
+        },
+        {
+          "name": "Delete File",
+          "description": "Permanently delete a Slack file the authenticated identity is allowed to delete."
+        },
+        {
+          "name": "Get Reactions",
+          "description": "Get reactions for exactly one message, file, or file comment. Messages require both Channel ID and Message Timestamp."
+        },
+        {
+          "name": "List Reactions",
+          "description": "List one page of items reacted to by a user. Continue with response_metadata.next_cursor."
+        },
+        {
+          "name": "Pin Message",
+          "description": "Pin a message to its Slack conversation."
+        },
+        {
+          "name": "Unpin Message",
+          "description": "Remove a message from its conversation’s pinned items."
+        },
+        {
+          "name": "List Pins",
+          "description": "Read the pinned messages and files in a Slack conversation."
+        },
+        {
+          "name": "Add Bookmark",
+          "description": "Add a link bookmark to a Slack channel."
+        },
+        {
+          "name": "Edit Bookmark",
+          "description": "Change a channel link bookmark’s title, URL, or emoji."
+        },
+        {
+          "name": "List Bookmarks",
+          "description": "Read the bookmarks in a Slack channel."
+        },
+        {
+          "name": "Remove Bookmark",
+          "description": "Remove a bookmark from a Slack channel."
+        },
+        {
+          "name": "Create User Group",
+          "description": "Create a Slack user group with a mention handle and default channels. Requires a paid plan and permission to manage user groups."
+        },
+        {
+          "name": "Update User Group",
+          "description": "Change a Slack user group’s name, handle, description, or default channels. Requires permission to manage user groups."
+        },
+        {
+          "name": "Enable User Group",
+          "description": "Reactivate a disabled Slack user group. Requires permission to manage user groups."
+        },
+        {
+          "name": "Disable User Group",
+          "description": "Disable a Slack user group and remove its members. Requires permission to manage user groups."
+        },
+        {
+          "name": "List User Groups",
+          "description": "Read Slack user groups, optionally including disabled groups, members, and member counts."
+        },
+        {
+          "name": "List User Group Members",
+          "description": "Read the user IDs in a Slack user group."
+        },
+        {
+          "name": "Update User Group Members",
+          "description": "Replace all members of a Slack user group with the supplied user IDs. An empty list is not supported; disable the group instead."
+        },
+        {
+          "name": "Search Messages",
+          "description": "Search messages visible to the authorized Slack user. Requires a managed user credential with search:read. Continue using messages.paging."
+        },
+        {
+          "name": "Search Files",
+          "description": "Search files visible to the authorized Slack user. Requires a managed user credential with search:read. Continue using files.paging."
+        },
+        {
+          "name": "Search Messages and Files",
+          "description": "Search messages and files visible to the authorized Slack user. Requires a managed user credential with search:read. Each result collection includes paging."
+        },
+        {
+          "name": "Get Do Not Disturb Info",
+          "description": "Read a user’s Do Not Disturb schedule and available snooze information."
+        },
+        {
+          "name": "Get Team Do Not Disturb Info",
+          "description": "Read Do Not Disturb settings for the supplied user IDs."
+        },
+        {
+          "name": "Snooze Notifications",
+          "description": "Snooze notifications for the authorized Slack user for a number of minutes."
+        },
+        {
+          "name": "End Notification Snooze",
+          "description": "End the authorized Slack user’s current notification snooze."
+        },
+        {
+          "name": "End Do Not Disturb",
+          "description": "End the authorized Slack user’s current Do Not Disturb session."
+        },
+        {
+          "name": "List Custom Emoji",
+          "description": "List workspace custom emoji as names mapped to image URLs or alias references."
+        },
+        {
+          "name": "Get Workspace Info",
+          "description": "Read a Slack workspace’s name, domain, icon, and available organization details."
+        },
+        {
+          "name": "Get Workspace Profile Fields",
+          "description": "Read the workspace’s custom profile field definitions, optionally filtered by visibility."
+        },
+        {
+          "name": "Unfurl Links",
+          "description": "Attach custom previews to links already shared in a message. Configure the relevant unfurl domains in your Slack app."
         }
       ],
-      "operationCount": 53,
+      "operationCount": 102,
       "triggers": [
         {
           "id": "slack_oauth",

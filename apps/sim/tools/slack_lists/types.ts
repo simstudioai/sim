@@ -21,7 +21,9 @@ export interface SlackListsCreateParams extends SlackListsAuthParams {
 
 export interface SlackListsUpdateParams extends SlackListsAuthParams {
   listId: string
-  name: string
+  name?: string
+  description?: string
+  todoMode?: boolean
 }
 
 export interface SlackListsAccessSetParams extends SlackListsAuthParams {

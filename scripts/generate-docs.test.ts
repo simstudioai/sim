@@ -208,6 +208,16 @@ describe('documentation tool metadata', () => {
     expect(identity?.outputs.identity.properties).toHaveProperty('name')
   }, 15_000)
 
+  it('preserves imported nested outputs in Slack factory tools', async () => {
+    const search = await getToolInfo('slack_search_messages')
+    const file = await getToolInfo('slack_get_file_info')
+    expect(search?.outputs.messages.properties).toHaveProperty('matches')
+    expect(search?.outputs.messages.properties).toHaveProperty('paging')
+    expect(file?.outputs.file.properties).toHaveProperty('id')
+    expect(file?.outputs).toHaveProperty('comments')
+    expect(file?.outputs.response_metadata.properties).toHaveProperty('next_cursor')
+  })
+
   it('keeps legitimate parameters named params', async () => {
     const tool = await getToolInfo('supabase_rpc')
 

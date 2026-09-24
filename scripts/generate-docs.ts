@@ -4212,6 +4212,7 @@ export async function getToolInfo(
       description: metadata.description ?? sourceInfo?.description ?? 'No description available',
       params,
       outputs:
+        /=\s*create\w+\s*\(\s*\{/.test(toolFileContent) ||
         toolPrefix === 'sailpoint' ||
         toolName === 'file_edit' ||
         hasWrappedToolBase(toolName, toolFileContent)

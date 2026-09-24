@@ -12,6 +12,22 @@ import type {
  * Used by the OAuth Required Modal and available for any UI that needs to display scope info.
  */
 export const SCOPE_DESCRIPTIONS: Record<string, string> = {
+  'users.profile:write': 'Update Slack user profiles',
+  'users.profile:read': 'View Slack user profiles',
+  'channels:join': 'Join public Slack channels',
+  'users:write': 'Change Slack presence',
+  'usergroups:write': 'Manage Slack user groups and their members',
+  'usergroups:read': 'View Slack user groups and their members',
+  'team:read': 'View Slack workspace details',
+  'search:read': 'Search Slack messages and files visible to you',
+  'pins:write': 'Pin and unpin Slack messages',
+  'pins:read': 'View pinned Slack messages',
+  'links:write': 'Add custom previews to shared Slack links',
+  'emoji:read': 'View custom Slack emoji',
+  'dnd:write': 'Change your Slack notification snooze and Do Not Disturb settings',
+  'dnd:read': 'View Slack Do Not Disturb settings',
+  'bookmarks:write': 'Add, edit, and remove Slack channel bookmarks',
+  'bookmarks:read': 'View Slack channel bookmarks',
   // Zoho Desk scopes
   'Desk.tickets.READ': 'View tickets, threads, comments, and attachments',
   'Desk.tickets.UPDATE': 'Update tickets and add comments',

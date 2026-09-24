@@ -33,6 +33,39 @@ const tools = [
 ]
 
 describe('Slack Lists requests', () => {
+  it('updates task tracking without renaming the List and preserves false', () => {
+    expect(
+      slackListsUpdateTool.request.body!({ ...auth, listId: ' F123 ', todoMode: false })
+    ).toEqual({ id: 'F123', todo_mode: false })
+  })
+  it('encodes an updated List description without replacing other settings', () => {
+    expect(
+      slackListsUpdateTool.request.body!({
+        ...auth,
+        listId: 'F123',
+        description: 'Updated description',
+      })
+    ).toMatchObject({
+      id: 'F123',
+      description_blocks: [
+        {
+          type: 'rich_text',
+          elements: [
+            {
+              type: 'rich_text_section',
+              elements: [{ type: 'text', text: 'Updated description' }],
+            },
+          ],
+        },
+      ],
+    })
+  })
+  it('rejects a List update with no changes', () => {
+    expect(() => slackListsUpdateTool.request.body!({ ...auth, listId: 'F123' })).toThrow(
+      'Provide a List name, description, or task tracking setting'
+    )
+  })
+
   it.each(['read', 'write', 'owner'] as const)('grants %s access to users', (accessLevel) => {
     expect(
       slackListsAccessSetTool.request.body!({

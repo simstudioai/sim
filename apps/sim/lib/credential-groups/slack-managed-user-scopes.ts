@@ -26,6 +26,19 @@ export const SLACK_MANAGED_USER_SCOPES = [
   'users.profile:write',
   'users:read',
   'users:read.email',
+  'bookmarks:read',
+  'bookmarks:write',
+  'dnd:read',
+  'dnd:write',
+  'emoji:read',
+  'links:write',
+  'pins:read',
+  'pins:write',
+  'search:read',
+  'team:read',
+  'usergroups:read',
+  'usergroups:write',
+  'users:write',
 ] as const
 
 export const SLACK_CHANNEL_READ_SCOPES = [
