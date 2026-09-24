@@ -547,6 +547,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
         accounts.push({
           accountId: query.accountId ?? '',
           provider: query.provider,
+          ...(query.kind ? { kind: query.kind } : {}),
           displayName: query.provider,
           status: 'reconnect',
           message: 'No connection with this provider is configured and approved in this scope.',

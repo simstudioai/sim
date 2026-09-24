@@ -565,6 +565,21 @@ describe('authorized live retrieval', () => {
       }),
     ])
   })
+  it('reports each targeted kind of an unconnected account for reconnection', async () => {
+    const nativeQueries = (['issues', 'commits'] as const).map((kind) => ({
+      provider: 'github' as const,
+      query: 'repo:org/repo launch',
+      kind,
+    }))
+    const result = await searchLiveKnowledge.execute({
+      principal,
+      input: { ...input, query: '', nativeQueries },
+    })
+    expect(result.live?.accounts).toEqual([
+      expect.objectContaining({ provider: 'github', kind: 'issues', status: 'reconnect' }),
+      expect.objectContaining({ provider: 'github', kind: 'commits', status: 'reconnect' }),
+    ])
+  })
   it('rejects invalid dates before resolving provider credentials', async () => {
     await expect(
       searchLiveKnowledge.execute({
