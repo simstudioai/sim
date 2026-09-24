@@ -265,6 +265,25 @@ describe('PdfPageCollector', () => {
     expect(findInterleavedBands(merged)[0]?.blocks).toHaveLength(3)
   })
 
+  it('keeps column groups under a repeated one-item label row by row', () => {
+    const items: BufferedItem[] = []
+    const rows = [
+      ['Total Amount Due', 'Total Amount Due'],
+      ['100 12', '300 34'],
+      ['200 56', '400 78'],
+    ]
+    rows.forEach((groups, i) => {
+      groups.forEach((group, g) => {
+        const x = 40 + g * 260
+        if (i === 0) items.push(placed(group, x, 700))
+        else
+          group.split(' ').forEach((cell, c) => items.push(placed(cell, x + c * 60, 700 - i * 12)))
+      })
+    })
+
+    expect(findInterleavedBands(items)).toEqual([])
+  })
+
   it('keeps column groups that share only a single-cell label row by row', () => {
     const items: BufferedItem[] = []
     const rows = [

@@ -286,7 +286,7 @@ function splitBand(band: Band, bodyHeight: number): LayoutRow[][] | undefined {
     gridBlocks.push(rows)
     grids.push(grid)
   }
-  if (gridBlocks.length < 2 || !sharesHeader(gridBlocks)) return undefined
+  if (gridBlocks.length < 2 || !sharesHeader(gridBlocks, grids)) return undefined
   if (!grids.every((grid) => isCongruent(grids[0], grid, bodyHeight))) return undefined
   return blocks
 }
@@ -326,20 +326,20 @@ function extentWidth(intervals: readonly Interval[]): number {
 }
 
 /**
- * Whether every block repeats one header row of two or more words near its top
- * — `Su Mo Tu We Th Fr Sa` on each month, `Assets Liabilities` on each account,
- * whether drawn as one text item or one per cell. Independent blocks cut from
- * one template carry it; column groups of a single table do not, and a lone
- * generic label such as `Amount` never counts.
+ * Whether every grid repeats one header row near its top that names each of
+ * its columns — `Su Mo Tu We Th Fr Sa` over seven day columns, `Assets
+ * Liabilities` over two — whether drawn as one text item or one per cell.
+ * Independent blocks cut from one template carry it; a table's column groups
+ * do not, and a label that does not name every column never counts.
  */
-function sharesHeader(blocks: readonly LayoutRow[][]): boolean {
+function sharesHeader(blocks: readonly LayoutRow[][], grids: readonly Interval[][]): boolean {
   const headers = blocks.map(
-    (rows) =>
+    (rows, i) =>
       new Set(
         rows
           .slice(0, HEADER_SEARCH_ROWS)
           .map(rowText)
-          .filter((text) => LETTER.test(text) && text.split(/\s+/).length >= 2)
+          .filter((text) => LETTER.test(text) && text.split(/\s+/).length === grids[i].length)
       )
   )
   const [first, ...rest] = headers
