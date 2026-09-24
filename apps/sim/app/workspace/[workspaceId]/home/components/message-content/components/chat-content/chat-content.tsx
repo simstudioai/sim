@@ -315,10 +315,7 @@ const MARKDOWN_COMPONENTS = {
       <div className='not-prose my-6 overflow-hidden rounded-lg border border-[var(--border)]'>
         <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-4)] px-4 py-2 dark:bg-[var(--surface-4)]'>
           <span className='text-[var(--text-tertiary)] text-xs'>{language || 'code'}</span>
-          <CopyCodeButton
-            code={codeString}
-            className='-mr-2 text-[var(--text-tertiary)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-secondary)]'
-          />
+          <CopyCodeButton code={codeString} appearance='code-header' className='-mr-2' />
         </div>
         <div className='code-editor-theme bg-[var(--surface-5)] dark:bg-[var(--code-bg)]'>
           <pre className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[var(--text-primary)] text-small leading-[21px]'>
