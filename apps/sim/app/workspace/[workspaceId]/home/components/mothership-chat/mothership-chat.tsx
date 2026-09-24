@@ -305,15 +305,11 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
     questionDismissed,
   })
 
-  // A visible interaction card (active or answered recap) sits 12px below the
-  // preceding prose (chat-content's `space-y-3`). The row's default `pb-6`
-  // would leave 24px underneath — asymmetric. Shrink the trailing gap to match
-  // so the card breathes equally top and bottom. Dismissed cards fall back to
-  // the normal message rhythm (they render the standard actions row instead).
+  /** Match the 16px prose/card gap when the card is the message's last visible content. */
   const showsInteractionCard = (endsWithQuestion && !questionDismissed) || showsCredentialCard
 
   return (
-    <div className={cn(rowClassName, showsInteractionCard && 'pb-3')}>
+    <div className={cn(rowClassName, showsInteractionCard && 'pb-4')}>
       <MessageContent
         messageId={message.id}
         imageRequestId={message.requestId}

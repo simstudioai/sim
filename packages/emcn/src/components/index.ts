@@ -194,6 +194,7 @@ export {
 export {
   OverflowText,
   type OverflowTextProps,
+  overflowFadeSizeClass,
   overflowTextClipClass,
   overflowTextFadeClass,
 } from './overflow-text/overflow-text'
