@@ -1450,6 +1450,46 @@ describe('useChat remount send recovery', () => {
     }
   )
 
+  it('sends the live queue head once without waiting for a render, after Stop settles', async () => {
+    state.postBehavior = 'task'
+    const { getResult } = renderUseChatInChat('chat-a')
+    await act(async () => {
+      void getResult().sendMessage('Original request')
+    })
+    await waitFor(() => state.postBodies.length === 1 && getResult().isSending)
+    let releaseStop = () => {}
+    const stopGate = new Promise<void>((resolve) => {
+      releaseStop = resolve
+    })
+    let stopRequested = false
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('/api/copilot/chat/abort')) {
+        stopRequested = true
+        await stopGate
+      }
+      return fetchStub(input, init)
+    })
+    state.postBehavior = 'hang'
+    const beforeRender = getResult()
+    await act(async () => {
+      void beforeRender.sendMessage('Use the latest report')
+      void beforeRender.sendNow()
+      void beforeRender.sendNow()
+    })
+    try {
+      await waitFor(() => stopRequested)
+      expect(state.postBodies).toHaveLength(1)
+    } finally {
+      await act(async () => {
+        releaseStop()
+      })
+    }
+    await waitFor(() => state.postBodies.length === 2)
+    expect(state.postBodies[1].message).toBe('Use the latest report')
+    expect(allQueuedMessages()).toHaveLength(0)
+    expect(state.abortBodies).toHaveLength(1)
+  })
+
   it('captures Search levels independently for each queued turn and omits it from Build requests', async () => {
     state.postBehavior = 'task'
     const { getResult } = renderUseChat({ organizationId: 'org-a' }, 'assistant')

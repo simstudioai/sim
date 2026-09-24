@@ -271,7 +271,7 @@ export interface UseChatReturn {
   reorderResources: (resources: MothershipResource[]) => void
   messageQueue: QueuedMessage[]
   removeFromQueue: (id: string) => void
-  sendNow: (id: string) => Promise<void>
+  sendNow: (id?: string) => Promise<void>
   editQueuedMessage: (id: string) => QueuedMessage | undefined
   cancelQueueEdit: () => void
   editingQueuedId: string | null
@@ -4784,9 +4784,9 @@ export function useChat(
   }, [])
 
   const sendQueuedMessageImmediately = useCallback(
-    async (id: string) => {
+    async (id?: string) => {
       const queue = useMothershipQueueStore.getState().queues[chatKeyRef.current]
-      const msg = queue?.find((queued) => queued.id === id)
+      const msg = id === undefined ? queue?.[0] : queue?.find((queued) => queued.id === id)
       if (!msg) return
       if (queuedMessageDispatchIdsRef.current.has(msg.id)) return
       const admissionPending = hasPendingChatAdmission()
@@ -4844,7 +4844,7 @@ export function useChat(
   )
 
   const sendNow = useCallback(
-    async (id: string) => {
+    async (id?: string) => {
       await sendQueuedMessageImmediately(id)
     },
     [sendQueuedMessageImmediately]

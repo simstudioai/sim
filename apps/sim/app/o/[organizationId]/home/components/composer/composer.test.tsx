@@ -193,7 +193,7 @@ async function render(
   requestMode: 'agent' | 'assistant' = 'assistant',
   controls: Pick<
     ComponentProps<typeof Composer>,
-    'isSending' | 'showModeSelector' | 'onModeChange' | 'restoredContexts'
+    'isSending' | 'showModeSelector' | 'onModeChange' | 'restoredContexts' | 'onSendQueuedHead'
   > = { isSending: false }
 ) {
   function Harness() {
@@ -215,6 +215,7 @@ async function render(
         isInitialView={isInitialView}
         isSending={controls.isSending}
         onStop={vi.fn()}
+        onSendQueuedHead={controls.onSendQueuedHead}
         onSubmit={(text, contexts) => {
           mocks.submit(text, files.attachedFiles)
           mocks.contexts(contexts)
@@ -918,4 +919,43 @@ it('offers the advanced models and each model’s supported efforts', async () =
       (item) => item.textContent
     )
   ).toEqual(['Low', 'Medium', 'High', 'Extra High', 'Max'])
+})
+
+it.each([
+  ['agent', false],
+  ['assistant', false],
+  ['agent', true],
+  ['assistant', true],
+] as const)(
+  'queues once then sends immediately on rapid double Enter (%s, attachment: %s)',
+  async (mode, withAttachment) => {
+    const sendHead = vi.fn()
+    await render(false, withAttachment ? '' : 'Use the latest report', mode, {
+      isSending: true,
+      onSendQueuedHead: sendHead,
+    })
+    if (withAttachment) await paste([new File(['image'], 'follow-up.png', { type: 'image/png' })])
+    const input = container.querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      expect(mocks.submit).toHaveBeenCalledTimes(1)
+      expect(sendHead).not.toHaveBeenCalled()
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })
+    expect(mocks.submit).toHaveBeenCalledTimes(1)
+    expect(sendHead).toHaveBeenCalledExactlyOnceWith()
+    expect(input.value).toBe('')
+  }
+)
+
+it('does not send a queued head on empty Enter when idle', async () => {
+  const sendHead = vi.fn()
+  await render(false, '', 'assistant', { isSending: false, onSendQueuedHead: sendHead })
+  await act(async () => {
+    container
+      .querySelector<HTMLTextAreaElement>('[aria-label="Ask Sim"]')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  })
+  expect(sendHead).not.toHaveBeenCalled()
+  expect(mocks.submit).not.toHaveBeenCalled()
 })

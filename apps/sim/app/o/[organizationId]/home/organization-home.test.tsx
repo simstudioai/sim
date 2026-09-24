@@ -1013,3 +1013,17 @@ it('keeps an attachment-only draft across remounts and clears it when its last f
   ).toBeUndefined()
   expect(composerProps().files.attachedFiles).toEqual([])
 })
+
+it('wires empty Enter to the live queue sender for an active organization chat', async () => {
+  const sendNow = vi.fn()
+  mocks.chat.mockReturnValue({
+    ...mocks.chat(),
+    messages: [{ id: 'user-1', role: 'user', content: 'First message' }],
+    isSending: true,
+    sendNow,
+  })
+  mocks.renderer.mockImplementation(({ composer }: { composer: ReactNode }) => composer)
+  await act(async () => renderHome(<OrganizationHome chatId='chat-a' />))
+  await act(async () => composerProps().onSendQueuedHead?.())
+  expect(sendNow).toHaveBeenCalledExactlyOnceWith()
+})

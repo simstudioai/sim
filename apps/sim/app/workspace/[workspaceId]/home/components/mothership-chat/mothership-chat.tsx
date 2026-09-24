@@ -80,7 +80,7 @@ interface MothershipChatProps {
   editingQueuedId: string | null
   dispatchingHeadId: string | null
   onRemoveQueuedMessage: (id: string) => void
-  onSendQueuedMessage: (id: string) => Promise<void>
+  onSendQueuedMessage: (id?: string) => Promise<void>
   onEditQueuedMessage: (id: string) => QueuedMessage | undefined
   onCancelQueueEdit: () => void
   userId?: string
@@ -722,9 +722,8 @@ export function MothershipChat({
   }, [])
 
   const handleSendQueuedHead = useCallback(() => {
-    const topMessage = messageQueueRef.current[0]
-    if (!topMessage) return
-    void onSendQueuedMessage(topMessage.id)
+    /** The first Enter can enqueue before this component has rendered the new queue. */
+    void onSendQueuedMessage()
   }, [onSendQueuedMessage])
 
   const handleEditQueued = useCallback(

@@ -315,6 +315,9 @@ function OrganizationHomeContent({
         isSending={chat.isSending || chat.isReconnecting}
         onChange={setDraft}
         onSubmit={submit}
+        onSendQueuedHead={() => {
+          void chat.sendNow()
+        }}
         onStop={() => {
           void chat.stopGeneration()
         }}

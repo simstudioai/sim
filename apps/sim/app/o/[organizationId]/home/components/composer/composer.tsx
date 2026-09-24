@@ -46,6 +46,7 @@ interface ComposerProps {
   onChange: (value: string, contexts?: ChatContext[]) => void
   restoredContexts?: ChatContext[]
   onSubmit: (text: string, contexts?: ChatContext[]) => void
+  onSendQueuedHead?: () => void
   onStop: () => void
 }
 
@@ -65,9 +66,12 @@ export function Composer({
   isSending,
   onChange,
   onSubmit,
+  onSendQueuedHead,
   restoredContexts,
   onStop,
 }: ComposerProps) {
+  const attachedFilesRef = useRef(files.attachedFiles)
+  attachedFilesRef.current = files.attachedFiles
   const imagesOnly = requestMode === 'assistant'
   const { organization } = useOrganizationContext()
   const { data: allWorkspaces = [] } = useWorkspacesQuery(!imagesOnly)
@@ -147,7 +151,15 @@ export function Composer({
   const placeholder = isInitialView ? animatedPlaceholder : 'Send message to Sim'
 
   const submit = () => {
-    if (!canSubmit) return
+    if (attachedFilesRef.current.some((file) => file.uploading)) return
+    const hasPayload =
+      editor.getValue().trim().length > 0 || attachedFilesRef.current.some((file) => file.key)
+    if (!hasPayload) {
+      if (isSending) onSendQueuedHead?.()
+      return
+    }
+    /** Consume attachments synchronously so a second Enter cannot submit them twice. */
+    attachedFilesRef.current = []
     voice.resetTranscript()
     const contexts = imagesOnly ? [] : editor.getActiveContexts()
     onSubmit(editor.getPlainValue(), contexts.length ? contexts : undefined)
