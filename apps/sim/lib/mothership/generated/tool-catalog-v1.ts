@@ -401,22 +401,20 @@ export const BrowserBatch: ToolCatalogEntry = {
   route: 'client',
   mode: 'async',
   parameters: {
-    type: 'object',
+    additionalProperties: false,
     properties: {
       actions: {
-        type: 'array',
         description:
           "Ordered list of 2–8 actions. Each names one action tool and gives exactly that tool's parameters in args, without observe.",
         items: {
-          type: 'object',
+          additionalProperties: false,
           properties: {
             args: {
-              type: 'object',
               description:
                 'That tool\'s own parameters, for example {"elementId": 12} for browser_click or {"key": "Enter"} for browser_press_key.',
+              type: 'object',
             },
             tool: {
-              type: 'string',
               description: 'The action tool to run.',
               enum: [
                 'browser_click',
@@ -429,10 +427,15 @@ export const BrowserBatch: ToolCatalogEntry = {
                 'browser_set_checked',
                 'browser_hover',
               ],
+              type: 'string',
             },
           },
           required: ['tool', 'args'],
+          type: 'object',
         },
+        maxItems: 8,
+        minItems: 2,
+        type: 'array',
       },
       observe: {
         type: 'object',
@@ -448,6 +451,7 @@ export const BrowserBatch: ToolCatalogEntry = {
       },
     },
     required: ['actions'],
+    type: 'object',
   },
   resultSchema: {
     type: 'object',
@@ -474,6 +478,12 @@ export const BrowserBatch: ToolCatalogEntry = {
           },
           required: ['index', 'tool', 'result'],
         },
+      },
+      stoppedBy: {
+        type: 'string',
+        description:
+          'failure when an action failed; page-change when an action changed the page and the rest were skipped.',
+        enum: ['failure', 'page-change'],
       },
       stoppedIndex: {
         type: 'number',

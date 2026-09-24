@@ -3455,13 +3455,16 @@ async function executeToolInner(
       for (const [index, action] of actions.entries()) {
         let tab: ReturnType<typeof session.requireAutomationTab>
         let epoch: number
+        let url: string
         let snapshotValid: boolean
         let result: unknown
-        // Once an action has run, a cancelled or timed-out batch must not read as never started.
-        if (index > 0) onActionOutcome?.({ status: 'pending' })
+        // An action may dispatch input before it returns, so a cancelled or timed-out batch must
+        // never read as not started once any action has begun.
+        onActionOutcome?.({ status: 'pending' })
         try {
           tab = session.requireAutomationTab()
           epoch = navigationEpoch(tab.view.webContents)
+          url = tab.view.webContents.getURL()
           snapshotValid = driverScopeState().snapshotTabId === tab.id
           result = await executeToolInner(
             action.tool,
@@ -3483,6 +3486,7 @@ async function executeToolInner(
         if (
           session.automationTab()?.id !== tab.id ||
           navigationEpoch(tab.view.webContents) !== epoch ||
+          tab.view.webContents.getURL() !== url ||
           (snapshotValid && driverScopeState().snapshotTabId !== tab.id)
         ) {
           return stopped(

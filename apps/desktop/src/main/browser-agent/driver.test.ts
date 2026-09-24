@@ -3513,6 +3513,65 @@ describe('credential protection', () => {
     })
   })
 
+  it('stops a batch after an action changes the URL within the document', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+    const url = contents.getURL()
+    const sendCommand = vi.mocked(contents.debugger.sendCommand)
+    const dispatch = sendCommand.getMockImplementation()
+    sendCommand.mockImplementation((method, params) => {
+      if (method === 'Input.dispatchMouseEvent' && toRecord(params).type === 'mouseReleased') {
+        vi.mocked(contents.getURL).mockReturnValue(`${url}#next`)
+        emitContentsEvent(contents, 'did-navigate-in-page')
+      }
+      return dispatch?.(method, params) ?? Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_click', args: { elementId: 0 } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
+
+    expect(mousePresses(contents)).toBe(1)
+    expect(result).toMatchObject({
+      ok: true,
+      result: { completed: false, completedCount: 1, stoppedIndex: 1, stoppedBy: 'page-change' },
+    })
+  })
+
+  it('reports a batch cancelled during its first action as an unknown outcome', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+    const sendCommand = vi.mocked(contents.debugger.sendCommand)
+    const dispatch = sendCommand.getMockImplementation()
+    sendCommand.mockImplementation((method, params) =>
+      method === 'Input.dispatchKeyEvent'
+        ? new Promise(() => {})
+        : (dispatch?.(method, params) ?? Promise.resolve(undefined))
+    )
+
+    const pending = driver.executeTool(
+      'chat-test',
+      'browser_batch',
+      {
+        actions: [
+          { tool: 'browser_press_key', args: { key: 'Enter' } },
+          { tool: 'browser_click', args: { elementId: 0 } },
+        ],
+      },
+      'batch-first-call'
+    )
+    await vi.waitFor(() => expect(cdpCalls(contents, 'Input.dispatchKeyEvent')).toHaveLength(1))
+    driver.cancelTool('chat-test', 'batch-first-call')
+
+    await expect(pending).resolves.toMatchObject({
+      ok: true,
+      result: { outcomeUnknown: true, doNotRetry: true },
+    })
+  })
+
   it('reports a batch cancelled after an action ran as an unknown outcome', async () => {
     const contents = await openPage()
     respondWith(contents, {})
