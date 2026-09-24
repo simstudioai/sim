@@ -123,7 +123,7 @@ export function GroupedCheckboxList({
         )}
       >
         <span className='flex flex-1 items-center gap-2 truncate text-[var(--text-muted)]'>
-          <ManageWorkspace className='size-4 shrink-0 opacity-50' />
+          <ManageWorkspace className='size-4 shrink-0 opacity-50' data-preview-full-opacity />
           <span className='truncate'>Configure PII Types</span>
         </span>
         <SelectedCountDisplay

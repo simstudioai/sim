@@ -28,6 +28,7 @@ import {
   Duplicate,
   Eye,
   handleKeyboardActivation,
+  OverlayActionButton,
   Redo,
   Search as SearchIcon,
   Tooltip,
@@ -158,7 +159,8 @@ export const WorkflowOutputSection = memo(
           <Code.Viewer
             code={jsonString}
             language='json'
-            className='max-h-[300px] min-h-0 max-w-full rounded-md border-0 bg-[var(--surface-4)]! [word-break:break-all] dark:bg-[var(--surface-3)]!'
+            appearance='inspection'
+            className='max-h-[300px] min-h-0 max-w-full [word-break:break-all]'
             wrapText
             searchQuery={isSearchActive ? searchQuery : undefined}
             currentMatchIndex={currentMatchIndex}
@@ -169,39 +171,35 @@ export const WorkflowOutputSection = memo(
             <div className='absolute top-[7px] right-[6px] z-10 flex gap-1'>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button
+                  <OverlayActionButton
                     aria-label={copied ? 'Copied' : 'Copy'}
                     type='button'
-                    variant='default'
                     onClick={(e) => {
                       e.stopPropagation()
                       handleCopy()
                     }}
-                    className='size-[20px] cursor-pointer border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                   >
                     {copied ? (
                       <Check className='size-[10px] text-[var(--text-success)]' />
                     ) : (
                       <Clipboard className='size-[10px]' />
                     )}
-                  </Button>
+                  </OverlayActionButton>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top'>{copied ? 'Copied' : 'Copy'}</Tooltip.Content>
               </Tooltip.Root>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
-                  <Button
+                  <OverlayActionButton
                     aria-label='Search'
                     type='button'
-                    variant='default'
                     onClick={(e) => {
                       e.stopPropagation()
                       activateSearch()
                     }}
-                    className='size-[20px] cursor-pointer border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
                   >
                     <Search className='size-[10px]' />
-                  </Button>
+                  </OverlayActionButton>
                 </Tooltip.Trigger>
                 <Tooltip.Content side='top'>Search</Tooltip.Content>
               </Tooltip.Root>

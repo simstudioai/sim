@@ -607,7 +607,7 @@ function ServerDetailView({
                               : 'json'
                         }
                         wrapText
-                        className='min-h-0! rounded-sm border border-[var(--border-1)]'
+                        className='min-h-0!'
                       />
                       {activeConfigTab === 'cursor' && (
                         <a

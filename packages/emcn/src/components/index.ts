@@ -203,6 +203,11 @@ export {
   overflowTextFadeClass,
 } from './overflow-text/overflow-text'
 export {
+  OverlayActionButton,
+  type OverlayActionButtonProps,
+  overlayActionButtonVariants,
+} from './overlay-action-button/overlay-action-button'
+export {
   Popover,
   PopoverAnchor,
   PopoverBackButton,

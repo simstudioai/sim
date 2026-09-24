@@ -24,6 +24,7 @@ import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
+import { WorkflowPreviewAction } from '@/components/workflow/workflow-preview-action'
 import { isMcpRuntimeReference } from '@/lib/mcp/operation-policy'
 import { resolveMcpBlockConfig } from '@/lib/mcp/workflow-config'
 import { captureEvent } from '@/lib/posthog/client'
@@ -610,21 +611,12 @@ export function Editor() {
                                 lightweight
                               />
                             </div>
-                            <Tooltip.Root>
-                              <Tooltip.Trigger asChild>
-                                <Button
-                                  aria-label='Open workflow'
-                                  type='button'
-                                  variant='ghost'
-                                  onClick={handleOpenChildWorkflow}
-                                  iconSize='compact-fixed'
-                                  className='absolute right-[6px] bottom-1.5 z-10 cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] hover-hover:bg-[var(--surface-4)]'
-                                >
-                                  <SquareArrowUpRight className='size-[12px]' />
-                                </Button>
-                              </Tooltip.Trigger>
-                              <Tooltip.Content side='top'>Open workflow</Tooltip.Content>
-                            </Tooltip.Root>
+                            <WorkflowPreviewAction
+                              aria-label='Open workflow'
+                              onClick={handleOpenChildWorkflow}
+                            >
+                              <SquareArrowUpRight className='size-[12px]' />
+                            </WorkflowPreviewAction>
                           </>
                         ) : (
                           <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>

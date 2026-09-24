@@ -25,6 +25,7 @@ import {
   TableSidebarHeader,
   TableSidebarHeaderAction,
 } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-sidebar-header/table-sidebar-header'
+import { TableSidebarScrollBody } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-sidebar-layout'
 import type { EnrichmentConfig as EnrichmentDef } from '@/enrichments/types'
 import {
   useAddWorkflowGroup,
@@ -252,7 +253,7 @@ export function EnrichmentConfig({
         </TableSidebarHeaderAction>
       </TableSidebarHeader>
 
-      <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-3 pb-2 [overflow-anchor:none]'>
+      <TableSidebarScrollBody>
         <div className='flex flex-col gap-[9.5px]'>
           <Label className='flex items-baseline gap-1.5 whitespace-nowrap pl-0.5'>Inputs</Label>
           {enrichment.inputs.length === 0 ? (
@@ -362,7 +363,7 @@ export function EnrichmentConfig({
             />
           </>
         )}
-      </div>
+      </TableSidebarScrollBody>
 
       <div className='flex items-center justify-end gap-2 border-[var(--border)] border-t px-2 py-3'>
         <Button variant='default' size='sm' onClick={onClose}>
