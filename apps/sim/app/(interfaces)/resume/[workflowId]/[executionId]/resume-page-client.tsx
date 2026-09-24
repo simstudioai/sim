@@ -1020,7 +1020,8 @@ export default function ResumeExecutionPage({
                             placeholder='{"example": "value"}'
                             rows={6}
                             spellCheck={false}
-                            className='min-h-[180px] font-mono'
+                            monospace
+                            className='min-h-[180px]'
                           />
                         </div>
                       </div>

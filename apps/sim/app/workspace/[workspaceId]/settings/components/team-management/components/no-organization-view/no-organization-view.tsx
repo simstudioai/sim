@@ -83,18 +83,16 @@ export function NoOrganizationView({
 
             <div>
               <Label htmlFor='orgSlug'>Team URL</Label>
-              <div className='mt-1 flex items-center'>
-                <div className='rounded-l-md border border-[var(--border-1)] border-r-0 bg-[var(--surface-4)] px-3 py-1.5 text-[var(--text-muted)] text-small'>
-                  sim.ai/team/
-                </div>
-                <ChipInput
-                  id='orgSlug'
-                  value={orgSlug}
-                  onChange={(e) => setOrgSlug(e.target.value)}
-                  placeholder='my-team'
-                  className='rounded-l-none'
-                />
-              </div>
+              <ChipInput
+                id='orgSlug'
+                value={orgSlug}
+                onChange={(e) => setOrgSlug(e.target.value)}
+                placeholder='my-team'
+                className='mt-1'
+                startAdornment={
+                  <span className='shrink-0 text-[var(--text-muted)] text-small'>sim.ai/team/</span>
+                }
+              />
             </div>
 
             <div className='flex flex-col gap-2'>

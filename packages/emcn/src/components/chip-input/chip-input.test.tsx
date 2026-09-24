@@ -95,6 +95,7 @@ describe('chip form controls', () => {
         <ChipTextarea
           ref={textareaRef}
           name='description'
+          monospace
           rows={3}
           className='min-h-[80px]'
           defaultValue='Description'
@@ -109,6 +110,7 @@ describe('chip form controls', () => {
     expect(input.parentElement?.className).toContain('h-9')
     expect(input.parentElement?.className).toContain('border-[var(--text-error)]')
     expect(textareaRef.current?.rows).toBe(3)
+    expect(textareaRef.current?.className).toContain('font-mono')
     expect(textareaRef.current?.className).toContain('min-h-[80px]')
     act(() => container?.querySelector('button')?.click())
     expect(submit).not.toHaveBeenCalled()
