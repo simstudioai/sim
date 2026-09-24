@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, type InputHTMLAttributes, type ReactNode } from 'react'
+import { act, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -60,7 +60,7 @@ vi.mock('@/app/(auth)/components', () => ({
     loading: _loading,
     loadingLabel: _loadingLabel,
     ...props
-  }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  }: ButtonHTMLAttributes<HTMLButtonElement> & {
     loading?: boolean
     loadingLabel?: string
   }) => (
