@@ -68,15 +68,18 @@ vi.mock('@/app/workspace/[workspaceId]/home/components/user-input/components', a
     PromptEditor: ({
       editor,
       placeholder,
+      onSubmit,
     }: {
       editor: PromptEditorInstance
       placeholder: string
+      onSubmit: () => void
     }) => (
       <textarea
         ref={editor.textareaRef}
         value={editor.value}
         placeholder={placeholder}
         onChange={editor.handleInputChange}
+        onKeyDown={(event) => editor.handleKeyDown(event, { onSubmit })}
       />
     ),
     SendButton: ({ onSubmit }: { onSubmit: () => void }) => (
@@ -109,7 +112,7 @@ const QUEUED_MESSAGE: QueuedMessage = {
 let root: Root | null = null
 let container: HTMLDivElement | null = null
 
-function mount() {
+function mount(isSending = false, onSendQueuedHead?: () => void) {
   const inputRef = createRef<UserInputHandle>()
 
   function Composer() {
@@ -127,7 +130,8 @@ function mount() {
           ref={inputRef}
           defaultValue='Initial draft'
           onSubmit={mockSubmit}
-          isSending={false}
+          isSending={isSending}
+          onSendQueuedHead={onSendQueuedHead}
           onStopGeneration={vi.fn()}
         />
       </>
@@ -218,3 +222,19 @@ describe('workspace composer', () => {
     expect(mockResetTranscript).toHaveBeenCalled()
   })
 })
+
+it.each([false, true])(
+  'sends a queued message on the second Enter without resubmitting attachments (%s)',
+  async (withAttachment) => {
+    const sendHead = vi.fn()
+    mount(true, sendHead)
+    if (withAttachment) await clickButton('Edit queued')
+    await act(async () => {
+      textarea().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      textarea().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })
+    expect(mockSubmit).toHaveBeenCalledTimes(1)
+    expect(sendHead).toHaveBeenCalledExactlyOnceWith()
+    expect(textarea().value).toBe('')
+  }
+)

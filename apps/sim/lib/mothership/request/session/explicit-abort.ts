@@ -1,4 +1,6 @@
 import type { Context } from '@opentelemetry/api'
+import { sleep } from '@sim/utils/helpers'
+import { toRecordOrNull } from '@sim/utils/object'
 import {
   COPILOT_BILLING_PROTOCOL,
   COPILOT_BILLING_PROTOCOL_HEADER,
@@ -45,36 +47,41 @@ export async function requestExplicitStreamAbort(params: {
     timeoutMs
   )
 
+  let awaitingSettlement = false
   try {
     const mothershipBaseURL = await getMothershipBaseURL({ userId })
-    const response = await fetchGo(`${mothershipBaseURL}/api/streams/explicit-abort`, {
-      method: 'POST',
-      headers,
-      signal: controller.signal,
-      /** Sim authorizes the actor and canonical run before this service-authenticated signal. */
-      body: JSON.stringify(AbortRequest.parse({ messageId: streamId })),
-      otelContext,
-      spanName: 'sim → go /api/streams/explicit-abort',
-      operation: 'explicit_abort',
-      attributes: {
-        [TraceAttr.StreamId]: streamId,
-        ...(chatId ? { [TraceAttr.ChatId]: chatId } : {}),
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error(`Explicit abort marker request failed: ${response.status}`)
+    while (!controller.signal.aborted) {
+      const response = await fetchGo(`${mothershipBaseURL}/api/streams/explicit-abort`, {
+        method: 'POST',
+        headers,
+        signal: controller.signal,
+        /** Sim authorizes the actor and canonical run before this service-authenticated signal. */
+        body: JSON.stringify(AbortRequest.parse({ messageId: streamId })),
+        otelContext,
+        spanName: 'sim → go /api/streams/explicit-abort',
+        operation: 'explicit_abort',
+        attributes: {
+          [TraceAttr.StreamId]: streamId,
+          ...(chatId ? { [TraceAttr.ChatId]: chatId } : {}),
+        },
+      })
+      if (!response.ok) {
+        throw new Error(`Explicit abort marker request failed: ${response.status}`)
+      }
+      const text = await response.text()
+      const acknowledgement = toRecordOrNull(text ? JSON.parse(text) : null)
+      /** Only an explicit pending acknowledgement can be polled; legacy empty replies prove nothing. */
+      if (acknowledgement?.settled !== false) {
+        return { settled: acknowledgement?.settled === true }
+      }
+      /** Stop is idempotent. Its first acknowledgement can precede worker cleanup. */
+      awaitingSettlement = true
+      await sleep(200)
     }
-    /** The Go service does not report worker settlement; an empty acknowledgement cannot prove it. */
-    const text = await response.text()
-    const acknowledgement: unknown = text ? JSON.parse(text) : null
-    return {
-      settled:
-        acknowledgement !== null &&
-        typeof acknowledgement === 'object' &&
-        'settled' in acknowledgement &&
-        acknowledgement.settled === true,
-    }
+    return { settled: false }
+  } catch (error) {
+    if (awaitingSettlement && controller.signal.aborted) return { settled: false }
+    throw error
   } finally {
     clearTimeout(timeout)
   }

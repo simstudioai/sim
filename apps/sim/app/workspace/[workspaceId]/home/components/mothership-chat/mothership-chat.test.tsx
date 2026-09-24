@@ -6,9 +6,10 @@ import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
 import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
 
-const { scrollToIndex, renderMessage } = vi.hoisted(() => ({
+const { scrollToIndex, renderMessage, renderInput } = vi.hoisted(() => ({
   scrollToIndex: vi.fn(),
   renderMessage: vi.fn(),
+  renderInput: vi.fn(),
 }))
 
 /** The measured range still covers the old turn while appended rows await measurement. */
@@ -39,7 +40,10 @@ vi.mock('@tanstack/react-virtual', async (importOriginal) => {
 })
 vi.mock('@/app/workspace/[workspaceId]/components', () => ({ MessageActions: () => null }))
 vi.mock('@/app/workspace/[workspaceId]/home/components/user-input', () => ({
-  UserInput: () => null,
+  UserInput: (props: { onSendQueuedHead: () => void }) => {
+    renderInput(props)
+    return null
+  },
 }))
 vi.mock('@/app/workspace/[workspaceId]/home/components/queued-messages', () => ({
   QueuedMessages: () => null,
@@ -225,6 +229,48 @@ it('never restarts the previous response while a new send waits for its deferred
     expect(renderMessage).not.toHaveBeenCalledWith('Saved answer', true)
     expect(renderMessage).toHaveBeenCalledWith('', true)
     expect(container.textContent).toContain('Next question')
+  } finally {
+    await act(async () => root.unmount())
+    client.clear()
+    vi.unstubAllGlobals()
+  }
+})
+
+it('delegates empty Enter to the live queue sender before the rendered queue updates', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+    }
+  )
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  const client = new QueryClient()
+  const sendNow = vi.fn().mockResolvedValue(undefined)
+  try {
+    await act(async () =>
+      root.render(
+        <QueryClientProvider client={client}>
+          <MothershipChat
+            messages={[]}
+            isSending
+            messageQueue={[]}
+            onSubmit={vi.fn()}
+            onStopGeneration={vi.fn()}
+            onSendQueuedMessage={sendNow}
+            editingQueuedId={null}
+            dispatchingHeadId={null}
+            onRemoveQueuedMessage={vi.fn()}
+            onEditQueuedMessage={vi.fn()}
+            onCancelQueueEdit={vi.fn()}
+          />
+        </QueryClientProvider>
+      )
+    )
+    await act(async () => renderInput.mock.lastCall![0].onSendQueuedHead())
+    expect(sendNow).toHaveBeenCalledExactlyOnceWith()
   } finally {
     await act(async () => root.unmount())
     client.clear()

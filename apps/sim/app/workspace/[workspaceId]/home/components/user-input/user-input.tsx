@@ -476,6 +476,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     prevSelectedContextsRef.current = []
     resetTranscript()
     filesRef.current.clearAttachedFiles()
+    filesRef.current = { ...filesRef.current, attachedFiles: [] }
   }, [resetTranscript])
 
   const handleSubmit = useCallback(() => {

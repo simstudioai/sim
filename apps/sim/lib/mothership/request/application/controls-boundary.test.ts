@@ -81,7 +81,7 @@ describe('abort authorization before service signaling', () => {
       streamId: 'stream',
       chatId: 'chat',
       userId: 'actor',
-      timeoutMs: 3000,
+      timeoutMs: 6000,
     })
     expect(mocks.permissions).not.toHaveBeenCalled()
   })
