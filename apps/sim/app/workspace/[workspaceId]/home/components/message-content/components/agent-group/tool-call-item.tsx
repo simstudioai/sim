@@ -76,7 +76,7 @@ function nestedStringParam(params: Record<string, unknown> | undefined, key: str
  * An executing `browser_request_takeover` is lifted by AgentGroup into its
  * parent flow; this row remains the canonical completed-history entry after
  * the browser agent resumes.
- * Rows are history and never shimmer; the lane decides which header or search row is live.
+ * Rows are history and never shimmer; the lane decides which header is live.
  */
 export function ToolCallItem({
   toolName,

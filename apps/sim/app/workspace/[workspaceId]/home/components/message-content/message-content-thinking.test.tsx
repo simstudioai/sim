@@ -176,7 +176,7 @@ describe('MessageContent shared thinking indicator', () => {
 
   it.each([
     ['executing', true],
-    ['success', false],
+    ['success', true],
   ] as const)(
     'shows exactly one live indicator around a %s main search',
     (status, searchIsLive) => {
@@ -483,12 +483,12 @@ describe('MessageContent shared thinking indicator', () => {
       [
         'a running search before a finished call',
         [search('s', 'executing'), call('r', 'search_docs', 'success')],
-        'Query s',
+        'Title s',
       ],
       [
         'a still-streaming search before a finished call',
         [call('s', 'search_workspace', 'executing'), call('r', 'search_docs', 'success')],
-        'Preparing query',
+        'Title s',
       ],
       [
         'an older search and a newer call both running',
@@ -498,7 +498,7 @@ describe('MessageContent shared thinking indicator', () => {
       [
         'an older call and a newer search both running',
         [call('r', 'search_docs', 'executing', { startedAtMs: 1 }), search('s', 'executing', 2)],
-        'Query s',
+        'Title s',
       ],
     ] as const)('shows exactly one indicator for %s', (_case, blocks, live) => {
       settle([...blocks])

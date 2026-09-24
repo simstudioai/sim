@@ -14,7 +14,7 @@ function call(id: string, toolName: string, extra: Partial<ToolCallData> = {}): 
 const layout = (items: AgentGroupItem[]) =>
   splitMainLane(items).map((entry) =>
     entry.type === 'run'
-      ? `${entry.run.isSearch ? 'search' : 'tools'}:${entry.run.tools.map((tool) => tool.id).join(',')}`
+      ? `tools:${entry.run.tools.map((tool) => tool.id).join(',')}`
       : entry.item.type
   )
 
@@ -24,7 +24,7 @@ const liveId = (items: AgentGroupItem[], isOpen = true) => {
 }
 
 describe('splitMainLane', () => {
-  it('splits runs at search boundaries and interactions, in transcript order', () => {
+  it('groups search with other tools and splits only at interactions, in transcript order', () => {
     expect(
       layout([
         call('a', 'read'),
@@ -35,7 +35,7 @@ describe('splitMainLane', () => {
         call('approval', 'edit_workflow', { status: 'awaiting_approval' }),
         call('c', 'read'),
       ])
-    ).toEqual(['tools:a', 'search:s1,s2', 'tools:setup,b', 'tool', 'tools:c'])
+    ).toEqual(['tools:a,s1,s2,setup,b', 'tool', 'tools:c'])
   })
 })
 
@@ -53,9 +53,9 @@ describe('getLaneLiveIndicator', () => {
     expect(indicator?.type === 'call' && indicator.tool.id).toBe('a')
   })
 
-  it('gives the gap to a succeeded trailing call, never a finished search or a failure', () => {
+  it('gives the gap to a succeeded trailing call, including search, never a failure', () => {
     expect(liveId([call('s', 'search_workspace'), call('a', 'read')])).toBe('a')
-    expect(liveId([call('a', 'read'), call('s', 'search_workspace')])).toBeUndefined()
+    expect(liveId([call('a', 'read'), call('s', 'search_workspace')])).toBe('s')
     expect(liveId([call('a', 'read'), call('b', 'read', { status: 'error' })])).toBeUndefined()
     expect(liveId([call('a', 'read')], false)).toBeUndefined()
   })
