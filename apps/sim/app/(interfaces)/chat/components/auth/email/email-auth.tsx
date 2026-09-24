@@ -34,13 +34,17 @@ const validateEmailField = (emailValue: string): string[] => {
 
 export default function EmailAuth({ identifier }: EmailAuthProps) {
   const [email, setEmail] = useState('')
-  const [authError, setAuthError] = useState<string | null>(null)
+  const [authError, setAuthError] = useState<{
+    kind: 'verification' | 'request'
+    message: string
+  } | null>(null)
   const [emailErrors, setEmailErrors] = useState<string[]>([])
   const hasEmailError = emailErrors.length > 0
 
   const [showOtpVerification, setShowOtpVerification] = useState(false)
   const [otpValue, setOtpValue] = useState('')
   const [countdown, setCountdown] = useState(0)
+  const isInvalidOtp = authError?.kind === 'verification'
 
   const requestOtp = useChatEmailOtpRequest(identifier)
   const verifyOtp = useChatEmailOtpVerify(identifier)
@@ -89,7 +93,10 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
       await verifyOtp.mutateAsync({ email, otp: codeToVerify })
     } catch (error) {
       logger.error('Error verifying OTP:', error)
-      setAuthError(toError(error).message || 'Invalid verification code')
+      setAuthError({
+        kind: 'verification',
+        message: toError(error).message || 'Invalid verification code',
+      })
     }
   }
 
@@ -102,7 +109,10 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
       setOtpValue('')
     } catch (error) {
       logger.error('Error resending OTP:', error)
-      setAuthError(toError(error).message || 'Failed to resend verification code')
+      setAuthError({
+        kind: 'request',
+        message: toError(error).message || 'Failed to resend verification code',
+      })
       setCountdown(0)
     }
   }
@@ -181,15 +191,12 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                       }
                     }}
                     disabled={verifyOtp.isPending}
-                    className={cn('gap-2', authError && 'otp-error')}
+                    className={cn('gap-2', isInvalidOtp && 'otp-error')}
+                    aria-invalid={isInvalidOtp}
                   >
                     <InputOTPGroup>
                       {[0, 1, 2, 3, 4, 5].map((index) => (
-                        <InputOTPSlot
-                          key={index}
-                          index={index}
-                          className={cn(authError && 'border-[var(--text-error)]')}
-                        />
+                        <InputOTPSlot key={index} index={index} invalid={isInvalidOtp} />
                       ))}
                     </InputOTPGroup>
                   </InputOTP>
@@ -197,7 +204,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
 
                 {authError && (
                   <div className='mt-1 space-y-1 text-center text-[var(--text-error)] text-xs'>
-                    <p>{authError}</p>
+                    <p>{authError.message}</p>
                   </div>
                 )}
 

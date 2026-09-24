@@ -161,7 +161,13 @@ export {
   type InfoCardProps,
 } from './info-card/info-card'
 export { Input, type InputProps } from './input/input'
-export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './input-otp/input-otp'
+export {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSeparator,
+  InputOTPSlot,
+  type InputOTPSlotProps,
+} from './input-otp/input-otp'
 export { Label } from './label/label'
 export { Lightbox, type LightboxProps } from './lightbox/lightbox'
 export { focusFirstTextInput, focusFirstTextInputIn } from './modal/auto-focus'
