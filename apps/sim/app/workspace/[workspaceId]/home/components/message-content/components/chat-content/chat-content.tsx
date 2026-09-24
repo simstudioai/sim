@@ -68,7 +68,10 @@ const LANG_ALIASES: Record<string, string> = {
   py: 'python',
 }
 
-const MARKDOWN_REMARK_PLUGINS = [...Object.values(defaultRemarkPlugins), remarkPlainText]
+const MARKDOWN_REMARK_PLUGINS = [
+  ...Object.values(defaultRemarkPlugins),
+  remarkPlainText,
+] as const satisfies NonNullable<ComponentPropsWithoutRef<typeof Streamdown>['remarkPlugins']>
 
 const PROSE_CLASSES = cn(
   'prose prose-base dark:prose-invert max-w-none',

@@ -33,11 +33,11 @@ describe('highlighted code lines', () => {
       '/* a comment\nwith <script>alert(1)</script>\n*/\nconst x = "safe"',
       '<div title="a &amp; b">\n  <!-- multi\n  line -->\n</div>',
       'const x = "<img src=x onerror=alert(1)>"\n\nconst y = 1',
-    ]
+    ] as const
     for (const code of cases) {
       for (let end = 1; end <= code.length; end++) {
         const prefix = code.slice(0, end)
-        for (const language of ['typescript', 'markup']) {
+        for (const language of ['typescript', 'markup'] as const) {
           const html = Prism.highlight(prefix, Prism.languages[language], language)
           const before = document.createElement('pre')
           before.innerHTML = html

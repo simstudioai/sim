@@ -16,7 +16,7 @@ describe('plain-paragraph parsing', () => {
       'A sentence with (parentheses), quotes, 1.23 and 20% off.',
       '12)word',
       'Plain\u000btext\u000ctext',
-    ]) {
+    ] as const) {
       for (let end = 0; end <= text.length; end++) {
         const prefix = text.slice(0, end)
         expect(optimized.parse(prefix), JSON.stringify(prefix)).toEqual(reference.parse(prefix))
@@ -42,7 +42,7 @@ describe('plain-paragraph parsing', () => {
       '[link][ref]\n\n[ref]: https://example.com',
       '```typescript\nconst text = `multiline\nvalue`\n```',
       '\ufeffText',
-    ]
+    ] as const
     for (const text of cases) {
       for (let end = 0; end <= text.length; end++) {
         const prefix = text.slice(0, end)
@@ -57,7 +57,7 @@ describe('plain-paragraph parsing', () => {
       '## Heading\n\nA paragraph.\n\n- A list item\n\n| Column |\n| --- |\n| Cell |\n\n'.repeat(30),
       `\`\`\`typescript\n${'const value = items.map((item) => item.value)\n'.repeat(40)}\`\`\``,
       'A citation. <source>{"url":"https://example.com"}</source>\n\n'.repeat(30),
-    ]
+    ] as const
     for (const text of cases) {
       for (let end = 7; end <= text.length; end += 7) {
         expect(optimized.parse(text.slice(0, end))).toEqual(reference.parse(text.slice(0, end)))
