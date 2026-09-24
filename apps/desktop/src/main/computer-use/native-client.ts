@@ -1,4 +1,5 @@
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process'
+import { ComputerUseError } from '@sim/desktop-bridge'
 import {
   ComputerUseNativeReplySchema,
   type ComputerUseResult,
@@ -79,8 +80,7 @@ export class NativeComputerUseClient implements ComputerUseNativeClient {
           if (pending) {
             clearTimeout(pending.timer)
             this.pending.delete(reply.id)
-            if ('error' in reply)
-              pending.reject(new Error(`${reply.error.code}: ${reply.error.message}`))
+            if ('error' in reply) pending.reject(new ComputerUseError(reply.error))
             else pending.resolve(reply.result)
           }
         } catch {

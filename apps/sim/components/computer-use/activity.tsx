@@ -11,6 +11,7 @@ const ACTION_LABELS: Record<string, string> = {
   activate_app: 'Bringing app forward',
   click: 'Clicking',
   type_text: 'Typing',
+  input_sequence: 'Entering text and keys',
   press_key: 'Pressing keys',
   scroll: 'Scrolling',
   drag: 'Dragging',

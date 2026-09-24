@@ -1,4 +1,4 @@
-import { COMPUTER_USE_TOOL_TIMEOUT_MS } from '@sim/desktop-bridge'
+import { COMPUTER_USE_TOOL_TIMEOUT_MS, ComputerUseError } from '@sim/desktop-bridge'
 import { ComputerUseSchema } from '@sim/desktop-bridge/computer-use'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -159,9 +159,13 @@ export async function executeComputerToolOnClient(
         : {
             status: ASYNC_TOOL_CONFIRMATION_STATUS.success,
             message:
-              result.kind === 'action' && !result.verified
-                ? 'Input was dispatched. Inspect the app to verify its effect.'
-                : 'Computer observation completed',
+              result.kind === 'action' && result.sequence?.error
+                ? `Input sequence stopped after ${result.sequence.completedSteps}/${result.sequence.totalSteps} completed steps: ${result.sequence.error} Inspect the app before any further input; do not retry the sequence.`
+                : result.kind === 'action' && result.observationError
+                  ? `Input was dispatched, but observation failed: ${result.observationError} Inspect the app without repeating the input.`
+                  : result.kind === 'action' && !result.verified
+                    ? 'Input was dispatched. Inspect the returned observation or the app to verify its effect.'
+                    : 'Computer observation completed',
             data: computerToolResultForModel(result),
           }
     } else
@@ -170,12 +174,20 @@ export async function executeComputerToolOnClient(
         message: 'Computer action stopped before execution',
       }
   } catch (error) {
+    const nativeError = error instanceof ComputerUseError ? error.details : undefined
+    const outcomeUnknown = dispatched && (cancelled || nativeError?.dispatchState !== 'not_started')
     execution.completion = {
       status: cancelled
         ? ASYNC_TOOL_CONFIRMATION_STATUS.cancelled
         : ASYNC_TOOL_CONFIRMATION_STATUS.error,
       message: getErrorMessage(error, 'Computer action failed'),
-      data: { doNotRetry: dispatched, outcomeUnknown: dispatched },
+      data: {
+        ...(nativeError
+          ? { code: nativeError.code, dispatchState: nativeError.dispatchState }
+          : {}),
+        doNotRetry: outcomeUnknown,
+        outcomeUnknown,
+      },
     }
   } finally {
     if (timer) clearTimeout(timer)

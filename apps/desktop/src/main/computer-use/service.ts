@@ -7,7 +7,9 @@ import {
   type ComputerUseInput,
   type ComputerUseResult,
   ComputerUseSchema,
+  type ComputerUseSnapshot,
 } from '@sim/desktop-bridge/computer-use'
+import { getErrorMessage } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import type { ComputerUseNativeClient } from '@/main/computer-use/native-client'
 import type { ConfigStore } from '@/main/config'
@@ -32,13 +34,20 @@ interface ToolWork {
   controller: AbortController
 }
 
+interface SnapshotOwnership {
+  scopeId: string
+  bundleId: string
+  windowId: string
+  elementWindows: Map<string, string>
+}
+
 /** Native snapshots cannot transfer authority between chats or restarted helpers. */
 export class ComputerUseService {
   private admissions = new Map<string, AbortController>()
   private active: ToolWork | null = null
   private tail: Promise<void> = Promise.resolve()
   private queued = new Map<string, ToolWork>()
-  private snapshots = new Map<string, { scopeId: string; bundleId: string }>()
+  private snapshots = new Map<string, SnapshotOwnership>()
   private activity: ComputerUseActivity | null = null
   private taskGrants = new Map<string, Map<string, string>>()
 
@@ -211,18 +220,48 @@ export class ComputerUseService {
         this.deps.onActivity(this.activity)
       }
       this.check(work)
+      const owner = 'snapshotId' in input ? this.snapshots.get(input.snapshotId) : undefined
+      const windowId =
+        'windowId' in input
+          ? input.windowId
+          : 'elementId' in input
+            ? (owner?.elementWindows.get(input.elementId) ?? owner?.windowId)
+            : undefined
       if ('snapshotId' in input) this.snapshots.delete(input.snapshotId)
-      const result = await this.deps.native.request(input.action, omit(input, ['action']))
+      const params =
+        'observeAfter' in input ? omit(input, ['action', 'observeAfter']) : omit(input, ['action'])
+      const result = await this.deps.native.request(input.action, params)
       this.check(work)
-      if (result.kind === 'state') {
-        if (!('bundleId' in input) || result.bundleId !== input.bundleId) {
-          throw new Error('Computer Use returned state for a different app.')
+      if (result.kind === 'state') this.rememberSnapshot(work, result, windowId)
+      if (result.kind === 'action') {
+        if (
+          !('bundleId' in input) ||
+          result.bundleId !== input.bundleId ||
+          result.action !== input.action
+        )
+          throw new Error('Computer Use returned an action for a different target.')
+        try {
+          const observation = await this.deps.native.request('get_app_state', {
+            bundleId: input.bundleId,
+            ...(windowId ? { windowId } : {}),
+            ...('observeAfter' in input ? input.observeAfter : {}),
+          })
+          this.check(work)
+          if (observation.kind !== 'state')
+            throw new Error('Computer Use did not return fresh app state.')
+          this.rememberSnapshot(work, observation, windowId)
+          return { ...result, observation }
+        } catch (error) {
+          this.check(work)
+          /** Dispatch already happened; a failed read must never replay the mutation. */
+          return {
+            ...result,
+            observationError: getErrorMessage(
+              error,
+              'Could not observe the app after input.'
+            ).slice(0, 2000),
+          }
         }
-        for (const [id, owner] of this.snapshots) {
-          if (owner.bundleId === result.bundleId) this.snapshots.delete(id)
-        }
-        if (this.snapshots.size >= 16) this.snapshots.clear()
-        this.snapshots.set(result.snapshotId, { scopeId: work.scopeId, bundleId: result.bundleId })
       }
       return result
     } finally {
@@ -231,6 +270,25 @@ export class ComputerUseService {
       this.activity = null
       this.deps.onActivity(null)
     }
+  }
+
+  private rememberSnapshot(work: ToolWork, snapshot: ComputerUseSnapshot, windowId?: string): void {
+    if (!('bundleId' in work.input) || snapshot.bundleId !== work.input.bundleId)
+      throw new Error('Computer Use returned state for a different app.')
+    if (windowId && snapshot.windowId !== windowId)
+      throw new Error('Computer Use returned state for a different window.')
+    for (const [id, owner] of this.snapshots) {
+      if (owner.bundleId === snapshot.bundleId) this.snapshots.delete(id)
+    }
+    if (this.snapshots.size >= 16) this.snapshots.clear()
+    this.snapshots.set(snapshot.snapshotId, {
+      scopeId: work.scopeId,
+      bundleId: snapshot.bundleId,
+      windowId: snapshot.windowId,
+      elementWindows: new Map(
+        snapshot.nodes.flatMap((node) => (node.windowId ? [[node.elementId, node.windowId]] : []))
+      ),
+    })
   }
 
   private async authorizeApp(bundleId: string, work: ToolWork): Promise<string> {

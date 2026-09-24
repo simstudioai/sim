@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { ComputerUseError } from '@sim/desktop-bridge'
 import type { ComputerUseResult } from '@sim/desktop-bridge/computer-use'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ComputerUseService } from '@/main/computer-use/service'
@@ -32,7 +33,7 @@ function setup(enabled = true) {
         snapshotId: `s${++sequence}`,
         windowId: '1',
         windows: [],
-        nodes: [],
+        nodes: [{ elementId: 'e1', role: 'AXTextArea', actions: [], windowId: '1' }],
         truncated: false,
       }
     return {
@@ -118,8 +119,254 @@ describe('native computer use authority and lifecycle', () => {
   it('consumes an observation even when the dispatched action is unverified', async () => {
     const { state, click, native } = setup()
     await state()
-    expect(await click('s1')).toMatchObject({ dispatched: true, verified: false })
+    expect(await click('s1')).toMatchObject({
+      dispatched: true,
+      verified: false,
+      observation: { snapshotId: 's2', windowId: '1' },
+    })
+    expect(native.request).toHaveBeenLastCalledWith('get_app_state', {
+      bundleId: 'com.example.Fixture',
+      windowId: '1',
+    })
     await expect(click('s1', 'chat', 'replay')).rejects.toThrow('stale')
+    expect(native.request.mock.calls.filter(([method]) => method === 'click')).toHaveLength(1)
+  })
+
+  it('returns fresh state after activation without an observation option or old window binding', async () => {
+    const { state, service, native, click } = setup()
+    await state()
+    native.request.mockResolvedValueOnce({
+      kind: 'action',
+      action: 'activate_app',
+      bundleId: 'com.example.Fixture',
+      dispatched: true,
+      verified: false,
+    })
+    await expect(
+      service.execute('activate', 'chat', {
+        action: 'activate_app',
+        bundleId: 'com.example.Fixture',
+      })
+    ).resolves.toMatchObject({
+      action: 'activate_app',
+      dispatched: true,
+      observation: { snapshotId: 's2' },
+    })
+    expect(native.request).toHaveBeenLastCalledWith('get_app_state', {
+      bundleId: 'com.example.Fixture',
+    })
+    await expect(click('s1', 'chat', 'old')).rejects.toThrow('stale')
+    await expect(click('s2', 'other-chat', 'foreign')).rejects.toThrow('another chat')
+    expect(native.request.mock.calls.filter(([method]) => method === 'activate_app')).toHaveLength(
+      1
+    )
+  })
+
+  it('returns a fresh scoped snapshot after one input batch under the same admission', async () => {
+    const { state, service, native, click, approveApp } = setup()
+    await state()
+    const authorize = vi.fn(async () => ({
+      scopeId: 'chat',
+      input: {
+        action: 'input_sequence',
+        activateFirst: true,
+        bundleId: 'com.example.Fixture',
+        snapshotId: 's1',
+        elementId: 'e1',
+        steps: [
+          { action: 'press_key', key: 'Cmd+A' },
+          { action: 'type_text', text: 'fixture nonce' },
+          { action: 'press_key', key: 'Enter' },
+        ],
+        observeAfter: { includeScreenshot: true },
+      },
+    }))
+    native.request.mockResolvedValueOnce({
+      kind: 'action',
+      action: 'input_sequence',
+      bundleId: 'com.example.Fixture',
+      dispatched: true,
+      verified: false,
+      sequence: { completedSteps: 3, totalSteps: 3 },
+    })
+    const result = await service.executeAuthorized('sequence', authorize)
+    expect(authorize).toHaveBeenCalledOnce()
+    expect(approveApp).toHaveBeenCalledOnce()
+    expect(result).toMatchObject({
+      kind: 'action',
+      verified: false,
+      sequence: { completedSteps: 3, totalSteps: 3 },
+      observation: { snapshotId: 's2', windowId: '1' },
+    })
+    expect(native.request).toHaveBeenLastCalledWith('get_app_state', {
+      bundleId: 'com.example.Fixture',
+      windowId: '1',
+      includeScreenshot: true,
+    })
+    expect(
+      native.request.mock.calls.filter(([method]) => method === 'input_sequence')
+    ).toHaveLength(1)
+    const sequenceArgs = native.request.mock.calls.find(([method]) => method === 'input_sequence')
+    expect(sequenceArgs).toEqual([
+      'input_sequence',
+      {
+        activateFirst: true,
+        bundleId: 'com.example.Fixture',
+        snapshotId: 's1',
+        elementId: 'e1',
+        steps: [
+          { action: 'press_key', key: 'Cmd+A' },
+          { action: 'type_text', text: 'fixture nonce' },
+          { action: 'press_key', key: 'Enter' },
+        ],
+      },
+    ])
+    await expect(click('s1', 'chat', 'old')).rejects.toThrow('stale')
+    await expect(click('s2', 'other-chat', 'foreign')).rejects.toThrow('another chat')
+    await expect(click('s2', 'chat', 'next')).resolves.toMatchObject({ dispatched: true })
+  })
+
+  it('observes a partial sequence without retrying any input', async () => {
+    const { state, service, native } = setup()
+    await state()
+    native.request.mockResolvedValueOnce({
+      kind: 'action',
+      action: 'input_sequence',
+      bundleId: 'com.example.Fixture',
+      dispatched: true,
+      verified: false,
+      sequence: { completedSteps: 1, totalSteps: 2, error: 'Editor focus changed.' },
+    })
+    const result = await service.execute('sequence-partial', 'chat', {
+      action: 'input_sequence',
+      bundleId: 'com.example.Fixture',
+      snapshotId: 's1',
+      elementId: 'e1',
+      steps: [
+        { action: 'press_key', key: 'Tab' },
+        { action: 'type_text', text: 'must not type' },
+      ],
+    })
+    expect(result).toMatchObject({
+      sequence: { completedSteps: 1, error: 'Editor focus changed.' },
+      observation: { snapshotId: 's2' },
+    })
+    expect(
+      native.request.mock.calls.filter(([method]) => method === 'input_sequence')
+    ).toHaveLength(1)
+  })
+
+  it.each([
+    new Error('Window closed.'),
+    new ComputerUseError({
+      code: 'activation_required',
+      message: 'Window closed.',
+      dispatchState: 'not_started',
+    }),
+  ])('preserves successful dispatch when the follow-up read fails', async (readError) => {
+    const { state, service, native, click } = setup()
+    await state()
+    native.request
+      .mockResolvedValueOnce({
+        kind: 'action',
+        action: 'click',
+        bundleId: 'com.example.Fixture',
+        dispatched: true,
+        verified: false,
+      })
+      .mockRejectedValueOnce(readError)
+    await expect(
+      service.execute('observe-failed', 'chat', {
+        action: 'click',
+        bundleId: 'com.example.Fixture',
+        snapshotId: 's1',
+        elementId: 'e1',
+      })
+    ).resolves.toMatchObject({
+      dispatched: true,
+      verified: false,
+      observationError: 'Window closed.',
+    })
+    expect(native.request.mock.calls.filter(([method]) => method === 'click')).toHaveLength(1)
+    await expect(click('s1', 'chat', 'repeat')).rejects.toThrow('stale')
+  })
+
+  it.each(['app', 'window'])('rejects a follow-up snapshot from a different %s', async (target) => {
+    const { state, service, native, click } = setup()
+    await state()
+    native.request
+      .mockResolvedValueOnce({
+        kind: 'action',
+        action: 'click',
+        bundleId: 'com.example.Fixture',
+        dispatched: true,
+        verified: false,
+      })
+      .mockResolvedValueOnce({
+        kind: 'state',
+        bundleId: target === 'app' ? 'com.example.Other' : 'com.example.Fixture',
+        snapshotId: 'foreign',
+        windowId: target === 'window' ? '2' : '1',
+        windows: [],
+        nodes: [],
+        truncated: false,
+      })
+    await expect(
+      service.execute('observe-wrong', 'chat', {
+        action: 'click',
+        bundleId: 'com.example.Fixture',
+        snapshotId: 's1',
+        elementId: 'e1',
+      })
+    ).resolves.toMatchObject({
+      dispatched: true,
+      observationError: expect.stringContaining(`different ${target}`),
+    })
+    await expect(click('foreign')).rejects.toThrow('stale')
+  })
+
+  it('Stop during the follow-up observation does not restore usable references', async () => {
+    const { state, service, native, click } = setup()
+    await state()
+    let finish: ((value: ComputerUseResult) => void) | undefined
+    let observed: (() => void) | undefined
+    const observing = new Promise<void>((resolve) => {
+      observed = resolve
+    })
+    native.request
+      .mockResolvedValueOnce({
+        kind: 'action',
+        action: 'click',
+        bundleId: 'com.example.Fixture',
+        dispatched: true,
+        verified: false,
+      })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve
+            observed?.()
+          })
+      )
+    const execution = service.execute('stop-observation', 'chat', {
+      action: 'click',
+      bundleId: 'com.example.Fixture',
+      snapshotId: 's1',
+      elementId: 'e1',
+    })
+    await observing
+    service.cancel('stop-observation')
+    finish?.({
+      kind: 'state',
+      bundleId: 'com.example.Fixture',
+      snapshotId: 's2',
+      windowId: '1',
+      windows: [],
+      nodes: [],
+      truncated: false,
+    })
+    await expect(execution).rejects.toThrow('stopped')
+    await expect(click('s2')).rejects.toThrow('stale')
     expect(native.request.mock.calls.filter(([method]) => method === 'click')).toHaveLength(1)
   })
 

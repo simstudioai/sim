@@ -1,6 +1,7 @@
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { ComputerUseError } from '@sim/desktop-bridge'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { NativeComputerUseClient } from '@/main/computer-use/native-client'
 
@@ -33,6 +34,23 @@ const status = JSON.stringify({
 const reader = `require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const request=JSON.parse(line);`
 
 describe('native computer use transport', () => {
+  it.each([undefined, 'not_started'])(
+    'preserves explicit dispatch certainty %s without inferring it from an error code',
+    async (dispatchState) => {
+      const details = {
+        code: 'activation_required',
+        message: 'Activate and observe the app first.',
+        ...(dispatchState ? { dispatchState } : {}),
+      }
+      const { client } = helper(
+        `${reader}process.stdout.write(JSON.stringify({id:request.id,error:${JSON.stringify(details)}})+'\\n');});`
+      )
+      const error = await client.request('input_sequence', {}).catch((error: unknown) => error)
+      expect(error).toBeInstanceOf(ComputerUseError)
+      expect(error).toMatchObject({ details })
+    }
+  )
+
   it('decodes split frames and correlates replies that arrive out of order', async () => {
     const { client } = helper(`let first; ${reader}
       if(!first){first=request;return}

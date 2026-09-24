@@ -1,4 +1,8 @@
-import type { ComputerUseInput, ComputerUseResult } from './computer-use.generated'
+import type {
+  ComputerUseInput,
+  ComputerUseNativeError,
+  ComputerUseResult,
+} from './computer-use.generated'
 import type { DesktopLocalFileRequest, DesktopLocalFileResponse } from './local-files'
 
 export type {
@@ -63,6 +67,20 @@ export interface ComputerUseAppPermission {
   displayName: string
 }
 
+/** Preserve native dispatch certainty as data across Electron's error serialization boundary. */
+export interface ComputerUseToolFailure {
+  kind: 'error'
+  error: ComputerUseNativeError
+}
+
+/** Only validated helper replies may carry a confirmed pre-dispatch failure. */
+export class ComputerUseError extends Error {
+  constructor(readonly details: ComputerUseNativeError) {
+    super(details.message)
+    this.name = 'ComputerUseError'
+  }
+}
+
 /** Optional so a new web deployment remains compatible with older desktop shells. */
 export interface SimDesktopComputerUseApi {
   getStatus(): Promise<ComputerUseStatus>
@@ -70,7 +88,10 @@ export interface SimDesktopComputerUseApi {
   requestPermission(permission: 'accessibility' | 'screenCapture'): Promise<ComputerUseStatus>
   listAppPermissions(): Promise<ComputerUseAppPermission[]>
   revokeApp(bundleId: string): Promise<void>
-  executeTool(toolCallId: string, params: ComputerUseInput): Promise<ComputerUseResult>
+  executeTool(
+    toolCallId: string,
+    params: ComputerUseInput
+  ): Promise<ComputerUseResult | ComputerUseToolFailure>
   cancel(toolCallId?: string): Promise<void>
   onActivity(callback: (activity: ComputerUseActivity | null) => void): () => void
 }
