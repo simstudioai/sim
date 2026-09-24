@@ -75,7 +75,7 @@ export function SourceChip({ source }: SourceChipProps) {
             <img
               src={faviconUrl(hostname, 32)}
               alt=''
-              className='size-[12px] shrink-0 rounded-[3px]'
+              className='size-[12px] shrink-0 rounded-sm'
               onError={hideBrokenFavicon}
             />
           ) : null}

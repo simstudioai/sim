@@ -130,7 +130,7 @@ export const ChatInput: React.FC<{
         {uploadErrors.length > 0 && (
           <div className='mb-3 flex flex-col gap-2'>
             {uploadErrors.map((error, idx) => (
-              <Badge key={`${error}-${idx}`} variant='red' size='lg' dot className='max-w-full'>
+              <Badge key={`${error}-${idx}`} variant='red' size='md' dot className='max-w-full'>
                 {error}
               </Badge>
             ))}
@@ -172,7 +172,7 @@ export const ChatInput: React.FC<{
               {attachedFiles.map((file) => (
                 <Tooltip.Root key={file.id}>
                   <Tooltip.Trigger asChild>
-                    <div className='group relative size-[56px] shrink-0 cursor-pointer overflow-hidden rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-3)]'>
+                    <div className='group relative size-[56px] shrink-0 cursor-pointer overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--surface-3)]'>
                       {file.dataUrl ? (
                         <img
                           src={file.dataUrl}
@@ -182,7 +182,7 @@ export const ChatInput: React.FC<{
                       ) : (
                         <div className='flex h-full w-full flex-col items-center justify-center gap-0.5 text-[var(--text-muted)]'>
                           <Paperclip className='size-[18px]' />
-                          <span className='max-w-[48px] truncate px-[2px] text-[9px]'>
+                          <span className='max-w-[48px] truncate px-[2px] text-micro'>
                             {file.name.split('.').pop()}
                           </span>
                         </div>
@@ -215,7 +215,7 @@ export const ChatInput: React.FC<{
             onKeyDown={handleKeyDown}
             placeholder={isDragOver ? 'Drop files here...' : 'Enter a message...'}
             rows={1}
-            className='m-0 h-auto min-h-[24px] w-full resize-none overflow-y-auto overflow-x-hidden border-0 bg-transparent p-1 text-[15px] text-[var(--text-primary)] leading-[24px] caret-[var(--text-primary)] outline-hidden [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
+            className='m-0 h-auto min-h-[24px] w-full resize-none overflow-y-auto overflow-x-hidden border-0 bg-transparent p-1 text-[var(--text-primary)] text-base leading-[24px] caret-[var(--text-primary)] outline-hidden [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-[var(--text-muted)] focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden'
           />
 
           <div className='flex items-center justify-between'>

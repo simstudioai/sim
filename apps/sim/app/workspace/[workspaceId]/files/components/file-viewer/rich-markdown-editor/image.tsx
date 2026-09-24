@@ -288,7 +288,7 @@ export function ResizableImageView({ node, selected, editor, getPos }: ReactNode
           onPointerDown={startResize}
           className='absolute right-0 bottom-0 cursor-nwse-resize touch-none items-end justify-end'
         >
-          <span className='size-3 rounded-[3px] border border-[var(--bg)] bg-[var(--brand-secondary)]' />
+          <span className='size-3 rounded-sm border border-[var(--bg)] bg-[var(--brand-secondary)]' />
         </Button>
       )}
     </NodeViewWrapper>

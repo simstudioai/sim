@@ -89,7 +89,7 @@ function SearchField({
         aria-label='Search your sources'
         autoComplete='off'
         spellCheck={false}
-        className='h-full min-w-0 flex-1 bg-transparent font-body text-[14px] text-[var(--text-primary)] tracking-[-0.015em] outline-hidden placeholder:text-[var(--text-muted)] [&::-webkit-search-cancel-button]:hidden'
+        className='h-full min-w-0 flex-1 bg-transparent font-body text-[var(--text-primary)] text-sm leading-[inherit] tracking-[-0.015em] outline-hidden placeholder:text-[var(--text-muted)] [&::-webkit-search-cancel-button]:hidden'
       />
       <div className='flex shrink-0 items-center gap-1.5'>
         {voice.isSupported && (
@@ -190,7 +190,7 @@ function OrganizationSearchContent() {
       ) : (
         <div className='min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]'>
           <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
-            <h1 className='mb-7 max-w-chat text-balance text-center font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
+            <h1 className='mb-7 max-w-chat text-balance text-center font-season text-2xl text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-title'>
               Search {organization.name}
             </h1>
             <div className='w-full max-w-chat'>

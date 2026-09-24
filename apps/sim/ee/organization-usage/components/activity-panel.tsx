@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, ChipDropdown } from '@sim/emcn'
+import { Chip, ChipSelect } from '@sim/emcn'
 import { ArrowLeft } from '@sim/emcn/icons'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
@@ -90,9 +90,11 @@ export function ActivityPanel({ organizationId }: ActivityPanelProps) {
       <SettingsSection label='Breakdown'>
         <div className='flex flex-col gap-3'>
           <div className='flex flex-wrap items-center justify-between gap-2'>
-            <ChipDropdown
-              matchTriggerWidth={false}
-              className='max-w-full'
+            <ChipSelect
+              showSelectedCheck
+              modal={false}
+              dropdownWidth='content'
+              className='w-auto max-w-full'
               options={DIMENSIONS}
               value={activityDimension}
               onChange={(value) =>
@@ -101,9 +103,11 @@ export function ActivityPanel({ organizationId }: ActivityPanelProps) {
               aria-label='Group activity by'
             />
             {activityDimension !== 'member' && (
-              <ChipDropdown
-                matchTriggerWidth={false}
-                className='max-w-full'
+              <ChipSelect
+                showSelectedCheck
+                modal={false}
+                dropdownWidth='content'
+                className='w-auto max-w-full'
                 options={SORTS}
                 value={sort}
                 onChange={(value) =>

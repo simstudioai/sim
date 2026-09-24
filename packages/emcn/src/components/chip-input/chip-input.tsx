@@ -31,7 +31,13 @@
 import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../../lib/cn'
-import { chipFieldSurfaceClass, chipFieldTextClass, chipGeometryClass } from '../chip/chip-chrome'
+import {
+  chipContentGeometryClass,
+  chipFieldSurfaceClass,
+  chipFieldTextClass,
+  chipRadiusClass,
+  chipSizeClasses,
+} from '../chip/chip-chrome'
 
 type ChipInputIcon = React.ComponentType<{ className?: string }>
 
@@ -51,6 +57,8 @@ export interface ChipInputProps
     VariantProps<typeof chipInputVariants> {
   /** The default chip field or the compact code-search field. */
   appearance?: VariantProps<typeof chipInputVariants>['appearance']
+  /** Control height for the standard chip appearance: 30px by default, or 36px for auth fields. */
+  size?: keyof typeof chipSizeClasses
   /** Leading icon component (e.g. `Search` from `@sim/emcn/icons`). Rendered at 14px in `--text-icon`, with the chip's 1.5 gap. */
   icon?: ChipInputIcon
   /** Custom leading content, such as a color swatch. Takes precedence over `icon`. */
@@ -81,6 +89,7 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
       error,
       disabled,
       type = 'text',
+      size = 'md',
       ...props
     },
     ref
@@ -88,7 +97,9 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
     <div
       className={cn(
         'flex w-full',
-        appearance === 'chip' && chipGeometryClass,
+        appearance === 'chip' && chipContentGeometryClass,
+        appearance === 'chip' && chipRadiusClass,
+        appearance === 'chip' && chipSizeClasses[size],
         appearance === 'chip' && chipFieldSurfaceClass,
         chipInputVariants({ appearance }),
         error && 'border-[var(--text-error)]',

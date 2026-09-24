@@ -138,7 +138,7 @@ export function EvalInput({
   }
 
   const renderMetricHeader = (metric: EvalMetric, index: number) => (
-    <div className='flex items-center justify-between overflow-hidden rounded-t-[4px] border-[var(--border-1)] border-b bg-[var(--surface-4)] px-2.5 py-[5px]'>
+    <div className='flex items-center justify-between overflow-hidden rounded-t-sm border-[var(--border-1)] border-b bg-[var(--surface-4)] px-2.5 py-[5px]'>
       <span className='text-[var(--text-tertiary)] text-sm'>Metric {index + 1}</span>
       <div className='flex items-center gap-2'>
         <Tooltip.Root key={`add-${metric.id}`}>
@@ -159,10 +159,10 @@ export function EvalInput({
         <Tooltip.Root key={`remove-${metric.id}`}>
           <Tooltip.Trigger asChild>
             <Button
-              variant='ghost'
+              variant='ghost-destructive'
               onClick={() => removeMetric(metric.id)}
               disabled={isPreview || disabled || metrics.length === 1}
-              className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
+              className='h-auto p-0'
             >
               <Trash className='size-[14px]' />
               <span className='sr-only'>Delete Metric</span>

@@ -1,20 +1,8 @@
 import { forwardRef, type HTMLAttributes } from 'react'
-import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, Loader, Square, TriangleAlert, X } from '../../icons'
 import { cn } from '../../lib/cn'
 
-const progressItemVariants = cva('flex items-start gap-2.5 px-3 py-3 text-[12px]', {
-  variants: {
-    status: {
-      pending: '',
-      success: '',
-      error: '',
-    },
-  },
-  defaultVariants: { status: 'pending' },
-})
-
-type ProgressStatus = NonNullable<VariantProps<typeof progressItemVariants>['status']>
+type ProgressStatus = 'pending' | 'success' | 'error'
 
 const ICON_CLASS = 'mt-px size-[14px] shrink-0'
 
@@ -26,9 +14,7 @@ function StatusIcon({ status }: { status: ProgressStatus }) {
   return <Loader animate className={cn(ICON_CLASS, 'text-[var(--text-icon)]')} />
 }
 
-export interface ProgressItemProps
-  extends Omit<HTMLAttributes<HTMLDivElement>, 'title'>,
-    VariantProps<typeof progressItemVariants> {
+export interface ProgressItemProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'> {
   status: ProgressStatus
   /** Primary line (truncated). */
   title: React.ReactNode
@@ -64,7 +50,11 @@ const ProgressItem = forwardRef<HTMLDivElement, ProgressItemProps>(function Prog
   const trailingAction = onCancel ?? onDismiss
   const trailingLabel = onCancel ? 'Cancel' : (dismissLabel ?? 'Dismiss')
   return (
-    <div ref={ref} className={cn(progressItemVariants({ status }), className)} {...props}>
+    <div
+      ref={ref}
+      className={cn('flex items-start gap-2.5 px-3 py-3 text-[12px]', className)}
+      {...props}
+    >
       <StatusIcon status={status} />
       <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
         <div className='flex items-center gap-2'>
@@ -100,4 +90,4 @@ const ProgressItem = forwardRef<HTMLDivElement, ProgressItemProps>(function Prog
 })
 ProgressItem.displayName = 'ProgressItem'
 
-export { ProgressItem, progressItemVariants }
+export { ProgressItem }

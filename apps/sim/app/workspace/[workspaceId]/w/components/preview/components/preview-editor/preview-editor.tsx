@@ -412,7 +412,7 @@ function ConnectionsSection({
               }
             >
               <div className='relative flex size-[14px] shrink-0 items-center justify-center overflow-hidden rounded-sm bg-violet-500'>
-                <span className='text-[9px] text-white'>V</span>
+                <span className='text-micro text-white'>V</span>
               </div>
               <OverflowText
                 label='Variables'
@@ -461,7 +461,7 @@ function ConnectionsSection({
               }
             >
               <div className='relative flex size-[14px] shrink-0 items-center justify-center overflow-hidden rounded-sm bg-cool-gray-500'>
-                <span className='text-[9px] text-white'>E</span>
+                <span className='text-micro text-white'>E</span>
               </div>
               <OverflowText
                 label='Secrets'
@@ -1041,7 +1041,7 @@ function PreviewEditorContent({
     return (
       <div className='relative flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
         {/* Header - styled like subflow header */}
-        <div className='mx-[-1px] flex shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
+        <div className='mx-[-1px] flex shrink-0 items-center gap-2 rounded-b-sm border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <BlockTile blockType={block.type} size='lg' />
           <OverflowText label={subflowName} className='flex-1 text-[var(--text-primary)] text-sm' />
           {onClose && (
@@ -1073,7 +1073,7 @@ function PreviewEditorContent({
   if (!blockConfig) {
     return (
       <div className='flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
-        <div className='mx-[-1px] flex items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
+        <div className='mx-[-1px] flex items-center gap-2 rounded-b-sm border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <div className='flex size-[18px] items-center justify-center rounded-sm bg-[var(--surface-3)]' />
           <span className='text-[var(--text-primary)] text-sm'>
             {block.name || 'Unknown Block'}
@@ -1131,7 +1131,7 @@ function PreviewEditorContent({
   return (
     <div className='relative flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
       {/* Header - styled like editor */}
-      <div className='mx-[-1px] flex shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
+      <div className='mx-[-1px] flex shrink-0 items-center gap-2 rounded-b-sm border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
         {block.type !== 'note' && <BlockTile blockType={block.type} size='lg' />}
         <OverflowText
           label={block.name || blockConfig.name}

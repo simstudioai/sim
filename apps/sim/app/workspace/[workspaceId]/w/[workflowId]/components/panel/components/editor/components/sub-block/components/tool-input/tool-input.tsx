@@ -1636,7 +1636,7 @@ export const ToolInput = memo(function ToolInput({
               <div
                 data-preview-full-opacity={isPreview || undefined}
                 className={cn(
-                  'flex items-center justify-between gap-2 rounded-t-[4px] bg-[var(--surface-4)] px-2 py-[6.5px]',
+                  'flex items-center justify-between gap-2 rounded-t-sm bg-[var(--surface-4)] px-2 py-[6.5px]',
                   (isCustomTool || hasToolBody) && 'cursor-pointer',
                   showToolControl && isToolDisabled && 'opacity-50 grayscale'
                 )}
@@ -1814,7 +1814,7 @@ export const ToolInput = memo(function ToolInput({
               </div>
 
               {isExpandedForDisplay && (
-                <div className='flex flex-col gap-2.5 overflow-visible rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] p-2'>
+                <div className='flex flex-col gap-2.5 overflow-visible rounded-b-sm border-[var(--border-1)] border-t bg-[var(--surface-2)] p-2'>
                   {showToolControl && (
                     <>
                       <ToolUsageControl

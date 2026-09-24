@@ -39,15 +39,16 @@
 'use client'
 
 import * as React from 'react'
+import { cva } from 'class-variance-authority'
 import { Eye, EyeOff, Loader, X } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Button } from '../button/button'
 import { Chip, type ChipProps } from '../chip/chip'
 import { chipContentIconClass, chipContentLabelClass } from '../chip/chip-chrome'
 import { ChipCopyInput } from '../chip-copy-input/chip-copy-input'
-import { ChipDropdown, type ChipDropdownOption } from '../chip-dropdown/chip-dropdown'
 import { ChipEmailsInput, type ChipEmailsInputProps } from '../chip-emails-input/chip-emails-input'
 import { ChipInput } from '../chip-input/chip-input'
+import { ChipSelect, type ChipSelectOption } from '../chip-select/chip-select'
 import { ChipSwitch } from '../chip-switch/chip-switch'
 import { ChipTextarea } from '../chip-textarea/chip-textarea'
 import { Label } from '../label/label'
@@ -515,17 +516,19 @@ ChipModalPromptBody.displayName = 'ChipModalPromptBody'
 
 /**
  * Option entry for the `dropdown` branch of {@link ChipModalField}. Aliases the
- * canonical {@link ChipDropdownOption} so the modal dropdown stays in lockstep
- * with `ChipDropdown` (gains the optional leading `icon`).
+ * canonical {@link ChipSelectOption} so the modal dropdown stays in lockstep
+ * with `ChipSelect` (gains the optional leading `icon`).
  */
-export type ChipModalDropdownOption = ChipDropdownOption
+export type ChipModalDropdownOption = ChipSelectOption
 
 /**
  * Props shared by every {@link ChipModalField} branch.
  */
 interface ChipModalFieldBaseProps {
-  /** Field title rendered above the control. Replaces the legacy `label` slot. */
+  /** Field title rendered above or beside the control. Replaces the legacy `label` slot. */
   title: React.ReactNode
+  /** Places the title beside the control, wrapping when space is limited. Defaults to vertical. */
+  orientation?: 'vertical' | 'horizontal'
   /** Optional field actions beside the title, outside its label. */
   titleActions?: React.ReactNode
   /**
@@ -734,6 +737,8 @@ export interface ChipModalFieldAria {
 
 interface ChipModalCustomFieldProps extends ChipModalFieldBaseProps {
   type: 'custom'
+  /** Associates the field label with the custom control's existing ID. */
+  htmlFor?: string
   /**
    * Whether Enter in a nested plain single-line input should trigger the
    * footer's default primary action. Set `false` when the custom control owns
@@ -763,6 +768,21 @@ export type ChipModalFieldProps =
   | ChipModalEmailsFieldProps
   | ChipModalCustomFieldProps
 
+/** Shared field orientation and gutter geometry. */
+const chipModalFieldVariants = cva('gap-y-[9px]', {
+  variants: {
+    orientation: {
+      vertical: 'flex flex-col',
+      horizontal: 'flex flex-wrap items-center justify-between gap-x-3',
+    },
+    flush: {
+      true: 'px-0',
+      false: 'px-2',
+    },
+  },
+  defaultVariants: { orientation: 'vertical', flush: false },
+})
+
 /**
  * Declarative labeled field row. The `type` discriminator selects which
  * control renders, and the field owns all chrome internally — consumers
@@ -779,7 +799,17 @@ function ChipModalField(props: ChipModalFieldProps) {
   const id = React.useId()
   const errorId = `${id}-error`
   const hintId = `${id}-hint`
-  const { title, titleActions, required, error, hint, flush = false, className } = props
+  const {
+    title,
+    titleActions,
+    required,
+    error,
+    hint,
+    flush = false,
+    orientation = 'vertical',
+    className,
+  } = props
+  const horizontal = orientation === 'horizontal'
   const associatesLabel =
     props.type === 'input' ||
     props.type === 'email' ||
@@ -788,7 +818,10 @@ function ChipModalField(props: ChipModalFieldProps) {
     props.type === 'file' ||
     props.type === 'emails'
   const label = (
-    <Label htmlFor={associatesLabel ? id : undefined} className='pl-0.5 text-[var(--text-muted)]'>
+    <Label
+      htmlFor={props.type === 'custom' ? props.htmlFor : associatesLabel ? id : undefined}
+      className='pl-0.5 text-[var(--text-muted)]'
+    >
       {title}
       {required && (
         <span aria-hidden className='ml-0.5 text-[var(--text-error)]'>
@@ -798,28 +831,47 @@ function ChipModalField(props: ChipModalFieldProps) {
     </Label>
   )
 
+  const titleContent = titleActions ? (
+    <div className='flex flex-wrap items-center justify-between gap-2'>
+      {label}
+      {titleActions}
+    </div>
+  ) : (
+    label
+  )
+  const control = renderChipModalControl(props, id, errorId, hintId)
+
   return (
     <div
-      className={cn('flex flex-col gap-[9px]', flush ? 'px-0' : 'px-2', className)}
+      className={cn(chipModalFieldVariants({ orientation, flush }), className)}
       data-chip-modal-enter-owner={
         props.type === 'custom' && props.submitOnEnter === false ? '' : undefined
       }
     >
-      {titleActions ? (
-        <div className='flex flex-wrap items-center justify-between gap-2'>
-          {label}
-          {titleActions}
-        </div>
+      {horizontal ? (
+        <>
+          <div className='min-w-0 flex-[1_1_10rem] [overflow-wrap:anywhere]'>{titleContent}</div>
+          <div className='min-w-0 max-w-full'>{control}</div>
+        </>
       ) : (
-        label
+        <>
+          {titleContent}
+          {control}
+        </>
       )}
-      {renderChipModalControl(props, id, errorId, hintId)}
       {error && props.type !== 'emails' ? (
-        <p id={errorId} role='alert' className={CHIP_MODAL_FIELD_ERROR_CLASS}>
+        <p
+          id={errorId}
+          role='alert'
+          className={cn(CHIP_MODAL_FIELD_ERROR_CLASS, horizontal && 'basis-full')}
+        >
           {error}
         </p>
       ) : hint ? (
-        <p id={hintId} className='text-[var(--text-muted)] text-caption'>
+        <p
+          id={hintId}
+          className={cn('text-[var(--text-muted)] text-caption', horizontal && 'basis-full')}
+        >
           {hint}
         </p>
       ) : null}
@@ -898,7 +950,7 @@ function renderChipModalControl(
           disabled={props.disabled}
           viewOnly={props.viewOnly}
           resizable={props.resizable}
-          className={props.mono ? 'font-mono' : undefined}
+          monospace={props.mono}
           style={props.minHeight ? { minHeight: props.minHeight } : undefined}
           {...aria}
         />
@@ -915,7 +967,10 @@ function renderChipModalControl(
       )
     case 'dropdown':
       return (
-        <ChipDropdown
+        <ChipSelect
+          showSelectedCheck
+          dropdownWidth='trigger'
+          modal={false}
           value={props.value}
           onChange={props.onChange}
           options={props.options}
@@ -1229,7 +1284,7 @@ export type ChipModalFooterAction = ChipModalFooterActionBase &
 /**
  * Escape hatch for the left-docked footer cluster: renders the given node in
  * place of a declarative action Chip. Reserve it for chip-chrome controls
- * (`ChipDatePicker`, `ChipTimePicker`, `ChipDropdown`, ...) so the footer
+ * (`ChipDatePicker`, `ChipTimePicker`, `ChipSelect`, ...) so the footer
  * stays visually canonical — the cluster's `gap-2` alone sets the rhythm, as
  * it does for the footer's own Chips, so the control must carry no outer
  * margin. The primary action stays declarative by design; only
@@ -1807,6 +1862,7 @@ export {
   ChipModalBody,
   ChipModalError,
   ChipModalField,
+  chipModalFieldVariants,
   ChipModalFooter,
   ChipModalHeader,
   ChipModalPromptBody,

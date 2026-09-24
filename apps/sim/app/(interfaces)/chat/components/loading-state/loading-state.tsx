@@ -18,9 +18,9 @@ export function ChatLoadingState() {
             <div className='mt-8 w-full space-y-8'>
               <div className='space-y-2'>
                 <Skeleton className='h-4 w-16' />
-                <Skeleton className='h-10 w-full rounded-[10px]' />
+                <Skeleton className='h-10 w-full rounded-lg' />
               </div>
-              <Skeleton className='h-10 w-full rounded-[10px]' />
+              <Skeleton className='h-10 w-full rounded-lg' />
             </div>
           </div>
         </div>

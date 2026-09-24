@@ -1,16 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import {
   Badge,
   Chip,
   ChipCombobox,
   ChipInput,
+  ChipModalField,
   type ComboboxOption,
-  cn,
-  Label,
   Skeleton,
-  Textarea,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
@@ -133,6 +131,7 @@ export function McpDeploy({
   onActiveServerChange,
 }: McpDeployProps) {
   const params = useParams()
+  const toolNameId = useId()
   const workspaceId = params.workspaceId as string
   const [showCreateModal, setShowCreateModal] = useState(false)
 
@@ -480,7 +479,7 @@ export function McpDeploy({
 
   if (isLoadingServers || (isLoadingDeployedState && !deployedState)) {
     return (
-      <div className='-mx-1 space-y-4 px-1'>
+      <div className='space-y-4 px-2'>
         <div className='space-y-3'>
           <div>
             <Skeleton className='mb-[6.5px] h-[16px] w-[70px]' />
@@ -522,7 +521,7 @@ export function McpDeploy({
   return (
     <form
       id='mcp-deploy-form'
-      className='-mx-1 space-y-3 px-1'
+      className='space-y-3'
       onSubmit={(e) => {
         e.preventDefault()
         handleSave()
@@ -540,49 +539,41 @@ export function McpDeploy({
         />
       ))}
 
-      <div>
-        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-          Tool name
-        </Label>
-        <ChipInput
-          value={toolName}
-          onChange={(e) => setToolName(e.target.value)}
-          placeholder='e.g., book_flight'
-          aria-invalid={!!toolNameError}
-          error={Boolean(toolNameError)}
-        />
-        <p
-          className={cn(
-            'mt-[6.5px] text-xs',
-            toolNameError ? 'text-[var(--text-error)]' : 'text-[var(--text-secondary)]'
-          )}
-        >
-          {toolNameError ?? 'Use lowercase letters, numbers, and underscores only'}
-        </p>
-      </div>
+      <ChipModalField
+        type='custom'
+        title='Tool name'
+        htmlFor={toolNameId}
+        error={toolNameError}
+        hint='Use lowercase letters, numbers, and underscores only'
+      >
+        {(aria) => (
+          <ChipInput
+            id={toolNameId}
+            value={toolName}
+            onChange={(e) => setToolName(e.target.value)}
+            placeholder='e.g., book_flight'
+            error={Boolean(toolNameError)}
+            {...aria}
+          />
+        )}
+      </ChipModalField>
 
-      <div>
-        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-          Description
-        </Label>
-        <Textarea
-          placeholder={
-            workflowDescriptionFallback
-              ? `Defaults to the workflow description: ${workflowDescriptionFallback}`
-              : 'Describe what this tool does...'
-          }
-          className='min-h-[100px] resize-none'
-          value={toolDescription}
-          onChange={(e) => setToolDescription(e.target.value)}
-        />
-      </div>
+      <ChipModalField
+        type='textarea'
+        title='Description'
+        placeholder={
+          workflowDescriptionFallback
+            ? `Defaults to the workflow description: ${workflowDescriptionFallback}`
+            : 'Describe what this tool does...'
+        }
+        minHeight={100}
+        value={toolDescription}
+        onChange={setToolDescription}
+      />
 
       {inputFormat.length > 0 && (
-        <div>
-          <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-            Parameters ({inputFormat.length})
-          </Label>
-          <p className='mb-[6.5px] pl-0.5 text-[var(--text-secondary)] text-xs'>
+        <ChipModalField type='custom' title={`Parameters (${inputFormat.length})`}>
+          <p className='pl-0.5 text-[var(--text-secondary)] text-xs'>
             Descriptions default to your Start block inputs; edit to override for this tool.
           </p>
           <div className='flex flex-col gap-2'>
@@ -602,60 +593,61 @@ export function McpDeploy({
                   </div>
                 </div>
                 <div className='rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
-                  <div className='flex flex-col gap-1.5'>
-                    <Label className='text-small'>Description</Label>
-                    <ChipInput
-                      value={
-                        parameterDescriptions[field.name] ??
-                        startBlockDescriptions[field.name] ??
-                        ''
-                      }
-                      onChange={(e) =>
-                        setParameterDescriptions((prev) => ({
-                          ...prev,
-                          [field.name]: e.target.value,
-                        }))
-                      }
-                      placeholder={startBlockDescriptions[field.name] || `Describe ${field.name}`}
-                    />
-                  </div>
+                  <ChipModalField
+                    type='input'
+                    title='Description'
+                    flush
+                    value={
+                      parameterDescriptions[field.name] ?? startBlockDescriptions[field.name] ?? ''
+                    }
+                    onChange={(value) =>
+                      setParameterDescriptions((prev) => ({
+                        ...prev,
+                        [field.name]: value,
+                      }))
+                    }
+                    placeholder={startBlockDescriptions[field.name] || `Describe ${field.name}`}
+                  />
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </ChipModalField>
       )}
 
-      <div>
-        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-          Servers
-        </Label>
-        <ChipCombobox
-          options={serverOptions}
-          multiSelect
-          multiSelectValues={selectedServerIdsForForm}
-          onMultiSelectChange={handleServerSelectionChange}
-          placeholder='Select servers...'
-          searchable
-          searchPlaceholder='Search servers...'
-          disabled={!toolName.trim() || !!toolNameError || isPending}
-          overlayContent={
-            <span className='truncate text-[var(--text-primary)]'>{selectedServersLabel}</span>
-          }
-        />
-        {!toolName.trim() ? (
-          <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
-            Enter a tool name to select servers
-          </p>
-        ) : toolNameError ? (
-          <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
-            Fix the tool name to select servers
-          </p>
-        ) : null}
-      </div>
+      <ChipModalField
+        type='custom'
+        title='Servers'
+        submitOnEnter={false}
+        hint={
+          !toolName.trim()
+            ? 'Enter a tool name to select servers'
+            : toolNameError
+              ? 'Fix the tool name to select servers'
+              : undefined
+        }
+      >
+        {(aria) => (
+          <ChipCombobox
+            aria-label='Servers'
+            {...aria}
+            options={serverOptions}
+            multiSelect
+            multiSelectValues={selectedServerIdsForForm}
+            onMultiSelectChange={handleServerSelectionChange}
+            placeholder='Select servers...'
+            searchable
+            searchPlaceholder='Search servers...'
+            disabled={!toolName.trim() || !!toolNameError || isPending}
+            overlayContent={
+              <span className='truncate text-[var(--text-primary)]'>{selectedServersLabel}</span>
+            }
+          />
+        )}
+      </ChipModalField>
 
       {saveErrors.length > 0 && (
-        <div className='mt-[6.5px] flex flex-col gap-0.5'>
+        <div className='mt-[6.5px] flex flex-col gap-0.5 px-2'>
           {saveErrors.map((error) => (
             <p key={error} className='text-[var(--text-error)] text-caption'>
               {error}

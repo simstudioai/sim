@@ -1,11 +1,11 @@
 import {
   Badge,
   Button,
+  CollapsibleCard,
   Combobox,
   type ComboboxOption,
-  cn,
-  handleKeyboardActivation,
   Label,
+  OverflowText,
   Trash,
 } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
@@ -61,60 +61,51 @@ export function SortRuleRow({
       label,
     })
 
-  const renderHeader = () => (
-    <div
-      role='group'
-      aria-label={`Sort ${index + 1}`}
-      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
-      onClick={() => onToggleCollapse(rule.id)}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return
-        handleKeyboardActivation(event, () => onToggleCollapse(rule.id))
-      }}
-    >
-      <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate text-[var(--text-tertiary)] text-sm'>
-          {rule.collapsed && rule.column
-            ? formatDisplayText(getColumnLabel(rule.column), {
-                workflowSearchHighlight: getLabelHighlight('column', getColumnLabel(rule.column)),
-              })
-            : `Sort ${index + 1}`}
-        </span>
-        {rule.collapsed && rule.column && (
-          <Badge variant='type' size='sm'>
-            {formatDisplayText(getDirectionLabel(rule.direction), {
-              workflowSearchHighlight: getLabelHighlight(
-                'direction',
-                getDirectionLabel(rule.direction)
-              ),
-            })}
-          </Badge>
-        )}
-      </div>
-      <div
-        role='presentation'
-        className='flex items-center gap-2 pl-2'
-        onClick={(e) => e.stopPropagation()}
+  const renderTitle = () => (
+    <span className='flex min-w-0 items-center gap-2'>
+      <OverflowText
+        label={rule.collapsed && rule.column ? getColumnLabel(rule.column) : `Sort ${index + 1}`}
+        focusTarget='nearest-interactive'
       >
-        <Button variant='ghost' onClick={onAdd} disabled={isReadOnly} className='h-auto p-0'>
-          <Plus className='size-[14px]' />
-          <span className='sr-only'>Add Sort</span>
-        </Button>
-        <Button
-          variant='ghost'
-          onClick={() => onRemove(rule.id)}
-          disabled={isReadOnly}
-          className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
-        >
-          <Trash className='size-[14px]' />
-          <span className='sr-only'>Delete Sort</span>
-        </Button>
-      </div>
-    </div>
+        {rule.collapsed && rule.column
+          ? formatDisplayText(getColumnLabel(rule.column), {
+              workflowSearchHighlight: getLabelHighlight('column', getColumnLabel(rule.column)),
+            })
+          : `Sort ${index + 1}`}
+      </OverflowText>
+      {rule.collapsed && rule.column && (
+        <Badge variant='type' size='sm'>
+          {formatDisplayText(getDirectionLabel(rule.direction), {
+            workflowSearchHighlight: getLabelHighlight(
+              'direction',
+              getDirectionLabel(rule.direction)
+            ),
+          })}
+        </Badge>
+      )}
+    </span>
+  )
+
+  const renderActions = () => (
+    <>
+      <Button variant='ghost' onClick={onAdd} disabled={isReadOnly} className='h-auto p-0'>
+        <Plus className='size-[14px]' />
+        <span className='sr-only'>Add Sort</span>
+      </Button>
+      <Button
+        variant='ghost-destructive'
+        onClick={() => onRemove(rule.id)}
+        disabled={isReadOnly}
+        className='h-auto p-0'
+      >
+        <Trash className='size-[14px]' />
+        <span className='sr-only'>Delete Sort</span>
+      </Button>
+    </>
   )
 
   const renderContent = () => (
-    <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
+    <>
       <div className='flex flex-col gap-1.5'>
         <Label className='text-small'>Column</Label>
         <Combobox
@@ -157,19 +148,20 @@ export function SortRuleRow({
           }
         />
       </div>
-    </div>
+    </>
   )
 
   return (
-    <div
+    <CollapsibleCard
       data-sort-id={rule.id}
-      className={cn(
-        'rounded-sm border border-[var(--border-1)]',
-        rule.collapsed ? 'overflow-hidden' : 'overflow-visible'
-      )}
+      role='group'
+      aria-label={`Sort ${index + 1}`}
+      title={renderTitle()}
+      actions={renderActions()}
+      collapsed={Boolean(rule.collapsed)}
+      onToggleCollapse={() => onToggleCollapse(rule.id)}
     >
-      {renderHeader()}
       {!rule.collapsed && renderContent()}
-    </div>
+    </CollapsibleCard>
   )
 }

@@ -1,7 +1,16 @@
 'use client'
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
-import { Checkbox, cn, Input, Label, SecretInput, Tooltip, Wizard } from '@sim/emcn'
+import {
+  Checkbox,
+  ChipInput,
+  ChipModalField,
+  cn,
+  Label,
+  SecretInput,
+  Tooltip,
+  Wizard,
+} from '@sim/emcn'
 import { Check, ChevronRight, CircleInfo, Clipboard } from '@sim/emcn/icons'
 import { useShallow } from 'zustand/react/shallow'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -213,23 +222,20 @@ function StepConfigure({
 }: StepConfigureProps) {
   return (
     <div className='space-y-4'>
-      <div className='space-y-1.5'>
-        <Label
-          htmlFor={`${blockId}-wizard-bot-name`}
-          className='text-[var(--text-secondary)] text-xs'
-        >
-          Bot name
-        </Label>
-        <Input
-          id={`${blockId}-wizard-bot-name`}
-          value={appName}
-          onChange={(e) => onAppNameChange(e.target.value)}
-          disabled={disabled}
-          placeholder={DEFAULT_APP_NAME}
-          className='h-9 text-sm'
-        />
-      </div>
-      <div className='grid grid-cols-2 gap-x-4 gap-y-4'>
+      <ChipModalField type='custom' title='Bot name' htmlFor={`${blockId}-wizard-bot-name`}>
+        {(aria) => (
+          <ChipInput
+            id={`${blockId}-wizard-bot-name`}
+            value={appName}
+            onChange={(e) => onAppNameChange(e.target.value)}
+            disabled={disabled}
+            placeholder={DEFAULT_APP_NAME}
+            size='lg'
+            {...aria}
+          />
+        )}
+      </ChipModalField>
+      <div className='grid grid-cols-2 gap-x-4 gap-y-4 px-2'>
         {GROUP_ORDER.map((group) => {
           const items = SLACK_CAPABILITIES.filter((c) => c.group === group)
           if (items.length === 0) return null
@@ -416,7 +422,7 @@ function SecretField({ id, label, value, onChange, disabled, placeholder }: Secr
         onChange={onChange}
         disabled={disabled}
         placeholder={placeholder}
-        className='h-9 text-sm'
+        size='lg'
       />
     </div>
   )

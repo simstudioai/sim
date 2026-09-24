@@ -7,18 +7,19 @@ import {
   ChipConfirmModal,
   type ChipConfirmTextSegment,
   ChipDatePicker,
-  ChipDropdown,
-  type ChipDropdownOption,
   ChipInput,
   ChipModal,
   ChipModalBody,
   ChipModalHeader,
+  ChipSelect,
+  type ChipSelectOption,
   cellIconNodeClass,
   chipContentGap,
   chipContentLabelClass,
   cn,
   FloatingTooltip,
   isTextClipped,
+  ResourceEmptyState,
   Tooltip,
   useFloatingTooltip,
 } from '@sim/emcn'
@@ -72,7 +73,6 @@ import {
   FloatingOverflowText,
   isResourceListEmpty,
   Resource,
-  ResourceNotFound,
   SearchHighlight,
 } from '@/app/workspace/[workspaceId]/components'
 import {
@@ -162,7 +162,7 @@ const PROCESSING_POLL_INTERVAL_MS = 3000
 /** Slower cadence while only a connector sync is running: rows arrive in batches. */
 const CONNECTOR_SYNC_DOCUMENT_POLL_INTERVAL_MS = 5000
 
-const STATUS_FILTER_OPTIONS: ChipDropdownOption[] = [
+const STATUS_FILTER_OPTIONS: ChipSelectOption[] = [
   { value: 'all', label: 'All' },
   { value: 'enabled', label: 'Enabled' },
   { value: 'disabled', label: 'Disabled' },
@@ -1096,7 +1096,10 @@ export function KnowledgeBase({
               </Chip>
             )}
           </div>
-          <ChipDropdown
+          <ChipSelect
+            showSelectedCheck
+            dropdownWidth='trigger'
+            modal={false}
             options={STATUS_FILTER_OPTIONS}
             value={enabledFilter}
             onChange={(value) => {
@@ -1307,7 +1310,7 @@ export function KnowledgeBase({
 
   if (error && !knowledgeBase) {
     return (
-      <ResourceNotFound
+      <ResourceEmptyState
         icon={DatabaseX}
         title='Knowledge base not found'
         description='This knowledge base may have been deleted or moved'
@@ -1731,7 +1734,7 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
 function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectionProps) {
   const activeCount = entries.filter((f) => f.tagSlot && f.value.trim()).length
 
-  const tagOptions: ChipDropdownOption[] = tagDefinitions.map((t) => ({
+  const tagOptions: ChipSelectOption[] = tagDefinitions.map((t) => ({
     value: t.displayName,
     label: t.displayName,
   }))
@@ -1801,7 +1804,7 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
       >
         {filtersToShow.map((entry, index) => {
           const operators = getOperatorsForFieldType(entry.fieldType)
-          const operatorOptions: ChipDropdownOption[] = operators.map((op) => ({
+          const operatorOptions: ChipSelectOption[] = operators.map((op) => ({
             value: op.value,
             label: op.label,
           }))
@@ -1818,24 +1821,29 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
               )}
               <div className='flex items-start gap-2'>
                 <div className='flex min-w-0 flex-1 flex-wrap items-center gap-2'>
-                  <ChipDropdown
+                  <ChipSelect
+                    showSelectedCheck
+                    modal={false}
                     options={tagOptions}
                     value={entry.tagName}
                     onChange={(value) => handleTagChange(entry.id, value)}
                     placeholder='Select tag'
                     align='start'
-                    matchTriggerWidth={false}
+                    dropdownWidth='content'
                     contentClassName='max-h-[240px] overflow-y-auto'
-                    className='max-w-[150px]'
+                    className='w-auto max-w-[150px]'
                   />
                   {entry.tagSlot && (
-                    <ChipDropdown
+                    <ChipSelect
+                      showSelectedCheck
+                      modal={false}
+                      className='w-auto max-w-none'
                       options={operatorOptions}
                       value={entry.operator}
                       onChange={(value) => updateEntry(entry.id, { operator: value, valueTo: '' })}
                       placeholder='Operator'
                       align='start'
-                      matchTriggerWidth={false}
+                      dropdownWidth='content'
                     />
                   )}
                 </div>

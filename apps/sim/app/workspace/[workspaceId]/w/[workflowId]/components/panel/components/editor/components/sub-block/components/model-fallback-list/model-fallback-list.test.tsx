@@ -63,6 +63,21 @@ vi.mock('@sim/emcn', () => ({
       ))}
     </div>
   ),
+  ChipSelect: ({
+    options,
+    value,
+    placeholder,
+  }: {
+    options: Array<{ value: string; label: string }>
+    value?: string
+    placeholder?: string
+  }) => (
+    <div data-combobox={placeholder} data-value={value}>
+      {options.map((option) => (
+        <span key={option.value}>{option.label}</span>
+      ))}
+    </div>
+  ),
   Label: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
   Tooltip: {
     Root: ({ children }: { children?: React.ReactNode }) => <>{children}</>,

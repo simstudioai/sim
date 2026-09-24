@@ -2,7 +2,6 @@
 
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Badge,
   Button,
   ComposerActionButton,
   cn,
@@ -131,7 +130,7 @@ function ChatFilePreview({ file, onRemove }: ChatFilePreviewProps) {
       ) : (
         <div className='min-w-0 flex-1'>
           <div className='truncate font-medium text-[var(--white)] text-micro'>{file.name}</div>
-          <div className='text-[9px] text-[var(--text-tertiary)]'>{formatFileSize(file.size)}</div>
+          <div className='text-[var(--text-tertiary)] text-micro'>{formatFileSize(file.size)}</div>
         </div>
       )}
 
@@ -1090,16 +1089,21 @@ export function Chat() {
               <div className='-translate-y-1/2 absolute top-1/2 right-[2px] flex items-center gap-2.5'>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <Badge
-                      onClick={() => document.getElementById('floating-chat-file-input')?.click()}
-                      className={cn(
-                        'cursor-pointer rounded-md border-0! bg-transparent! p-[0px]',
-                        (!activeWorkflowId || isExecuting || chatFiles.length >= MAX_CHAT_FILES) &&
-                          'cursor-not-allowed opacity-50'
-                      )}
-                    >
-                      <Paperclip className='h-3.5! w-3.5!' />
-                    </Badge>
+                    <span className='inline-flex'>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='icon'
+                        aria-label='Attach file'
+                        onClick={() => document.getElementById('floating-chat-file-input')?.click()}
+                        disabled={
+                          !activeWorkflowId || isExecuting || chatFiles.length >= MAX_CHAT_FILES
+                        }
+                        className='rounded-md focus-visible:ring-1 focus-visible:ring-[var(--text-muted)] disabled:opacity-50'
+                      >
+                        <Paperclip className='h-3.5! w-3.5!' />
+                      </Button>
+                    </span>
                   </Tooltip.Trigger>
                   <Tooltip.Content>Attach file</Tooltip.Content>
                 </Tooltip.Root>

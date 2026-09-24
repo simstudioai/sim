@@ -12,10 +12,9 @@ export const segmentedControlVariants = cva(
   ),
   {
     variants: {
-      gap: { none: 'gap-0', sm: 'gap-0.5' },
       size: { default: '', compact: 'h-[22px]' },
     },
-    defaultVariants: { gap: 'none', size: 'default' },
+    defaultVariants: { size: 'default' },
   }
 )
 

@@ -12,10 +12,8 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  handleKeyboardActivation,
   Label,
 } from '@sim/emcn'
-import { Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
 import {
@@ -27,6 +25,7 @@ import {
 } from '@/lib/knowledge/constants'
 import type { DocumentTag } from '@/lib/knowledge/tags/types'
 import type { DocumentData } from '@/lib/knowledge/types'
+import { KnowledgeTagRow } from '@/app/workspace/[workspaceId]/knowledge/components/knowledge-tag-row'
 import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
@@ -385,40 +384,19 @@ export function DocumentTagsModal({
           <div className='space-y-2'>
             {documentTags.map((tag, index) => (
               <div key={tag.displayName} className='space-y-2'>
-                <div
-                  role='button'
-                  tabIndex={0}
-                  className='flex cursor-pointer items-center gap-2 rounded-sm border p-2 hover-hover:bg-[var(--surface-2)]'
-                  onClick={() => startEditingTag(index)}
-                  onKeyDown={(event) => {
-                    if (event.target !== event.currentTarget) return
-                    handleKeyboardActivation(event, () => startEditingTag(index))
+                <KnowledgeTagRow
+                  onActivate={() => startEditingTag(index)}
+                  activateLabel={`Edit ${tag.displayName}`}
+                  name={tag.displayName}
+                  typeLabel={FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
+                  detail={formatValueForDisplay(tag.value, tag.fieldType)}
+                  truncateDetail
+                  removeLabel='Remove tag'
+                  onRemove={(e) => {
+                    e.stopPropagation()
+                    handleRemoveTag(index)
                   }}
-                >
-                  <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
-                    {tag.displayName}
-                  </span>
-                  <span className='rounded-[3px] bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
-                    {FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
-                  </span>
-                  <div className='mb-[-1.5px] h-[14px] w-[1.25px] shrink-0 rounded-full bg-[var(--border-1)]' />
-                  <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-caption'>
-                    {formatValueForDisplay(tag.value, tag.fieldType)}
-                  </span>
-                  <div className='flex shrink-0 items-center gap-1'>
-                    <Button
-                      aria-label='Remove tag'
-                      variant='ghost'
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleRemoveTag(index)
-                      }}
-                      className='size-4 p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
-                    >
-                      <Trash className='size-3' />
-                    </Button>
-                  </div>
-                </div>
+                />
 
                 {editingTagIndex === index && (
                   <div className='space-y-2 rounded-md border p-3'>
@@ -701,7 +679,7 @@ export function DocumentTagsModal({
                   !kbTagDefinitions.find(
                     (def) => def.displayName.toLowerCase() === editTagForm.displayName.toLowerCase()
                   ) && (
-                    <Badge variant='amber' size='lg' dot className='max-w-full'>
+                    <Badge variant='amber' size='md' dot className='max-w-full'>
                       Maximum tag definitions reached. You can still use existing tag definitions,
                       but cannot create new ones.
                     </Badge>

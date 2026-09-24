@@ -4,11 +4,11 @@
 import { act, type ReactNode, useState } from 'react'
 import {
   ChipCombobox,
-  ChipDropdown,
   ChipModal,
   ChipModalBody,
   ChipModalField,
   ChipModalHeader,
+  ChipSelect,
   Popover,
   PopoverContent,
   PopoverFolder,
@@ -50,7 +50,14 @@ function ModalFields({ onChange, dismissDisabled }: ModalFieldsProps) {
           <ChipCombobox options={OPTIONS} data-testid='folder' />
         </ChipModalField>
         <ChipModalField type='custom' title='Access'>
-          <ChipDropdown options={OPTIONS} placeholder='Access' />
+          <ChipSelect
+            showSelectedCheck
+            dropdownWidth='trigger'
+            modal={false}
+            className='w-auto max-w-none'
+            options={OPTIONS}
+            placeholder='Access'
+          />
         </ChipModalField>
         <p data-testid='description'>Choose the source to synchronize.</p>
       </ChipModalBody>

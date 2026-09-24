@@ -9,7 +9,7 @@ interface ResourceMentionProps {
 
 export function ResourceMention({ icon, title, onSelect }: ResourceMentionProps) {
   const classes =
-    'inline-flex items-baseline gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px] align-baseline font-[inherit] text-[inherit] leading-[inherit]'
+    'inline-flex items-baseline gap-1 rounded-sm bg-[var(--surface-5)] px-[5px] align-baseline font-[inherit] text-[inherit] leading-[inherit]'
   const content = (
     <>
       {icon}

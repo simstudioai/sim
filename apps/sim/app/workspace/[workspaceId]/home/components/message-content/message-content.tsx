@@ -1095,7 +1095,9 @@ function MessageContentInner({
         <>
           <div className='mt-[10px] flex items-center gap-[8px]'>
             <CircleStop className='size-[16px] shrink-0 text-[var(--text-icon)]' />
-            <span className='text-[14px] text-[var(--text-body)]'>Stopped by user</span>
+            <span className='text-[var(--text-body)] text-sm leading-[inherit]'>
+              Stopped by user
+            </span>
           </div>
           {actions && <div className='mt-[10px]'>{actionsRow}</div>}
         </>

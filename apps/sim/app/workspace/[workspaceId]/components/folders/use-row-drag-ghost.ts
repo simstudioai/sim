@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
  * the label inherit the app font and match the row it was lifted from.
  */
 const DRAG_GHOST_STYLE =
-  'position:fixed;top:-500px;left:0;display:inline-flex;align-items:center;padding:4px 10px;background:var(--surface-active);border:1px solid var(--border);border-radius:8px;font-size:13px;color:var(--text-body);white-space:nowrap;pointer-events:none;box-shadow:var(--shadow-medium);z-index:var(--z-toast)'
+  'position:fixed;top:-500px;left:0;display:inline-flex;align-items:center;padding:4px 10px;background:var(--surface-active);border:1px solid var(--border);border-radius:var(--radius-lg);font-size:13px;color:var(--text-body);white-space:nowrap;pointer-events:none;box-shadow:var(--shadow-medium);z-index:var(--z-toast)'
 
 const DRAG_GHOST_LABEL_STYLE = 'max-width:200px;overflow:hidden;text-overflow:ellipsis'
 

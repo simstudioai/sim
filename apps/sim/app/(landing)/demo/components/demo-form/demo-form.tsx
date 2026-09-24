@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useEffect, useId, useState } from 'react'
-import { Chip, ChipDropdown, ChipInput, ChipTextarea, Label } from '@sim/emcn'
+import { Chip, ChipInput, ChipSelect, ChipTextarea, Label } from '@sim/emcn'
 import {
   DEMO_REQUEST_COMPANY_SIZE_OPTIONS,
   type DemoRequestBody,
@@ -302,7 +302,10 @@ export function DemoForm({ onComplete }: DemoFormProps) {
         </DemoField>
 
         <DemoField label='Company size' required>
-          <ChipDropdown
+          <ChipSelect
+            showSelectedCheck
+            dropdownWidth='trigger'
+            modal={false}
             fullWidth
             className={FIELD_HEIGHT}
             value={form.companySize || undefined}
@@ -313,7 +316,10 @@ export function DemoForm({ onComplete }: DemoFormProps) {
         </DemoField>
 
         <DemoField label='What can we help you with?'>
-          <ChipDropdown
+          <ChipSelect
+            showSelectedCheck
+            dropdownWidth='trigger'
+            modal={false}
             fullWidth
             className={FIELD_HEIGHT}
             value={form.topic}

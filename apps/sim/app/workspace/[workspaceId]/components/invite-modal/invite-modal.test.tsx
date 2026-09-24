@@ -21,7 +21,7 @@ const { hostContext, mockUseOrganizationBilling, mockUseAdminWorkspaces, mockMut
 )
 
 vi.mock('@sim/emcn', () => ({
-  ChipDropdown: () => <div />,
+  ChipSelect: () => <div />,
   ChipModal: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   ChipModalBody: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   ChipModalError: ({ children }: { children: ReactNode }) => <div>{children}</div>,

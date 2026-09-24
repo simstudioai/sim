@@ -121,7 +121,7 @@ describe('CodeSearchOverlay', () => {
       matchCount: 0,
       currentMatchIndex: 0,
     })
-    expect(overlay.className).toContain('rounded-b-[4px] border-t-0 bg-[var(--bg)]')
+    expect(overlay.className).toContain('rounded-b-sm border-t-0 bg-[var(--bg)]')
     expect(overlay.getAttribute('data-toolbar-root')).toBe('true')
     expect(overlay.getAttribute('data-search-active')).toBe('true')
     expect(overlay.hasAttribute('role')).toBe(false)

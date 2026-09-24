@@ -946,10 +946,10 @@ export function ConditionInput({
               className={cn(
                 'flex items-center justify-between overflow-hidden bg-transparent px-2.5 py-[5px]',
                 isRouterMode
-                  ? 'rounded-t-[4px] border-[var(--border-1)] border-b'
+                  ? 'rounded-t-sm border-[var(--border-1)] border-b'
                   : isElseConditionTitle(block.title)
                     ? 'rounded-sm border-0'
-                    : 'rounded-t-[4px] border-[var(--border-1)] border-b'
+                    : 'rounded-t-sm border-[var(--border-1)] border-b'
               )}
             >
               <span className='text-[var(--text-tertiary)] text-sm'>
@@ -1020,12 +1020,12 @@ export function ConditionInput({
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
-                      variant='ghost'
+                      variant='ghost-destructive'
                       onClick={() => removeBlock(block.id)}
                       disabled={
                         isPreview || disabled || conditionalBlocks.length <= (isRouterMode ? 1 : 2)
                       }
-                      className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
+                      className='h-auto p-0'
                     >
                       <Trash className='size-[14px]' />
                       <span className='sr-only'>Delete Block</span>

@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useMemo, useRef, useState } from 'react'
-import { Button, ChipDropdown, ChipInput, cn } from '@sim/emcn'
+import { Button, Chip, ChipInput, ChipSelect, cn } from '@sim/emcn'
 import { Plus, X } from '@sim/emcn/icons'
 import { generateShortId } from '@sim/utils/id'
 import type { ColumnDefinition, FilterRule, TablePredicate } from '@/lib/table'
@@ -243,20 +243,19 @@ export function TableFilter({
         ))}
 
         <div className={cn('mt-1 flex items-center', !autoApply && 'justify-between')}>
-          <Button variant='ghost' size='sm' onClick={handleAdd} className='px-2 text-xs'>
-            <Plus className='mr-1 size-[10px]' />
+          <Chip type='button' onClick={handleAdd} leftIcon={Plus}>
             Add filter
-          </Button>
+          </Chip>
           {!autoApply && (
             <div className='flex items-center gap-1.5'>
               {filter !== null && (
-                <Button variant='ghost' size='sm' onClick={handleClear} className='px-2 text-xs'>
+                <Chip type='button' onClick={handleClear}>
                   Clear filters
-                </Button>
+                </Chip>
               )}
-              <Button variant='default' size='sm' onClick={handleApply} className='text-xs'>
+              <Chip type='button' variant='border-shadow' onClick={handleApply}>
                 Apply filter
-              </Button>
+              </Chip>
             </div>
           )}
         </div>
@@ -323,43 +322,49 @@ const FilterRuleRow = memo(function FilterRuleRow({
       ) : (
         <button
           onClick={() => onToggleLogical(rule.id)}
-          className='w-[42px] shrink-0 rounded-full py-0.5 text-right text-[10px] text-[var(--text-muted)] uppercase tracking-wide transition-colors hover:text-[var(--text-secondary)]'
+          className='w-[42px] shrink-0 rounded-full py-0.5 text-right text-[var(--text-muted)] text-micro uppercase tracking-wide transition-colors hover:text-[var(--text-secondary)]'
         >
           {rule.logicalOperator}
         </button>
       )}
 
-      <ChipDropdown
+      <ChipSelect
+        showSelectedCheck
+        modal={false}
         options={columnOptions}
         value={rule.column}
         onChange={(value) => onColumnChange(rule.id, value)}
         placeholder='Column'
         align='start'
-        matchTriggerWidth={false}
-        className='min-w-[100px]'
+        dropdownWidth='content'
+        className='w-auto min-w-[100px] max-w-none'
       />
 
-      <ChipDropdown
+      <ChipSelect
+        showSelectedCheck
+        modal={false}
         options={operatorOptions}
         value={rule.operator}
         onChange={(value) => onUpdate(rule.id, 'operator', value)}
         placeholder='Operator'
         align='start'
-        matchTriggerWidth={false}
-        className='min-w-[90px]'
+        dropdownWidth='content'
+        className='w-auto min-w-[90px] max-w-none'
       />
 
       {VALUELESS_OPS.has(rule.operator) ? (
         <div className='h-[30px] flex-1' />
       ) : isSelect ? (
-        <ChipDropdown
+        <ChipSelect
+          showSelectedCheck
+          modal={false}
           options={selectValueOptions}
           value={rule.value}
           onChange={(value) => onUpdate(rule.id, 'value', value)}
           placeholder='Select a value'
           align='start'
-          matchTriggerWidth={false}
-          className='min-w-[100px] flex-1'
+          dropdownWidth='content'
+          className='w-auto min-w-[100px] max-w-none flex-1'
         />
       ) : autoApply ? (
         <FilterValueInput

@@ -422,10 +422,10 @@ export function FieldFormat({
           <span className='sr-only'>Add {title}</span>
         </Button>
         <Button
-          variant='ghost'
+          variant='ghost-destructive'
           onClick={() => removeField(field.id)}
           disabled={isReadOnly}
-          className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)] hover-hover:opacity-90'
+          className='h-auto p-0 hover-hover:opacity-90'
         >
           <Trash className='size-[14px]' />
           <span className='sr-only'>Delete Field</span>

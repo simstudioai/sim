@@ -1,10 +1,10 @@
 export { Avatar, AvatarFallback, AvatarImage } from './avatar/avatar'
 export { Badge, type BadgeProps } from './badge/badge'
 export { Banner } from './banner/banner'
+export { BulkActionBar, type BulkActionBarProps } from './bulk-action-bar/bulk-action-bar'
 export {
   BulkActionButton,
   type BulkActionButtonProps,
-  bulkActionButtonVariants,
 } from './bulk-action-button/bulk-action-button'
 export { Button, buttonVariants } from './button/button'
 export {
@@ -35,6 +35,7 @@ export {
   chipFilledSurfaceTokens,
   chipGeometryClass,
   chipGeometryUnroundedClass,
+  chipHeightClass,
   chipHoverSurfaceClass,
   chipIconSlotClass,
   chipPrimaryFillTokens,
@@ -55,11 +56,6 @@ export {
   type ChipCopyInputProps,
 } from './chip-copy-input/chip-copy-input'
 export { ChipDatePicker } from './chip-date-picker/chip-date-picker'
-export {
-  ChipDropdown,
-  type ChipDropdownOption,
-  type ChipDropdownProps,
-} from './chip-dropdown/chip-dropdown'
 export {
   ChipEmailsInput,
   type ChipEmailsInputProps,
@@ -100,6 +96,7 @@ export {
   type ChipModalTab,
   ChipModalTabs,
   type ChipModalTabsProps,
+  chipModalFieldVariants,
   focusChipModalContent,
 } from './chip-modal/chip-modal'
 export { ChipSelect, type ChipSelectOption, type ChipSelectProps } from './chip-select/chip-select'
@@ -170,7 +167,13 @@ export {
   type InfoCardProps,
 } from './info-card/info-card'
 export { Input, type InputProps } from './input/input'
-export { InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot } from './input-otp/input-otp'
+export {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSeparator,
+  InputOTPSlot,
+  type InputOTPSlotProps,
+} from './input-otp/input-otp'
 export { Label } from './label/label'
 export { Lightbox, type LightboxProps } from './lightbox/lightbox'
 export { focusFirstTextInput, focusFirstTextInputIn } from './modal/auto-focus'
@@ -223,6 +226,10 @@ export {
 } from './popover/popover'
 export { POPOVER_ANIMATION_CLASSES } from './popover/popover-animation'
 export { ProgressItem } from './progress-item/progress-item'
+export {
+  ResourceEmptyState,
+  type ResourceEmptyStateProps,
+} from './resource-empty-state/resource-empty-state'
 export { SecretInput } from './secret-input/secret-input'
 export { SecretReveal } from './secret-reveal/secret-reveal'
 export { WORDMARK_PATHS, WORDMARK_VIEW_BOX } from './sim-wordmark/paths'

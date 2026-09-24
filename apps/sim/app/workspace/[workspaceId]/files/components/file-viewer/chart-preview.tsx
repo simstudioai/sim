@@ -24,8 +24,8 @@ function ChartErrorCard({ message, content }: { message: string; content: string
   return (
     <div className='overflow-hidden rounded-lg border border-[var(--border)]'>
       <div className='flex items-center justify-between border-[var(--border)] border-b bg-[var(--surface-3)] px-3 py-1.5'>
-        <span className='text-[11px] text-[var(--text-tertiary)]'>chart</span>
-        <span className='text-[11px] text-[var(--text-muted)]'>{message}</span>
+        <span className='text-[var(--text-tertiary)] text-xs leading-[inherit]'>chart</span>
+        <span className='text-[var(--text-muted)] text-xs leading-[inherit]'>{message}</span>
       </div>
       <div className='code-editor-theme bg-[var(--surface-5)]'>
         <pre className='m-0 overflow-x-auto whitespace-pre p-4 font-mono text-[var(--text-primary)] text-small leading-[1.6]'>

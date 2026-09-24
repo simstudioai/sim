@@ -55,7 +55,7 @@ export function CodeSearchOverlay({
       role={attached ? undefined : 'presentation'}
       className={cn(
         'absolute z-30 flex h-[34px] items-center gap-1.5 border border-[var(--border)] px-1.5 shadow-xs',
-        attached ? 'rounded-b-[4px] border-t-0 bg-[var(--bg)]' : 'rounded-sm bg-[var(--surface-1)]',
+        attached ? 'rounded-b-sm border-t-0 bg-[var(--bg)]' : 'rounded-sm bg-[var(--surface-1)]',
         className
       )}
       onClick={(event) => event.stopPropagation()}

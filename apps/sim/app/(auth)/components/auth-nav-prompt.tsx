@@ -19,7 +19,7 @@ export function AuthNavPrompt({ prompt, href, linkLabel, onNavigate }: AuthNavPr
   return (
     <div className='flex items-center justify-center gap-1 text-sm'>
       {prompt && <span className='text-[var(--text-muted)]'>{prompt}</span>}
-      <ChipLink href={href} onClick={onNavigate} className='border border-[var(--border-1)]'>
+      <ChipLink href={href} onClick={onNavigate} variant='outline'>
         {linkLabel}
       </ChipLink>
     </div>

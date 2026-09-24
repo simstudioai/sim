@@ -1,11 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipInput, type ChipInputProps, cn } from '@sim/emcn'
+import { ChipInput, type ChipInputProps } from '@sim/emcn'
 import { Eye, EyeOff } from '@sim/emcn/icons'
-import { AUTH_CONTROL_HEIGHT } from '@/app/(auth)/components/constants'
 
-type PasswordInputProps = Omit<ChipInputProps, 'type' | 'icon' | 'endAdornment'>
+type PasswordInputProps = Omit<ChipInputProps, 'type' | 'icon' | 'endAdornment' | 'size'>
 
 /**
  * A {@link ChipInput} that owns the password reveal toggle — the eye button is
@@ -19,7 +18,8 @@ export function PasswordInput({ error, className, ...props }: PasswordInputProps
   return (
     <ChipInput
       {...props}
-      className={cn(AUTH_CONTROL_HEIGHT, className)}
+      size='lg'
+      className={className}
       type={visible ? 'text' : 'password'}
       error={error}
       endAdornment={
