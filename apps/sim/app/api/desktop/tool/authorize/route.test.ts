@@ -87,6 +87,25 @@ describe('desktop tool authorization', () => {
     expect(claimPendingAsyncToolCall).toHaveBeenCalledWith('browser-tool', 'desktop-browser')
   })
 
+  it('never returns presentation activity as an executable browser argument', async () => {
+    const fields = [{ elementId: 1, kind: 'text', text: 'a' }]
+    getAsyncToolCall.mockResolvedValueOnce({
+      toolCallId: 'form-tool',
+      runId: 'run-1',
+      status: 'pending',
+      toolName: 'browser_fill_form',
+      args: { activity: { description: 'Filling the form' }, fields },
+    })
+
+    const response = await POST(request('form-tool'))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      chatId: 'chat-1',
+      toolName: 'browser_fill_form',
+      args: { fields },
+    })
+  })
+
   it('rejects retired browser tools retained only for history', async () => {
     getAsyncToolCall.mockResolvedValueOnce({
       toolCallId: 'retired-browser-tool',
