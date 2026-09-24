@@ -78,6 +78,7 @@ const OBSERVATION_ONLY_BROWSER_TOOLS = {
   browser_click_at: false,
   browser_type: false,
   browser_fill_form: false,
+  browser_batch: false,
   browser_insert_text: false,
   browser_press_key: false,
   browser_scroll: false,
@@ -937,21 +938,25 @@ async function doExecuteBrowserTool(
     if (cancelled) return
     const outcomeUnknown = isRecordLike(result) && result.outcomeUnknown === true
     const effectUnconfirmed = isRecordLike(result) && result.effectObserved === false
-    const formStopped =
+    const stoppedMessage =
       toolName === 'browser_fill_form' && isRecordLike(result) && result.completed === false
+        ? 'Form filling stopped; inspect the partial result'
+        : toolName === 'browser_batch' && isRecordLike(result) && result.stoppedBy === 'failure'
+          ? 'A batched browser action failed; inspect the partial result'
+          : undefined
     reportTerminalCompletion(
       {
         status:
-          outcomeUnknown || formStopped
+          stoppedMessage || outcomeUnknown
             ? ASYNC_TOOL_CONFIRMATION_STATUS.error
             : ASYNC_TOOL_CONFIRMATION_STATUS.success,
-        message: formStopped
-          ? 'Form filling stopped; inspect the partial result'
-          : outcomeUnknown
+        message:
+          stoppedMessage ??
+          (outcomeUnknown
             ? 'Browser action outcome is unconfirmed; inspect the page before repeating it.'
             : effectUnconfirmed
               ? 'Browser input completed; its effect is unconfirmed. Inspect the current state before retrying.'
-              : 'Browser action completed',
+              : 'Browser action completed'),
         data: sanitizeBrowserToolResultForModel(toolName, result),
       },
       'Failed to report browser tool completion'

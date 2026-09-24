@@ -15,6 +15,7 @@ export interface ToolCatalogEntry {
     | 'apply_file_edit'
     | 'auth'
     | 'browser'
+    | 'browser_batch'
     | 'browser_click'
     | 'browser_click_at'
     | 'browser_close_tab'
@@ -159,6 +160,7 @@ export interface ToolCatalogEntry {
     | 'apply_file_edit'
     | 'auth'
     | 'browser'
+    | 'browser_batch'
     | 'browser_click'
     | 'browser_click_at'
     | 'browser_close_tab'
@@ -391,6 +393,107 @@ export const Browser: ToolCatalogEntry = {
   },
   subagentId: 'browser',
   internal: true,
+}
+
+export const BrowserBatch: ToolCatalogEntry = {
+  id: 'browser_batch',
+  name: 'browser_batch',
+  route: 'client',
+  mode: 'async',
+  parameters: {
+    additionalProperties: false,
+    properties: {
+      actions: {
+        description:
+          "Ordered list of 2–8 actions. Each names one action tool and gives exactly that tool's parameters in args, without observe.",
+        items: {
+          additionalProperties: false,
+          properties: {
+            args: {
+              description:
+                'That tool\'s own parameters, for example {"elementId": 12} for browser_click or {"key": "Enter"} for browser_press_key.',
+              type: 'object',
+            },
+            tool: {
+              description: 'The action tool to run.',
+              enum: [
+                'browser_click',
+                'browser_click_at',
+                'browser_type',
+                'browser_insert_text',
+                'browser_press_key',
+                'browser_scroll',
+                'browser_select_option',
+                'browser_set_checked',
+                'browser_hover',
+              ],
+              type: 'string',
+            },
+          },
+          required: ['tool', 'args'],
+          type: 'object',
+        },
+        maxItems: 8,
+        minItems: 2,
+        type: 'array',
+      },
+      observe: {
+        type: 'object',
+        description:
+          'Observe immediately after this action in the same call. Use {} for a fresh snapshot or {query: string} for matching element refs only. Returned refs replace prior refs. A failed observation does not mean the action failed; inspect its result before retrying.',
+        properties: {
+          query: {
+            type: 'string',
+            description:
+              'Case-insensitive text to find in the resulting page. Omit for the full snapshot. Maximum 4096 characters.',
+          },
+        },
+      },
+    },
+    required: ['actions'],
+    type: 'object',
+  },
+  resultSchema: {
+    type: 'object',
+    properties: {
+      completed: { type: 'boolean', description: 'True when every action ran and succeeded.' },
+      completedCount: {
+        type: 'number',
+        description: 'Number of actions that ran and succeeded, from the start of the list.',
+      },
+      error: {
+        type: 'string',
+        description:
+          'Why the batch stopped early. Earlier actions already took effect; do not repeat them.',
+      },
+      results: {
+        type: 'array',
+        description: 'Results of the actions that ran, in order.',
+        items: {
+          type: 'object',
+          properties: {
+            index: { type: 'number' },
+            result: { type: 'object', description: "The action tool's own result." },
+            tool: { type: 'string' },
+          },
+          required: ['index', 'tool', 'result'],
+        },
+      },
+      stoppedBy: {
+        type: 'string',
+        description:
+          'failure when an action failed; page-change when an action changed the page and the rest were skipped.',
+        enum: ['failure', 'page-change'],
+      },
+      stoppedIndex: {
+        type: 'number',
+        description:
+          'Zero-based index of the first action that did not run or failed, when the batch stopped early.',
+      },
+    },
+    required: ['completed', 'completedCount', 'results'],
+  },
+  clientExecutable: true,
 }
 
 export const BrowserClick: ToolCatalogEntry = {
@@ -8132,6 +8235,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [ApplyFileEdit.id]: ApplyFileEdit,
   [Auth.id]: Auth,
   [Browser.id]: Browser,
+  [BrowserBatch.id]: BrowserBatch,
   [BrowserClick.id]: BrowserClick,
   [BrowserClickAt.id]: BrowserClickAt,
   [BrowserCloseTab.id]: BrowserCloseTab,

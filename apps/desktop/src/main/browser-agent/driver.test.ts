@@ -1,4 +1,5 @@
 import { BROWSER_TOOL_QUEUE_WAIT_TIMEOUT_MS } from '@sim/browser-protocol'
+import { toRecord } from '@sim/utils/object'
 import type { MenuItemConstructorOptions, WebContents } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -2097,12 +2098,19 @@ describe('credential protection', () => {
       for (const [fnName, value] of Object.entries(replies)) {
         if (isPageCall(expression, fnName)) return Promise.resolve(value)
       }
-      if (isPageCall(expression, 'clickElement')) {
-        return Promise.resolve({ dispatched: false, x: 24, y: 48, element: 'Test' })
-      }
+      if (isPageCall(expression, 'clickElement')) return Promise.resolve(CLICK_TARGET)
       return Promise.resolve(undefined)
     })
   }
+
+  function mousePresses(contents: Awaited<ReturnType<typeof openPage>>): number {
+    return cdpCalls(contents, 'Input.dispatchMouseEvent').filter(
+      ([, params]) => toRecord(params).type === 'mousePressed'
+    ).length
+  }
+
+  /** What the page reports for an ordinary click target before native dispatch. */
+  const CLICK_TARGET = { dispatched: false, x: 24, y: 48, element: 'Test' }
 
   function cdpCalls(contents: Awaited<ReturnType<typeof openPage>>, method: string): unknown[][] {
     return vi
@@ -3423,6 +3431,217 @@ describe('credential protection', () => {
       },
     })
     expect(second).not.toMatchObject({ result: { notices: expect.anything() } })
+  })
+
+  it('runs batched actions in order and returns each result', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+
+    const result = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_click', args: { elementId: 0 } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        completed: true,
+        completedCount: 2,
+        results: [
+          { index: 0, tool: 'browser_click', result: { dispatched: true } },
+          { index: 1, tool: 'browser_click', result: { dispatched: true } },
+        ],
+      },
+    })
+  })
+
+  it('stops a batch at the first failed action and keeps earlier results', async () => {
+    const contents = await openPage()
+    vi.mocked(contents.executeJavaScript).mockImplementation((expression: string) => {
+      if (!isPageCall(expression, 'clickElement')) return Promise.resolve(undefined)
+      return Promise.resolve(
+        mousePresses(contents) > 0 ? { error: 'obstructed', blocker: 'IMG' } : CLICK_TARGET
+      )
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_click', args: { elementId: 0 } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
+
+    expect(mousePresses(contents)).toBe(1)
+    expect(result).toMatchObject({
+      ok: true,
+      result: {
+        completed: false,
+        completedCount: 1,
+        stoppedIndex: 1,
+        stoppedBy: 'failure',
+        error: expect.stringContaining('covered by IMG'),
+      },
+    })
+  })
+
+  it('stops a batch after an action navigates the page', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+    const sendCommand = vi.mocked(contents.debugger.sendCommand)
+    const dispatch = sendCommand.getMockImplementation()
+    sendCommand.mockImplementation((method, params) => {
+      if (method === 'Input.dispatchMouseEvent' && toRecord(params).type === 'mouseReleased') {
+        emitContentsEvent(contents, 'did-navigate')
+      }
+      return dispatch?.(method, params) ?? Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_click', args: { elementId: 0 } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
+
+    expect(mousePresses(contents)).toBe(1)
+    expect(result).toMatchObject({
+      ok: true,
+      result: { completed: false, completedCount: 1, stoppedIndex: 1, stoppedBy: 'page-change' },
+    })
+  })
+
+  it('stops a batch after an action changes the URL within the document', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+    const url = contents.getURL()
+    const sendCommand = vi.mocked(contents.debugger.sendCommand)
+    const dispatch = sendCommand.getMockImplementation()
+    sendCommand.mockImplementation((method, params) => {
+      if (method === 'Input.dispatchMouseEvent' && toRecord(params).type === 'mouseReleased') {
+        vi.mocked(contents.getURL).mockReturnValue(`${url}#next`)
+        emitContentsEvent(contents, 'did-navigate-in-page')
+      }
+      return dispatch?.(method, params) ?? Promise.resolve(undefined)
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_click', args: { elementId: 0 } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
+
+    expect(mousePresses(contents)).toBe(1)
+    expect(result).toMatchObject({
+      ok: true,
+      result: { completed: false, completedCount: 1, stoppedIndex: 1, stoppedBy: 'page-change' },
+    })
+  })
+
+  it('reports a batch cancelled during its first action as an unknown outcome', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+    const sendCommand = vi.mocked(contents.debugger.sendCommand)
+    const dispatch = sendCommand.getMockImplementation()
+    sendCommand.mockImplementation((method, params) =>
+      method === 'Input.dispatchKeyEvent'
+        ? new Promise(() => {})
+        : (dispatch?.(method, params) ?? Promise.resolve(undefined))
+    )
+
+    const pending = driver.executeTool(
+      'chat-test',
+      'browser_batch',
+      {
+        actions: [
+          { tool: 'browser_press_key', args: { key: 'Enter' } },
+          { tool: 'browser_click', args: { elementId: 0 } },
+        ],
+      },
+      'batch-first-call'
+    )
+    await vi.waitFor(() => expect(cdpCalls(contents, 'Input.dispatchKeyEvent')).toHaveLength(1))
+    driver.cancelTool('chat-test', 'batch-first-call')
+
+    await expect(pending).resolves.toMatchObject({
+      ok: true,
+      result: { outcomeUnknown: true, doNotRetry: true },
+    })
+  })
+
+  it('reports a batch cancelled after an action ran as an unknown outcome', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+    const sendCommand = vi.mocked(contents.debugger.sendCommand)
+    const dispatch = sendCommand.getMockImplementation()
+    sendCommand.mockImplementation((method, params) =>
+      method === 'Input.dispatchKeyEvent'
+        ? new Promise(() => {})
+        : (dispatch?.(method, params) ?? Promise.resolve(undefined))
+    )
+
+    const pending = driver.executeTool(
+      'chat-test',
+      'browser_batch',
+      {
+        actions: [
+          { tool: 'browser_click', args: { elementId: 0 } },
+          { tool: 'browser_press_key', args: { key: 'Enter' } },
+        ],
+      },
+      'batch-call'
+    )
+    await vi.waitFor(() => expect(cdpCalls(contents, 'Input.dispatchKeyEvent')).toHaveLength(1))
+    driver.cancelTool('chat-test', 'batch-call')
+
+    await expect(pending).resolves.toMatchObject({
+      ok: true,
+      result: { outcomeUnknown: true, doNotRetry: true },
+    })
+  })
+
+  it('rejects batches that name non-action tools or observe per action', async () => {
+    await openPage()
+
+    const navigation = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_navigate', args: { url: 'https://example.com' } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
+    const observed = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_click', args: { elementId: 0, observe: {} } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
+
+    expect(navigation).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('Batch action 0'),
+    })
+    expect(observed).toMatchObject({ ok: false, error: expect.stringContaining('cannot observe') })
+  })
+
+  it('keeps element ids valid when an observed action is refused before dispatch', async () => {
+    const contents = await openPage()
+    respondWith(contents, { clickElement: { error: 'obstructed', blocker: 'IMG' } })
+
+    const refused = await driver.executeTool('chat-test', 'browser_click', {
+      elementId: 0,
+      observe: {},
+    })
+    respondWith(contents, {})
+    const retried = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+
+    expect(refused).toEqual({
+      ok: false,
+      error: expect.stringContaining('That element is covered by IMG'),
+    })
+    expect(retried).toMatchObject({ ok: true, result: { dispatched: true } })
   })
 
   it('invalidates element ids when the active tab changes', async () => {

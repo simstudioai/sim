@@ -676,6 +676,7 @@ const TOOL_TITLES: Record<string, string> = {
   browser_drag: 'Dragging element',
   browser_select_option: 'Selecting option',
   browser_fill_form: 'Filling form',
+  browser_batch: 'Running page actions',
   browser_set_checked: 'Updating control',
   browser_hover: 'Hovering element',
   browser_zoom: 'Changing page zoom',

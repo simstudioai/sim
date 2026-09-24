@@ -39,6 +39,7 @@ export const TOOL_ICONS: Readonly<Record<string, IconComponent>> = {
   apply_file_edit: File,
   auth: Integration,
   browser: Globe,
+  browser_batch: Cursor,
   browser_click: Cursor,
   browser_click_at: Cursor,
   browser_close_tab: Cursor,
