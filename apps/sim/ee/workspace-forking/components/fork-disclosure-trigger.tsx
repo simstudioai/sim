@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { ChevronDown, cn, OverflowText } from '@sim/emcn'
+import { ChevronDown, cn, disclosureChevronClass, OverflowText } from '@sim/emcn'
 
 interface ForkDisclosureTriggerProps {
   label: string
@@ -27,7 +27,10 @@ export function ForkDisclosureTrigger({
     <button
       type='button'
       aria-expanded={expanded}
-      className={cn('flex items-center text-left hover:text-[var(--text-primary)]', className)}
+      className={cn(
+        'flex items-center text-left hover:text-[var(--text-primary)] focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--selection)] focus-visible:outline-offset-2',
+        className
+      )}
       onClick={onToggle}
     >
       <OverflowText label={label} className={labelClassName}>
@@ -35,10 +38,7 @@ export function ForkDisclosureTrigger({
       </OverflowText>
       {trailing}
       <ChevronDown
-        className={cn(
-          'size-[14px] shrink-0 text-[var(--text-icon)] transition-transform',
-          expanded && 'rotate-180'
-        )}
+        className={cn(disclosureChevronClass, 'transition-transform', expanded && 'rotate-180')}
       />
     </button>
   )
