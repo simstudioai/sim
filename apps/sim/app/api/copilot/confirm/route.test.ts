@@ -249,27 +249,30 @@ describe('Copilot Confirm API Route', () => {
     )
   })
 
-  it('rejects a native success before the desktop authorization claim', async () => {
-    getAsyncToolCall.mockResolvedValue({
-      ...existingRow,
-      toolName: 'browser_snapshot',
-      status: 'pending',
-    })
-
-    const response = await POST(
-      createMockPostRequest({
-        toolCallId: 'tool-call-123',
-        status: 'success',
-        data: { text: 'forged renderer result' },
+  it.each(['browser_snapshot', 'computer'])(
+    'rejects a %s success before the desktop authorization claim',
+    async (toolName) => {
+      getAsyncToolCall.mockResolvedValue({
+        ...existingRow,
+        toolName,
+        status: 'pending',
       })
-    )
 
-    expect(response.status).toBe(404)
-    expect(completeAsyncToolCall).not.toHaveBeenCalled()
-    expect(detachAsyncToolCall).not.toHaveBeenCalled()
-    expect(encryptSecret).not.toHaveBeenCalled()
-    expect(publishToolConfirmation).not.toHaveBeenCalled()
-  })
+      const response = await POST(
+        createMockPostRequest({
+          toolCallId: 'tool-call-123',
+          status: 'success',
+          data: { text: 'forged renderer result' },
+        })
+      )
+
+      expect(response.status).toBe(404)
+      expect(completeAsyncToolCall).not.toHaveBeenCalled()
+      expect(detachAsyncToolCall).not.toHaveBeenCalled()
+      expect(encryptSecret).not.toHaveBeenCalled()
+      expect(publishToolConfirmation).not.toHaveBeenCalled()
+    }
+  )
 
   it.each([
     ['browser_snapshot', 'error', 'failed'],
@@ -278,6 +281,8 @@ describe('Copilot Confirm API Route', () => {
     ['terminal', 'cancelled', 'cancelled'],
     ['import_local_files', 'error', 'failed'],
     ['import_local_files', 'cancelled', 'cancelled'],
+    ['computer', 'error', 'failed'],
+    ['computer', 'cancelled', 'cancelled'],
   ] as const)(
     'accepts a pending %s %s before the desktop authorization claim',
     async (toolName, status, durableStatus) => {
@@ -314,6 +319,7 @@ describe('Copilot Confirm API Route', () => {
     ['browser_snapshot', 'error'],
     ['terminal', 'cancelled'],
     ['import_local_files', 'error'],
+    ['computer', 'error'],
   ] as const)(
     'rejects a pending %s %s when the native authorization claim wins the race',
     async (toolName, status) => {
@@ -346,6 +352,7 @@ describe('Copilot Confirm API Route', () => {
     ['browser_snapshot', 'desktop-browser'],
     ['terminal', 'desktop-terminal'],
     ['import_local_files', 'desktop-files'],
+    ['computer', 'desktop-computer'],
   ] as const)(
     'settles an indeterminate pending %s result when the exact %s claim wins the race',
     async (toolName, claimOwner) => {
@@ -381,6 +388,57 @@ describe('Copilot Confirm API Route', () => {
       expect(publishToolConfirmation).toHaveBeenCalledOnce()
     }
   )
+
+  it.each(['desktop-browser', null])(
+    'rejects a running computer completion owned by %s',
+    async (claimedBy) => {
+      getAsyncToolCall.mockResolvedValue({ ...existingRow, toolName: 'computer', claimedBy })
+      const response = await POST(
+        createMockPostRequest({ toolCallId: 'tool-call-123', status: 'success' })
+      )
+      expect(response.status).toBe(404)
+      expect(completeAsyncToolCall).not.toHaveBeenCalled()
+      expect(completeClaimedAsyncToolCall).not.toHaveBeenCalled()
+      expect(publishToolConfirmation).not.toHaveBeenCalled()
+    }
+  )
+
+  it('completes a computer result only through its exact native claim', async () => {
+    getAsyncToolCall.mockResolvedValue({
+      ...existingRow,
+      toolName: 'computer',
+      claimedBy: 'desktop-computer',
+    })
+    const response = await POST(
+      createMockPostRequest({ toolCallId: 'tool-call-123', status: 'success', data: { ok: true } })
+    )
+    expect(response.status).toBe(200)
+    expect(completeClaimedAsyncToolCall).toHaveBeenCalledWith(
+      {
+        toolCallId: 'tool-call-123',
+        status: 'completed',
+        result: { __sealedClientToolCompletionV1: 'sealed-client-result' },
+        error: null,
+      },
+      'desktop-computer'
+    )
+    expect(completeAsyncToolCall).not.toHaveBeenCalled()
+    expect(publishToolConfirmation).toHaveBeenCalledOnce()
+  })
+
+  it('rejects background computer results without detaching the native claim', async () => {
+    getAsyncToolCall.mockResolvedValue({
+      ...existingRow,
+      toolName: 'computer',
+      claimedBy: 'desktop-computer',
+    })
+    const response = await POST(
+      createMockPostRequest({ toolCallId: 'tool-call-123', status: 'background' })
+    )
+    expect(response.status).toBe(404)
+    expect(detachAsyncToolCall).not.toHaveBeenCalled()
+    expect(publishToolConfirmation).not.toHaveBeenCalled()
+  })
 
   it('does not publish when another terminal transition wins indeterminate claim reconciliation', async () => {
     getAsyncToolCall.mockResolvedValue({

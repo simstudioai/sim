@@ -26,6 +26,7 @@ import type {
   BrowserPasswordImportResult,
   BrowserSiteInfo,
   BrowserToolbarCommand,
+  ComputerUseActivity,
   DesktopAppearanceTheme,
   DesktopCommand,
   DesktopLocalFileRequest,
@@ -46,6 +47,7 @@ import type {
   TerminalShortcutCommand,
   TerminalThemeProfile,
 } from '@sim/desktop-bridge'
+import type { ComputerUseInput } from '@sim/desktop-bridge/computer-use'
 import {
   type ScopedTerminalCommandEvent,
   type ScopedTerminalTabsState,
@@ -118,6 +120,27 @@ function shellVersion(): string {
  */
 const api: SimDesktopApi = {
   version: shellVersion(),
+  ...(process.platform === 'darwin'
+    ? {
+        computerUse: {
+          getStatus: () => ipcRenderer.invoke('computer-use:status'),
+          setEnabled: (enabled: boolean) => ipcRenderer.invoke('computer-use:set-enabled', enabled),
+          requestPermission: (permission: 'accessibility' | 'screenCapture') =>
+            ipcRenderer.invoke('computer-use:request-permission', permission),
+          listAppPermissions: () => ipcRenderer.invoke('computer-use:list-permissions'),
+          revokeApp: (bundleId: string) => ipcRenderer.invoke('computer-use:revoke-app', bundleId),
+          executeTool: (toolCallId: string, params: ComputerUseInput) =>
+            ipcRenderer.invoke('computer-use:execute-tool', toolCallId, params),
+          cancel: (toolCallId?: string) => ipcRenderer.invoke('computer-use:cancel', toolCallId),
+          onActivity: (callback: (activity: ComputerUseActivity | null) => void) => {
+            const listener = (_event: unknown, activity: ComputerUseActivity | null) =>
+              callback(activity)
+            ipcRenderer.on('computer-use:activity', listener)
+            return () => ipcRenderer.removeListener('computer-use:activity', listener)
+          },
+        },
+      }
+    : {}),
   openExternal: (url: string): Promise<boolean> => ipcRenderer.invoke('desktop:open-external', url),
   ...(process.platform === 'darwin' || process.platform === 'win32'
     ? {

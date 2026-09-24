@@ -290,11 +290,13 @@ export const POST = withRouteHandler((req: NextRequest) => {
         const isNativeClientTool =
           isBrowserToolName(existing.toolName) ||
           isTerminalToolName(existing.toolName) ||
-          existing.toolName === 'import_local_files'
+          existing.toolName === 'import_local_files' ||
+          existing.toolName === 'computer'
         const isPreclaimNativeTerminalOutcome =
           (isCurrentBrowserToolName(existing.toolName) ||
             isTerminalToolName(existing.toolName) ||
-            existing.toolName === 'import_local_files') &&
+            existing.toolName === 'import_local_files' ||
+            existing.toolName === 'computer') &&
           existing.status === ASYNC_TOOL_STATUS.pending &&
           isErrorOrCancelledOutcome
         const nativeClaimOwner = isCurrentBrowserToolName(existing.toolName)
@@ -303,7 +305,9 @@ export const POST = withRouteHandler((req: NextRequest) => {
             ? DESKTOP_TOOL_CLAIM_OWNER.terminal
             : existing.toolName === 'import_local_files'
               ? DESKTOP_TOOL_CLAIM_OWNER.files
-              : undefined
+              : existing.toolName === 'computer'
+                ? DESKTOP_TOOL_CLAIM_OWNER.computer
+                : undefined
         const isIndeterminateNativeExit =
           isPreclaimNativeTerminalOutcome &&
           status === ASYNC_TOOL_CONFIRMATION_STATUS.error &&
@@ -316,6 +320,16 @@ export const POST = withRouteHandler((req: NextRequest) => {
         if ((isNativeClientTool || isWorkflowTool) && !isMutableClientToolCall) {
           span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
           return createNotFoundResponse('Running client tool call not found')
+        }
+
+        if (
+          existing.toolName === 'computer' &&
+          (status === ASYNC_TOOL_CONFIRMATION_STATUS.background ||
+            (existing.status === ASYNC_TOOL_STATUS.running &&
+              existing.claimedBy !== DESKTOP_TOOL_CLAIM_OWNER.computer))
+        ) {
+          span.setAttribute(TraceAttr.CopilotConfirmOutcome, CopilotConfirmOutcome.ToolCallNotFound)
+          return createNotFoundResponse('Claimed computer tool call not found')
         }
 
         let effectiveStatus = status
@@ -433,7 +447,14 @@ export const POST = withRouteHandler((req: NextRequest) => {
             ...(isWorkflowTool && executionId ? { executionId } : {}),
             ...(isPreclaimNativeTerminalOutcome
               ? { completionGuard: { status: ASYNC_TOOL_STATUS.pending } as const }
-              : {}),
+              : existing.toolName === 'computer'
+                ? {
+                    completionGuard: {
+                      status: ASYNC_TOOL_STATUS.running,
+                      claimedBy: DESKTOP_TOOL_CLAIM_OWNER.computer,
+                    } as const,
+                  }
+                : {}),
           }
         )
 

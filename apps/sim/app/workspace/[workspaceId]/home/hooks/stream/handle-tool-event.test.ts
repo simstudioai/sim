@@ -87,6 +87,70 @@ function toolNode(ctx: StreamLoopContext, id: string): ToolNode {
 }
 
 describe('tool events (dispatch → model + side effects)', () => {
+  it('routes a complete native computer call and never executes a partial or settled call', () => {
+    const deps = makeStreamLoopDeps()
+    const ctx = createStreamLoopContext(deps)
+    const args = { action: 'list_apps' }
+    dispatchStreamEvent(
+      ctx,
+      toolEnv({
+        phase: 'call',
+        executor: 'client',
+        mode: 'async',
+        toolCallId: 'computer',
+        toolName: 'computer',
+        arguments: args,
+        partial: true,
+      })
+    )
+    expect(deps.startClientComputerTool).not.toHaveBeenCalled()
+    dispatchStreamEvent(
+      ctx,
+      toolEnv({
+        phase: 'call',
+        executor: 'client',
+        mode: 'async',
+        toolCallId: 'computer',
+        toolName: 'computer',
+        arguments: args,
+      })
+    )
+    expect(deps.startClientComputerTool).toHaveBeenCalledWith('computer', args, '')
+    dispatchStreamEvent(ctx, toolResult('computer', true, 'computer'))
+    vi.mocked(deps.startClientComputerTool).mockClear()
+    dispatchStreamEvent(
+      ctx,
+      toolEnv({
+        phase: 'call',
+        executor: 'client',
+        mode: 'async',
+        toolCallId: 'computer',
+        toolName: 'computer',
+        arguments: args,
+      })
+    )
+    expect(deps.startClientComputerTool).not.toHaveBeenCalled()
+  })
+
+  it('redelivers an unsettled computer call through the replay-safe native executor after reconnect', () => {
+    const deps = makeStreamLoopDeps()
+    const ctx = createStreamLoopContext(deps)
+    dispatchStreamEvent(
+      ctx,
+      toStreamBatchEvent(
+        toolEnv({
+          phase: 'call',
+          executor: 'client',
+          mode: 'async',
+          toolCallId: 'computer-recovery',
+          toolName: 'computer',
+          arguments: { action: 'list_apps' },
+        })
+      ).event
+    )
+    expect(deps.startClientComputerTool).toHaveBeenCalledOnce()
+  })
+
   it.each([false, true])(
     'refreshes credential lists and selectors after Slack connection (replay=%s)',
     (replay) => {

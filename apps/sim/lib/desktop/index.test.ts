@@ -2,6 +2,10 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const requestAvailability = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/api/client', () => ({ requestJson: requestAvailability }))
+
 import {
   getDesktopChatCapabilities,
   hasBrowserAgent,
@@ -26,6 +30,49 @@ function installBridge(value: unknown): void {
 }
 
 describe('desktop surface availability', () => {
+  it.each([
+    [true, true, true, true],
+    [true, true, false, false],
+    [true, false, true, false],
+    [false, true, true, false],
+  ])(
+    'advertises computer use only for a supported enabled device and server rollout (%s,%s,%s)',
+    async (supported, enabled, rollout, expected) => {
+      installBridge({
+        computerUse: {
+          getStatus: vi.fn(async () => ({
+            supported,
+            enabled,
+            permissions: { accessibility: false, screenCapture: false },
+            activeAction: null,
+          })),
+        },
+      })
+      setDesktopPreferencesSnapshot({
+        ...ENABLED_PREFERENCES,
+        browserEnabled: false,
+        terminalEnabled: false,
+      })
+      requestAvailability.mockResolvedValueOnce({ enabled: rollout })
+      const result = await getDesktopChatCapabilities('chat-1')
+      expect(result.desktopCapabilities?.computerUse ?? false).toBe(expected)
+    }
+  )
+  it('fails closed when the computer rollout cannot be resolved', async () => {
+    installBridge({
+      computerUse: { getStatus: vi.fn(async () => ({ supported: true, enabled: true })) },
+    })
+    setDesktopPreferencesSnapshot({
+      ...ENABLED_PREFERENCES,
+      browserEnabled: false,
+      terminalEnabled: false,
+    })
+    requestAvailability.mockRejectedValueOnce(new Error('offline'))
+    expect(
+      (await getDesktopChatCapabilities('chat-1')).desktopCapabilities?.computerUse
+    ).toBeUndefined()
+  })
+
   beforeEach(() => {
     setDesktopPreferencesSnapshot(ENABLED_PREFERENCES)
   })

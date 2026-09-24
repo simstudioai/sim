@@ -13,6 +13,7 @@ export const EXECUTABLE_TOOL_PERMISSION_DECISIONS = [
 ] as const satisfies readonly CopilotToolPermissionDecision[]
 
 export const DESKTOP_TOOL_CLAIM_OWNER = {
+  computer: 'desktop-computer',
   browser: 'desktop-browser',
   terminal: 'desktop-terminal',
   files: 'desktop-files',

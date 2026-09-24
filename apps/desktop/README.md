@@ -218,3 +218,56 @@ Raw local file bytes are never exposed through the preload bridge and cannot be 
 ## Electron upgrades
 
 Cadence: Electron ships a major every ~8 weeks and supports the latest 3 — budget a bump every ~4–6 months and adopt security patches within ~2 weeks. Follow `docs/electron-upgrade-checklist.md`; the `desktop-e2e.yml` canary leg (electron@latest) is the early-warning signal.
+
+
+## Native Mac computer use
+
+Mothership's `computer` tool is available on macOS 14+ when the global runtime flag
+`mothership-computer-use` is enabled and the user opts in under **Settings → Desktop → Computer Use**.
+The flag defaults off; local/self-hosted deployments use `MSHIP_COMPUTER_USE=true`, while hosted
+rollout uses the existing AppConfig feature-flags document. Older desktop builds omit this optional
+bridge and continue to work.
+
+The user grants Accessibility and Screen Recording through macOS, then approves each app for the
+current task or persistently. Persistent app approvals are listed in Settings and can be revoked.
+Sign-out and deployment changes clear computer-use approval and opt-in. The conversation shows the
+active app/action and a Stop button; **⌘⇧Esc** also stops active work when the shortcut is available.
+Stop cancels queued actions, in-flight authorization, approval prompts and the native helper.
+Already completed input cannot be undone.
+
+The tool lists installed/running apps, reads window accessibility trees, captures selected-window
+screenshots, activates apps explicitly, and performs clicks, text input, keyboard shortcuts,
+scrolling, dragging, value changes and accessibility actions. Semantic actions can run in the
+background. Coordinate mouse actions require explicit foreground activation and a fresh observation;
+they validate the target app/window before dispatch. Each mutation consumes its snapshot and the
+model observes again to verify results. Secure accessibility values are suppressed. See
+[`native/computer-use/README.md`](native/computer-use/README.md) for native bounds and compatibility
+limits; screenshots can still contain sensitive content visibly rendered by the approved app.
+
+Every execution is authorized and claimed once by `/api/desktop/computer/authorize` using the
+stored tool arguments, current chat access, run/Stop state and current flag. Renderer-supplied
+arguments are not execution authority. The main process serializes native work and binds snapshots
+to the authorized chat. The Swift helper communicates over private stdio and is packaged outside
+ASAR as `Contents/Resources/Sim Computer Use.app`.
+
+Distribution signing must cover the nested helper with the same stable Developer ID identity.
+Development ad-hoc builds can lose macOS grants when rebuilt. macOS can attribute permission
+requests to the responsible parent app (Sim, Electron, or the terminal/IDE that launched a test),
+so confirm the name in the system permission dialog. Test a Finder/LaunchServices-launched signed
+build for release acceptance; terminal-launched helper tests do not establish that app's TCC grants.
+
+Validation includes desktop lifecycle/transport unit tests, the Electron authorization/Stop test
+in `e2e/computer-use.spec.ts`, the native protocol and live fixture tests, Sim authorization/stream
+regressions, and Mothership's opt-in `apps/server/scripts/computer-use-live.ts` real-model trial.
+The live trial uses only the disposable fixture and verifies mutations by fresh state; visual mode
+also asks the model to identify a drawn shape unavailable in accessibility text.
+
+
+September 24 acceptance: 1,909 desktop regression tests, the Electron canonical-authorization/
+replay/Stop test, native pure/protocol tests, and the live fixture GUI suite passed. A real native
+Calculator background test verified `2 + 3 = 5` without changing the foreground app. The signed
+arm64 test bundle and nested universal helper passed strict code-signature verification. Its
+LaunchServices-launched acceptance remained blocked on that app identity's Accessibility and
+Screen Recording grants; the separately granted development helper's tests do not satisfy this
+last release-onboarding check. The disposable packaged test follows the existing packaged-smoke
+suite's mock-keychain convention; native TCC permissions remain real.

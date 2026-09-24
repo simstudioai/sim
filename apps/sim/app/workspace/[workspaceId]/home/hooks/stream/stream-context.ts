@@ -113,6 +113,7 @@ export interface StreamLoopDeps {
   ) => void
   startClientWorkflowTool: (id: string, name: string, args: Record<string, unknown>) => void
   startClientLocalFilesystemTool: (id: string, name: string, args: Record<string, unknown>) => void
+  startClientComputerTool: (id: string, args: Record<string, unknown>, ts?: string) => void
   startClientBrowserTool: (
     id: string,
     name: string,

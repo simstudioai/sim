@@ -1,3 +1,4 @@
+import type { ComputerUseInput, ComputerUseResult } from './computer-use.generated'
 import type { DesktopLocalFileRequest, DesktopLocalFileResponse } from './local-files'
 
 export type {
@@ -34,6 +35,42 @@ import type {
 } from '@sim/terminal-protocol'
 
 export const PENDING_DESKTOP_SCOPE_PREFIX = 'pending:' as const
+
+/** Native work is bound to the server-authorized chat and tool call. */
+export interface ComputerUseActivity {
+  toolCallId: string
+  scopeId: string
+  bundleId?: string
+  appName?: string
+  action: string
+  startedAt: number
+  stopShortcutAvailable?: boolean
+}
+
+/** Device permissions are independent of the server rollout flag. */
+export interface ComputerUseStatus {
+  supported: boolean
+  enabled: boolean
+  permissions: { accessibility: boolean; screenCapture: boolean }
+  activeAction: ComputerUseActivity | null
+}
+
+export interface ComputerUseAppPermission {
+  bundleId: string
+  displayName: string
+}
+
+/** Optional so a new web deployment remains compatible with older desktop shells. */
+export interface SimDesktopComputerUseApi {
+  getStatus(): Promise<ComputerUseStatus>
+  setEnabled(enabled: boolean): Promise<ComputerUseStatus>
+  requestPermission(permission: 'accessibility' | 'screenCapture'): Promise<ComputerUseStatus>
+  listAppPermissions(): Promise<ComputerUseAppPermission[]>
+  revokeApp(bundleId: string): Promise<void>
+  executeTool(toolCallId: string, params: ComputerUseInput): Promise<ComputerUseResult>
+  cancel(toolCallId?: string): Promise<void>
+  onActivity(callback: (activity: ComputerUseActivity | null) => void): () => void
+}
 
 /** Boolean results preserve compatibility with older installed desktop shells. */
 export type TerminalPasteResult = boolean | 'too-large'
@@ -1075,6 +1112,7 @@ export interface SimDesktopServerApi {
 }
 
 export interface SimDesktopApi {
+  computerUse?: SimDesktopComputerUseApi
   /** Installed shell version (plain semver, e.g. `0.3.1`). */
   version: string
   openExternal(url: string): Promise<boolean>

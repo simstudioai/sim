@@ -46,6 +46,11 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
+  'mothership-computer-use': {
+    description:
+      'Enable native macOS computer use in Mothership. Global on/off only; each device must also opt in.',
+    fallback: 'MSHIP_COMPUTER_USE',
+  },
   'mothership-model-selector': {
     description:
       'Show the Mothership model selector, model-specific effort levels, and Fast for supported ' +
