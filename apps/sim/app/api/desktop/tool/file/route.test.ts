@@ -6,9 +6,14 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const { mockRead, mockSave } = vi.hoisted(() => ({ mockRead: vi.fn(), mockSave: vi.fn() }))
+const { mockAdmit, mockRead, mockSave } = vi.hoisted(() => ({
+  mockAdmit: vi.fn(),
+  mockRead: vi.fn(),
+  mockSave: vi.fn(),
+}))
 
 vi.mock('@/lib/browser-agent/application/browser-file-transfer', () => ({
+  admitBrowserDownloadSave: mockAdmit,
   readBrowserUploadFile: {
     operation: { id: 'files.read_content', minimumRole: 'read', workspaceApiKey: 'allow' },
     execute: mockRead,
@@ -43,6 +48,7 @@ describe('/api/desktop/tool/file', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockGetSession.mockResolvedValue(session)
+    mockAdmit.mockResolvedValue(undefined)
     mockRead.mockResolvedValue({ file: { name: 'Q3 plan.pdf' }, content: Buffer.from('%PDF') })
     mockSave.mockResolvedValue({
       file: { name: 'report.csv', size: 3, folderPath: null, vfsNamespace: 'files' },
@@ -92,6 +98,21 @@ describe('/api/desktop/tool/file', () => {
       put('toolCallId=c&name=a.csv', new Uint8Array(1), { 'content-length': String(2 ** 31) })
     )
     expect(oversized.status).toBe(413)
+    expect(mockAdmit).not.toHaveBeenCalled()
+    expect(mockSave).not.toHaveBeenCalled()
+  })
+
+  it('refuses an unadmitted save without reading its body', async () => {
+    mockAdmit.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'Browser file transfer not found')
+    )
+    const request = put('toolCallId=unknown&name=a.csv', new Uint8Array([1, 2, 3]))
+
+    const res = await PUT(request)
+
+    expect(res.status).toBe(404)
+    expect(mockAdmit).toHaveBeenCalledWith(principal, { toolCallId: 'unknown', name: 'a.csv' })
+    expect(request.bodyUsed).toBe(false)
     expect(mockSave).not.toHaveBeenCalled()
   })
 
