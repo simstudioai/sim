@@ -14,17 +14,16 @@ import {
   useRef,
   useState,
 } from 'react'
+import { OverflowText, RowActions, rowActionsGroupClass } from '@sim/emcn'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { Plus, X } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Button } from '../button/button'
-import { overflowTextClipClass, overflowTextFadeClass } from '../overflow-text/overflow-text'
 import { Tooltip } from '../tooltip/tooltip'
 import { TabStripAction } from './tab-strip-action'
 
 const DRAG_EDGE_ZONE = 40
 const DRAG_SCROLL_SPEED = 8
-const TITLE_TOOLTIP_HIDDEN_PX = 8
 /**
  * Width of the scroll-edge fades, and so the margin a tab has to clear to be
  * genuinely visible. Keep in step with the `w-4` on the gradients below: a tab
@@ -263,18 +262,6 @@ interface TabStripBaseProps {
 }
 
 /**
- * Whether a title is clipped enough to be worth a tooltip. A couple of hidden
- * pixels is not, but a tab should not lose a meaningful part of its identity
- * before it explains itself.
- */
-export function isTabTitleTruncated(
-  element: Pick<HTMLElement, 'clientWidth' | 'scrollWidth'>
-): boolean {
-  const hiddenWidth = element.scrollWidth - element.clientWidth
-  return hiddenWidth >= TITLE_TOOLTIP_HIDDEN_PX
-}
-
-/**
  * Selector matching a tab's outer element. Part of the strip's API: a caller
  * building its own drag image needs the real, laid-out nodes to snapshot, and
  * this keeps it from hardcoding the attribute.
@@ -372,20 +359,63 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
   },
   ref
 ) {
-  const titleRef = useRef<HTMLSpanElement>(null)
-  const [titleTruncated, setTitleTruncated] = useState(false)
   const closeable = Boolean(onClose) && !tab.pinned
 
-  useLayoutEffect(() => {
-    const element = titleRef.current
-    if (!element) return
-    const update = () => setTitleTruncated(isTabTitleTruncated(element))
-    update()
-    if (typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(update)
-    observer.observe(element)
-    return () => observer.disconnect()
-  }, [tab.title])
+  const tabButton = (
+    <Button
+      id={buttonId}
+      type='button'
+      variant='subtle'
+      size='sm'
+      role='tab'
+      aria-selected={Boolean(tab.active)}
+      aria-keyshortcuts={closeable ? 'Delete' : undefined}
+      aria-label={tab.pinned ? tab.title : undefined}
+      data-tab-strip-button={tab.id}
+      tabIndex={focusable ? 0 : -1}
+      className={cn(
+        'h-[var(--tab-strip-band,30px)] w-full select-none bg-transparent py-0 text-caption',
+        tab.pinned ? 'justify-center px-0' : 'justify-start gap-1.5 px-2',
+        closeable && 'pr-8',
+        closeable &&
+          tab.attention &&
+          !tab.active &&
+          '[@media(any-pointer:coarse)]:pr-[62px] [@media(hover:none)]:pr-[62px]',
+        TAB_SHAPE[variant],
+        tab.selected && !tab.active && TAB_SELECTED[variant],
+        tab.active && 'relative z-10',
+        tab.active && TAB_ACTIVE[variant]
+      )}
+      onClick={(event) => onSelect(tab.id, 'pointer', event)}
+      onKeyDown={(event) => onKeyDown(event, tab.id)}
+    >
+      {tab.icon}
+      {!tab.pinned && (
+        <span className='min-w-0 flex-1 select-none text-left'>
+          <OverflowText
+            label={tab.title}
+            focusTarget='nearest-interactive'
+            tooltipEnabled={!tab.tooltip}
+            className={cn(
+              closeable &&
+                !tab.active &&
+                !tab.attention &&
+                'w-[calc(100%_+_24px)] group-focus-within/row-actions:w-full group-hover/row-actions:w-full [@media(any-pointer:coarse)]:w-full [@media(hover:none)]:w-full'
+            )}
+          />
+        </span>
+      )}
+      {tab.attention && !tab.active && !closeable && (
+        <span
+          className={cn(
+            'size-1.5 shrink-0 rounded-full bg-[var(--brand-blue)]',
+            tab.pinned && 'absolute right-1 bottom-1'
+          )}
+          aria-label='Background activity'
+        />
+      )}
+    </Button>
+  )
 
   return (
     <motion.div
@@ -396,6 +426,7 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
       transition={TAB_TRANSITION}
       className={cn(
         'group relative select-none',
+        rowActionsGroupClass,
         // `shrink` lets a crowded strip squeeze tabs to their floor before it
         // starts scrolling.
         tab.pinned ? 'w-[34px] min-w-[34px] max-w-[34px] flex-none' : TAB_WIDTH[variant],
@@ -421,84 +452,43 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
       {showDropAfter && (
         <div className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 z-30 h-4 w-[2px] translate-x-1/2 rounded-full bg-[var(--text-subtle)]' />
       )}
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <Button
-            id={buttonId}
-            type='button'
-            variant='subtle'
-            size='sm'
-            role='tab'
-            aria-selected={Boolean(tab.active)}
-            aria-keyshortcuts={closeable ? 'Delete' : undefined}
-            aria-label={tab.pinned ? tab.title : undefined}
-            data-tab-strip-button={tab.id}
-            tabIndex={focusable ? 0 : -1}
-            className={cn(
-              'h-[var(--tab-strip-band,30px)] w-full select-none bg-transparent py-0 text-caption',
-              tab.pinned ? 'justify-center px-0' : 'justify-start gap-1.5 px-2',
-              closeable && 'pr-8',
-              TAB_SHAPE[variant],
-              tab.selected && !tab.active && TAB_SELECTED[variant],
-              tab.active && 'relative z-10',
-              tab.active && TAB_ACTIVE[variant]
-            )}
-            onClick={(event) => onSelect(tab.id, 'pointer', event)}
-            onKeyDown={(event) => onKeyDown(event, tab.id)}
-          >
-            {tab.icon}
-            {!tab.pinned && (
-              <span className='min-w-0 flex-1 select-none text-left'>
-                <span
-                  ref={titleRef}
-                  className={cn(
-                    overflowTextClipClass,
-                    closeable &&
-                      !tab.active &&
-                      !tab.attention &&
-                      'w-[calc(100%_+_24px)] group-focus-within:w-full group-hover:w-full [@media(hover:none)]:w-full',
-                    titleTruncated && overflowTextFadeClass
-                  )}
-                >
-                  {tab.title}
-                </span>
-              </span>
-            )}
-            {tab.attention && !tab.active && (
+      {tab.tooltip || tab.pinned ? (
+        <Tooltip.Root>
+          <Tooltip.Trigger asChild>{tabButton}</Tooltip.Trigger>
+          <Tooltip.Content side='bottom'>{tab.tooltip || tab.title}</Tooltip.Content>
+        </Tooltip.Root>
+      ) : (
+        tabButton
+      )}
+      {closeable && (
+        <RowActions
+          size='md'
+          open={tab.active}
+          indicator={
+            tab.attention && !tab.active ? (
               <span
-                className={cn(
-                  'size-1.5 shrink-0 rounded-full bg-[var(--brand-blue)]',
-                  tab.pinned && 'absolute right-1 bottom-1'
-                )}
+                className='size-1.5 rounded-full bg-[var(--brand-blue)]'
                 aria-label='Background activity'
               />
-            )}
-          </Button>
-        </Tooltip.Trigger>
-        {(tab.tooltip || tab.pinned || titleTruncated) && (
-          <Tooltip.Content side='bottom'>{tab.tooltip || tab.title}</Tooltip.Content>
-        )}
-      </Tooltip.Root>
-      {closeable && (
-        <Button
-          type='button'
-          variant='ghost-secondary'
-          size='sm'
-          aria-label={`Close ${tab.title}`}
-          tabIndex={-1}
-          className={cn(
-            '-translate-y-1/2 absolute top-1/2 right-0.5 z-20 size-[24px] p-0 transition-opacity',
-            tab.active
-              ? 'opacity-100'
-              : 'pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100'
-          )}
-          onClick={(event) => {
-            event.stopPropagation()
-            onClose?.(tab.id)
-          }}
+            ) : undefined
+          }
+          className='-translate-y-1/2 absolute top-1/2 right-0.5 z-20'
         >
-          <X className='size-[11px]' />
-        </Button>
+          <Button
+            type='button'
+            variant='ghost-secondary'
+            size='sm'
+            aria-label={`Close ${tab.title}`}
+            tabIndex={-1}
+            className='size-[24px] p-0'
+            onClick={(event) => {
+              event.stopPropagation()
+              onClose?.(tab.id)
+            }}
+          >
+            <X className='size-[11px]' />
+          </Button>
+        </RowActions>
       )}
     </motion.div>
   )

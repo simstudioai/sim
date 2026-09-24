@@ -213,6 +213,7 @@ export {
 } from './popover/popover'
 export { POPOVER_ANIMATION_CLASSES } from './popover/popover-animation'
 export { ProgressItem } from './progress-item/progress-item'
+export { RowActions, type RowActionsProps, rowActionsGroupClass } from './row-actions/row-actions'
 export { SecretInput } from './secret-input/secret-input'
 export { SecretReveal } from './secret-reveal/secret-reveal'
 export { WORDMARK_PATHS, WORDMARK_VIEW_BOX } from './sim-wordmark/paths'
@@ -229,7 +230,6 @@ export {
 } from './status-page/status-page'
 export { Switch } from './switch/switch'
 export {
-  isTabTitleTruncated,
   TabStrip,
   type TabStripDragContext,
   type TabStripItem,
