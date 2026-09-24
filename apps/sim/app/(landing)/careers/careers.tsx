@@ -48,10 +48,10 @@ export default async function Careers({ searchParams }: CareersProps) {
         className='mx-auto flex w-full max-w-[1728px] flex-col gap-5 px-10 pt-20 pb-10 max-sm:pt-16 max-md:px-7 max-lg:px-8 max-xl:px-9'
       >
         <p className='sr-only'>
-          Careers at Sim, the open-source AI workspace where teams build, deploy, and manage AI
-          agents. Sim is hiring engineers, designers, and go-to-market builders to help teams
-          automate real work across hundreds of integrations and every major LLM — visually,
-          conversationally, or with code.
+          Careers at Sim, a platform to build autonomous AI agents for enterprise systems. Sim
+          connects integrations into a knowledge graph of company data and processes, which teams
+          use to build and monitor agents and workflows running in production. Join our team of 10
+          in San Francisco; visa sponsorship is available.
         </p>
 
         <h1
@@ -61,9 +61,16 @@ export default async function Careers({ searchParams }: CareersProps) {
           Help build Sim, the AI workspace for teams.
         </h1>
         <p className='max-w-[60ch] text-pretty text-[var(--text-body)] text-lg leading-[1.5] max-sm:text-base'>
-          Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. We're
-          a small, high-agency team shipping fast to thousands of builders. If you want to own real
-          work and shape the workspace teams live in, we'd love to meet you.
+          Sim is a platform to build autonomous AI agents for enterprise systems. Teams connect
+          their integrations and Sim builds a knowledge graph of company data and processes; from
+          there, they work with Sim to build and monitor the AI agents and workflows that run
+          production systems.
+        </p>
+        <p className='max-w-[60ch] text-pretty text-[var(--text-body)] text-lg leading-[1.5] max-sm:text-base'>
+          We're a team of 10 working full-time, in person in San Francisco. We have a flat
+          organization: you'll work directly with the founders and own your work from idea to
+          execution. We sponsor visas. New graduates are welcome; projects, internships, and
+          independent work count.
         </p>
       </section>
 
