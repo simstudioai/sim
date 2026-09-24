@@ -1,13 +1,12 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { cn, ShimmerText } from '@sim/emcn'
 import { Check, ChevronDown, Circle, Square, X } from '@sim/emcn/icons'
 import type {
   AgentStreamToolCall,
   AgentStreamToolStatus,
 } from '@/components/agent-stream/tool-call-lifecycle'
-import { ShimmerText } from '@/components/ui'
 import { humanizeToolName } from '@/lib/mothership/tools/tool-display'
 
 /** Distance from bottom (px) within which we keep following new thinking text. */
