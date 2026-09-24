@@ -344,7 +344,10 @@ export function SelectorCombobox({
                 className='-translate-y-1/2 absolute top-1/2 right-[28px] z-10'
                 onClick={handleClear}
               >
-                <X className='size-4 opacity-50 hover-hover:opacity-100' />
+                <X
+                  className='size-4 opacity-50 hover-hover:opacity-100'
+                  data-preview-full-opacity
+                />
               </Button>
             )}
           </div>

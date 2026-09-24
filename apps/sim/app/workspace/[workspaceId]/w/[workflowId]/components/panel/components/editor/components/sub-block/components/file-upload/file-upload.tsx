@@ -220,7 +220,7 @@ function SingleFileSelector({
         {isDeleting ? (
           <div className='size-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
         ) : (
-          <X className='size-4 opacity-50 hover-hover:opacity-100' />
+          <X className='size-4 opacity-50 hover-hover:opacity-100' data-preview-full-opacity />
         )}
       </Button>
     </div>
@@ -775,7 +775,7 @@ export function FileUpload({
           {isDeleting ? (
             <div className='size-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
           ) : (
-            <X className='size-4 opacity-50' />
+            <X className='size-4 opacity-50' data-preview-full-opacity />
           )}
         </Button>
       </div>

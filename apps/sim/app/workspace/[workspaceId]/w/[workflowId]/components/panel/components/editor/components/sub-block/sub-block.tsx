@@ -1245,6 +1245,7 @@ function SubBlockComponent({
       onMouseDown={handleMouseDown}
       data-workflow-search-subblock-id={config.id}
       data-workflow-search-canonical-id={config.canonicalParamId ?? config.id}
+      data-preview-readonly={(isPreview && !disabled) || undefined}
       className='subblock-content flex flex-col gap-2.5'
     >
       {renderLabel(
