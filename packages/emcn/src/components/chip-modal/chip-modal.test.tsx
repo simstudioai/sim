@@ -280,6 +280,61 @@ describe('ChipModalBody', () => {
   })
 })
 
+describe('ChipModalField composition', () => {
+  it.each(['vertical', 'horizontal'] as const)(
+    'retains labels and feedback in %s fields',
+    (orientation) => {
+      mount(
+        <ChipModalField
+          type='input'
+          title='Name'
+          titleActions={<button type='button'>Help</button>}
+          orientation={orientation}
+          value='Review'
+          onChange={() => {}}
+          required
+          error='Enter a valid name'
+          hint='Hidden while invalid'
+        />
+      )
+      const input = container!.querySelector('input')!
+      expect(input.labels?.[0].textContent).toBe('Name*')
+      expect(input.getAttribute('aria-required')).toBe('true')
+      expect(input.getAttribute('aria-invalid')).toBe('true')
+      const error = document.getElementById(input.getAttribute('aria-describedby')!)!
+      expect(error.textContent).toBe('Enter a valid name')
+      expect(error.getAttribute('role')).toBe('alert')
+      expect(container!.textContent).not.toContain('Hidden while invalid')
+      expect(input.labels?.[0].contains(buttonByText('Help'))).toBe(false)
+      act(() => input.focus())
+      expect(document.activeElement).toBe(input)
+    }
+  )
+
+  it('forwards monospace and height settings to a labeled textarea', () => {
+    mount(
+      <ChipModalField
+        type='textarea'
+        title='JSON'
+        value='{}'
+        onChange={() => {}}
+        mono
+        minHeight={120}
+        rows={4}
+        hint='Enter JSON'
+      />
+    )
+    const textarea = container!.querySelector('textarea')!
+    expect(textarea.labels?.[0].textContent).toBe('JSON')
+    expect(textarea.className).toContain('font-mono')
+    expect(textarea.style.minHeight).toBe('120px')
+    expect(textarea.rows).toBe(4)
+    expect(document.getElementById(textarea.getAttribute('aria-describedby')!)?.textContent).toBe(
+      'Enter JSON'
+    )
+  })
+})
+
 describe('ChipModalField file actions', () => {
   it('names each upload action with its field title', () => {
     mount(
@@ -501,7 +556,13 @@ describe('ChipModal default actions', () => {
       <ChipModal open onOpenChange={() => {}} srTitle='Visible action'>
         <ChipModalHeader onClose={() => {}}>Visible action</ChipModalHeader>
         <ChipModalBody>
-          <ChipModalField type='input' title='Name' value='Canary' onChange={() => {}} />
+          <ChipModalField
+            type='input'
+            title='Name'
+            orientation='horizontal'
+            value='Canary'
+            onChange={() => {}}
+          />
         </ChipModalBody>
         <div aria-hidden='true'>
           <ChipModalFooter
