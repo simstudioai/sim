@@ -38,7 +38,7 @@ export function SourceIcon({ source, size = 'default' }: SourceIconProps) {
   if (hostname && failedHostname !== hostname) {
     return (
       <img
-        src={faviconUrl(hostname, 32)}
+        src={faviconUrl(hostname, 64)}
         alt=''
         className={cn(className, 'rounded-sm')}
         onError={() => setFailedHostname(hostname)}
