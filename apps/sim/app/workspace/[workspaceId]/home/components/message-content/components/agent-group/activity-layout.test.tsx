@@ -80,7 +80,7 @@ describe('flat expanded activity layout', () => {
         expect(iconSlot(row).classList).toContain(ICON_SLOT)
       }
       const list = rows[0].closest('.flex-col')!
-      expect(list.classList).toContain('gap-1.5')
+      expect(list.classList).toContain('gap-2')
       let node: Element | null = rows[0]
       while (node && node !== container) {
         expect(hasIndent(node), node.className).toBe(false)
@@ -134,16 +134,15 @@ describe('flat expanded activity layout', () => {
         },
       },
     ])
-    const blocks = container.querySelector('.flex-col.gap-3')!
+    const blocks = container.querySelector('.flex-col.gap-2')!
     expect(blocks.contains(statuses()[0])).toBe(true)
-    expect(blocks.classList).toContain('gap-3')
-    expect(blocks.classList).not.toContain('gap-1.5')
+    expect(blocks.classList).toContain('gap-2')
     expect(statuses()).toHaveLength(1)
     expand()
     const rows = statuses().slice(1)
     expect(rows).toHaveLength(3)
     for (const row of rows) {
-      expect(row.closest('.flex-col')!.classList).toContain('gap-1.5')
+      expect(row.closest('.flex-col')!.classList).toContain('gap-2')
       expect(iconSlot(row).classList).toContain(ICON_SLOT)
     }
   })

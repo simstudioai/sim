@@ -4,131 +4,146 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockPreview } = vi.hoisted(() => ({ mockPreview: vi.fn() }))
-
 vi.mock('@/lib/browser-agent/open-in-panel', () => ({
   shouldOpenInBrowserPanel: () => false,
   openInBrowserPanel: vi.fn(),
 }))
-vi.mock('@/hooks/queries/link-preview', () => ({
-  useLinkPreview: () => ({ data: { preview: mockPreview() } }),
-}))
+vi.mock('@/lib/integrations/icon-mapping', () => ({ blockTypeToIconMap: {} }))
+vi.mock('@/hooks/queries/link-preview', () => ({ useLinkPreview: mockPreview }))
 
 import {
   ExternalLink,
-  getExternalLinkTooltip,
   LinkSourcesContext,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/external-link'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 
-const HREF = 'https://mail.google.com/mail/u/0/#inbox/FMfcgzQ'
-const PREVIEW = { title: 'Preview title', description: 'Preview description', siteName: 'Gmail' }
-const SOURCE: SourceTagData = { url: HREF, title: 'Quarterly plan thread', siteName: 'Gmail' }
+const HREF = 'https://docs.example.com/guide'
+const SOURCE: SourceTagData = {
+  url: HREF,
+  title: 'Quarterly plan',
+  snippet: 'Authorized source excerpt.',
+  connectorType: 'confluence',
+}
 
-describe('getExternalLinkTooltip', () => {
-  it('prefers the cited source title, then the preview title, then the site name', () => {
-    expect(getExternalLinkTooltip(HREF, SOURCE, PREVIEW)).toMatchObject({
-      title: 'Quarterly plan thread',
-      siteName: 'Gmail',
-    })
-    expect(getExternalLinkTooltip(HREF, undefined, PREVIEW)).toMatchObject({
-      title: 'Preview title',
-      siteName: 'Gmail',
-      description: 'Preview description',
-    })
-    expect(getExternalLinkTooltip(HREF, undefined, undefined)).toEqual({
-      title: 'mail.google.com',
-    })
-    expect(getExternalLinkTooltip('https://www.example.com/a', undefined, null)).toEqual({
-      title: 'example.com',
-    })
-  })
-
-  it('never shows the raw URL, and takes a description only from the preview', () => {
-    for (const tooltip of [
-      getExternalLinkTooltip(HREF, SOURCE, undefined),
-      getExternalLinkTooltip(
-        HREF,
-        { url: HREF },
-        { title: ' ', description: null, siteName: null }
-      ),
-      getExternalLinkTooltip(HREF, undefined, undefined),
-    ]) {
-      expect(Object.values(tooltip)).not.toContain(HREF)
-      expect(tooltip.description).toBeUndefined()
-    }
-  })
-})
-
-describe('ExternalLink', () => {
+describe('shared link previews', () => {
   let root: Root
   let container: HTMLDivElement
-
   beforeEach(() => {
+    vi.useFakeTimers()
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false }))
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
-    mockPreview.mockReturnValue(null)
+    mockPreview.mockReset().mockReturnValue({ data: { preview: null } })
   })
-
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
   })
-
-  const render = (sources: ReadonlyMap<string, SourceTagData> = new Map()) =>
+  const render = (href = HREF, source?: SourceTagData) =>
     act(() =>
       root.render(
-        <LinkSourcesContext.Provider value={sources}>
+        <LinkSourcesContext.Provider value={new Map(source ? [[href, source]] : [])}>
           <p>
-            See the{' '}
-            <ExternalLink href={HREF} hostname='mail.google.com'>
-              Conversation
-            </ExternalLink>
+            See <ExternalLink href={href}>the guide</ExternalLink>.
           </p>
         </LinkSourcesContext.Provider>
       )
     )
-  const link = () => container.querySelector('a')!
-  const hover = () =>
-    act(() => {
-      link().dispatchEvent(new MouseEvent('pointerover', { bubbles: true, clientX: 9, clientY: 9 }))
-    })
+  const link = () => container.querySelector<HTMLAnchorElement>('a')!
+  const preview = () => document.querySelector('[role="dialog"][aria-label="Source preview"]')
+  const enter = () =>
+    act(() => link().dispatchEvent(new MouseEvent('pointerover', { bubbles: true })))
+  const leave = () =>
+    act(() => link().dispatchEvent(new MouseEvent('pointerout', { bubbles: true })))
 
-  it('centers the favicon on the text middle without a pixel offset or an inline-flex link', () => {
+  it('does not load metadata during render or a passing hover', () => {
     render()
-    const icon = link().querySelector('img')!
-    expect(icon.classList).toContain('align-middle')
-    expect(icon.parentElement).toBe(link())
-    const offsets = [...icon.classList].filter((name) => /^(-?top|relative|translate)/.test(name))
-    expect(offsets).toEqual([])
+    expect(mockPreview).not.toHaveBeenCalled()
+    enter()
+    act(() => vi.advanceTimersByTime(200))
+    leave()
+    act(() => vi.advanceTimersByTime(500))
+    expect(mockPreview).not.toHaveBeenCalled()
+    expect(preview()).toBeNull()
+  })
+
+  it('loads public metadata on deliberate hover and preserves navigation', () => {
+    mockPreview.mockReturnValue({
+      data: {
+        preview: {
+          title: 'Guide',
+          siteName: 'Docs',
+          description: 'Useful instructions.',
+          image: 'data:image/webp;base64,AAAA',
+        },
+      },
+    })
+    render()
+    enter()
+    act(() => vi.advanceTimersByTime(300))
+    expect(mockPreview).toHaveBeenCalledWith(HREF)
+    expect(preview()?.textContent).toContain('Useful instructions.')
+    expect(preview()?.querySelector('img[src^="data:image/webp"]')).not.toBeNull()
+    expect(preview()?.querySelector('a')?.getAttribute('href')).toBe(HREF)
+    expect(link().getAttribute('href')).toBe(HREF)
     expect(link().classList).not.toContain('inline-flex')
   })
 
-  it('underlines only on hover, with no fill, and keeps the keyboard focus outline', () => {
-    render()
-    const classes = [...link().classList]
-    expect(classes).toContain('no-underline')
-    expect(classes).toContain('hover:underline')
-    expect(classes).toContain('decoration-[var(--text-muted)]')
-    expect(classes.some((name) => name.startsWith('hover:bg-'))).toBe(false)
-    expect(classes).toContain('focus-visible:outline')
+  it('uses private source metadata and does not request public-page metadata', () => {
+    render(HREF, SOURCE)
+    act(() => link().focus())
+    expect(mockPreview).toHaveBeenCalledWith(undefined)
+    expect(preview()?.textContent).toContain('Quarterly plan')
+    expect(preview()?.textContent).toContain('Authorized source excerpt.')
+    expect(preview()?.textContent).not.toContain(HREF)
   })
 
-  it('titles the tooltip with the cited source for this exact URL', () => {
-    render(new Map([[HREF, SOURCE]]))
-    hover()
-    const tooltip = document.querySelector('[role="tooltip"]')!
-    expect(tooltip.textContent).toContain('Quarterly plan thread')
-    expect(tooltip.textContent).toContain('Gmail')
-    expect(tooltip.textContent).not.toContain(HREF)
+  it('keeps a focused preview open on pointer leave and dismisses on Escape', () => {
+    render()
+    act(() => link().focus())
+    leave()
+    act(() => vi.advanceTimersByTime(500))
+    expect(preview()).not.toBeNull()
+    act(() =>
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    )
+    expect(preview()).toBeNull()
+    expect(document.activeElement).toBe(link())
   })
 
-  it('falls back to the site name instead of the URL for a private page with no preview', () => {
+  it('keeps focused preview content open and returns focus on Escape', () => {
     render()
-    hover()
-    const tooltip = document.querySelector('[role="tooltip"]')!
-    expect(tooltip.textContent).toContain('mail.google.com')
-    expect(tooltip.textContent).not.toContain(HREF)
+    act(() => link().focus())
+    const openLink = preview()!.querySelector<HTMLAnchorElement>('a')!
+    act(() => openLink.focus())
+    act(() => openLink.dispatchEvent(new MouseEvent('pointerout', { bubbles: true })))
+    act(() => vi.advanceTimersByTime(500))
+    expect(preview()).not.toBeNull()
+    act(() =>
+      openLink.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    )
+    expect(preview()).toBeNull()
+    expect(document.activeElement).toBe(link())
+  })
+
+  it('keeps the preview open when focus returns to its anchor', () => {
+    render()
+    act(() => link().focus())
+    act(() => preview()!.querySelector<HTMLAnchorElement>('a')!.focus())
+    act(() => link().focus())
+    act(() => vi.advanceTimersByTime(500))
+    expect(preview()).not.toBeNull()
+  })
+
+  it('restores the favicon when a reused link changes hosts after an image error', () => {
+    render()
+    act(() => link().querySelector('img')!.dispatchEvent(new Event('error')))
+    expect(link().querySelector('img')).toBeNull()
+    render('https://other.example.com/guide')
+    expect(link().querySelector('img')).not.toBeNull()
   })
 })

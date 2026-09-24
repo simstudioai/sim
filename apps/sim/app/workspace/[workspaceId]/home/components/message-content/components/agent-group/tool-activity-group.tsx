@@ -242,7 +242,7 @@ export function ToolActivityGroup({
           isStreaming={working && autoScrollActivity}
           unbounded={entries.some(({ sources }) => (sources?.length ?? 0) > 0)}
         >
-          <div className='flex min-w-0 flex-col gap-1.5 py-0.5'>
+          <div className='flex min-w-0 flex-col gap-2'>
             {entries.map(({ tool, sources }, index) => (
               <Fragment key={tool.id}>
                 {tools.length === 1 ? null : tool.id === headerTool.id ? (

@@ -1109,7 +1109,7 @@ function MessageContentInner({
 
   return (
     <div>
-      <div className='space-y-[10px] [&>[data-agent-group]:has(+[data-agent-group])]:mb-4'>
+      <div className='space-y-2'>
         {segments.map((segment, i) => {
           switch (segment.type) {
             case 'text':
