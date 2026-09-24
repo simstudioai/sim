@@ -145,7 +145,7 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
     <img
       src={faviconUrl(hostname, 32)}
       alt=''
-      className='size-[16px] rounded-[3px]'
+      className='size-[16px] rounded-sm'
       onError={hideBrokenFavicon}
     />
   ) : null

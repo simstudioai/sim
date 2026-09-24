@@ -172,7 +172,7 @@ export const ChatInput: React.FC<{
               {attachedFiles.map((file) => (
                 <Tooltip.Root key={file.id}>
                   <Tooltip.Trigger asChild>
-                    <div className='group relative size-[56px] shrink-0 cursor-pointer overflow-hidden rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-3)]'>
+                    <div className='group relative size-[56px] shrink-0 cursor-pointer overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--surface-3)]'>
                       {file.dataUrl ? (
                         <img
                           src={file.dataUrl}

@@ -14,7 +14,6 @@ import {
   type ComboboxOption,
   handleKeyboardActivation,
 } from '@sim/emcn'
-import { Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { TagUsageData } from '@/lib/api/contracts/knowledge'
@@ -24,6 +23,7 @@ import {
   SUPPORTED_FIELD_TYPES,
   TAG_SLOT_CONFIG,
 } from '@/lib/knowledge/constants'
+import { KnowledgeTagRow } from '@/app/workspace/[workspaceId]/knowledge/components/knowledge-tag-row'
 import {
   type TagDefinition,
   useKnowledgeBaseTagDefinitions,
@@ -270,41 +270,28 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
               {kbTagDefinitions.map((tag) => {
                 const usage = getTagUsage(tag.tagSlot)
                 return (
-                  <div
+                  <KnowledgeTagRow
                     key={tag.id}
                     role='button'
                     tabIndex={0}
-                    className='flex cursor-pointer items-center gap-2 rounded-sm border p-2 hover-hover:bg-[var(--surface-2)]'
                     onClick={() => handleViewDocuments(tag)}
                     onKeyDown={(event) => {
                       if (event.target !== event.currentTarget) return
                       handleKeyboardActivation(event, () => handleViewDocuments(tag))
                     }}
-                  >
-                    <span className='min-w-0 truncate text-[var(--text-primary)] text-caption'>
-                      {tag.displayName}
-                    </span>
-                    <span className='rounded-[3px] bg-[var(--surface-3)] px-1.5 py-0.5 text-[var(--text-muted)] text-micro'>
-                      {FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
-                    </span>
-                    <div className='mb-[-1.5px] h-[14px] w-[1.25px] shrink-0 rounded-full bg-[var(--border-1)]' />
-                    <span className='min-w-0 flex-1 text-[var(--text-muted)] text-caption'>
-                      {usage.documentCount} document{usage.documentCount !== 1 ? 's' : ''}
-                    </span>
-                    <div className='flex shrink-0 items-center gap-1'>
-                      <Button
-                        aria-label='Delete Tag'
-                        variant='ghost'
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDeleteTagClick(tag)
-                        }}
-                        className='size-4 p-0 text-[var(--text-muted)] hover-hover:text-[var(--text-error)]'
-                      >
-                        <Trash className='size-3' />
-                      </Button>
-                    </div>
-                  </div>
+                    name={tag.displayName}
+                    typeLabel={FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
+                    detail={
+                      <>
+                        {usage.documentCount} document{usage.documentCount !== 1 ? 's' : ''}
+                      </>
+                    }
+                    removeLabel='Delete Tag'
+                    onRemove={(e) => {
+                      e.stopPropagation()
+                      handleDeleteTagClick(tag)
+                    }}
+                  />
                 )
               })}
 

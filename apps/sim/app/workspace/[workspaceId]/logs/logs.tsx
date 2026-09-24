@@ -196,7 +196,7 @@ function getColorIcon(color: string): React.ComponentType<{ className?: string }
 
   const ColorIcon = ({ className }: { className?: string }) => (
     <div
-      className={cn(className, 'shrink-0 rounded-[3px]')}
+      className={cn(className, 'shrink-0 rounded-sm')}
       style={{
         backgroundColor: color,
         width: 10,
@@ -1470,7 +1470,7 @@ function LogsFilterPanel({ searchQuery, onSearchQueryChange }: LogsFilterPanelPr
             <span className='flex w-full min-w-0 items-center gap-1.5 text-[var(--text-primary)]'>
               {selectedStatusColor && (
                 <div
-                  className='shrink-0 rounded-[3px]'
+                  className='shrink-0 rounded-sm'
                   style={{ backgroundColor: selectedStatusColor, width: 8, height: 8 }}
                 />
               )}

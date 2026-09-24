@@ -117,7 +117,7 @@ function BrowserSuggestionIcon({ suggestion }: { suggestion: UrlSuggestion }) {
     <img
       src={source}
       alt=''
-      className='size-4 shrink-0 rounded-[3px]'
+      className='size-4 shrink-0 rounded-sm'
       onError={() => setFailed(true)}
     />
   )

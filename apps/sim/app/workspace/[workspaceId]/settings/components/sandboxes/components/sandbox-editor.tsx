@@ -242,7 +242,7 @@ export function SandboxStatus({
                 {showLog ? 'Hide log' : 'Show log'}
               </Chip>
               {showLog && (
-                <pre className='max-h-64 overflow-auto whitespace-pre-wrap rounded-[8px] bg-[var(--surface-3)] p-3 text-[var(--text-muted)] text-caption'>
+                <pre className='max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-[var(--surface-3)] p-3 text-[var(--text-muted)] text-caption'>
                   {sandbox.errorDetail}
                 </pre>
               )}

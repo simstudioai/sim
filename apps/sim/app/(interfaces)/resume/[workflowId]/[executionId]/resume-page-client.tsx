@@ -158,7 +158,7 @@ function renderStructuredValuePreview(value: unknown) {
   const { text: stringValue, truncated } = truncateForPreview(String(value))
   return (
     <div className='max-w-full'>
-      <div className='inline-flex max-w-full rounded-[6px] border border-[var(--border)] bg-[var(--surface-5)] px-2 py-1 font-mono text-[var(--text-primary)] text-caption leading-4 [white-space:pre-wrap] [word-break:break-word]'>
+      <div className='inline-flex max-w-full rounded-md border border-[var(--border)] bg-[var(--surface-5)] px-2 py-1 font-mono text-[var(--text-primary)] text-caption leading-4 [white-space:pre-wrap] [word-break:break-word]'>
         {truncated ? `${stringValue}…` : stringValue}
       </div>
       {truncated && (
@@ -801,7 +801,7 @@ export default function ResumeExecutionPage({
         {/* Main Layout */}
         <div className='grid grid-cols-[280px_1fr] gap-6'>
           {/* Pause Points List */}
-          <div className='overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
+          <div className='overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)]'>
             <div className='border-[var(--border)] border-b px-4 py-3'>
               <Label>Pause Points</Label>
             </div>
@@ -833,17 +833,17 @@ export default function ResumeExecutionPage({
           {/* Detail Panel */}
           <div>
             {loadingDetail && !selectedDetail ? (
-              <div className='flex h-[200px] items-center justify-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
+              <div className='flex h-[200px] items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface-1)]'>
                 <span className='text-[var(--text-secondary)] text-small'>Loading…</span>
               </div>
             ) : !selectedContextId ? (
-              <div className='flex h-[200px] items-center justify-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
+              <div className='flex h-[200px] items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface-1)]'>
                 <span className='text-[var(--text-secondary)] text-small'>
                   Select a pause point
                 </span>
               </div>
             ) : !selectedDetail ? (
-              <div className='flex h-[200px] items-center justify-center rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
+              <div className='flex h-[200px] items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface-1)]'>
                 <span className='text-[var(--text-secondary)] text-small'>
                   Could not load details
                 </span>
@@ -851,7 +851,7 @@ export default function ResumeExecutionPage({
             ) : (
               <div className='flex flex-col gap-4'>
                 {/* Status Header */}
-                <div className='flex items-center justify-between rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3'>
+                <div className='flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3'>
                   <div>
                     <Label>{getBlockName(selectedDetail.pausePoint)}</Label>
                     <p className='mt-[2px] text-[var(--text-muted)] text-caption'>
@@ -869,7 +869,7 @@ export default function ResumeExecutionPage({
                 </div>
 
                 {selectedDetail.pausePoint.automaticResumeWaitingReason && (
-                  <div className='rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3'>
+                  <div className='rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-4 py-3'>
                     <Label>Waiting to resume automatically</Label>
                     <p className='mt-1 text-[var(--text-secondary)] text-small'>
                       {selectedDetail.pausePoint.automaticResumeWaitingReason}
@@ -882,7 +882,7 @@ export default function ResumeExecutionPage({
 
                 {/* Already resolved - show form fields with submitted values */}
                 {selectedStatus === 'resumed' || selectedStatus === 'failed' ? (
-                  <div className='overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
+                  <div className='overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)]'>
                     <div className='border-[var(--border)] border-b px-4 py-3'>
                       <Label>Resume Form</Label>
                     </div>
@@ -933,7 +933,7 @@ export default function ResumeExecutionPage({
                   <>
                     {/* Display Data */}
                     {responseStructureRows.length > 0 ? (
-                      <div className='overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
+                      <div className='overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)]'>
                         <div className='border-[var(--border)] border-b px-4 py-3'>
                           <Label>Display Data</Label>
                         </div>
@@ -959,7 +959,7 @@ export default function ResumeExecutionPage({
                         </div>
                       </div>
                     ) : (
-                      <div className='overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
+                      <div className='overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)]'>
                         <div className='border-[var(--border)] border-b px-4 py-3'>
                           <Label>Display Data</Label>
                         </div>
@@ -973,7 +973,7 @@ export default function ResumeExecutionPage({
 
                     {/* Resume Form */}
                     {isHumanMode && hasInputFormat ? (
-                      <div className='overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
+                      <div className='overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)]'>
                         <div className='border-[var(--border)] border-b px-4 py-3'>
                           <Label>Resume Form</Label>
                         </div>
@@ -1002,7 +1002,7 @@ export default function ResumeExecutionPage({
                         </div>
                       </div>
                     ) : (
-                      <div className='overflow-hidden rounded-[8px] border border-[var(--border)] bg-[var(--surface-1)]'>
+                      <div className='overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)]'>
                         <div className='border-[var(--border)] border-b px-4 py-3'>
                           <Label>Resume Input (JSON)</Label>
                         </div>

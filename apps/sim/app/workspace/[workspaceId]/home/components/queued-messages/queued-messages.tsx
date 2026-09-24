@@ -49,7 +49,7 @@ export function QueuedMessages({
   return (
     <div
       ref={containerRef}
-      className='-mb-3 mx-3.5 overflow-hidden rounded-t-[16px] border border-[var(--border-1)] border-b-0 bg-[var(--surface-3)] pb-3'
+      className='-mb-3 mx-3.5 overflow-hidden rounded-t-2xl border border-[var(--border-1)] border-b-0 bg-[var(--surface-3)] pb-3'
     >
       <button
         type='button'
@@ -97,7 +97,7 @@ export function QueuedMessages({
                 </div>
 
                 {msg.fileAttachments && msg.fileAttachments.length > 0 && (
-                  <span className='inline-flex min-w-0 max-w-[40%] shrink items-center gap-1 rounded-[5px] bg-[var(--surface-5)] px-[5px] py-0.5 text-[var(--text-primary)] text-small'>
+                  <span className='inline-flex min-w-0 max-w-[40%] shrink items-center gap-1 rounded-sm bg-[var(--surface-5)] px-[5px] py-0.5 text-[var(--text-primary)] text-small'>
                     <Paperclip className='size-[12px] shrink-0 text-[var(--text-icon)]' />
                     {isNarrow ? (
                       <span className='shrink-0 text-[var(--text-secondary)]'>
