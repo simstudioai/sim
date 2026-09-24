@@ -40,7 +40,7 @@ async function render(content: string) {
 }
 
 describe('mixed chat presentation', () => {
-  it('preserves table formatting and gives interactive cells their own preview without an overflow tooltip', async () => {
+  it('preserves full table content and gives links their own preview without competing tooltips', async () => {
     const source = JSON.stringify({
       url: 'https://example.com/review',
       title: 'Release review',
@@ -56,9 +56,10 @@ describe('mixed chat presentation', () => {
       'center',
       'right',
     ])
-    expect(
-      container.querySelector('td [data-overflow-text] [data-streamdown="strong"]')?.textContent
-    ).toBe('A long document title')
+    expect(container.querySelector('td [data-streamdown="strong"]')?.textContent).toBe(
+      'A long document title'
+    )
+    expect(container.querySelector('td')?.querySelector('[data-overflow-text]')).toBeNull()
     expect(container.querySelector('td code')?.textContent).toBe('search workspace')
     expect(container.querySelector('td a[href="https://example.com/guide"] em')?.textContent).toBe(
       'the guide'

@@ -31,7 +31,10 @@ import {
 } from '@/lib/core/security/egress/validate'
 import type { HttpRedirectPolicy } from '@/lib/core/security/http-redirect-policy'
 import type { ValidationResult } from '@/lib/core/security/input-validation'
-import { nodeReadableToWebStream } from '@/lib/core/utils/node-stream'
+import {
+  createPrematureStreamCloseError,
+  nodeReadableToWebStream,
+} from '@/lib/core/utils/node-stream'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
 const logger = createLogger('InputValidation')
@@ -918,7 +921,7 @@ async function undiciRequestAsResponse(
     signal?.addEventListener('abort', onAbort, { once: true })
     body.once('error', (error) => decoder.destroy(error))
     body.once('close', () => {
-      if (!body.readableEnded) decoder.destroy(new Error('Response body closed before completing'))
+      if (!body.readableEnded) decoder.destroy(createPrematureStreamCloseError())
     })
     decoder.once('close', () => {
       signal?.removeEventListener('abort', onAbort)
@@ -1421,13 +1424,12 @@ export async function secureFetchWithPinnedIP(
           })
           nodeRes.once('error', fail)
           nodeRes.once('close', () => {
-            if (!bodySettled) fail(new Error('Response body closed before completing'))
+            if (!bodySettled) fail(createPrematureStreamCloseError())
           })
           if (decoder) {
             res.once('error', (error) => decoder.destroy(error))
             res.once('close', () => {
-              if (!res.readableEnded)
-                decoder.destroy(new Error('Response body closed before completing'))
+              if (!res.readableEnded) decoder.destroy(createPrematureStreamCloseError())
             })
             res.pipe(decoder)
           }

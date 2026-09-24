@@ -11,7 +11,7 @@ import {
   useState,
 } from 'react'
 import type { Nodes } from 'hast'
-import { defaultRehypePlugins, defaultRemarkPlugins, type ExtraProps, Streamdown } from 'streamdown'
+import { defaultRehypePlugins, defaultRemarkPlugins, Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 // prismjs core must load before its language components — they register on the
 // global `Prism` it installs (on `window`/`global`); fixes SSR + client order.
@@ -28,14 +28,17 @@ import {
   cn,
   Lightbox,
   languages,
-  OverflowText,
   highlight as prismHighlight,
+  scrollFadeAttributes,
+  scrollFadeXClass,
+  useScrollEdges,
 } from '@sim/emcn'
 import { extractTextContent } from '@/lib/core/utils/react-node-text'
 import {
   inlineChatImageUrl,
   isInlineFileReference,
 } from '@/lib/mothership/chat/inline-image-reference'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { sanitizeChatDisplayContent } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/chat-sanitize'
 import {
@@ -267,69 +270,56 @@ function highlight(code: string, language: string): string {
   return html
 }
 
-function hasInteractiveTableContent(node?: Nodes): boolean {
-  return (
-    node?.type === 'element' &&
-    (node.tagName === 'a' ||
-      node.tagName === 'img' ||
-      node.children.some(hasInteractiveTableContent))
-  )
-}
-
-interface TableCellContentProps extends ExtraProps {
+interface MarkdownTableProps {
   children?: React.ReactNode
 }
 
-function TableCellContent({ children, node }: TableCellContentProps) {
-  if (hasInteractiveTableContent(node)) {
-    return (
-      <div className='min-w-[160px] max-w-[320px] whitespace-normal [overflow-wrap:anywhere]'>
-        {children}
-      </div>
-    )
-  }
+function MarkdownTable({ children }: MarkdownTableProps) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const edges = useScrollEdges(scrollRef, { axis: 'x' })
+  const isOverflowing = edges.left || edges.right
+
   return (
-    <span className='inline-block max-w-full align-middle'>
-      <OverflowText
-        label={extractTextContent(children)}
-        className='[&_code]:whitespace-nowrap [@media(hover:hover)]:max-w-[320px]'
-      >
+    <div
+      ref={scrollRef}
+      role={isOverflowing ? 'region' : undefined}
+      aria-label={isOverflowing ? 'Scrollable table' : undefined}
+      tabIndex={isOverflowing ? 0 : undefined}
+      className={cn(
+        'not-prose my-4 w-full overflow-x-auto [&_strong]:font-semibold',
+        scrollFadeXClass
+      )}
+      {...scrollFadeAttributes(edges)}
+    >
+      <table className='min-w-full border-collapse [&_tbody_tr:last-child_td]:border-b-0'>
         {children}
-      </OverflowText>
-    </span>
+      </table>
+    </div>
   )
 }
 
 const MARKDOWN_COMPONENTS = {
-  table({ children }: { children?: React.ReactNode }) {
-    return (
-      <div className='not-prose my-4 w-full overflow-x-auto [&_strong]:font-semibold'>
-        <table className='min-w-full table-auto border-collapse [&_tbody_tr:last-child_td]:border-b-0'>
-          {children}
-        </table>
-      </div>
-    )
-  },
+  table: MarkdownTable,
   thead({ children }: { children?: React.ReactNode }) {
     return <thead>{children}</thead>
   },
-  th({ children, style, node }: ThProps & ExtraProps) {
+  th({ children, style }: ThProps) {
     return (
       <th
         style={{ textAlign: style?.textAlign }}
         className='whitespace-nowrap border-[var(--border)] border-b px-3 py-2 text-left font-semibold text-[var(--text-primary)] text-sm leading-6'
       >
-        <TableCellContent node={node}>{children}</TableCellContent>
+        {children}
       </th>
     )
   },
-  td({ children, style, node }: TdProps & ExtraProps) {
+  td({ children, style }: TdProps) {
     return (
       <td
         style={{ textAlign: style?.textAlign }}
         className='whitespace-nowrap border-[var(--border)] border-b px-3 py-2 text-[var(--text-primary)] text-sm leading-6'
       >
-        <TableCellContent node={node}>{children}</TableCellContent>
+        {children}
       </td>
     )
   },
@@ -764,7 +754,7 @@ function ChatContentInner({
         <WorkspaceRefsContext.Provider
           value={{ resources: workspaceRefs, onSelect: onWorkspaceResourceSelect }}
         >
-          <div className='space-y-3'>
+          <div className={cn('space-y-3', inter.className)}>
             {groups.map((group, i) => {
               if (group.kind === 'inline') {
                 return (

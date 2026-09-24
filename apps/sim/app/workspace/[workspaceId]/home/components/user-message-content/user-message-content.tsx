@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { cn } from '@sim/emcn'
 import { escapeRegExp } from '@sim/utils/string'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { ResourceMention } from '@/app/workspace/[workspaceId]/home/components/message-content/components/resource-mention'
 import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
@@ -126,7 +127,7 @@ export function UserMessageContent({
   compact = false,
 }: UserMessageContentProps) {
   const trimmed = content.trim()
-  const classes = cn(compact ? COMPACT_CLASSES : USER_MESSAGE_CLASSES, className)
+  const classes = cn(inter.className, compact ? COMPACT_CLASSES : USER_MESSAGE_CLASSES, className)
 
   const ranges = useMemo(() => computeMentionRanges(content, contexts ?? []), [content, contexts])
 

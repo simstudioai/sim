@@ -102,11 +102,14 @@ export async function fetchLinkPreview(
       Accept: 'text/html,application/xhtml+xml',
     },
   })
-  const contentType = response.headers.get('content-type') ?? ''
+  const contentType = (response.headers.get('content-type') ?? '')
+    .split(';', 1)[0]
+    .trim()
+    .toLowerCase()
   if (
     response.status < 200 ||
     response.status >= 300 ||
-    (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml'))
+    (contentType !== 'text/html' && contentType !== 'application/xhtml+xml')
   ) {
     await response.body?.cancel().catch(() => {})
     return null

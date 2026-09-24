@@ -22,6 +22,20 @@ function page(image = IMAGE) {
 describe('public link preview images', () => {
   beforeEach(() => fetchMock.mockReset())
 
+  it.each(['Text/HTML; charset=UTF-8', 'Application/XHTML+XML ; charset=utf-8'])(
+    'accepts case-insensitive HTML media types: %s',
+    async (contentType) => {
+      fetchMock.mockResolvedValueOnce(
+        new Response('<title>Guide</title>', { headers: { 'content-type': contentType } })
+      )
+      expect(await fetchLinkPreview(PAGE)).toEqual({
+        title: 'Guide',
+        description: null,
+        siteName: null,
+      })
+    }
+  )
+
   it('normalizes a raster to a bounded thumbnail and guards both requests and redirects', async () => {
     const input = await sharp({
       create: { width: 1200, height: 630, channels: 3, background: '#5577aa' },
@@ -114,6 +128,30 @@ describe('public link preview images', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('retries an image whose body closes before completing', async () => {
+    const interrupted = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array([137, 80, 78, 71]))
+        controller.error(
+          Object.assign(new Error('Stream closed before completing'), {
+            code: 'ERR_STREAM_PREMATURE_CLOSE',
+          })
+        )
+      },
+    })
+    fetchMock
+      .mockResolvedValueOnce(page())
+      .mockResolvedValueOnce(
+        new Response(interrupted, { headers: { 'content-type': 'image/png' } })
+      )
+    expect(await fetchLinkPreview(PAGE)).toEqual({
+      title: 'Guide',
+      description: 'A useful guide',
+      siteName: null,
+      imageRetryable: true,
+    })
+  })
+
   it('does not retry malformed raster data', async () => {
     fetchMock
       .mockResolvedValueOnce(page())
@@ -153,6 +191,7 @@ describe('public link preview images', () => {
     { status: 404, contentType: 'text/html' },
     { status: 503, contentType: 'text/html' },
     { status: 200, contentType: 'application/octet-stream' },
+    { status: 200, contentType: 'text/html-invalid' },
   ])('cancels rejected page bodies: $status $contentType', async ({ status, contentType }) => {
     const cancel = vi.fn()
     const response = new Response(new ReadableStream({ cancel }), {

@@ -10,6 +10,7 @@ import {
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 import { SearchInputBar } from '@/app/o/[organizationId]/components/search-input-bar'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { AttachedFilesList } from '@/app/workspace/[workspaceId]/home/components/user-input/components/attached-files-list/attached-files-list'
@@ -268,6 +269,7 @@ export function Composer({
       onDragOver={files.handleDragOver}
       onDrop={files.handleDrop}
       className={cn(
+        inter.className,
         'relative z-10 mx-auto w-full max-w-chat',
         !imagesOnly &&
           'rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',

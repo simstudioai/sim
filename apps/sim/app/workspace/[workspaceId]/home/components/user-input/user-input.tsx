@@ -18,6 +18,7 @@ import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachm
 import { MOTHERSHIP_ADD_CONTEXT_EVENT } from '@/lib/mothership/events'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
   AnimatedPlaceholderEffect,
@@ -558,6 +559,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
       }}
       className={cn(
         'relative z-10 mx-auto w-full max-w-chat cursor-text rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
+        inter.className,
         isInitialView && 'shadow-ambient'
       )}
       onDragEnter={handleDragEnter}

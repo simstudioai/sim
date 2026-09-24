@@ -17,6 +17,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components/message-actions'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
@@ -814,7 +815,7 @@ export function MothershipChat({
       onContextRemove={onContextRemove}
       onWorkspaceResourceSelect={onWorkspaceResourceSelect}
     >
-      <div className={cn('flex h-full min-h-0 flex-col', className)}>
+      <div className={cn('flex h-full min-h-0 flex-col', inter.className, className)}>
         <div ref={setScrollElement} className={styles.scrollContainer} onCopy={handleCopy}>
           {isLoading && !hasMessages ? (
             <MothershipChatSkeleton layout={layout} />

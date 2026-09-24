@@ -1,8 +1,9 @@
 'use client'
 
 import { type ReactElement, useEffect, useRef, useState } from 'react'
-import { OverflowText, Popover, PopoverAnchor, PopoverContent } from '@sim/emcn'
+import { cn, OverflowText, Popover, PopoverAnchor, PopoverContent } from '@sim/emcn'
 import { ArrowUpRight } from '@sim/emcn/icons'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 import { SourceIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip/source-icon'
 import {
   handleExternalLinkClick,
@@ -76,7 +77,7 @@ export function SourcePreview({ source, children }: SourcePreviewProps) {
           ref={content}
           appearance='tooltip'
           maxWidth='min(320px, calc(100vw - 2rem))'
-          className='w-[320px]'
+          className={cn('w-[320px]', inter.className)}
           sideOffset={8}
           aria-label='Source preview'
           onFocusOutside={(event) => {
