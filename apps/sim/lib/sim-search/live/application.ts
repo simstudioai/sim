@@ -306,12 +306,15 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     const searchSignal = input.signal
       ? AbortSignal.any([input.signal, AbortSignal.timeout(20_000)])
       : AbortSignal.timeout(20_000)
-    const nativeFor = (account: LiveAccount) =>
-      queries?.find(
-        (query) =>
-          query.provider === account.provider &&
-          (!query.accountId || query.accountId === account.id)
-      )
+    /** An account's native queries, one per kind; `undefined` searches it with the plain query. */
+    const nativesFor = (account: LiveAccount): (NativeSearchQuery | undefined)[] =>
+      queries
+        ? queries.filter(
+            (query) =>
+              query.provider === account.provider &&
+              (!query.accountId || query.accountId === account.id)
+          )
+        : [undefined]
     const [policies, allAccounts] = await Promise.all([
       measureSearchStage('live.policies', () => loadLiveSearchPolicies(input)),
       measureSearchStage('live.accounts', () => listLiveAccounts(input, userId)),
@@ -320,124 +323,128 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
       .filter(
         (account) =>
           (!filters?.source || filters.source === account.provider) &&
-          (!queries || nativeFor(account))
+          nativesFor(account).length > 0
       )
       .sort(compareAccounts)
     const selected = eligible.slice(0, MAX_ACCOUNTS)
     const direction = dateSortDirection(filters)
     const dateSorted = Boolean(direction)
     const pool = createPinnedConnectionPool()
-    const searchAccount = async (
-      account: LiveAccount
-    ): Promise<{ status: LiveSearchAccountStatus; results: WorkspaceKnowledgeSearchResult[] }> => {
-      const status = {
+    type SearchedQuery = {
+      status: LiveSearchAccountStatus
+      results: WorkspaceKnowledgeSearchResult[]
+    }
+    const searchQuery = async (
+      account: LiveAccount,
+      resolved: Awaited<ReturnType<typeof resolveListedLiveAccount>>,
+      session: Awaited<ReturnType<typeof openLiveAccountSession>>,
+      native: NativeSearchQuery | undefined,
+      status: Pick<LiveSearchAccountStatus, 'accountId' | 'provider' | 'displayName' | 'kind'>
+    ): Promise<SearchedQuery> => {
+      const page = await measureSearchStage('live.search', () =>
+        session.search({
+          filters,
+          policy: session.policy,
+          query: input.query,
+          native,
+          limit: input.topK,
+          scopes: resolved.account.scopes,
+        })
+      )
+      const candidates = page.documents
+        .filter((document) => document.id)
+        .map((document) => candidateFor(document, account, input, userId))
+      /**
+       * Local filters run first so provider verification is spent only on eligible results.
+       * Undated results are verified too, so their exclusion is reported only when readable.
+       */
+      const { permitted, unverified, rateLimited } = await measureSearchStage('live.verify', () =>
+        verifyCandidates(
+          session,
+          candidates.filter(
+            ({ document, documentId }) =>
+              matchesLiveFilters(document, documentId, account.provider, filters) ||
+              lacksFilterDate(document, account.provider, filters)
+          )
+        )
+      )
+      const matching = firstOfEachDocument(
+        permitted.filter(({ document, documentId }) =>
+          matchesLiveFilters(document, documentId, account.provider, filters)
+        )
+      )
+      const undatedExcluded = permitted.some(({ document }) =>
+        lacksFilterDate(document, account.provider, filters)
+      )
+      const undatedUnsorted =
+        dateSorted && matching.some(({ document }) => !sourceDate(document, account.provider))
+      const moreUnsorted = dateSorted && Boolean(page.nextCursor || page.hasMore)
+      /** More matches exist that no cursor can reach, so coverage is short. */
+      const moreUnreachable = Boolean(page.hasMore && !page.nextCursor)
+      /** A continuable page with nothing readable proves nothing about the pages after it. */
+      const emptyContinuable = Boolean(page.nextCursor && !matching.length)
+      const degraded =
+        unverified ||
+        session.servicePartial ||
+        page.partial ||
+        undatedExcluded ||
+        undatedUnsorted ||
+        moreUnsorted ||
+        moreUnreachable ||
+        emptyContinuable
+      return {
+        status: {
+          ...status,
+          status: degraded ? 'partial' : 'ok',
+          message: joinMessages([
+            page.message,
+            session.servicePartial
+              ? 'Service account verification covered a bounded subset of the configured users. Narrow the source user list for complete coverage; external Drive users can only search files also visible to the source administrator.'
+              : undefined,
+            unverified
+              ? rateLimited
+                ? 'The provider rate-limited verification, so some results were omitted. Try again later.'
+                : 'Some results could not be verified against the source settings and were omitted.'
+              : undefined,
+            undatedExcluded
+              ? 'Some results lacked date metadata and were excluded; date coverage is incomplete.'
+              : undefined,
+            dateSorted
+              ? 'Date order covers retrieved results; follow continuation before claiming an overall earliest or latest match.'
+              : undefined,
+            moreUnreachable
+              ? 'More matches exist than this search could return. Narrow the query or target one source.'
+              : undefined,
+            emptyContinuable
+              ? 'No readable matches on this page. Continue with nextCursor for more.'
+              : undefined,
+          ]),
+          nextCursor: page.nextCursor,
+        },
+        results: matching.map((candidate, index) =>
+          resultFor(
+            candidate,
+            account,
+            index + 1,
+            native?.query || input.query,
+            input.resultSecretRegistry
+          )
+        ),
+      }
+    }
+    /** One session per account serves each of its native queries, each reported on its own. */
+    const searchAccount = async (account: LiveAccount): Promise<SearchedQuery[]> => {
+      const natives = nativesFor(account)
+      const statusFor = (native: NativeSearchQuery | undefined) => ({
         accountId: account.id,
         provider: account.provider,
         displayName: account.displayName,
-      }
+        ...(native?.kind ? { kind: native.kind } : {}),
+      })
       /** Cancels requests still in flight once the account settles, including after a failure. */
       const settled = new AbortController()
       const signal = AbortSignal.any([searchSignal, AbortSignal.timeout(12_000), settled.signal])
-      try {
-        signal.throwIfAborted()
-        const resolved = await measureSearchStage('live.resolve', () =>
-          resolveListedLiveAccount(input, userId, account)
-        )
-        const session = await measureSearchStage('live.session', () =>
-          openLiveAccountSession({ owner: input, userId, resolved, policies, signal, pool })
-        )
-        const native = nativeFor(account)
-        const page = await measureSearchStage('live.search', () =>
-          session.search({
-            filters,
-            policy: session.policy,
-            query: input.query,
-            native,
-            limit: input.topK,
-            scopes: resolved.account.scopes,
-          })
-        )
-        const candidates = page.documents
-          .filter((document) => document.id)
-          .map((document) => candidateFor(document, account, input, userId))
-        /**
-         * Local filters run first so provider verification is spent only on eligible results.
-         * Undated results are verified too, so their exclusion is reported only when readable.
-         */
-        const { permitted, unverified, rateLimited } = await measureSearchStage('live.verify', () =>
-          verifyCandidates(
-            session,
-            candidates.filter(
-              ({ document, documentId }) =>
-                matchesLiveFilters(document, documentId, account.provider, filters) ||
-                lacksFilterDate(document, account.provider, filters)
-            )
-          )
-        )
-        const matching = firstOfEachDocument(
-          permitted.filter(({ document, documentId }) =>
-            matchesLiveFilters(document, documentId, account.provider, filters)
-          )
-        )
-        const undatedExcluded = permitted.some(({ document }) =>
-          lacksFilterDate(document, account.provider, filters)
-        )
-        const undatedUnsorted =
-          dateSorted && matching.some(({ document }) => !sourceDate(document, account.provider))
-        const moreUnsorted = dateSorted && Boolean(page.nextCursor || page.hasMore)
-        /** More matches exist that no cursor can reach, so coverage is short. */
-        const moreUnreachable = Boolean(page.hasMore && !page.nextCursor)
-        /** A continuable page with nothing readable proves nothing about the pages after it. */
-        const emptyContinuable = Boolean(page.nextCursor && !matching.length)
-        const degraded =
-          unverified ||
-          session.servicePartial ||
-          page.partial ||
-          undatedExcluded ||
-          undatedUnsorted ||
-          moreUnsorted ||
-          moreUnreachable ||
-          emptyContinuable
-        return {
-          status: {
-            ...status,
-            status: degraded ? 'partial' : 'ok',
-            message: joinMessages([
-              page.message,
-              session.servicePartial
-                ? 'Service account verification covered a bounded subset of the configured users. Narrow the source user list for complete coverage; external Drive users can only search files also visible to the source administrator.'
-                : undefined,
-              unverified
-                ? rateLimited
-                  ? 'The provider rate-limited verification, so some results were omitted. Try again later.'
-                  : 'Some results could not be verified against the source settings and were omitted.'
-                : undefined,
-              undatedExcluded
-                ? 'Some results lacked date metadata and were excluded; date coverage is incomplete.'
-                : undefined,
-              dateSorted
-                ? 'Date order covers retrieved results; follow continuation before claiming an overall earliest or latest match.'
-                : undefined,
-              moreUnreachable
-                ? 'More matches exist than this search could return. Narrow the query or target one source.'
-                : undefined,
-              emptyContinuable
-                ? 'No readable matches on this page. Continue with nextCursor for more.'
-                : undefined,
-            ]),
-            nextCursor: page.nextCursor,
-          },
-          results: matching.map((candidate, index) =>
-            resultFor(
-              candidate,
-              account,
-              index + 1,
-              native?.query || input.query,
-              input.resultSecretRegistry
-            )
-          ),
-        }
-      } catch (error) {
+      const failed = (error: unknown, native: NativeSearchQuery | undefined): SearchedQuery => {
         input.signal?.throwIfAborted()
         const failure =
           error instanceof NativeSearchError
@@ -453,26 +460,44 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
                 )
         return {
           status: {
-            ...status,
+            ...statusFor(native),
             status: failure.status,
             message: failure.message,
             retryAfterSeconds: failure.retryAfterSeconds,
           },
           results: [],
         }
+      }
+      try {
+        signal.throwIfAborted()
+        const resolved = await measureSearchStage('live.resolve', () =>
+          resolveListedLiveAccount(input, userId, account)
+        )
+        const session = await measureSearchStage('live.session', () =>
+          openLiveAccountSession({ owner: input, userId, resolved, policies, signal, pool })
+        )
+        return await Promise.all(
+          natives.map((native) =>
+            searchQuery(account, resolved, session, native, statusFor(native)).catch((error) =>
+              failed(error, native)
+            )
+          )
+        )
+      } catch (error) {
+        return natives.map((native) => failed(error, native))
       } finally {
         settled.abort()
       }
     }
-    let searched: Awaited<ReturnType<typeof searchAccount>>[]
+    let searched: SearchedQuery[]
     try {
-      searched = await mapWithConcurrency(selected, ACCOUNT_CONCURRENCY, searchAccount)
+      searched = (await mapWithConcurrency(selected, ACCOUNT_CONCURRENCY, searchAccount)).flat()
     } finally {
       pool.destroy()
     }
     const seen = new Set<string>()
     const ranked = searched
-      .flatMap(({ results }, account) => results.map((result) => ({ account, result })))
+      .flatMap(({ results }, query) => results.map((result) => ({ query, result })))
       .sort(({ result: a }, { result: b }) => {
         if (!dateSorted) return b.similarity - a.similarity
         const left = Date.parse(a.sourceDate ?? '')
@@ -488,10 +513,10 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
         return true
       })
     /**
-     * An account's cursor continues after its own page, so it would skip that account's results
-     * cut from this merge. Those accounts drop the cursor and point to a targeted search instead.
+     * A query's cursor continues after its own page, so it would skip that query's results cut
+     * from this merge. Those queries drop the cursor and point to a targeted search instead.
      */
-    const truncated = new Set(ranked.slice(input.topK).map(({ account }) => account))
+    const truncated = new Set(ranked.slice(input.topK).map(({ query }) => query))
     const accounts: LiveSearchAccountStatus[] = searched.map(({ status }, index) => {
       if (!truncated.has(index)) return status
       const { nextCursor: _, ...rest } = status

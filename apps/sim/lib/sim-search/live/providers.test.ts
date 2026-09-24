@@ -428,6 +428,22 @@ describe('native search endpoints', () => {
       '("release author-date: notes") repo:org/repo author-date:>=2026-09-16T00:00:00.000Z'
     )
   })
+  it('lists affiliated repositories once for several GitHub kinds on one client', async () => {
+    const api = client()
+    api.json.mockImplementation(async (path) =>
+      path === '/user/repos' ? [{ full_name: 'org/repo' }] : { items: [], total_count: 0 }
+    )
+    const memoized = withJsonMemo(api)
+    await Promise.all(
+      (['issues', 'commits'] as const).map((kind) =>
+        searchGitHub(memoized, {
+          ...input,
+          native: { provider: 'github', query: 'launch', kind },
+        })
+      )
+    )
+    expect(api.json.mock.calls.filter(([path]) => path === '/user/repos')).toHaveLength(1)
+  })
   it('reads a GitHub commit with a bounded changed-file list', async () => {
     const api = client()
     api.json.mockResolvedValue({

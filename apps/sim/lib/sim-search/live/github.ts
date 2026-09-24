@@ -172,6 +172,7 @@ export async function searchGitHub(
           per_page: '100',
           sort: 'pushed',
         },
+        memo: true,
       })
     )
     const names = repositories

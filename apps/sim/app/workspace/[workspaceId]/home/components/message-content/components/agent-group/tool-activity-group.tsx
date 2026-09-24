@@ -3,7 +3,11 @@
 import { type ComponentType, Fragment, useState } from 'react'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
-import { CallIntegrationTool, RunCode } from '@/lib/mothership/generated/tool-catalog-v1'
+import {
+  CallIntegrationTool,
+  RunCode,
+  SearchWorkspace,
+} from '@/lib/mothership/generated/tool-catalog-v1'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import {
   getToolActivitySummaryActions,
@@ -29,6 +33,20 @@ const MAX_SUMMARY_ACTIONS = 3
 
 function isFailedTool(tool: ToolCallData): boolean {
   return tool.status === ToolCallStatus.error || tool.status === ToolCallStatus.rejected
+}
+
+/**
+ * Drops a search that errored when another call follows it: the model corrected the query
+ * and moved on, so the failed attempt is not part of what the user reads.
+ * The last call always stays, so a run whose searches all failed still shows its outcome.
+ */
+function withoutRecoveredSearchFailures(tools: ToolCallData[]): ToolCallData[] {
+  return tools.filter(
+    (tool, index) =>
+      index === tools.length - 1 ||
+      tool.toolName !== SearchWorkspace.id ||
+      tool.status !== ToolCallStatus.error
+  )
 }
 
 function toolCountLabel(tools: ToolCallData[]): string {
@@ -192,12 +210,13 @@ interface ToolActivityGroupProps {
 
 export function ToolActivityGroup({
   activity,
-  tools,
+  tools: calls,
   ToolCallComponent,
   autoScrollActivity = true,
   isLive = false,
 }: ToolActivityGroupProps) {
   const [expanded, setExpanded] = useState(false)
+  const tools = withoutRecoveredSearchFailures(calls)
   const statusTool = getActivityStatusTool(tools)
   if (!statusTool) return null
   const headerTool = getActivityHeaderTool(tools, statusTool)
