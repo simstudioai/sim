@@ -93,6 +93,20 @@ describe('Assistant execution contracts', () => {
     ).toBe(true)
   })
 
+  it('counts an account-wide native query against the busiest targeted account', () => {
+    const accepts = (nativeQueries: Record<string, string>[]) =>
+      searchWorkspaceInputSchema.safeParse({ query: 'launch', nativeQueries }).success
+    const on = (accountId: string, query: string) => ({ provider: 'slack', accountId, query })
+    const everywhere = { provider: 'slack', query: 'everywhere' }
+    expect(accepts([on('a', '1'), on('b', '2'), on('c', '3'), on('d', '4'), everywhere])).toBe(true)
+    expect(
+      accepts([on('a', '1'), on('a', '2'), on('a', '3'), on('b', '4'), on('b', '5'), everywhere])
+    ).toBe(true)
+    expect(accepts([on('a', '1'), on('a', '2'), on('a', '3'), on('a', '4'), everywhere])).toBe(
+      false
+    )
+  })
+
   it('rejects a native query that repeats a search on the same account', () => {
     const accepts = (nativeQueries: Record<string, string>[]) =>
       searchWorkspaceInputSchema.safeParse({ query: 'launch', nativeQueries }).success

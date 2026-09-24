@@ -65,6 +65,18 @@ export const nativeSearchQueriesSchema = z
     const overlaps = (left: NativeSearchQuery, right: NativeSearchQuery) =>
       left.provider === right.provider &&
       (!left.accountId || !right.accountId || left.accountId === right.accountId)
+    /**
+     * Queries already bound for the busiest account a new query reaches: every account-wide
+     * query, plus the most queries any one targeted account has.
+     */
+    const busiestAccountLoad = (earlier: NativeSearchQuery[]) => {
+      const perAccount = new Map<string, number>()
+      for (const { accountId } of earlier)
+        if (accountId) perAccount.set(accountId, (perAccount.get(accountId) ?? 0) + 1)
+      return (
+        earlier.filter(({ accountId }) => !accountId).length + Math.max(0, ...perAccount.values())
+      )
+    }
     /** The search a query runs, ignoring its account and any kind its provider does not use. */
     const searchKey = ({ accountId: _, kind, ...query }: NativeSearchQuery) =>
       JSON.stringify({ ...query, kind: KIND_PROVIDERS.has(query.provider) ? kind : undefined })
@@ -81,7 +93,7 @@ export const nativeSearchQueriesSchema = z
         addIssue(
           'Send one GitHub or GitLab query per account and kind; join alternatives with OR in one query (GitHub code search has no OR, so search code alternatives in another call).'
         )
-      else if (earlier.length >= MAX_NATIVE_QUERIES_PER_ACCOUNT)
+      else if (busiestAccountLoad(earlier) >= MAX_NATIVE_QUERIES_PER_ACCOUNT)
         addIssue(
           `Send at most ${MAX_NATIVE_QUERIES_PER_ACCOUNT} native queries per provider account in one call; queries without an accountId count toward every account of their provider.`
         )

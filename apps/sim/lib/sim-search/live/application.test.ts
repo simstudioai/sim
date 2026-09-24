@@ -640,6 +640,40 @@ describe('authorized live retrieval', () => {
     expect(result.live?.accounts.map((status) => status.nextCursor)).toEqual([undefined, undefined])
   })
 
+  it('merges one item two queries return through different links by its dedupe key', async () => {
+    const calendar = {
+      ...account,
+      id: 'calendar-account',
+      provider: 'google_calendar',
+      providerId: 'google-calendar',
+    }
+    mocks.accounts.mockResolvedValue([calendar])
+    mocks.resolveAccount.mockResolvedValue({ account: calendar, accessToken: 'secret' })
+    mocks.search.mockImplementation(async (_provider, _client, search) => ({
+      documents: [
+        {
+          ...document,
+          id: search.native.query,
+          url: `https://www.google.com/calendar/event?eid=${search.native.query}`,
+          dedupeKey: 'meeting-1',
+        },
+      ],
+    }))
+    const result = await searchLiveKnowledge.execute({
+      principal,
+      input: {
+        ...input,
+        query: '',
+        nativeQueries: ['standup', 'launch'].map((query) => ({
+          provider: 'google_calendar' as const,
+          accountId: 'calendar-account',
+          query,
+        })),
+      },
+    })
+    expect(result.results).toHaveLength(1)
+  })
+
   it('reports each native query of an unconnected account for reconnection', async () => {
     const nativeQueries = (['issues', 'commits'] as const).map((kind) => ({
       provider: 'github' as const,

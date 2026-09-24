@@ -35,7 +35,7 @@ interface NativeQueryGuide {
   syntax: string
   /** Operators that narrow to a person, place, or kind of item. */
   scope: string
-  /** A query the provider accepts. */
+  /** One literal native query the provider accepts, copyable as the query value. */
   example: string
   /** The common mistake that fails or silently returns nothing. */
   avoid: string
@@ -57,7 +57,7 @@ export const LIVE_SEARCH_PROVIDERS = {
   google_drive: {
     guide: {
       syntax:
-        "Drive q: every clause is a term, an operator and a quoted value. fullText contains 'word' matches whole words in names, descriptions and content, fullText contains '\"exact phrase\"' matches a phrase, and name contains 'term' matches the start of a title; combine clauses with and, or, not and parentheses, escaping ' as \\' and \\ as \\\\.",
+        "Drive q: every clause is term operator value (or 'value' in owners/writers/readers/parents), with string values in single quotes. fullText contains 'word' matches whole words in names, descriptions and content, fullText contains '\"exact phrase\"' matches a phrase, and name contains 'term' matches the start of a title; combine clauses with and, or, not and parentheses, escaping ' as \\' and \\ as \\\\.",
       scope:
         "'person@example.com' in owners (or writers, readers), mimeType = 'application/vnd.google-apps.document' (or spreadsheet, presentation, folder) and 'FOLDER_ID' in parents; project drive:DRIVE_ID searches one shared drive, whose files have no owners.",
       example: "fullText contains 'roadmap' and 'jane@example.com' in owners",
@@ -72,7 +72,7 @@ export const LIVE_SEARCH_PROVIDERS = {
       syntax:
         'Gmail search operators: words separated by spaces must all match, uppercase OR or {a b} joins alternatives, -word excludes, "exact phrase" matches a phrase, and parentheses group.',
       scope:
-        'from:, to:, cc:, subject:, label:, has:attachment, filename:, in:sent, from:me and is:unread; spam and trash are excluded unless the query adds in:anywhere.',
+        'from:, to:, cc:, subject:, label:, has:attachment, filename:, in:sent, from:me and is:unread; spam and trash are not searched.',
       example: 'from:jane@example.com subject:(budget OR forecast)',
       avoid:
         'listing alternatives with spaces, which requires all of them, or lowercase or; join alternatives with uppercase OR.',
@@ -85,9 +85,8 @@ export const LIVE_SEARCH_PROVIDERS = {
       syntax:
         'q is plain text matched against event titles, descriptions, locations, and attendee and organizer names and emails; every word must match and there are no operators, so use one or two distinctive words.',
       scope:
-        'startDate/endDate bound the scheduled start and expand recurring events into occurrences, so an empty query with dates lists the agenda; project names one calendar ID (or primary) and is required to page, otherwise up to 20 calendars are searched.',
-      example:
-        'jane@example.com or a distinctive title word, with startDate and endDate around the meeting',
+        'startDate/endDate bound the scheduled start, and they or sortBy newest/oldest expand recurring events into occurrences, so an empty query with dates lists the agenda; project names one calendar ID (or primary) and is required to page, otherwise up to 20 calendars are searched.',
+      example: 'jane@example.com',
       avoid:
         'OR, quotes or field operators, which q does not support; run alternatives as separate native queries.',
     },
@@ -104,11 +103,10 @@ export const LIVE_SEARCH_PROVIDERS = {
   slack: {
     guide: {
       syntax:
-        'Real-time Search: a question (what/how/…?) enables meaning-based matching where Slack AI is on; keyword retrieval (keywordOnly, sortBy newest or oldest, or no Slack AI) requires every word and ignores OR. "exact phrase" and prefix matching such as psca* work.',
+        'Real-time Search: a question (what/how/…?) enables meaning-based matching where Slack AI is on; keyword retrieval (keywordOnly, sortBy newest or oldest, or no Slack AI) requires every word and does not support OR. "exact phrase" and prefix matching such as psca* work.',
       scope:
-        'modifiers such as in:<#CHANNEL_ID>, from:<@USER_ID>, with:<@USER_ID>, is:dm, is:thread, has:file and has:pin, using IDs from earlier results, plus optional keywordOnly; to browse a conversation, send an empty query with in:<#CHANNEL_ID>, a date bound and sortBy newest.',
-      example:
-        'three native queries "trip", "travel" and "vacation", each with modifiers from:<@U123> and keywordOnly',
+        'modifiers such as in:<#CHANNEL_ID>, with:<@USER_ID>, is:dm, is:thread, has:file and has:pin, using IDs from earlier results, plus optional keywordOnly; to browse a conversation, send an empty query with in:<#CHANNEL_ID>, a date bound and sortBy newest.',
+      example: '"deploy freeze"',
       avoid:
         'joining alternatives with OR or spaces in one query, which keyword retrieval treats as all required; send them as separate native queries.',
     },
@@ -124,7 +122,7 @@ export const LIVE_SEARCH_PROVIDERS = {
         'assignee = currentUser(), reporter = currentUser() and project = KEY; to target one site (required for paging), set the native project field, not JQL, to its Atlassian cloud ID.',
       example: 'text ~ "deployment" AND assignee = currentUser() ORDER BY updated DESC',
       avoid:
-        'JQL with only an ORDER BY clause (Jira rejects unbounded queries), and naming a user other than currentUser() by name or email instead of their account ID.',
+        'JQL with only an ORDER BY clause (Jira rejects unbounded queries), and identifying users other than currentUser() by display name or email; use their account ID.',
     },
     search: (client, input) => searchAtlassian(client, 'jira', input),
     read: (client, reference) => readAtlassian(client, 'jira', reference.id, reference.container),
@@ -146,12 +144,12 @@ export const LIVE_SEARCH_PROVIDERS = {
   github: {
     guide: {
       syntax:
-        'GitHub search qualifiers with kind issues (issues and pull requests), commits, code or repositories; no kind searches issues and code. At most 5 AND/OR/NOT operators and 256 characters of search text, and commit searches need a search term or author:/committer:.',
+        'GitHub search qualifiers with kind issues (issues and pull requests), commits, code or repositories; no kind searches issues and code, so use kind issues with is:pr, is:issue or involves:. At most 5 AND/OR/NOT operators and 256 characters of search text, and commit searches need a search term or a qualifier beyond repo:, org: and user:, such as author:, committer: or a date.',
       scope:
-        "repo:owner/name, org:, author:, involves:, assignee:, is:pr, is:open and label:, where @me names the account's user; commits take author:, committer: and committer-date:. Without repo:, org: or user:, a search covers up to 100 repositories the account is affiliated with.",
-      example: 'is:pr involves:octocat repo:org/repo, or kind commits with author:@me',
+        "repo:owner/name, org:, author:, involves:, assignee:, is:pr, is:open and label:, where @me names the account's user; commits take author:, committer:, author-date: and committer-date:. Without repo:, org: or user:, a search covers up to 100 repositories the account is affiliated with.",
+      example: 'is:pr involves:octocat repo:org/repo',
       avoid:
-        'more than 5 AND/OR/NOT operators, which GitHub rejects, and alternatives separated by spaces, which must all match. Join alternatives with OR for issues, commits and repositories, but code search has no OR, so search code alternatives with kind code in separate calls; code covers default branches only and has no dates, so date filters exclude it.',
+        'more than 5 AND/OR/NOT operators, which GitHub rejects, and alternatives separated by spaces, which must all match. Join alternatives with OR for issues, commits and repositories, but code search has no AND/OR/NOT, so search code alternatives with kind code in separate calls; code covers default branches only and has no dates, so date filters exclude it.',
     },
     search: searchGitHub,
     read: (client, reference) =>
@@ -160,9 +158,9 @@ export const LIVE_SEARCH_PROVIDERS = {
   gitlab: {
     guide: {
       syntax:
-        'Plain search terms with kind issues, merge_requests, code or wiki, on administrator-configured projects only; code and wiki accept filename:, path: and extension: filters. Where the instance has advanced search, "exact phrase", | for OR and -word to exclude also work.',
+        'Plain search terms with kind issues, merge_requests, code or wiki, on administrator-configured projects only. Under basic or advanced search, code and wiki accept filename:, path: and extension: filters (-filename: or -extension: excludes files); where exact code search handles code, use file:<regex> and lang: instead. Advanced search also accepts "exact phrase", | for OR and -word to exclude.',
       scope: 'accountId targets one configured source and project narrows it to one project.',
-      example: 'retry path:src/auth, with kind code',
+      example: 'connection timeout',
       avoid:
         'expecting date filters or sorting on code or wiki results, and relying on advanced-search operators (quotes, |, -) on instances that may only have basic search.',
     },
@@ -175,10 +173,10 @@ export const LIVE_SEARCH_PROVIDERS = {
       syntax:
         'Plain search terms; Coda documents no operators or date syntax. Through Coda MCP it searches page and table-row text (an empty query lists docs by recency); a legacy REST token matches only titles of docs you have opened.',
       scope:
-        'project optionally limits a Coda MCP search to one doc, written superhuman://docs/DOC_ID or coda://docs/DOC_ID (doc level only, not page or table URIs); legacy REST-token searches ignore it.',
+        'project optionally limits a Coda MCP search to one doc, written superhuman://docs/DOC_ID or coda://docs/DOC_ID (doc level only, not page or table URIs); legacy REST-token searches do not narrow by it, but it must still be a doc URI.',
       example: 'launch checklist',
       avoid:
-        'boolean operators and quoted phrases, which Coda does not document, and date bounds on MCP searches, since Coda search takes no dates and pages or rows without a timestamp are filtered out.',
+        'boolean operators and quoted phrases, which Coda does not document, and date bounds on MCP searches, since Coda search takes no dates and results without a timestamp are filtered out.',
     },
     search: searchCoda,
     read: (client, reference) => readCoda(client, reference.id),

@@ -392,6 +392,12 @@ describe('native search endpoints', () => {
     expect(api.json.mock.calls.map(([path]) => path)).toEqual(['/search/issues', '/search/issues'])
     expect(result.message).toContain('Code search has no AND/OR/NOT operators')
   })
+  it('keeps code in a default GitHub search whose boolean word is inside a quoted phrase', async () => {
+    const api = client()
+    api.json.mockResolvedValue({ items: [], total_count: 0 })
+    await searchGitHub(api, { ...input, query: 'repo:org/repo label:"R AND D"' })
+    expect(api.json.mock.calls.map(([path]) => path)).toContain('/search/code')
+  })
   it('bounds GitHub commit search dates to one author-date range', async () => {
     const api = client()
     api.json.mockResolvedValue({ items: [], total_count: 0 })

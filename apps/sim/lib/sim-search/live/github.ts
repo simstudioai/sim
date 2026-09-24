@@ -95,8 +95,9 @@ const GITHUB_DATE_FIELD: Partial<Record<GitHubKind, 'updated' | 'author-date'>> 
   issues: 'updated',
   commits: 'author-date',
 }
-/** GitHub's boolean operators, which it accepts only in upper case between search terms. */
-const GITHUB_BOOLEAN = /(?:^|\s)(?:AND|OR|NOT)(?=\s|$)/
+/** Whether a query uses GitHub's boolean operators: upper-case AND/OR/NOT outside quoted phrases. */
+const hasGitHubBoolean = (query: string) =>
+  githubTokens(query).some((token) => /^(?:AND|OR|NOT)$/.test(token))
 
 /**
  * Why a search without a kind leaves out code: code search has no file dates and, as legacy REST
@@ -105,7 +106,7 @@ const GITHUB_BOOLEAN = /(?:^|\s)(?:AND|OR|NOT)(?=\s|$)/
 function codeExclusion(input: NativeSearchInput): string | undefined {
   if (hasDateBounds(input.filters))
     return 'Code has no dates and is excluded from date-filtered searches.'
-  if (GITHUB_BOOLEAN.test(input.native?.query ?? input.query))
+  if (hasGitHubBoolean(input.native?.query ?? input.query))
     return 'Code search has no AND/OR/NOT operators and is excluded from boolean searches; search code alternatives with kind code.'
   return undefined
 }
@@ -158,7 +159,7 @@ const githubTokens = (query: string) => query.match(/-?[\w-]+:"[^"]*"|-?"[^"]*"|
  * parentheses or boolean operators is structured by its author and is left as written.
  */
 function groupGitHubText(query: string): string {
-  if (!query || /[()]/.test(query) || GITHUB_BOOLEAN.test(query)) return query
+  if (!query || /[()]/.test(query) || hasGitHubBoolean(query)) return query
   const tokens = githubTokens(query)
   const qualifiers = tokens.filter((token) => GITHUB_QUALIFIER.test(token))
   const text = tokens.filter((token) => !GITHUB_QUALIFIER.test(token)).join(' ')

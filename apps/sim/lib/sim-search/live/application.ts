@@ -341,7 +341,8 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     const pool = createPinnedConnectionPool()
     type SearchedQuery = {
       status: LiveSearchAccountStatus
-      results: WorkspaceKnowledgeSearchResult[]
+      /** Each result with the key that identifies its item across this call's queries. */
+      results: { key: string; result: WorkspaceKnowledgeSearchResult }[]
     }
     const searchQuery = async (
       account: LiveAccount,
@@ -430,15 +431,23 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
           ]),
           nextCursor: page.nextCursor,
         },
-        results: matching.map((candidate, index) =>
-          resultFor(
+        results: matching.map((candidate, index) => {
+          const result = resultFor(
             candidate,
             account,
             index + 1,
             native?.query || input.query,
             input.resultSecretRegistry
           )
-        ),
+          /** A provider's dedupe key names one item across its collections, within its account. */
+          const { dedupeKey } = candidate.document
+          return {
+            key: dedupeKey
+              ? JSON.stringify([account.id, dedupeKey])
+              : result.sourceUrl || result.documentId,
+            result,
+          }
+        }),
       }
     }
     /** One session per account serves each of its native queries, each reported on its own. */
@@ -518,8 +527,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
      */
     const fused = new Map<string, { queries: number[]; result: WorkspaceKnowledgeSearchResult }>()
     for (const [query, { results }] of searched.entries()) {
-      for (const result of results) {
-        const key = result.sourceUrl || result.documentId
+      for (const { key, result } of results) {
         const match = fused.get(key)
         if (match) {
           match.queries.push(query)
