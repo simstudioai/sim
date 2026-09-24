@@ -357,7 +357,7 @@ function NarrationText({ content, isStreaming }: NarrationTextProps) {
   const revealed = useSmoothText(content, isStreaming)
 
   return (
-    <span className='text-[var(--text-tertiary)] text-sm leading-5'>
+    <span className='text-[var(--text-tertiary)] text-base leading-5'>
       {renderInlineMarkdown(revealed.trim())}
     </span>
   )
