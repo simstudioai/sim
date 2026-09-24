@@ -84,10 +84,8 @@ function OrganizationHomeContent({
   const rememberedMode = useOrganizationChatModeStore(
     (state) => state.modes[`${userId}:${organization.id}`]
   )
-  const [{ q, source, updated, searchLevel: urlSearchLevel }, setSearchParams] = useQueryStates(
-    organizationHomeParsers,
-    organizationSearchUrlKeys
-  )
+  const [{ q, source, updated, from, to, searchLevel: urlSearchLevel }, setSearchParams] =
+    useQueryStates(organizationHomeParsers, organizationSearchUrlKeys)
   const rememberMode = useOrganizationChatModeStore((state) => state.setMode)
   const [selectedMode, setSelectedMode] = useState<ChatRequestMode | null>(null)
   const planEnabled = useFeatureFlag('mothership-plan-mode')
@@ -143,7 +141,7 @@ function OrganizationHomeContent({
     const resource = createSearchResource({
       scope: { kind: 'organization', organizationId: organization.id },
       query: q.trim(),
-      filters: searchFiltersFromParams({ source, updated }, Date.now()),
+      filters: searchFiltersFromParams({ source, updated, from, to }, Date.now()),
     })
     if (
       controller.activeResourceParam !== resource.id ||
@@ -156,6 +154,8 @@ function OrganizationHomeContent({
     q,
     source,
     updated,
+    from,
+    to,
     organization.id,
     controller.activeResourceParam,
     chat.resources,

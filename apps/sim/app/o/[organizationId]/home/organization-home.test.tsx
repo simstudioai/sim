@@ -892,6 +892,23 @@ it('restores an explicitly selected search panel on empty Home without reusing t
   expect(mocks.send).not.toHaveBeenCalled()
 })
 
+it('restores a custom date range with the search panel', async () => {
+  mocks.activeResource = 'search:organization:organization-a'
+  await act(async () =>
+    renderHome(<OrganizationHome />, '?q=Orion&updated=custom&from=2026-09-01&to=2026-09-03')
+  )
+  expect(mocks.addResource).toHaveBeenCalledWith(
+    expect.objectContaining({
+      search: expect.objectContaining({
+        filters: {
+          modifiedAfter: new Date(2026, 8, 1).toISOString(),
+          modifiedBefore: new Date(2026, 8, 4, 0, 0, 0, -1).toISOString(),
+        },
+      }),
+    })
+  )
+})
+
 it('does not reopen closed search results merely because a query remains in the URL', async () => {
   await act(async () => renderHome(<OrganizationHome />, '?searchLevel=adaptive&q=Orion'))
   expect(mocks.addResource).not.toHaveBeenCalled()
