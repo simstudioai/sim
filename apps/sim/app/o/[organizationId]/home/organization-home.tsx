@@ -26,7 +26,10 @@ import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
 import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
 import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
-import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
+import {
+  getMothershipUseChatOptions,
+  useChat,
+} from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import {
   useChatResourcePanel,
   useResourcePanelController,
@@ -84,10 +87,8 @@ function OrganizationHomeContent({
   const rememberedMode = useOrganizationChatModeStore(
     (state) => state.modes[`${userId}:${organization.id}`]
   )
-  const [{ q, source, updated, searchLevel: urlSearchLevel }, setSearchParams] = useQueryStates(
-    organizationHomeParsers,
-    organizationSearchUrlKeys
-  )
+  const [{ q, source, updated, from, to, searchLevel: urlSearchLevel }, setSearchParams] =
+    useQueryStates(organizationHomeParsers, organizationSearchUrlKeys)
   const rememberMode = useOrganizationChatModeStore((state) => state.setMode)
   const [selectedMode, setSelectedMode] = useState<ChatRequestMode | null>(null)
   const planEnabled = useFeatureFlag('mothership-plan-mode')
@@ -104,12 +105,15 @@ function OrganizationHomeContent({
           : 'agent')
   const controller = useResourcePanelController()
   const queryClient = useQueryClient()
-  const chat = useChat({ organizationId: organization.id }, chatId, {
-    requestMode,
-    projectsDesktopTabs: requestMode !== 'assistant',
-    onResourceEvent: controller.onResourceEvent,
-    activeResourceState: controller.activeResourceState,
-  })
+  const chat = useChat(
+    { organizationId: organization.id },
+    chatId,
+    getMothershipUseChatOptions({
+      requestMode,
+      onResourceEvent: controller.onResourceEvent,
+      activeResourceState: controller.activeResourceState,
+    })
+  )
   const initialDraftKey = `${userId}:organization:${organization.id}:${chatId ?? 'new'}`
   const draftKey = `${userId}:organization:${organization.id}:${chat.resolvedChatId ?? chatId ?? 'new'}`
   const savedDraft = useMothershipDraftsStore.getState().drafts
@@ -143,7 +147,7 @@ function OrganizationHomeContent({
     const resource = createSearchResource({
       scope: { kind: 'organization', organizationId: organization.id },
       query: q.trim(),
-      filters: searchFiltersFromParams({ source, updated }, Date.now()),
+      filters: searchFiltersFromParams({ source, updated, from, to }, Date.now()),
     })
     if (
       controller.activeResourceParam !== resource.id ||
@@ -156,6 +160,8 @@ function OrganizationHomeContent({
     q,
     source,
     updated,
+    from,
+    to,
     organization.id,
     controller.activeResourceParam,
     chat.resources,

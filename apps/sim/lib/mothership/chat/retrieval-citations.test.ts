@@ -33,4 +33,21 @@ describe('persisted retrieval citations', () => {
       })
     ).toBeUndefined()
   })
+  it('keeps only a partial-coverage marker, and keeps it through re-compaction', () => {
+    const compact = compactRetrievalCitations('search_workspace', {
+      success: true,
+      data: { results: [], retrieval: { status: 'partial', timedOutLegs: ['vector', 'keyword'] } },
+    })
+    expect(compact).toEqual({
+      success: true,
+      data: { results: [], retrieval: { status: 'partial' } },
+    })
+    expect(compactRetrievalCitations('search_workspace', compact)).toEqual(compact)
+    expect(
+      compactRetrievalCitations('search_workspace', {
+        success: true,
+        data: { results: [], retrieval: { status: 'complete', timedOutLegs: [] } },
+      })
+    ).toEqual({ success: true, data: { results: [] } })
+  })
 })

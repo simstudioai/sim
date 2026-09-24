@@ -69,7 +69,10 @@ vi.mock('@/lib/core/utils/browser-storage', () => ({
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
   useOrganizationContext: mocks.context,
 }))
-vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => ({ useChat: mocks.chat }))
+vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => ({
+  getMothershipUseChatOptions: (options: object) => ({ ...options, mothership: true }),
+  useChat: mocks.chat,
+}))
 vi.mock('@/hooks/queries/mothership-chats', () => ({
   useMarkMothershipChatRead: () => ({ mutate: mocks.markRead }),
 }))
@@ -602,7 +605,7 @@ describe('Home permission-selected harness', () => {
     expect(mocks.chat).toHaveBeenLastCalledWith(
       { organizationId: 'organization-a' },
       'search-a',
-      expect.objectContaining({ requestMode: 'assistant', projectsDesktopTabs: false })
+      expect.objectContaining({ requestMode: 'assistant', mothership: true })
     )
   })
   it('keeps old Build history readable after permission removal without a writable composer', async () => {
@@ -890,6 +893,23 @@ it('restores an explicitly selected search panel on empty Home without reusing t
     })
   )
   expect(mocks.send).not.toHaveBeenCalled()
+})
+
+it('restores a custom date range with the search panel', async () => {
+  mocks.activeResource = 'search:organization:organization-a'
+  await act(async () =>
+    renderHome(<OrganizationHome />, '?q=Orion&updated=custom&from=2026-09-01&to=2026-09-03')
+  )
+  expect(mocks.addResource).toHaveBeenCalledWith(
+    expect.objectContaining({
+      search: expect.objectContaining({
+        filters: {
+          modifiedAfter: new Date(2026, 8, 1).toISOString(),
+          modifiedBefore: new Date(2026, 8, 4, 0, 0, 0, -1).toISOString(),
+        },
+      }),
+    })
+  )
 })
 
 it('does not reopen closed search results merely because a query remains in the URL', async () => {
