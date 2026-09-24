@@ -23,6 +23,7 @@ vi.mock('@/lib/mothership/server/agent-url', () => ({
   getMothershipSourceEnvHeaders: vi.fn().mockReturnValue({ 'X-Sim-Source-Env': 'test' }),
 }))
 
+import { BillingCallbackHeaders } from '@/lib/mothership/generated/billing'
 import { AbortRequest } from '@/lib/mothership/generated/protocol'
 import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
 
@@ -36,20 +37,22 @@ describe('requestExplicitStreamAbort', () => {
     })
   })
 
-  it('sends an explicit legacy protocol marker for strict Go admission', async () => {
+  it('sends a valid unbilled control request through worker admission', async () => {
     const result = await requestExplicitStreamAbort({
       streamId: '11111111-1111-4111-8111-111111111111',
       userId: 'user-1',
       chatId: 'chat-1',
     })
     expect(result).toEqual({ settled: false })
+    const headers = mockFetchGo.mock.calls[0][1].headers
+    expect(BillingCallbackHeaders.safeParse(headers).success).toBe(true)
+    expect(headers).not.toHaveProperty('x-sim-billing-protocol')
 
     expect(mockFetchGo).toHaveBeenCalledWith(
       'https://copilot.test/api/streams/explicit-abort',
       expect.objectContaining({
         headers: expect.objectContaining({
           'x-api-key': 'sim-agent-key',
-          'x-sim-billing-protocol': 'legacy-v0',
         }),
       })
     )
