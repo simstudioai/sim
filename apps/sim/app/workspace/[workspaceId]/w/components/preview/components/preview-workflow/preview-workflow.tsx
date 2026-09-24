@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef } from 'react'
+import { type CSSProperties, useEffect, useMemo, useRef } from 'react'
 import {
   ConnectionLineType,
   type Edge,
@@ -38,6 +38,7 @@ import { PreviewBlock } from '@/app/workspace/[workspaceId]/w/components/preview
 import { PreviewSubflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/components/subflow'
 import { useWorkflowMap } from '@/hooks/queries/workflows'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
+import '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-workflow.css'
 
 const logger = createLogger('PreviewWorkflow')
 
@@ -627,35 +628,17 @@ export function PreviewWorkflow({
     <ReactFlowProvider>
       <div
         ref={containerRef}
-        style={{ height, width, backgroundColor: 'var(--bg)' }}
+        style={
+          {
+            height,
+            width,
+            backgroundColor: 'var(--bg)',
+            '--preview-cursor': cursorStyle,
+          } as CSSProperties
+        }
         className={cn('preview-mode', onNodeClick && 'interactive-nodes', className)}
+        data-preview-grab={cursorStyle === 'grab' ? '' : undefined}
       >
-        <style>{`
-          /* Canvas cursor - grab on the flow container and pane */
-          .preview-mode .react-flow { cursor: ${cursorStyle}; }
-          .preview-mode .react-flow__pane { cursor: ${cursorStyle} !important; }
-          .preview-mode .react-flow__selectionpane { cursor: ${cursorStyle} !important; }
-          .preview-mode .react-flow__renderer { cursor: ${cursorStyle}; }
-
-          /* Active/grabbing cursor when dragging */
-          ${
-            cursorStyle === 'grab'
-              ? `
-          .preview-mode .react-flow:active { cursor: grabbing; }
-          .preview-mode .react-flow__pane:active { cursor: grabbing !important; }
-          .preview-mode .react-flow__selectionpane:active { cursor: grabbing !important; }
-          .preview-mode .react-flow__renderer:active { cursor: grabbing; }
-          .preview-mode .react-flow__node:active { cursor: grabbing !important; }
-          .preview-mode .react-flow__node:active * { cursor: grabbing !important; }
-          `
-              : ''
-          }
-
-          /* Node cursor - pointer on nodes when onNodeClick is provided */
-          .preview-mode.interactive-nodes .react-flow__node { cursor: pointer !important; }
-          .preview-mode.interactive-nodes .react-flow__node > div { cursor: pointer !important; }
-          .preview-mode.interactive-nodes .react-flow__node * { cursor: pointer !important; }
-        `}</style>
         <ReactFlow
           colorMode={colorMode}
           zIndexMode={CANVAS_Z_INDEX_MODE}
