@@ -15,7 +15,6 @@ import {
   Badge,
   Button,
   Chip,
-  ChipInput,
   ChipModalTabs,
   Code,
   cn,
@@ -35,8 +34,6 @@ import {
   useCopyToClipboard,
 } from '@sim/emcn'
 import {
-  ArrowDown,
-  ArrowUp,
   Check,
   ChevronUp,
   Clipboard,
@@ -60,6 +57,7 @@ import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-s
 import type { TraceSpan } from '@/lib/logs/types'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
+import { CodeSearchOverlay } from '@/app/workspace/[workspaceId]/components/code-search-overlay/code-search-overlay'
 /**
  * Deep imports on purpose: importing these back through the parent `logs/components`
  * barrel forms a parent->child cycle that would keep the barrel edge to the snapshot
@@ -209,54 +207,18 @@ export const WorkflowOutputSection = memo(
 
         {/* Search Overlay */}
         {isSearchActive && (
-          <div
-            role='presentation'
-            className='absolute top-0 right-0 z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-xs'
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ChipInput
-              ref={searchInputRef}
-              type='text'
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder='Search...'
-              className='mr-0.5 w-[94px]'
-            />
-            <span
-              className={cn(
-                'min-w-[45px] text-center text-xs',
-                matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
-              )}
-            >
-              {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : '0/0'}
-            </span>
-            <Button
-              variant='ghost'
-              iconPadding='sm'
-              onClick={goToPreviousMatch}
-              disabled={matchCount === 0}
-              aria-label='Previous match'
-            >
-              <ArrowUp className='size-[12px]' />
-            </Button>
-            <Button
-              variant='ghost'
-              iconPadding='sm'
-              onClick={goToNextMatch}
-              disabled={matchCount === 0}
-              aria-label='Next match'
-            >
-              <ArrowDown className='size-[12px]' />
-            </Button>
-            <Button
-              variant='ghost'
-              iconPadding='sm'
-              onClick={closeSearch}
-              aria-label='Close search'
-            >
-              <X className='size-[12px]' />
-            </Button>
-          </div>
+          <CodeSearchOverlay
+            className='top-0 right-0'
+            inputKind='chip'
+            inputRef={searchInputRef}
+            query={searchQuery}
+            onQueryChange={setSearchQuery}
+            matchCount={matchCount}
+            currentMatchIndex={currentMatchIndex}
+            onPrevious={goToPreviousMatch}
+            onNext={goToNextMatch}
+            onClose={closeSearch}
+          />
         )}
 
         {/* Context Menu - rendered in portal to avoid transform/overflow clipping */}
