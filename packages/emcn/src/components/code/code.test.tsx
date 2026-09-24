@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act } from 'react'
+import { act, createRef } from 'react'
 import { sleep } from '@sim/utils/helpers'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -113,5 +113,35 @@ describe('Code.Viewer appearances', () => {
     expect(flatViewer.classList.contains('bg-[var(--bg)]')).toBe(true)
     expect(flatViewer.classList.contains('dark:bg-[var(--bg)]')).toBe(true)
     expect(flatViewer.textContent).toContain('flat')
+  })
+
+  it('applies flat chrome on the virtualized gutter path used by the terminal', async () => {
+    const contentRef = createRef<HTMLDivElement>()
+    await act(async () => {
+      root?.render(
+        <Code.Viewer
+          code={'first line\nsecond line'}
+          language='json'
+          appearance='flat'
+          className='m-0 min-h-full'
+          showGutter
+          virtualized
+          wrapText
+          paddingLeft={8}
+          contentRef={contentRef}
+        />
+      )
+      await sleep(1)
+    })
+
+    const viewer = host?.firstElementChild
+    expect(contentRef.current).toBe(viewer)
+    expect(viewer?.classList.contains('rounded-none')).toBe(true)
+    expect(viewer?.classList.contains('border-0')).toBe(true)
+    expect(viewer?.classList.contains('bg-[var(--bg)]')).toBe(true)
+    expect(viewer?.classList.contains('dark:bg-[var(--bg)]')).toBe(true)
+    expect(viewer?.classList.contains('overflow-x-hidden')).toBe(true)
+    expect(viewer?.classList.contains('min-h-full')).toBe(true)
+    expect(viewer?.classList.contains('rounded-sm')).toBe(false)
   })
 })
