@@ -448,15 +448,20 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
           >
             {tab.icon}
             {!tab.pinned && (
-              <span
-                ref={titleRef}
-                className={cn(
-                  overflowTextClipClass,
-                  'flex-1 select-none text-left',
-                  titleTruncated && overflowTextFadeClass
-                )}
-              >
-                {tab.title}
+              <span className='min-w-0 flex-1 select-none text-left'>
+                <span
+                  ref={titleRef}
+                  className={cn(
+                    overflowTextClipClass,
+                    closeable &&
+                      !tab.active &&
+                      !tab.attention &&
+                      'w-[calc(100%_+_24px)] group-focus-within:w-full group-hover:w-full [@media(hover:none)]:w-full',
+                    titleTruncated && overflowTextFadeClass
+                  )}
+                >
+                  {tab.title}
+                </span>
               </span>
             )}
             {tab.attention && !tab.active && (
@@ -485,7 +490,7 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
             '-translate-y-1/2 absolute top-1/2 right-0.5 z-20 size-[24px] p-0 transition-opacity',
             tab.active
               ? 'opacity-100'
-              : 'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100'
+              : 'pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100'
           )}
           onClick={(event) => {
             event.stopPropagation()
