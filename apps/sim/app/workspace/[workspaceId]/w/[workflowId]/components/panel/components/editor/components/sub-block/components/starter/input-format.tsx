@@ -10,7 +10,6 @@ import {
   cn,
   getCodeEditorProps,
   highlight,
-  Input,
   Label,
   languages,
   OverflowText,
@@ -25,6 +24,7 @@ import {
 import { FieldModeToggle } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/field-mode-toggle/field-mode-toggle'
 import { FileUpload } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/file-upload/file-upload'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { MirroredInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/mirrored-field/mirrored-field'
 import {
   controlValueToFiles,
   defaultFileFieldMode,
@@ -108,10 +108,6 @@ export function FieldFormat({
   const [storeValue, setStoreValue] = useSubBlockValue<Field[]>(blockId, subBlockId)
   const valueInputRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement>>({})
   const nameInputRefs = useRef<Record<string, HTMLInputElement>>({})
-  const overlayRefs = useRef<Record<string, HTMLDivElement>>({})
-  const nameOverlayRefs = useRef<Record<string, HTMLDivElement>>({})
-  const descriptionInputRefs = useRef<Record<string, HTMLInputElement>>({})
-  const descriptionOverlayRefs = useRef<Record<string, HTMLDivElement>>({})
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const [fileFieldModes, setFileFieldModes] = useState<Record<string, 'upload' | 'json'>>({})
 
@@ -254,30 +250,6 @@ export function FieldFormat({
   }
 
   /**
-   * Syncs scroll position between input and overlay for text highlighting
-   */
-  const syncOverlayScroll = (fieldId: string, scrollLeft: number) => {
-    const overlay = overlayRefs.current[fieldId]
-    if (overlay) overlay.scrollLeft = scrollLeft
-  }
-
-  /**
-   * Syncs scroll position between name input and overlay for text highlighting
-   */
-  const syncNameOverlayScroll = (fieldId: string, scrollLeft: number) => {
-    const overlay = nameOverlayRefs.current[fieldId]
-    if (overlay) overlay.scrollLeft = scrollLeft
-  }
-
-  /**
-   * Syncs scroll position between description input and overlay for text highlighting
-   */
-  const syncDescriptionOverlayScroll = (fieldId: string, scrollLeft: number) => {
-    const overlay = descriptionOverlayRefs.current[fieldId]
-    if (overlay) overlay.scrollLeft = scrollLeft
-  }
-
-  /**
    * Generates a unique field key for name inputs to avoid collision with value inputs
    */
   const getNameFieldKey = (fieldId: string) => `name-${fieldId}`
@@ -307,11 +279,9 @@ export function FieldFormat({
       (newValue) => updateField(field.id, 'name', newValue)
     )
 
-    const inputClassName = cn('text-transparent [letter-spacing:inherit] caret-foreground')
-
     return (
       <>
-        <Input
+        <MirroredInput
           ref={(el) => {
             if (el) nameInputRefs.current[field.id] = el
           }}
@@ -322,40 +292,29 @@ export function FieldFormat({
           onDrop={handlers.onDrop}
           onDragOver={handlers.onDragOver}
           onFocus={handlers.onFocus}
-          onScroll={(e) => syncNameOverlayScroll(field.id, e.currentTarget.scrollLeft)}
-          onPaste={() =>
-            setTimeout(() => {
-              const input = nameInputRefs.current[field.id]
-              input && syncNameOverlayScroll(field.id, input.scrollLeft)
-            }, 0)
-          }
           placeholder={placeholder}
           disabled={isReadOnly}
           autoComplete='off'
-          className={cn('allow-scroll w-full overflow-x-auto overflow-y-hidden', inputClassName)}
-        />
-        <div
-          ref={(el) => {
-            if (el) nameOverlayRefs.current[field.id] = el
-          }}
-          className={cn(
+          className='allow-scroll w-full overflow-x-auto overflow-y-hidden'
+          overlayClassName={cn(
             'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
             !isReadOnly && 'pointer-events-none'
           )}
-          style={{ scrollbarWidth: 'none' }}
-        >
-          <div
-            className='w-full whitespace-pre'
-            style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
-          >
-            {formatDisplayText(
-              fieldValue,
-              accessiblePrefixes
-                ? { accessiblePrefixes, workflowSearchHighlight }
-                : { highlightAll: true, workflowSearchHighlight }
-            )}
-          </div>
-        </div>
+          overlayStyle={{ scrollbarWidth: 'none' }}
+          overlay={
+            <div
+              className='w-full whitespace-pre'
+              style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
+            >
+              {formatDisplayText(
+                fieldValue,
+                accessiblePrefixes
+                  ? { accessiblePrefixes, workflowSearchHighlight }
+                  : { highlightAll: true, workflowSearchHighlight }
+              )}
+            </div>
+          }
+        />
         {fieldState.showTags && (
           <TagDropdown
             visible={fieldState.showTags}
@@ -407,8 +366,6 @@ export function FieldFormat({
       fieldValue,
       (newValue) => updateField(field.id, 'value', newValue)
     )
-
-    const inputClassName = cn('text-transparent [letter-spacing:inherit] caret-foreground')
 
     const tagDropdown = fieldState.showTags && (
       <TagDropdown
@@ -555,7 +512,7 @@ export function FieldFormat({
 
     return (
       <>
-        <Input
+        <MirroredInput
           ref={(el) => {
             if (el) valueInputRefs.current[field.id] = el
           }}
@@ -566,40 +523,29 @@ export function FieldFormat({
           onDrop={handlers.onDrop}
           onDragOver={handlers.onDragOver}
           onFocus={handlers.onFocus}
-          onScroll={(e) => syncOverlayScroll(field.id, e.currentTarget.scrollLeft)}
-          onPaste={() =>
-            setTimeout(() => {
-              const input = valueInputRefs.current[field.id] as HTMLInputElement | undefined
-              input && syncOverlayScroll(field.id, input.scrollLeft)
-            }, 0)
-          }
           placeholder={valuePlaceholder}
           disabled={isReadOnly}
           autoComplete='off'
-          className={cn('allow-scroll w-full overflow-x-auto overflow-y-hidden', inputClassName)}
-        />
-        <div
-          ref={(el) => {
-            if (el) overlayRefs.current[field.id] = el
-          }}
-          className={cn(
+          className='allow-scroll w-full overflow-x-auto overflow-y-hidden'
+          overlayClassName={cn(
             'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
             !isReadOnly && 'pointer-events-none'
           )}
-          style={{ scrollbarWidth: 'none' }}
-        >
-          <div
-            className='w-full whitespace-pre'
-            style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
-          >
-            {formatDisplayText(
-              fieldValue,
-              accessiblePrefixes
-                ? { accessiblePrefixes, workflowSearchHighlight }
-                : { highlightAll: true, workflowSearchHighlight }
-            )}
-          </div>
-        </div>
+          overlayStyle={{ scrollbarWidth: 'none' }}
+          overlay={
+            <div
+              className='w-full whitespace-pre'
+              style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
+            >
+              {formatDisplayText(
+                fieldValue,
+                accessiblePrefixes
+                  ? { accessiblePrefixes, workflowSearchHighlight }
+                  : { highlightAll: true, workflowSearchHighlight }
+              )}
+            </div>
+          }
+        />
         {tagDropdown}
       </>
     )
@@ -670,61 +616,45 @@ export function FieldFormat({
             <div className='flex flex-col gap-1.5'>
               {renderFieldLabel('Description')}
               <div className='relative'>
-                <Input
-                  ref={(el) => {
-                    if (el) descriptionInputRefs.current[field.id] = el
-                  }}
+                <MirroredInput
                   value={field.description ?? ''}
                   onChange={(e) => updateField(field.id, 'description', e.target.value)}
-                  onScroll={(e) =>
-                    syncDescriptionOverlayScroll(field.id, e.currentTarget.scrollLeft)
-                  }
-                  onPaste={() =>
-                    setTimeout(() => {
-                      const input = descriptionInputRefs.current[field.id]
-                      input && syncDescriptionOverlayScroll(field.id, input.scrollLeft)
-                    }, 0)
-                  }
                   placeholder={descriptionPlaceholder}
                   disabled={isReadOnly}
                   autoComplete='off'
-                  className='allow-scroll w-full overflow-x-auto overflow-y-hidden text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50'
-                />
-                <div
-                  ref={(el) => {
-                    if (el) descriptionOverlayRefs.current[field.id] = el
-                  }}
-                  style={{ scrollbarWidth: 'none' }}
-                  className={cn(
+                  className='allow-scroll w-full overflow-x-auto overflow-y-hidden placeholder:text-muted-foreground/50'
+                  overlayStyle={{ scrollbarWidth: 'none' }}
+                  overlayClassName={cn(
                     'pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
                     isReadOnly && 'opacity-50'
                   )}
-                >
-                  <span className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
-                    {formatDisplayText(
-                      field.description ?? '',
-                      accessiblePrefixes
-                        ? {
-                            accessiblePrefixes,
-                            workflowSearchHighlight: getActiveWorkflowSearchHighlight({
-                              activeSearchTarget,
-                              blockId,
-                              subBlockId,
-                              valuePath: [index, 'description'],
-                            }),
-                          }
-                        : {
-                            highlightAll: true,
-                            workflowSearchHighlight: getActiveWorkflowSearchHighlight({
-                              activeSearchTarget,
-                              blockId,
-                              subBlockId,
-                              valuePath: [index, 'description'],
-                            }),
-                          }
-                    )}
-                  </span>
-                </div>
+                  overlay={
+                    <span className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
+                      {formatDisplayText(
+                        field.description ?? '',
+                        accessiblePrefixes
+                          ? {
+                              accessiblePrefixes,
+                              workflowSearchHighlight: getActiveWorkflowSearchHighlight({
+                                activeSearchTarget,
+                                blockId,
+                                subBlockId,
+                                valuePath: [index, 'description'],
+                              }),
+                            }
+                          : {
+                              highlightAll: true,
+                              workflowSearchHighlight: getActiveWorkflowSearchHighlight({
+                                activeSearchTarget,
+                                blockId,
+                                subBlockId,
+                                valuePath: [index, 'description'],
+                              }),
+                            }
+                      )}
+                    </span>
+                  }
+                />
               </div>
             </div>
           )}

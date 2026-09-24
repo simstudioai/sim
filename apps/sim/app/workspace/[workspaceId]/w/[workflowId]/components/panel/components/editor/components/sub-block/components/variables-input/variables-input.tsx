@@ -6,16 +6,18 @@ import {
   Combobox,
   type ComboboxOption,
   cn,
-  Input,
   Label,
   OverflowText,
-  Textarea,
 } from '@sim/emcn'
 import { FileText, Plus, Trash } from '@sim/emcn/icons'
 import { generateId } from '@sim/utils/id'
 import { useParams } from 'next/navigation'
 import { FieldModeToggle } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/field-mode-toggle/field-mode-toggle'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import {
+  MirroredInput,
+  MirroredTextarea,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/mirrored-field/mirrored-field'
 import {
   checkTagTrigger,
   TagDropdown,
@@ -322,11 +324,6 @@ export function VariablesInput({
     }))
   }
 
-  const syncOverlayScroll = (assignmentId: string, scrollLeft: number) => {
-    const overlay = overlayRefs.current[assignmentId]
-    if (overlay) overlay.scrollLeft = scrollLeft
-  }
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (e.key === 'Escape') {
       setShowTags(false)
@@ -492,7 +489,7 @@ export function VariablesInput({
                     />
                   ) : assignment.type === 'object' || assignment.type === 'array' ? (
                     <div className='relative'>
-                      <Textarea
+                      <MirroredTextarea
                         ref={(el) => {
                           if (el) valueInputRefs.current[assignment.id] = el
                         }}
@@ -512,13 +509,6 @@ export function VariablesInput({
                             setShowTags(true)
                           }
                         }}
-                        onScroll={(e) => {
-                          const overlay = overlayRefs.current[assignment.id]
-                          if (overlay) {
-                            overlay.scrollTop = e.currentTarget.scrollTop
-                            overlay.scrollLeft = e.currentTarget.scrollLeft
-                          }
-                        }}
                         placeholder={
                           assignment.type === 'object'
                             ? '{\n  "key": "value"\n}'
@@ -526,7 +516,7 @@ export function VariablesInput({
                         }
                         disabled={isReadOnly}
                         className={cn(
-                          'min-h-[120px] font-mono text-sm text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50',
+                          'min-h-[120px] font-mono text-sm placeholder:text-muted-foreground/50',
                           dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2'
                         )}
                         style={{
@@ -536,29 +526,28 @@ export function VariablesInput({
                         onDrop={(e) => handleDrop(e, assignment.id)}
                         onDragOver={(e) => handleDragOver(e, assignment.id)}
                         onDragLeave={(e) => handleDragLeave(e, assignment.id)}
-                      />
-                      <div
-                        ref={(el) => {
+                        overlayRef={(el) => {
                           if (el) overlayRefs.current[assignment.id] = el
                         }}
-                        className={cn(
+                        overlayClassName={cn(
                           'absolute inset-0 flex items-start overflow-auto bg-transparent px-3 py-2 font-mono text-sm',
                           !isReadOnly && 'pointer-events-none'
                         )}
-                        style={{ scrollbarWidth: 'none' }}
-                      >
-                        <div className='w-full whitespace-pre-wrap break-words'>
-                          {formatDisplayText(assignment.value || '', {
-                            accessiblePrefixes,
-                            highlightAll: !accessiblePrefixes,
-                            workflowSearchHighlight: valueSearchHighlight,
-                          })}
-                        </div>
-                      </div>
+                        overlayStyle={{ scrollbarWidth: 'none' }}
+                        overlay={
+                          <div className='w-full whitespace-pre-wrap break-words'>
+                            {formatDisplayText(assignment.value || '', {
+                              accessiblePrefixes,
+                              highlightAll: !accessiblePrefixes,
+                              workflowSearchHighlight: valueSearchHighlight,
+                            })}
+                          </div>
+                        }
+                      />
                     </div>
                   ) : (
                     <div className='relative'>
-                      <Input
+                      <MirroredInput
                         ref={(el) => {
                           if (el) valueInputRefs.current[assignment.id] = el
                         }}
@@ -579,58 +568,44 @@ export function VariablesInput({
                             setShowTags(true)
                           }
                         }}
-                        onScroll={(e) =>
-                          syncOverlayScroll(assignment.id, e.currentTarget.scrollLeft)
-                        }
-                        onPaste={() =>
-                          setTimeout(() => {
-                            const input = valueInputRefs.current[assignment.id]
-                            if (input)
-                              syncOverlayScroll(
-                                assignment.id,
-                                (input as HTMLInputElement).scrollLeft
-                              )
-                          }, 0)
-                        }
                         placeholder={`${assignment.type} value`}
                         disabled={isReadOnly}
                         autoComplete='off'
                         className={cn(
-                          'allow-scroll w-full overflow-x-auto overflow-y-hidden text-transparent caret-foreground [letter-spacing:inherit]',
+                          'allow-scroll w-full overflow-x-auto overflow-y-hidden',
                           dragHighlight[assignment.id] && 'ring-2 ring-blue-500 ring-offset-2'
                         )}
                         onDrop={(e) => handleDrop(e, assignment.id)}
                         onDragOver={(e) => handleDragOver(e, assignment.id)}
                         onDragLeave={(e) => handleDragLeave(e, assignment.id)}
-                      />
-                      <div
-                        ref={(el) => {
+                        overlayRef={(el) => {
                           if (el) overlayRefs.current[assignment.id] = el
                         }}
-                        className={cn(
+                        overlayClassName={cn(
                           'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
                           !isReadOnly && 'pointer-events-none'
                         )}
-                        style={{ scrollbarWidth: 'none' }}
-                      >
-                        <div
-                          className='w-full whitespace-pre'
-                          style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
-                        >
-                          {formatDisplayText(
-                            assignment.value || '',
-                            accessiblePrefixes
-                              ? {
-                                  accessiblePrefixes,
-                                  workflowSearchHighlight: valueSearchHighlight,
-                                }
-                              : {
-                                  highlightAll: true,
-                                  workflowSearchHighlight: valueSearchHighlight,
-                                }
-                          )}
-                        </div>
-                      </div>
+                        overlayStyle={{ scrollbarWidth: 'none' }}
+                        overlay={
+                          <div
+                            className='w-full whitespace-pre'
+                            style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
+                          >
+                            {formatDisplayText(
+                              assignment.value || '',
+                              accessiblePrefixes
+                                ? {
+                                    accessiblePrefixes,
+                                    workflowSearchHighlight: valueSearchHighlight,
+                                  }
+                                : {
+                                    highlightAll: true,
+                                    workflowSearchHighlight: valueSearchHighlight,
+                                  }
+                            )}
+                          </div>
+                        }
+                      />
                     </div>
                   )}
 

@@ -8,7 +8,6 @@ import {
   getCodeEditorProps,
   highlight,
   languages,
-  Textarea,
   Tooltip,
 } from '@sim/emcn'
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
@@ -31,6 +30,7 @@ import {
   getValidWorkflowSearchRange,
   type WorkflowSearchTextHighlight,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { MirroredTextarea } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/mirrored-field/mirrored-field'
 import {
   checkTagTrigger,
   TagDropdown,
@@ -1044,7 +1044,7 @@ export function ConditionInput({
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => handleDrop(block.id, e)}
               >
-                <Textarea
+                <MirroredTextarea
                   ref={(el) => {
                     if (el) inputRefs.current.set(block.id, el)
                   }}
@@ -1093,43 +1093,30 @@ export function ConditionInput({
                       )
                     }, 150)
                   }}
-                  onScroll={(e) => {
-                    const overlay = overlayRefs.current.get(block.id)
-                    if (overlay) {
-                      overlay.scrollTop = e.currentTarget.scrollTop
-                      overlay.scrollLeft = e.currentTarget.scrollLeft
-                    }
-                  }}
                   placeholder='Describe when this route should be taken...'
                   disabled={disabled || isPreview}
-                  className='min-h-[100px] resize-none rounded-none border-0 px-3 py-2 text-sm text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
+                  className='min-h-[100px] resize-none rounded-none border-0 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
                   rows={4}
                   style={{ height: `${getRouterHeight(block.id)}px` }}
-                />
-                <div
-                  ref={(el) => {
-                    if (el) {
-                      overlayRefs.current.set(block.id, el)
-                    } else {
-                      overlayRefs.current.delete(block.id)
-                    }
+                  overlayRef={(el) => {
+                    if (el) overlayRefs.current.set(block.id, el)
+                    else overlayRefs.current.delete(block.id)
                   }}
-                  className={cn(
+                  overlayClassName={cn(
                     'pointer-events-none absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-3 py-2 font-sans text-sm',
                     (isPreview || disabled) && 'opacity-50'
                   )}
-                  style={{
+                  overlayStyle={{
                     fontFamily: 'inherit',
                     lineHeight: 'inherit',
                     height: `${getRouterHeight(block.id)}px`,
                   }}
-                >
-                  {formatDisplayText(block.value, {
+                  overlay={formatDisplayText(block.value, {
                     accessiblePrefixes,
                     highlightAll: !accessiblePrefixes,
                     workflowSearchHighlight,
                   })}
-                </div>
+                />
 
                 {/* Custom resize handle */}
                 {!isPreview && !disabled && (

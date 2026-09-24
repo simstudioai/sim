@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Badge, CollapsibleCard, cn, Input, Label } from '@sim/emcn'
+import { Badge, CollapsibleCard, cn, Label } from '@sim/emcn'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { MirroredInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/mirrored-field/mirrored-field'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
@@ -226,17 +227,6 @@ function InputMappingField({
     onChange
   )
 
-  /**
-   * Synchronizes scroll position between input and overlay
-   * @param e - The scroll event
-   */
-  const handleScroll = (e: React.UIEvent<HTMLInputElement>) => {
-    const overlay = overlayRefs.current.get(fieldId)
-    if (overlay) {
-      overlay.scrollLeft = e.currentTarget.scrollLeft
-    }
-  }
-
   return (
     <CollapsibleCard
       title={fieldName}
@@ -253,7 +243,7 @@ function InputMappingField({
       <div className='flex flex-col gap-1.5'>
         <Label>Value</Label>
         <div className='relative'>
-          <Input
+          <MirroredInput
             ref={(el) => {
               if (el) inputRefs.current.set(fieldId, el)
             }}
@@ -264,43 +254,33 @@ function InputMappingField({
             onDrop={handlers.onDrop}
             onDragOver={handlers.onDragOver}
             onFocus={handlers.onFocus}
-            onScroll={(e) => handleScroll(e)}
-            onPaste={() =>
-              setTimeout(() => {
-                const input = inputRefs.current.get(fieldId)
-                input && handleScroll({ currentTarget: input } as any)
-              }, 0)
-            }
             placeholder='Enter value or reference'
             disabled={disabled}
             autoComplete='off'
-            className={cn(
-              'allow-scroll w-full overflow-auto text-transparent caret-foreground [letter-spacing:inherit]'
-            )}
+            className='allow-scroll w-full overflow-auto'
             style={{ overflowX: 'auto' }}
-          />
-          <div
-            ref={(el) => {
+            overlayRef={(el) => {
               if (el) overlayRefs.current.set(fieldId, el)
             }}
-            className={cn(
+            overlayClassName={cn(
               'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
               !disabled && 'pointer-events-none'
             )}
-            style={{ overflowX: 'auto' }}
-          >
-            <div
-              className='w-full whitespace-pre'
-              style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
-            >
-              {formatDisplayText(
-                value,
-                accessiblePrefixes
-                  ? { accessiblePrefixes, workflowSearchHighlight }
-                  : { highlightAll: true, workflowSearchHighlight }
-              )}
-            </div>
-          </div>
+            overlayStyle={{ overflowX: 'auto' }}
+            overlay={
+              <div
+                className='w-full whitespace-pre'
+                style={{ scrollbarWidth: 'none', minWidth: 'fit-content' }}
+              >
+                {formatDisplayText(
+                  value,
+                  accessiblePrefixes
+                    ? { accessiblePrefixes, workflowSearchHighlight }
+                    : { highlightAll: true, workflowSearchHighlight }
+                )}
+              </div>
+            }
+          />
           {fieldState.showTags && (
             <TagDropdown
               visible={fieldState.showTags}

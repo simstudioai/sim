@@ -7,10 +7,11 @@ import {
   useRef,
   useState,
 } from 'react'
-import { cn, Textarea } from '@sim/emcn'
+import { cn } from '@sim/emcn'
 import { ChevronsUpDown } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { MirroredTextarea } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/mirrored-field/mirrored-field'
 import {
   maskSecretText,
   shouldMaskSecretValue,
@@ -236,14 +237,6 @@ export function LongInput({
     }
   }, [rows])
 
-  // Sync scroll position between textarea and overlay
-  const handleScroll = useCallback((e: React.UIEvent<HTMLTextAreaElement>) => {
-    if (overlayRef.current) {
-      overlayRef.current.scrollTop = e.currentTarget.scrollTop
-      overlayRef.current.scrollLeft = e.currentTarget.scrollLeft
-    }
-  }, [])
-
   // Ensure overlay updates when content changes
   useEffect(() => {
     if (textareaRef.current && overlayRef.current) {
@@ -346,10 +339,10 @@ export function LongInput({
               className='group relative w-full'
               style={{ height: `${height}px` }}
             >
-              <Textarea
+              <MirroredTextarea
                 ref={setRefs}
                 className={cn(
-                  'allow-scroll box-border min-h-full w-full resize-none text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50',
+                  'allow-scroll box-border min-h-full w-full resize-none placeholder:text-muted-foreground/50',
                   wandHook.isStreaming && 'pointer-events-none cursor-not-allowed opacity-50'
                 )}
                 rows={rows ?? DEFAULT_ROWS}
@@ -358,7 +351,6 @@ export function LongInput({
                 onChange={handleChange as (e: React.ChangeEvent<HTMLTextAreaElement>) => void}
                 onDrop={onDrop as (e: React.DragEvent<HTMLTextAreaElement>) => void}
                 onDragOver={onDragOver as (e: React.DragEvent<HTMLTextAreaElement>) => void}
-                onScroll={handleScroll}
                 onKeyDown={onKeyDown as (e: React.KeyboardEvent<HTMLTextAreaElement>) => void}
                 onFocus={(e) => {
                   setIsFocused(true)
@@ -373,29 +365,28 @@ export function LongInput({
                   wordBreak: 'break-word',
                   whiteSpace: 'pre-wrap',
                 }}
-              />
-              <div
-                ref={overlayRef}
-                className={cn(
+                overlayRef={overlayRef}
+                overlayClassName={cn(
                   'absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-2 py-2 font-sans text-sm',
                   (isPreview || disabled) && 'opacity-50',
                   !(isPreview || disabled) && 'pointer-events-none'
                 )}
-                style={{
+                overlayStyle={{
                   fontFamily: 'inherit',
                   lineHeight: 'inherit',
                   width: '100%',
                   height: `${height}px`,
                 }}
-              >
-                {shouldMask
-                  ? displayValue
-                  : formatDisplayText(value, {
-                      accessiblePrefixes,
-                      highlightAll: !accessiblePrefixes,
-                      workflowSearchHighlight,
-                    })}
-              </div>
+                overlay={
+                  shouldMask
+                    ? displayValue
+                    : formatDisplayText(value, {
+                        accessiblePrefixes,
+                        highlightAll: !accessiblePrefixes,
+                        workflowSearchHighlight,
+                      })
+                }
+              />
 
               {/* Wand Button - only show if not hidden by parent */}
               {isWandEnabled && !isPreview && !wandHook.isStreaming && !hideInternalWand && (
