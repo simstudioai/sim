@@ -1,5 +1,5 @@
 import { type ButtonHTMLAttributes, forwardRef, type ReactNode } from 'react'
-import { Button, cn } from '@sim/emcn'
+import { Button } from '@sim/emcn'
 
 interface TableSidebarHeaderProps {
   children: ReactNode
@@ -28,10 +28,8 @@ export const TableSidebarHeaderAction = forwardRef<
     size='sm'
     iconSize='regular'
     iconPadding='sm'
-    className={cn(
-      'focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--text-muted)_30%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)]',
-      className
-    )}
+    focusRing='muted'
+    className={className}
   />
 ))
 
