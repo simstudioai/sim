@@ -7,6 +7,7 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
   secureFetchWithValidation: fetchMock,
 }))
 
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { fetchLinkPreview } from '@/lib/link-preview/fetch-preview'
 
 const PAGE = 'https://example.com/docs/guide'
@@ -79,12 +80,90 @@ describe('public link preview images', () => {
     expect(fetchMock.mock.calls[1][0]).toBe('https://example.com/card.png')
   })
 
-  it('retains text metadata when the image is blocked by the network guard', async () => {
-    fetchMock.mockResolvedValueOnce(page()).mockRejectedValueOnce(new Error('Private IP blocked'))
-    expect(await fetchLinkPreview(PAGE)).toMatchObject({
+  it.each([
+    new Error('Private IP blocked'),
+    new Error('Redirect blocked'),
+    new PayloadSizeLimitError({ label: 'response body', maxBytes: 2 * 1024 * 1024 }),
+  ])('does not retry permanent image failures: %s', async (error) => {
+    fetchMock.mockResolvedValueOnce(page()).mockRejectedValueOnce(error)
+    expect(await fetchLinkPreview(PAGE)).toEqual({
       title: 'Guide',
       description: 'A useful guide',
+      siteName: null,
     })
+  })
+
+  it.each(['ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN', 'DNS_TIMEOUT'])(
+    'retries transient fetch failures through their cause chain: %s',
+    async (code) => {
+      const cause = Object.assign(new Error('Upstream unavailable'), { code })
+      fetchMock
+        .mockResolvedValueOnce(page())
+        .mockRejectedValueOnce(new Error('Fetch failed', { cause }))
+      expect(await fetchLinkPreview(PAGE)).toMatchObject({ title: 'Guide', imageRetryable: true })
+    }
+  )
+
+  it('does not retry a malformed image reference', async () => {
+    fetchMock.mockResolvedValueOnce(page('https://['))
+    expect(await fetchLinkPreview(PAGE)).toEqual({
+      title: 'Guide',
+      description: 'A useful guide',
+      siteName: null,
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not retry malformed raster data', async () => {
+    fetchMock
+      .mockResolvedValueOnce(page())
+      .mockResolvedValueOnce(
+        new Response('not a PNG', { headers: { 'content-type': 'image/png' } })
+      )
+    expect(await fetchLinkPreview(PAGE)).toEqual({
+      title: 'Guide',
+      description: 'A useful guide',
+      siteName: null,
+    })
+  })
+
+  it.each([
+    { status: 404, contentType: 'image/png', retryable: undefined },
+    { status: 429, contentType: 'image/png', retryable: true },
+    { status: 503, contentType: 'image/png', retryable: true },
+    { status: 200, contentType: 'image/svg+xml', retryable: undefined },
+  ])(
+    'cancels rejected image bodies: $status $contentType',
+    async ({ status, contentType, retryable }) => {
+      const cancel = vi.fn()
+      const response = new Response(new ReadableStream({ cancel }), {
+        status,
+        headers: { 'content-type': contentType },
+      })
+      const read = vi.spyOn(response, 'arrayBuffer')
+      fetchMock.mockResolvedValueOnce(page()).mockResolvedValueOnce(response)
+      const result = await fetchLinkPreview(PAGE)
+      expect(result?.imageRetryable).toBe(retryable)
+      expect(cancel).toHaveBeenCalledOnce()
+      expect(read).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([
+    { status: 404, contentType: 'text/html' },
+    { status: 503, contentType: 'text/html' },
+    { status: 200, contentType: 'application/octet-stream' },
+  ])('cancels rejected page bodies: $status $contentType', async ({ status, contentType }) => {
+    const cancel = vi.fn()
+    const response = new Response(new ReadableStream({ cancel }), {
+      status,
+      headers: { 'content-type': contentType },
+    })
+    const read = vi.spyOn(response, 'text')
+    fetchMock.mockResolvedValueOnce(response)
+    expect(await fetchLinkPreview(PAGE)).toBeNull()
+    expect(cancel).toHaveBeenCalledOnce()
+    expect(read).not.toHaveBeenCalled()
   })
 
   it('rejects SVG even when served with a raster content type', async () => {

@@ -2,6 +2,7 @@ import { truncate } from '@sim/utils/string'
 import * as cheerio from 'cheerio'
 import sharp from 'sharp'
 import type { LinkPreview } from '@/lib/api/contracts/link-preview'
+import { isRetryableInfrastructureError } from '@/lib/core/errors/retryable-infrastructure'
 import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 
 const FETCH_TIMEOUT_MS = 5000
@@ -44,11 +45,14 @@ async function fetchPreviewImage(url: string, signal?: AbortSignal): Promise<Pre
       signal,
       headers: { Accept: 'image/jpeg,image/png,image/webp,image/avif,image/gif' },
     })
-    if (response.status === 429 || response.status >= 500) return { imageRetryable: true }
-    if (response.status < 200 || response.status >= 300) return {}
+    if (response.status < 200 || response.status >= 300) {
+      await response.body?.cancel().catch(() => {})
+      return response.status === 429 || response.status >= 500 ? { imageRetryable: true } : {}
+    }
     if (
       !/^image\/(jpeg|png|webp|avif|gif)(;|$)/i.test(response.headers.get('content-type') ?? '')
     ) {
+      await response.body?.cancel().catch(() => {})
       return {}
     }
     const image = sharp(Buffer.from(await response.arrayBuffer()), {
@@ -66,9 +70,9 @@ async function fetchPreviewImage(url: string, signal?: AbortSignal): Promise<Pre
     signal?.throwIfAborted()
     if (buffer.length > MAX_PREVIEW_BYTES) return {}
     return { image: `data:image/webp;base64,${buffer.toString('base64')}` }
-  } catch {
+  } catch (error) {
     signal?.throwIfAborted()
-    return { imageRetryable: true }
+    return isRetryableInfrastructureError(error) ? { imageRetryable: true } : {}
   } finally {
     activeImages -= 1
   }
@@ -98,10 +102,15 @@ export async function fetchLinkPreview(
       Accept: 'text/html,application/xhtml+xml',
     },
   })
-  if (response.status < 200 || response.status >= 300) return null
   const contentType = response.headers.get('content-type') ?? ''
-  if (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml'))
+  if (
+    response.status < 200 ||
+    response.status >= 300 ||
+    (!contentType.includes('text/html') && !contentType.includes('application/xhtml+xml'))
+  ) {
+    await response.body?.cancel().catch(() => {})
     return null
+  }
   const $ = cheerio.load(await response.text())
   const meta = (key: string) =>
     $(`meta[property="${key}"], meta[name="${key}"]`).first().attr('content')?.trim() || null
@@ -117,7 +126,7 @@ export async function fetchLinkPreview(
       image = await fetchPreviewImage(new URL(imageRef, finalUrl).href, signal)
     } catch {
       callerSignal?.throwIfAborted()
-      image = { imageRetryable: true }
+      image = signal.aborted ? { imageRetryable: true } : {}
     }
   }
   callerSignal?.throwIfAborted()

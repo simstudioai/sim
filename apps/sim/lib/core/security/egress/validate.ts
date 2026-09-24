@@ -38,6 +38,8 @@ export interface EgressValidationSuccess {
 export interface EgressValidationFailure {
   readonly isValid: false
   readonly error: string
+  /** Retains resolver failure codes so callers can distinguish an outage from a policy denial. */
+  readonly cause?: unknown
 }
 
 export type EgressValidationResult = EgressValidationSuccess | EgressValidationFailure
@@ -125,7 +127,7 @@ export async function validateEgressUrl(
         ? { profile, paramName }
         : { profile, paramName, host, error: toError(error).message }
     )
-    return { isValid: false, error: `${paramName} hostname could not be resolved` }
+    return { isValid: false, error: `${paramName} hostname could not be resolved`, cause: error }
   }
 
   // Refused records are filtered rather than failing the whole host: pinning to a

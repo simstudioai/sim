@@ -41,7 +41,13 @@ const logger = createLogger('InputValidation')
  */
 export type AsyncValidationResult =
   | { isValid: true; resolvedIP: string; originalHostname: string; error?: undefined }
-  | { isValid: false; error: string; resolvedIP?: undefined; originalHostname?: undefined }
+  | {
+      isValid: false
+      error: string
+      cause?: unknown
+      resolvedIP?: undefined
+      originalHostname?: undefined
+    }
 
 /**
  * Validates a URL, resolves its DNS, and returns the address to pin.
@@ -65,7 +71,7 @@ export async function validateUrlWithDNS(
   const result = await validateEgressUrl(url, paramName, profile, options)
   return result.isValid
     ? { isValid: true, resolvedIP: result.resolvedIP, originalHostname: result.originalHostname }
-    : { isValid: false, error: result.error }
+    : { isValid: false, error: result.error, cause: result.cause }
 }
 
 /**
@@ -1215,7 +1221,9 @@ export async function secureFetchWithPinnedIP(
         })
           .then((validation) => {
             if (!validation.isValid) {
-              settledReject(new Error(`Redirect blocked: ${validation.error}`))
+              settledReject(
+                new Error(`Redirect blocked: ${validation.error}`, { cause: validation.cause })
+              )
               return
             }
             const redirectPolicy = options.redirectPolicy
@@ -1516,7 +1524,11 @@ export async function secureFetchWithPinnedIP(
       req.on('error', settledReject)
       req.on('timeout', () => {
         destroyRequest()
-        settledReject(new Error(`Request timed out after ${requestOptions.timeout}ms`))
+        settledReject(
+          Object.assign(new Error(`Request timed out after ${requestOptions.timeout}ms`), {
+            code: 'ETIMEDOUT',
+          })
+        )
       })
       send = () => {
         req.end(options.body)
@@ -1560,7 +1572,7 @@ export async function secureFetchWithValidation(
     signal: options.signal,
   })
   if (!validation.isValid) {
-    throw new Error(validation.error)
+    throw new Error(validation.error, { cause: validation.cause })
   }
   return secureFetchWithPinnedIP(url, validation.resolvedIP, options)
 }

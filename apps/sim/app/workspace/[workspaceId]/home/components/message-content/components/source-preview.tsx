@@ -119,7 +119,7 @@ function SourcePreviewContent({ source }: Pick<SourcePreviewProps, 'source'>) {
     source.snippet?.trim() || (!source.connectorType && preview?.description?.trim())
   return (
     <div className='flex flex-col gap-3 p-1.5'>
-      <div className='flex min-w-0 items-center justify-between gap-3 text-[var(--text-muted)] text-caption'>
+      <div className='flex min-w-0 items-center justify-between gap-3 text-[var(--text-tertiary)] text-caption'>
         <span className='flex min-w-0 items-center gap-2'>
           <SourceIcon source={source} />
           <OverflowText label={siteName} tooltipEnabled={false} />

@@ -128,6 +128,16 @@ describe('validateUrlWithDNS address classification', () => {
     ).toBe(false)
   })
 
+  it('retains resolver causes for retry classification without admitting the request', async () => {
+    const cause = Object.assign(new Error('Temporary DNS failure'), { code: 'EAI_AGAIN' })
+    mockResolve.mockRejectedValue(cause)
+    await expect(
+      secureFetchWithValidation('https://example.com/preview', {
+        profile: 'contentFetch',
+      })
+    ).rejects.toMatchObject({ message: 'url hostname could not be resolved', cause })
+  })
+
   it('can conceal credential-derived host details in validation logs', async () => {
     mockResolve.mockRejectedValue(new Error('DNS failure with credential-host-canary'))
 

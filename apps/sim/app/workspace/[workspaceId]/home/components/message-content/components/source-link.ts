@@ -24,7 +24,7 @@ export function linkSiteName(url: string, siteName?: string | null): string {
  * A prose link shares the platform blue and retains a visible keyboard focus outline.
  */
 export const PROSE_LINK_CLASS =
-  'not-prose [&_strong]:text-inherit [&_em]:text-inherit [&_code]:text-inherit [&_del]:text-inherit text-[var(--brand-blue)] no-underline hover-hover:text-[var(--brand-secondary)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--text-primary)]'
+  'not-prose [&_strong]:text-inherit [&_em]:text-inherit [&_code]:text-inherit [&_del]:text-inherit text-[var(--brand-blue)] no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--text-primary)]'
 
 /**
  * In the desktop app, a plain click diverts into the embedded Sim browser
