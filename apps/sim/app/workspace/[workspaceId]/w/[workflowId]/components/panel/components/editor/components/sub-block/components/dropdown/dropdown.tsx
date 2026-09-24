@@ -21,12 +21,15 @@ import { ResponseBlockHandler } from '@/executor/handlers/response/response-hand
 import { useWorkspaceOrganizationAccounts } from '@/hooks/queries/organization-accounts'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useOperationAccess } from '@/hooks/use-operation-access'
+import { useReactiveConditions } from '@/hooks/use-reactive-conditions'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 /** Shared empty list, so a selector-backed field with no static options keeps a stable identity. */
 const EMPTY_OPTIONS: DropdownOption[] = []
+
+const EMPTY_SUB_BLOCKS: SubBlockConfig[] = []
 
 /** Shared empty list, so a multi-select with no value keeps a stable identity across renders. */
 const EMPTY_MULTI_VALUES: string[] = []
@@ -46,6 +49,7 @@ type DropdownOption =
       id: string
       icon?: React.ComponentType<{ className?: string }>
       hidden?: boolean
+      reactiveCondition?: SubBlockConfig['reactiveCondition']
     }
 
 /**
@@ -124,6 +128,8 @@ export const Dropdown = memo(function Dropdown({
   const dependsOnFields = useMemo(() => getDependsOnFields(dependsOn), [dependsOn])
 
   const blockType = useWorkflowStore((state) => state.blocks[blockId]?.type)
+  const canonicalModes = useWorkflowStore((state) => state.blocks[blockId]?.data?.canonicalModes)
+  const triggerMode = useWorkflowStore((state) => Boolean(state.blocks[blockId]?.triggerMode))
   const workspaceId = useWorkflowRegistry((state) => state.hydration.workspaceId)
   const organizationAccounts = useWorkspaceOrganizationAccounts(
     workspaceId ?? undefined,
@@ -167,6 +173,23 @@ export const Dropdown = memo(function Dropdown({
     if (typeof options === 'function') return options({ values: blockValues ?? {} })
     return options ?? EMPTY_OPTIONS
   }, [options, blockValues])
+
+  const reactiveOptions = useMemo(
+    () =>
+      evaluatedOptions.filter(
+        (option): option is Exclude<DropdownOption, string> =>
+          typeof option !== 'string' && Boolean(option.reactiveCondition)
+      ),
+    [evaluatedOptions]
+  )
+  const hiddenCredentialOptions = useReactiveConditions(
+    blockConfig?.subBlocks ?? EMPTY_SUB_BLOCKS,
+    blockId,
+    activeWorkflowId,
+    canonicalModes,
+    triggerMode,
+    reactiveOptions
+  )
 
   const [selectorSearch, setSelectorSearch] = useState('')
   const debouncedSelectorSearch = useDebounce(selectorSearch.trim(), SEARCH_DEBOUNCE_MS)
@@ -286,6 +309,7 @@ export const Dropdown = memo(function Dropdown({
         icon: 'icon' in opt ? opt.icon : undefined,
         hidden:
           opt.hidden ||
+          hiddenCredentialOptions.has(opt.id) ||
           deniedOperationIds.has(opt.id) ||
           (hideOrganizationOperations &&
             [
@@ -296,7 +320,13 @@ export const Dropdown = memo(function Dropdown({
             ].includes(opt.id)),
       }
     })
-  }, [allOptions, deniedOperationIds, preserveLabelCase, hideOrganizationOperations])
+  }, [
+    allOptions,
+    deniedOperationIds,
+    preserveLabelCase,
+    hideOrganizationOperations,
+    hiddenCredentialOptions,
+  ])
 
   const optionMap = useMemo(() => {
     return new Map(comboboxOptions.map((opt) => [opt.value, opt.label]))

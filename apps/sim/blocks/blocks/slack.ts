@@ -3991,6 +3991,10 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
       type: 'json',
       description: 'Slack file metadata (id, name, title, mimetype, permalink)',
     },
+    posts: {
+      type: 'json',
+      description: 'Legacy post search results (matches, total), when returned',
+    },
     fileSearchResults: {
       type: 'json',
       description: 'File search results with matches and paging',

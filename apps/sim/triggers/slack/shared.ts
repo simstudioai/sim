@@ -225,8 +225,8 @@ export interface SlackEventCatalogEntry {
  * trigger, and the single source of truth for event gating. One trigger block
  * fires on exactly one `id`. `simSubscribed` gates which events are offered in
  * Sim mode (the official app). Legacy Assistant events remain in the catalog
- * for existing workflows but are hidden from new selections because custom apps
- * use Agent View events instead. `filters` drives both the trigger UI (which filter
+ * for native Sim workflows; their options require an OAuth credential because
+ * custom apps use Agent View events instead. `filters` drives both the trigger UI (which filter
  * sub-blocks show) and the ingest route (which checks apply).
  */
 export const SLACK_EVENT_CATALOG: readonly SlackEventCatalogEntry[] = [
@@ -352,11 +352,15 @@ export const SIM_SUBSCRIBED_EVENTS: readonly string[] = SLACK_EVENT_CATALOG.filt
   (entry) => entry.simSubscribed
 ).map((entry) => entry.id)
 
-/** Legacy events still display on saved workflows but cannot be selected for new triggers. */
+/** Assistant events require native OAuth; custom Agent View bots use the current event family. */
 export const SLACK_ALL_EVENT_OPTIONS = SLACK_EVENT_CATALOG.map((entry) => ({
   label: entry.label,
   id: entry.id,
-  ...(entry.legacy ? { hidden: true } : {}),
+  ...(entry.legacy
+    ? {
+        reactiveCondition: { watchFields: ['customBotCredential'], requiredType: 'oauth' as const },
+      }
+    : {}),
 }))
 
 /**

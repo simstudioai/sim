@@ -70,6 +70,13 @@ export const slackSearchAllTool = createSlackWebApiTool({
       query: z.string(),
       messages: messageSearchSchema,
       files: fileSearchSchema,
+      posts: z
+        .object({
+          matches: z.array(z.record(z.string(), z.unknown())),
+          total: z.number(),
+        })
+        .passthrough()
+        .optional(),
     })
     .transform(({ files, ...rest }) => ({ ...rest, fileSearchResults: files })),
   outputs: {
@@ -77,5 +84,18 @@ export const slackSearchAllTool = createSlackWebApiTool({
     query: { type: 'string', description: 'Query' },
     messages: { ...messageSearchOutput },
     fileSearchResults: { ...fileSearchOutput },
+    posts: {
+      type: 'object',
+      description: 'Legacy post search results when returned by Slack',
+      optional: true,
+      properties: {
+        matches: {
+          type: 'array',
+          description: 'Legacy post matches with provider-defined fields',
+          items: { type: 'object', description: 'Provider-defined post match' },
+        },
+        total: { type: 'number', description: 'Total matching posts' },
+      },
+    },
   },
 })

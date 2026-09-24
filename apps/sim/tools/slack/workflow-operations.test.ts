@@ -162,6 +162,17 @@ describe('Slack workflow API response contracts', () => {
     }
   })
 
+  it('preserves optional legacy posts and their provider-defined fields in combined search', async () => {
+    const posts = {
+      matches: [{ id: 'F_POST', title: 'Example post', custom_field: ['value'] }],
+      total: 1,
+    }
+    const result = await slackSearchAllTool.transformResponse!(
+      Response.json({ ...responses.slack_search_all[0], posts })
+    )
+    expect(result.output.posts).toEqual(posts)
+  })
+
   it('exercises documented DND and emoji fields beyond the minimal success envelopes', async () => {
     const dnd = responses.slack_get_dnd_info.find((sample) => 'dnd_enabled' in sample)!
     expect(dnd).toBeDefined()
