@@ -26,7 +26,10 @@ import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
 import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
 import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
-import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
+import {
+  getMothershipUseChatOptions,
+  useChat,
+} from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import {
   useChatResourcePanel,
   useResourcePanelController,
@@ -102,12 +105,15 @@ function OrganizationHomeContent({
           : 'agent')
   const controller = useResourcePanelController()
   const queryClient = useQueryClient()
-  const chat = useChat({ organizationId: organization.id }, chatId, {
-    requestMode,
-    projectsDesktopTabs: requestMode !== 'assistant',
-    onResourceEvent: controller.onResourceEvent,
-    activeResourceState: controller.activeResourceState,
-  })
+  const chat = useChat(
+    { organizationId: organization.id },
+    chatId,
+    getMothershipUseChatOptions({
+      requestMode,
+      onResourceEvent: controller.onResourceEvent,
+      activeResourceState: controller.activeResourceState,
+    })
+  )
   const initialDraftKey = `${userId}:organization:${organization.id}:${chatId ?? 'new'}`
   const draftKey = `${userId}:organization:${organization.id}:${chat.resolvedChatId ?? chatId ?? 'new'}`
   const savedDraft = useMothershipDraftsStore.getState().drafts

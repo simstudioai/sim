@@ -69,7 +69,10 @@ vi.mock('@/lib/core/utils/browser-storage', () => ({
 vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
   useOrganizationContext: mocks.context,
 }))
-vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => ({ useChat: mocks.chat }))
+vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => ({
+  getMothershipUseChatOptions: (options: object) => ({ ...options, mothership: true }),
+  useChat: mocks.chat,
+}))
 vi.mock('@/hooks/queries/mothership-chats', () => ({
   useMarkMothershipChatRead: () => ({ mutate: mocks.markRead }),
 }))
@@ -602,7 +605,7 @@ describe('Home permission-selected harness', () => {
     expect(mocks.chat).toHaveBeenLastCalledWith(
       { organizationId: 'organization-a' },
       'search-a',
-      expect.objectContaining({ requestMode: 'assistant', projectsDesktopTabs: false })
+      expect.objectContaining({ requestMode: 'assistant', mothership: true })
     )
   })
   it('keeps old Build history readable after permission removal without a writable composer', async () => {
