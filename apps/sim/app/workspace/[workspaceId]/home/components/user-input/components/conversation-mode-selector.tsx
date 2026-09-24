@@ -20,7 +20,7 @@ export function ConversationModeSelector({
   const planEnabled = useFeatureFlag('mothership-plan-mode')
   const [open, setOpen] = useState(false)
   const options = [
-    ...(searchEnabled ? [{ value: 'assistant', label: 'Ask' }] : []),
+    ...(searchEnabled ? [{ value: 'assistant', label: 'Search' }] : []),
     { value: 'agent', label: 'Build' },
     ...(planEnabled ? [{ value: 'plan', label: 'Plan' }] : []),
   ]

@@ -231,7 +231,7 @@ export function Composer({
                       files.attachedFiles.some((file) => !isAssistantImageType(file.type)))
                   ) {
                     toast.info(
-                      'Remove resource and skill mentions and non-image attachments before switching to Ask.'
+                      'Remove resource and skill mentions and non-image attachments before switching to Search.'
                     )
                     return
                   }
