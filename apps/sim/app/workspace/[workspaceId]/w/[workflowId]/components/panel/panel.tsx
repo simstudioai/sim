@@ -55,7 +55,6 @@ import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-uti
 import {
   Deploy,
   Editor,
-  PanelTabButton,
   Toolbar,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components'
 import {
@@ -742,7 +741,7 @@ export const Panel = memo(function Panel() {
             <div className='flex gap-1.5'>
               <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
                 <DropdownMenuTrigger asChild>
-                  <Button aria-label='Workflow actions' className='size-[30px]'>
+                  <Button aria-label='Workflow actions' iconSize='regular'>
                     <MoreHorizontal className='size-[14px]' />
                   </Button>
                 </DropdownMenuTrigger>
@@ -803,7 +802,7 @@ export const Panel = memo(function Panel() {
               </DropdownMenu>
               <Button
                 aria-label={isChatOpen ? 'Close chat' : 'Open chat'}
-                className='size-[30px]'
+                iconSize='regular'
                 variant={isChatOpen ? 'active' : 'default'}
                 onClick={() => setIsChatOpen(!isChatOpen)}
               >
@@ -854,29 +853,28 @@ export const Panel = memo(function Panel() {
           <div className='flex shrink-0 items-center justify-between px-2 pt-3.5'>
             <div className='flex gap-1'>
               {isCopilotTabAvailable && (
-                <PanelTabButton
+                <Chip
                   active={_hasHydrated && activeTab === 'copilot'}
-                  className='truncate'
                   onClick={() => handleTabClick('copilot')}
                   data-tab-button='copilot'
                 >
                   Chat
-                </PanelTabButton>
+                </Chip>
               )}
-              <PanelTabButton
+              <Chip
                 active={_hasHydrated && activeTab === 'toolbar'}
                 onClick={() => handleTabClick('toolbar')}
                 data-tab-button='toolbar'
               >
                 Toolbar
-              </PanelTabButton>
-              <PanelTabButton
+              </Chip>
+              <Chip
                 active={_hasHydrated && activeTab === 'editor'}
                 onClick={() => handleTabClick('editor')}
                 data-tab-button='editor'
               >
                 Editor
-              </PanelTabButton>
+              </Chip>
             </div>
           </div>
 
