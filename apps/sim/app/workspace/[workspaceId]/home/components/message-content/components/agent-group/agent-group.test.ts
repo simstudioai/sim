@@ -310,7 +310,7 @@ describe('AgentGroup inline main activity', () => {
   })
 
   it.each(['sim_cli', 'run_code'])(
-    'shows %s argument preparation before its concrete call',
+    'names a first %s call by its activity intent, else its own title, while its arguments stream',
     (toolName) => {
       vi.useFakeTimers()
       const render = (
@@ -342,13 +342,104 @@ describe('AgentGroup inline main activity', () => {
           )
         )
         act(() => vi.advanceTimersByTime(1000))
+        expect(container.textContent).not.toContain('Working')
         return container.textContent
       }
-      expect(render({}, 'executing')).toBe('Working…')
-      const params = { code: '1', activity: { id: 'check', completedTitle: 'Checked inputs' } }
+      expect(render({}, 'executing')).toBe('Running checks')
+      expect(render({ activity: { id: 'check', title: 'Checking inputs' } }, 'executing')).toBe(
+        'Checking inputs'
+      )
+      const params = { code: '1', activity: { id: 'check', title: 'Checking inputs' } }
       expect(render(params, 'executing')).toBe('Running checks')
       expect(render(params, 'success')).toBe('Running checks')
       expect(render(params, 'success', false)).toBe('Ran checks')
+    }
+  )
+
+  it.each([
+    [
+      'sim_cli',
+      { toolName: 'sim_cli', displayTitle: 'Running CLI command', params: {} },
+      {
+        toolName: 'cli_workflows_list',
+        displayTitle: 'Listing workflows',
+        params: { args: ['workflows', 'list'] },
+      },
+    ],
+    [
+      'run_code',
+      { toolName: 'run_code', displayTitle: 'Running code', params: { activity: { id: 'a' } } },
+      {
+        toolName: 'run_code',
+        displayTitle: 'Summing invoices',
+        params: { activity: { id: 'a' }, title: 'Summing invoices', code: '1' },
+      },
+    ],
+    [
+      'call_integration_tool',
+      { toolName: 'call_integration_tool', displayTitle: 'Calling integration', params: {} },
+      {
+        toolName: 'call_integration_tool',
+        displayTitle: 'Sending the report',
+        params: {},
+        streamingArgs: '{"description":"Sending the report",',
+      },
+    ],
+  ])(
+    'keeps the previous call in the live header while a %s call has no title',
+    (_name, pending, titled) => {
+      vi.useFakeTimers()
+      const read = {
+        id: 'read',
+        toolName: 'read',
+        displayTitle: 'Reading notes.md',
+        status: 'success' as const,
+      }
+      const render = (next: Partial<ToolCallData>) => {
+        act(() =>
+          root.render(
+            createElement(AgentGroup, {
+              agentName: 'mothership',
+              agentLabel: 'Sim',
+              activity: { id: 'a', title: 'Reconciling accounts' },
+              isStreaming: true,
+              isLaneOpen: true,
+              items: [
+                { type: 'tool', data: read },
+                {
+                  type: 'tool',
+                  data: { id: 'next', status: 'executing', ...next } as ToolCallData,
+                },
+              ],
+            })
+          )
+        )
+        act(() => vi.advanceTimersByTime(1000))
+        const header = container.querySelector('[role="status"]')!
+        expect(header.querySelector('[class*="shimmer"]')).not.toBeNull()
+        expect(container.textContent).not.toContain('Working')
+        return { text: header.textContent, icon: header.querySelector('svg')?.outerHTML }
+      }
+      const iconOf = (data: Partial<ToolCallData>) => {
+        act(() =>
+          root.render(
+            createElement(AgentGroup, {
+              agentName: 'mothership',
+              agentLabel: 'Sim',
+              items: [
+                { type: 'tool', data: { id: 'solo', status: 'success', ...data } as ToolCallData },
+              ],
+            })
+          )
+        )
+        return container.querySelector('svg')?.outerHTML
+      }
+      const readIcon = iconOf(read)
+      const titledIcon = iconOf(titled)
+      expect(readIcon).not.toBe(titledIcon)
+
+      expect(render(pending)).toEqual({ text: 'Reading notes.md', icon: readIcon })
+      expect(render(titled)).toEqual({ text: titled.displayTitle, icon: titledIcon })
     }
   )
 
@@ -1173,6 +1264,48 @@ describe('AgentGroup nested status line', () => {
     ])
     /** The latest start wins across the subtree. */
     expect(header).toContain('Deploying Invoice Sync as API')
+  })
+
+  it('keeps the previous call in a subagent header while the next call has no title', () => {
+    vi.useFakeTimers()
+    const header = (items: AgentGroupItem[]) => {
+      render(items)
+      act(() => vi.advanceTimersByTime(1000))
+      const status = container.querySelector('[role="status"]')!
+      expect(status.querySelector('[class*="shimmer"]')).not.toBeNull()
+      expect(container.textContent).not.toContain('Working')
+      return status.textContent
+    }
+    const cli = (data: Partial<ToolCallData>): AgentGroupItem => ({
+      type: 'tool',
+      data: { id: 'cli', status: 'executing', startedAt: 2, ...data } as ToolCallData,
+    })
+    const pending = cli({ toolName: 'sim_cli', displayTitle: 'Running CLI command', params: {} })
+    const titled = cli({
+      toolName: 'cli_workflows_list',
+      displayTitle: 'Listing workflows',
+      params: { args: ['workflows', 'list'] },
+    })
+    try {
+      expect(header([namedTool('Reading workflow', 'success' as ToolCallStatus, 1), pending])).toBe(
+        'Reading workflow'
+      )
+      expect(header([namedTool('Reading workflow', 'success' as ToolCallStatus, 1), titled])).toBe(
+        'Listing workflows'
+      )
+      expect(header([pending])).toBe('Running CLI command')
+      expect(
+        header([
+          cli({
+            toolName: 'sim_cli',
+            displayTitle: 'Running CLI command',
+            params: { activity: { id: 'a', title: 'Checking inputs' } },
+          }),
+        ])
+      ).toBe('Checking inputs')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('falls back to the last tool at any depth when nothing is running', () => {
