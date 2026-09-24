@@ -4,7 +4,9 @@
 import {
   act,
   type ButtonHTMLAttributes,
+  cloneElement,
   type InputHTMLAttributes,
+  type ReactElement,
   type ReactNode,
   type Ref,
 } from 'react'
@@ -21,6 +23,7 @@ const {
   mockHandleRunWorkflow,
   mockReadSSEEvents,
   mockRevokeObjectURL,
+  mockTooltipPointerEnter,
   executionState,
   registryState,
   WorkflowAttachmentUploadErrorMock,
@@ -63,6 +66,7 @@ const {
     mockHandleRunWorkflow: vi.fn(),
     mockReadSSEEvents: vi.fn(),
     mockRevokeObjectURL: vi.fn(),
+    mockTooltipPointerEnter: vi.fn(),
     executionState: { isExecuting: false },
     registryState: { activeWorkflowId: 'workflow-1' },
     WorkflowAttachmentUploadErrorMock,
@@ -103,7 +107,10 @@ vi.mock('@sim/emcn', () => ({
   PopoverTrigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Tooltip: {
     Root: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    Trigger: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    Trigger: ({ children }: { children: ReactElement }) =>
+      cloneElement(children as ReactElement<{ onPointerEnter?: () => void }>, {
+        onPointerEnter: mockTooltipPointerEnter,
+      }),
     Content: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   },
   Trash: () => <span data-icon='Trash' />,
@@ -338,6 +345,20 @@ describe('floating chat attachment uploads', () => {
     if (fileInput) fileInput.click = openPicker
     act(() => action?.click())
     expect(openPicker).not.toHaveBeenCalled()
+  })
+
+  it('keeps the tooltip hover target available when attachment is disabled', () => {
+    executionState.isExecuting = true
+    act(() => root.render(<Chat />))
+
+    const action = container.querySelector<HTMLButtonElement>('button[aria-label="Attach file"]')
+    const trigger = action?.parentElement
+    expect(action?.disabled).toBe(true)
+    expect(trigger?.tagName).toBe('SPAN')
+    expect(trigger?.hasAttribute('disabled')).toBe(false)
+
+    act(() => trigger?.dispatchEvent(new Event('pointerover', { bubbles: true })))
+    expect(mockTooltipPointerEnter).toHaveBeenCalledTimes(1)
   })
 
   it('disables attachment selection at the file limit', () => {
