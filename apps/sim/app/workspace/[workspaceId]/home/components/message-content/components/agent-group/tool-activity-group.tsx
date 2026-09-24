@@ -76,10 +76,11 @@ function getToolActivityInterruptions(tools: ToolCallData[]): string[] {
  * parses ("Running CLI command") or a `run_code` call before its arguments
  * resolve, while their parameters hold at most the activity, and an
  * integration gateway call before its description streams ("Calling integration").
- * A call awaiting approval is never untitled, so its permission card keeps the header.
+ * A call awaiting approval is never untitled, so its permission card keeps the
+ * header, and neither is one the model already described.
  */
 function isAwaitingTitle(tool: ToolCallData): boolean {
-  if (tool.status !== ToolCallStatus.executing) return false
+  if (tool.status !== ToolCallStatus.executing || tool.activityDescription) return false
   if (tool.toolName === CallIntegrationTool.id) {
     const description =
       tool.params?.description ?? extractStreamingStringArgument(tool.streamingArgs, 'description')
@@ -97,8 +98,9 @@ function isAwaitingTitle(tool: ToolCallData): boolean {
  * text between steps: the status call, unless it is still awaiting its title,
  * in which case the call the header described before it keeps the header
  * until the new title arrives. A call waiting on the user is never held, since
- * its permission card or handoff would replace the header. With no earlier
- * titled call, the status call.
+ * its permission card or handoff would replace the header, and neither is a
+ * failed call, which must not read as live. With no such earlier call, the
+ * status call.
  */
 export function getActivityHeaderTool(
   tools: ToolCallData[],
@@ -108,7 +110,11 @@ export function getActivityHeaderTool(
   return (
     getActivityStatusTool(
       tools.filter(
-        (tool) => tool.id !== statusTool.id && !isAwaitingTitle(tool) && !needsToolInput(tool)
+        (tool) =>
+          tool.id !== statusTool.id &&
+          !isAwaitingTitle(tool) &&
+          !needsToolInput(tool) &&
+          !isFailedTool(tool)
       )
     ) ?? statusTool
   )

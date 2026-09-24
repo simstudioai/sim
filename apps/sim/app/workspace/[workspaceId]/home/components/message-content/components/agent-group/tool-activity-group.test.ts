@@ -164,6 +164,19 @@ describe('in-progress activity header', () => {
     expect(getActivityHeaderTool(tools, pendingCli)).toBe(read)
   })
 
+  it('never holds a failed call, falling back to the new call itself', () => {
+    const failed = tool('grep', 'Searching', 'error')
+    expect(getActivityHeaderTool([failed, pendingCli], pendingCli)).toBe(pendingCli)
+    expect(
+      getInProgressActivityLabel(
+        'Running CLI command',
+        pendingCli,
+        [failed, pendingCli],
+        'Reconciling'
+      )
+    ).toBe('Reconciling')
+  })
+
   it('keeps a call waiting on approval as the header, never holding past or onto it', () => {
     const gatedGateway = {
       ...pendingGateway,
@@ -188,6 +201,10 @@ describe('in-progress activity header', () => {
         id: 'gateway-described',
         streamingArgs: '{"description":"Sending the report",',
       },
+    ],
+    [
+      'a model activity description',
+      { ...pendingCli, id: 'cli-described', activityDescription: 'Listing the workflows' },
     ],
   ])('describes the new call once it has %s', (_case, titled) => {
     expect(getActivityHeaderTool([read, titled], titled)).toBe(titled)
