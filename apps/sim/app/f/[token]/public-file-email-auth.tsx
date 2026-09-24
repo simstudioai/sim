@@ -144,14 +144,11 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
             }}
             disabled={verifyOtp.isPending}
             className={cn('gap-2', error && 'otp-error')}
+            aria-invalid={Boolean(error)}
           >
             <InputOTPGroup>
               {[0, 1, 2, 3, 4, 5].map((i) => (
-                <InputOTPSlot
-                  key={i}
-                  index={i}
-                  className={cn(error && 'border-[var(--text-error)]')}
-                />
+                <InputOTPSlot key={i} index={i} invalid={Boolean(error)} />
               ))}
             </InputOTPGroup>
           </InputOTP>

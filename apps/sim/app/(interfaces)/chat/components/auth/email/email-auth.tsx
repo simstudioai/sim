@@ -182,14 +182,11 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
                     }}
                     disabled={verifyOtp.isPending}
                     className={cn('gap-2', authError && 'otp-error')}
+                    aria-invalid={Boolean(authError)}
                   >
                     <InputOTPGroup>
                       {[0, 1, 2, 3, 4, 5].map((index) => (
-                        <InputOTPSlot
-                          key={index}
-                          index={index}
-                          className={cn(authError && 'border-[var(--text-error)]')}
-                        />
+                        <InputOTPSlot key={index} index={index} invalid={Boolean(authError)} />
                       ))}
                     </InputOTPGroup>
                   </InputOTP>
