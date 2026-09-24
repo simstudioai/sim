@@ -16,8 +16,6 @@ import {
   Tooltip,
 } from '@sim/emcn'
 import {
-  ArrowDown,
-  ArrowUp,
   Check,
   ChevronDown,
   ChevronUp,
@@ -41,6 +39,7 @@ import {
   isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
+import { CodeSearchOverlay } from '@/app/workspace/[workspaceId]/components/code-search-overlay/code-search-overlay'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
 import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-context-menu'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
@@ -1479,49 +1478,18 @@ function PreviewEditorContent({
 
       {/* Search Overlay */}
       {isSearchActive && (
-        <div
-          role='presentation'
-          className='absolute top-10 right-[8px] z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-xs'
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Input
-            ref={searchInputRef}
-            type='text'
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder='Search...'
-            className='mr-0.5 h-[23px] w-[94px] text-caption'
-          />
-          <span
-            className={cn(
-              'min-w-[45px] text-center text-xs',
-              matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
-            )}
-          >
-            {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : '0/0'}
-          </span>
-          <Button
-            variant='ghost'
-            iconPadding='sm'
-            onClick={goToPreviousMatch}
-            disabled={matchCount === 0}
-            aria-label='Previous match'
-          >
-            <ArrowUp className='size-[12px]' />
-          </Button>
-          <Button
-            variant='ghost'
-            iconPadding='sm'
-            onClick={goToNextMatch}
-            disabled={matchCount === 0}
-            aria-label='Next match'
-          >
-            <ArrowDown className='size-[12px]' />
-          </Button>
-          <Button variant='ghost' iconPadding='sm' onClick={closeSearch} aria-label='Close search'>
-            <X className='size-[12px]' />
-          </Button>
-        </div>
+        <CodeSearchOverlay
+          className='top-10 right-[8px]'
+          inputKind='plain'
+          inputRef={searchInputRef}
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
+          matchCount={matchCount}
+          currentMatchIndex={currentMatchIndex}
+          onPrevious={goToPreviousMatch}
+          onNext={goToNextMatch}
+          onClose={closeSearch}
+        />
       )}
 
       {/* Context Menu */}
