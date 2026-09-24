@@ -18,6 +18,9 @@ export const READONLY_PREVIEW_STYLES = `
     opacity: 1 !important;
     pointer-events: none;
   }
+  .readonly-preview [data-preview-readonly] :is(button, [role="button"]) {
+    pointer-events: none;
+  }
   .readonly-preview [data-preview-readonly] [data-preview-full-opacity] {
     opacity: 1 !important;
   }

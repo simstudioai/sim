@@ -49,6 +49,11 @@ describe('workflow preview read-only appearance', () => {
                 isPreview
                 subBlockValues={{ enabled: { value: true } }}
               />
+              <div data-preview-readonly>
+                <button type='button' disabled>
+                  Remove file
+                </button>
+              </div>
             </div>
             <div data-testid='disabled'>
               <SubBlock blockId='block-1' config={config} disabled />
@@ -68,6 +73,9 @@ describe('workflow preview read-only appearance', () => {
     expect(previewSwitch.getAttribute('aria-checked')).toBe('true')
     expect(getComputedStyle(previewSwitch).opacity).toBe('1')
     expect(getComputedStyle(previewSwitch).pointerEvents).toBe('none')
+    const removeButton = preview.querySelector('button:not([role="switch"])') as HTMLButtonElement
+    expect(getComputedStyle(removeButton).pointerEvents).toBe('none')
+    expect(getComputedStyle(removeButton).opacity).toBe('0.5')
 
     act(() => {
       previewSwitch.click()
