@@ -87,6 +87,17 @@ describe('shared Slack Canvas operations', () => {
       slackEditCanvasTool.request.body!({ ...auth, canvasId: 'F1', operation: 'replace' })
     ).toThrow()
   })
+  it.each(['', ' ', '\n\t'])('rejects blank replacement content %j', (content) => {
+    expect(() =>
+      slackEditCanvasTool.request.body!({ ...auth, canvasId: 'F1', operation: 'replace', content })
+    ).toThrow('Markdown content is required')
+  })
+  it('preserves meaningful Markdown indentation and line breaks', () => {
+    const content = '    code block\n\n'
+    expect(
+      slackEditCanvasTool.request.body!({ ...auth, canvasId: 'F1', operation: 'replace', content })
+    ).toMatchObject({ changes: [{ document_content: { type: 'markdown', markdown: content } }] })
+  })
   it('returns file metadata rather than claiming to read the document body', async () => {
     const url = slackGetCanvasTool.request.url
     expect(typeof url === 'function' ? url({ ...auth, canvasId: ' F1 ' }) : url).toBe(

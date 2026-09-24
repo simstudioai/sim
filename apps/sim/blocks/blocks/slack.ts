@@ -1,4 +1,5 @@
 import { BookOpen, ClipboardList, File, Table, Users } from '@sim/emcn/icons'
+import { omit } from '@sim/utils/object'
 import { GoogleTranslateIcon, GreptileIcon, SlackIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
@@ -3719,7 +3720,7 @@ export const SlackV2Block: BlockConfig<SlackResponse> = {
     agentUsername: { type: 'string', description: 'Custom agent display name' },
   },
   outputs: {
-    ...SlackBlock.outputs,
+    ...omit(SlackBlock.outputs, ['visualization']),
     listId: { type: 'string', description: 'Created List ID' },
     schema: {
       type: 'json',

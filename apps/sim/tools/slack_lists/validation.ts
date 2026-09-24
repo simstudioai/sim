@@ -44,6 +44,11 @@ const cellValues = {
           canvas_section: z.object({ file_id: id, section_id: id }).optional(),
         })
         .strict()
+        .refine(
+          (reference) =>
+            Object.values(reference).filter((value) => value !== undefined).length === 1,
+          'Each reference must contain exactly one of message, list_record, file, or canvas_section'
+        )
     )
     .optional(),
 }

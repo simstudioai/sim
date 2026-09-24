@@ -138,6 +138,37 @@ describe('Slack Lists requests', () => {
       })
     ).toThrow()
   })
+  it.each([
+    { message: { channel_id: 'C1', ts: '123.456' } },
+    { list_record: { list_id: 'F1', row_id: 'Rec1' } },
+    { file: { file_id: 'F1' } },
+    { canvas_section: { file_id: 'F1', section_id: 'S1' } },
+  ])('accepts a single typed reference %j for creates and updates', (reference) => {
+    const field = { column_id: 'Col1', reference: [reference] }
+    expect(
+      slackListsItemsCreateTool.request.body!({ ...auth, listId: 'F123', initialFields: [field] })
+    ).toMatchObject({ initial_fields: [field] })
+    const cell = { ...field, row_id: 'Rec1' }
+    expect(
+      slackListsItemsUpdateTool.request.body!({ ...auth, listId: 'F123', cells: [cell] })
+    ).toMatchObject({ cells: [cell] })
+  })
+  it.each([{}, { file: { file_id: 'F1' }, list_record: { list_id: 'F1', row_id: 'Rec1' } }])(
+    'rejects ambiguous or empty references %j before creates and updates',
+    (reference) => {
+      const field = { column_id: 'Col1', reference: [reference] }
+      expect(() =>
+        slackListsItemsCreateTool.request.body!({ ...auth, listId: 'F123', initialFields: [field] })
+      ).toThrow('Each reference must contain exactly one')
+      expect(() =>
+        slackListsItemsUpdateTool.request.body!({
+          ...auth,
+          listId: 'F123',
+          cells: [{ ...field, row_id: 'Rec1' }],
+        })
+      ).toThrow('Each reference must contain exactly one')
+    }
+  )
   it('targets the row by id when reading or deleting', () => {
     for (const tool of [slackListsItemsInfoTool, slackListsItemsDeleteTool]) {
       expect(tool.request.body!({ ...auth, listId: ' F123 ', itemId: ' Rec1 ' })).toEqual({

@@ -93,7 +93,10 @@ export const slackEditCanvasTool: ToolConfig<SlackEditCanvasParams, SlackEditCan
       if (params.operation === 'rename') {
         requireSlackString(params.title, 'New canvas title')
       } else if (params.operation !== 'delete') {
-        z.string().min(1, 'Markdown content is required').max(1048576).parse(params.content)
+        z.string()
+          .max(1048576)
+          .refine((content) => content.trim().length > 0, 'Markdown content is required')
+          .parse(params.content)
       }
       const change: Record<string, unknown> = {
         operation: params.operation,

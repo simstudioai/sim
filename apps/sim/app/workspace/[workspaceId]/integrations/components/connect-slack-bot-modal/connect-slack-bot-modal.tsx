@@ -42,13 +42,16 @@ const logger = createLogger('ConnectSlackBotModal')
 const DEFAULT_APP_NAME = 'Sim Bot'
 const DONE_STEP = 4
 
-/** Every capability is granted by default; trimming is an opt-in dropdown. */
 const CUSTOM_BOT_CAPABILITIES = [
   ...SLACK_CAPABILITIES,
   SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY,
 ] as const
 
-const ALL_CAPABILITIES = new Set(CUSTOM_BOT_CAPABILITIES.map((capability) => capability.id))
+const DEFAULT_CAPABILITIES = new Set(
+  CUSTOM_BOT_CAPABILITIES.filter((capability) => capability.defaultChecked).map(
+    (capability) => capability.id
+  )
+)
 
 const CAPABILITY_OPTIONS: ChipDropdownOption[] = CUSTOM_BOT_CAPABILITIES.map((capability) => ({
   value: capability.id,
@@ -132,7 +135,7 @@ export function ConnectSlackBotModal({
   const [credentialId, setCredentialId] = useState(() => reconnectCredentialId ?? generateId())
   const [appName, setAppName] = useState(initialDisplayName ?? '')
   const [appDescription, setAppDescription] = useState(initialDescription ?? '')
-  const [selected, setSelected] = useState<Set<string>>(() => new Set(ALL_CAPABILITIES))
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(DEFAULT_CAPABILITIES))
   const [memberAccess, setMemberAccess] = useState<'search' | 'workflow'>(
     isReconnect ? 'workflow' : 'search'
   )
@@ -150,7 +153,7 @@ export function ConnectSlackBotModal({
     setStep(0)
     setAppName(initialDisplayName ?? '')
     setAppDescription(initialDescription ?? '')
-    setSelected(new Set(ALL_CAPABILITIES))
+    setSelected(new Set(DEFAULT_CAPABILITIES))
     setMemberAccess(isReconnect ? 'workflow' : 'search')
     setSlashCommands([])
     setSigningSecret('')
@@ -178,7 +181,7 @@ export function ConnectSlackBotModal({
 
   const manifestJson = useMemo(() => {
     if (manifestConfigurationError) return ''
-    const capabilities = searchOnly ? ALL_CAPABILITIES : selected
+    const capabilities = searchOnly ? DEFAULT_CAPABILITIES : selected
     const managedUserAuthorization = capabilities.has(
       SLACK_MANAGED_USER_AUTHORIZATION_CAPABILITY.id
     )
