@@ -71,6 +71,27 @@ vi.mock('@sim/emcn/icons', () => ({
 
 vi.mock('@sim/emcn', () => ({
   Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
+  ResourceRow: ({
+    icon,
+    title,
+    description,
+    badge,
+    trailing,
+  }: {
+    icon?: ReactNode
+    title: ReactNode
+    description?: ReactNode
+    badge?: ReactNode
+    trailing?: ReactNode
+  }) => (
+    <div>
+      {icon}
+      <span>{title}</span>
+      {description}
+      {badge}
+      {trailing}
+    </div>
+  ),
   Chip: ({
     children,
     variant: _variant,
