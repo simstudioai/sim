@@ -282,12 +282,21 @@ interface TableCellContentProps extends ExtraProps {
 
 function TableCellContent({ children, node }: TableCellContentProps) {
   if (hasInteractiveTableContent(node)) {
-    return <div className='whitespace-normal [overflow-wrap:anywhere]'>{children}</div>
+    return (
+      <div className='min-w-[160px] max-w-[320px] whitespace-normal [overflow-wrap:anywhere]'>
+        {children}
+      </div>
+    )
   }
   return (
-    <OverflowText label={extractTextContent(children)} className='[&_code]:whitespace-nowrap'>
-      {children}
-    </OverflowText>
+    <span className='inline-block max-w-full align-middle'>
+      <OverflowText
+        label={extractTextContent(children)}
+        className='[&_code]:whitespace-nowrap [@media(hover:hover)]:max-w-[320px]'
+      >
+        {children}
+      </OverflowText>
+    </span>
   )
 }
 
@@ -295,7 +304,7 @@ const MARKDOWN_COMPONENTS = {
   table({ children }: { children?: React.ReactNode }) {
     return (
       <div className='not-prose my-4 w-full overflow-x-auto [&_strong]:font-semibold'>
-        <table className='w-full table-fixed border-collapse [&_tbody_tr:last-child_td]:border-b-0'>
+        <table className='min-w-full table-auto border-collapse [&_tbody_tr:last-child_td]:border-b-0'>
           {children}
         </table>
       </div>

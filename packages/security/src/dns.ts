@@ -69,20 +69,27 @@ export interface ResolvedHost {
  */
 export async function resolveHostAddresses(
   host: string,
-  options: { timeoutMs?: number } = {}
+  options: { timeoutMs?: number; signal?: AbortSignal } = {}
 ): Promise<ResolvedHost> {
-  const { timeoutMs = DEFAULT_DNS_TIMEOUT_MS } = options
+  const { timeoutMs = DEFAULT_DNS_TIMEOUT_MS, signal } = options
+  signal?.throwIfAborted()
   const lookup = dns.lookup(host, { all: true, verbatim: true })
   // If the timeout wins the race the lookup stays pending; its eventual
   // settlement is swallowed so a late rejection cannot surface as an unhandled
   // one.
   lookup.catch(() => {})
   let timer: NodeJS.Timeout | undefined
+  let onAbort: (() => void) | undefined
   try {
     const resolved = await Promise.race([
       lookup,
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new DnsTimeoutError(host)), timeoutMs)
+        if (signal) {
+          onAbort = () => reject(signal.reason)
+          signal.addEventListener('abort', onAbort, { once: true })
+          if (signal.aborted) onAbort()
+        }
       }),
     ])
     if (resolved.length === 0) {
@@ -102,5 +109,6 @@ export async function resolveHostAddresses(
     }
   } finally {
     clearTimeout(timer)
+    if (onAbort) signal?.removeEventListener('abort', onAbort)
   }
 }

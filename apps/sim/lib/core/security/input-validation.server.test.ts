@@ -26,7 +26,10 @@ vi.mock('@/lib/core/config/env-flags', () => ({
   getProxyUrl: () => undefined,
 }))
 
-import { validateUrlWithDNS } from '@/lib/core/security/input-validation.server'
+import {
+  secureFetchWithValidation,
+  validateUrlWithDNS,
+} from '@/lib/core/security/input-validation.server'
 
 /**
  * Shapes a resolver answer the way `resolveHostAddresses` does, including its
@@ -140,5 +143,26 @@ describe('validateUrlWithDNS address classification', () => {
       paramName: 'url',
     })
     expect(JSON.stringify(mockWarn.mock.calls)).not.toContain('credential-host-canary')
+  })
+
+  it('forwards fetch cancellation through DNS preflight without treating it as a resolver failure', async () => {
+    const controller = new AbortController()
+    mockResolve.mockImplementationOnce(
+      (_host, options) =>
+        new Promise((_, reject) => {
+          options.signal.addEventListener('abort', () => reject(options.signal.reason), {
+            once: true,
+          })
+        })
+    )
+    const pending = secureFetchWithValidation('https://example.com/preview', {
+      profile: 'contentFetch',
+      signal: controller.signal,
+    })
+    const rejection = expect(pending).rejects.toThrow('Preview deadline')
+    controller.abort(new Error('Preview deadline'))
+    await rejection
+    expect(mockResolve).toHaveBeenCalledWith('example.com', { signal: controller.signal })
+    expect(mockWarn).not.toHaveBeenCalled()
   })
 })

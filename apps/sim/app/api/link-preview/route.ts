@@ -17,6 +17,7 @@ const logger = createLogger('LinkPreviewAPI')
 
 const CACHE_TTL_SECONDS = 24 * 60 * 60
 const NEGATIVE_CACHE_TTL_SECONDS = 60 * 60
+const RETRYABLE_CACHE_TTL_SECONDS = 60
 const CACHE_KEY_PREFIX = 'link-preview:v2:'
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
@@ -62,7 +63,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   }
 
   if (redis) {
-    const ttl = preview ? CACHE_TTL_SECONDS : NEGATIVE_CACHE_TTL_SECONDS
+    const ttl = preview?.imageRetryable
+      ? RETRYABLE_CACHE_TTL_SECONDS
+      : preview
+        ? CACHE_TTL_SECONDS
+        : NEGATIVE_CACHE_TTL_SECONDS
     try {
       await redis.set(cacheKey, JSON.stringify(preview), 'EX', ttl)
     } catch (error) {

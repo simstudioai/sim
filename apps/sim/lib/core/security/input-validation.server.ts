@@ -26,6 +26,7 @@ import { describeEgressDenial, type EgressProfile } from '@/lib/core/security/eg
 import {
   checkEgressUrl,
   checkResolvedEgress,
+  type EgressValidationOptions,
   validateEgressUrl,
 } from '@/lib/core/security/egress/validate'
 import type { HttpRedirectPolicy } from '@/lib/core/security/http-redirect-policy'
@@ -59,7 +60,7 @@ export async function validateUrlWithDNS(
   url: string | null | undefined,
   paramName: string,
   profile: EgressProfile,
-  options: { logDetails?: boolean } = {}
+  options: EgressValidationOptions = {}
 ): Promise<AsyncValidationResult> {
   const result = await validateEgressUrl(url, paramName, profile, options)
   return result.isValid
@@ -1210,6 +1211,7 @@ export async function secureFetchWithPinnedIP(
         }
         validateUrlWithDNS(redirectUrl, 'redirectUrl', options.profile, {
           logDetails: options.logUrlValidationDetails,
+          signal: options.signal,
         })
           .then((validation) => {
             if (!validation.isValid) {
@@ -1555,6 +1557,7 @@ export async function secureFetchWithValidation(
 ): Promise<SecureFetchResponse> {
   const validation = await validateUrlWithDNS(url, paramName, options.profile, {
     logDetails: options.logUrlValidationDetails,
+    signal: options.signal,
   })
   if (!validation.isValid) {
     throw new Error(validation.error)

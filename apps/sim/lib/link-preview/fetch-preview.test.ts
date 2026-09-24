@@ -120,6 +120,7 @@ describe('public link preview images', () => {
         title: 'Guide',
         description: 'A useful guide',
         siteName: null,
+        imageRetryable: true,
       })
     } finally {
       timeout.mockRestore()
@@ -129,5 +130,30 @@ describe('public link preview images', () => {
   it('rejects credentials before making a request', async () => {
     await expect(fetchLinkPreview('https://user:password@example.com')).rejects.toThrow()
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('admits only two image requests at once and releases capacity without queueing the rest', async () => {
+    const releases: Array<() => void> = []
+    fetchMock.mockImplementation(async (url) => {
+      if (url !== IMAGE) return page()
+      return new Promise<Response>((resolve) => {
+        releases.push(() => resolve(new Response('', { status: 404 })))
+      })
+    })
+    const pending = Array.from({ length: 60 }, (_, index) => fetchLinkPreview(`${PAGE}?n=${index}`))
+    await vi.waitFor(() => expect(releases).toHaveLength(2))
+    expect(fetchMock.mock.calls.filter(([url]) => url === IMAGE)).toHaveLength(2)
+    releases.forEach((release) => release())
+    const results = await Promise.all(pending)
+    expect(results.filter((result) => result?.imageRetryable)).toHaveLength(58)
+
+    fetchMock.mockResolvedValueOnce(page()).mockResolvedValueOnce(new Response('', { status: 404 }))
+    expect((await fetchLinkPreview(PAGE))?.imageRetryable).toBeUndefined()
+    expect(fetchMock.mock.calls.filter(([url]) => url === IMAGE)).toHaveLength(3)
+  })
+
+  it('marks temporary image-server failures as retryable while preserving text', async () => {
+    fetchMock.mockResolvedValueOnce(page()).mockResolvedValueOnce(new Response('', { status: 503 }))
+    expect(await fetchLinkPreview(PAGE)).toMatchObject({ title: 'Guide', imageRetryable: true })
   })
 })

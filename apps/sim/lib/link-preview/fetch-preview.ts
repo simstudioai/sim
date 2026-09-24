@@ -11,6 +11,10 @@ const MAX_IMAGE_BYTES = 2 * 1024 * 1024
 const MAX_PREVIEW_BYTES = 128 * 1024
 const MAX_IMAGE_PIXELS = 16_000_000
 const RASTER_FORMATS = new Set(['jpeg', 'png', 'webp', 'gif', 'avif', 'heif'])
+const MAX_CONCURRENT_IMAGES = 2
+let activeImages = 0
+
+type PreviewImage = Pick<NonNullable<LinkPreview>, 'image' | 'imageRetryable'>
 
 /** Public previews never forward credentials or allow a redirect into an insecure scheme. */
 function assertPublicHttps(url: string) {
@@ -21,9 +25,16 @@ function assertPublicHttps(url: string) {
 }
 
 /** Bounded raster thumbnail; the browser never contacts an untrusted og:image URL. */
-async function fetchPreviewImage(url: string, signal?: AbortSignal): Promise<string | undefined> {
+async function fetchPreviewImage(url: string, signal?: AbortSignal): Promise<PreviewImage> {
   try {
     assertPublicHttps(url)
+  } catch {
+    return {}
+  }
+  /** Skip optional work at capacity rather than queueing image buffers across requests. */
+  if (activeImages >= MAX_CONCURRENT_IMAGES) return { imageRetryable: true }
+  activeImages += 1
+  try {
     const response = await secureFetchWithValidation(url, {
       profile: 'contentFetch',
       timeout: FETCH_TIMEOUT_MS,
@@ -33,31 +44,33 @@ async function fetchPreviewImage(url: string, signal?: AbortSignal): Promise<str
       signal,
       headers: { Accept: 'image/jpeg,image/png,image/webp,image/avif,image/gif' },
     })
-    if (response.status < 200 || response.status >= 300) return undefined
+    if (response.status === 429 || response.status >= 500) return { imageRetryable: true }
+    if (response.status < 200 || response.status >= 300) return {}
     if (
       !/^image\/(jpeg|png|webp|avif|gif)(;|$)/i.test(response.headers.get('content-type') ?? '')
     ) {
-      return undefined
+      return {}
     }
     const image = sharp(Buffer.from(await response.arrayBuffer()), {
       limitInputPixels: MAX_IMAGE_PIXELS,
       pages: 1,
-    })
+    }).timeout({ seconds: 2 })
     const metadata = await image.metadata()
-    if (!metadata.format || !RASTER_FORMATS.has(metadata.format)) return undefined
+    if (!metadata.format || !RASTER_FORMATS.has(metadata.format)) return {}
     signal?.throwIfAborted()
     const buffer = await image
       .rotate()
       .resize({ width: 640, height: 336, fit: 'inside', withoutEnlargement: true })
       .webp({ quality: 75 })
-      .timeout({ seconds: 2 })
       .toBuffer()
     signal?.throwIfAborted()
-    if (buffer.length > MAX_PREVIEW_BYTES) return undefined
-    return `data:image/webp;base64,${buffer.toString('base64')}`
+    if (buffer.length > MAX_PREVIEW_BYTES) return {}
+    return { image: `data:image/webp;base64,${buffer.toString('base64')}` }
   } catch {
     signal?.throwIfAborted()
-    return undefined
+    return { imageRetryable: true }
+  } finally {
+    activeImages -= 1
   }
 }
 
@@ -98,12 +111,13 @@ export async function fetchLinkPreview(
   const siteName = meta('og:site_name')
   if (!title && !description && !siteName) return null
   const imageRef = meta('og:image:secure_url') ?? meta('og:image') ?? meta('twitter:image')
-  let image: string | undefined
+  let image: PreviewImage = {}
   if (imageRef) {
     try {
       image = await fetchPreviewImage(new URL(imageRef, finalUrl).href, signal)
     } catch {
       callerSignal?.throwIfAborted()
+      image = { imageRetryable: true }
     }
   }
   callerSignal?.throwIfAborted()
@@ -111,6 +125,6 @@ export async function fetchLinkPreview(
     title: title ? truncate(title, 200) : null,
     description: description ? truncate(description, 300) : null,
     siteName: siteName ? truncate(siteName, 200) : null,
-    ...(image ? { image } : {}),
+    ...image,
   }
 }
