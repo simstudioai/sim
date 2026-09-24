@@ -22,6 +22,7 @@ interface MothershipDraftsState {
   setDraft: (key: string, payload: DraftPayload) => void
   clearDraft: (key: string) => void
   migrateDraft: (fromKey: string, toKey: string) => void
+  reset: () => void
 }
 
 const LEGACY_WORKFLOW_COPILOT_KEY = /^[^:]+:workflow-copilot:[^:]+$/
@@ -58,6 +59,7 @@ export const useMothershipDraftsStore = create<MothershipDraftsState>()(
     persist(
       (set) => ({
         drafts: {},
+        reset: () => set({ drafts: {} }),
         setDraft: (key, payload) =>
           set((s) => {
             if (isEmpty(payload)) {

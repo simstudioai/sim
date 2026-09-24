@@ -23,6 +23,9 @@ vi.mock('@/hooks/queries/organization-secrets', () => ({
   useRemoveOrganizationSecretSource: () => ({ mutate: vi.fn() }),
 }))
 vi.mock('@/hooks/queries/search-integrations', () => ({ useSearchIntegrations: mocks.policies }))
+vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
+  useOrganizationContext: () => ({ organization: { id: 'org', name: 'Example Organization' } }),
+}))
 vi.mock('@/app/o/[organizationId]/integrations/disconnect-account-menu', () => ({
   DisconnectAccountMenu: ({ accounts }: { accounts: { displayName: string }[] }) => (
     <span>{accounts.map((account) => account.displayName).join(', ')}</span>

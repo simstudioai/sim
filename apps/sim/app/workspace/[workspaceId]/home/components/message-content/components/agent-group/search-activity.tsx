@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { cn, OverflowText } from '@sim/emcn'
+import { cn } from '@sim/emcn'
 import { Search } from '@sim/emcn/icons'
 import { toStringOrNull } from '@sim/utils/coerce'
 import { toArray, toRecord } from '@sim/utils/object'
+import { ActivityStatus } from '@/components/ui/activity-status'
 import {
   collectRetrievalCitationEvidence,
   parseCitationRecord,
@@ -91,10 +92,7 @@ function SearchQueryActivity({ tool }: SearchQueryActivityProps) {
   return (
     <ActivityDisclosure
       header={
-        <span className='flex min-w-0 items-center gap-2 text-[var(--text-muted)] text-small'>
-          <Search aria-hidden className='size-[14px] shrink-0 text-[var(--text-icon)]' />
-          <OverflowText label={label} focusTarget='nearest-interactive' />
-        </span>
+        <ActivityStatus label={label} isActive={false} icon={<Search className='size-[14px]' />} />
       }
       expanded={expanded}
       onToggle={() => setExpanded(!expanded)}

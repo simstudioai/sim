@@ -255,14 +255,18 @@ function SearchResults({
       </ChipLink>
     </div>
   ) : (
-    <div className='flex flex-col'>
+    <div aria-busy={!awaitingRange && fetching} className='flex flex-col'>
       <div className='flex items-center gap-2 px-2 py-2'>
         <div className='min-w-0 flex-1'>
           {awaitingRange ? (
             <p role='status' className='text-[var(--text-muted)] text-caption'>
               Choose the days to search.
             </p>
-          ) : fetching || (pending && !failed) ? null : (
+          ) : fetching ? (
+            <p role='status' className='sr-only'>
+              {pending ? 'Searching…' : 'Updating results…'}
+            </p>
+          ) : pending && !failed ? null : (
             <p role='status' className='text-[var(--text-muted)] text-caption'>
               {failed
                 ? 'Search couldn’t run.'
@@ -442,7 +446,12 @@ function LiveSearchResults({
     ]),
   ]
   return (
-    <div className='flex flex-col'>
+    <div aria-busy={!awaitingRange && isFetching} className='flex flex-col'>
+      {!awaitingRange && isFetching && (
+        <p role='status' className='sr-only'>
+          {isPending ? 'Searching…' : 'Updating results…'}
+        </p>
+      )}
       {(awaitingRange || isError) && (
         <div className='flex items-center gap-2 px-2 py-2'>
           {awaitingRange ? (

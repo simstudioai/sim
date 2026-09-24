@@ -109,17 +109,20 @@ function OrganizationHomeContent({
   })
   const initialDraftKey = `${userId}:organization:${organization.id}:${chatId ?? 'new'}`
   const draftKey = `${userId}:organization:${organization.id}:${chat.resolvedChatId ?? chatId ?? 'new'}`
+  const savedDraft = useMothershipDraftsStore.getState().drafts
+  const initialDraft = savedDraft[draftKey] ?? savedDraft[initialDraftKey]
   const draft = useMothershipDraftsStore(
     (state) => (state.drafts[draftKey] ?? state.drafts[initialDraftKey])?.text ?? ''
   )
   const setDraft = useCallback(
     (text: string, contexts?: ChatContext[]) => {
-      useMothershipDraftsStore.getState().setDraft(draftKey, { text, contexts })
+      const store = useMothershipDraftsStore.getState()
+      store.setDraft(draftKey, { ...store.drafts[draftKey], text, contexts })
     },
     [draftKey]
   )
   const [restoredContexts, setRestoredContexts] = useState<ChatContext[]>(
-    () => useMothershipDraftsStore.getState().drafts[draftKey]?.contexts ?? []
+    () => initialDraft?.contexts ?? []
   )
   useEffect(() => {
     useMothershipDraftsStore.getState().migrateDraft(initialDraftKey, draftKey)
@@ -189,7 +192,25 @@ function OrganizationHomeContent({
     userId: session?.user?.id,
     organizationId: organization.id,
     requestMode,
+    initialAttachments: initialDraft?.fileAttachments,
   })
+  useEffect(() => {
+    const store = useMothershipDraftsStore.getState()
+    const fileAttachments = files.attachedFiles
+      .filter((file) => !file.uploading && file.key)
+      .map((file) => ({
+        id: file.id,
+        key: file.key!,
+        filename: file.name,
+        media_type: file.type,
+        size: file.size,
+        path: file.path,
+      }))
+    store.setDraft(draftKey, {
+      ...(store.drafts[draftKey] ?? { text: '' }),
+      fileAttachments,
+    })
+  }, [draftKey, files.attachedFiles])
   useEffect(() => {
     if (chat.error) toast.error(chat.error)
   }, [chat.error])
@@ -262,7 +283,7 @@ function OrganizationHomeContent({
         path: file.path,
       }))
     if (!message && !attachments.length) return
-    setDraft('')
+    useMothershipDraftsStore.getState().clearDraft(draftKey)
     send(message, attachments.length ? attachments : undefined, contexts)
     setRestoredContexts([])
     files.clearAttachedFiles()
@@ -320,7 +341,7 @@ function OrganizationHomeContent({
             if (queued) {
               const queuedMode = queued.requestMode ?? requestMode
               setSelectedMode(queuedMode)
-              setDraft(queued.content)
+              setDraft(queued.content, queued.contexts)
               setRestoredContexts(queued.contexts ?? [])
               files.restoreAttachedFiles(
                 (queued.fileAttachments ?? []).map((file) => ({

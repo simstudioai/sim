@@ -98,7 +98,7 @@ export const useSidebarStore = create<SidebarState>()(
       syncWidth: () => {
         const { isCollapsed, sidebarWidth } = get()
         const clampedWidth = clampSidebarWidth(sidebarWidth)
-        if (clampedWidth !== sidebarWidth) set({ sidebarWidth: clampedWidth })
+        if (!isCollapsed && clampedWidth !== sidebarWidth) set({ sidebarWidth: clampedWidth })
         applySidebarWidths(clampedWidth, isCollapsed)
       },
       setHasHydrated: (hasHydrated) => set({ _hasHydrated: hasHydrated }),

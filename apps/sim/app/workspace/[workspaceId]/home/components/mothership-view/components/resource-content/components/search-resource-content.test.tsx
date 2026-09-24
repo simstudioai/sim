@@ -118,7 +118,7 @@ async function render(query: string, nativeQueries?: [{ provider: 'github'; quer
   await vi.waitFor(async () => {
     await act(async () => {})
     expect(client.isFetching()).toBe(0)
-    expect(container.textContent).not.toContain('Searching…')
+    expect(container.querySelector('[aria-busy="true"]')).toBeNull()
   })
 }
 describe('shared Search resource content', () => {
