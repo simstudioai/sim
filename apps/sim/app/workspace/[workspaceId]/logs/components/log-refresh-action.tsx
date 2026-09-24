@@ -20,21 +20,35 @@ function NewLogsIndicator({ className }: RefreshIconProps) {
 
 interface LogsRefreshActionOptions {
   newLogCount: number
+  hasUpdates?: boolean
   isRefreshing: boolean
   onRefresh: () => void
 }
 
 export function getLogsRefreshAction({
   newLogCount,
+  hasUpdates = false,
   isRefreshing,
   onRefresh,
 }: LogsRefreshActionOptions): ResourceAction {
   const hasNewLogs = newLogCount > 0
   return {
     id: 'refresh',
-    text: hasNewLogs ? `${newLogCount} new ${newLogCount === 1 ? 'log' : 'logs'}` : 'Refresh',
-    tooltip: hasNewLogs ? 'Refresh to see new logs' : 'Refresh',
-    icon: isRefreshing ? SpinningRefreshIcon : hasNewLogs ? NewLogsIndicator : RefreshCw,
+    text: hasNewLogs
+      ? `${newLogCount} new ${newLogCount === 1 ? 'log' : 'logs'}`
+      : hasUpdates
+        ? 'Updates available'
+        : 'Refresh',
+    tooltip: hasNewLogs
+      ? 'Refresh to see new logs'
+      : hasUpdates
+        ? 'Refresh to see updated logs'
+        : 'Refresh',
+    icon: isRefreshing
+      ? SpinningRefreshIcon
+      : hasNewLogs || hasUpdates
+        ? NewLogsIndicator
+        : RefreshCw,
     onSelect: onRefresh,
     disabled: isRefreshing,
   }

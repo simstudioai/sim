@@ -267,6 +267,38 @@ describe('readLogs', () => {
     expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
   })
 
+  it('captures rows and the membership revision in one repeatable-read snapshot', async () => {
+    queueTableRows(workflowExecutionLogs, [workflowRow()])
+    queueTableRows(jobExecutionLogs, [])
+    queueTableRows(workflowExecutionLogs, [{ count: 1, revision: '1234567890123456789' }])
+    queueTableRows(jobExecutionLogs, [{ count: 0, revision: '0' }])
+
+    const result = await readLogs(baseParams({ includeRevision: true, snapshotAt: 'now' }))
+
+    expect(dbChainMockFns.transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: 'repeatable read',
+      accessMode: 'read only',
+    })
+    expect(result.data).toHaveLength(1)
+    expect(result.revision).toBe('1:1234567890123456789:0:0')
+    expect(result.total).toBeUndefined()
+  })
+
+  it('reads a membership revision without loading rows or joining unrelated tables', async () => {
+    queueTableRows(workflowExecutionLogs, [{ count: 2, revision: '9' }])
+    queueTableRows(jobExecutionLogs, [{ count: 1, revision: '4' }])
+
+    const result = await readLogs(
+      baseParams({ countOnly: true, includeRevision: true, snapshotAt: '2026-01-01T00:00:00.000Z' })
+    )
+
+    expect(result.revision).toBe('2:9:1:4')
+    expect(result.total).toBe(3)
+    expect(result.data).toEqual([])
+    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
+    expect(dbChainMockFns.leftJoin).not.toHaveBeenCalled()
+  })
+
   it('parses the count-only query flag without treating false as true', () => {
     expect(listLogsQuerySchema.parse({ workspaceId: 'ws-1', countOnly: true }).countOnly).toBe(true)
     expect(listLogsQuerySchema.parse({ workspaceId: 'ws-1', countOnly: 'false' }).countOnly).toBe(

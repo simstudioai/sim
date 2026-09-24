@@ -94,6 +94,7 @@ import {
   useDashboardStats,
   useLogByExecutionId,
   useLogDetail,
+  useLogSnapshotUpdates,
   useLogsSnapshot,
   useNewLogCount,
   useRetryExecution,
@@ -375,6 +376,13 @@ export default function Logs() {
     { enabled: !isDashboardView }
   )
   const newLogCount = newLogsQuery.data ?? 0
+  const hasChangedPage = logsQuery.data?.pages.some((page) => page.snapshotChanged) === true
+  const snapshotUpdatesQuery = useLogSnapshotUpdates(
+    workspaceId,
+    logsQuery.isPlaceholderData ? undefined : logsQuery.data?.pages[0],
+    { enabled: !isDashboardView && newLogCount === 0 && !hasChangedPage }
+  )
+  const hasSnapshotUpdates = snapshotUpdatesQuery.data || hasChangedPage
 
   const dashboardFilters = useMemo(
     () => ({
@@ -661,7 +669,7 @@ export default function Logs() {
 
   const isVisuallyRefreshing = isDashboardView
     ? dashboardStatsQuery.isFetching || (isSidebarOpen && logsQuery.isFetching)
-    : logsQuery.isFetching && !logsQuery.isFetchingNextPage
+    : logsQuery.isFetching
 
   const handleExport = useCallback(async () => {
     setIsExporting(true)
@@ -1151,6 +1159,7 @@ export default function Logs() {
       },
       getLogsRefreshAction({
         newLogCount: isDashboardView ? 0 : newLogCount,
+        hasUpdates: !isDashboardView && hasSnapshotUpdates,
         isRefreshing: isVisuallyRefreshing,
         onRefresh: handleRefresh,
       }),
@@ -1169,6 +1178,7 @@ export default function Logs() {
       isDashboardView,
       setViewMode,
       newLogCount,
+      hasSnapshotUpdates,
       isVisuallyRefreshing,
       handleRefresh,
       handleExport,

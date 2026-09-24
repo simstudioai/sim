@@ -40,13 +40,17 @@ export const listLogsQuerySchema = logFilterQuerySchema.extend({
   sortOrder: logSortOrderSchema,
   /** Also run a COUNT(*) under the same filters and return it as `total`. */
   includeTotal: z.coerce.boolean().optional(),
-  /** Return only `total`, without fetching or sorting log rows. */
+  /** Skip fetching and sorting log rows; return total and any requested revision. */
   countOnly: booleanQueryFlagSchema.optional(),
-  /** Freeze list membership at a server timestamp; reuse the returned value for pagination. */
+  /** Include a fingerprint of matching rows and their sort values for change detection. */
+  includeRevision: booleanQueryFlagSchema.optional(),
+  /** Bound run start times for pagination; mutable fields remain live on the server. */
   snapshotAt: z.union([z.literal('now'), z.iso.datetime()]).optional(),
   /** Count or list runs started after the displayed snapshot, within the other filters. */
   startedAfter: z.iso.datetime().optional(),
 })
+
+export type ListLogsQuery = z.input<typeof listLogsQuerySchema>
 
 export const logDetailQuerySchema = z.object({
   workspaceId: z.string().min(1),
@@ -340,6 +344,7 @@ export const listLogsResponseSchema = z.object({
   nextCursor: z.string().nullable(),
   /** Server-resolved upper bound for a manually refreshed list. */
   snapshotAt: z.iso.datetime().optional(),
+  revision: z.string().max(160).optional(),
   /** Total rows matching the filters; present when `includeTotal` or `countOnly` was set. */
   total: z.number().optional(),
 })

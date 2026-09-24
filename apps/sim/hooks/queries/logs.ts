@@ -18,6 +18,7 @@ import {
   getExecutionSnapshotContract,
   getLogByExecutionIdContract,
   getLogDetailContract,
+  type ListLogsQuery,
   listLogsContract,
   type WorkflowLogDetail,
   type WorkflowLogSummary,
@@ -36,6 +37,7 @@ export type LogSortOrder = 'asc' | 'desc'
 export const LOG_LIST_STALE_TIME = 30 * 1000
 export const LOG_SNAPSHOT_STALE_TIME = 'static' as const
 export const NEW_LOG_COUNT_STALE_TIME = 10 * 1000
+export const LOG_SNAPSHOT_UPDATES_STALE_TIME = 60 * 1000
 export const LOG_DETAIL_STALE_TIME = 30 * 1000
 export const LOG_BY_EXECUTION_STALE_TIME = 30 * 1000
 export const LOG_DASHBOARD_STATS_STALE_TIME = 30 * 1000
@@ -53,6 +55,15 @@ export const logKeys = {
   newCounts: () => [...logKeys.all, 'newCount'] as const,
   newCount: (workspaceId: string | undefined, filters: LogFilters, snapshotAt?: string) =>
     [...logKeys.newCounts(), workspaceId ?? '', filters, snapshotAt ?? ''] as const,
+  updates: () => [...logKeys.all, 'updates'] as const,
+  update: (workspaceId: string | undefined, snapshot?: LogSnapshotPage) =>
+    [
+      ...logKeys.updates(),
+      workspaceId ?? '',
+      snapshot?.query,
+      snapshot?.snapshotAt,
+      snapshot?.revision,
+    ] as const,
   details: () => [...logKeys.all, 'detail'] as const,
   detail: (workspaceId: string | undefined, logId: string | undefined) =>
     [...logKeys.details(), workspaceId ?? '', logId ?? ''] as const,
@@ -121,7 +132,11 @@ function applyFilterParams(
   }
 }
 
-function buildListQuery(workspaceId: string, filters: LogFilters, cursor: string | null) {
+function buildListQuery(
+  workspaceId: string,
+  filters: LogFilters,
+  cursor: string | null
+): ListLogsQuery {
   const params = new URLSearchParams()
   applyFilterParams(params, filters)
 
@@ -196,6 +211,15 @@ export function useLogsList(
 interface LogSnapshotCursor {
   cursor: string
   snapshotAt?: string
+  revision?: string
+  query: ListLogsQuery
+}
+
+interface LogSnapshotPage extends LogsPage {
+  snapshotAt?: string
+  revision?: string
+  query: ListLogsQuery
+  snapshotChanged: boolean
 }
 
 /** Keeps the displayed list stable until an explicit refresh, including across focus and invalidation. */
@@ -206,15 +230,26 @@ export function useLogsSnapshot(
 ) {
   return useInfiniteQuery({
     queryKey: logKeys.snapshot(workspaceId, filters),
-    queryFn: async ({ pageParam, signal }) => {
+    queryFn: async ({ pageParam, signal }): Promise<LogSnapshotPage> => {
+      const query = pageParam?.query ?? buildListQuery(workspaceId as string, filters, null)
       const result = await requestJson(listLogsContract, {
         query: {
-          ...buildListQuery(workspaceId as string, filters, pageParam?.cursor ?? null),
+          ...query,
+          cursor: pageParam?.cursor,
           snapshotAt: pageParam?.snapshotAt ?? 'now',
+          includeRevision: true,
         },
         signal,
       })
-      return { logs: result.data, nextCursor: result.nextCursor, snapshotAt: result.snapshotAt }
+      const snapshotChanged = Boolean(pageParam && result.revision !== pageParam.revision)
+      return {
+        logs: snapshotChanged ? [] : result.data,
+        nextCursor: snapshotChanged ? null : result.nextCursor,
+        snapshotAt: result.snapshotAt,
+        revision: result.revision,
+        query,
+        snapshotChanged,
+      }
     },
     enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     staleTime: LOG_SNAPSHOT_STALE_TIME,
@@ -222,8 +257,48 @@ export function useLogsSnapshot(
     initialPageParam: null as LogSnapshotCursor | null,
     getNextPageParam: (lastPage): LogSnapshotCursor | undefined =>
       lastPage.nextCursor
-        ? { cursor: lastPage.nextCursor, snapshotAt: lastPage.snapshotAt }
+        ? {
+            cursor: lastPage.nextCursor,
+            snapshotAt: lastPage.snapshotAt,
+            revision: lastPage.revision,
+            query: lastPage.query,
+          }
         : undefined,
+  })
+}
+
+/** Checks older matching rows for late visibility or sort changes, stopping once refresh is needed. */
+export function useLogSnapshotUpdates(
+  workspaceId: string | undefined,
+  snapshot: LogSnapshotPage | undefined,
+  options?: Pick<UseLogsListOptions, 'enabled'>
+) {
+  return useQuery({
+    queryKey: logKeys.update(workspaceId, snapshot),
+    queryFn: async ({ signal }) => {
+      const result = await requestJson(listLogsContract, {
+        query: {
+          ...snapshot?.query,
+          workspaceId: workspaceId as string,
+          snapshotAt: snapshot?.snapshotAt,
+          countOnly: true,
+          includeRevision: true,
+        },
+        signal,
+      })
+      return result.revision !== snapshot?.revision
+    },
+    enabled: (query) =>
+      Boolean(workspaceId) &&
+      Boolean(snapshot?.revision) &&
+      (options?.enabled ?? true) &&
+      query.state.data !== true,
+    initialData: false,
+    staleTime: LOG_SNAPSHOT_UPDATES_STALE_TIME,
+    refetchInterval: (query) => (query.state.data ? false : LOG_SNAPSHOT_UPDATES_STALE_TIME),
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 }
 

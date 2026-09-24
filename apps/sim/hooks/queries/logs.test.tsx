@@ -22,10 +22,12 @@ vi.mock('@/lib/api/client/request', () => ({
 import { getLogByExecutionIdContract } from '@/lib/api/contracts/logs'
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import {
+  LOG_SNAPSHOT_UPDATES_STALE_TIME,
   type LogFilters,
   logKeys,
   NEW_LOG_COUNT_STALE_TIME,
   useCancelExecution,
+  useLogSnapshotUpdates,
   useLogsSnapshot,
   useNewLogCount,
 } from '@/hooks/queries/logs'
@@ -107,6 +109,7 @@ describe('manually refreshed logs', () => {
   let snapshotAt: string
   let newCount: number
   let failRefresh: boolean
+  let revision: string
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -114,13 +117,16 @@ describe('manually refreshed logs', () => {
     snapshotAt = SNAPSHOT_AT
     newCount = 0
     failRefresh = false
+    revision = 'first-revision'
     mockRequestJson.mockImplementation(async (_contract, { query }) => {
       if (query.startedAfter) return { data: [], nextCursor: null, total: newCount }
+      if (query.countOnly) return { data: [], nextCursor: null, total: 1, revision }
       if (failRefresh) throw new Error('Refresh failed')
       return {
         data: [{ id: query.cursor ? 'older-log' : snapshotAt, status: 'running' }],
         nextCursor: query.cursor ? null : 'next-page',
         snapshotAt,
+        revision,
       }
     })
   })
@@ -145,7 +151,12 @@ describe('manually refreshed logs', () => {
       list.isPlaceholderData ? undefined : list.data?.pages[0]?.snapshotAt,
       { enabled }
     )
-    return { list, count }
+    const updates = useLogSnapshotUpdates(
+      workspaceId,
+      list.isPlaceholderData ? undefined : list.data?.pages[0],
+      { enabled: enabled && (count.data ?? 0) === 0 }
+    )
+    return { list, count, updates }
   }
 
   it('polls for new logs without changing rows on polling, focus, reconnect, or invalidation', async () => {
@@ -231,6 +242,108 @@ describe('manually refreshed logs', () => {
     expect(hook.result().list.data).toBe(originalRows)
     expect(hook.result().count.data).toBe(2)
   })
+
+  it('preserves resolved relative date bounds until explicit refresh', async () => {
+    vi.setSystemTime(new Date(SNAPSHOT_AT))
+    const hook = renderHookWithClient(() =>
+      useLogs({ ...LOG_FILTERS, timeRange: 'Past 30 minutes' })
+    )
+    unmount = hook.unmount
+    await flushQueries()
+    const firstStartDate = hook.result().list.data?.pages[0]?.query.startDate
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000)
+      await hook.result().list.fetchNextPage()
+    })
+    await flushQueries()
+
+    expect(hook.result().list.data?.pages[1]?.query.startDate).toBe(firstStartDate)
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        query: expect.objectContaining({ cursor: 'next-page', startDate: firstStartDate }),
+      })
+    )
+
+    await act(async () => {
+      await hook.result().list.refetch()
+    })
+    await flushQueries()
+    expect(hook.result().list.data?.pages[0]?.query.startDate).not.toBe(firstStartDate)
+    expect(hook.result().list.data?.pages[1]?.query.startDate).toBe(
+      hook.result().list.data?.pages[0]?.query.startDate
+    )
+  })
+
+  it('stops pagination when a row moves across the sort cursor and recovers on refresh', async () => {
+    const hook = renderHookWithClient(() => useLogs({ ...LOG_FILTERS, sortBy: 'cost' }))
+    unmount = hook.unmount
+    await flushQueries()
+    const originalRows = hook.result().list.data?.pages[0]?.logs
+    revision = 'cost-changed-revision'
+    await act(async () => {
+      await hook.result().list.fetchNextPage()
+    })
+    await flushQueries()
+
+    expect(hook.result().list.data?.pages[0]?.logs).toBe(originalRows)
+    expect(hook.result().list.data?.pages[1]).toMatchObject({ logs: [], snapshotChanged: true })
+    expect(hook.result().list.hasNextPage).toBe(false)
+
+    snapshotAt = NEXT_SNAPSHOT_AT
+    await act(async () => {
+      await hook.result().list.refetch()
+    })
+    await flushQueries()
+    expect(hook.result().list.data?.pages.every((page) => !page.snapshotChanged)).toBe(true)
+    expect(hook.result().list.data?.pages[1]?.logs).toHaveLength(1)
+  })
+
+  it.each(['late-visible error', 'changed cost sort'])(
+    'signals a %s without replacing rows or repeatedly scanning history',
+    async (change) => {
+      const filters: LogFilters = {
+        ...LOG_FILTERS,
+        ...(change === 'late-visible error' ? { level: 'error' } : { sortBy: 'cost' }),
+      }
+      const hook = renderHookWithClient(() => useLogs(filters))
+      unmount = hook.unmount
+      await flushQueries()
+      const originalRows = hook.result().list.data
+      expect(hook.result().updates.data).toBe(false)
+      revision = 'changed-revision'
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LOG_SNAPSHOT_UPDATES_STALE_TIME)
+      })
+      await flushQueries()
+
+      expect(hook.result().count.data).toBe(0)
+      expect(hook.result().updates.data).toBe(true)
+      expect(hook.result().list.data).toBe(originalRows)
+      const revisionCalls = () =>
+        mockRequestJson.mock.calls.filter(
+          ([, { query }]) => query.includeRevision && query.countOnly
+        )
+      expect(revisionCalls()).toHaveLength(1)
+      expect(revisionCalls()[0][1].query).toMatchObject({
+        snapshotAt: SNAPSHOT_AT,
+        ...(filters.level === 'all' ? {} : { level: filters.level }),
+        sortBy: filters.sortBy,
+      })
+      expect(revisionCalls()[0][1].query.startedAfter).toBeUndefined()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(LOG_SNAPSHOT_UPDATES_STALE_TIME * 2)
+      })
+      expect(revisionCalls()).toHaveLength(1)
+
+      snapshotAt = NEXT_SNAPSHOT_AT
+      await act(async () => {
+        await hook.result().list.refetch()
+      })
+      await flushQueries()
+      expect(hook.result().updates.data).toBe(false)
+    }
+  )
 
   it('resets the indicator when filters change and checks the same filters as the list', async () => {
     let filters = LOG_FILTERS

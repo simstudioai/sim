@@ -67,19 +67,32 @@ type SortOrder = 'asc' | 'desc'
  */
 export async function readLogs(params: ReadLogsParams): Promise<ListLogsResponse> {
   params.signal?.throwIfAborted()
+  const folderIds = params.folderIds
+    ? await expandFolderIdsWithDescendants(params.workspaceId, params.folderIds)
+    : params.folderIds
+  const resolvedParams = { ...params, folderIds }
+  params.signal?.throwIfAborted()
+  if (params.includeRevision) {
+    return dbReplica.transaction((tx) => readLogsWithDatabase(resolvedParams, tx), {
+      isolationLevel: 'repeatable read',
+      accessMode: 'read only',
+    })
+  }
+  return readLogsWithDatabase(resolvedParams, dbReplica)
+}
+
+async function readLogsWithDatabase(
+  params: ReadLogsParams,
+  database: Pick<typeof dbReplica, 'select'>
+): Promise<ListLogsResponse> {
+  params.signal?.throwIfAborted()
   const snapshotAt = params.snapshotAt === 'now' ? new Date().toISOString() : params.snapshotAt
   const { hideCostInfo } = params
   const sortBy = params.sortBy as SortBy
   const sortOrder = params.sortOrder as SortOrder
   const cursor = params.cursor ? decodeLogSortCursor(params.cursor) : null
 
-  // Expand selected folders to include descendants (matches the route behavior),
-  // without mutating the caller's params object.
-  const folderIds = params.folderIds
-    ? await expandFolderIdsWithDescendants(params.workspaceId, params.folderIds)
-    : params.folderIds
-  params.signal?.throwIfAborted()
-  const p: ReadLogsParams = { ...params, folderIds }
+  const p = params
 
   const workflowSortExpr: SQL<unknown> = (() => {
     switch (sortBy) {
@@ -194,7 +207,7 @@ export async function readLogs(params: ReadLogsParams): Promise<ListLogsResponse
 
   const workflowQuery = p.countOnly
     ? Promise.resolve([])
-    : dbReplica
+    : database
         .select({
           id: workflowExecutionLogs.id,
           workflowId: workflowExecutionLogs.workflowId,
@@ -322,7 +335,7 @@ export async function readLogs(params: ReadLogsParams): Promise<ListLogsResponse
 
   const jobQuery =
     includeJobLogs && !p.countOnly
-      ? dbReplica
+      ? database
           .select({
             id: jobExecutionLogs.id,
             executionId: jobExecutionLogs.executionId,
@@ -466,29 +479,56 @@ export async function readLogs(params: ReadLogsParams): Promise<ListLogsResponse
   }
 
   let total: number | undefined
-  if (p.includeTotal || p.countOnly) {
-    const workflowCountQuery = dbReplica
-      .select({ count: sql<number>`COUNT(*)` })
+  let revision: string | undefined
+  if (p.includeTotal || p.countOnly || p.includeRevision) {
+    const workflowRevisionValue =
+      sortBy === 'date'
+        ? sql`${workflowExecutionLogs.id}`
+        : sql`concat_ws(':', ${workflowExecutionLogs.id}, ${workflowSortExpr})`
+    const jobRevisionValue =
+      sortBy === 'date'
+        ? sql`${jobExecutionLogs.id}`
+        : sql`concat_ws(':', ${jobExecutionLogs.id}, ${jobSortExpr})`
+    const workflowCountBase = database
+      .select({
+        count: sql<number>`COUNT(*)`,
+        revision: p.includeRevision
+          ? sql<string>`COALESCE(bit_xor(hashtextextended(${workflowRevisionValue}, 0)), 0)::text`
+          : sql<null>`NULL`,
+      })
       .from(workflowExecutionLogs)
-      .leftJoin(
-        pausedExecutions,
-        eq(pausedExecutions.executionId, workflowExecutionLogs.executionId)
-      )
-      .leftJoin(
-        workflowDeploymentVersion,
-        eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
-      )
-      .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
-      .where(and(...workflowFilterConditions))
+    const workflowCountWithPauses = levelList.includes('pending')
+      ? workflowCountBase.leftJoin(
+          pausedExecutions,
+          eq(pausedExecutions.executionId, workflowExecutionLogs.executionId)
+        )
+      : workflowCountBase
+    const workflowCountWithFilters = hasWorkflowSpecificFilters
+      ? workflowCountWithPauses.leftJoin(
+          workflow,
+          eq(workflowExecutionLogs.workflowId, workflow.id)
+        )
+      : workflowCountWithPauses
+    const workflowCountQuery = workflowCountWithFilters.where(and(...workflowFilterConditions))
     const jobCountQuery = includeJobLogs
-      ? dbReplica
-          .select({ count: sql<number>`COUNT(*)` })
+      ? database
+          .select({
+            count: sql<number>`COUNT(*)`,
+            revision: p.includeRevision
+              ? sql<string>`COALESCE(bit_xor(hashtextextended(${jobRevisionValue}, 0)), 0)::text`
+              : sql<null>`NULL`,
+          })
           .from(jobExecutionLogs)
           .where(and(...jobFilterConditions))
-      : Promise.resolve([{ count: 0 }])
+      : Promise.resolve([{ count: 0, revision: '0' }])
     const [workflowCount, jobCount] = await Promise.all([workflowCountQuery, jobCountQuery])
     params.signal?.throwIfAborted()
-    total = Number(workflowCount[0]?.count ?? 0) + Number(jobCount[0]?.count ?? 0)
+    const workflowTotal = Number(workflowCount[0]?.count ?? 0)
+    const jobTotal = Number(jobCount[0]?.count ?? 0)
+    if (p.includeTotal || p.countOnly) total = workflowTotal + jobTotal
+    if (p.includeRevision) {
+      revision = `${workflowTotal}:${workflowCount[0]?.revision ?? '0'}:${jobTotal}:${jobCount[0]?.revision ?? '0'}`
+    }
   }
 
   params.signal?.throwIfAborted()
@@ -496,6 +536,7 @@ export async function readLogs(params: ReadLogsParams): Promise<ListLogsResponse
     data: page.map((row) => row.summary),
     nextCursor,
     ...(snapshotAt ? { snapshotAt } : {}),
+    ...(revision !== undefined ? { revision } : {}),
     ...(total !== undefined ? { total } : {}),
   }
 }
