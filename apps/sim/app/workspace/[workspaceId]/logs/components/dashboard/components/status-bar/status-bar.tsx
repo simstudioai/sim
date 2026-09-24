@@ -66,16 +66,16 @@ function StatusBarInner({
           let color: string
           let hoverBrightness: string
           if (!segment.hasExecutions) {
-            color = 'bg-gray-300/60 dark:bg-gray-500/40'
+            color = 'bg-[var(--logs-status-empty)]'
             hoverBrightness = 'hover-hover:brightness-200'
           } else if (segment.successRate === 100) {
-            color = 'bg-emerald-400/90'
+            color = 'bg-[var(--logs-status-success)]'
             hoverBrightness = 'hover-hover:brightness-106'
           } else if (segment.successRate >= 95) {
-            color = 'bg-amber-400/90'
+            color = 'bg-[var(--logs-status-warning)]'
             hoverBrightness = 'hover-hover:brightness-106'
           } else {
-            color = 'bg-red-400/90'
+            color = 'bg-[var(--logs-status-error)]'
             hoverBrightness = 'hover-hover:brightness-106'
           }
 
