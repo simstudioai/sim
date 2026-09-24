@@ -290,11 +290,11 @@ export function ConnectSlackBotModal({
       <Wizard.Step title={isReconnect ? 'Open your app in Slack' : 'Create the app in Slack'}>
         <StepCreate manifestJson={manifestJson} reconnect={isReconnect} />
       </Wizard.Step>
+      <Wizard.Step title='Install and paste your Bot Token' canAdvance={botToken.trim().length > 0}>
+        <StepToken value={botToken} onChange={setBotToken} reconnect={isReconnect} />
+      </Wizard.Step>
       <Wizard.Step title='Paste your Signing Secret' canAdvance={signingSecret.trim().length > 0}>
         <StepSecret value={signingSecret} onChange={setSigningSecret} />
-      </Wizard.Step>
-      <Wizard.Step title='Install and paste your Bot Token' canAdvance={botToken.trim().length > 0}>
-        <StepToken value={botToken} onChange={setBotToken} />
       </Wizard.Step>
       <Wizard.Step title='All set'>
         <StepDone
@@ -521,7 +521,7 @@ function StepCreate({ manifestJson, reconnect }: StepCreateProps) {
     <div className='space-y-4'>
       <SubStepList>
         <SubStep n={1}>
-          <div>Copy your manifest:</div>
+          <div>Copy the manifest for your selected permissions:</div>
           <div className='mt-2'>
             <SlackAppManifest manifest={manifestJson} />
           </div>
@@ -543,7 +543,12 @@ function StepCreate({ manifestJson, reconnect }: StepCreateProps) {
           workspace.
         </SubStep>
         <SubStep n={4}>
-          Paste your manifest, then click <strong>Next</strong> → <strong>Create</strong>.
+          Select <strong>JSON</strong>, paste the manifest, then click <strong>Next</strong> →{' '}
+          <strong>Create</strong>.
+        </SubStep>
+        <SubStep n={5}>
+          In <strong>App Manifest</strong>, verify the event <strong>Request URL</strong> if shown.
+          You can verify it before connecting the bot.
         </SubStep>
       </SubStepList>
     </div>
@@ -576,13 +581,22 @@ function StepSecret({ value, onChange }: SecretStepProps) {
   )
 }
 
-function StepToken({ value, onChange }: SecretStepProps) {
+function StepToken({ value, onChange, reconnect }: SecretStepProps & { reconnect: boolean }) {
   return (
     <div className='space-y-4'>
       <SubStepList>
         <SubStep n={1}>
-          In Slack, open <strong>Install App</strong> → <strong>Install to Workspace</strong> and
-          authorize.
+          {reconnect ? (
+            <>
+              Open <strong>OAuth &amp; Permissions</strong> in your existing Slack app. Reinstall
+              only if Slack requests it.
+            </>
+          ) : (
+            <>
+              In Slack, open <strong>OAuth &amp; Permissions</strong> →{' '}
+              <strong>Install to Workspace</strong> and approve access.
+            </>
+          )}
         </SubStep>
         <SubStep n={2}>
           Copy the <strong>Bot User OAuth Token</strong> (starts with <code>xoxb-</code>).

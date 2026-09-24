@@ -9,9 +9,9 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  writeTextToClipboard,
 } from '@sim/emcn'
 import { SlackIcon } from '@/components/icons'
+import { SlackAppManifest } from '@/components/integrations/slack-app-manifest'
 import {
   SLACK_SEARCH_DEFAULT_DESCRIPTION,
   SLACK_SEARCH_DEFAULT_NAME,
@@ -50,24 +50,10 @@ export function SlackSearchSetupWizard({
   const [clientSecret, setClientSecret] = useState('')
   const [signingSecret, setSigningSecret] = useState('')
   const [botToken, setBotToken] = useState('')
-  const [configurationCopied, setConfigurationCopied] = useState(false)
-  const [copyError, setCopyError] = useState<Error | null>(null)
-  const error = prepare.error ?? oauth.error ?? connect.error ?? copyError
+  const [copiedManifest, setCopiedManifest] = useState<string | null>(null)
+  const error = prepare.error ?? oauth.error ?? connect.error
   const busy = oauth.isPending || connect.isPending
   const configuredAppId = appId ?? prepare.data?.existingApp?.appId
-
-  async function copyConfiguration() {
-    if (!prepare.data) throw new Error('Slack app configuration is not ready')
-    setCopyError(null)
-    try {
-      await writeTextToClipboard(prepare.data.manifest)
-      setConfigurationCopied(true)
-    } catch {
-      setCopyError(
-        new Error('Could not copy the app configuration. Allow clipboard access and try again.')
-      )
-    }
-  }
 
   const shared = mode
     ? mode === 'shared'
@@ -87,9 +73,9 @@ export function SlackSearchSetupWizard({
 
   function advance() {
     if (step === 'manifest') {
-      setStep('credentials')
-    } else if (step === 'credentials') {
       setStep('token')
+    } else if (step === 'token') {
+      setStep('credentials')
     } else {
       connect.mutate(
         {
@@ -203,7 +189,7 @@ export function SlackSearchSetupWizard({
         : 'Create Slack app'
       : step === 'credentials'
         ? 'Slack app credentials'
-        : 'Connect installed Slack app'
+        : 'Install Slack app'
 
   return (
     <ChipModal
@@ -220,18 +206,40 @@ export function SlackSearchSetupWizard({
       </ChipModalHeader>
       <ChipModalBody>
         {step === 'manifest' && (
-          <p className='px-2 text-[var(--text-secondary)] text-sm'>
-            {configuredAppId
-              ? configurationCopied
-                ? 'Configuration copied. In Slack, replace the JSON under App Manifest and save.'
-                : 'Copy the configuration, then replace the JSON under App Manifest in Slack.'
-              : 'Create and install the app in Slack, then return here to add its credentials.'}
-          </p>
+          <ChipModalField type='custom' title='App manifest'>
+            <SlackAppManifest
+              manifest={prepare.data.manifest}
+              disabled={Boolean(prepare.error)}
+              onCopy={setCopiedManifest}
+            />
+            <p className='text-[var(--text-secondary)] text-sm'>
+              {configuredAppId
+                ? 'In your Slack app, open App Manifest, replace the JSON, and save changes.'
+                : 'In Slack, choose Create New App → From a manifest, select your workspace, and paste the JSON. Review it and click Create.'}
+            </p>
+            <p className='text-[var(--text-secondary)] text-sm'>
+              In App Manifest, verify the event Request URL before continuing. You can verify it
+              before connecting the app.
+            </p>
+            <ChipLink
+              className='w-fit'
+              href={
+                configuredAppId
+                  ? `https://api.slack.com/apps/${encodeURIComponent(configuredAppId)}`
+                  : 'https://api.slack.com/apps'
+              }
+              target='_blank'
+              rel='noopener noreferrer'
+            >
+              {configuredAppId ? 'Open app settings' : 'Open Slack Apps'}
+            </ChipLink>
+          </ChipModalField>
         )}
         {step === 'credentials' && (
           <>
             <p className='px-2 text-[var(--text-secondary)] text-sm'>
-              Find these values under Basic Information in your Slack app.
+              Open Basic Information → App Credentials in the same Slack app. Copy these values,
+              then connect the app to Sim.
             </p>
             <ChipModalField
               type='input'
@@ -276,8 +284,8 @@ export function SlackSearchSetupWizard({
         {step === 'token' && (
           <>
             <p className='px-2 text-[var(--text-secondary)] text-sm'>
-              Copy the Bot User OAuth Token from OAuth &amp; Permissions in your installed Slack
-              app. If Slack requests updated permissions, approve them there first.
+              Open OAuth &amp; Permissions in Slack, choose Install to Workspace (or Reinstall to
+              Workspace), and approve access. Then copy the Bot User OAuth Token below.
             </p>
             <ChipModalField
               type='input'
@@ -303,27 +311,7 @@ export function SlackSearchSetupWizard({
                   disabled: prepare.isFetching,
                 },
               ]
-            : step === 'manifest'
-              ? configuredAppId && !configurationCopied
-                ? [{ label: 'Copy configuration', onClick: () => void copyConfiguration() }]
-                : [
-                    {
-                      custom: (
-                        <ChipLink
-                          href={
-                            configuredAppId
-                              ? `https://api.slack.com/apps/${encodeURIComponent(configuredAppId)}`
-                              : prepare.data.createAppUrl
-                          }
-                          target='_blank'
-                          rel='noopener noreferrer'
-                        >
-                          {configuredAppId ? 'Open app settings' : 'Create app'}
-                        </ChipLink>
-                      ),
-                    },
-                  ]
-              : undefined
+            : undefined
         }
         primaryAdjacentAction={
           step === 'manifest'
@@ -334,17 +322,18 @@ export function SlackSearchSetupWizard({
                 onClick: () => {
                   oauth.reset()
                   connect.reset()
-                  setStep(step === 'token' ? 'credentials' : 'manifest')
+                  setStep(step === 'credentials' ? 'token' : 'manifest')
                 },
               }
         }
         primaryAction={{
-          label: busy ? 'Connecting…' : step === 'token' ? 'Connect app' : 'Continue',
+          label: busy ? 'Connecting…' : step === 'credentials' ? 'Connect app' : 'Continue',
           onClick: advance,
           disabled:
             busy ||
+            Boolean(prepare.error) ||
             (step === 'manifest'
-              ? Boolean(configuredAppId && !configurationCopied)
+              ? copiedManifest !== prepare.data.manifest
               : step === 'token'
                 ? !botToken.trim()
                 : !installationId &&
