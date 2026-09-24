@@ -15,6 +15,7 @@ import {
   type ResolvedUsagePeriod,
   resolveSubscriptionUsagePeriod,
 } from '@/lib/billing/core/reporting-period'
+import { readSoftGateUsageCost } from '@/lib/billing/core/reporting-usage-cache'
 import { type BillingEntity, getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
 import { computeWeeklyRefreshConsumed } from '@/lib/billing/credits/weekly-refresh'
 import {
@@ -639,6 +640,9 @@ export async function syncUsageLimitsFromSubscription(userId: string): Promise<v
  * Returns the effective current period usage cost for a user, with weekly
  * refresh credits deducted. Org-scoped subs return the pooled sum across
  * all org members; personally-scoped subs return this user's own cost.
+ *
+ * Reported alongside every v1 API response, so an enterprise reporting window
+ * on the default pool is served through {@link readSoftGateUsageCost}.
  */
 export async function getEffectiveCurrentPeriodCost(
   userId: string,
@@ -658,7 +662,7 @@ export async function getEffectiveCurrentPeriodCost(
     orgScoped && subscription
       ? { type: 'organization', id: subscription.referenceId }
       : { type: 'user', id: userId }
-  const rawCost = await getBillingPeriodUsageCost(billingEntity, billingPeriod, undefined, executor)
+  const rawCost = await readSoftGateUsageCost(billingEntity, billingPeriod, executor)
 
   if (!subscription || !isPaid(subscription.plan) || !subscription.periodStart) {
     return rawCost
