@@ -2,7 +2,7 @@
 
 import type React from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { cn, toast, useToast } from '@sim/emcn'
+import { cn, ResourceEmptyState, toast, useToast } from '@sim/emcn'
 import { Loader, TableX } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import type { TableCellSelection } from '@sim/realtime-protocol/table-presence'
@@ -4695,17 +4695,11 @@ export function TableGrid({
 
   if (!isLoadingTable && !tableData) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <TableX className='size-[32px] text-[var(--text-muted)]' />
-        <div className='flex flex-col items-center gap-1'>
-          <h2 className='text-[var(--text-secondary)] text-xl leading-[inherit]'>
-            Table not found
-          </h2>
-          <p className='text-[var(--text-muted)] text-small'>
-            This table may have been deleted or moved
-          </p>
-        </div>
-      </div>
+      <ResourceEmptyState
+        icon={TableX}
+        title='Table not found'
+        description='This table may have been deleted or moved'
+      />
     )
   }
 

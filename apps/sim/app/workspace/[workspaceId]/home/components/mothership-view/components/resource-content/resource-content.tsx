@@ -1,7 +1,15 @@
 'use client'
 
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { OverflowText, PlayOutline, Skeleton, TabStripAction, Tooltip, toast } from '@sim/emcn'
+import {
+  OverflowText,
+  PlayOutline,
+  ResourceEmptyState,
+  Skeleton,
+  TabStripAction,
+  Tooltip,
+  toast,
+} from '@sim/emcn'
 import {
   Download,
   FileX,
@@ -666,17 +674,11 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
 
   if (!workflowExists || hasLoadError) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <WorkflowX className='size-[32px] text-[var(--text-icon)]' />
-        <div className='flex flex-col items-center gap-1'>
-          <h2 className='text-[var(--text-primary)] text-xl leading-[inherit]'>
-            Workflow not found
-          </h2>
-          <p className='text-[var(--text-body)] text-small'>
-            This workflow may have been deleted or moved
-          </p>
-        </div>
-      </div>
+      <ResourceEmptyState
+        icon={WorkflowX}
+        title='Workflow not found'
+        description='This workflow may have been deleted or moved'
+      />
     )
   }
 
@@ -731,15 +733,11 @@ function EmbeddedFile({
 
   if (!file) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <FileX className='size-[32px] text-[var(--text-icon)]' />
-        <div className='flex flex-col items-center gap-1'>
-          <h2 className='text-[var(--text-primary)] text-xl leading-[inherit]'>File not found</h2>
-          <p className='text-[var(--text-body)] text-small'>
-            This file may have been deleted or moved
-          </p>
-        </div>
-      </div>
+      <ResourceEmptyState
+        icon={FileX}
+        title='File not found'
+        description='This file may have been deleted or moved'
+      />
     )
   }
 
@@ -782,15 +780,11 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
 
   if (!folder) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <FolderIcon className='size-[32px] text-[var(--text-icon)]' />
-        <div className='flex flex-col items-center gap-1'>
-          <h2 className='text-[var(--text-primary)] text-xl leading-[inherit]'>Folder not found</h2>
-          <p className='text-[var(--text-body)] text-small'>
-            This folder may have been deleted or moved
-          </p>
-        </div>
-      </div>
+      <ResourceEmptyState
+        icon={FolderIcon}
+        title='Folder not found'
+        description='This folder may have been deleted or moved'
+      />
     )
   }
 
@@ -840,15 +834,11 @@ function EmbeddedLog({ workspaceId, logId, onNotFound }: EmbeddedLogProps) {
 
   if (!log) {
     return (
-      <div className='flex h-full flex-col items-center justify-center gap-3'>
-        <Library className='size-[32px] text-[var(--text-icon)]' />
-        <div className='flex flex-col items-center gap-1'>
-          <h2 className='text-[var(--text-primary)] text-xl leading-[inherit]'>Log not found</h2>
-          <p className='text-[var(--text-body)] text-small'>
-            This log may have been deleted or is no longer available
-          </p>
-        </div>
-      </div>
+      <ResourceEmptyState
+        icon={Library}
+        title='Log not found'
+        description='This log may have been deleted or is no longer available'
+      />
     )
   }
 

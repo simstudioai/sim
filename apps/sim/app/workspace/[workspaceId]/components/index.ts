@@ -2,7 +2,6 @@ export {
   isResourceListEmpty,
   resourceListState,
 } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
-export { ResourceNotFound } from '@/app/workspace/[workspaceId]/components/resource/resource-not-found'
 export { ConversationListItem } from './conversation-list-item'
 export type { ErrorBoundaryProps, ErrorStateProps } from './error'
 export { ErrorShell, ErrorState } from './error'
