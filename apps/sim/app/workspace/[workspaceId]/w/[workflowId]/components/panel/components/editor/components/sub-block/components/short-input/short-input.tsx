@@ -1,7 +1,8 @@
 import { memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { cn, Input } from '@sim/emcn'
+import { cn } from '@sim/emcn'
 import { useReactFlow } from '@xyflow/react'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { MirroredInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/mirrored-field/mirrored-field'
 import {
   maskSecretText,
   shouldMaskSecretValue,
@@ -129,8 +130,6 @@ export const ShortInput = memo(function ShortInput({
 
   const isWandEnabled = config.wandConfig?.enabled ?? false
 
-  const overlayRef = useRef<HTMLDivElement>(null)
-
   const reactFlowInstance = useReactFlow()
 
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
@@ -234,12 +233,6 @@ export const ShortInput = memo(function ShortInput({
       })
     }
   }, [baseValue, wandHook.isStreaming])
-
-  const handleScroll = useCallback((e: React.UIEvent<HTMLInputElement>) => {
-    if (overlayRef.current) {
-      overlayRef.current.scrollLeft = e.currentTarget.scrollLeft
-    }
-  }, [])
 
   const handlePaste = useCallback((_e: React.ClipboardEvent<HTMLInputElement>) => {
     justPastedRef.current = true
@@ -369,9 +362,9 @@ export const ShortInput = memo(function ShortInput({
 
             return (
               <>
-                <Input
+                <MirroredInput
                   ref={ref as React.RefObject<HTMLInputElement>}
-                  className='allow-scroll w-full overflow-auto text-transparent caret-foreground [-ms-overflow-style:none] [letter-spacing:inherit] [scrollbar-width:none] placeholder:text-muted-foreground/50 [&::-webkit-scrollbar]:hidden'
+                  className='allow-scroll w-full overflow-auto [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-muted-foreground/50 [&::-webkit-scrollbar]:hidden'
                   readOnly={readOnly}
                   placeholder={placeholder ?? ''}
                   type='text'
@@ -384,23 +377,18 @@ export const ShortInput = memo(function ShortInput({
                   onBlur={handleBlur}
                   onDrop={onDrop as (e: React.DragEvent<HTMLInputElement>) => void}
                   onDragOver={onDragOver as (e: React.DragEvent<HTMLInputElement>) => void}
-                  onScroll={handleScroll}
                   onPaste={handlePaste}
                   onWheel={handleWheel}
                   onKeyDown={onKeyDown as (e: React.KeyboardEvent<HTMLInputElement>) => void}
                   autoComplete='off'
                   disabled={disabled}
-                />
-                <div
-                  ref={overlayRef}
-                  className={cn(
+                  overlayClassName={cn(
                     'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 pr-3 font-sans text-foreground text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
                     (isPreview || disabled) && 'opacity-50',
                     !(isPreview || disabled) && 'pointer-events-none'
                   )}
-                >
-                  <div className='min-w-fit whitespace-pre'>{formattedText}</div>
-                </div>
+                  overlay={<div className='min-w-fit whitespace-pre'>{formattedText}</div>}
+                />
               </>
             )
           }}

@@ -800,11 +800,11 @@ const Combobox = memo(
                       {...inputProps}
                       className={cn(
                         'w-full pr-10 transition-colors',
-                        (overlayContent || SelectedIcon) && 'text-transparent caret-foreground',
                         SelectedIcon && !overlayContent && 'pl-7',
                         open && 'focus-visible:border-[var(--border-1)]',
                         className,
-                        inputProps?.className
+                        inputProps?.className,
+                        (overlayContent || SelectedIcon) && 'text-transparent caret-foreground'
                       )}
                       role='combobox'
                       aria-expanded={open}

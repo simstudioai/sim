@@ -1,8 +1,12 @@
 import { useMemo, useRef } from 'react'
-import { Button, cn, Input, Label, Textarea, Tooltip } from '@sim/emcn'
+import { Button, cn, Label, Tooltip } from '@sim/emcn'
 import { Plus, Trash } from '@sim/emcn/icons'
 import { generateId } from '@sim/utils/id'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import {
+  MirroredInput,
+  MirroredTextarea,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/mirrored-field/mirrored-field'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
@@ -47,7 +51,6 @@ export function EvalInput({
   const [storeValue, setStoreValue] = useSubBlockValue<EvalMetric[]>(blockId, subBlockId)
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
   const descriptionInputRefs = useRef<Record<string, HTMLTextAreaElement>>({})
-  const descriptionOverlayRefs = useRef<Record<string, HTMLDivElement>>({})
 
   // Use the extended hook for field-level management
   const inputController = useSubBlockInput({
@@ -188,28 +191,27 @@ export function EvalInput({
             <div key={`name-${metric.id}`} className='flex flex-col gap-1.5'>
               {renderFieldLabel('Name')}
               <div className='relative'>
-                <Input
+                <MirroredInput
                   name='name'
                   value={metric.name}
                   onChange={(e) => updateMetric(metric.id, 'name', e.target.value)}
                   placeholder='Accuracy'
                   disabled={isPreview || disabled}
-                  className='text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50'
-                />
-                <div
-                  className={cn(
+                  className='placeholder:text-muted-foreground/50'
+                  overlayClassName={cn(
                     'pointer-events-none absolute inset-0 flex items-center overflow-hidden px-3 text-sm',
                     (isPreview || disabled) && 'opacity-50'
                   )}
-                >
-                  <span className='truncate'>
-                    {formatDisplayText(metric.name || '', {
-                      accessiblePrefixes,
-                      highlightAll: !accessiblePrefixes,
-                      workflowSearchHighlight: getMetricSearchHighlight(index, ['name']),
-                    })}
-                  </span>
-                </div>
+                  overlay={
+                    <span className='truncate'>
+                      {formatDisplayText(metric.name || '', {
+                        accessiblePrefixes,
+                        highlightAll: !accessiblePrefixes,
+                        workflowSearchHighlight: getMetricSearchHighlight(index, ['name']),
+                      })}
+                    </span>
+                  }
+                />
               </div>
             </div>
 
@@ -231,7 +233,7 @@ export function EvalInput({
 
                   return (
                     <>
-                      <Textarea
+                      <MirroredTextarea
                         ref={(el) => {
                           if (el) descriptionInputRefs.current[metric.id] = el
                         }}
@@ -243,30 +245,24 @@ export function EvalInput({
                         onFocus={handlers.onFocus}
                         placeholder='How accurate is the response?'
                         disabled={isPreview || disabled}
-                        className={cn(
-                          'min-h-[80px] whitespace-pre-wrap text-transparent caret-foreground [letter-spacing:inherit]'
-                        )}
+                        className='min-h-[80px] whitespace-pre-wrap'
                         rows={3}
-                      />
-                      <div
-                        ref={(el) => {
-                          if (el) descriptionOverlayRefs.current[metric.id] = el
-                        }}
-                        className={cn(
+                        overlayClassName={cn(
                           'absolute inset-0 overflow-auto bg-transparent px-2 py-2 font-sans text-[var(--code-foreground)] text-sm',
                           !(isPreview || disabled) && 'pointer-events-none'
                         )}
-                      >
-                        <div className='whitespace-pre-wrap'>
-                          {formatDisplayText(metric.description || '', {
-                            accessiblePrefixes,
-                            highlightAll: !accessiblePrefixes,
-                            workflowSearchHighlight: getMetricSearchHighlight(index, [
-                              'description',
-                            ]),
-                          })}
-                        </div>
-                      </div>
+                        overlay={
+                          <div className='whitespace-pre-wrap'>
+                            {formatDisplayText(metric.description || '', {
+                              accessiblePrefixes,
+                              highlightAll: !accessiblePrefixes,
+                              workflowSearchHighlight: getMetricSearchHighlight(index, [
+                                'description',
+                              ]),
+                            })}
+                          </div>
+                        }
+                      />
                       {fieldState.showTags && (
                         <TagDropdown
                           visible={fieldState.showTags}
@@ -291,7 +287,7 @@ export function EvalInput({
               <div className='flex flex-col gap-1.5'>
                 {renderFieldLabel('Min Value')}
                 <div className='relative'>
-                  <Input
+                  <MirroredInput
                     type='text'
                     value={metric.range.min ?? ''}
                     onChange={(e) => updateRange(metric.id, 'min', e.target.value)}
@@ -300,19 +296,17 @@ export function EvalInput({
                     autoComplete='off'
                     data-form-type='other'
                     name='eval-range-min'
-                    className='text-transparent caret-foreground [letter-spacing:inherit]'
-                  />
-                  <div className='pointer-events-none absolute inset-0 flex items-center truncate px-2 py-1.5 font-sans text-sm'>
-                    {formatDisplayText(String(metric.range.min ?? ''), {
+                    overlayClassName='pointer-events-none absolute inset-0 flex items-center truncate px-2 py-1.5 font-sans text-sm'
+                    overlay={formatDisplayText(String(metric.range.min ?? ''), {
                       workflowSearchHighlight: getMetricSearchHighlight(index, ['range', 'min']),
                     })}
-                  </div>
+                  />
                 </div>
               </div>
               <div className='flex flex-col gap-1.5'>
                 {renderFieldLabel('Max Value')}
                 <div className='relative'>
-                  <Input
+                  <MirroredInput
                     type='text'
                     value={metric.range.max ?? ''}
                     onChange={(e) => updateRange(metric.id, 'max', e.target.value)}
@@ -321,13 +315,11 @@ export function EvalInput({
                     autoComplete='off'
                     data-form-type='other'
                     name='eval-range-max'
-                    className='text-transparent caret-foreground [letter-spacing:inherit]'
-                  />
-                  <div className='pointer-events-none absolute inset-0 flex items-center truncate px-2 py-1.5 font-sans text-sm'>
-                    {formatDisplayText(String(metric.range.max ?? ''), {
+                    overlayClassName='pointer-events-none absolute inset-0 flex items-center truncate px-2 py-1.5 font-sans text-sm'
+                    overlay={formatDisplayText(String(metric.range.max ?? ''), {
                       workflowSearchHighlight: getMetricSearchHighlight(index, ['range', 'max']),
                     })}
-                  </div>
+                  />
                 </div>
               </div>
             </div>
