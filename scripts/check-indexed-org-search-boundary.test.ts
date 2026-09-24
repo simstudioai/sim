@@ -104,6 +104,23 @@ describe('indexed organization search boundary audit', () => {
     ])
   })
 
+  it('catches a dynamic import whose target is held in a variable', () => {
+    expect(
+      findBoundaryViolations([
+        {
+          file: 'apps/sim/lib/other/loader.ts',
+          source: `const target = '${USE_CASE_BARREL}'\nexport const load = () => import(target)`,
+        },
+      ])
+    ).toEqual([
+      expect.objectContaining({
+        file: 'apps/sim/lib/other/loader.ts',
+        specifier: USE_CASE_BARREL,
+        reason: `is not an allowlisted entry point for ${USE_CASE_BARREL}`,
+      }),
+    ])
+  })
+
   it('accepts a gate called under an aliased import', () => {
     expect(
       findBoundaryViolations([

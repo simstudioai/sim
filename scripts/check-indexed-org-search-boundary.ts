@@ -92,6 +92,7 @@ export function moduleSpecifiers(
     const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile))
     found.push({ specifier, line: line + 1 })
   }
+  const consumed = new Set<ts.Node>()
   const visit = (node: ts.Node): void => {
     if (
       (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
@@ -99,13 +100,22 @@ export function moduleSpecifiers(
       ts.isStringLiteralLike(node.moduleSpecifier)
     ) {
       record(node, node.moduleSpecifier.text)
+      consumed.add(node.moduleSpecifier)
     } else if (ts.isCallExpression(node)) {
       const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword
       const isRequire = ts.isIdentifier(node.expression) && node.expression.text === 'require'
       const argument = node.arguments[0]
       if ((isDynamicImport || isRequire) && argument && ts.isStringLiteralLike(argument)) {
         record(node, argument.text)
+        consumed.add(argument)
       }
+    } else if (ts.isStringLiteralLike(node) && !consumed.has(node)) {
+      /**
+       * Any other string naming a module is a specifier too: a dynamic import or `require` of a
+       * variable is only as safe as the strings that variable can hold, so the string is where
+       * the reach into the dormant directory is caught.
+       */
+      record(node, node.text)
     }
     ts.forEachChild(node, visit)
   }

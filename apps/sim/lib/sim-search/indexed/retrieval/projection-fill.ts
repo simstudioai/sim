@@ -1,5 +1,6 @@
 import { SOURCE_ACL_PROJECTIONS, type SourceAclProjection } from '@sim/db/knowledge-projection'
 import { embeddingKeywordTin, embeddingSearch } from '@sim/db/schema'
+import { sleep } from '@sim/utils/helpers'
 import { sql } from 'drizzle-orm'
 import { LRUCache } from 'lru-cache'
 import { runSearchQuery, type SearchBudget } from '@/lib/knowledge/search/budget'
@@ -88,15 +89,8 @@ export async function isProjectionFilled(
     0,
     Math.min(PROJECTION_FILLED_PROBE_BUDGET_MS, budget.deadline - performance.now())
   )
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const unanswered = new Promise<undefined>((resolve) => {
-    timer = setTimeout(resolve, waitMs, undefined)
-  })
-  try {
-    return (await Promise.race([answer.catch(() => undefined), unanswered])) ?? false
-  } finally {
-    clearTimeout(timer)
-  }
+  const unanswered = sleep(waitMs).then(() => undefined)
+  return (await Promise.race([answer.catch(() => undefined), unanswered])) ?? false
 }
 
 /** Forgets whether the projections were filled; the memo is per process and otherwise expires on its own. */
