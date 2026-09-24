@@ -304,7 +304,8 @@ describe('organization Search Assistant chat', () => {
   })
 
   it('drops interactive Chat tags from the MCP answer but keeps them in the transcript', async () => {
-    const tags = '<options>{"1":"Open it"}</options><question>Which kit?</question>'
+    const tags =
+      '<options>{"1":"Open it"}</options><question>{"prompt":"Which </question> kit?"}</question>'
     mocks.lifecycle.mockResolvedValue(createResult({ content: `Violet suitcase.${tags}` }))
     const result = await execute()
     expect(result.content).toBe('Violet suitcase.')

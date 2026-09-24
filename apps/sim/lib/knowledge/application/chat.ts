@@ -19,10 +19,10 @@ import { requireOrganizationSearchAvailable } from '@/lib/knowledge/access/avail
 import {
   resolveSearchChatCitations,
   type SearchChatCitation,
+  stripInteractiveCards,
 } from '@/lib/knowledge/application/chat-citations'
 import { organizationSearchChatOperation } from '@/lib/knowledge/application/chat-operations'
 import { loadCopilotSearchIntegrations } from '@/lib/mothership/application/load-search-integrations'
-import { stripInteractiveTags } from '@/lib/mothership/chat/interactive-tags'
 import { persistCopilotChatTurn } from '@/lib/mothership/chat/messages-store'
 import { buildCopilotRequestPayload } from '@/lib/mothership/chat/payload'
 import {
@@ -204,7 +204,7 @@ export const organizationSearchChat: OperationUseCase<
       )
       /** MCP clients receive text; interactive Chat cards stay only in the saved transcript. */
       const answer = resolveSearchChatCitations(
-        stripInteractiveTags(assistantMessage.content, { complete: true }),
+        stripInteractiveCards(assistantMessage.content),
         result.toolCalls
       )
       if (!answer.content.trim())

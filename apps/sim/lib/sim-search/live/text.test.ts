@@ -21,6 +21,9 @@ describe('providerText', () => {
       )
     ).toBe('Who:\n\na@b.co\nNotes & links')
   })
+  it('keeps an address whose name starts like a tag in auto mode', () => {
+    expect(providerText('Organizer <a@acme.com>', 'auto')).toBe('Organizer <a@acme.com>')
+  })
   it('leaves plain text with angle brackets untouched in auto mode', () => {
     expect(providerText('Reply from John <john@acme.com>', 'auto')).toBe(
       'Reply from John <john@acme.com>'

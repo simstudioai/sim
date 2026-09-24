@@ -8,6 +8,28 @@ export interface SearchChatCitation {
   url: string
 }
 
+/** Cards the Chat UI renders from a JSON payload; an MCP text answer drops them. */
+const CARD_TAGS = 'options|question|usage_upgrade|credential|workspace_resource'
+/** A JSON string owns its escaped quotes and any tag-shaped text inside it. */
+const JSON_STRING = '"(?:\\\\.|[^"\\\\\\r\\n])*"'
+/**
+ * A card whose body is a JSON value, a thinking block, or a card opener left unclosed before a
+ * JSON payload. A tag-shaped pair or opener in ordinary prose is not a card and stays.
+ */
+const INTERACTIVE_CARD = new RegExp(
+  [
+    `<(${CARD_TAGS})>\\s*[[{](?:${JSON_STRING}|[^"<])*?[\\]}]\\s*</\\1>`,
+    '<thinking>[\\s\\S]*?</thinking>',
+    `<(?:${CARD_TAGS})>\\s*[[{][\\s\\S]*$`,
+  ].join('|'),
+  'g'
+)
+
+/** Removes interactive Chat cards so a text-only surface receives only the answer prose. */
+export function stripInteractiveCards(content: string): string {
+  return content.replace(INTERACTIVE_CARD, '')
+}
+
 /** Resolves Assistant source tags only against successful, bounded retrieval evidence. */
 export function resolveSearchChatCitations(content: string, toolCalls: ToolCallSummary[]) {
   const evidence = new Map<string, SearchChatCitation>()

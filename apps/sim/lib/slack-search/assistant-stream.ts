@@ -10,7 +10,6 @@ import {
   parseCitationRecord,
   type RetrievalCitationBlock,
 } from '@/lib/mothership/chat/citation-evidence'
-import { stripInteractiveTags } from '@/lib/mothership/chat/interactive-tags'
 import { redactSensitiveContent } from '@/lib/mothership/chat/sim-key-redaction'
 import type {
   StreamEvent,
@@ -36,7 +35,10 @@ export function publicSlackAnswer(
   sources: ReadonlyMap<string, string> = new Map(),
   integrationsUrl?: string
 ): string {
-  let value = stripInteractiveTags(text, { complete: false })
+  let value = text.replace(
+    /<(options|question|thinking|usage_upgrade|credential|workspace_resource)>[\s\S]*?(?:<\/\1>|$)/g,
+    ''
+  )
   if (!complete) {
     let end = Math.max(value.lastIndexOf(' '), value.lastIndexOf('\n')) + 1
     const sourceStart = value.lastIndexOf('<')

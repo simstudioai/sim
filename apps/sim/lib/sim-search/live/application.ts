@@ -224,13 +224,16 @@ async function verifyCandidates(session: LiveAccountSession, candidates: LiveCan
         return (await session.verify(document)) ? ('permitted' as const) : ('denied' as const)
       } catch (error) {
         if (error instanceof NativeSearchError && error.status === 'reconnect') throw error
-        return 'unverified' as const
+        return error instanceof NativeSearchError && error.status === 'rate_limited'
+          ? ('rate_limited' as const)
+          : ('unverified' as const)
       }
     }
   )
   return {
     permitted: candidates.filter((_, index) => outcomes[index] === 'permitted'),
-    unverified: outcomes.includes('unverified'),
+    unverified: outcomes.some((outcome) => outcome === 'unverified' || outcome === 'rate_limited'),
+    rateLimited: outcomes.includes('rate_limited'),
   }
 }
 
@@ -359,7 +362,7 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
          * Local filters run first so provider verification is spent only on eligible results.
          * Undated results are verified too, so their exclusion is reported only when readable.
          */
-        const { permitted, unverified } = await measureSearchStage('live.verify', () =>
+        const { permitted, unverified, rateLimited } = await measureSearchStage('live.verify', () =>
           verifyCandidates(
             session,
             candidates.filter(
@@ -403,7 +406,9 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
                 ? 'Service account verification covered a bounded subset of the configured users. Narrow the source user list for complete coverage; external Drive users can only search files also visible to the source administrator.'
                 : undefined,
               unverified
-                ? 'Some results could not be verified against the source settings and were omitted.'
+                ? rateLimited
+                  ? 'The provider rate-limited verification, so some results were omitted. Try again later.'
+                  : 'Some results could not be verified against the source settings and were omitted.'
                 : undefined,
               undatedExcluded
                 ? 'Some results lacked date metadata and were excluded; date coverage is incomplete.'

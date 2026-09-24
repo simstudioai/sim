@@ -274,6 +274,25 @@ describe('authorized live retrieval', () => {
       message: expect.stringContaining('could not be verified'),
     })
   })
+  it('keeps verified results and names a rate limit hit during verification', async () => {
+    mocks.search.mockResolvedValue({
+      documents: [document, { ...document, id: 'other', url: 'https://docs.google.com/other' }],
+    })
+    mocks.service.mockResolvedValue({
+      policy: defaultLiveSearchPolicy(),
+      partial: false,
+      verify: async ({ id }: { id: string }) => {
+        if (id === 'other') throw new NativeSearchError('rate_limited', 'Later', 30)
+        return true
+      },
+    })
+    const result = await searchLiveKnowledge.execute({ principal, input })
+    expect(result.results).toHaveLength(1)
+    expect(result.live?.accounts[0]).toMatchObject({
+      status: 'partial',
+      message: expect.stringContaining('rate-limited verification'),
+    })
+  })
   it('fails the account when a grant is revoked during verification', async () => {
     mocks.service.mockResolvedValue({
       policy: defaultLiveSearchPolicy(),
