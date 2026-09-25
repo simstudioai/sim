@@ -28,6 +28,19 @@ All panels share resolved `[from,to)` UTC bounds, with optional per-panel relati
 
 Counts return zero for no rows. Other empty aggregates remain null. Single-dimension time series fill missing count buckets with zero and other aggregate buckets with null. Grouping by time plus another dimension returns observed groups only. These are current table records, not historical versions of edited/deleted records. Queries in different panels use independent read snapshots; they share time bounds, not an atomic cross-panel snapshot.
 
+Conditional percentages use `aggregate: {alias: {op: percent, filter: predicate}}`.
+The measure filter reuses the table condition grammar (`field`/`op`/`value`, nested
+`all`/`any`), including column IDs/names and select-option names. PostgreSQL computes
+`100 * matching rows / total rows` within each group after the source filter and
+time range. All scoped rows count toward the denominator, including rows with
+missing condition fields; use a source filter to exclude those when appropriate.
+The measure filter never removes rows from other aggregates. A nonempty group with
+no matches returns zero; an empty population or missing time bucket remains null.
+These measures take a condition rather than a numeric field, so tables do not need
+100/0 helper columns. Stats can append `%`, and charts use standard ECharts percent
+axis formatting. Pie/donut distributions can continue grouping by outcome and
+counting rows; their slice percentages are computed by ECharts.
+
 Queries reuse the table predicate compiler and the existing read-only repeatable-read transaction guards, including statement/lock timeouts and tenant index planning. The built-in timestamp predicate leaves the indexed column uncast. Custom date extraction requires scanning matching table rows. There is no background polling. Migration 0384 adds `dashboard` to the existing folder resource enum; it does not create a dashboard table.
 
 Bounds: 128 KB source, 48 blocks, 4 layout levels, 2 grouping fields, 8 measures, 12 projected columns, 500 result rows and 8 KB per returned row. Limits apply after aggregation. An explicit limit yields a labeled top-N result; unrequested group overflow is an error. API rate admission is per viewer. Errors are never turned into successful zeros. Only visible tabs mount their query observers; identical queries share React Query cache entries for one minute, and Refresh requests fresh data.

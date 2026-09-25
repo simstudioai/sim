@@ -44,15 +44,18 @@ export const analyticsFilterSchema = z
   })
   .transform(normalizeTablePredicate)
 
-export const analyticsMeasureSchema = z
-  .object({
-    op: z.enum(['count', 'countDistinct', 'sum', 'avg', 'min', 'max']),
-    field: analyticsFieldSchema.optional(),
-  })
-  .strict()
-  .refine((value) => value.op === 'count' || value.field !== undefined, {
-    message: 'An aggregate other than count requires a field',
-  })
+export const analyticsMeasureSchema = z.discriminatedUnion('op', [
+  z
+    .object({
+      op: z.enum(['count', 'countDistinct', 'sum', 'avg', 'min', 'max']),
+      field: analyticsFieldSchema.optional(),
+    })
+    .strict()
+    .refine((value) => value.op === 'count' || value.field !== undefined, {
+      message: 'An aggregate other than count requires a field',
+    }),
+  z.object({ op: z.literal('percent'), filter: analyticsFilterSchema }).strict(),
+])
 
 export const analyticsSelectionSchema = z
   .object({

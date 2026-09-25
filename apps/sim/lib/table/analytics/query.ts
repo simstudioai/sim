@@ -14,7 +14,7 @@ import { withReadGuards } from '@/lib/table/planner'
 import { validateStoragePredicate } from '@/lib/table/query-builder/validate'
 import { predicateToStorage } from '@/lib/table/select-values'
 import { buildPredicateClause } from '@/lib/table/sql'
-import type { ColumnDefinition, TableDefinition } from '@/lib/table/types'
+import type { ColumnDefinition, TableDefinition, TablePredicate } from '@/lib/table/types'
 
 function invalid(message: string): never {
   throw new OrchestrationError('validation', message)
@@ -62,6 +62,14 @@ function instantText(expression: SQL): SQL {
   return sql`to_char(${expression} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`
 }
 
+function filterExpression(table: TableDefinition, filter: TablePredicate): SQL {
+  const predicate = predicateToStorage(filter, table.schema)
+  validateStoragePredicate(predicate, table.schema.columns)
+  const expression = buildPredicateClause(predicate, 'user_table_rows', table.schema.columns)
+  if (!expression) invalid('Filter cannot be empty')
+  return expression
+}
+
 /** Resolves schema fields, quotes aliases, and binds user values and bucket names. */
 export function buildAnalyticsQuery(table: TableDefinition, query: AnalyticsQuery) {
   const timeField = query.timeField ?? 'createdAt'
@@ -85,11 +93,7 @@ export function buildAnalyticsQuery(table: TableDefinition, query: AnalyticsQuer
     )
   }
   if (query.filter) {
-    const predicate = predicateToStorage(query.filter, table.schema)
-    validateStoragePredicate(predicate, table.schema.columns)
-    const filter = buildPredicateClause(predicate, 'user_table_rows', table.schema.columns)
-    if (!filter) invalid('Filter cannot be empty')
-    conditions.push(filter)
+    conditions.push(filterExpression(table, query.filter))
   }
   const fields = query.aggregate ? (query.groupBy ?? []) : (query.columns ?? [])
   const expressions: SQL[] = []
@@ -114,6 +118,13 @@ export function buildAnalyticsQuery(table: TableDefinition, query: AnalyticsQuer
     grouping.push(sql.raw(String(expressions.length)))
   }
   for (const [alias, measure] of Object.entries(query.aggregate ?? {})) {
+    if (measure.op === 'percent') {
+      const condition = filterExpression(table, measure.filter)
+      expressions.push(
+        sql`100.0 * count(*) FILTER (WHERE ${condition}) / NULLIF(count(*), 0) AS ${sql.identifier(alias)}`
+      )
+      continue
+    }
     const value = measure.field ? fieldExpression(table, measure.field) : null
     if (
       !['count', 'countDistinct'].includes(measure.op) &&
