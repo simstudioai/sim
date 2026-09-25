@@ -1,5 +1,5 @@
 import { Button } from '@sim/emcn'
-import { FILTER_SECTION_LABEL_CLASS } from '@/app/workspace/[workspaceId]/components'
+import { FILTER_SECTION_LABEL_CLASS } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
 
 interface KnowledgeFilterHeadingProps {
   title: string

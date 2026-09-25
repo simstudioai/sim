@@ -1,4 +1,4 @@
-import type { ResourceColumn } from '@/app/workspace/[workspaceId]/components'
+import type { ResourceColumn } from '@/app/workspace/[workspaceId]/components/resource/resource'
 
 export const DOCUMENT_COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name', widthMultiplier: 0.8 },

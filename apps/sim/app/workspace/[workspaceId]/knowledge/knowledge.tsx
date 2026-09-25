@@ -12,26 +12,6 @@ import { MAX_KNOWLEDGE_BATCH_ITEMS } from '@/lib/knowledge/constants'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type {
-  BreadcrumbItem,
-  FilterTag,
-  ResourceAction,
-  ResourceCell,
-  ResourceColumn,
-  ResourceRow,
-  SearchConfig,
-  SortConfig,
-} from '@/app/workspace/[workspaceId]/components'
-import {
-  EMPTY_CELL_PLACEHOLDER,
-  ownerCell,
-  Resource,
-  reportBulkOutcome,
-  resourceListState,
-  selectionLabel,
-  timeCell,
-  useResourceRowSelection,
-} from '@/app/workspace/[workspaceId]/components'
-import type {
   MoveOptionNode,
   SortableResource,
 } from '@/app/workspace/[workspaceId]/components/folders'
@@ -57,11 +37,35 @@ import {
   useFolderNavigation,
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
+import { reportBulkOutcome } from '@/app/workspace/[workspaceId]/components/resource/bulk-outcome'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
+import { ownerCell } from '@/app/workspace/[workspaceId]/components/resource/components/owner-cell'
 import {
   KnowledgeEmptyState,
   ResourceNoResults,
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import type {
+  BreadcrumbItem,
+  ResourceAction,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
+import type {
+  FilterTag,
+  SearchConfig,
+  SortConfig,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import { timeCell } from '@/app/workspace/[workspaceId]/components/resource/components/time-cell'
+import { resourceListState } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
+import type {
+  ResourceCell,
+  ResourceColumn,
+  ResourceRow,
+} from '@/app/workspace/[workspaceId]/components/resource/resource'
+import {
+  EMPTY_CELL_PLACEHOLDER,
+  Resource,
+} from '@/app/workspace/[workspaceId]/components/resource/resource'
+import { selectionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
+import { useResourceRowSelection } from '@/app/workspace/[workspaceId]/components/resource/use-resource-row-selection'
 import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/base-tags-modal'
 import {
   CreateBaseModal,
