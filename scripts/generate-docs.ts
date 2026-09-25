@@ -2279,17 +2279,20 @@ function extractBlockConfigFromContent(
         : ownOutputs
     const toolsAccess = extractToolsAccessFromContent(blockContent)
 
-    // For tools.access, if not found directly, check if it's derived from base via map
+    /** Versioned mapped spreads retain their base tools alongside explicit additions. */
     let finalToolsAccess = toolsAccess
-    if (toolsAccess.length === 0 && baseConfig?.tools?.access) {
+    if (baseConfig?.tools?.access) {
       // Check if there's a map operation on base tools
       // Pattern: access: (SomeBlock.tools?.access || []).map((toolId) => `${toolId}_v2`)
       const mapMatch = blockContent.match(
-        /access\s*:\s*\(\s*\w+Block\.tools\?\.access\s*\|\|\s*\[\]\s*\)\.map\s*\(\s*\(\s*\w+\s*\)\s*=>\s*`\$\{\s*\w+\s*\}_v(\d+)`\s*\)/
+        /access\s*:\s*(?:\[\s*\.\.\.)?\(\s*\w+Block\.tools\?\.access\s*\|\|\s*\[\]\s*\)\.map\s*\(\s*\(\s*\w+\s*\)\s*=>\s*`\$\{\s*\w+\s*\}_v(\d+)`\s*\)/
       )
       if (mapMatch) {
         const versionSuffix = `_v${mapMatch[1]}`
-        finalToolsAccess = baseConfig.tools.access.map((tool) => `${tool}${versionSuffix}`)
+        finalToolsAccess = [
+          ...baseConfig.tools.access.map((tool) => `${tool}${versionSuffix}`),
+          ...toolsAccess,
+        ]
       }
       const replacement = blockContent.match(
         /access\s*:\s*\w+Block\.tools\.access\.map\s*\(\s*\(\s*(\w+)\s*\)\s*=>\s*\1\s*===\s*['"]([^'"]+)['"]\s*\?\s*['"]([^'"]+)['"]\s*:\s*\1\s*\)/
@@ -2698,9 +2701,22 @@ function extractToolsAccessFromContent(content: string): string[] {
   if (toolsEnd === -1) return []
 
   const toolsContent = content.substring(toolsStart, toolsEnd)
-  const accessMatch = toolsContent.match(/access\s*:\s*\[\s*([^\]]+)\s*\]/)
+  const accessMatch = /access\s*:\s*\[/.exec(toolsContent)
   if (!accessMatch) return []
-  return [...accessMatch[1].matchAll(/['"]([^'"]+)['"]/g)].map((m) => m[1])
+  const start = accessMatch.index + accessMatch[0].lastIndexOf('[')
+  const end = findMatchingClose(toolsContent, start, '[', ']')
+  if (end === -1) return []
+  const source = ts.createSourceFile(
+    'tool-access.ts',
+    `const access = ${toolsContent.slice(start, end)}`,
+    ts.ScriptTarget.Latest,
+    true
+  )
+  const statement = source.statements[0]
+  if (!statement || !ts.isVariableStatement(statement)) return []
+  const array = statement.declarationList.declarations[0]?.initializer
+  if (!array || !ts.isArrayLiteralExpression(array)) return []
+  return array.elements.flatMap((element) => (ts.isStringLiteral(element) ? [element.text] : []))
 }
 
 /**

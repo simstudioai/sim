@@ -2521,7 +2521,10 @@ export const GitHubV2Block: BlockConfig<GitHubResponse> = {
   integrationType: IntegrationType.DevOps,
   tools: {
     ...GitHubBlock.tools,
-    access: (GitHubBlock.tools?.access || []).map((toolId) => `${toolId}_v2`),
+    access: [
+      ...(GitHubBlock.tools?.access || []).map((toolId) => `${toolId}_v2`),
+      'github_list_review_threads',
+    ],
     config: {
       ...GitHubBlock.tools?.config,
       tool: createVersionedToolSelector({

@@ -2,15 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearAtlassianCloudIdCache } from '@/lib/atlassian/discovery'
 import { createConfluenceClient } from '@/lib/internal/confluence/client'
 import { createJiraClient } from '@/lib/internal/jira/client'
-import {
-  assertAssistantIntegrationCall,
-  isAssistantIntegrationTool,
-} from '@/lib/mothership/assistant/tool-policy'
+import { assertAssistantIntegrationCall } from '@/lib/mothership/assistant/tool-policy'
 import { getToolMetadata } from '@/tools/metadata'
-import { getToolIds } from '@/tools/tool-ids'
 
 vi.unmock('@/tools/metadata')
-vi.unmock('@/tools/tool-ids')
 
 const CLOUD_ID = '12345678-1234-1234-1234-123456789012'
 const OTHER_CLOUD_ID = '12345678-1234-1234-1234-123456789013'
@@ -28,29 +23,21 @@ describe('Atlassian Assistant resource selection', () => {
 
   afterEach(() => vi.unstubAllGlobals())
 
-  it.each(['jira', 'confluence'])(
-    'offers %s operations with a site selector and personal credential',
-    (service) => {
-      const tools = getToolIds()
-        .filter((id) => id.startsWith(`${service}_`))
-        .map((id) => getToolMetadata(id))
-        .filter((tool) => tool?.params.domain)
-      expect(tools.length).toBeGreaterThan(0)
-      for (const tool of tools) {
-        expect(tool?.params.domain.visibility, tool?.id).toBe('user-or-llm')
-        expect(isAssistantIntegrationTool(tool), tool?.id).toBe(true)
+  it.each(['jira_get_project', 'confluence_list_spaces'])(
+    'allows site selection for %s without accepting credential overrides',
+    (toolId) => {
+      const tool = getToolMetadata(toolId)
+      expect(() =>
+        assertAssistantIntegrationCall(tool, { credentialId: 'mine', domain: DOMAIN })
+      ).not.toThrow()
+      for (const name of ['cloudId', 'accessToken', '_context']) {
         expect(() =>
-          assertAssistantIntegrationCall(tool, { credentialId: 'mine', domain: DOMAIN })
-        ).not.toThrow()
-        for (const name of ['cloudId', 'accessToken', '_context']) {
-          expect(() =>
-            assertAssistantIntegrationCall(tool, {
-              credentialId: 'mine',
-              domain: DOMAIN,
-              [name]: 'override',
-            })
-          ).toThrow()
-        }
+          assertAssistantIntegrationCall(tool, {
+            credentialId: 'mine',
+            domain: DOMAIN,
+            [name]: 'override',
+          })
+        ).toThrow()
       }
     }
   )

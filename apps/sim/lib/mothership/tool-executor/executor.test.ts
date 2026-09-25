@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { slackGetUserTool } from '@/tools/slack/get_user'
 
 const { getToolEntry, isKnownTool, isSimExecuted, isClientExecuted } = vi.hoisted(() => ({
   getToolEntry: vi.fn(),
@@ -9,8 +10,9 @@ const { getToolEntry, isKnownTool, isSimExecuted, isClientExecuted } = vi.hoiste
   isClientExecuted: vi.fn(),
 }))
 
-const { executeAppTool, recordSecretUsage } = vi.hoisted(() => ({
+const { executeAppTool, recordSecretUsage, searchIntegrationToolsEnabled } = vi.hoisted(() => ({
   executeAppTool: vi.fn(),
+  searchIntegrationToolsEnabled: vi.fn(async () => true),
   recordSecretUsage: vi.fn(),
 }))
 
@@ -26,6 +28,15 @@ vi.mock('./router', () => ({
   isKnownTool,
   isSimExecuted,
   isClientExecuted,
+}))
+
+vi.mock('@/lib/mothership/feature-flags', () => ({
+  isSearchIntegrationToolsEnabled: searchIntegrationToolsEnabled,
+}))
+beforeEach(() => searchIntegrationToolsEnabled.mockResolvedValue(true))
+
+vi.mock('@/tools/metadata', () => ({
+  getToolMetadata: (id: string) => (id === slackGetUserTool.id ? slackGetUserTool : undefined),
 }))
 
 vi.mock('@/tools', () => ({
@@ -112,7 +123,7 @@ describe('copilot tool executor fallback', () => {
     )
     expect(result).toEqual({
       success: false,
-      error: 'Search Assistant uses scoped search and document reads for connected sources.',
+      error: 'This operation is not available in Search Assistant.',
     })
     expect(handler).not.toHaveBeenCalled()
     expect(executeAppTool).not.toHaveBeenCalled()
@@ -708,3 +719,29 @@ describe('organization direct tool targets', () => {
     expect(targets.environment).not.toHaveBeenCalled()
   })
 })
+
+it.each([{ organizationId: 'org-1' }, { workspaceId: 'ws-1' }])(
+  'stops a previously admitted Search integration call after flag revocation for %j',
+  async (scope) => {
+    isKnownTool.mockReturnValue(false)
+    isClientExecuted.mockReturnValue(false)
+    executeAppTool.mockResolvedValue({ success: true, output: { user: { id: 'U123' } } })
+    for (const enabled of [true, false, true]) {
+      searchIntegrationToolsEnabled.mockResolvedValue(enabled)
+      const result = await executeTool(
+        'slack_get_user',
+        { credentialId: 'own', userId: 'U123' },
+        {
+          userId: 'person',
+          requestMode: 'assistant',
+          ...scope,
+        }
+      )
+      expect(result).toEqual(
+        enabled
+          ? { success: true, output: { user: { id: 'U123' } } }
+          : { success: false, error: 'This operation is not available in Search Assistant.' }
+      )
+    }
+  }
+)

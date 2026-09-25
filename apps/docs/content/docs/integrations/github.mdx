@@ -3414,6 +3414,46 @@ List users who have starred a repository
 |   ↳ `repos_url` | string | Repos API URL |
 | `count` | number | Number of stargazers returned |
 
+### GitHub List Review Threads
+
+List one page of a pull request's review threads with their comments, plus the newest submitted review.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `owner` | string | Yes | Repository owner |
+| `repo` | string | Yes | Repository name |
+| `pullNumber` | number | Yes | Pull request number |
+| `threadsPerPage` | number | No | Review threads to fetch in this page \(1-100\) |
+| `commentsPerThread` | number | No | Comments to fetch per thread \(1-100\) |
+| `cursor` | string | No | Cursor from a previous page \(endCursor\) to continue from |
+| `apiKey` | string | Yes | GitHub API token with pull request read access |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `threads` | array | Review threads in this page |
+|   ↳ `id` | string | Review thread node ID |
+|   ↳ `isResolved` | boolean | Whether the thread is resolved |
+|   ↳ `path` | string | Repository-relative file path |
+|   ↳ `line` | number | Line the thread is anchored to |
+|   ↳ `commentsTotalCount` | number | Total comments on the thread; exceeds the fetched count when the thread was truncated |
+|   ↳ `comments` | array | Fetched comments, oldest first |
+|     ↳ `body` | string | Comment body |
+|     ↳ `authorAssociation` | string | Author's association with the repository \(OWNER, MEMBER, ...\) |
+|     ↳ `authorLogin` | string | Author login |
+|     ↳ `authorType` | string | Author GraphQL type \(User, Bot, Organization\) |
+| `totalCount` | number | Total review threads on the pull request |
+| `hasNextPage` | boolean | Whether more thread pages remain |
+| `endCursor` | string | Cursor to pass as `cursor` for the next page |
+| `latestReview` | object | Newest submitted review on the pull request |
+|   ↳ `state` | string | Review state |
+|   ↳ `submittedAt` | string | Submission timestamp |
+|   ↳ `authorLogin` | string | Reviewer login |
+|   ↳ `authorType` | string | Reviewer GraphQL type \(User, Bot\) |
+
 
 
 ## Triggers

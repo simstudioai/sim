@@ -42,7 +42,7 @@ import { ErrorExtractorId } from '@/tools/error-extractors'
 import { fileGetContentTool } from '@/tools/file/get'
 import { fileFetchTool } from '@/tools/file/parser'
 import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/execute'
-import { searchIssuesV2Tool } from '@/tools/github/search_issues'
+import { searchUsersV2Tool } from '@/tools/github/search_users'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
@@ -207,7 +207,7 @@ vi.mock('@/executor/handlers/workflow/custom-block-tool-runner', () => ({
 // Only the tools actually exercised in tests are provided.
 const mockRegistryTools: Record<string, any> = {
   slack_lists_items_list: slackListsItemsListTool,
-  github_search_issues_v2: searchIssuesV2Tool,
+  github_search_users_v2: searchUsersV2Tool,
   bitbucket_get_pipeline_step_log: bitbucketGetPipelineStepLogTool,
   deployed_block_executor: customBlockExecutorTool,
   workflow_executor: workflowExecutorTool,
@@ -7051,26 +7051,26 @@ describe('Live Search Assistant GitHub OAuth binding', () => {
       requestMode: 'assistant' as const,
     },
   })
-  it('executes the existing issue/PR counting tool using the selected personal OAuth account', async () => {
+  it('executes the existing user lookup tool using the selected personal OAuth account', async () => {
     const { getToolMetadata } = await import('@/tools/metadata')
     const { isLiveEnterpriseSearchEnabled } = await import('@/lib/core/config/env-flags')
     expect(isLiveEnterpriseSearchEnabled).toBe(true)
-    expect(getToolMetadata('github_search_issues_v2')).toMatchObject({
-      id: 'github_search_issues_v2',
+    expect(getToolMetadata('github_search_users_v2')).toMatchObject({
+      id: 'github_search_users_v2',
       params: { apiKey: { required: true } },
     })
     const params = {
       credentialId: 'own-account',
-      q: 'repo:simstudioai/sim is:pr author:icecrasher321',
+      q: 'icecrasher321 in:login',
     }
-    const result = await executeTool('github_search_issues_v2', params, options())
+    const result = await executeTool('github_search_users_v2', params, options())
     expect(result.success, result.error).toBe(true)
     expect(result.output).toMatchObject({ total_count: 137, incomplete_results: false })
     expect(mockResolveExecutorCredentialToken).toHaveBeenCalledWith(
       expect.objectContaining({
         credentialId: 'own-account',
         userId: 'person',
-        toolId: 'github_search_issues_v2',
+        toolId: 'github_search_users_v2',
         copilotExecutionContext: expect.objectContaining({ organizationId: 'org' }),
       })
     )
@@ -7086,8 +7086,8 @@ describe('Live Search Assistant GitHub OAuth binding', () => {
   })
   it('rejects model-supplied credentials before resolving any account or requesting GitHub', async () => {
     const result = await executeTool(
-      'github_search_issues_v2',
-      { credentialId: 'own-account', q: 'is:pr', apiKey: 'injected-admin-token' },
+      'github_search_users_v2',
+      { credentialId: 'own-account', q: 'icecrasher321', apiKey: 'injected-admin-token' },
       options()
     )
     expect(result.success).toBe(false)
