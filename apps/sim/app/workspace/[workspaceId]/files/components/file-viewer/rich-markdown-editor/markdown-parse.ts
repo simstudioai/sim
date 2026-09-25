@@ -352,10 +352,11 @@ export function serializeMarkdownBody(body: string): string {
  * editor applies — output identical to `editor.getMarkdown()`. The server-side collab-doc converter
  * uses this to project a Yjs doc back to markdown through the exact client engine (parity by
  * construction), so it must stay the single serialize path (do not inline `getMarkdown` elsewhere).
+ * Nothing listens to the scratchpad, so it emits no update, which would only defer core bookkeeping.
  */
 export function serializeDocToMarkdown(doc: JSONContent): string {
   const editor = parserEditor()
-  editor.commands.setContent(doc, { contentType: 'json' })
+  editor.commands.setContent(doc, { contentType: 'json', emitUpdate: false })
   return editor.getMarkdown()
 }
 
