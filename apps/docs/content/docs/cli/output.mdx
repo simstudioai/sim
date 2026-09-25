@@ -78,14 +78,14 @@ sim --output json logs get "$RUN_ID" --summary
 The summary includes execution status, the workflow's existing `finalOutput`,
 recorded failures (including handled errors), compact failing inputs and outputs,
 observed block statuses, and file metadata. It bounds trace traversal and field
-sizes, reports `truncated` when detail is omitted, and omits binary fields and data
-URLs. Use `--trace` or [output selectors](/cli/scripting#selecting-workflow-output)
-when you need more detail.
+sizes, reports `truncated` when detail is omitted, and omits recognized binary
+fields and base64 data URLs. Use `--trace` or
+[output selectors](/cli/scripting#selecting-workflow-output) when you need more detail.
 
-`--summary` asks the server to omit the saved workflow snapshot, then formats the
-remaining authorized log response locally; it still loads the trace. To omit
-only the snapshot, use `--no-include-workflow-state`. HTTP and hosted MCP callers
-can set `includeWorkflowState=false` on the log read.
+By default, `--summary` asks the server to omit the saved workflow snapshot, then
+formats the remaining authorized log response locally; it still loads the trace.
+To omit only the snapshot, use `--no-include-workflow-state`. HTTP and hosted MCP
+callers can set `includeWorkflowState=false` on the log read.
 
 Execution status describes the run, not the quality of its output or whether an
 external delivery succeeded. Inspect `finalOutput` and recorded tool failures
