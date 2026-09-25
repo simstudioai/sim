@@ -106,7 +106,7 @@ export const searchWorkspaceServerTool: BaseServerTool = {
                   })
             return {
               success: true,
-              message: `Found ${data.results.length} live results. Read documentIds for more content. ${CITATION_INSTRUCTION}`,
+              message: `Found ${data.results.length} live results. Read a documentId when its result text is cut off or more context is needed. ${CITATION_INSTRUCTION}`,
               data: {
                 ...data,
                 results: data.results.map((item) => ({

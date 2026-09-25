@@ -5948,7 +5948,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         },
         sortBy: {
           description:
-            'Live search ordering by relevance or the provider date used by startDate/endDate. Date sorting covers retrieved results; inspect partial coverage before claiming latest or earliest overall.',
+            'Live search ordering by relevance or the provider date used by startDate/endDate. Date sorting covers retrieved results; inspect partial coverage before claiming latest or earliest overall. Without search terms or dates, newest or oldest lists items up to now.',
           type: 'string',
           enum: ['relevance', 'newest', 'oldest'],
         },
@@ -6052,7 +6052,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         query: {
           default: '',
           description:
-            'Search terms, without dates already supplied as filters. May be empty for a live date-bounded listing.',
+            'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest.',
           type: 'string',
           maxLength: 2000,
         },

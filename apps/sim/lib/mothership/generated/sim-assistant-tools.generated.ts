@@ -139,7 +139,7 @@ export const workspaceSearchFiltersSchema = z.object({
     .enum(['relevance', 'newest', 'oldest'])
     .optional()
     .describe(
-      'Live search ordering by relevance or the provider date used by startDate/endDate. Date sorting covers retrieved results; inspect partial coverage before claiming latest or earliest overall.'
+      'Live search ordering by relevance or the provider date used by startDate/endDate. Date sorting covers retrieved results; inspect partial coverage before claiming latest or earliest overall. Without search terms or dates, newest or oldest lists items up to now.'
     ),
   source: z
     .string()
@@ -181,7 +181,7 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
       .max(2000)
       .default('')
       .describe(
-        'Search terms, without dates already supplied as filters. May be empty for a live date-bounded listing.'
+        'Search terms, without dates already supplied as filters. May be empty for a live listing with a date bound or sortBy newest or oldest.'
       ),
     topK: z
       .number()
@@ -194,18 +194,19 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
       ),
   })
   .superRefine((input, context) => {
-    if (
-      !input.query &&
-      !input.nativeQueries?.some((query) => query.query) &&
-      !input.startDate &&
-      !input.endDate &&
-      !input.modifiedAfter &&
-      !input.modifiedBefore
+    const bounded = Boolean(
+      input.startDate ||
+        input.endDate ||
+        input.modifiedAfter ||
+        input.modifiedBefore ||
+        input.sortBy === 'newest' ||
+        input.sortBy === 'oldest'
     )
+    if (!input.query && !input.nativeQueries?.some((query) => query.query) && !bounded)
       context.addIssue({
         code: 'custom',
         path: ['query'],
-        message: 'Supply search terms, a native query, or a date bound.',
+        message: 'Supply search terms, a native query, a date bound, or sortBy newest or oldest.',
       })
     if (
       input.startDate &&
@@ -217,17 +218,11 @@ export const searchWorkspaceInputSchema = workspaceSearchFiltersSchema
         path: ['endDate'],
         message: 'endDate must be after startDate.',
       })
-    if (
-      input.nativeQueries?.some((query) => !query.query) &&
-      !input.startDate &&
-      !input.endDate &&
-      !input.modifiedAfter &&
-      !input.modifiedBefore
-    )
+    if (input.nativeQueries?.some((query) => !query.query) && !bounded)
       context.addIssue({
         code: 'custom',
         path: ['nativeQueries'],
-        message: 'Empty native queries require a date bound.',
+        message: 'Empty native queries require a date bound or sortBy newest or oldest.',
       })
   })
 

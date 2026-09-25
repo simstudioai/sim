@@ -1,5 +1,6 @@
 /** @vitest-environment node */
 import { describe, expect, it, vi } from 'vitest'
+import { NativeSearchError } from '@/lib/sim-search/live/http'
 import { readSlack, searchSlack } from '@/lib/sim-search/live/slack'
 import {
   slackConversationName,
@@ -53,7 +54,13 @@ describe('Slack search presentation', () => {
               author_user_id: 'U1',
               content: '<@U2|Waleed> see <@U1>',
               permalink: 'https://sim.slack.com/archives/G123/p123456',
-              context_messages: { before: [{ text: '<@U1> hello' }] },
+              context_messages: {
+                before: [{ text: '<@U1> hello', user_id: 'U1' }],
+                after: [
+                  { text: 'thanks <@U8>', user_id: 'U8', author_name: 'Vik' },
+                  { text: 'same', user_id: 'U9' },
+                ],
+              },
             },
           ],
         },
@@ -68,10 +75,78 @@ describe('Slack search presentation', () => {
     expect(api.json).toHaveBeenCalledTimes(1)
     expect(result.documents[0]).toMatchObject({
       title: 'Group DM · Waleed, Sid',
-      content: '@Sid hello\n@Waleed see @Sid',
+      content: 'Sid: @Sid hello\nSid: @Waleed see @Sid\nVik: thanks @Vik\nSlack member: same',
       author: 'Sid',
       containerUrl: 'https://sim.slack.com/archives/G123',
     })
+  })
+  it('keeps a lone search match unlabeled, since its author is a separate field', async () => {
+    const api = {
+      json: vi.fn().mockResolvedValue({
+        ok: true,
+        results: {
+          messages: [
+            {
+              message_ts: '123.456',
+              channel_id: 'C1',
+              author_name: 'Sid',
+              author_user_id: 'U1',
+              content: 'hello',
+              permalink: 'https://sim.slack.com/archives/C1/p123456',
+            },
+          ],
+        },
+      }),
+      text: vi.fn(),
+    }
+    const result = await searchSlack(api, {
+      query: 'hello',
+      limit: 20,
+      scopes: ['search:read.public'],
+    })
+    expect(result.documents[0]).toMatchObject({ content: 'hello', author: 'Sid' })
+  })
+  it('names read authors from the directory and keeps the read when a lookup fails', async () => {
+    const api = {
+      json: vi.fn(async (path: string, options?: { query?: Record<string, string> }) => {
+        if (path === '/api/conversations.replies')
+          return {
+            ok: true,
+            messages: [
+              { text: 'hi <@U2>', user: 'U1' },
+              { text: 'hey', user: 'U2' },
+              { text: 'yo', user: 'U3' },
+              { text: 'again', user: 'U1' },
+            ],
+          }
+        if (path === '/api/chat.getPermalink')
+          return { ok: true, permalink: 'https://sim.slack.com/archives/D1/p123456' }
+        if (options?.query?.user === 'U1')
+          return { ok: true, user: { real_name: 'Siddharth', profile: { display_name: '' } } }
+        if (options?.query?.user === 'U2') return { ok: false, error: 'missing_scope' }
+        throw new NativeSearchError('rate_limited', 'Provider rate limit reached.')
+      }),
+      text: vi.fn(),
+    }
+    const result = await readSlack(api, '123.456', 'D1')
+    expect(result.content).toBe(
+      'Siddharth: hi @Slack member\nSlack member: hey\nSlack member: yo\nSiddharth: again'
+    )
+    expect(api.json.mock.calls.filter(([path]) => path === '/api/users.info')).toHaveLength(3)
+  })
+  it('does not let an aborted name lookup pass as a missing name', async () => {
+    const aborted = new DOMException('aborted', 'AbortError')
+    const api = {
+      json: vi.fn(async (path: string) => {
+        if (path === '/api/conversations.replies')
+          return { ok: true, messages: [{ text: 'hi', user: 'U1' }] }
+        if (path === '/api/chat.getPermalink')
+          return { ok: true, permalink: 'https://sim.slack.com/archives/D1/p123456' }
+        throw aborted
+      }),
+      text: vi.fn(),
+    }
+    await expect(readSlack(api, '123.456', 'D1')).rejects.toBe(aborted)
   })
   it('cleans a full message read without adding provider lookups', async () => {
     const api = {

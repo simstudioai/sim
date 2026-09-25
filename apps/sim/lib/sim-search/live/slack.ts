@@ -12,6 +12,11 @@ import type {
   NativeSearchInput,
 } from '@/lib/sim-search/live/types'
 
+/** Slack's own label for an account whose name is unavailable. */
+const SLACK_MEMBER = 'Slack member'
+/** Directory lookups one read may make; a DM or typical thread has only a few authors. */
+const MAX_AUTHOR_LOOKUPS = 10
+
 function slackResult(value: unknown) {
   const data = object(value)
   if (data.ok !== true) {
@@ -93,12 +98,31 @@ export async function searchSlack(
   const messages = array(object(data.results).messages)
   const users = new Map<string, string>()
   for (const message of messages) {
-    const id = string(message.author_user_id)
-    const name = string(message.author_name)
-    if (id && name) users.set(id, name)
+    const context = object(message.context_messages)
+    for (const [id, name] of [
+      [string(message.author_user_id), string(message.author_name)],
+      ...[...array(context.before), ...array(context.after)].map((m) => [
+        string(m.user_id),
+        string(m.author_name),
+      ]),
+    ])
+      if (id && name && !users.has(id)) users.set(id, name)
   }
   const documents = messages.map((message): NativeDocument => {
     const context = object(message.context_messages)
+    const before = array(context.before)
+    const after = array(context.after)
+    /** Surrounding messages come from several people, so each line names its author. */
+    const line = (author: string, text: string) =>
+      before.length || after.length ? `${author || SLACK_MEMBER}: ${text}` : text
+    const contextLine = (m: Record<string, unknown>) => {
+      const contextText = slackPlainText(string(m.text) || string(m.content), users)
+      return (
+        contextText &&
+        line(string(m.author_name) || users.get(string(m.user_id)) || '', contextText)
+      )
+    }
+    const text = slackPlainText(string(message.content), users)
     const ts = string(message.message_ts)
     const timestamp = Number(ts) * 1000
     return {
@@ -113,12 +137,11 @@ export async function searchSlack(
       containerUrl: slackConversationUrl(string(message.permalink), string(message.channel_id)),
       url: string(message.permalink),
       content: [
-        ...array(context.before).map((m) => string(m.text) || string(m.content)),
-        string(message.content),
-        ...array(context.after).map((m) => string(m.text) || string(m.content)),
+        ...before.map(contextLine),
+        text && line(string(message.author_name), text),
+        ...after.map(contextLine),
       ]
         .filter(Boolean)
-        .map((text) => slackPlainText(text, users))
         .join('\n'),
       author: string(message.author_name),
       ...(Number.isFinite(timestamp) && timestamp > 0
@@ -189,9 +212,10 @@ export async function readSlack(
     (threadId && !array(data.messages).some((message) => string(message.ts) === id))
   )
     throw new NativeSearchError('unavailable', 'The message is no longer accessible.')
-  const link = slackResult(
-    await client.json('/api/chat.getPermalink', { query: { channel, message_ts: id } })
-  )
+  const [link, authors] = await Promise.all([
+    client.json('/api/chat.getPermalink', { query: { channel, message_ts: id } }).then(slackResult),
+    slackAuthorNames(client, array(data.messages)),
+  ])
   return {
     id,
     container: channel,
@@ -205,9 +229,47 @@ export async function readSlack(
       array(data.messages)
         .map(
           (m) =>
-            `${string(object(m.user_profile).display_name) || string(object(m.user_profile).real_name) || 'Slack member'}: ${slackPlainText(string(m.text))}`
+            `${authors.get(string(m.user)) || string(m.username) || SLACK_MEMBER}: ${slackPlainText(string(m.text), authors)}`
         )
         .join('\n') +
       (data.has_more ? '\n[Thread continues; open the source for the remaining messages.]' : ''),
   }
+}
+
+/**
+ * Names the authors of read messages. conversations.replies identifies them only by user ID,
+ * so names come from an embedded profile when present, else users.info (users:read). A name
+ * that cannot be looked up keeps the generic label rather than failing the read.
+ */
+async function slackAuthorNames(
+  client: NativeClient,
+  messages: Record<string, unknown>[]
+): Promise<Map<string, string>> {
+  const names = new Map<string, string>()
+  for (const message of messages) {
+    const profile = object(message.user_profile)
+    const name = string(profile.display_name) || string(profile.real_name)
+    if (string(message.user) && name) names.set(string(message.user), name)
+  }
+  const unresolved = [
+    ...new Set(messages.map((message) => string(message.user)).filter(Boolean)),
+  ].filter((user) => !names.has(user))
+  await Promise.all(
+    unresolved.slice(0, MAX_AUTHOR_LOOKUPS).map(async (user) => {
+      const data = object(
+        await client.json('/api/users.info', { query: { user } }).catch((error: unknown) => {
+          if (error instanceof NativeSearchError) return undefined
+          throw error
+        })
+      )
+      const profile = object(object(data.user).profile)
+      const name =
+        data.ok === true &&
+        (string(profile.display_name) ||
+          string(profile.real_name) ||
+          string(object(data.user).real_name))
+      if (name) names.set(user, name)
+    })
+  )
+  return names
 }
