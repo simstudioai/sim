@@ -1018,6 +1018,7 @@ export async function movePointer(
   signal?: AbortSignal
 ): Promise<void> {
   const [start, ...rest] = [...path.via, to]
+  signal?.throwIfAborted()
   await moveMouse(contents, start.x, start.y)
   if (rest.length === 0) return
   const { points, stepDelayMs } = pointerPathSteps(
@@ -1026,8 +1027,8 @@ export async function movePointer(
     to
   )
   for (const point of points) {
-    signal?.throwIfAborted()
     await interruptibleSleep(stepDelayMs, signal)
+    signal?.throwIfAborted()
     await moveMouse(contents, point.x, point.y)
   }
 }
@@ -1161,7 +1162,8 @@ export async function dragPointer(
   contents: WebContents,
   from: ViewportPoint,
   to: ViewportPoint,
-  path: PointerPath = DIRECT_PATH
+  path: PointerPath = DIRECT_PATH,
+  signal?: AbortSignal
 ): Promise<{ nativeDragIntercepted: boolean }> {
   const { points, stepDelayMs } = pointerPathSteps(from, path, to)
   const interception: DragInterception = { intercepted: false, data: null }
@@ -1210,11 +1212,13 @@ export async function dragPointer(
     // register the drag before the pointer sweeps across the page.
     const heading = points[0] ?? to
     await dragMove(from.x + Math.sign(heading.x - from.x || 1) * 4, from.y + 2)
-    await sleep(stepDelayMs)
+    await interruptibleSleep(stepDelayMs, signal)
     for (const point of points) {
+      signal?.throwIfAborted()
       await dragMove(point.x, point.y)
-      await sleep(stepDelayMs)
+      await interruptibleSleep(stepDelayMs, signal)
     }
+    signal?.throwIfAborted()
     // Hold over the target so drop zones running enter/over animations settle
     // before the release lands.
     await sleep(120)

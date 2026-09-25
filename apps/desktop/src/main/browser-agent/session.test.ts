@@ -522,6 +522,20 @@ describe('browser-agent session', () => {
     expect(session.migrateBrowserScope('chat-real', 'occupied')).toBe(false)
   })
 
+  it('carries the agent tab registration through a scope migration', () => {
+    const first = session.withBrowserScope('pending:workspace', () => session.ensureTab())
+    expect(session.migrateBrowserScope('pending:workspace', 'chat-real')).toBe(true)
+    const removeChildView = (
+      win as unknown as { contentView: { removeChildView: ReturnType<typeof vi.fn> } }
+    ).contentView.removeChildView
+    removeChildView.mockClear()
+
+    // The migrated chat moves its agent to a new tab: the first stops being an agent tab.
+    session.withBrowserScope('chat-real', () => session.addAutomationTab())
+
+    expect(removeChildView).toHaveBeenCalledWith(first.view)
+  })
+
   it('retains a migrated provisional alias until the durable scope is disposed', () => {
     const tab = session.withBrowserScope('pending:workspace', () => session.ensureTab())
     expect(session.migrateBrowserScope('pending:workspace', 'chat-real')).toBe(true)

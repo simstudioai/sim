@@ -4684,6 +4684,11 @@ describe('credential protection', () => {
       elementId: 0,
       via: [{ x: 1, y: 2 }],
     })
+    const unroutedPace = await driver.executeTool('chat-test', 'browser_hover', {
+      x: 10,
+      y: 10,
+      durationMs: 800,
+    })
     const badPoint = await driver.executeTool('chat-test', 'browser_hover', {
       x: 10,
       y: 10,
@@ -4706,6 +4711,10 @@ describe('credential protection', () => {
     expect(elementHover).toMatchObject({
       ok: false,
       error: expect.stringContaining('coordinate hover'),
+    })
+    expect(unroutedPace).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('paces a hover route'),
     })
     expect(badPoint).toMatchObject({ ok: false, error: expect.stringContaining('via point') })
     expect(tooLong).toMatchObject({ ok: false, error: expect.stringContaining('durationMs') })

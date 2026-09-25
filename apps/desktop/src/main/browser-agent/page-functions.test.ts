@@ -667,6 +667,30 @@ describe('collectSnapshot', () => {
     })
   })
 
+  it('names the controls of an overlay built from a web component', () => {
+    document.body.innerHTML = `
+      <button aria-label="Checkout">Checkout</button>
+      <div id="banner" style="position: fixed"></div>`
+    const host = document.getElementById('banner') as HTMLDivElement
+    const shadow = host.attachShadow({ mode: 'open' })
+    shadow.innerHTML = '<p>We use cookies</p><button aria-label="Close banner">×</button>'
+    for (const element of [
+      ...Array.from(document.body.querySelectorAll('*')),
+      ...Array.from(shadow.querySelectorAll('*')),
+    ]) {
+      visible(element)
+    }
+    const outline = outlineOf(collectSnapshot())
+    const ref = refFor(outline, 'Checkout')
+    const notice = shadow.querySelector('p') as HTMLParagraphElement
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => notice })
+
+    expect(clickElement(ref, false)).toMatchObject({
+      error: 'obstructed',
+      blockerControls: [{ id: refFor(outline, 'Close banner'), name: 'Close banner' }],
+    })
+  })
+
   it('refuses a coordinate click when an overlay owns every hit point', () => {
     document.body.innerHTML =
       '<button aria-label="Delete draft">Delete</button><div aria-label="Confirmation overlay"></div>'

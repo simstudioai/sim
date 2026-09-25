@@ -4512,6 +4512,11 @@ async function executeToolInner(
         const x = requireNum(params, 'x')
         const y = requireNum(params, 'y')
         const path = pointerPath(params)
+        if (path.via.length === 0 && path.durationMs !== null) {
+          throw new ToolError(
+            'durationMs paces a hover route; pass via points for the pointer to travel through.'
+          )
+        }
         assertCurrentExecution()
         assertActiveContents(contents)
         const pointTarget = unwrapPageResult(
@@ -5000,7 +5005,7 @@ async function executeToolInner(
       assertActiveContents(contents, dragNavigationEpoch)
       let interception: { nativeDragIntercepted: boolean }
       try {
-        interception = await cdp.dragPointer(contents, from, to, path)
+        interception = await cdp.dragPointer(contents, from, to, path, signal)
       } catch (error) {
         throw new ToolError(
           `Native drag dispatch failed (${getErrorMessage(error)}). The pointer may have been mid-drag; take a fresh snapshot to see the page's current state before retrying.`

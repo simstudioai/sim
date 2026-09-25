@@ -155,6 +155,12 @@ export function activatePanelScope(scopeId: string | null): void {
 
 /** Retags an active pending scope without tearing down the compositor. */
 export function migratePanelScope(fromScopeId: string, toScopeId: string): void {
+  const agentView = agentViews.get(fromScopeId)
+  if (agentView) {
+    agentViews.delete(fromScopeId)
+    if (!agentViews.has(toScopeId)) agentViews.set(toScopeId, agentView)
+    else if (!isAgentView(agentView)) unparkView(agentView)
+  }
   if (activePanelScopeId !== fromScopeId) return
   activePanelScopeId = toScopeId
   panelCaptureGeneration++

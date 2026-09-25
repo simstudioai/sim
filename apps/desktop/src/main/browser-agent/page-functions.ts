@@ -98,15 +98,22 @@ export function installPageHelpers(): void {
    * fixed or sticky layer — so an ordinary element in the way never lists unrelated page controls.
    */
   window.__simAgentOverlayControls = (blocker: Element | null) => {
+    /** The parent across shadow boundaries, so overlays built from web components qualify. */
+    const composedParent = (element: Element): Element | null => {
+      if (element.parentElement) return element.parentElement
+      const root = element.getRootNode()
+      return 'host' in root ? (root.host as Element) : null
+    }
+    const tagOf = (element: Element): string => String(element.tagName).toUpperCase()
     let overlay: Element | null = null
-    for (let current = blocker; current && !overlay; current = current.parentElement) {
+    for (let current = blocker; current && !overlay; current = composedParent(current)) {
       const role = current.getAttribute('role')
       const position = current.ownerDocument.defaultView?.getComputedStyle(current).position
       if (
         role === 'dialog' ||
         role === 'alertdialog' ||
         current.getAttribute('aria-modal') === 'true' ||
-        current.tagName === 'DIALOG' ||
+        tagOf(current) === 'DIALOG' ||
         position === 'fixed' ||
         position === 'sticky'
       ) {
@@ -118,9 +125,17 @@ export function installPageHelpers(): void {
     const registry = window.__simAgentElements ?? []
     for (let id = 0; id < registry.length && controls.length < 4; id++) {
       const element = registry[id]
-      if (!element || !overlay.contains(element)) continue
+      let inOverlay = false
+      for (
+        let current: Element | null = element;
+        current && !inOverlay;
+        current = composedParent(current)
+      ) {
+        inOverlay = current === overlay
+      }
+      if (!inOverlay) continue
       const role = element.getAttribute('role')
-      const tag = element.tagName
+      const tag = tagOf(element)
       if (
         tag !== 'BUTTON' &&
         tag !== 'A' &&
