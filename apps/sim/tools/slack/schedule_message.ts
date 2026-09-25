@@ -51,7 +51,8 @@ export const slackScheduleMessageTool: ToolConfig<
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Message text to send (supports Slack mrkdwn formatting)',
+      description:
+        'Message text, required unless blocks are provided. With blocks, used for notifications and screen readers.',
     },
     blocks: {
       type: 'json',
@@ -80,7 +81,7 @@ export const slackScheduleMessageTool: ToolConfig<
         channel: params.channel?.trim(),
         post_at: params.postAt,
       }
-      if (params.text) {
+      if (params.text?.trim()) {
         body.text = params.text
       }
       if (params.blocks) {

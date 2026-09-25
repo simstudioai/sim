@@ -7,6 +7,7 @@ import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
 import { CsvParser } from '@/lib/file-parsers/csv-parser'
 import { FileParserError } from '@/lib/file-parsers/errors'
 import { XlsxParser } from '@/lib/file-parsers/xlsx-parser'
+import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import { extractIndexText } from '@/lib/workspace-files/search/extract'
 
 const {
@@ -106,6 +107,7 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  workspaceFileVfsPath: canonicalWorkspaceFilePath,
   fetchWorkspaceFileBuffer: (...args: unknown[]) => mockFetchWorkspaceFileBuffer(...args),
   getWorkspaceFileByName: (...args: unknown[]) => mockGetWorkspaceFileByName(...args),
   getWorkspaceFile: (...args: unknown[]) => mockGetWorkspaceFile(...args),

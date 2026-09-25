@@ -140,11 +140,18 @@ rather than returning part of what your code wrote.
 </Callout>
 
 <Callout type="warn">
-Returned files live with the execution rather than in your workspace, and a text
-file containing a resolved secret value is refused rather than returned — there is
-nowhere on an execution file to record that it carries one. Write such a file to a
-workspace path instead, or keep the secret out of the output.
+Returned workflow files live with the execution rather than in your workspace.
+A file containing a literal protected secret value is refused. Keep secrets out of
+returned files, or use an explicit workspace export that records their provenance.
 </Callout>
+
+When called directly with `sim tools execute function_execute`, generated files
+belong to the authenticated user and have `context: "copilot"`. Download one with
+`sim tools files download "<file.id>" --output-file ./result.txt` in the same
+workspace context. Direct calls also check filenames and refuse files whose
+secret provenance is uncertain, including binary output after a protected secret
+was used. For code that needs no secrets, pass `secretScope: "selected"` and
+`mountedSecrets: []` in the tool input.
 
 ## Language
 
@@ -156,6 +163,13 @@ JavaScript without imports runs in a fast local sandbox. JavaScript with `import
 | **Return a value** | `return { … }` | Assign `__sim_result__ = { … }` | Print `__SIM_RESULT__={…}` |
 | **HTTP requests** | `fetch()` built in | `requests` or `httpx` | `curl` or an installed CLI |
 | **Best for** | quick transforms and JSON | scripts, data science, charts, complex math | CLI workflows and system utilities |
+
+The fast local JavaScript runtime provides standard ECMAScript values, `fetch`,
+`console`, and Sim helpers. It does not provide Node/browser globals such as
+`process`, `Buffer`, `require`, `crypto`, `TextDecoder`, `atob`, or `setTimeout`.
+Code that needs Node APIs or timers must use the remote JavaScript runtime with
+an import, for example `import { setTimeout as delay } from 'node:timers/promises'`.
+Use `{{SECRET_NAME}}` for selected secrets in either runtime.
 
 <Callout type="info">
 Python and Shell require a remote sandbox. They are enabled by default on sim.ai;

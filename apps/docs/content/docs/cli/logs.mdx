@@ -31,7 +31,10 @@ sim logs get <runId> [options]
 
 | Option | Required | Description |
 | --- | --- | --- |
+| `--include-workflow-state` | No | Include the saved workflow snapshot. Set false to avoid loading and returning block configuration when inspecting a run. Other run fields are unchanged. |
+| `--no-include-workflow-state` | No | Send --include-workflow-state as false. |
 | `--trace` | No | Show expanded trace spans with inputs, outputs, errors, timing, and cost. |
+| `--summary` | No | Show bounded run diagnostics and final output; omit binary content and the workflow snapshot. |
 
 </CommandTable>
 

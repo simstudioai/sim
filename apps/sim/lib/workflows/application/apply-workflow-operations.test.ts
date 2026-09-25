@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   assertIdsUnclaimed: vi.fn(),
   collectGraphIds: vi.fn(),
   lintGraph: vi.fn(),
+  layoutImpact: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -75,6 +76,10 @@ vi.mock('@/lib/workflows/editing/validation', () => ({
 vi.mock('@/lib/workflows/editing/lint', () => ({
   collectWorkflowFieldIssues: () => [],
   collectDanglingBlockOutputReferences: () => [],
+  collectBranchDependentBlockOutputReferences: () => ({
+    issues: [],
+    check: { name: 'branch-output-references', status: 'partial', detail: 'Static branches only' },
+  }),
   lintEditedWorkflowState: mocks.lintGraph,
 }))
 vi.mock('@/lib/billing/core/subscription', () => ({
@@ -106,11 +111,7 @@ vi.mock('@/stores/workflows/workflow/validation', () => ({
 }))
 vi.mock('@/lib/workflows/autolayout', () => ({
   applyTargetedLayout: vi.fn(),
-  getTargetedLayoutImpact: () => ({
-    layoutBlockIds: [],
-    resizedBlockIds: [],
-    shiftSourceBlockIds: [],
-  }),
+  getTargetedLayoutImpact: mocks.layoutImpact,
   transferBlockHeights: vi.fn(),
 }))
 
@@ -203,6 +204,11 @@ describe('applyWorkflowOperations', () => {
     mocks.collectGraphIds.mockReturnValue(GRAPH_IDS)
     mocks.assertIdsUnclaimed.mockResolvedValue(undefined)
     mocks.lintGraph.mockReturnValue(EMPTY_GRAPH_LINT)
+    mocks.layoutImpact.mockReturnValue({
+      layoutBlockIds: [],
+      resizedBlockIds: [],
+      shiftSourceBlockIds: [],
+    })
   })
 
   /**
@@ -230,7 +236,7 @@ describe('applyWorkflowOperations', () => {
     expect(result.applied).toBe(1)
     expect(mocks.lintGraph).toHaveBeenCalledTimes(1)
     expect(mocks.lintGraph.mock.calls[0][0].blocks).not.toHaveProperty('block-2')
-    expect(result.lint).toEqual({
+    expect(result.lint).toMatchObject({
       ...EMPTY_GRAPH_LINT,
       orphanBlocks: [orphan],
       fieldIssues: [],
@@ -262,13 +268,19 @@ describe('applyWorkflowOperations', () => {
       expect(dry.mintedBlockIds).toEqual({})
       expect(dry.previewBlockIds).toEqual({ triage: 'preview-uuid' })
       expect(dry.warnings).toContain(DRY_RUN_PREVIEW_BLOCK_IDS_WARNING)
+      mocks.applyOperations.mockReturnValueOnce({
+        state: graph(),
+        validationErrors: [],
+        skippedItems: [],
+        mintedBlockIds: { triage: 'committed-uuid' },
+      })
 
       const committed = await applyWorkflowOperations.execute({
         principal: sessionPrincipal,
         input: { workflowId: 'workflow-1', operations },
       })
 
-      expect(committed.mintedBlockIds).toEqual({ triage: 'preview-uuid' })
+      expect(committed.mintedBlockIds).toEqual({ triage: 'committed-uuid' })
       expect(committed.previewBlockIds).toBeUndefined()
       expect(committed.warnings).not.toContain(DRY_RUN_PREVIEW_BLOCK_IDS_WARNING)
     })
@@ -434,7 +446,7 @@ describe('applyWorkflowOperations', () => {
     expect(mocks.replace).not.toHaveBeenCalled()
   })
 
-  it('honours a caller-supplied base graph only for a delegated principal', async () => {
+  it('honours a caller-supplied base graph for the delegated Copilot principal', async () => {
     const baseGraph = graph({ 'block-9': { ...BLOCK, id: 'block-9' } })
 
     await applyWorkflowOperations.execute({
@@ -443,34 +455,135 @@ describe('applyWorkflowOperations', () => {
     })
     expect(mocks.loadNormalized).not.toHaveBeenCalled()
     expect(mocks.applyOperations).toHaveBeenCalledWith(baseGraph, operations, null, true)
+  })
 
-    vi.clearAllMocks()
-    mocks.customBlocks.mockResolvedValue([])
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('write')
-    mocks.sandboxAccess.mockResolvedValue(true)
-    mocks.blockVisibility.mockResolvedValue({ revealed: [], disabled: [], previewTagged: [] })
-    mocks.permissionConfig.mockResolvedValue(null)
-    mocks.loadNormalized.mockResolvedValue(graph())
-    mocks.normalizeState.mockReturnValue({ state: graph(), warnings: [] })
-    mocks.preValidate.mockResolvedValue({ filteredOperations: operations, errors: [] })
-    mocks.applyOperations.mockReturnValue({
-      state: graph(),
-      validationErrors: [],
-      skippedItems: [],
-    })
-    mocks.collectReferences.mockResolvedValue([])
-    mocks.collectToolReferences.mockResolvedValue([])
-    mocks.validate.mockReturnValue({ valid: true, errors: [], warnings: [] })
-    mocks.replace.mockResolvedValue({ warnings: [], state: graph() })
-    mocks.needsRedeployment.mockResolvedValue(true)
+  it('loads the stored graph despite a caller-supplied base graph for a session principal', async () => {
+    const baseGraph = graph({ 'block-9': { ...BLOCK, id: 'block-9' } })
 
     await applyWorkflowOperations.execute({
       principal: sessionPrincipal,
       input: { workflowId: 'workflow-1', operations, baseGraph },
     })
-    expect(mocks.loadNormalized).toHaveBeenCalledWith('workflow-1')
-    expect(mocks.applyOperations).not.toHaveBeenCalledWith(baseGraph, operations, null, true)
+    expect(mocks.loadNormalized).toHaveBeenCalledWith('workflow-1', undefined, {
+      persistMigrations: false,
+    })
+    expect(mocks.applyOperations).toHaveBeenCalledWith(graph(), operations, null, false)
+  })
+
+  it('preserves positions, inputs, and edges for default-layout enablement-only edits', async () => {
+    const { getTargetedLayoutImpact } = await import('@/lib/workflows/autolayout/change-set')
+    mocks.layoutImpact.mockImplementationOnce(getTargetedLayoutImpact)
+    const before = {
+      ...graph({
+        'block-1': {
+          ...BLOCK,
+          position: { x: 120, y: 250 },
+          subBlocks: { input: { id: 'input', type: 'short-input', value: 'unchanged' } },
+        },
+        'block-2': { ...BLOCK, id: 'block-2', position: { x: 520, y: 310 } },
+      }),
+      edges: [
+        {
+          id: 'edge-1',
+          source: 'block-1',
+          target: 'block-2',
+          sourceHandle: 'source',
+          targetHandle: 'target',
+        },
+      ],
+    }
+    mocks.loadNormalized.mockResolvedValue(before)
+    mocks.normalizeState.mockReturnValue({ state: structuredClone(before), warnings: [] })
+    mocks.preValidate.mockResolvedValue({ filteredOperations: [], errors: [] })
+    mocks.applyOperations.mockReturnValue({
+      state: structuredClone(before),
+      validationErrors: [],
+      skippedItems: [],
+      mintedBlockIds: {},
+    })
+    const result = await applyWorkflowOperations.execute({
+      principal: sessionPrincipal,
+      input: {
+        workflowId: 'workflow-1',
+        operations: [],
+        blockEnabledChanges: [{ blockId: 'block-1', enabled: false }],
+      },
+    })
+    expect(mocks.layoutImpact).toHaveReturnedWith({
+      layoutBlockIds: [],
+      resizedBlockIds: [],
+      shiftSourceBlockIds: [],
+    })
+    expect(result.graph).toEqual({
+      ...before,
+      blocks: { ...before.blocks, 'block-1': { ...before.blocks['block-1'], enabled: false } },
+    })
+    expect(before.blocks['block-1'].enabled).toBe(true)
+    expect(result.applied).toBe(1)
+  })
+
+  it.each([false, true])('supports enablement-only batches with dryRun=%s', async (dryRun) => {
+    mocks.preValidate.mockResolvedValue({ filteredOperations: [], errors: [] })
+    const result = await applyWorkflowOperations.execute({
+      principal: sessionPrincipal,
+      input: {
+        workflowId: 'workflow-1',
+        operations: [],
+        layout: 'none',
+        dryRun,
+        blockEnabledChanges: [{ blockId: 'block-1', enabled: false }],
+      },
+    })
+    expect(result.applied).toBe(1)
+    expect(result.operationCount).toBe(0)
+    expect(result.graph.blocks['block-1'].enabled).toBe(false)
+    expect(result.skipped).toEqual([])
+    expect(mocks.applyOperations).toHaveBeenCalledWith(expect.anything(), [], null, false)
+    expect(mocks.loadNormalized).toHaveBeenCalledWith('workflow-1', undefined, {
+      persistMigrations: false,
+    })
+    expect(mocks.replace).toHaveBeenCalledTimes(dryRun ? 0 : 1)
+    expect(mocks.recordAudit).toHaveBeenCalledTimes(dryRun ? 0 : 1)
+    expect(mocks.notify).toHaveBeenCalledTimes(dryRun ? 0 : 1)
+  })
+
+  it.each([false, true])(
+    'preserves atomic refusal for enablement-only locked blocks with dryRun=%s',
+    async (dryRun) => {
+      mocks.preValidate.mockResolvedValue({ filteredOperations: [], errors: [] })
+      mocks.applyOperations.mockReturnValue({
+        state: graph({ 'block-1': { ...BLOCK, locked: true } }),
+        validationErrors: [],
+        skippedItems: [],
+        mintedBlockIds: {},
+      })
+      await expect(
+        applyWorkflowOperations.execute({
+          principal: sessionPrincipal,
+          input: {
+            workflowId: 'workflow-1',
+            operations: [],
+            atomic: true,
+            dryRun,
+            blockEnabledChanges: [{ blockId: 'block-1', enabled: false }],
+          },
+        })
+      ).rejects.toBeInstanceOf(WorkflowOperationsNotAppliedError)
+      expect(mocks.replace).not.toHaveBeenCalled()
+      expect(mocks.recordAudit).not.toHaveBeenCalled()
+      expect(mocks.notify).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rejects a batch with neither graph edits nor enablement changes', async () => {
+    await expect(
+      applyWorkflowOperations.execute({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', operations: [], blockEnabledChanges: [] },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.loadNormalized).not.toHaveBeenCalled()
+    expect(mocks.replace).not.toHaveBeenCalled()
   })
 
   it('applies the block enablement slice and declines a locked block as a skipped item', async () => {

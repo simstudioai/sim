@@ -225,6 +225,8 @@ Compress one or more workspace files into a single .zip archive stored in the wo
 | `folderPaths` | array | No | Folders whose files are included, as canonical percent-encoded paths, e.g. \["/Reports/Q3%20Results"\]. Nested folders are included by default, and the folders are read at run time, so a file added later is picked up. |
 | `includeSubfolders` | boolean | No | Whether nested folders are read too. Defaults to true; set false to take only the folders’ direct files. |
 | `archiveName` | string | No | Name for the .zip archive \(e.g., "documents.zip"\). Defaults to the source file name when compressing a single file, otherwise "archive.zip". |
+| `folderPath` | string | No | Existing destination folder as a canonical percent-encoded path, e.g. "/Generated/Archives". Defaults to the workspace root. Create the folder first with file_create_folder. |
+| `onConflict` | string | No | Name collision behavior: "rename" \(default\) chooses an available name; "error" refuses an existing name. Existing files are never overwritten. |
 
 #### Output
 
@@ -234,6 +236,7 @@ Compress one or more workspace files into a single .zip archive stored in the wo
 | `name` | string | Compressed archive file name |
 | `size` | number | Compressed archive size in bytes |
 | `url` | string | URL to access the compressed archive |
+| `path` | string | Final workspace filesystem path, including the stored name |
 | `files` | file[] | Compressed archive file object, as a single-item array |
 
 ### File Decompress

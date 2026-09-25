@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { credential, credentialMember, member, workspace } from '@sim/db/schema'
+import { account, credential, credentialMember, member, workspace } from '@sim/db/schema'
 import { and, eq, inArray, isNotNull, notInArray, or, sql } from 'drizzle-orm'
 import type { V2CredentialSortBy } from '@/lib/api/contracts/v2/credentials'
 import {
@@ -412,6 +412,16 @@ export async function getCredentialById(credentialId: string): Promise<Credentia
         notInArray(credential.type, ['managed_oauth', 'managed_mcp'])
       )
     )
+    .limit(1)
+  return row ?? null
+}
+
+/** Non-secret columns for the account linked by an already-authorized credential. */
+export async function readCredentialAccountMetadata(accountId: string, providerId: string) {
+  const [row] = await db
+    .select({ externalAccountId: account.accountId, scope: account.scope })
+    .from(account)
+    .where(and(eq(account.id, accountId), eq(account.providerId, providerId)))
     .limit(1)
   return row ?? null
 }

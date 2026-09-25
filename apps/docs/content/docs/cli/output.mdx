@@ -59,12 +59,65 @@ with span inputs, outputs, errors, timing, and cost:
 sim logs get 9c4f0b7e-2d81-4a35-b6e9-70f1c8a2d543 --trace
 ```
 
-`json` and `yaml` always carry the complete response, so `--trace` is a no-op
-there:
+By default, `json` and `yaml` carry the complete response, so `--trace` does not
+change their output:
 
 ```bash
 sim logs get 9c4f0b7e-2d81-4a35-b6e9-70f1c8a2d543 --output json | jq '.traceSpans'
 ```
+
+### Compact run summaries
+
+Use `--summary` to inspect a run without printing its full trace and workflow
+snapshot:
+
+```bash
+sim --output json logs get "$RUN_ID" --summary
+```
+
+The summary includes execution status, the workflow's existing `finalOutput`,
+recorded failures (including handled errors), compact failing inputs and outputs,
+observed block statuses, and file metadata. It bounds trace traversal and field
+sizes, reports `truncated` when detail is omitted, and omits recognized binary
+fields and base64 data URLs. Use `--trace` or
+[output selectors](/cli/scripting#selecting-workflow-output) when you need more detail.
+
+By default, `--summary` asks the server to omit the saved workflow snapshot, then
+formats the remaining authorized log response locally; it still loads the trace.
+To omit only the snapshot, use `--no-include-workflow-state`. HTTP and hosted MCP
+callers can set `includeWorkflowState=false` on the log read.
+
+Execution status describes the run, not the quality of its output or whether an
+external delivery succeeded. Inspect `finalOutput` and recorded tool failures
+before treating a completed run as a successful result. Expired trace data can
+leave no block-level evidence. Find failures that a workflow recovered from with
+`sim logs list --level error --include-handled-errors`.
+
+The log's `cost` includes a reconciled total and itemized `fixed`, `model`, and
+`tool` charges when a ledger is available.
+
+## Downloading output files
+
+Tools that store files return descriptors containing file IDs and metadata,
+rather than inline base64. Download a personal output from a direct tool call
+(`context: copilot`) with:
+
+```bash
+sim tools files download "$FILE_ID" -o ./attachment.pdf
+```
+
+For a workflow output, use the workflow and run that produced it:
+
+```bash
+sim workflows runs files download "$WORKFLOW_ID" "$RUN_ID" "$FILE_ID" -o ./attachment.pdf
+```
+
+These commands authenticate with the configured Sim credential and stream to
+disk. Direct personal outputs require their original human owner and current
+workspace access; workflow outputs use the run's access checks. A descriptor's
+URL or storage key alone grants no access. Output files can expire; copy durable
+artifacts into workspace files. See the [tool file](/cli/tools#download-a-direct-tool-output-owned-by-the-current-user)
+and [run file](/cli/workflows#download-a-workflow-run-output-file) command references.
 
 ## Exceptions
 

@@ -16,6 +16,60 @@ describe('executeAnthropicProviderRequest request identity and usage', () => {
     mockExecuteTool.mockReset()
   })
 
+  it.each([
+    ['anthropic', false],
+    ['anthropic', true],
+    ['azure-anthropic', false],
+    ['azure-anthropic', true],
+  ] as const)(
+    'preserves authoritative tool success for %s responses when success=%s',
+    async (providerId, success) => {
+      mockExecuteTool.mockResolvedValue(
+        success
+          ? { success: true, output: { error: true, message: 'An error record returned as data' } }
+          : { success: false, error: 'Search credits exhausted', output: {} }
+      )
+      const create = vi
+        .fn()
+        .mockResolvedValueOnce({
+          content: [{ type: 'tool_use', id: 'search-1', name: 'exa_search', input: {} }],
+          stop_reason: 'tool_use',
+          usage: { input_tokens: 2, output_tokens: 2 },
+        })
+        .mockResolvedValueOnce({
+          content: [{ type: 'text', text: 'Handled tool result' }],
+          stop_reason: 'end_turn',
+          usage: { input_tokens: 2, output_tokens: 2 },
+        })
+      const result = (await executeAnthropicProviderRequest(
+        {
+          model: 'claude-sonnet-4-5',
+          apiKey: 'test-key',
+          stream: false,
+          maxTokens: 1024,
+          messages: [{ role: 'user', content: 'Research' }],
+          tools: [
+            {
+              id: 'exa_search',
+              description: 'Search',
+              params: {},
+              parameters: { type: 'object', properties: {}, required: [] },
+            },
+          ],
+        },
+        {
+          providerId,
+          providerLabel: providerId,
+          createClient: () => ({ messages: { create } }) as never,
+          logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+        }
+      )) as ProviderResponse
+
+      expect(result.toolCalls).toHaveLength(1)
+      expect(result.toolCalls![0].success).toBe(success)
+    }
+  )
+
   it('keeps registry identity while sending the resolved wire model and aggregating cache usage', async () => {
     const create = vi.fn().mockResolvedValue({
       id: 'msg-test',

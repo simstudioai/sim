@@ -383,6 +383,16 @@
               "pattern": "^[A-Za-z0-9._:-]+$",
               "description": "Unique workflow run identifier."
             }
+          },
+          {
+            "name": "includeWorkflowState",
+            "in": "query",
+            "required": false,
+            "description": "Include the saved workflow snapshot. Set false to avoid loading and returning block configuration when inspecting a run. Other run fields are unchanged.",
+            "schema": {
+              "description": "Include the saved workflow snapshot. Set false to avoid loading and returning block configuration when inspecting a run. Other run fields are unchanged.",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -1602,7 +1612,7 @@
                 "type": "null"
               }
             ],
-            "description": "Workflow graph captured for the run, or null if unavailable. Sensitive values are redacted to null; environment-variable references may be preserved."
+            "description": "Credential-redacted workflow snapshot, or null when unavailable or includeWorkflowState=false."
           },
           "traceSpans": {
             "type": "array",

@@ -18,11 +18,13 @@ const mocks = vi.hoisted(() => ({
   executeRegistryTool: vi.fn(),
   executeFileManage: vi.fn(),
   resolveBillingAttribution: vi.fn(),
+  checkExecutionUsageLimits: vi.fn(),
   recordUsage: vi.fn(),
 }))
 
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
+  resolveActiveWorkspaceApplicationContext: mocks.loadWorkspace,
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -99,15 +101,24 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 }))
 
 vi.mock('@/lib/billing/core/usage-log', () => ({ recordUsage: mocks.recordUsage }))
+vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
+  checkExecutionUsageLimits: mocks.checkExecutionUsageLimits,
+}))
 
 import { executeFileTool } from '@/lib/internal/file/execute-tool'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { executeToolForCaller } from '@/lib/tool-execution/application/execute-tool'
 import type { BlockConfig } from '@/blocks/types'
+import { fileMoveTool } from '@/tools/file/folders'
 import { fileReadTool } from '@/tools/file/get'
+import { functionExecuteTool } from '@/tools/function/execute'
+import { slackUpdateMessageTool } from '@/tools/slack/update_message'
 
 const TOOL_METADATA: Record<string, Record<string, unknown>> = {
+  function_execute: { ...functionExecuteTool },
+  slack_update_message: { ...slackUpdateMessageTool },
   file_read: { ...fileReadTool },
+  file_move: { ...fileMoveTool },
   slack_message: {
     id: 'slack_message',
     name: 'Slack Send Message',
@@ -187,8 +198,11 @@ function block(overrides: Partial<BlockConfig> & { type: string }): BlockConfig 
   } as BlockConfig
 }
 
-const fileBlock = block({ type: 'file_v5', tools: { access: ['file_read'] } })
-const slackBlock = block({ type: 'slack', tools: { access: ['slack_message'] } })
+const fileBlock = block({ type: 'file_v5', tools: { access: ['file_read', 'file_move'] } })
+const slackBlock = block({
+  type: 'slack',
+  tools: { access: ['slack_message', 'slack_update_message'] },
+})
 const firecrawlBlock = block({ type: 'firecrawl', tools: { access: ['firecrawl_scrape'] } })
 const previewBlock = block({
   type: 'preview_thing',
@@ -229,6 +243,7 @@ describe('executeToolForCaller', () => {
     mocks.isDeploymentAvailable.mockReturnValue(true)
     mocks.getAllBlocks.mockReturnValue([
       fileBlock,
+      block({ type: 'function', tools: { access: ['function_execute'] } }),
       slackBlock,
       firecrawlBlock,
       previewBlock,
@@ -239,6 +254,7 @@ describe('executeToolForCaller', () => {
     ])
     mocks.executeRegistryTool.mockResolvedValue({ success: true, output: { markdown: '# Hi' } })
     mocks.resolveBillingAttribution.mockResolvedValue({ workspaceId: WORKSPACE_ID })
+    mocks.checkExecutionUsageLimits.mockResolvedValue({ isExceeded: false })
   })
 
   it.each<PersonalApiKeyPrincipal | SessionPrincipal>([
@@ -281,15 +297,118 @@ describe('executeToolForCaller', () => {
     expect(mocks.executeFileManage.mock.calls[0]?.[1].principal).toBe(caller)
   })
 
-  it.each(['callerPrincipal', 'principal', 'operationContext', '_context'])(
-    'rejects caller input attempting to supply %s authority',
-    async (key) => {
-      await expect(
-        run({ input: { url: 'https://a.co', [key]: { callerPrincipal: principal } } })
-      ).rejects.toMatchObject({ code: 'validation' })
-      expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+  it('refuses direct Function execution before dispatch when usage admission denies it', async () => {
+    mocks.checkExecutionUsageLimits.mockResolvedValueOnce({
+      isExceeded: true,
+      scope: 'payer',
+      message: 'Organization usage limit exceeded',
+    })
+    await expect(
+      run({ toolId: 'function_execute', input: { code: 'return 1' } })
+    ).rejects.toMatchObject({
+      name: 'ToolExecutionUsageLimitError',
+      message: 'Organization usage limit exceeded',
+    })
+    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+    expect(mocks.recordUsage).not.toHaveBeenCalled()
+  })
+
+  it('fails closed without provider dispatch or metering when Function usage admission is unavailable', async () => {
+    mocks.checkExecutionUsageLimits.mockRejectedValueOnce(new Error('ledger unavailable'))
+    await expect(run({ toolId: 'function_execute', input: { code: 'return 1' } })).rejects.toThrow(
+      'ledger unavailable'
+    )
+    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+    expect(mocks.recordUsage).not.toHaveBeenCalled()
+  })
+
+  it.each([true, false])(
+    'meters actual direct Function sandbox cost when success=%s',
+    async (success) => {
+      mocks.executeRegistryTool.mockResolvedValueOnce({
+        success,
+        output: { result: null, cost: { input: 0, output: 0, total: 0.25 } },
+        ...(success ? {} : { error: 'Code failed' }),
+      })
+      await executeToolForCaller.execute({
+        principal,
+        input: {
+          workspaceId: WORKSPACE_ID,
+          toolId: 'function_execute',
+          input: { code: 'return 1' },
+        },
+      })
+      expect(mocks.recordUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-1',
+          workspaceId: WORKSPACE_ID,
+          entries: [
+            expect.objectContaining({
+              cost: 0.25,
+              source: 'api-tool',
+              description: 'Tool call: function_execute',
+            }),
+          ],
+        })
+      )
     }
   )
+
+  it('dispatches file_move with the authenticated principal and preserves its destination', async () => {
+    mocks.executeFileManage.mockResolvedValue(
+      Response.json({
+        success: true,
+        data: { fileId: 'file-1', folderPath: '/Generated' },
+      })
+    )
+    mocks.executeRegistryTool.mockImplementationOnce(
+      async (
+        toolId: string,
+        params: Parameters<typeof fileMoveTool.operation.input>[0],
+        options: { operationContext: InternalToolOperationContext }
+      ) =>
+        fileMoveTool.transformResponse?.(
+          await executeFileTool({
+            toolId,
+            input: fileMoveTool.operation.input(params),
+            context: options.operationContext,
+            headers: new Headers(),
+            requestId: 'direct-file-move',
+          })
+        )
+    )
+
+    const result = await run({
+      toolId: 'file_move',
+      input: { fileId: 'file-1', folderPath: '/Generated' },
+    })
+    expect(result).toMatchObject({
+      status: 'succeeded',
+      output: { fileId: 'file-1', folderPath: '/Generated' },
+    })
+    expect(mocks.executeFileManage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: 'move',
+        fileId: 'file-1',
+        folderPath: '/Generated',
+      }),
+      expect.objectContaining({ principal, workspaceId: WORKSPACE_ID })
+    )
+  })
+
+  it.each([
+    'callerPrincipal',
+    'principal',
+    'operationContext',
+    'executorDelegationOrigin',
+    'meterSandboxUsage',
+    '_context',
+  ])('rejects caller input attempting to supply %s authority', async (key) => {
+    await expect(
+      run({ input: { url: 'https://a.co', [key]: { callerPrincipal: principal } } })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+  })
 
   it('acts as the authenticated caller and enforces credential access', async () => {
     await run({ input: { url: 'https://example.com' } })
@@ -353,6 +472,96 @@ describe('executeToolForCaller', () => {
 
   it('requires a credential for an OAuth tool before it dispatches', async () => {
     await expect(run({ toolId: 'slack_message', input: { text: 'hi' } })).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('credentialId is required'),
+    })
+    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+  })
+
+  it.each([undefined, 'unused-oauth-credential'])(
+    'honors explicit Slack bot-token mode without resolving credential %s',
+    async (credentialId) => {
+      const input = {
+        authMethod: 'bot_token',
+        botToken: '{{SLACK_BOT_TOKEN}}',
+        channel: 'channel-1',
+        timestamp: '123.456',
+        text: 'Updated',
+      }
+      await run({ toolId: 'slack_update_message', input, credentialId })
+      const [, params, options] = mocks.executeRegistryTool.mock.calls[0]
+      expect(params).toMatchObject(input)
+      expect(params).not.toHaveProperty('credential')
+      expect(params).not.toHaveProperty('accessToken')
+      expect(params._context).toMatchObject({
+        userId: principal.userId,
+        workspaceId: WORKSPACE_ID,
+        enforceCredentialAccess: true,
+        envReferenceMode: 'explicit',
+      })
+      expect(options.operationContext.callerPrincipal).toBe(principal)
+      expect(input.botToken).toBe('{{SLACK_BOT_TOKEN}}')
+    }
+  )
+
+  it.each([undefined, 'oauth'])(
+    'drops inactive Slack bot secrets when selecting OAuth mode %s',
+    async (authMethod) => {
+      await run({
+        toolId: 'slack_update_message',
+        credentialId: 'selected-credential',
+        input: {
+          authMethod,
+          botToken: '{{UNUSED_SECRET}}',
+          channel: 'channel-1',
+          timestamp: '123.456',
+          text: 'Updated',
+        },
+      })
+      const [, params] = mocks.executeRegistryTool.mock.calls[0]
+      expect(params.credential).toBe('selected-credential')
+      expect(params).not.toHaveProperty('botToken')
+    }
+  )
+
+  it.each([undefined, '', ' ', 123])(
+    'rejects missing or invalid selected botToken %s',
+    async (botToken) => {
+      await expect(
+        run({
+          toolId: 'slack_update_message',
+          credentialId: 'unused-credential',
+          input: { authMethod: 'bot_token', botToken, channel: 'channel-1', timestamp: '123.456' },
+        })
+      ).rejects.toMatchObject({
+        code: 'validation',
+        message: expect.stringContaining('input.botToken'),
+      })
+      expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rejects an invalid Slack auth mode without reflecting its value', async () => {
+    await expect(
+      run({
+        toolId: 'slack_update_message',
+        credentialId: 'credential-1',
+        input: { authMethod: 'private-invalid-value', channel: 'channel-1', timestamp: '123.456' },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: 'input.authMethod must be oauth or bot_token',
+    })
+    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+  })
+
+  it('does not silently choose a bot token when OAuth is the default', async () => {
+    await expect(
+      run({
+        toolId: 'slack_update_message',
+        input: { botToken: '{{TOKEN}}', channel: 'channel-1', timestamp: '123.456' },
+      })
+    ).rejects.toMatchObject({
       code: 'validation',
       message: expect.stringContaining('credentialId is required'),
     })

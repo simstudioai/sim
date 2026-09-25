@@ -72,6 +72,31 @@ const MESSAGE_BODY_FIELD = ['text', 'blocks'] as const
  */
 const SLACK_TRIGGER_CHANNEL_FIELD = ['channelFilter', 'manualChannelFilter'] as const
 
+function getSlackChannelCondition(values?: Record<string, unknown>) {
+  if (DESTINATION_SWITCH_OPERATIONS.some((operation) => operation === values?.operation)) {
+    return { field: 'destinationType', value: 'dm', not: true }
+  }
+  return {
+    field: 'operation',
+    value: [
+      'list_channels',
+      'list_users',
+      'get_user',
+      'get_user_presence',
+      'edit_canvas',
+      'get_canvas',
+      'lookup_canvas_sections',
+      'delete_canvas',
+      'create_conversation',
+      'open_view',
+      'update_view',
+      'push_view',
+      'publish_view',
+    ],
+    not: true,
+  }
+}
+
 export const SlackBlock: BlockConfig<SlackResponse> = {
   type: 'slack',
   name: 'Slack',
@@ -467,45 +492,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       placeholder: 'Select Slack channel',
       mode: 'basic',
       dependsOn: { all: ['authMethod'], any: ['credential', 'botToken', 'customBotCredential'] },
-      condition: (values?: Record<string, unknown>) => {
-        const op = values?.operation as string
-        if (op === 'ephemeral') {
-          return { field: 'operation', value: 'ephemeral' }
-        }
-        /*
-         * Only the three operations that offer the channel/DM switch defer to
-         * it. Deferring everywhere left a stale `destinationType: 'dm'` — set
-         * under `send`, never cleared by an operation change — hiding the
-         * channel field on operations that have no DM mode at all, so their
-         * cards silently lost their only clause.
-         */
-        if (DESTINATION_SWITCH_OPERATIONS.includes(op as never)) {
-          return {
-            field: 'destinationType',
-            value: 'dm',
-            not: true,
-          }
-        }
-        return {
-          field: 'operation',
-          value: [
-            'list_channels',
-            'list_users',
-            'get_user',
-            'get_user_presence',
-            'edit_canvas',
-            'get_canvas',
-            'lookup_canvas_sections',
-            'delete_canvas',
-            'create_conversation',
-            'open_view',
-            'update_view',
-            'push_view',
-            'publish_view',
-          ],
-          not: true,
-        }
-      },
+      condition: getSlackChannelCondition,
       required: {
         field: 'operation',
         value: ['list_canvases', 'list_scheduled_messages'],
@@ -520,36 +507,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       placeholder: 'Enter Slack channel ID (e.g., C1234567890)',
       dependsOn: { all: ['authMethod'], any: ['credential', 'botToken', 'customBotCredential'] },
       mode: 'advanced',
-      condition: (values?: Record<string, unknown>) => {
-        const op = values?.operation as string
-        if (op === 'ephemeral') {
-          return { field: 'operation', value: 'ephemeral' }
-        }
-        return {
-          field: 'operation',
-          value: [
-            'list_channels',
-            'list_users',
-            'get_user',
-            'get_user_presence',
-            'edit_canvas',
-            'get_canvas',
-            'lookup_canvas_sections',
-            'delete_canvas',
-            'create_conversation',
-            'open_view',
-            'update_view',
-            'push_view',
-            'publish_view',
-          ],
-          not: true,
-          and: {
-            field: 'destinationType',
-            value: 'dm',
-            not: true,
-          },
-        }
-      },
+      condition: getSlackChannelCondition,
       required: {
         field: 'operation',
         value: ['list_canvases', 'list_scheduled_messages'],
@@ -634,11 +592,10 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       id: 'text',
       title: 'Message',
       type: 'long-input',
-      placeholder: 'Enter your message (supports Slack mrkdwn)',
+      placeholder: 'Message text; optional notification and accessibility fallback for Block Kit',
       condition: {
         field: 'operation',
         value: ['send', 'ephemeral', 'schedule_message'],
-        and: { field: 'messageFormat', value: 'blocks', not: true },
       },
       required: {
         field: 'operation',
@@ -1159,11 +1116,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'updateText',
       title: 'New Message Text',
       type: 'long-input',
-      placeholder: 'Enter new message text (supports Slack mrkdwn)',
+      placeholder: 'New text; optional notification and accessibility fallback for Block Kit',
       condition: {
         field: 'operation',
         value: 'update',
-        and: { field: 'messageFormat', value: 'blocks', not: true },
       },
       required: {
         field: 'operation',
@@ -1925,7 +1881,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
           destinationType,
           channel,
           dmUserId,
-          messageFormat,
           text,
           title,
           content,
@@ -2037,7 +1992,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
 
         switch (operation) {
           case 'send': {
-            baseParams.text = messageFormat === 'blocks' && !text ? ' ' : text
+            baseParams.text = text
             if (threadTs) {
               baseParams.threadTs = threadTs
             }
@@ -2053,7 +2008,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
           }
 
           case 'ephemeral': {
-            baseParams.text = messageFormat === 'blocks' && !text ? ' ' : text
+            baseParams.text = text
             baseParams.user = ephemeralUser ? String(ephemeralUser).trim() : ''
             if (threadTs) {
               baseParams.threadTs = threadTs
@@ -2204,7 +2159,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
 
           case 'update':
             baseParams.timestamp = updateTimestamp
-            baseParams.text = messageFormat === 'blocks' && !updateText ? ' ' : updateText
+            baseParams.text = updateText
             if (blocks) {
               baseParams.blocks = blocks
             }
@@ -2346,7 +2301,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
             break
 
           case 'schedule_message': {
-            baseParams.text = messageFormat === 'blocks' && !text ? ' ' : text
+            baseParams.text = text
             if (blocks) {
               baseParams.blocks = blocks
             }

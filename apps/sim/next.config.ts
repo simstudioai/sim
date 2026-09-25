@@ -92,6 +92,9 @@ const nextConfig: NextConfig = {
   output: isTruthy(env.DOCKER_BUILD) ? 'standalone' : undefined,
   serverExternalPackages: [
     '@1password/sdk',
+    /** These Node credential providers produce colliding chunks in Turbopack 16.3.x. */
+    '@aws-sdk/credential-provider-login',
+    '@aws-sdk/credential-provider-web-identity',
     'ws',
     'isolated-vm',
     '@e2b/code-interpreter',

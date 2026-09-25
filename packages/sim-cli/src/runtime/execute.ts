@@ -414,6 +414,10 @@ export async function executeOperation(
   assertCapIsUsable(operation, requestFlags)
   assertSelectorIsUsable(operation, requestFlags)
 
+  if (operation === 'getLog' && requestFlags.summary === true) {
+    requestFlags.includeWorkflowState ??= false
+  }
+
   /**
    * A dry run writes nothing, so it never needs the destructive confirmation.
    *
@@ -612,7 +616,7 @@ export async function executeOperation(
     profile.output,
     payload,
     commandSpec,
-    { expandedTrace: requestFlags.trace === true },
+    { expandedTrace: requestFlags.trace === true, summary: requestFlags.summary === true },
     // The envelope, not just the payload: a list that does not paginate states
     // its own truncation there, and unwrapping `data` discarded it.
     result

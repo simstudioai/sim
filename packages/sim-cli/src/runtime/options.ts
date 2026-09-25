@@ -290,6 +290,15 @@ export function addOperationOptions(
     )
   }
 
+  if (operation === 'getLog') {
+    command.addOption(
+      new Option(
+        '--summary',
+        'Show bounded run diagnostics and final output; omit binary content and the workflow snapshot'
+      ).conflicts('trace')
+    )
+  }
+
   if (operationSpec.opaqueBody) {
     if (commandSpec.bodyVariants) {
       for (const variant of commandSpec.bodyVariants) {

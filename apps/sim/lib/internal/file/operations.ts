@@ -46,7 +46,10 @@ import type {
   getWorkspaceFileWithCurrentVersion,
   WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { getWorkspaceFileVersionsByKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  getWorkspaceFileVersionsByKey,
+  workspaceFileVfsPath,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import {
   getBoundWorkspaceFileSecretProvenance,
   mergeWorkspaceFileSecretProvenance,
@@ -1798,7 +1801,15 @@ export async function executeFileManageOperation(
       }
 
       case 'compress': {
-        const { fileId, fileInput, archiveName, folderPaths, includeSubfolders } = body
+        const {
+          fileId,
+          fileInput,
+          archiveName,
+          folderPaths,
+          includeSubfolders,
+          folderPath,
+          onConflict,
+        } = body
         const selectedFileIds = resolveSelectedFileIds(fileId, fileInput)
         const selectedInputFiles = fileId ? [] : extractUserFilesFromInput(fileInput)
 
@@ -1970,8 +1981,8 @@ export async function executeFileManageOperation(
             name: leafName,
             contentType: 'application/zip',
             content: zipBuffer,
-            folderId: null,
-            exactName: false,
+            ...(folderPath !== undefined ? { folderPath } : { folderId: null }),
+            exactName: onConflict === 'error',
             secretProvenance: archiveProvenance,
           },
         })
@@ -1996,6 +2007,7 @@ export async function executeFileManageOperation(
             name: compressedFile.name,
             size: compressedFile.size,
             url: compressedFile.url,
+            path: workspaceFileVfsPath(result.file),
             files: [compressedFile],
           },
         })

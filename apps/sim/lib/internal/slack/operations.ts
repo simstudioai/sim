@@ -174,7 +174,7 @@ export async function executeSlackUpdateMessage(
     body: {
       channel: input.channel,
       ts: input.timestamp,
-      text: input.text,
+      ...(input.text?.trim() ? { text: input.text } : {}),
       ...(input.blocks?.length ? { blocks: input.blocks } : {}),
     },
     signal,
@@ -183,7 +183,7 @@ export async function executeSlackUpdateMessage(
   const message = data.message ?? {
     type: 'message',
     ts: data.ts,
-    text: data.text || input.text,
+    text: data.text ?? input.text ?? '',
     channel: data.channel,
   }
   return {
@@ -194,7 +194,7 @@ export async function executeSlackUpdateMessage(
       metadata: {
         channel: data.channel,
         timestamp: data.ts,
-        text: data.text || input.text,
+        text: data.text ?? input.text ?? '',
       },
     },
   }
@@ -210,7 +210,7 @@ export async function executeSlackSendEphemeral(
     body: {
       channel: input.channel,
       user: input.user,
-      text: input.text,
+      ...(input.text?.trim() ? { text: input.text } : {}),
       ...(input.thread_ts ? { thread_ts: input.thread_ts } : {}),
       ...(input.blocks?.length ? { blocks: input.blocks } : {}),
     },
@@ -264,11 +264,11 @@ export async function executeSlackReadMessages(input: SlackReadMessagesBody, sig
   }
 }
 
-function defaultMessage(ts: unknown, text: string, channel: unknown) {
-  return { type: 'message', ts, text, channel }
+function defaultMessage(ts: unknown, text: string | undefined, channel: unknown) {
+  return { type: 'message', ts, text: text ?? '', channel }
 }
 
-function sentMessageOutput(data: SlackJsonObject, text: string) {
+function sentMessageOutput(data: SlackJsonObject, text: string | undefined) {
   return {
     message: data.message ?? defaultMessage(data.ts, text, data.channel),
     ts: data.ts,
@@ -285,7 +285,7 @@ async function postSlackMessage(
     input.accessToken,
     {
       channel,
-      text: input.text,
+      ...(input.text?.trim() ? { text: input.text } : {}),
       ...(input.thread_ts ? { thread_ts: input.thread_ts } : {}),
       ...(input.blocks?.length ? { blocks: input.blocks } : {}),
     },
@@ -373,7 +373,7 @@ async function uploadSlackFiles(
       first.created !== undefined && first.created !== null
         ? String(first.created)
         : String(Date.now() / 1000),
-    text: input.text,
+    text: input.text ?? '',
     channel,
     files: slackFiles.map((value) => {
       const slackFile = record(value)

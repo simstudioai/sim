@@ -1,4 +1,5 @@
 import {
+  createBlock,
   createMockRequest,
   dbChainMockFns,
   executionPreprocessingMock,
@@ -30,6 +31,7 @@ const {
   mockReleaseExecutionIdClaim,
   mockReleaseExecutionSlot,
   mockValidatePublicApiAllowed,
+  mockValidateStopAfterBlock,
 } = vi.hoisted(() => ({
   MockV2ApiKeyUnauthenticatedError: class MockV2ApiKeyUnauthenticatedError extends Error {},
   mockAdmissionRelease: vi.fn(),
@@ -46,6 +48,7 @@ const {
   mockReleaseExecutionIdClaim: vi.fn(),
   mockReleaseExecutionSlot: vi.fn(),
   mockValidatePublicApiAllowed: vi.fn(),
+  mockValidateStopAfterBlock: vi.fn(),
 }))
 
 vi.mock('@/lib/core/admission/gate', () => ({
@@ -91,7 +94,13 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
-vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
+vi.mock('@/lib/workflows/persistence/utils', () => ({
+  ...workflowsPersistenceUtilsMock,
+  NoActiveDeploymentError: class NoActiveDeploymentError extends Error {},
+}))
+vi.mock('@/lib/workflows/executor/stop-after-block', () => ({
+  validateStopAfterBlock: mockValidateStopAfterBlock,
+}))
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
 vi.mock('@/lib/workflows/executor/execution-core', () => ({
@@ -170,6 +179,8 @@ import { POST } from './route'
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
 const mockAuthorize = workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
 const mockLoadDeployedWorkflowState = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
+const mockLoadWorkflowDeploymentVersionState =
+  workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentVersionState
 const mockLoadWorkflowFromNormalizedTables =
   workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
 
@@ -308,13 +319,19 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
       billingAttribution,
       executionTimeout: { sync: 60_000, async: 300_000 },
     })
-    mockLoadDeployedWorkflowState.mockResolvedValue({
-      blocks: {},
+    const deployedState = {
+      deploymentVersionId: 'version-1',
+      blocks: { start: createBlock({ id: 'start', type: 'start_trigger' }) },
       edges: [],
       loops: {},
       parallels: {},
       variables: {},
-    })
+    }
+    mockLoadDeployedWorkflowState.mockResolvedValue(deployedState)
+    mockLoadWorkflowDeploymentVersionState.mockImplementation(async () =>
+      mockLoadDeployedWorkflowState()
+    )
+    mockValidateStopAfterBlock.mockReset()
     mockExecuteWorkflowCore.mockResolvedValue({
       success: true,
       output: { result: 'done' },
@@ -773,10 +790,96 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
   })
 
+  it('resolves Schedule in deployment state and executes the exact admitted version', async () => {
+    const deployed = {
+      deploymentVersionId: 'version-schedule',
+      blocks: { schedule: createBlock({ id: 'schedule', type: 'schedule' }) },
+      edges: [],
+      loops: {},
+      parallels: {},
+      variables: { origin: 'deployed' },
+    }
+    mockLoadDeployedWorkflowState.mockResolvedValueOnce(deployed)
+    mockLoadWorkflowDeploymentVersionState.mockResolvedValueOnce(deployed)
+    const res = await callExecute({ run: { source: 'deployment' } })
+    expect(res.status).toBe(200)
+    expect(mockLoadWorkflowDeploymentVersionState).toHaveBeenCalledWith(
+      'workflow-1',
+      'version-schedule',
+      'workspace-1'
+    )
+    expect(mockLoadWorkflowFromNormalizedTables).not.toHaveBeenCalled()
+    expect(mockExecuteWorkflowCore.mock.calls[0][0].snapshot.metadata).toMatchObject({
+      triggerBlockId: 'schedule',
+      workflowStateOverride: deployed,
+    })
+  })
+
+  it('rejects ambiguous deployed triggers before claiming or logging a run', async () => {
+    mockLoadDeployedWorkflowState.mockResolvedValue({
+      deploymentVersionId: 'version-1',
+      blocks: {
+        a: createBlock({ id: 'a', type: 'schedule' }),
+        b: createBlock({ id: 'b', type: 'schedule' }),
+      },
+    })
+    const res = await callExecute({ run: { source: 'deployment' } })
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.message).toContain('Set run.entry')
+    expect(mockClaimExecutionId).not.toHaveBeenCalled()
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+  })
+
+  it('validates a stop target before executing and pins the validated state', async () => {
+    const res = await callExecute({ stopAfterBlockId: 'start' })
+    expect(res.status).toBe(200)
+    expect(mockValidateStopAfterBlock).toHaveBeenCalledWith(
+      expect.objectContaining({ blocks: expect.objectContaining({ start: expect.anything() }) }),
+      'start',
+      'start',
+      undefined
+    )
+    expect(mockExecuteWorkflowCore).toHaveBeenCalledWith(
+      expect.objectContaining({ stopAfterBlockId: 'start' })
+    )
+    expect(
+      mockExecuteWorkflowCore.mock.calls[0][0].snapshot.metadata.workflowStateOverride
+        .deploymentVersionId
+    ).toBe('version-1')
+  })
+
+  it('rejects invalid stops without running any blocks', async () => {
+    mockValidateStopAfterBlock.mockImplementationOnce(() => {
+      throw new Error('stopAfterBlockId is not reachable')
+    })
+    const res = await callExecute({ stopAfterBlockId: 'detached' })
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.message).toContain('not reachable')
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-123')
+  })
+
+  it('rejects async stop controls before admission and anonymous controls instead of ignoring them', async () => {
+    expect((await callExecute({ async: true, stopAfterBlockId: 'start' })).status).toBe(400)
+    resetDbChainMock()
+    queuePublicWorkflowReads()
+    const anonymous = await callPublicExecute({ stopAfterBlockId: 'start' })
+    expect(anonymous.status).toBe(401)
+    expect((await anonymous.json()).error.message).toContain(
+      'stopAfterBlockId require an OAuth access token or API key'
+    )
+    expect(mockClaimExecutionId).not.toHaveBeenCalled()
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
+  })
+
   it('returns blockOutputs for selectedOutputs on a sync request', async () => {
     const agentBlockId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
     mockLoadDeployedWorkflowState.mockResolvedValue({
-      blocks: { [agentBlockId]: { id: agentBlockId, name: 'Agent 1' } },
+      blocks: {
+        [agentBlockId]: { id: agentBlockId, name: 'Agent 1' },
+        start: createBlock({ id: 'start', type: 'start_trigger' }),
+      },
       edges: [],
       loops: {},
       parallels: {},
@@ -822,7 +925,7 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     mockLoadDeployedWorkflowState.mockResolvedValue({
       blocks: {
         [agentBlockId]: { id: agentBlockId, name: 'Agent 1' },
-        [startBlockId]: { id: startBlockId, name: 'Start' },
+        [startBlockId]: createBlock({ id: startBlockId, name: 'Start', type: 'start_trigger' }),
       },
       edges: [],
       loops: {},

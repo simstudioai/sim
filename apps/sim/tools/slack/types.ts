@@ -635,9 +635,12 @@ export const VIEW_OUTPUT_PROPERTIES = {
  * File download output properties
  */
 export const FILE_DOWNLOAD_OUTPUT_PROPERTIES = {
+  id: { type: 'string', description: 'Stored file identifier' },
+  key: { type: 'string', description: 'Stored file key' },
+  context: { type: 'string', description: 'Storage context: execution or copilot' },
   name: { type: 'string', description: 'File name' },
-  mimeType: { type: 'string', description: 'MIME type of the file' },
-  data: { type: 'string', description: 'File content (base64 encoded)' },
+  type: { type: 'string', description: 'MIME type of the file' },
+  url: { type: 'string', description: 'Authenticated Sim file URL; not a public download link' },
   size: { type: 'number', description: 'File size in bytes' },
 } as const satisfies Record<string, OutputProperty>
 
@@ -693,7 +696,7 @@ export interface SlackMessageParams extends SlackBaseParams {
   destinationType?: 'channel' | 'dm'
   channel?: string
   dmUserId?: string
-  text: string
+  text?: string
   threadTs?: string
   blocks?: string
   files?: UserFile[]
@@ -723,7 +726,7 @@ export interface SlackDownloadParams extends SlackBaseParams {
 export interface SlackUpdateMessageParams extends SlackBaseParams {
   channel: string
   timestamp: string
-  text: string
+  text?: string
   blocks?: string
 }
 
@@ -775,7 +778,7 @@ export interface SlackGetMessageParams extends SlackBaseParams {
 export interface SlackEphemeralMessageParams extends SlackBaseParams {
   channel: string
   user: string
-  text: string
+  text?: string
   threadTs?: string
   blocks?: string
 }
@@ -1074,12 +1077,7 @@ export interface SlackMessageReaderResponse extends ToolResponse {
 
 export interface SlackDownloadResponse extends ToolResponse {
   output: {
-    file: {
-      name: string
-      mimeType: string
-      data: Buffer | string // Buffer for direct use, string for base64-encoded data
-      size: number
-    }
+    file: UserFile
   }
 }
 

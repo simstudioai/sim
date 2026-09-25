@@ -69,7 +69,10 @@ vi.mock('@/blocks/registry', () => ({
   },
 }))
 
+import { v2ExportWorkflowContract } from '@/lib/api/contracts/v2/workflows'
 import { buildWorkflowExportPayload } from '@/lib/workflows/operations/export-workflow'
+import { parseWorkflowJson } from '@/lib/workflows/operations/import-export'
+import { resolveImportedMetadata } from '@/lib/workflows/operations/import-workflow'
 import { buildWorkflowImportPlan } from '@/lib/workflows/references/import-plan'
 
 /**
@@ -404,4 +407,28 @@ describe('buildWorkflowExportPayload with includeWorkspaceBindings', () => {
     expect(sharing?.state.blocks.lookup.subBlocks.credential.value).toBeNull()
     expect(sameWorkspace?.state.blocks.lookup.subBlocks.credential.value).toBeNull()
   })
+  it.each([false, true])(
+    'round trips the diagnostic export envelope with references=%s',
+    async (includeReferences) => {
+      const payload = await buildWorkflowExportPayload(record, {
+        includeReferences,
+        includeWorkspaceBindings: true,
+      })
+      const response = v2ExportWorkflowContract.response.schema.parse({
+        data: {
+          ...payload,
+          representation: 'portable-export',
+          warnings: ['Portable export; use state get for in-place edits.'],
+          workflow: { ...payload!.workflow, folderPath: '/' },
+        },
+      })
+      const parsed = parseWorkflowJson(JSON.stringify(response))
+      expect(parsed.errors).toEqual([])
+      const imported = Object.values(parsed.data!.blocks).find((block) => block.name === 'Lookup')!
+      expect(imported.subBlocks.tableSelector.value).toBe('tbl_239e870374c14d4a89923175a7b10648')
+      expect(imported.subBlocks.credential.value).toBeNull()
+      expect(resolveImportedMetadata(response)).toMatchObject({ name: record.name })
+      expect(response.data.referenceManifest !== undefined).toBe(includeReferences)
+    }
+  )
 })

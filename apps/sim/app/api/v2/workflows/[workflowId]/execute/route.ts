@@ -417,6 +417,22 @@ export const POST = withRouteHandler(
 
       const resultStream = !body.async && !body.stream && wantsResultStream(req)
 
+      if (body.async && body.stopAfterBlockId) {
+        return v2Error(
+          'BAD_REQUEST',
+          'stopAfterBlockId requires synchronous or streamed execution; it cannot be combined with async'
+        )
+      }
+      if (
+        !apiKeyPrincipal &&
+        (body.stopAfterBlockId || (body.run?.source === 'deployment' && body.run.entry))
+      ) {
+        return v2Error(
+          'UNAUTHORIZED',
+          'Deployment trigger selection and stopAfterBlockId require an OAuth access token or API key'
+        )
+      }
+
       /** Caller-supplied run IDs are a keyed-caller feature; anonymous callers must not probe the claim table. */
       let requestedExecutionId: string | undefined
       const runIdHeader = parsed.data.headers['x-run-id']
@@ -433,6 +449,7 @@ export const POST = withRouteHandler(
           includeFileBase64: body.includeFileBase64,
           base64MaxBytes: body.base64MaxBytes,
           selectedOutputs: body.selectedOutputs,
+          stopAfterBlockId: body.stopAfterBlockId,
           abortSignal: req.signal,
           requestHeaders: req.headers,
           includeThinking: body.includeThinking,
@@ -470,6 +487,8 @@ export const POST = withRouteHandler(
               ...commonInput,
               input: body.input ?? {},
               requestedTimeoutSeconds: body.executionTimeoutSeconds,
+              triggerBlockId:
+                body.run?.source === 'deployment' ? body.run.entry?.blockId : undefined,
               mode: body.async
                 ? 'async'
                 : body.stream

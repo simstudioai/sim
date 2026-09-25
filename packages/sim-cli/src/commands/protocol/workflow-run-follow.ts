@@ -1,3 +1,4 @@
+import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import type { Command } from 'commander'
 import { writeStderr } from '#sim-cli/output/io'
@@ -75,7 +76,10 @@ export function resolveWorkflowRunSelection(
     throw new SimApiError('--source-run requires --from-block <blockId>', 0)
   }
   if ((manual || fromBlock) && flags.async === true) {
-    throw new SimApiError('Manual execution does not support --async', 0)
+    throw new SimApiError(
+      'Manual execution does not support --async. Use sim workflows run <workflowId> --from-block <blockId> --source-run <runId> --follow for a partial retry, or --manual --follow for a full draft run. The CLI prints a run ID you can inspect from another terminal with sim workflows runs get <runId> --workflow <workflowId>.',
+      0
+    )
   }
   if (useMockPayload && flags.input !== undefined) {
     throw new SimApiError('--mock-payload cannot be combined with --input', 0)
@@ -97,6 +101,20 @@ export function resolveWorkflowRunSelection(
       ...(useMockPayload ? { useMockPayload: true } : {}),
     },
   }
+}
+
+/** Announces the same identifier sent to the server before a long manual request starts. */
+function reportManualRun(
+  request: Awaited<ReturnType<typeof buildRequest>>,
+  workflowId: string
+): void {
+  const run = request.body?.run
+  if (!isRecordLike(run) || run.source !== 'manual') return
+  const runId = request.headers?.['x-run-id'] ?? generateId()
+  request.headers = { ...request.headers, 'x-run-id': runId }
+  writeStderr(
+    `Run ID: ${safeOneLine(runId)}. Inspect after admission: sim workflows runs get ${safeOneLine(runId)} --workflow ${safeOneLine(workflowId)}\n`
+  )
 }
 
 function stringField(frame: Record<string, unknown>, key: string): string | null {
@@ -155,6 +173,7 @@ async function runWithResultStream(workflowId: string, command: Command): Promis
 
   try {
     const request = await buildRequest('executeWorkflow', [workflowId], flags, profile.workspaceId)
+    reportManualRun(request, workflowId)
     const response = await client.requestRaw(request.path, {
       method: operation.method,
       query: request.query,
@@ -352,6 +371,7 @@ async function followRun(workflowId: string, command: Command): Promise<void> {
   const { client, profile } = clientFrom(command)
   const operation = V2_OPERATIONS.executeWorkflow as OperationSpec
   const request = await buildRequest('executeWorkflow', [workflowId], flags, profile.workspaceId)
+  reportManualRun(request, workflowId)
 
   const response = await client.requestRaw(request.path, {
     method: 'POST',
@@ -363,6 +383,7 @@ async function followRun(workflowId: string, command: Command): Promise<void> {
       ...(includeToolCalls ? { includeToolCalls: true } : {}),
     },
     headers: {
+      ...request.headers,
       accept: 'text/event-stream',
       ...(negotiates ? { [AGENT_STREAM_PROTOCOL_HEADER]: AGENT_STREAM_PROTOCOL_V1 } : {}),
     },
@@ -409,6 +430,13 @@ function followOrDelegate(previous: ((args: unknown[]) => unknown) | null) {
     const selection = resolveWorkflowRunSelection(initialFlags)
     if (selection) command.setOptionValue('run', selection)
     const flags = command.optsWithGlobals() as Record<string, unknown>
+
+    if (flags.async === true && flags.stopAfter) {
+      throw new SimApiError(
+        '--stop-after applies to synchronous runs. Drop --async or use --follow.',
+        0
+      )
+    }
 
     if (flags.follow !== true) {
       // A queued run has produced nothing to select from, so the server would

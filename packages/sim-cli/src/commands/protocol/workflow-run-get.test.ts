@@ -88,6 +88,20 @@ afterEach(() => {
 })
 
 describe('sim workflows runs get --select-output', () => {
+  it('refuses ambiguous normalized names and supplies the candidate IDs', async () => {
+    request.mockResolvedValue({
+      data: {
+        blocks: {
+          [SUMMARIZE_ID]: { id: SUMMARIZE_ID, name: 'Send Result' },
+          [SAVE_ID]: { id: SAVE_ID, name: 'send.result' },
+        },
+      },
+    })
+    await expect(get('--select-output', 'sendresult')).rejects.toThrow(
+      `names 2 blocks (${SUMMARIZE_ID}, ${SAVE_ID})`
+    )
+  })
+
   it('resolves block names against the workflow, the way workflows run does', async () => {
     answer({
       data: {

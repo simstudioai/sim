@@ -1,7 +1,42 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+const logger = vi.hoisted(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }))
+vi.mock('@sim/logger', () => ({ createLogger: () => logger }))
+
 import { fileFetchTool, fileParserTool, fileParserV3Tool } from '@/tools/file/parser'
 
 describe('fileParserTool', () => {
+  it('preserves authenticated fetch inputs without logging headers or signed URLs', () => {
+    const fileUrl = 'https://example.com/report.pdf?signature=private-url-token'
+    const headers = { Authorization: 'Bearer private-header-token' }
+    expect(fileFetchTool.operation.input({ fileUrl, headers })).toMatchObject({
+      filePath: fileUrl,
+      headers,
+    })
+    const logged = JSON.stringify([
+      ...logger.info.mock.calls,
+      ...logger.warn.mock.calls,
+      ...logger.error.mock.calls,
+    ])
+    expect(logged).not.toContain('private-url-token')
+    expect(logged).not.toContain('private-header-token')
+  })
+
+  it('does not log supplied headers when the file path is missing', () => {
+    expect(() =>
+      fileFetchTool.operation.input({
+        fileUrl: '',
+        headers: { Authorization: 'Bearer private-header-token' },
+      })
+    ).toThrow('Missing required parameter: filePath')
+    const logged = JSON.stringify([
+      ...logger.info.mock.calls,
+      ...logger.warn.mock.calls,
+      ...logger.error.mock.calls,
+    ])
+    expect(logged).not.toContain('private-header-token')
+  })
+
   it('maps the public File Fetch URL to the internal parser path', () => {
     expect(
       fileFetchTool.operation.input({

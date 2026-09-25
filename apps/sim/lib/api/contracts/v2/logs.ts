@@ -2,7 +2,6 @@ import { z } from 'zod'
 import { traceSpansSchema } from '@/lib/api/contracts/logs'
 import {
   booleanQueryFlagSchema,
-  noInputSchema,
   runIdSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
@@ -301,7 +300,9 @@ export const v2LogDetailSchema = z
         deleted: z.boolean().describe('Whether the workflow has been deleted.'),
       })
       .describe('Workflow snapshot associated with the execution.'),
-    workflowState: v2LogWorkflowStateSchema,
+    workflowState: v2LogWorkflowStateSchema.describe(
+      'Credential-redacted workflow snapshot, or null when unavailable or includeWorkflowState=false.'
+    ),
     /** Materialized block-level execution trace spans. */
     traceSpans: traceSpansSchema.describe('Materialized block-level execution trace spans.'),
     /**
@@ -714,10 +715,29 @@ export const v2ListLogsContract = defineRouteContract({
   },
 })
 
+export const v2GetLogQuerySchema = z
+  .object({
+    includeWorkflowState: booleanQueryFlagSchema
+      .describe(
+        'Include the saved workflow snapshot. Set false to avoid loading and returning block configuration when inspecting a run. Other run fields are unchanged.'
+      )
+      .optional()
+      .default(true),
+  })
+  .strict()
+  .meta({
+    id: 'GetLogQuery',
+    title: 'Execution log detail options',
+    description: 'Controls whether a log detail read includes its saved workflow snapshot.',
+    examples: [{ includeWorkflowState: false }],
+  })
+
+export type V2GetLogQuery = z.input<typeof v2GetLogQuerySchema>
+
 export const v2GetLogContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/logs/[runId]',
-  query: noInputSchema,
+  query: v2GetLogQuerySchema,
   params: v2LogParamsSchema,
   response: {
     mode: 'json',

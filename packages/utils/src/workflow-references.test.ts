@@ -18,6 +18,22 @@ describe('workflow references', () => {
     expect(findWorkflowReferenceTokens('a<b<c>d')).toEqual([])
   })
 
+  it.each([
+    [
+      '<before.x>{{<hidden.x><alsoHidden.y>}}<after.y>',
+      ['<before.x>', '{{<hidden.x><alsoHidden.y>}}', '<after.y>'],
+    ],
+    ['<before.x><{{ENV}}.value><after.y>', ['<before.x>', '{{ENV}}', '<after.y>']],
+    ['{{ONE}}{{TWO}}<after.y>', ['{{ONE}}', '{{TWO}}', '<after.y>']],
+    ['{{outer{{<hidden.x>}}}}<after.y>', ['{{<hidden.x>}}', '<after.y>']],
+    ['{{<first.x>\n<second.y>}}', ['<first.x>', '<second.y>']],
+    ['<broken\n{{ENV}}<= <after.y>', ['{{ENV}}', '<after.y>']],
+  ])('preserves environment overlap precedence and reference offsets in %s', (source, expected) => {
+    const tokens = findWorkflowReferenceTokens(source)
+    expect(tokens.map((token) => token.value)).toEqual(expected)
+    for (const token of tokens) expect(source.slice(token.start, token.end)).toBe(token.value)
+  })
+
   it('scans long runs of opening brackets while preserving final reference offsets', () => {
     expect(findWorkflowReferenceTokens(`${'<'.repeat(10_000)}value>`)).toEqual([
       {

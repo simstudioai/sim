@@ -1,5 +1,6 @@
 {
   "pages": [
+    "previewWorkflowRunFromBlock",
     "listWorkflowRunsV2",
     "getWorkflowRunV2",
     "downloadWorkflowRunFileV2",

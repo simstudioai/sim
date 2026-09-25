@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-24",
+  "updatedAt": "2026-09-25",
   "integrations": [
     {
       "type": "onepassword",
@@ -22488,7 +22488,7 @@
         },
         {
           "name": "Get Thread",
-          "description": "Retrieve an entire thread including the parent message and all replies. Useful for getting full conversation context."
+          "description": "Retrieve the first page of a thread, including the parent message and replies. Check hasMore for additional replies; use Get Thread Replies for cursor-based pagination."
         },
         {
           "name": "Get Thread Replies",
@@ -24562,15 +24562,15 @@
         },
         {
           "name": "Resume Subscription",
-          "description": "Resume a subscription that was scheduled for cancellation"
+          "description": "Resume a paused subscription. To undo a scheduled cancellation, use Update Subscription with cancel_at_period_end=false before it ends."
         },
         {
           "name": "List Subscriptions",
-          "description": "List all subscriptions"
+          "description": "List one page of subscriptions. Follow starting_after while metadata.has_more is true."
         },
         {
           "name": "Search Subscriptions",
-          "description": "Search for subscriptions using query syntax"
+          "description": "Search one page of subscriptions using query syntax. Pass metadata.next_page as page to continue."
         },
         {
           "name": "Create Invoice",

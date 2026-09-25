@@ -149,7 +149,11 @@ export class DAGExecutor {
       )
     }
 
-    const { dirtySet, upstreamSet, reachableUpstreamSet } = computeExecutionSets(dag, startBlockId)
+    const { dirtySet, upstreamSet, reachableUpstreamSet } = computeExecutionSets(
+      dag,
+      startBlockId,
+      this.workflow
+    )
     const effectiveStartBlockId = resolveContainerToSentinelStart(startBlockId, dag) ?? startBlockId
 
     // Extract container IDs from sentinel IDs in reachable upstream set

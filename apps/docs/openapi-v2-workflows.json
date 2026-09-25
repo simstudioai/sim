@@ -281,11 +281,101 @@
         }
       }
     },
+    "/api/v2/workflows/{workflowId}/inspect": {
+      "get": {
+        "operationId": "inspectWorkflow",
+        "summary": "Inspect Workflow",
+        "description": "Inspect a compact draft graph with block IDs, enabled states, connections, and bounded nonempty inputs. Credential fields and opaque credential-bearing inputs are withheld; code is omitted unless requested. This diagnostic representation is not suitable for Replace Workflow State. Automatic redaction cannot recognize every secret in arbitrary text or code.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "workflows.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Workflows"],
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          },
+          {
+            "name": "blockId",
+            "in": "query",
+            "required": false,
+            "description": "Inspect one block and its incident connections. Omit to inspect the draft graph.",
+            "schema": {
+              "description": "Inspect one block and its incident connections. Omit to inspect the draft graph.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          },
+          {
+            "name": "includeCode",
+            "in": "query",
+            "required": false,
+            "description": "Include bounded code inputs. Code and free text can contain hardcoded secrets that automatic redaction cannot recognize.",
+            "schema": {
+              "description": "Include bounded code inputs. Code and free text can contain hardcoded secrets that automatic redaction cannot recognize.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A compact diagnostic view of the workflow draft.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InspectWorkflowResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/workflows/{workflowId}/state": {
       "get": {
         "operationId": "getWorkflowState",
         "summary": "Get Workflow State",
-        "description": "Get the editable draft graph, including blocks, edges, loop and parallel containers, and variables. Use this state with Replace Workflow State to preserve workspace bindings; Export Workflow removes those bindings for portability. This read records no audit event, and `HEAD` mirrors `GET`.\n\nOAuth scope: `api:read`.",
+        "description": "Get the full editable draft graph, including blocks, edges, loop and parallel containers, variables, and stored input values. Use Inspect Workflow for compact, redacted diagnostics. Use this state with Replace Workflow State to preserve workspace bindings; Export Workflow removes those bindings for portability. This read records no audit event, and `HEAD` mirrors `GET`.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflows"],
@@ -2676,6 +2766,100 @@
           },
           "499": {
             "$ref": "#/components/responses/ClientClosedRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/workflows/{workflowId}/runs/preview": {
+      "get": {
+        "operationId": "previewWorkflowRunFromBlock",
+        "summary": "Preview Partial Workflow Run",
+        "description": "Inspect the current saved draft and one prior run without executing blocks or reserving a run ID. Returns executor entry validation, candidate rerun blocks, and upstream cached-output availability without output values. Requires write access to the workflow and OAuth api:read or a personal API key. Conditional paths are candidates, and a later run uses the draft saved at that time. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "workflows.manual.preview_from_block",
+        "x-oauth-scope": "api:read",
+        "tags": ["Workflow Runs"],
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "path",
+            "required": true,
+            "description": "Unique workflow identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unique workflow identifier.",
+              "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+            }
+          },
+          {
+            "name": "blockId",
+            "in": "query",
+            "required": true,
+            "description": "Saved draft block at which a later manual run would start.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Saved draft block at which a later manual run would start."
+            }
+          },
+          {
+            "name": "sourceRunId",
+            "in": "query",
+            "required": true,
+            "description": "Existing run in this workflow whose persisted state would supply cached upstream outputs.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9._:-]+$",
+              "description": "Existing run in this workflow whose persisted state would supply cached upstream outputs.",
+              "examples": ["run_8f14e45f-ceea-467f-a"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A read-only partial-run preview, including any entry-validation failure.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewWorkflowRunFromBlockResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
@@ -6055,6 +6239,170 @@
         "title": "Create workflow request",
         "description": "Name, description, workspace, and optional folder for a new workflow."
       },
+      "WorkflowInspection": {
+        "type": "object",
+        "properties": {
+          "representation": {
+            "type": "string",
+            "const": "diagnostic",
+            "description": "A read-only diagnostic projection, unsuitable for replacing workflow state."
+          },
+          "workflowId": {
+            "type": "string",
+            "description": "Workflow whose saved draft is inspected."
+          },
+          "workspaceId": {
+            "type": "string",
+            "description": "Workspace containing the workflow."
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Canonical saved block ID."
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Block display name."
+                },
+                "type": {
+                  "type": "string",
+                  "description": "Registered block type."
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether the block is enabled in the saved draft."
+                },
+                "parentId": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Containing loop or parallel block ID, or null for a top-level block."
+                },
+                "inputs": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "description": "User-authored block configuration after redaction and diagnostic size limits.",
+                    "examples": ["send"]
+                  },
+                  "description": "Bounded, redacted user-authored input values. Empty fields are omitted."
+                },
+                "omittedInputs": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Nonempty fields withheld by credential, unknown-field, visibility, or code-inclusion rules."
+                }
+              },
+              "required": ["id", "name", "type", "enabled", "parentId", "inputs", "omittedInputs"],
+              "additionalProperties": false
+            },
+            "description": "Selected blocks without positions, output schemas, or runtime state."
+          },
+          "edges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "type": "string",
+                  "description": "Source block ID."
+                },
+                "target": {
+                  "type": "string",
+                  "description": "Target block ID."
+                },
+                "sourceHandle": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Source output handle, or null when unspecified."
+                },
+                "targetHandle": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Target input handle, or null when unspecified."
+                }
+              },
+              "required": ["source", "target", "sourceHandle", "targetHandle"],
+              "additionalProperties": false
+            },
+            "description": "Draft connections, or only connections touching the selected block."
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "Whether an input exceeded the diagnostic size or depth budget."
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Representation, redaction, and size-limit guidance."
+          }
+        },
+        "required": [
+          "representation",
+          "workflowId",
+          "workspaceId",
+          "blocks",
+          "edges",
+          "truncated",
+          "notes"
+        ],
+        "additionalProperties": false,
+        "title": "Workflow inspection",
+        "description": "Compact diagnostic workflow draft, with credential fields withheld and projected inputs bounded."
+      },
+      "InspectWorkflowResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowInspection"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Workflow inspection response",
+        "description": "A bounded diagnostic draft view, not an editable graph.",
+        "examples": [
+          {
+            "data": {
+              "representation": "diagnostic",
+              "workflowId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+              "workspaceId": "a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64",
+              "blocks": [],
+              "edges": [],
+              "truncated": false,
+              "notes": []
+            }
+          }
+        ]
+      },
       "WorkflowBlock": {
         "type": "object",
         "properties": {
@@ -6515,7 +6863,7 @@
         "required": ["blocks", "edges", "loops", "parallels", "variables"],
         "additionalProperties": false,
         "title": "Workflow graph",
-        "description": "The editable draft graph of a workflow: blocks, edges, derived loop and parallel containers, and variables."
+        "description": "The editable draft graph of a workflow: preserves block IDs, credential references, table bindings, variables, and configuration for an in-place read-modify-write cycle. Unlike export, this is private workspace state, not a sanitized sharing format. Keep existing IDs and bindings; inspect state replace with dryRun=true before saving."
       },
       "WorkflowStateResponse": {
         "type": "object",
@@ -6544,6 +6892,126 @@
       "WorkflowLintReport": {
         "type": "object",
         "properties": {
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "graph",
+                    "fields",
+                    "block-output-references",
+                    "branch-output-references",
+                    "embedded-code-syntax",
+                    "credential-resource-references",
+                    "agent-tool-references",
+                    "table-fields",
+                    "runtime-execution"
+                  ],
+                  "description": "Validation pass."
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["complete", "partial", "skipped"],
+                  "description": "Whether this pass checked its full stated scope, a subset, or nothing. This never certifies runtime success."
+                },
+                "detail": {
+                  "type": "string",
+                  "description": "Checks performed and limitations, including lookup failures and unsupported code languages."
+                }
+              },
+              "required": ["name", "status", "detail"],
+              "additionalProperties": false
+            },
+            "description": "Explicit validation coverage. Empty findings do not mean skipped checks passed; no code or external action is executed."
+          },
+          "codeIssues": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "blockId": {
+                  "type": "string",
+                  "description": "Block the finding is about."
+                },
+                "blockName": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Display name of the block, when it has one."
+                },
+                "blockType": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Registered type of the block, when it has one."
+                },
+                "field": {
+                  "type": "string",
+                  "description": "Embedded code field."
+                },
+                "language": {
+                  "type": "string",
+                  "const": "javascript",
+                  "description": "Language parsed without execution."
+                },
+                "message": {
+                  "type": "string",
+                  "description": "Syntax error; code and secret values are not included."
+                },
+                "line": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "One-based source line when known."
+                },
+                "column": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "One-based source column when known."
+                }
+              },
+              "required": [
+                "blockId",
+                "blockName",
+                "blockType",
+                "field",
+                "language",
+                "message",
+                "line",
+                "column"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Syntax errors in enabled JavaScript Function bodies, including invalid regular expression flags. Python, Shell, generated source, dependencies, and resolved runtime values are not checked; inspect checks for scope."
+          },
           "sources": {
             "type": "array",
             "items": {
@@ -7006,6 +7474,8 @@
           }
         },
         "required": [
+          "checks",
+          "codeIssues",
           "sources",
           "sinks",
           "orphanBlocks",
@@ -7039,6 +7509,54 @@
             "type": "boolean",
             "description": "Whether the live deployment differs from the draft. A graph write never changes what the deployed endpoint serves; deploy to publish it. On a dry run, this describes the state before the proposed write."
           },
+          "removedBindings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "blockId": {
+                  "type": "string",
+                  "description": "Original block whose binding is removed."
+                },
+                "blockName": {
+                  "type": "string",
+                  "description": "Original block display name."
+                },
+                "field": {
+                  "type": "string",
+                  "description": "Original binding field."
+                },
+                "valuePath": {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    ]
+                  },
+                  "description": "Nested location inside the field value."
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": ["credential", "table"],
+                  "description": "Kind of removed binding reference."
+                },
+                "resourceId": {
+                  "type": "string",
+                  "description": "Non-secret identifier of the reference no longer present in this block. Never a credential secret value."
+                }
+              },
+              "required": ["blockId", "blockName", "field", "valuePath", "kind", "resourceId"],
+              "additionalProperties": false
+            },
+            "description": "Credential/table references removed relative to the saved graph, including removed blocks and changed IDs. Inspect this pre-save diff with dryRun=true. An empty list does not validate other resource bindings."
+          },
           "lint": {
             "$ref": "#/components/schemas/WorkflowLintReport"
           },
@@ -7047,7 +7565,7 @@
             "description": "Whether this request only validated. `true` means nothing was persisted; the findings describe what a committed write of the same body would produce."
           }
         },
-        "required": ["id", "warnings", "needsRedeployment", "lint", "dryRun"],
+        "required": ["id", "warnings", "needsRedeployment", "removedBindings", "lint", "dryRun"],
         "additionalProperties": false,
         "title": "Replace workflow state result",
         "description": "Outcome of replacing a workflow draft graph, with its advisory findings."
@@ -7071,7 +7589,10 @@
               "warnings": [],
               "needsRedeployment": true,
               "dryRun": false,
+              "removedBindings": [],
               "lint": {
+                "checks": [],
+                "codeIssues": [],
                 "sources": [],
                 "sinks": [],
                 "orphanBlocks": [],
@@ -7748,6 +8269,8 @@
                 "triage": "a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77"
               },
               "lint": {
+                "checks": [],
+                "codeIssues": [],
                 "sources": [],
                 "sinks": [],
                 "orphanBlocks": [],
@@ -8407,13 +8930,13 @@
         "type": "object",
         "properties": {
           "operations": {
-            "minItems": 1,
+            "default": [],
+            "description": "Edits to apply in a single batch. May be omitted for enablement-only requests.",
             "maxItems": 200,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/WorkflowEditOperation"
-            },
-            "description": "Edits to apply, in a single batch."
+            }
           },
           "atomic": {
             "default": false,
@@ -8448,7 +8971,6 @@
             }
           }
         },
-        "required": ["operations"],
         "additionalProperties": false,
         "title": "Apply workflow operations request",
         "description": "A batch of semantic edits against a workflow graph.",
@@ -10380,6 +10902,18 @@
             "additionalProperties": true,
             "description": "Secret-sanitized workflow graph, edges, loops, parallels, metadata, and variables."
           },
+          "representation": {
+            "type": "string",
+            "const": "portable-export",
+            "description": "Sanitized copy format, not editable workflow state. Use workflows state get for in-place editing."
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Export limitations and instructions for preserving IDs and binding references while editing an existing workflow."
+          },
           "referenceManifest": {
             "description": "Versioned non-secret identifiers and registered source field occurrences for mapped import.",
             "type": "object",
@@ -10494,7 +11028,7 @@
             "additionalProperties": false
           }
         },
-        "required": ["version", "exportedAt", "workflow", "state"],
+        "required": ["version", "exportedAt", "workflow", "state", "representation", "warnings"],
         "additionalProperties": false,
         "title": "Workflow export payload",
         "description": "Portable, secret-sanitized workflow export. Workspace-scoped bindings must be selected again after import."
@@ -10515,6 +11049,10 @@
           {
             "data": {
               "version": "1.0",
+              "representation": "portable-export",
+              "warnings": [
+                "Portable exports clear credential bindings. Use workflow state for in-place edits."
+              ],
               "exportedAt": "2026-08-09T18:04:11.000Z",
               "workflow": {
                 "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
@@ -11846,6 +12384,25 @@
                     "type": "string",
                     "const": "deployment",
                     "description": "Execute the active deployed workflow state."
+                  },
+                  "entry": {
+                    "description": "Optional explicit deployed trigger. Otherwise preserve the existing API entry priority, or select the sole runnable trigger when no API entry exists. Multiple non-API entries require an explicit choice.",
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "trigger",
+                        "description": "Enter through an enabled trigger in the active deployment."
+                      },
+                      "blockId": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 128,
+                        "description": "Enabled trigger block in the active deployment. Omit entry to preserve the default API-compatible trigger, or use its sole runnable trigger when it has no API entry."
+                      }
+                    },
+                    "required": ["type", "blockId"],
+                    "additionalProperties": false
                   }
                 },
                 "required": ["source"],
@@ -11912,6 +12469,12 @@
                 "additionalProperties": false
               }
             ]
+          },
+          "stopAfterBlockId": {
+            "description": "Stop scheduling after this enabled top-level block completes (or all iterations of a loop/parallel container). Real execution: earlier and concurrent branches can still perform side effects; if a condition bypasses this block, the run can finish without stopping here. Applies to this invocation only; a later explicit resume does not inherit this limit. Does not change the saved graph. Use selectedOutputs to return formatter results. Incompatible with async.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
           },
           "async": {
             "default": false,
@@ -11996,6 +12559,134 @@
             }
           }
         ]
+      },
+      "WorkflowRunFromBlockPreview": {
+        "type": "object",
+        "properties": {
+          "workflowId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Unique workflow identifier.",
+            "examples": ["3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36"]
+          },
+          "sourceRunId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "description": "Unique workflow run identifier.",
+            "examples": ["run_8f14e45f-ceea-467f-a"]
+          },
+          "startBlockId": {
+            "type": "string",
+            "description": "Requested block at which a later manual run would start."
+          },
+          "validation": {
+            "type": "object",
+            "properties": {
+              "valid": {
+                "type": "boolean",
+                "description": "Whether the executor accepts this starting block and source state."
+              },
+              "error": {
+                "description": "Executor entry-validation failure, when invalid.",
+                "type": "string"
+              }
+            },
+            "required": ["valid"],
+            "additionalProperties": false,
+            "description": "Entry validation only; does not validate credentials, provider inputs, or runtime behavior."
+          },
+          "rerunBlocks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "blockId": {
+                  "type": "string",
+                  "description": "Saved workflow block ID; internal sentinel nodes are omitted."
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Current saved block name."
+                },
+                "type": {
+                  "type": "string",
+                  "description": "Current saved block type."
+                },
+                "executedInSource": {
+                  "type": "boolean",
+                  "description": "The source snapshot marks this block or one of its runtime instances as executed."
+                }
+              },
+              "required": ["blockId", "name", "type", "executedInSource"],
+              "additionalProperties": false
+            },
+            "description": "Starting block and downstream graph candidates. Conditions and runtime behavior determine actual execution; this is not execution order."
+          },
+          "upstreamBlocks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "blockId": {
+                  "type": "string",
+                  "description": "Saved workflow block ID; internal sentinel nodes are omitted."
+                },
+                "name": {
+                  "type": "string",
+                  "description": "Current saved block name."
+                },
+                "type": {
+                  "type": "string",
+                  "description": "Current saved block type."
+                },
+                "executedInSource": {
+                  "type": "boolean",
+                  "description": "The source snapshot marks this block or one of its runtime instances as executed."
+                },
+                "hasCachedOutput": {
+                  "type": "boolean",
+                  "description": "The source snapshot contains an output entry for this block or a runtime instance. Does not verify referenced files or external resources; output values are not returned."
+                }
+              },
+              "required": ["blockId", "name", "type", "executedInSource", "hasCachedOutput"],
+              "additionalProperties": false
+            },
+            "description": "Upstream blocks, including sibling branches needed by downstream candidates, whose existing outputs may be reused."
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Limits of the preview and reuse of previously recorded outputs."
+          }
+        },
+        "required": [
+          "workflowId",
+          "sourceRunId",
+          "startBlockId",
+          "validation",
+          "rerunBlocks",
+          "upstreamBlocks",
+          "notes"
+        ],
+        "additionalProperties": false,
+        "title": "Partial workflow run preview"
+      },
+      "PreviewWorkflowRunFromBlockResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowRunFromBlockPreview"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Partial run preview response",
+        "description": "Current draft graph candidates and source snapshot availability; no blocks are executed."
       },
       "WorkflowRunListItem": {
         "type": "object",

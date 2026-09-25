@@ -23,6 +23,16 @@ List actions return one page. Use the returned cursor or page information to con
 
 User-token-only search, profile updates, and notification controls, Slack’s retired reminders APIs, and Enterprise administration APIs are not included. Use scheduled messages or a scheduled Sim workflow for reminders.
 
+## Standalone tool credentials
+
+For direct CLI, API, or MCP calls, inspect the operation first, for example with `sim tools get slack_message`. OAuth is the default: supply the intended top-level `credentialId`. Tools that expose `authMethod` and `botToken` also accept `input.authMethod: "bot_token"` with `input.botToken`, including an authorized `{{SECRET_NAME}}` reference. Bot-token mode ignores `credentialId`; OAuth mode ignores an unused `botToken`. OAuth-only tools still require their connected credential. See [CLI authentication](/cli/authentication) for credential discovery.
+
+A direct call can use a different credential from a workflow started by the same Sim user. The selected Slack identity determines its scopes, channel membership, file access, and which messages it can update. Listing some channels does not establish access to a particular private channel or its files.
+
+## Preview a message
+
+Paste the message payload into Slack’s [Block Kit Builder](https://app.slack.com/block-kit-builder) to inspect the rendered layout. Review the top-level fallback text separately from the blocks. Previewing does not post the message; the builder’s **Send to Slack** action does. See [Slack Message](#slack-message) for fallback text and the different block/text behavior when attaching files.
+
 ## Stream Trigger Responses
 
 Custom-bot Slack triggers can stream workflow outputs directly back into the conversation that started a run. Turn on **Enable agent session** (`streamResponse`) on a Message, App Mention, or Assistant Thread Started trigger, then select the outputs to deliver in **Outputs to stream** (`streamOutputs`).
@@ -69,9 +79,9 @@ Send messages to Slack channels or direct messages. Supports Slack mrkdwn format
 | `botToken` | string | No | Bot token for Custom Bot |
 | `channel` | string | No | Slack channel ID \(e.g., C1234567890\) |
 | `dmUserId` | string | No | Slack user ID for direct messages \(e.g., U1234567890\) |
-| `text` | string | Yes | Message text to send \(supports Slack mrkdwn formatting\) |
+| `text` | string | No | Message text, required unless blocks are provided. With blocks, used for notifications and screen readers. |
 | `threadTs` | string | No | Thread timestamp to reply to \(creates thread reply\) |
-| `blocks` | json | No | Block Kit layout blocks as a JSON array. When provided, text becomes the fallback notification text. |
+| `blocks` | json | No | Block Kit layout blocks as a JSON array. For messages without files, text is the notification fallback. With file attachments, Slack accepts blocks or initial text, so blocks take precedence. |
 | `files` | file[] | No | Files to attach to the message |
 
 #### Output
@@ -150,7 +160,7 @@ Send an ephemeral message visible only to a specific user in a channel. Optional
 | `botToken` | string | No | Bot token for Custom Bot |
 | `channel` | string | Yes | Slack channel ID \(e.g., C1234567890\) |
 | `user` | string | Yes | User ID who will see the ephemeral message \(e.g., U1234567890\). Must be a member of the channel. |
-| `text` | string | Yes | Message text to send \(supports Slack mrkdwn formatting\) |
+| `text` | string | No | Message text, required unless blocks are provided. With blocks, used for notifications and screen readers. |
 | `threadTs` | string | No | Thread timestamp to reply in. When provided, the ephemeral message appears as a thread reply. |
 | `blocks` | json | No | Block Kit layout blocks as a JSON array. When provided, text becomes the fallback notification text. |
 
@@ -333,7 +343,7 @@ Retrieve a specific message by its timestamp. Useful for getting a thread parent
 
 ### Slack Get Thread
 
-Retrieve an entire thread including the parent message and all replies. Useful for getting full conversation context.
+Retrieve the first page of a thread, including the parent message and replies. Check hasMore for additional replies; use Get Thread Replies for cursor-based pagination.
 
 #### Input
 
@@ -459,7 +469,7 @@ Retrieve an entire thread including the parent message and all replies. Useful f
 |   ↳ `edited` | object | Edit information if message was edited |
 |     ↳ `user` | string | User ID who edited the message |
 |     ↳ `ts` | string | Timestamp of the edit |
-| `messages` | array | All messages in the thread \(parent + replies\) in chronological order |
+| `messages` | array | Messages in this page \(parent + replies\) in chronological order |
 |   ↳ `type` | string | Message type \(usually "message"\) |
 |   ↳ `ts` | string | Message timestamp \(unique identifier\) |
 |   ↳ `text` | string | Message text content |
@@ -1128,7 +1138,7 @@ Download a file from Slack
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `file` | file | Downloaded file stored in execution files |
+| `file` | file | Stored file descriptor. Download bytes using tools files download for direct calls, or workflows runs files download for workflow outputs. |
 
 ### Slack Update Message
 
@@ -1142,7 +1152,7 @@ Update a message previously sent by the bot in Slack
 | `botToken` | string | No | Bot token for Custom Bot |
 | `channel` | string | Yes | Channel ID where the message was posted \(e.g., C1234567890\) |
 | `timestamp` | string | Yes | Timestamp of the message to update \(e.g., 1405894322.002768\) |
-| `text` | string | Yes | New message text \(supports Slack mrkdwn formatting\) |
+| `text` | string | No | New message text, required unless blocks are provided. With blocks, used for notifications and screen readers. |
 | `blocks` | json | No | Block Kit layout blocks as a JSON array. When provided, text becomes the fallback notification text. |
 
 #### Output
@@ -2042,7 +2052,7 @@ Schedule a message to be sent to a Slack channel or DM at a future time.
 | `botToken` | string | No | Bot token for Custom Bot |
 | `channel` | string | Yes | Channel, private group, or DM to receive the message \(e.g., C1234567890\) |
 | `postAt` | number | Yes | Unix timestamp \(seconds\) representing the future time the message should post |
-| `text` | string | No | Message text to send \(supports Slack mrkdwn formatting\) |
+| `text` | string | No | Message text, required unless blocks are provided. With blocks, used for notifications and screen readers. |
 | `blocks` | json | No | Block Kit layout blocks as a JSON array. When provided, text becomes the fallback notification text. |
 | `threadTs` | string | No | Thread timestamp to reply to \(creates a scheduled thread reply\) |
 

@@ -59,6 +59,87 @@ export const v2CredentialSchema = z
   })
 export type V2Credential = z.output<typeof v2CredentialSchema>
 
+export const v2CredentialDiagnosticsSchema = z
+  .object({
+    identity: z
+      .object({
+        source: z
+          .enum(['credential', 'linked-account', 'unknown'])
+          .describe(
+            'Stored metadata source for the reported identity; unknown means no identity is separately recorded.'
+          ),
+        subjectId: z
+          .string()
+          .nullable()
+          .describe('Stored provider subject ID when separately recorded; null means unknown.'),
+        tenantId: z
+          .string()
+          .nullable()
+          .describe('Stored provider tenant or Slack installation ID when available.'),
+        externalAccountId: z
+          .string()
+          .nullable()
+          .describe(
+            'Stored OAuth external account identifier; may include connection-specific suffixes and is not necessarily the acting bot/user ID.'
+          ),
+        verifiedLive: z
+          .literal(false)
+          .describe('Inspection never contacts the provider or validates secret material.'),
+      })
+      .describe('Stored provider identity metadata; no live identity verification is performed.'),
+    scopes: z
+      .object({
+        source: z
+          .enum(['credential', 'linked-account', 'unknown'])
+          .describe(
+            'Stored metadata source for granted scopes; unknown means grants are not separately recorded.'
+          ),
+        values: z
+          .array(z.string())
+          .describe(
+            'Recorded granted scopes. An unknown source with an empty array does not mean the credential has no scopes.'
+          ),
+      })
+      .describe('Recorded granted scopes and their source, without requesting provider access.'),
+    notes: z.array(z.string()).describe('Coverage limits and provider-specific access guidance.'),
+  })
+  .describe('Non-secret credential identity, recorded grants, and diagnostic coverage limits.')
+export type V2CredentialDiagnostics = z.output<typeof v2CredentialDiagnosticsSchema>
+
+export const v2GetCredentialParamsSchema = z
+  .object({
+    credentialId: nonEmptyIdSchema.max(255).describe('Selected credential to inspect.'),
+  })
+  .strict()
+export type V2GetCredentialParams = z.input<typeof v2GetCredentialParamsSchema>
+
+export const v2GetCredentialQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace expected to own the selected credential.'),
+  })
+  .strict()
+export type V2GetCredentialQuery = z.input<typeof v2GetCredentialQuerySchema>
+
+export const v2GetCredentialDataSchema = v2CredentialSchema
+  .extend({
+    diagnostics: v2CredentialDiagnosticsSchema,
+  })
+  .meta({
+    id: 'CredentialInspection',
+    title: 'Credential inspection',
+    description:
+      'Credential metadata with stored identity and scope diagnostics; no live provider verification.',
+  })
+export type V2GetCredentialData = z.output<typeof v2GetCredentialDataSchema>
+
+export const v2GetCredentialContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/credentials/[credentialId]',
+  params: v2GetCredentialParamsSchema,
+  query: v2GetCredentialQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2GetCredentialDataSchema) },
+})
+
 export const v2CredentialProviderAuthorizationOptionSchema = z
   .object({
     providerId: z

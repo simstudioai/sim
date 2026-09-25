@@ -64,6 +64,42 @@ describe('executeFunction', () => {
     mocks.resolvePermission.mockResolvedValue('write')
   })
 
+  it('rejects a direct OAuth token without write scope before loading workspace data', async () => {
+    await expect(
+      executeFunction.execute({
+        principal: {
+          kind: 'oauth_access_token',
+          userId: 'caller',
+          tokenId: 'token',
+          clientId: 'client',
+          scopes: ['api:read'],
+          expiresAt: new Date('2099-01-01'),
+        },
+        input: {
+          workspaceId: 'workspace-1',
+          body: { code: 'return 1', workspaceId: 'workspace-1' },
+          headers: new Headers(),
+        },
+      })
+    ).rejects.toThrow()
+    expect(mocks.executeRequest).not.toHaveBeenCalled()
+  })
+
+  it('denies a direct caller without current workspace access', async () => {
+    mocks.resolvePermission.mockResolvedValue(null)
+    await expect(
+      executeFunction.execute({
+        principal: { kind: 'personal_api_key', userId: 'caller', keyId: 'key' },
+        input: {
+          workspaceId: 'workspace-1',
+          body: { code: 'return 1', workspaceId: 'workspace-1' },
+          headers: new Headers(),
+        },
+      })
+    ).rejects.toThrow()
+    expect(mocks.executeRequest).not.toHaveBeenCalled()
+  })
+
   it('uses only the real workflow subject for legacy file contexts', async () => {
     const humanPrincipal: WorkflowExecutionDelegatedPrincipal = {
       ...principal,
@@ -132,6 +168,7 @@ describe('executeFunction', () => {
       {
         attributedUserId: 'workspace-owner',
         principal,
+        meterSandboxUsage: false,
       }
     )
   })

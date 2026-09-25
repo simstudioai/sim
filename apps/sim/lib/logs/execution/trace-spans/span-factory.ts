@@ -1,9 +1,11 @@
 import { createLogger } from '@sim/logger'
+import { toStringOrNull } from '@sim/utils/coerce'
 import { isRecordLike } from '@sim/utils/object'
 import type { ProviderTiming, TraceSpan } from '@/lib/logs/types'
 import {
   CHILD_EXECUTION_ID_OUTPUT_KEY,
   CHILD_TRACE_DISABLED_OUTPUT_KEY,
+  isAgentBlockType,
   isConditionBlockType,
   isWorkflowBlockType,
   stripCustomToolPrefix,
@@ -24,6 +26,17 @@ type ValidBlockLog = BlockLog & { blockType: string }
 function normalizeTraceOutput(value: unknown): Record<string, unknown> | undefined {
   if (value === undefined) return undefined
   return isRecordLike(value) ? value : { value }
+}
+
+/** Provider failure metadata is authoritative; successful tool output may contain error-shaped data. */
+function getToolCallError(call: BlockToolCall | undefined): string | undefined {
+  if (call?.error) return call.error
+  if (call?.success !== false) return undefined
+  const result = call.result ?? call.output
+  return (
+    (isRecordLike(result) && (toStringOrNull(result.message) || toStringOrNull(result.error))) ||
+    'Tool execution failed'
+  )
 }
 
 /**
@@ -251,6 +264,7 @@ function buildChildrenFromTimeSegments(
       const { output, handle } = liftChildTraceHandle(
         normalizeTraceOutput(match?.result ?? match?.output)
       )
+      const errorMessage = segment.errorMessage || getToolCallError(match)
 
       const toolChild: TraceSpan = {
         id: `${span.id}-segment-${index}`,
@@ -259,14 +273,18 @@ function buildChildrenFromTimeSegments(
         duration: segment.duration,
         startTime: segmentStartTime,
         endTime: segmentEndTime,
-        status: match?.error || segment.errorMessage ? 'error' : 'success',
+        status: errorMessage ? 'error' : 'success',
         input: match?.arguments ?? match?.input,
         output: match?.error ? { error: match.error, ...output } : output,
         ...handle,
+        ...(errorMessage && { errorMessage }),
+        ...(errorMessage &&
+          isAgentBlockType(log.blockType) &&
+          log.success &&
+          !log.error && { errorHandled: true }),
       }
       if (segment.toolCallId) toolChild.toolCallId = segment.toolCallId
       if (segment.errorType) toolChild.errorType = segment.errorType
-      if (segment.errorMessage) toolChild.errorMessage = segment.errorMessage
       return toolChild
     }
 
@@ -330,6 +348,7 @@ function buildChildrenFromToolCalls(span: TraceSpan, log: ValidBlockLog): TraceS
     const startTime = tc.startTime ?? log.startedAt
     const endTime = tc.endTime ?? log.endedAt
     const { output, handle } = liftChildTraceHandle(normalizeTraceOutput(tc.result ?? tc.output))
+    const errorMessage = getToolCallError(tc)
     return {
       id: `${span.id}-tool-${index}`,
       name: stripCustomToolPrefix(tc.name ?? 'unnamed-tool'),
@@ -337,10 +356,15 @@ function buildChildrenFromToolCalls(span: TraceSpan, log: ValidBlockLog): TraceS
       duration: tc.duration ?? 0,
       startTime,
       endTime,
-      status: tc.error ? 'error' : 'success',
+      status: errorMessage ? 'error' : 'success',
       input: tc.arguments ?? tc.input,
       output: tc.error ? { error: tc.error, ...output } : output,
       ...handle,
+      ...(errorMessage && { errorMessage }),
+      ...(errorMessage &&
+        isAgentBlockType(log.blockType) &&
+        log.success &&
+        !log.error && { errorHandled: true }),
     }
   })
 }

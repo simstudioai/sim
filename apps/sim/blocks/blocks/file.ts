@@ -1345,22 +1345,22 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     },
     {
       id: 'writeFolderPath',
-      title: 'Folder',
+      title: 'Destination Folder',
       type: 'folder-selector' as SubBlockType,
       resourceType: 'file',
       placeholder: 'Workspace root',
       canonicalParamId: 'writeFolderRef',
       mode: 'basic',
-      condition: { field: 'operation', value: 'file_write' },
+      condition: { field: 'operation', value: ['file_write', 'file_compress'] },
     },
     {
       id: 'manualWriteFolderPath',
-      title: 'Folder Path',
+      title: 'Destination Folder Path',
       type: 'short-input' as SubBlockType,
       canonicalParamId: 'writeFolderRef',
       mode: 'advanced',
       placeholder: '/Reports/Q3%20Results',
-      condition: { field: 'operation', value: 'file_write' },
+      condition: { field: 'operation', value: ['file_write', 'file_compress'] },
     },
     {
       id: 'fileName',
@@ -1673,7 +1673,18 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
       title: 'Archive Name',
       type: 'short-input' as SubBlockType,
       placeholder: 'archive.zip (auto-named from source if omitted)',
-      condition: { field: 'operation', value: ['file_compress', 'file_compress_folder'] },
+      condition: { field: 'operation', value: 'file_compress' },
+    },
+    {
+      id: 'archiveOnConflict',
+      title: 'If Archive Exists',
+      type: 'dropdown',
+      options: [
+        { label: 'Choose an available name', id: 'rename' },
+        { label: 'Fail without overwriting', id: 'error' },
+      ],
+      value: () => 'rename',
+      condition: { field: 'operation', value: 'file_compress' },
     },
     {
       id: 'decompressFile',
@@ -2090,6 +2101,8 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
           return {
             ...fileFamilyInput(params, 'compress', params.compressInput),
             archiveName: optionalText(params.archiveName),
+            folderPath: optionalText(params.writeFolderRef),
+            onConflict: optionalText(params.archiveOnConflict),
           }
         }
 
@@ -2248,6 +2261,10 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     endAnchor: { type: 'string', description: 'Ending line preserved by an anchored deletion' },
     editOccurrence: { type: 'number', description: 'Matching anchor occurrence, starting at 1' },
     archiveName: { type: 'string', description: 'Name for the compressed .zip archive' },
+    archiveOnConflict: {
+      type: 'string',
+      description: 'Archive name collision behavior: rename or error',
+    },
     decompressInput: {
       type: 'json',
       description: 'Selected .zip archive or canonical file ID to extract',
@@ -2267,7 +2284,7 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     },
     writeFolderRef: {
       type: 'string',
-      description: 'Folder to create the file in (write)',
+      description: 'Destination folder for a written file or compressed archive',
     },
     folderRef: {
       type: 'string',
@@ -2415,7 +2432,8 @@ export const FileV5Block: BlockConfig<FileParserV3Output> = {
     },
     path: {
       type: 'string',
-      description: 'The folder that was listed or deleted (list and delete folder)',
+      description:
+        'Final archive path (compress), or the folder that was listed or deleted (list and delete folder)',
     },
     previousPath: {
       type: 'string',

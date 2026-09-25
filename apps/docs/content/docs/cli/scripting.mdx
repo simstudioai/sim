@@ -222,6 +222,64 @@ case $? in
 esac
 ```
 
+## Inspecting and editing workflows
+
+Find the workflow in its workspace before reading its draft:
+
+```bash
+sim workspaces list --output json
+sim workflows list --workspace "$workspace_id" --search "Daily report" \
+  --folder Reports --deployed-only --output json
+```
+
+`--search` matches names; `--folder` and `--deployed-only` narrow the results.
+These lists [follow pages automatically](#pagination). There is no account-wide
+workflow-content search: use metadata to narrow candidates, then inspect them.
+
+Start with a compact diagnostic view, then fetch editable state when you need to
+change the saved workflow:
+
+```bash
+sim workflows inspect "$workflow_id" --output json
+sim workflows inspect "$workflow_id" --block-id "$block_id" --include-code --output json
+sim workflows state get "$workflow_id" --output json > state.json
+```
+
+Inspection includes block IDs, names, enabled states, parents, connections, and
+bounded inputs. It omits code by default and withholds credential fields and
+opaque credential values; check `omittedInputs` and `truncated` for missing detail.
+Redaction cannot recognize every secret embedded in arbitrary text or code.
+The diagnostic view is not a format to save back.
+
+A tool ID from `tools get` selects a standalone operation. A block type and its
+operation from `blocks get` define workflow behavior; a block ID identifies one
+instance in the saved workflow. These IDs are not interchangeable. Preserve the
+saved block type/version when editing; an unversioned catalog name can resolve
+to a newer definition with different fields.
+
+For in-place edits, preserve the IDs and credential/table references from
+`state get`, then validate with `state replace --dry-run` before saving.
+`workflows export` is a sanitized portable format with credential bindings cleared;
+use it for [import and sync](/cli/workflow-sync), not to replace editable state.
+Review validation coverage, skipped checks, warnings, and `removedBindings`.
+Static validation cannot prove provider access, model behavior, or runtime success.
+
+For a small change, use the existing operations command. An enablement-only batch
+needs no graph edit:
+
+```bash
+sim workflows operations apply "$workflow_id" --dry-run --atomic \
+  --set-block-enabled "[{\"block_id\":\"$block_id\",\"enabled\":false}]"
+```
+
+Inspect `applied`, `skipped`, and `inputValidationErrors` before committing with
+`--yes` in place of `--dry-run`. `--atomic` prevents the batch from saving if an
+edit is declined or an input would be dropped. When adding blocks, dry-run
+`previewBlockIds` are provisional and `mintedBlockIds` is empty; use the IDs from
+the committed response. Read the saved state before deploying. Validation executes
+no blocks; it is not a mode that suppresses external writes during a later run.
+See the [workflow command reference](/cli/workflows) for full edit and validation flags.
+
 ## Selecting workflow output
 
 `--select-output` returns the named values in `blockOutputs` on a sync run, or
@@ -242,9 +300,22 @@ sim workflows runs get "$run_id" --workflow 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8
   --select-output 1d4c8f02-7b63-4a19-8e52-63f0a7c5d9b1.content --output json
 ```
 
+To inspect an intermediate result, combine a selector with `--stop-after`:
+
+```bash
+sim workflows run "$workflow_id" --stop-after "$block_id" \
+  --select-output "$block_id.result" --output json
+```
+
+This executes real actions and stops scheduling after the target finishes.
+Already-running parallel branches can still act; a condition that skips the
+target can let the remaining path complete. It does not edit the saved graph or
+suppress external writes. It cannot be used with `--async`, and a later explicit
+resume of a paused run does not inherit the limit.
+
 ## Polling a long run
 
-Start the run asynchronously, then use the CLI’s wait command:
+Start a deployed run asynchronously, then use the CLI’s wait command:
 
 ```bash
 run_id=$(sim workflows run 3a9e21d8-5f47-4c0b-b2ea-91d7c6034ef8 --async --output json | jq -r '.runId')
@@ -257,6 +328,55 @@ outcome; `--wait-timeout 0` waits indefinitely.
 
 Use `sim logs get "$run_id" --trace` for full diagnostics. A run paused for human
 input includes the context ID needed by `sim workflows runs resume`.
+
+Ordinary runs use the active deployment; `--manual`, `--trigger`, and `--from-block`
+use the current saved draft. Deployed runs support synchronous execution,
+`--follow`, or `--async`. Manual runs support synchronous execution or `--follow`;
+`--async` cannot be combined with manual execution or `--follow`.
+
+The CLI prints a run ID to stderr before sending a manual request. Use it with
+`workflows runs get` or `workflows runs wait` in another terminal. A status record
+appears only after server admission, so a rejected request may never have one.
+The ID is a one-shot identifier, not a replayable idempotency key. After an
+uncertain network failure, inspect that ID before starting another execution;
+a fresh ID can repeat external actions.
+
+Deployed runs retain the default API-compatible trigger priority. A deployment
+with one other runnable trigger can also run directly. If no API-compatible
+entry exists and multiple triggers remain, select the deployed entry through the
+API's `run.entry`; the CLI's `--trigger` instead selects an entry in the draft.
+See the [run command reference](/cli/workflows#run-a-deployed-workflow-or-execute-saved-state-manually)
+for all execution flags.
+
+## Previewing a partial retry
+
+Preview a retry using the source run's persisted upstream outputs before repeating
+external actions:
+
+```bash
+sim workflows runs preview "$workflow_id" \
+  --from-block "$block_id" --source-run "$source_run_id" --output json
+```
+
+Review `validation`, `rerunBlocks`, and `upstreamBlocks`. Preview reports cached-output
+availability without returning values, executing blocks, or reserving a run ID.
+Its rerun blocks are candidates, not an execution order: conditions, disabled
+blocks, loops, and failures still affect the path. Preview does not lock the draft;
+the subsequent manual run uses the draft saved at that time.
+
+After reviewing the preview, start the retry and use its printed run ID to
+[track it](#polling-a-long-run):
+
+```bash
+sim workflows run "$workflow_id" \
+  --from-block "$block_id" --source-run "$source_run_id" --follow
+```
+
+An error connection is an alternative path: a consumer reached through an error
+bypass may lack the successful path's parser output. Keep required data on the
+path that produces it or handle its absence. A disabled block stops its branch;
+it is not a pass-through mock. Replay can reuse recorded ancestor outputs from
+the selected source run, but cannot supply outputs that run never produced.
 
 ## Working with folders
 

@@ -146,7 +146,9 @@ function asGraph(value: Record<string, unknown>): Pick<WorkflowState, 'blocks' |
  * fallback graph that a write could persist after a failed read.
  */
 async function loadStoredGraph(workflowId: string): Promise<Record<string, unknown>> {
-  const normalized = await loadWorkflowFromNormalizedTables(workflowId)
+  const normalized = await loadWorkflowFromNormalizedTables(workflowId, undefined, {
+    persistMigrations: false,
+  })
   if (!normalized) {
     throw new OrchestrationError('validation', `Workflow ${workflowId} has no normalized state`)
   }
@@ -265,8 +267,11 @@ export const applyWorkflowOperations = defineAuthorizedWorkflowUseCase({
       assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
     }),
   async execute({ principal, input, context }): Promise<ApplyWorkflowOperationsResult> {
-    if (input.operations.length === 0) {
-      throw new OrchestrationError('validation', 'operations cannot be empty')
+    if (input.operations.length === 0 && !input.blockEnabledChanges?.length) {
+      throw new OrchestrationError(
+        'validation',
+        'Provide at least one operation or blockEnabledChanges entry'
+      )
     }
     await requireMutableWorkflow(context.workflowId)
 

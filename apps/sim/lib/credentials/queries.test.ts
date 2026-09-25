@@ -6,6 +6,7 @@ import {
   getWorkspaceCredential,
   listVisibleWorkspaceCredentials,
   listWorkspacePrincipalCredentials,
+  readCredentialAccountMetadata,
 } from '@/lib/credentials/queries'
 
 describe('listVisibleWorkspaceCredentials', () => {
@@ -109,5 +110,22 @@ describe('ordinary credential lookups', () => {
       'managed_oauth',
       'managed_mcp',
     ])
+  })
+})
+
+describe('readCredentialAccountMetadata', () => {
+  beforeEach(() => resetDbChainMock())
+
+  it('selects only non-secret metadata for the exact account/provider pair', async () => {
+    const row = { externalAccountId: 'T123-U456-connection', scope: 'files:read' }
+    dbChainMockFns.limit.mockResolvedValueOnce([row])
+    expect(await readCredentialAccountMetadata('account-1', 'slack')).toEqual(row)
+    expect(dbChainMockFns.select).toHaveBeenCalledWith({
+      externalAccountId: schemaMock.account.accountId,
+      scope: schemaMock.account.scope,
+    })
+    expect(drizzleOrmMock.eq).toHaveBeenCalledWith(schemaMock.account.id, 'account-1')
+    expect(drizzleOrmMock.eq).toHaveBeenCalledWith(schemaMock.account.providerId, 'slack')
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
   })
 })

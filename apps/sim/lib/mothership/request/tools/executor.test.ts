@@ -368,7 +368,15 @@ describe('executeToolAndReport provenance isolation', () => {
     const completion = await pending
     expect(tool.error).toBeUndefined()
     expect(completion.status).toBe('success')
-    expect(tool.result).toMatchObject({ success: true, output: { exitCode: 0, stderr: '' } })
+    const runId = runWorkflow.mock.calls[0]?.[0].headers.get('x-run-id')
+    expect(runId).toBeTruthy()
+    expect(tool.result).toMatchObject({
+      success: true,
+      output: {
+        exitCode: 0,
+        stderr: `Run ID: ${runId}. Inspect after admission: sim workflows runs get ${runId} --workflow workflow-1\n`,
+      },
+    })
     const output = tool.result?.output
     expect(output).toHaveProperty('stdout', expect.stringContaining('completed'))
     expect(runWorkflow).toHaveBeenCalledOnce()

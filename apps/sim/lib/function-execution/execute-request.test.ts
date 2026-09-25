@@ -409,6 +409,35 @@ describe('Function execution request', () => {
       expect(mockExecuteShellInSandbox).not.toHaveBeenCalled()
     })
 
+    it('measures sandbox cost for a direct caller without a workflow', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const cost = { input: 0, output: 0, total: 0.001 }
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: 42,
+        stdout: '',
+        sandboxId: 'direct-sandbox',
+        cost,
+      })
+      const response = await executeFunctionRequest(
+        { headers: new Headers(), signal: new AbortController().signal },
+        functionExecuteBodySchema.parse({
+          code: 'import path from "node:path"; return 42',
+          workspaceId: 'workspace-1',
+        }),
+        {
+          principal: { kind: 'personal_api_key', userId: 'actor', keyId: 'key' },
+          attributedUserId: 'actor',
+          fileAccessUserId: 'actor',
+          meterSandboxUsage: true,
+        }
+      )
+      expect(response.status).toBe(200)
+      expect(mockExecuteInSandbox).toHaveBeenCalledWith(
+        expect.objectContaining({ meterUsage: true, workspaceId: 'workspace-1' })
+      )
+      expect((await response.json()).output.cost).toEqual(cost)
+    })
+
     it.each([
       { language: 'python', code: 'return 42', kind: 'code' },
       { language: 'shell', code: 'echo ready', kind: 'shell' },

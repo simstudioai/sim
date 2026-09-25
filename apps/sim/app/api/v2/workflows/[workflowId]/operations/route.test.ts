@@ -43,6 +43,8 @@ const DROPPED_INPUT = {
 
 /** An empty report, with every field the contract publishes. */
 const LINT = {
+  checks: [],
+  codeIssues: [],
   sources: [],
   sinks: [],
   orphanBlocks: [],

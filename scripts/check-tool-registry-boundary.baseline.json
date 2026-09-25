@@ -57,6 +57,19 @@
         "apps/sim/lib/webhooks/providers/registry.ts": 119
       }
     },
+    "app/api/v2/tools/files/download/route.ts": {
+      "modules": 1674,
+      "gateways": {
+        "apps/sim/lib/api/server/routes/index.ts": 1511,
+        "apps/sim/lib/api/server/routes/internal-json-route.ts": 1448,
+        "apps/sim/lib/auth/index.ts": 1432,
+        "apps/sim/triggers/index.ts": 487,
+        "apps/sim/triggers/registry.ts": 485,
+        "apps/sim/blocks/registry.ts": 369,
+        "apps/sim/blocks/registry-maps.ts": 366,
+        "apps/sim/lib/webhooks/providers/index.ts": 124
+      }
+    },
     "app/api/v2/tools/route.ts": {
       "modules": 1667,
       "gateways": {

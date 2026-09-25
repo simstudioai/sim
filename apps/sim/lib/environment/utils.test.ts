@@ -305,6 +305,108 @@ describe('getPersonalAndWorkspaceEnv access filtering', () => {
     }))
   })
 
+  it('skips every lookup when no names are selected', async () => {
+    const snapshot = await getPersonalAndWorkspaceEnv('user-1', 'workspace-1', {
+      requestedNames: [],
+    })
+    expect(snapshot).toEqual({
+      personalEncrypted: {},
+      workspaceEncrypted: {},
+      personalDecrypted: {},
+      workspaceDecrypted: {},
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: [],
+      workspaceUnredactedKeys: [],
+    })
+    expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
+    expect(mockGetAccessibleEnvCredentials).not.toHaveBeenCalled()
+    expect(encryptionMockFns.mockDecryptSecret).not.toHaveBeenCalled()
+  })
+
+  it('filters selection before decryption while retaining owner, precedence and visibility provenance', async () => {
+    mockGetAccessibleEnvCredentials.mockResolvedValue([
+      {
+        type: 'env_workspace',
+        envKey: 'SELECTED',
+        envOwnerUserId: null,
+        updatedAt: new Date(),
+        unredacted: true,
+      },
+      {
+        type: 'env_workspace',
+        envKey: 'OTHER',
+        envOwnerUserId: null,
+        updatedAt: new Date(),
+        unredacted: true,
+      },
+      {
+        type: 'env_personal',
+        envKey: 'SHARED',
+        envOwnerUserId: 'owner-2',
+        updatedAt: new Date(),
+        unredacted: false,
+      },
+    ])
+    queueTableRows(environment, [
+      { variables: { SELECTED: 'personal-cipher', OTHER: 'other-personal-cipher' } },
+    ])
+    queueTableRows(workspaceEnvironment, [
+      {
+        variables: {
+          SELECTED: 'workspace-cipher',
+          OTHER: 'other-workspace-cipher',
+          DENIED: 'denied-cipher',
+        },
+      },
+    ])
+    queueTableRows(environment, [
+      { userId: 'owner-2', variables: { SHARED: 'shared-cipher', UNRELATED: 'unrelated-cipher' } },
+    ])
+    const snapshot = await getPersonalAndWorkspaceEnv('user-1', 'workspace-1', {
+      requestedNames: ['SELECTED', 'SHARED', 'DENIED', 'SELECTED'],
+    })
+    expect(snapshot).toMatchObject({
+      personalEncrypted: { SELECTED: 'personal-cipher', SHARED: 'shared-cipher' },
+      workspaceEncrypted: { SELECTED: 'workspace-cipher' },
+      personalDecrypted: { SELECTED: 'plain:personal-cipher', SHARED: 'plain:shared-cipher' },
+      workspaceDecrypted: { SELECTED: 'plain:workspace-cipher' },
+      personalOwners: { SELECTED: 'user-1', SHARED: 'owner-2' },
+      conflicts: ['SELECTED'],
+      workspaceUnredactedKeys: ['SELECTED'],
+    })
+    expect(encryptionMockFns.mockDecryptSecret.mock.calls.flat()).toEqual(
+      expect.arrayContaining(['personal-cipher', 'workspace-cipher', 'shared-cipher'])
+    )
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledTimes(3)
+  })
+
+  it('rechecks selected credential access after a grant is revoked', async () => {
+    const credential = {
+      type: 'env_workspace',
+      envKey: 'SELECTED',
+      envOwnerUserId: null,
+      updatedAt: new Date(),
+      unredacted: false,
+    }
+    mockGetAccessibleEnvCredentials.mockResolvedValueOnce([credential]).mockResolvedValueOnce([])
+    for (let index = 0; index < 2; index++) {
+      queueTableRows(environment, [{ variables: {} }])
+      queueTableRows(workspaceEnvironment, [{ variables: { SELECTED: 'workspace-cipher' } }])
+    }
+    expect(
+      (await getPersonalAndWorkspaceEnv('user-1', 'workspace-1', { requestedNames: ['SELECTED'] }))
+        .workspaceDecrypted
+    ).toEqual({ SELECTED: 'plain:workspace-cipher' })
+    expect(
+      (await getPersonalAndWorkspaceEnv('user-1', 'workspace-1', { requestedNames: ['SELECTED'] }))
+        .workspaceDecrypted
+    ).toEqual({})
+    expect(mockCheckWorkspaceAccess).toHaveBeenCalledTimes(2)
+    expect(mockGetAccessibleEnvCredentials).toHaveBeenCalledTimes(2)
+    expect(encryptionMockFns.mockDecryptSecret).toHaveBeenCalledOnce()
+  })
+
   it('filters every workspace secret when the caller has zero credential grants', async () => {
     queueTableRows(environment, [{ variables: { PERSONAL_KEY: 'personal-cipher' } }])
     queueTableRows(workspaceEnvironment, [{ variables: { WORKSPACE_KEY: 'workspace-cipher' } }])

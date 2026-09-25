@@ -3,6 +3,10 @@ title: Tools
 description: How an agent finds, reads, and calls Sim operations through four tools
 ---
 
+This guide covers the hosted [Sim MCP server](/mcp). A
+[workflow MCP deployment](/workflows/deployment/mcp) exposes selected workflows,
+while [external MCP tools](/agents/mcp) are called from inside Sim.
+
 The Sim API has more than 200 operations. Instead of one tool per operation,
 which would crowd your app's tool list and your agent's context, the server
 exposes four tools. The agent searches for an operation, reads its inputs, and
@@ -36,7 +40,7 @@ fills the parts of the request it needs:
 | --- | --- |
 | `params` | Path parameters, such as `tableId` or `workflowId` |
 | `query` | Query-string parameters; most operations need `workspaceId` |
-| `body` | The JSON request body (write operations only) |
+| `body` | The JSON request body; read-only searches and queries can also require one |
 | `headers` | Headers the operation declares, such as `upload-token` |
 
 The result is the same JSON the API returns, usually `{ "data": … }`. List
@@ -53,3 +57,6 @@ correct its request.
   result, or with `async: true` and poll `getWorkflowRun`.
 - **No file bytes.** Downloads, knowledge base exports, and multipart document
   uploads are not available over MCP; use the [CLI](/cli/files) or the API.
+
+If the tools do not appear after sign-in, use the staged
+[connection checks and read-only smoke test](/mcp/troubleshooting).

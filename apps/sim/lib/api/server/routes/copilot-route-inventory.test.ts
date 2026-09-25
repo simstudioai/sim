@@ -295,6 +295,12 @@ it('inventories private operation admission without executing route requests', a
       {
         "audience": null,
         "method": "GET",
+        "operation": "tools.files.download",
+        "path": "/api/v2/tools/files/download",
+      },
+      {
+        "audience": null,
+        "method": "GET",
         "operation": "workspaces.list_public",
         "path": "/api/v2/workspaces",
       },

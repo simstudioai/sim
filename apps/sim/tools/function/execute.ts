@@ -95,6 +95,7 @@ export const functionExecuteTool: InternalToolConfig<CodeExecutionInput, CodeExe
   id: 'function_execute',
   name: 'Function Execute',
   description: `Execute JavaScript, Python, or shell scripts in a secure sandbox. For JS: fetch() is available, code runs in an async IIFE wrapper. Shell includes general utilities such as jq, curl, git, and rg. Use outputPath/outputTable to persist returned data, or outputSandboxPath + outputPath to export a file created inside the sandbox into the workspace. Naming outputSandboxPath exports only those paths; automatic directory collection is disabled for that call.
+Workspace secrets use placeholders, not process.env: JavaScript example \`const token = {{SERVICE_API_KEY}};\`. Set secretScope to "selected" and mountedSecrets to ["SERVICE_API_KEY"] to restrict access. Runtime variables such as SIM_OUTPUT_DIR are separate from workspace secrets.
 To read a file, pass its id in \`files\`: each one is mounted read-only under ${SANDBOX_INPUT_DIR}. List that directory to find them rather than guessing a path — names are sanitized and de-duplicated, so they do not always match the original.
 To return a file from a Function sandbox, write it to ${SANDBOX_OUTPUT_DIR}. In a Mothership workbench, use the per-call SIM_OUTPUT_DIR instead (Python: os.environ["SIM_OUTPUT_DIR"], JavaScript: process.env.SIM_OUTPUT_DIR, shell: $SIM_OUTPUT_DIR). Files in the export directory come back in this tool's \`files\` output as platform file objects, which another tool that takes a file accepts directly — no upload step in between.`,
   version: '1.0.0',
@@ -105,7 +106,7 @@ To return a file from a Function sandbox, write it to ${SANDBOX_OUTPUT_DIR}. In 
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Source code in the selected language. JavaScript runs as an async function body and returns a result with return. Python runs as a module and returns an optional result through __sim_result__; legacy snippets with a top-level return remain supported. Shell runs as Bash and can emit a typed result with __SIM_RESULT__=<json>.',
+        'Source code in the selected language. Read permitted workspace secrets with {{NAME}}, for example const token = {{SERVICE_API_KEY}}; do not use process.env.NAME for workspace secrets. JavaScript runs as an async function body and returns a result with return. Python runs as a module and returns an optional result through __sim_result__; legacy snippets with a top-level return remain supported. Shell runs as Bash and can emit a typed result with __SIM_RESULT__=<json>.',
     },
     language: {
       type: 'string',
@@ -184,14 +185,16 @@ To return a file from a Function sandbox, write it to ${SANDBOX_OUTPUT_DIR}. In 
       type: 'string',
       required: false,
       visibility: 'user-only',
-      description: 'Whether this code can read all workspace secrets or only selected ones',
+      description:
+        'Secret access: all workspace secrets or selected names only. Read secrets with {{NAME}} placeholders, not process.env.NAME.',
     },
     mountedSecrets: {
       type: 'array',
       items: { type: 'string' },
       required: false,
       visibility: 'user-only',
-      description: 'Secret names this code can read when secretScope is "selected"',
+      description:
+        'Case-sensitive names this code can read when secretScope is "selected". Example: ["SERVICE_API_KEY"] permits {{SERVICE_API_KEY}}; an empty list permits no workspace secrets.',
     },
     envVars: {
       type: 'object',

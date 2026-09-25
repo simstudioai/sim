@@ -1444,7 +1444,7 @@ export interface RetrieveSubscriptionParams {
 export interface UpdateSubscriptionParams {
   apiKey: string
   id: string
-  items?: Array<{ price: string; quantity?: number }>
+  items?: Array<{ id?: string; price: string; quantity?: number }>
   cancel_at_period_end?: boolean
   metadata?: StripeMetadata
 }
@@ -1467,12 +1467,15 @@ export interface ListSubscriptionsParams {
   customer?: string
   status?: string
   price?: string
+  starting_after?: string
+  ending_before?: string
 }
 
 export interface SearchSubscriptionsParams {
   apiKey: string
   query: string
   limit?: number
+  page?: string
 }
 
 export interface SubscriptionResponse extends ToolResponse {
@@ -1493,6 +1496,12 @@ export interface SubscriptionListResponse extends ToolResponse {
       count: number
       has_more: boolean
     }
+  }
+}
+
+export interface SubscriptionSearchResponse extends SubscriptionListResponse {
+  output: SubscriptionListResponse['output'] & {
+    metadata: SubscriptionListResponse['output']['metadata'] & { next_page: string | null }
   }
 }
 

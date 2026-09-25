@@ -586,6 +586,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/tools/[toolId]/execute/route'),
   },
   {
+    pattern: '/api/v2/tools/files/download',
+    load: () => import('@/app/api/v2/tools/files/download/route'),
+  },
+  {
     pattern: '/api/v2/uploads/{uploadId}',
     load: () => import('@/app/api/v2/uploads/[uploadId]/route'),
   },
@@ -642,6 +646,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
     load: () => import('@/app/api/v2/workflows/[workflowId]/export/route'),
   },
   {
+    pattern: '/api/v2/workflows/{workflowId}/inspect',
+    load: () => import('@/app/api/v2/workflows/[workflowId]/inspect/route'),
+  },
+  {
     pattern: '/api/v2/workflows/{workflowId}/operations',
     load: () => import('@/app/api/v2/workflows/[workflowId]/operations/route'),
   },
@@ -672,6 +680,10 @@ export const V2_ROUTES: readonly V2RouteEntry[] = [
   {
     pattern: '/api/v2/workflows/{workflowId}/runs/{runId}/resume',
     load: () => import('@/app/api/v2/workflows/[workflowId]/runs/[runId]/resume/route'),
+  },
+  {
+    pattern: '/api/v2/workflows/{workflowId}/runs/preview',
+    load: () => import('@/app/api/v2/workflows/[workflowId]/runs/preview/route'),
   },
   {
     pattern: '/api/v2/workflows/{workflowId}/state',

@@ -376,6 +376,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'mcp.mdx',
   'mcp/authentication.mdx',
   'mcp/tools.mdx',
+  'mcp/troubleshooting.mdx',
   'platform/connected-accounts.mdx',
   'platform/costs.mdx',
   'platform/credentials.mdx',

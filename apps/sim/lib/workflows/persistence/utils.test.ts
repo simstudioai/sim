@@ -311,6 +311,37 @@ describe('Database Helpers', () => {
   })
 
   describe('loadWorkflowFromNormalizedTables', () => {
+    it.each([false, true])(
+      'normalizes legacy blocks with persistMigrations=%s',
+      async (persistMigrations) => {
+        queueLoadFixtures({
+          blocks: [
+            toDbBlock(
+              createStarterBlock({
+                id: 'start',
+                subBlocks: legacySubBlocks({
+                  _removed_oldSecret: {
+                    id: '_removed_oldSecret',
+                    type: 'short-input',
+                    value: 'old',
+                  },
+                }),
+              }),
+              mockWorkflowId
+            ),
+          ],
+        })
+        const result = await dbHelpers.loadWorkflowFromNormalizedTables(mockWorkflowId, undefined, {
+          persistMigrations,
+        })
+        expect(result?.blocks.start.subBlocks).not.toHaveProperty('_removed_oldSecret')
+        await Promise.resolve()
+        expect(dbChainMockFns.update).toHaveBeenCalledTimes(persistMigrations ? 1 : 0)
+        expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+        expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
+      }
+    )
+
     it.each(['for', 'forEach', 'while', 'doWhile'] as const)(
       'preserves valid block counts and expressions for %s loops even when subflow counts differ',
       async (loopType) => {
@@ -803,21 +834,6 @@ describe('Database Helpers', () => {
       queueActiveVersion('dv-new', buildDeployedState())
       await dbHelpers.loadDeployedWorkflowState('wf-4', 'workspace-1')
       expect(mockSanitizeAgentToolsInBlocks).toHaveBeenCalledTimes(2)
-    })
-
-    it('loads an admitted immutable deployment version even after a later cutover', async () => {
-      const state = buildDeployedState()
-      queueTableRows(schemaMock.workflowDeploymentVersion, [{ id: 'dv-admitted', state }])
-
-      const result = await dbHelpers.loadWorkflowDeploymentVersionState(
-        'wf-admitted',
-        'dv-admitted',
-        'workspace-1'
-      )
-
-      expect(result.deploymentVersionId).toBe('dv-admitted')
-      expect(result.blocks).toEqual(state.blocks)
-      expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
     })
 
     it('invalidateDeployedStateCache(id) forces a rebuild on the next call', async () => {

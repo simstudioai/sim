@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
-import { SlackV2Block } from '@/blocks/blocks/slack'
+import { SlackBlock, SlackV2Block } from '@/blocks/blocks/slack'
 
 function mapSlackV2Params(params: Record<string, unknown>): Record<string, unknown> {
   const mapParams = SlackV2Block.tools.config?.params
@@ -110,4 +110,34 @@ describe('Slack block release', () => {
       { limit: 100 }
     )
   })
+})
+
+describe.each([SlackBlock, SlackV2Block])('$type channel target visibility', (block) => {
+  it('keeps both channel inputs visible for a channel-only operation after a DM action', () => {
+    const operation = 'update'
+    for (const fieldId of ['channel', 'manualChannel']) {
+      const field = block.subBlocks.find((candidate) => candidate.id === fieldId)
+      if (!field) throw new Error(`Missing ${fieldId}`)
+      expect(
+        evaluateSubBlockCondition(field.condition, { operation, destinationType: 'dm' }),
+        fieldId
+      ).toBe(true)
+    }
+  })
+
+  it.each(['send', 'read', 'schedule_message'])(
+    'preserves the channel/DM switch for %s in both modes',
+    (operation) => {
+      for (const fieldId of ['channel', 'manualChannel']) {
+        const field = block.subBlocks.find((candidate) => candidate.id === fieldId)
+        if (!field) throw new Error(`Missing ${fieldId}`)
+        for (const destinationType of ['channel', 'dm']) {
+          expect(
+            evaluateSubBlockCondition(field.condition, { operation, destinationType }),
+            `${fieldId} ${destinationType}`
+          ).toBe(destinationType === 'channel')
+        }
+      }
+    }
+  )
 })

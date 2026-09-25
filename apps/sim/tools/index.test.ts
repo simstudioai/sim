@@ -45,6 +45,7 @@ import { buildFunctionExecuteBody, functionExecuteTool } from '@/tools/function/
 import { searchIssuesV2Tool } from '@/tools/github/search_issues'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { slackUpdateMessageTool } from '@/tools/slack/update_message'
 import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
 import { getCallerIdentityTool } from '@/tools/sts/get_caller_identity'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
@@ -206,6 +207,7 @@ vi.mock('@/executor/handlers/workflow/custom-block-tool-runner', () => ({
 // Mock the tools registry to avoid loading the full 4500+ line registry file.
 // Only the tools actually exercised in tests are provided.
 const mockRegistryTools: Record<string, any> = {
+  slack_update_message: slackUpdateMessageTool,
   slack_lists_items_list: slackListsItemsListTool,
   github_search_issues_v2: searchIssuesV2Tool,
   bitbucket_get_pipeline_step_log: bitbucketGetPipelineStepLogTool,
@@ -5258,6 +5260,94 @@ describe('Copilot Env Variable Reference Resolution', () => {
     expect(result.success).toBe(true)
     expect(mockGetEffectiveEnvironmentSnapshot).toHaveBeenCalledWith('user-123', 'workspace-456')
     expect(sentOperationInput().apiKey).toBe('sntrys_real_token')
+  })
+
+  it('resolves a direct Slack bot-token reference for the acting user and selected workspace', async () => {
+    mockGetEffectiveEnvironmentSnapshot.mockResolvedValueOnce(
+      environmentSnapshot({ SLACK_TOKEN: 'selected-bot-token' })
+    )
+    mockExecuteInternalToolOperation.mockResolvedValueOnce(
+      Response.json({ success: true, output: { ts: '123.456' } })
+    )
+    const callerPrincipal = {
+      kind: 'personal_api_key' as const,
+      userId: 'direct-actor',
+      keyId: 'direct-key',
+    }
+    const callerParams = {
+      authMethod: 'bot_token',
+      botToken: '{{SLACK_TOKEN}}',
+      channel: 'channel-1',
+      timestamp: '123.456',
+      text: 'Updated',
+      _context: {
+        userId: 'direct-actor',
+        workspaceId: 'direct-workspace',
+        enforceCredentialAccess: true,
+        envReferenceMode: 'explicit',
+      },
+    }
+    const result = await executeTool('slack_update_message', callerParams, {
+      operationContext: {
+        workflowId: '',
+        userId: 'direct-actor',
+        workspaceId: 'direct-workspace',
+        callerPrincipal,
+      },
+    })
+    expect(result).toMatchObject({ success: true, output: { ts: '123.456' } })
+    expect(mockGetEffectiveEnvironmentSnapshot).toHaveBeenCalledWith(
+      'direct-actor',
+      'direct-workspace'
+    )
+    expect(mockExecuteInternalToolOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolId: 'slack_update_message',
+        input: expect.objectContaining({
+          accessToken: 'selected-bot-token',
+          channel: 'channel-1',
+          timestamp: '123.456',
+        }),
+        context: expect.objectContaining({
+          callerPrincipal,
+          userId: 'direct-actor',
+          workspaceId: 'direct-workspace',
+        }),
+      })
+    )
+    expect(callerParams.botToken).toBe('{{SLACK_TOKEN}}')
+    expect(JSON.stringify(result)).not.toContain('selected-bot-token')
+  })
+
+  it('fails a missing direct Slack bot-token reference before provider dispatch', async () => {
+    const result = await executeTool(
+      'slack_update_message',
+      {
+        authMethod: 'bot_token',
+        botToken: '{{MISSING_TOKEN}}',
+        channel: 'channel-1',
+        timestamp: '123.456',
+        text: 'Updated',
+        _context: {
+          userId: 'direct-actor',
+          workspaceId: 'direct-workspace',
+          envReferenceMode: 'explicit',
+        },
+      },
+      {
+        operationContext: {
+          workflowId: '',
+          userId: 'direct-actor',
+          workspaceId: 'direct-workspace',
+          callerPrincipal: { kind: 'session', userId: 'direct-actor', sessionId: 'session-1' },
+        },
+      }
+    )
+    expect(result).toMatchObject({
+      success: false,
+      error: expect.stringContaining('MISSING_TOKEN'),
+    })
+    expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
   })
 
   it('keeps direct integration execution raw while projecting only its active workspace secret', async () => {

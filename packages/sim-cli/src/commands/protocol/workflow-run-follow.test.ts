@@ -50,7 +50,7 @@ function sse(...frames: unknown[]): ReadableStream<Uint8Array> {
   return bodyOf(frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`))
 }
 
-function _streamResponse(body: ReadableStream<Uint8Array>): Response {
+function streamResponse(body: ReadableStream<Uint8Array>): Response {
   return {
     body,
     status: 200,
@@ -170,6 +170,76 @@ async function run(...argv: string[]): Promise<void> {
 }
 
 describe('sim workflows run --follow', () => {
+  it('forwards stop-after and explicit deployed entry without turning the run into a draft run', async () => {
+    requestRaw.mockResolvedValue(streamResponse(sse({ event: 'final', data: { success: true } })))
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    await run(
+      WORKFLOW_ID,
+      '--follow',
+      '--stop-after',
+      'format-1',
+      '--run',
+      JSON.stringify({ source: 'deployment', entry: { type: 'trigger', blockId: 'schedule-1' } })
+    )
+    expect(requestRaw.mock.calls[0][1].body).toEqual({
+      stream: true,
+      stopAfterBlockId: 'format-1',
+      run: { source: 'deployment', entry: { type: 'trigger', blockId: 'schedule-1' } },
+    })
+  })
+
+  it('refuses asynchronous stop-after before sending an execution request', async () => {
+    await expect(run(WORKFLOW_ID, '--async', '--stop-after', 'format-1')).rejects.toThrow(
+      '--stop-after applies to synchronous runs'
+    )
+    expect(requestRaw).not.toHaveBeenCalled()
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('announces a pollable manual run ID before sending the request', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    requestRaw.mockImplementation(async (_path, init) => {
+      const runId = init.headers['x-run-id']
+      expect(runId).toMatch(/^[0-9a-f-]{36}$/)
+      expect(stderr.mock.calls.map(([line]) => String(line)).join('')).toContain(
+        `sim workflows runs get ${runId} --workflow ${WORKFLOW_ID}`
+      )
+      return jsonResponse({ runId, status: 'completed' })
+    })
+    await run(WORKFLOW_ID, '--manual')
+    expect(requestRaw).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserves an explicit run ID when following a partial retry', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    requestRaw.mockResolvedValue(streamResponse(sse({ event: 'final', data: { success: true } })))
+    await run(
+      WORKFLOW_ID,
+      '--from-block',
+      'agent-1',
+      '--source-run',
+      'source-1',
+      '--run-id',
+      'retry-1',
+      '--follow'
+    )
+    expect(requestRaw.mock.calls[0][1].headers['x-run-id']).toBe('retry-1')
+    expect(stderr.mock.calls.map(([line]) => String(line)).join('')).toContain('Run ID: retry-1')
+  })
+
+  it('announces the canonical ID for a low-level JSON manual selection', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    requestRaw.mockResolvedValue(jsonResponse({ status: 'completed' }))
+    await run(WORKFLOW_ID, '--run', '{"source":"manual"}')
+    const runId = requestRaw.mock.calls[0][1].headers['x-run-id']
+    expect(runId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(stderr.mock.calls.map(([line]) => String(line)).join('')).toContain(`Run ID: ${runId}`)
+  })
+
   it('translates API field names in synchronous run errors', async () => {
     requestRaw.mockRejectedValue(
       new SimApiError('executionTimeoutSeconds must be less than or equal to 3000', 400)

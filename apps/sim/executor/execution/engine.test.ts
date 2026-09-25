@@ -443,6 +443,97 @@ describe('ExecutionEngine', () => {
         pauseOutput
       )
     })
+    it('stops a sequential run after the selected formatter without scheduling its publishing successor', async () => {
+      const nodes = [
+        createMockNode('start', 'starter'),
+        createMockNode('formatter', 'function'),
+        createMockNode('publish', 'slack'),
+      ]
+      nodes[0].outgoingEdges.set('a', { target: 'formatter' })
+      nodes[1].outgoingEdges.set('b', { target: 'publish' })
+      const context = createMockContext({ stopAfterBlockId: 'formatter' })
+      const orchestrator = createMockNodeOrchestrator()
+      vi.mocked(orchestrator.executeNode).mockImplementation(async (_ctx, nodeId) => ({
+        nodeId,
+        output: { result: nodeId },
+        isFinalOutput: false,
+      }))
+      const edges = createMockEdgeManager((node) =>
+        node.id === 'start' ? ['formatter'] : node.id === 'formatter' ? ['publish'] : []
+      )
+      const result = await new ExecutionEngine(
+        context,
+        createMockDAG(nodes),
+        edges,
+        orchestrator
+      ).run('start')
+      expect(result.success).toBe(true)
+      expect(vi.mocked(orchestrator.executeNode).mock.calls.map((call) => call[1])).toEqual([
+        'start',
+        'formatter',
+      ])
+      expect(orchestrator.handleNodeCompletion).toHaveBeenCalledWith(context, 'formatter', {
+        result: 'formatter',
+      })
+    })
+
+    it('finishes the chosen branch if a condition bypasses the stop target', async () => {
+      const nodes = [
+        createMockNode('start', 'starter'),
+        createMockNode('target', 'function'),
+        createMockNode('alternate', 'slack'),
+      ]
+      nodes[0].outgoingEdges.set('a', { target: 'target' })
+      nodes[0].outgoingEdges.set('b', { target: 'alternate' })
+      const context = createMockContext({ stopAfterBlockId: 'target' })
+      const orchestrator = createMockNodeOrchestrator()
+      vi.mocked(orchestrator.executeNode).mockImplementation(async (_ctx, nodeId) => ({
+        nodeId,
+        output: {},
+        isFinalOutput: false,
+      }))
+      const result = await new ExecutionEngine(
+        context,
+        createMockDAG(nodes),
+        createMockEdgeManager((node) => (node.id === 'start' ? ['alternate'] : [])),
+        orchestrator
+      ).run('start')
+      expect(result.success).toBe(true)
+      expect(vi.mocked(orchestrator.executeNode).mock.calls.map((call) => call[1])).toEqual([
+        'start',
+        'alternate',
+      ])
+    })
+
+    it('waits for already running sibling actions when stop-after is reached', async () => {
+      const nodes = [
+        createMockNode('start', 'starter'),
+        createMockNode('formatter', 'function'),
+        createMockNode('sibling', 'slack'),
+      ]
+      nodes[0].outgoingEdges.set('a', { target: 'formatter' })
+      nodes[0].outgoingEdges.set('b', { target: 'sibling' })
+      const context = createMockContext({ stopAfterBlockId: 'formatter' })
+      const orchestrator = createMockNodeOrchestrator()
+      const formatterFinished = Promise.withResolvers<void>()
+      const completed: string[] = []
+      vi.mocked(orchestrator.executeNode).mockImplementation(async (_ctx, nodeId) => {
+        if (nodeId === 'sibling') await formatterFinished.promise
+        return { nodeId, output: {}, isFinalOutput: false }
+      })
+      vi.mocked(orchestrator.handleNodeCompletion).mockImplementation((_ctx, nodeId) => {
+        completed.push(nodeId)
+        if (nodeId === 'formatter') formatterFinished.resolve()
+      })
+      const result = await new ExecutionEngine(
+        context,
+        createMockDAG(nodes),
+        createMockEdgeManager((node) => (node.id === 'start' ? ['formatter', 'sibling'] : [])),
+        orchestrator
+      ).run('start')
+      expect(result.success).toBe(true)
+      expect(completed).toEqual(['start', 'formatter', 'sibling'])
+    })
   })
 
   describe('Cancellation via AbortSignal', () => {

@@ -213,6 +213,16 @@ jobs:
         with:
           bun-version: 1.4.1
 
+      - name: Check reviewed Next.js release exception
+        run: |
+          bun -e '
+            const config = Bun.TOML.parse(await Bun.file("bunfig.toml").text());
+            const { overrides } = await Bun.file("package.json").json();
+            if (config.install?.minimumReleaseAgeExcludes?.includes("next") && overrides?.next !== "16.3.6") {
+              throw new Error("Remove the Next.js 16.3.6 release-age exception before changing its pin");
+            }
+          '
+
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
@@ -477,3 +487,15 @@ jobs:
           ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
         run: bunx turbo run build --filter=@sim/app
+
+      - name: Upload conflicting build assets
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: build-collision-diagnostics
+          path: |
+            apps/sim/.next/????????????????.js
+            apps/sim/.next/????????????????.map
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7

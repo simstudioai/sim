@@ -94,6 +94,8 @@ describe('v2WorkflowGraphSchema', () => {
 
 /** An empty report carrying every field the lint schema requires. */
 const EMPTY_LINT = {
+  checks: [],
+  codeIssues: [],
   sources: [],
   sinks: [],
   orphanBlocks: [],
@@ -108,6 +110,21 @@ const EMPTY_LINT = {
 
 /** A report exercising every finding kind the lint schema publishes. */
 const FULL_LINT = {
+  checks: [
+    { name: 'embedded-code-syntax', status: 'complete', detail: 'Checked one JavaScript block.' },
+  ],
+  codeIssues: [
+    {
+      blockId: 'block-2',
+      blockName: 'Triage',
+      blockType: 'function',
+      field: 'code',
+      language: 'javascript',
+      message: 'Unexpected token',
+      line: 1,
+      column: null,
+    },
+  ],
   sources: [{ blockId: 'block-1', blockName: 'Start', blockType: 'starter' }],
   sinks: [{ blockId: 'block-2', blockName: 'Triage', blockType: 'agent' }],
   orphanBlocks: [{ blockId: 'block-3', blockName: null, blockType: null }],

@@ -199,8 +199,6 @@ export const fileParserTool: InternalToolConfig<FileParserInput, FileParserOutpu
   operation: {
     secretProvenance: { response: { incomplete: 'reject' } },
     input: (params: ToolBodyParams) => {
-      logger.info('Request parameters received by tool body:', params)
-
       if (!params) {
         logger.error('Tool body received no parameters')
         throw new Error('No parameters provided to tool body')
@@ -234,7 +232,6 @@ export const fileParserTool: InternalToolConfig<FileParserInput, FileParserOutpu
       // Precedence: direct filePath > file array > single file object > legacy files array
       // 1. Check for direct filePath (URL or single path from upload)
       if (params.filePath) {
-        logger.info('Tool body found direct filePath:', params.filePath)
         determinedFilePath = params.filePath
       }
       // 2. Check for file upload (array)
@@ -275,11 +272,10 @@ export const fileParserTool: InternalToolConfig<FileParserInput, FileParserOutpu
 
       // Final check if filePath was determined
       if (!determinedFilePath) {
-        logger.error('Tool body could not determine filePath from parameters:', params)
+        logger.error('Tool body could not determine filePath')
         throw new Error('Missing required parameter: filePath')
       }
 
-      logger.info('Tool body determined filePath:', determinedFilePath)
       const headers = normalizeHeaders(params.headers)
       return {
         filePath: determinedFilePath,

@@ -558,7 +558,8 @@ async function migrateCredentialIds(
  */
 export async function loadWorkflowFromNormalizedTables(
   workflowId: string,
-  externalTx?: DbOrTx
+  externalTx?: DbOrTx,
+  options: { persistMigrations?: boolean } = {}
 ): Promise<NormalizedWorkflowData | null> {
   const raw = await loadWorkflowFromNormalizedTablesRaw(workflowId, externalTx)
   if (!raw) return null
@@ -569,7 +570,7 @@ export async function loadWorkflowFromNormalizedTables(
     externalTx ?? db
   )
 
-  if (migrated) {
+  if (migrated && options.persistMigrations !== false) {
     // Deliberate fire-and-forget persistence on the global pool: it must not
     // join (or block) a read transaction this load may be running inside, so
     // it escapes the transaction context instead of tripping the wire.
@@ -612,7 +613,7 @@ export async function loadWorkflowDeploymentSnapshot(
 ): Promise<WorkflowState | null> {
   const loadSnapshot = async (tx: DbOrTx) => {
     const [normalizedData, [workflowRecord]] = await Promise.all([
-      loadWorkflowFromNormalizedTables(workflowId, tx),
+      loadWorkflowFromNormalizedTables(workflowId, tx, { persistMigrations: false }),
       tx
         .select({ variables: workflow.variables })
         .from(workflow)

@@ -65,7 +65,14 @@ export const PUT = defineV2JsonRoute({
     variables: body.variables,
   }),
   useCase: replaceWorkflowState,
-  present: ({ workflowId, warnings, needsRedeployment, lint, dryRun }) => ({
-    data: { id: workflowId, warnings, needsRedeployment, lint: presentWorkflowLint(lint), dryRun },
+  present: ({ workflowId, warnings, removedBindings, needsRedeployment, lint, dryRun }) => ({
+    data: {
+      id: workflowId,
+      warnings,
+      removedBindings,
+      needsRedeployment,
+      lint: presentWorkflowLint(lint),
+      dryRun,
+    },
   }),
 })

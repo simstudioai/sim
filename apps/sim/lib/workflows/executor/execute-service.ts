@@ -16,6 +16,7 @@ import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { MAX_MCP_WORKFLOW_RESPONSE_BYTES } from '@/lib/mcp/constants'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
+import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { enqueueWorkflowExecution } from '@/lib/workflows/executor/enqueue-execution'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -26,6 +27,7 @@ import {
   releaseExecutionIdClaim,
 } from '@/lib/workflows/executor/execution-id-claim'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
+import { validateStopAfterBlock } from '@/lib/workflows/executor/stop-after-block'
 import {
   loadDeployedWorkflowState,
   loadWorkflowDeploymentVersionState,
@@ -38,6 +40,7 @@ import {
   createStreamingResponse,
 } from '@/lib/workflows/streaming/streaming'
 import { workflowHasResponseBlock } from '@/lib/workflows/utils'
+import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { BlockLog, NormalizedBlockOutput } from '@/executor/types'
@@ -87,6 +90,7 @@ export interface ExecuteWorkflowServiceParams {
   includeFileBase64?: boolean
   base64MaxBytes?: number
   selectedOutputs?: string[]
+  stopAfterBlockId?: string
   /** MCP behavior: 413-style failure instead of large-value refs in output. */
   rejectLargeInlineOutput?: boolean
   /** Which rate-limit bucket preprocessing debits. */
@@ -261,6 +265,7 @@ export async function executeWorkflowService(
     includeFileBase64 = true,
     base64MaxBytes,
     selectedOutputs = [],
+    stopAfterBlockId,
     rejectLargeInlineOutput = false,
     rateLimitCounter = 'sync',
     requestedTimeoutSeconds,
@@ -280,6 +285,13 @@ export async function executeWorkflowService(
     return failure({
       kind: 'precheck',
       message: 'Manual execution does not support async mode',
+      statusCode: 400,
+    })
+  }
+  if (stopAfterBlockId && mode === 'async') {
+    return failure({
+      kind: 'precheck',
+      message: 'stopAfterBlockId does not support async mode',
       statusCode: 400,
     })
   }
@@ -430,6 +442,8 @@ export async function executeWorkflowService(
         workspaceId,
         input,
         triggerType,
+        triggerBlockId,
+        deploymentVersionId,
         executionId,
         callChain,
         enforceCredentialAccess: useAuthenticatedUserAsActor,
@@ -459,6 +473,7 @@ export async function executeWorkflowService(
     const processedInput = input
     let workflowVariables: Record<string, unknown> = {}
     let workflowBlocks: Record<string, unknown> = {}
+    let workflowStateOverride: ExecutionMetadata['workflowStateOverride']
     try {
       const workflowData = useDraftState
         ? await loadWorkflowFromNormalizedTables(workflowId)
@@ -486,8 +501,13 @@ export async function executeWorkflowService(
           ('variables' in workflowData
             ? (workflowData.variables as Record<string, unknown> | undefined)
             : undefined) ??
-          (workflow.variables as Record<string, unknown> | null) ??
+          (deploymentVersionId
+            ? undefined
+            : (workflow.variables as Record<string, unknown> | null)) ??
           {}
+        if (deploymentVersionId || stopAfterBlockId) {
+          workflowStateOverride = { ...workflowData, variables: workflowVariables }
+        }
       } else {
         workflowVariables = (workflow.variables as Record<string, unknown> | null) ?? {}
       }
@@ -511,6 +531,31 @@ export async function executeWorkflowService(
         message: `File processing failed: ${getErrorMessage(fileError, 'Unable to process input files')}`,
         statusCode: 400,
       })
+    }
+
+    if (stopAfterBlockId) {
+      const customBlocks = await getCustomBlockRowsForWorkspace(workspaceId)
+      try {
+        if (!workflowStateOverride)
+          throw new Error('No saved workflow state is available for stopAfterBlockId')
+        const state = workflowStateOverride
+        await withCustomBlockOverlay(customBlocks, async () =>
+          validateStopAfterBlock(
+            {
+              blocks: state.blocks,
+              edges: state.edges,
+              loops: state.loops ?? {},
+              parallels: state.parallels ?? {},
+            },
+            stopAfterBlockId,
+            triggerBlockId,
+            runFromBlock?.startBlockId
+          )
+        )
+      } catch (error) {
+        await releaseExecutionSlot(executionId)
+        return failure({ kind: 'input', message: getErrorMessage(error), statusCode: 400 })
+      }
     }
 
     /**
@@ -587,6 +632,8 @@ export async function executeWorkflowService(
               isSecureMode: false,
               workflowTriggerType: triggerType,
               triggerBlockId,
+              workflowStateOverride,
+              stopAfterBlockId,
               useDraftState,
               runFromBlock,
               onStream,
@@ -637,6 +684,7 @@ export async function executeWorkflowService(
       workflowUserId: workflow.userId,
       triggerType,
       triggerBlockId,
+      workflowStateOverride,
       useDraftState,
       startTime: new Date().toISOString(),
       isClientSession: false,
@@ -689,6 +737,7 @@ export async function executeWorkflowService(
           base64MaxBytes,
           abortSignal: timeoutController.signal,
           runFromBlock,
+          stopAfterBlockId,
         })
 
         await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })

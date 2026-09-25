@@ -13,6 +13,8 @@ export interface ExecuteFunctionInput {
   headers: Headers
   signal?: AbortSignal
   sandboxProfile?: 'mothership'
+  /** Direct tool calls own their sandbox usage ledger, unlike Copilot orchestration. */
+  meterSandboxUsage?: boolean
   /** Trusted in-process provenance state; never accepted from the Function request body. */
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 }
@@ -60,6 +62,7 @@ export const executeFunction = defineAuthorizedWorkspaceUseCase({
       {
         attributedUserId,
         principal,
+        meterSandboxUsage: input.meterSandboxUsage ?? principal.kind !== 'delegated',
         ...(input.resolvedSecretTraceRegistry
           ? { resolvedSecretTraceRegistry: input.resolvedSecretTraceRegistry }
           : {}),

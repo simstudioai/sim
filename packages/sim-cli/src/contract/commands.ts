@@ -524,6 +524,7 @@ export const CLI_CONTRACT: CliContract = {
    * Each name is the operation's own verb instead.
    */
   getWorkflowState: { command: 'workflows state get' },
+  inspectWorkflow: { command: 'workflows inspect' },
   replaceWorkflowState: {
     command: 'workflows state replace',
     confirm: 'This replaces the entire draft graph and cannot be undone.',
@@ -1900,6 +1901,11 @@ export const CLI_CONTRACT: CliContract = {
     flags: {
       async: { boolean: true, describe: 'Queue the run and return immediately' },
       input: { json: true, describe: 'Trigger input as JSON' },
+      stopAfterBlockId: {
+        name: 'stop-after',
+        describe:
+          'Stop scheduling after this block finishes. Runs real actions; already-running branches can finish. Not available with --async',
+      },
       run: {
         hidden: true,
         describe: 'Low-level workflow state and entry-point selection',
@@ -1933,6 +1939,14 @@ export const CLI_CONTRACT: CliContract = {
       // hop. A CLI invocation is always the first hop, so the only thing a flag
       // for it could do is forge a chain the caller was never part of.
       'x-sim-via': { omit: true },
+    },
+  },
+  previewWorkflowRunFromBlock: {
+    command: 'workflows runs preview',
+    describe: 'Preview candidate rerun blocks and cached upstream outputs without executing',
+    flags: {
+      blockId: { name: 'from-block' },
+      sourceRunId: { name: 'source-run' },
     },
   },
   getWorkflowRun: {

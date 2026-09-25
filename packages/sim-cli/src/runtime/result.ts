@@ -1,5 +1,6 @@
 import { writeStderr } from '#sim-cli/output/io'
 import { styles } from '#sim-cli/output/presentation'
+import { summarizeRun } from '#sim-cli/output/run-diagnostics'
 import { truncationMetadata } from '#sim-cli/output/truncation'
 import type { OutputFormat } from '../config/index'
 import type { ColumnSpec, CommandSpec } from '../contract/types'
@@ -20,6 +21,7 @@ import { printTraceSpans } from '../output/trace'
 
 interface RenderResultOptions {
   expandedTrace?: boolean
+  summary?: boolean
 }
 
 function countTraceSpans(value: unknown): number {
@@ -423,6 +425,16 @@ export function renderResult(
 
   if (spec.document) {
     printDocument(format, raw)
+    return
+  }
+
+  if (operation === 'getLog' && options.summary) {
+    const summary = summarizeRun(raw)
+    printRecord(
+      format,
+      Object.entries(summary).map(([key, value]) => [key, inferredCell(key, value)]),
+      summary
+    )
     return
   }
 

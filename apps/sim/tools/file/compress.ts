@@ -6,6 +6,8 @@ interface FileCompressParams {
   folderPaths?: string[]
   includeSubfolders?: boolean
   archiveName?: string
+  folderPath?: string
+  onConflict?: 'rename' | 'error'
   workspaceId?: string
 }
 
@@ -52,6 +54,20 @@ export const fileCompressTool: InternalToolConfig<FileCompressParams, ToolRespon
       description:
         'Name for the .zip archive (e.g., "documents.zip"). Defaults to the source file name when compressing a single file, otherwise "archive.zip".',
     },
+    folderPath: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Existing destination folder as a canonical percent-encoded path, e.g. "/Generated/Archives". Defaults to the workspace root. Create the folder first with file_create_folder.',
+    },
+    onConflict: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Name collision behavior: "rename" (default) chooses an available name; "error" refuses an existing name. Existing files are never overwritten.',
+    },
   },
 
   operation: {
@@ -62,6 +78,8 @@ export const fileCompressTool: InternalToolConfig<FileCompressParams, ToolRespon
       folderPaths: params.folderPaths,
       includeSubfolders: params.includeSubfolders,
       archiveName: params.archiveName,
+      folderPath: params.folderPath,
+      onConflict: params.onConflict,
       workspaceId: params.workspaceId,
     }),
   },
@@ -79,6 +97,10 @@ export const fileCompressTool: InternalToolConfig<FileCompressParams, ToolRespon
     name: { type: 'string', description: 'Compressed archive file name' },
     size: { type: 'number', description: 'Compressed archive size in bytes' },
     url: { type: 'string', description: 'URL to access the compressed archive', optional: true },
+    path: {
+      type: 'string',
+      description: 'Final workspace filesystem path, including the stored name',
+    },
     files: {
       type: 'file[]',
       description: 'Compressed archive file object, as a single-item array',

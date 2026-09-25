@@ -144,6 +144,17 @@ export const credentialOperations = {
     capability: 'integrations.manage',
     ...HUMAN_AND_COPILOT_PRINCIPALS,
   }),
+  inspect: defineCredentialOperation(
+    defineWorkspaceOperation({
+      id: 'credentials.inspect',
+      oauthScope: 'api:read',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'integrations.manage',
+      ...HUMAN_AND_COPILOT_PRINCIPALS,
+    }),
+    'member'
+  ),
   read: defineCredentialOperation(
     defineWorkspaceOperation({
       id: 'credentials.read',

@@ -1,7 +1,10 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { isRecordLike, omit } from '@sim/utils/object'
+import { secretMountPolicyInputSchema } from '@/lib/api/contracts/secret-mount-policy'
 import { resolveBillingAttribution, toBillingContext } from '@/lib/billing/core/billing-attribution'
+import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import {
   isBlockTypeAllowed,
@@ -16,9 +19,17 @@ import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { principalUserId } from '@/lib/integrations/principal-scope.server'
+import { ToolExecutionUsageLimitError } from '@/lib/tool-execution/application/errors'
 import { toolExecutionOperations } from '@/lib/tool-execution/application/operations'
+import { projectResolvedSecretModelJsonContent } from '@/executor/utils/resolved-secret-content-projection'
+import {
+  createResolvedSecretTraceRegistry,
+  type ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { executeTool as executeRegistryTool } from '@/tools'
+import { supportsSlackBotToken } from '@/tools/slack/auth'
 import type { ExecutableToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
 
@@ -269,27 +280,42 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
     if (!tool) throw new OrchestrationError('not_found', 'Tool not found')
     assertNoUndeclaredInputs(tool, toolId, input.input)
 
+    let callerParams: Record<string, unknown> = { ...input.input }
+    let credentialId = input.credentialId
+    let usesBotToken = false
+    if (supportsSlackBotToken(tool)) {
+      const authMethod = callerParams.authMethod === undefined ? 'oauth' : callerParams.authMethod
+      if (authMethod !== 'oauth' && authMethod !== 'bot_token') {
+        throw new OrchestrationError('validation', 'input.authMethod must be oauth or bot_token')
+      }
+      usesBotToken = authMethod === 'bot_token'
+      if (usesBotToken) {
+        if (typeof callerParams.botToken !== 'string' || !callerParams.botToken.trim()) {
+          throw new OrchestrationError(
+            'validation',
+            'input.botToken is required when input.authMethod is bot_token'
+          )
+        }
+        credentialId = undefined
+      } else {
+        /** Inactive secrets must neither resolve nor become a provider fallback. */
+        callerParams = omit(callerParams, ['botToken'])
+      }
+    }
+
     const selector = declaredCredentialSelector(tool)
     const requiresCredential =
-      tool.oauth?.required === true || (selector !== undefined && tool.params[selector]?.required)
-    if (requiresCredential && !input.credentialId) {
+      !usesBotToken &&
+      (tool.oauth?.required === true || (selector !== undefined && tool.params[selector]?.required))
+    if (requiresCredential && !credentialId) {
       throw new OrchestrationError(
         'validation',
         `credentialId is required: ${toolId} authenticates with a ${tool.oauth?.provider ?? 'connected'} credential`
       )
     }
 
-    /**
-     * What the executor will receive, minus `_context`. The credential lands
-     * under the selector the tool declares, so a declared required
-     * `oauthCredential` is satisfied by the top-level `credentialId` rather than
-     * rejected as missing; a tool that declares none gets `credential`, which the
-     * executor reads for OAuth resolution.
-     */
-    const callerParams: Record<string, unknown> = {
-      ...input.input,
-      ...(input.credentialId ? { [selector ?? 'credential']: input.credentialId } : {}),
-    }
+    /** Map the top-level selector to the spelling this tool declares. */
+    if (credentialId) callerParams[selector ?? 'credential'] = credentialId
     assertRequiredCallerInputsPresent(tool, toolId, callerParams)
 
     const userId = principalUserId(principal)
@@ -301,6 +327,14 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
       actorUserId: userId,
       workspaceId: context.workspaceId,
     })
+    if (toolId === 'function_execute') {
+      const usage = await checkExecutionUsageLimits(billingAttribution)
+      if (usage.isExceeded) {
+        throw new ToolExecutionUsageLimitError(
+          usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
+        )
+      }
+    }
 
     const params: Record<string, unknown> = {
       ...callerParams,
@@ -318,6 +352,27 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
       },
     }
 
+    let resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
+    if (toolId === 'function_execute' && principal.kind !== 'delegated') {
+      const selection = secretMountPolicyInputSchema.safeParse(callerParams)
+      if (!selection.success) {
+        throw new OrchestrationError('validation', selection.error.issues[0].message)
+      }
+      const environment = await getPersonalAndWorkspaceEnv(userId, context.workspaceId, {
+        ...(selection.data.secretScope === 'selected'
+          ? { requestedNames: selection.data.mountedSecrets ?? [] }
+          : {}),
+      })
+      resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
+        ...environment,
+        scope: { userId, workspaceId: context.workspaceId },
+      })
+      Object.assign(params, selection.data, {
+        envVars: { ...environment.personalDecrypted, ...environment.workspaceDecrypted },
+        unredactedSecretNames: [...resolvedSecretTraceRegistry.getUnredactedSecretNames()],
+      })
+    }
+
     /**
      * The ledger de-duplicates on `eventKey`, and the derived key is a hash of
      * actor, workspace, source and description — identical for every call to the
@@ -330,6 +385,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
 
     const result = await executeRegistryTool(toolId, params, {
       signal: AbortSignal.timeout((input.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS) * 1000),
+      ...(resolvedSecretTraceRegistry ? { resolvedSecretTraceRegistry } : {}),
       operationContext: {
         /**
          * No workflow owns this call. The empty string is what the Copilot
@@ -346,8 +402,8 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
     })
 
     /**
-     * Only a successful call that spent Sim's key — and that verdict is the
-     * registry's, not re-derived here.
+     * Meter successful hosted-key calls and measured Function sandbox costs, including failed
+     * sandbox runs. The registry supplies the measured cost; local Function runs have none.
      *
      * The registry decides whether Sim's key was used inside
      * `injectHostedKeyIfNeeded`, and a workspace or organization BYOK key is
@@ -365,8 +421,8 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
      * metered elsewhere. That no hosted tool does the same is what
      * `check-tool-param-reachability` now pins.
      */
-    if (result.success && tool.hosting) {
-      await meterHostedKeySpend({
+    if ((result.success && tool.hosting) || toolId === 'function_execute') {
+      await meterToolSpend({
         callId,
         toolId,
         userId,
@@ -376,17 +432,35 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
       })
     }
 
+    let output = result.output
+    let error = result.error
+    if (resolvedSecretTraceRegistry) {
+      const projection = projectResolvedSecretModelJsonContent(
+        { output, error },
+        resolvedSecretTraceRegistry
+      )
+      if (
+        !projection.safe ||
+        !isRecordLike(projection.value) ||
+        !isRecordLike(projection.value.output)
+      ) {
+        throw new OrchestrationError('internal', 'Function output secret projection is unavailable')
+      }
+      output = projection.value.output
+      error = typeof projection.value.error === 'string' ? projection.value.error : undefined
+    }
+
     return {
       toolId,
       status: result.success ? 'succeeded' : 'failed',
-      output: result.output,
-      error: result.success ? null : { message: result.error ?? `${toolId} did not succeed` },
+      output,
+      error: result.success ? null : { message: error ?? `${toolId} did not succeed` },
     }
   },
 })
 
 /**
- * Charges hosted-key spend this call incurred.
+ * Charges measured provider or Function sandbox spend this direct call incurred.
  *
  * `@/tools` computes the cost and hands it back on `output.cost.total`, but it
  * writes no ledger row: a workflow run bills through the execution ledger and
@@ -399,7 +473,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
  * reconciliation and the call still answers, the same choice
  * `applyHostedKeyCostToResult` makes one layer down.
  */
-async function meterHostedKeySpend(args: {
+async function meterToolSpend(args: {
   callId: string
   toolId: string
   userId: string
@@ -428,7 +502,7 @@ async function meterHostedKeySpend(args: {
       ],
     })
   } catch (error) {
-    logger.error('Hosted-key metering failed; tool call succeeded unbilled', {
+    logger.error('Direct tool metering failed; measured spend was not recorded', {
       toolId: args.toolId,
       workspaceId: args.workspaceId,
       cost,

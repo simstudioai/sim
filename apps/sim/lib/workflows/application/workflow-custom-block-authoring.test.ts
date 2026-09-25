@@ -1,3 +1,4 @@
+import { db } from '@sim/db'
 import { workflowAuthzMockFns } from '@sim/testing'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -66,6 +67,7 @@ import { replaceWorkflowState } from '@/lib/workflows/application/replace-workfl
 import type { CustomBlockWithInputs } from '@/lib/workflows/custom-blocks/operations'
 import type { EditWorkflowOperation } from '@/lib/workflows/editing/types'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
+import type { ReplaceWorkflowNormalizedStateInput } from '@/lib/workflows/persistence/replace-normalized-state'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import { getBlock } from '@/blocks/registry'
 
@@ -148,6 +150,10 @@ const add: EditWorkflowOperation = {
   params: { type: customBlock.type, name: 'New Worker', inputs: { 'input-text': 'hello' } },
 }
 
+async function prepareReplacement({ state }: ReplaceWorkflowNormalizedStateInput) {
+  return prepareWorkflowStateForPersistence(typeof state === 'function' ? await state(db) : state)
+}
+
 describe('custom blocks in authorized workflow authoring', () => {
   beforeEach(() => {
     mocks.resolveContext.mockResolvedValue(context)
@@ -159,7 +165,7 @@ describe('custom blocks in authorized workflow authoring', () => {
       workflowRecord: context.workflow,
       normalizedData: graph(true),
     }))
-    mocks.replace.mockImplementation(async ({ state }) => prepareWorkflowStateForPersistence(state))
+    mocks.replace.mockImplementation(prepareReplacement)
   })
 
   it.each([session, copilot])(
@@ -206,7 +212,7 @@ describe('custom blocks in authorized workflow authoring', () => {
       expect(result.lint.fieldIssues).toEqual([])
       expect(mocks.replace).toHaveBeenCalledTimes(dryRun ? 0 : 1)
       if (!dryRun) {
-        const persisted = mocks.replace.mock.calls[0][0].state
+        const persisted = (await mocks.replace.mock.results[0].value).state
         expect(persisted.blocks.worker.subBlocks['input-text']).toMatchObject({
           value: 'updated',
           type: 'short-input',
@@ -250,10 +256,10 @@ describe('custom blocks in authorized workflow authoring', () => {
       await barrier
       return graph()
     })
-    mocks.replace.mockImplementation(async ({ state, workspaceId }) => {
-      const foreignType = workspaceId === 'one' ? other.type : customBlock.type
+    mocks.replace.mockImplementation(async (replacement: ReplaceWorkflowNormalizedStateInput) => {
+      const foreignType = replacement.workspaceId === 'one' ? other.type : customBlock.type
       expect(getBlock(foreignType)).toBeUndefined()
-      return prepareWorkflowStateForPersistence(state)
+      return prepareReplacement(replacement)
     })
     const results = await Promise.all(
       [customBlock, other].map((row, index) =>
@@ -286,7 +292,10 @@ describe('custom blocks in authorized workflow authoring', () => {
       expect(result.lint.fieldIssues).toEqual([])
       expect(mocks.replace).toHaveBeenCalledTimes(dryRun ? 0 : 1)
       if (!dryRun) {
-        const persisted = mocks.replace.mock.calls[0][0].state
+        expect(mocks.loadNormalized).toHaveBeenCalledWith(context.workflowId, db, {
+          persistMigrations: false,
+        })
+        const persisted = (await mocks.replace.mock.results[0].value).state
         expect(persisted.blocks.worker.subBlocks['input-text']).toMatchObject({
           value: 'hello',
           type: 'short-input',

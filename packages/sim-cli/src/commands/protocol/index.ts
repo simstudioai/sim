@@ -1,6 +1,11 @@
 import { Command } from 'commander'
 import { attachChat } from './chat'
-import { attachFileGet, attachFileVersionDownload } from './files-get'
+import {
+  attachFileGet,
+  attachFileVersionDownload,
+  attachToolFileDownload,
+  attachWorkflowRunFileDownload,
+} from './files-get'
 import { attachFileUpload } from './files-upload'
 import { attachKnowledgeDocumentUpload } from './knowledge-document-upload'
 import { attachKnowledgeExport } from './knowledge-export'
@@ -66,6 +71,8 @@ export function attachProtocolCommands(program: Command): void {
   const runs = group(workflows, 'runs')
   attachWorkflowRunGet(runs)
   attachWorkflowRunWait(runs)
+  attachWorkflowRunFileDownload(group(runs, 'files'))
+  attachToolFileDownload(group(group(program, 'tools'), 'files'))
 
   attachWorkspaceOperationWait(group(group(program, 'workspaces'), 'operations'))
 

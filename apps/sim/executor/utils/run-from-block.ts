@@ -3,6 +3,7 @@ import { LOOP, normalizeName, PARALLEL } from '@/executor/constants'
 import type { DAG } from '@/executor/dag/builder'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { NormalizedBlockOutput } from '@/executor/types'
+import { stripCloneSuffixes } from '@/executor/utils/subflow-utils'
 import type { SerializedWorkflow } from '@/serializer/types'
 
 /**
@@ -76,6 +77,40 @@ export interface ExecutionSets {
   reachableUpstreamSet: Set<string>
 }
 
+/** Preserves cache ancestry through disabled blocks without adding runnable edges. */
+function disabledBlockIncomingEdges(dag: DAG, workflow?: SerializedWorkflow) {
+  const incoming = new Map<string, Set<string>>()
+  const disabledIds = new Set(
+    workflow?.blocks.filter((block) => block.enabled === false).map((block) => block.id)
+  )
+  if (!workflow || disabledIds.size === 0) return incoming
+
+  const nodeIdsByBlockId = new Map<string, string[]>()
+  for (const [nodeId, node] of dag.nodes) {
+    const blockId = stripCloneSuffixes(
+      node.metadata.isSentinel ? (node.metadata.subflowId ?? nodeId) : nodeId
+    )
+    const nodeIds = nodeIdsByBlockId.get(blockId) ?? []
+    nodeIds.push(nodeId)
+    nodeIdsByBlockId.set(blockId, nodeIds)
+  }
+  for (const connection of workflow.connections) {
+    if (!disabledIds.has(connection.source) && !disabledIds.has(connection.target)) continue
+    const sources = disabledIds.has(connection.source)
+      ? [connection.source]
+      : (nodeIdsByBlockId.get(connection.source) ?? [])
+    const targets = disabledIds.has(connection.target)
+      ? [connection.target]
+      : (nodeIdsByBlockId.get(connection.target) ?? [])
+    for (const target of targets) {
+      const predecessors = incoming.get(target) ?? new Set<string>()
+      for (const source of sources) predecessors.add(source)
+      incoming.set(target, predecessors)
+    }
+  }
+  return incoming
+}
+
 /**
  * Computes the dirty set, upstream set, and reachable upstream set.
  * - Dirty set: start block + all blocks reachable via outgoing edges (need re-execution)
@@ -90,9 +125,18 @@ export interface ExecutionSets {
  * @param startBlockId - The block to start execution from
  * @returns Object containing dirtySet, upstreamSet, and reachableUpstreamSet
  */
-export function computeExecutionSets(dag: DAG, startBlockId: string): ExecutionSets {
+export function computeExecutionSets(
+  dag: DAG,
+  startBlockId: string,
+  workflow?: SerializedWorkflow
+): ExecutionSets {
   const dirty = new Set<string>([startBlockId])
   const upstream = new Set<string>()
+  const disabledIncoming = disabledBlockIncomingEdges(dag, workflow)
+  const incomingSources = (nodeId: string) => [
+    ...(dag.nodes.get(nodeId)?.incomingEdges ?? []),
+    ...(disabledIncoming.get(nodeId) ?? []),
+  ]
   const sentinelStartId = resolveContainerToSentinelStart(startBlockId, dag)
   const traversalStartId = sentinelStartId ?? startBlockId
 
@@ -119,10 +163,8 @@ export function computeExecutionSets(dag: DAG, startBlockId: string): ExecutionS
   const upstreamQueue = [traversalStartId]
   while (upstreamQueue.length > 0) {
     const nodeId = upstreamQueue.shift()!
-    const node = dag.nodes.get(nodeId)
-    if (!node) continue
 
-    for (const sourceId of node.incomingEdges) {
+    for (const sourceId of incomingSources(nodeId)) {
       if (!upstream.has(sourceId)) {
         upstream.add(sourceId)
         upstreamQueue.push(sourceId)
@@ -135,20 +177,14 @@ export function computeExecutionSets(dag: DAG, startBlockId: string): ExecutionS
   // sibling branches (like B when running from A)
   const reachableUpstream = new Set<string>()
   for (const dirtyNodeId of dirty) {
-    const node = dag.nodes.get(dirtyNodeId)
-    if (!node) continue
-
     // BFS upstream from this dirty node
-    const queue = [...node.incomingEdges]
+    const queue = incomingSources(dirtyNodeId)
     while (queue.length > 0) {
       const sourceId = queue.shift()!
       if (reachableUpstream.has(sourceId) || dirty.has(sourceId)) continue
 
       reachableUpstream.add(sourceId)
-      const sourceNode = dag.nodes.get(sourceId)
-      if (sourceNode) {
-        queue.push(...sourceNode.incomingEdges)
-      }
+      queue.push(...incomingSources(sourceId))
     }
   }
 

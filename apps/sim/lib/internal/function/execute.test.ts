@@ -1,3 +1,4 @@
+import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -62,6 +63,11 @@ describe('executeFunctionTool', () => {
       executionId: 'execution-1',
       userId: 'workspace-owner',
       executorDelegationOrigin: origin,
+      callerPrincipal: {
+        kind: 'personal_api_key' as const,
+        userId: 'other-actor',
+        keyId: 'other-key',
+      },
       resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([], {
         userId: 'workspace-owner',
         workspaceId: 'workspace-1',
@@ -103,6 +109,78 @@ describe('executeFunctionTool', () => {
       }),
     })
   })
+  it.each<Principal>([
+    { kind: 'session', userId: 'actor', sessionId: 'session' },
+    { kind: 'personal_api_key', userId: 'actor', keyId: 'key' },
+    {
+      kind: 'oauth_access_token',
+      userId: 'actor',
+      tokenId: 'token',
+      clientId: 'client',
+      scopes: ['api:write'],
+      expiresAt: new Date('2099-01-01'),
+    },
+  ])(
+    'preserves the trusted direct $kind principal without an executor origin',
+    async (callerPrincipal) => {
+      await executeFunctionTool({
+        body: {
+          code: 'return {{TOKEN}}',
+          secretScope: 'selected',
+          mountedSecrets: ['TOKEN'],
+          userId: 'forged',
+          workspaceId: 'forged',
+          workflowId: 'forged',
+        },
+        headers: new Headers(),
+        context: { workflowId: '', workspaceId: 'workspace-1', userId: 'actor', callerPrincipal },
+        requestId: 'direct',
+      })
+      expect(mocks.createPrincipal).not.toHaveBeenCalled()
+      expect(mocks.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          principal: callerPrincipal,
+          input: expect.objectContaining({
+            workspaceId: 'workspace-1',
+            meterSandboxUsage: true,
+            body: expect.objectContaining({
+              userId: undefined,
+              workspaceId: 'workspace-1',
+              workflowId: '',
+              secretScope: 'selected',
+              mountedSecrets: ['TOKEN'],
+            }),
+          }),
+        })
+      )
+    }
+  )
+
+  it('keeps Copilot delegation expiry and scope when adapting an authorized direct caller', async () => {
+    const callerPrincipal = {
+      kind: 'delegated' as const,
+      serviceId: 'copilot' as const,
+      subjectUserId: 'actor',
+      workspaceId: 'workspace-1',
+      audience: 'sim:tool-execution',
+      delegationId: 'caller',
+      issuedAt: new Date('2026-01-01'),
+      expiresAt: new Date('2026-01-01T00:01:00Z'),
+      resourceScope: { chatId: 'chat' },
+    }
+    await executeFunctionTool({
+      body: { code: 'return 1' },
+      headers: new Headers(),
+      context: { workflowId: '', workspaceId: 'workspace-1', callerPrincipal },
+      requestId: 'direct',
+    })
+    expect(mocks.execute.mock.calls[0][0].principal).toEqual({
+      ...callerPrincipal,
+      audience: FUNCTION_EXECUTION_DELEGATION_AUDIENCE,
+    })
+    expect(mocks.createPrincipal).not.toHaveBeenCalled()
+  })
+
   it.each(['agent', 'plan'] as const)(
     'binds workspace-free scratch to the trusted organization %s chat and strips forged owners',
     async (requestMode) => {

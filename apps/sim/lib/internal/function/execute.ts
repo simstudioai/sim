@@ -1,4 +1,4 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
+import type { Principal } from '@sim/auth/principal'
 import type { FunctionExecuteBody } from '@/lib/api/contracts'
 import type { InternalSandboxProfile } from '@/lib/auth/internal'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
@@ -78,8 +78,17 @@ export async function executeFunctionTool(input: ExecuteFunctionToolInput): Prom
       },
     })
   }
-  let principal: DelegatedPrincipal
-  if (context.copilotToolExecution === true) {
+  let principal: Principal
+  if (context.callerPrincipal && !context.executorDelegationOrigin) {
+    /** The authorized direct tool caller already carries its identity; it owns no workflow. */
+    principal = context.callerPrincipal
+    if (principal.kind === 'delegated') {
+      if (principal.serviceId !== 'copilot' || principal.workspaceId !== context.workspaceId) {
+        throw new Error('Direct Function execution requires a matching Copilot workspace')
+      }
+      principal = { ...principal, audience: FUNCTION_EXECUTION_DELEGATION_AUDIENCE }
+    }
+  } else if (context.copilotToolExecution === true) {
     if (!context.userId) throw new Error('Copilot Function execution requires a user')
     principal = {
       kind: 'delegated',
@@ -106,6 +115,7 @@ export async function executeFunctionTool(input: ExecuteFunctionToolInput): Prom
     input: {
       workspaceId: context.workspaceId,
       body: trustedBody,
+      meterSandboxUsage: Boolean(context.callerPrincipal && !context.executorDelegationOrigin),
       headers,
       ...(context.resolvedSecretTraceRegistry
         ? { resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry }

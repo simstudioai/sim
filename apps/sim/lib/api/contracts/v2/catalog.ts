@@ -377,7 +377,11 @@ const v2HostedApiKeySchema = z
   )
 
 const v2ToolOAuthSchema = z.object({
-  required: z.boolean().describe('Whether the tool cannot run without an OAuth credential.'),
+  required: z
+    .boolean()
+    .describe(
+      'Whether OAuth is mandatory. Slack tools declaring authMethod and botToken also accept explicit bot_token authentication; false does not mean the tool is unauthenticated.'
+    ),
   provider: z.string().describe('OAuth service the credential must authenticate.'),
   requiredScopes: z.array(z.string()).optional().describe('Scopes the credential must carry.'),
 })
@@ -431,12 +435,12 @@ export const v2ExecuteToolBodySchema = z
       )
       .default({})
       .describe(
-        'Tool arguments keyed by published parameter IDs. For `user-only` parameters, a whole-value `{{VAR_NAME}}` reference resolves a workspace environment variable. Other values pass through unchanged.'
+        'Tool arguments keyed by published parameter IDs. For `user-only` parameters, a whole-value `{{VAR_NAME}}` reference resolves an environment variable in the acting user’s personal/workspace scope. Other values pass through unchanged.'
       ),
     credentialId: catalogIdSchema
       .optional()
       .describe(
-        'Credential to authenticate with. Required when the tool declares an OAuth requirement; the workspace credentials list names the candidates.'
+        'Credential to authenticate with. Required for OAuth authentication; the workspace credentials list names the candidates. Slack tools that declare authMethod and botToken also accept input.authMethod=bot_token with input.botToken (literal or {{SECRET_NAME}}); that explicit mode ignores credentialId. Otherwise OAuth is the default and unused botToken is ignored.'
       ),
     timeoutSeconds: z
       .number()

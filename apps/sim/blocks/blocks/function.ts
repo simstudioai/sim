@@ -17,6 +17,7 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
   - Python code always runs in a remote sandbox.
   - Shell code runs CLI commands in a remote sandbox.
   - To import third-party packages or add curated CLI tools, create a sandbox in Settings > Sandboxes and select it under the block's advanced options. Without one, only the default image's packages and commands are available.
+  - Read permitted workspace secrets with {{NAME}}, for example \`const token = {{SERVICE_API_KEY}};\` in JavaScript. Workspace secrets are not exposed through process.env.NAME. Select secretScope="selected" and mountedSecrets=["SERVICE_API_KEY"] when configuring this block as a tool to restrict secret access.
   - Can reference workflow variables using <blockName.output> syntax as usual within code. Avoid XML/HTML tags.
   - To read a file from an earlier block, reference its path: <blockName.files[0].path> mounts the file and resolves to its location on the sandbox filesystem, which any language can open. Use <blockName.files[0].base64> instead when you only want the contents inline in JavaScript.
   - Anything the code writes to ${SANDBOX_OUTPUT_DIR} is returned as \`files\`, ready to attach to an email or upload without any extra step.
@@ -158,7 +159,11 @@ try {
     access: ['function_execute'],
   },
   inputs: {
-    code: { type: 'string', description: 'JavaScript, Python, or Shell code to execute' },
+    code: {
+      type: 'string',
+      description:
+        'JavaScript, Python, or Shell code to execute. Read permitted workspace secrets with {{NAME}}, for example const token = {{SERVICE_API_KEY}}; in JavaScript, not process.env.NAME.',
+    },
     language: { type: 'string', description: 'Language (javascript, python, or shell)' },
     timeout: { type: 'number', description: 'Execution timeout' },
     sandboxId: {

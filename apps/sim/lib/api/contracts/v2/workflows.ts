@@ -1244,6 +1244,24 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
   z
     .object({
       source: z.literal('deployment').describe('Execute the active deployed workflow state.'),
+      entry: z
+        .object({
+          type: z
+            .literal('trigger')
+            .describe('Enter through an enabled trigger in the active deployment.'),
+          blockId: z
+            .string()
+            .min(1, 'run.entry.blockId cannot be empty')
+            .max(MAX_ID_LENGTH)
+            .describe(
+              'Enabled trigger block in the active deployment. Omit entry to preserve the default API-compatible trigger, or use its sole runnable trigger when it has no API entry.'
+            ),
+        })
+        .strict()
+        .optional()
+        .describe(
+          'Optional explicit deployed trigger. Otherwise preserve the existing API entry priority, or select the sole runnable trigger when no API entry exists. Multiple non-API entries require an explicit choice.'
+        ),
     })
     .strict(),
   z
@@ -1298,6 +1316,79 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
 ])
 export type V2WorkflowRunSelection = z.input<typeof v2WorkflowRunSelectionSchema>
 
+export const v2PreviewWorkflowRunFromBlockQuerySchema = z
+  .object({
+    blockId: z
+      .string()
+      .min(1, 'blockId cannot be empty')
+      .max(MAX_ID_LENGTH, `blockId cannot exceed ${MAX_ID_LENGTH} characters`)
+      .describe('Saved draft block at which a later manual run would start.'),
+    sourceRunId: v2WorkflowRunIdSchema.describe(
+      'Existing run in this workflow whose persisted state would supply cached upstream outputs.'
+    ),
+  })
+  .strict()
+export type V2PreviewWorkflowRunFromBlockQuery = z.input<
+  typeof v2PreviewWorkflowRunFromBlockQuerySchema
+>
+
+const v2RunPreviewBlockSchema = z.object({
+  blockId: z.string().describe('Saved workflow block ID; internal sentinel nodes are omitted.'),
+  name: z.string().describe('Current saved block name.'),
+  type: z.string().describe('Current saved block type.'),
+  executedInSource: z
+    .boolean()
+    .describe('The source snapshot marks this block or one of its runtime instances as executed.'),
+})
+
+export const v2WorkflowRunFromBlockPreviewSchema = z
+  .object({
+    workflowId: v2WorkflowIdParamsSchema.shape.workflowId,
+    sourceRunId: v2WorkflowRunIdSchema,
+    startBlockId: z.string().describe('Requested block at which a later manual run would start.'),
+    validation: z
+      .object({
+        valid: z
+          .boolean()
+          .describe('Whether the executor accepts this starting block and source state.'),
+        error: z.string().optional().describe('Executor entry-validation failure, when invalid.'),
+      })
+      .describe(
+        'Entry validation only; does not validate credentials, provider inputs, or runtime behavior.'
+      ),
+    rerunBlocks: z
+      .array(v2RunPreviewBlockSchema)
+      .describe(
+        'Starting block and downstream graph candidates. Conditions and runtime behavior determine actual execution; this is not execution order.'
+      ),
+    upstreamBlocks: z
+      .array(
+        v2RunPreviewBlockSchema.extend({
+          hasCachedOutput: z
+            .boolean()
+            .describe(
+              'The source snapshot contains an output entry for this block or a runtime instance. Does not verify referenced files or external resources; output values are not returned.'
+            ),
+        })
+      )
+      .describe(
+        'Upstream blocks, including sibling branches needed by downstream candidates, whose existing outputs may be reused.'
+      ),
+    notes: z
+      .array(z.string())
+      .describe('Limits of the preview and reuse of previously recorded outputs.'),
+  })
+  .meta({ id: 'WorkflowRunFromBlockPreview', title: 'Partial workflow run preview' })
+export type V2WorkflowRunFromBlockPreview = z.output<typeof v2WorkflowRunFromBlockPreviewSchema>
+
+export const v2PreviewWorkflowRunFromBlockContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[workflowId]/runs/preview',
+  params: v2WorkflowIdParamsSchema,
+  query: v2PreviewWorkflowRunFromBlockQuerySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2WorkflowRunFromBlockPreviewSchema) },
+})
+
 /**
  * Strict public execute body. Async is body-selected (`async: true`) — v2 has
  * no `X-Execution-Mode`/`X-Stream-Response` headers. `run` selects the public
@@ -1319,6 +1410,14 @@ export const v2ExecuteWorkflowBodySchema = z
       .optional()
       .describe(
         'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only.'
+      ),
+    stopAfterBlockId: z
+      .string()
+      .min(1, 'stopAfterBlockId cannot be empty')
+      .max(MAX_ID_LENGTH)
+      .optional()
+      .describe(
+        'Stop scheduling after this enabled top-level block completes (or all iterations of a loop/parallel container). Real execution: earlier and concurrent branches can still perform side effects; if a condition bypasses this block, the run can finish without stopping here. Applies to this invocation only; a later explicit resume does not inherit this limit. Does not change the saved graph. Use selectedOutputs to return formatter results. Incompatible with async.'
       ),
     async: z
       .boolean()
@@ -1967,6 +2066,16 @@ export const v2CancelWorkflowRunContract = defineRouteContract({
 
 export const v2WorkflowExportPayloadSchema = v1WorkflowExportPayloadSchema
   .extend({
+    representation: z
+      .literal('portable-export')
+      .describe(
+        'Sanitized copy format, not editable workflow state. Use workflows state get for in-place editing.'
+      ),
+    warnings: z
+      .array(z.string())
+      .describe(
+        'Export limitations and instructions for preserving IDs and binding references while editing an existing workflow.'
+      ),
     referenceManifest: workflowReferenceManifestSchema
       .optional()
       .describe(
@@ -2390,7 +2499,8 @@ export const v2ExportWorkflowQuerySchema = z
   .meta({
     id: 'ExportWorkflowQuery',
     title: 'Export workflow query',
-    description: 'Whether the export keeps workspace-scoped bindings.',
+    description:
+      'Portable, sanitized export for sharing or copying. For in-place edits, read workflows state get and preview workflows state replace with dryRun=true; exports clear credentials even when workspace bindings are retained.',
   })
 export type V2ExportWorkflowQuery = z.output<typeof v2ExportWorkflowQuerySchema>
 
@@ -2729,7 +2839,7 @@ export const v2WorkflowGraphSchema = z
     id: 'WorkflowGraph',
     title: 'Workflow graph',
     description:
-      'The editable draft graph of a workflow: blocks, edges, derived loop and parallel containers, and variables.',
+      'The editable draft graph of a workflow: preserves block IDs, credential references, table bindings, variables, and configuration for an in-place read-modify-write cycle. Unlike export, this is private workspace state, not a sanitized sharing format. Keep existing IDs and bindings; inspect state replace with dryRun=true before saving.',
   })
 
 export type V2WorkflowGraph = z.output<typeof v2WorkflowGraphSchema>
@@ -2819,6 +2929,55 @@ const v2WorkflowLintBlockRefSchema = z.object({
 
 const v2WorkflowLintSchema = z
   .object({
+    checks: z
+      .array(
+        z.object({
+          name: z
+            .enum([
+              'graph',
+              'fields',
+              'block-output-references',
+              'branch-output-references',
+              'embedded-code-syntax',
+              'credential-resource-references',
+              'agent-tool-references',
+              'table-fields',
+              'runtime-execution',
+            ])
+            .describe('Validation pass.'),
+          status: z
+            .enum(['complete', 'partial', 'skipped'])
+            .describe(
+              'Whether this pass checked its full stated scope, a subset, or nothing. This never certifies runtime success.'
+            ),
+          detail: z
+            .string()
+            .describe(
+              'Checks performed and limitations, including lookup failures and unsupported code languages.'
+            ),
+        })
+      )
+      .describe(
+        'Explicit validation coverage. Empty findings do not mean skipped checks passed; no code or external action is executed.'
+      ),
+    codeIssues: z
+      .array(
+        v2WorkflowLintBlockRefSchema.extend({
+          field: z.string().describe('Embedded code field.'),
+          language: z.literal('javascript').describe('Language parsed without execution.'),
+          message: z.string().describe('Syntax error; code and secret values are not included.'),
+          line: z.number().int().min(1).nullable().describe('One-based source line when known.'),
+          column: z
+            .number()
+            .int()
+            .min(1)
+            .nullable()
+            .describe('One-based source column when known.'),
+        })
+      )
+      .describe(
+        'Syntax errors in enabled JavaScript Function bodies, including invalid regular expression flags. Python, Shell, generated source, dependencies, and resolved runtime values are not checked; inspect checks for scope.'
+      ),
     sources: z
       .array(v2WorkflowLintBlockRefSchema)
       .describe(
@@ -2942,6 +3101,26 @@ const v2GraphWriteDryRunQuerySchema = z
 
 export const v2ReplaceWorkflowStateDataSchema = v2WorkflowGraphWriteResultSchema
   .extend({
+    removedBindings: z
+      .array(
+        z.object({
+          blockId: z.string().describe('Original block whose binding is removed.'),
+          blockName: z.string().describe('Original block display name.'),
+          field: z.string().describe('Original binding field.'),
+          valuePath: z
+            .array(z.union([z.string(), z.number().int().min(0)]))
+            .describe('Nested location inside the field value.'),
+          kind: z.enum(['credential', 'table']).describe('Kind of removed binding reference.'),
+          resourceId: z
+            .string()
+            .describe(
+              'Non-secret identifier of the reference no longer present in this block. Never a credential secret value.'
+            ),
+        })
+      )
+      .describe(
+        'Credential/table references removed relative to the saved graph, including removed blocks and changed IDs. Inspect this pre-save diff with dryRun=true. An empty list does not validate other resource bindings.'
+      ),
     lint: v2WorkflowLintSchema,
     dryRun: z
       .boolean()
@@ -3457,12 +3636,12 @@ export const v2ApplyWorkflowOperationsBodySchema = z
   .object({
     operations: z
       .array(v2WorkflowOperationSchema)
-      .min(1, 'operations cannot be empty')
       .max(
         MAX_WORKFLOW_EDIT_OPERATIONS,
         `operations cannot exceed ${MAX_WORKFLOW_EDIT_OPERATIONS} entries`
       )
-      .describe('Edits to apply, in a single batch.'),
+      .default([])
+      .describe('Edits to apply in a single batch. May be omitted for enablement-only requests.'),
     atomic: z
       .boolean()
       .optional()
@@ -3496,6 +3675,10 @@ export const v2ApplyWorkflowOperationsBodySchema = z
       ),
   })
   .strict()
+  .refine((body) => body.operations.length > 0 || (body.setBlockEnabled?.length ?? 0) > 0, {
+    path: ['operations'],
+    message: 'Provide at least one operation or setBlockEnabled change',
+  })
   .meta({
     id: 'ApplyWorkflowOperationsRequest',
     title: 'Apply workflow operations request',

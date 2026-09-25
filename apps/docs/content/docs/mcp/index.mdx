@@ -6,11 +6,23 @@ description: Build, run, and manage everything in your Sim workspace from Claude
 import { Callout } from 'fumadocs-ui/components/callout'
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
 
-The Sim MCP server gives an AI app the whole Sim API through the
+The Sim MCP server gives an AI app access to Sim's JSON API operations through the
 [Model Context Protocol](https://modelcontextprotocol.io). Your agent can list
 workspaces, run and deploy workflows, query and edit tables, manage files and
-knowledge bases, read run logs, and more. It covers the same operations as the
-[API](/api-reference/getting-started) and the [CLI](/cli).
+knowledge bases, read run logs, and more. Binary transfers and streaming use the
+[API](/api-reference/getting-started) or [CLI](/cli); see the
+[capability map](#choose-an-interface).
+
+## Choose your connection
+
+| You want to… | Connect |
+| --- | --- |
+| Let an external assistant operate your Sim workspace | **Sim MCP**, described on this page |
+| Expose selected workflows as tools for an external assistant | [Workflow MCP deployment](/workflows/deployment/mcp) |
+| Give Sim agents tools from another service | [External MCP tools in Sim](/agents/mcp) |
+
+You do not need to create or deploy a workflow to connect to Sim MCP.
+The dedicated [Search MCP](/search/mcp) connection searches organization sources.
 
 | Deployment | Server URL |
 | --- | --- |
@@ -20,9 +32,37 @@ knowledge bases, read run logs, and more. It covers the same operations as the
 The server uses the Streamable HTTP transport. Sign in with OAuth, the default
 in every app below, or send an [API key](/mcp/authentication#api-keys).
 
-## Connect an app
+## Connect Codex
 
-<Tabs items={['Claude Code', 'Claude', 'Codex', 'Cursor', 'VS Code']}>
+Run this in the terminal on the same host that runs your Codex task. These are
+**Codex CLI** commands (`codex`), not Sim CLI commands (`sim`):
+
+```bash
+codex mcp add sim --url https://mcp.sim.ai/mcp
+codex mcp get sim --json
+```
+
+Complete the browser sign-in and approval. If sign-in was not offered or you
+need to authenticate again, run `codex mcp login sim`. Check that the saved
+server is enabled and its URL is `https://mcp.sim.ai/mcp`.
+
+For an already-open desktop client, open **Settings → MCP servers**, check the
+Sim entry, and select **Restart** after configuration changes. The IDE extension
+uses **Restart extension**. In the desktop composer or Codex terminal UI, `/mcp`
+shows the active connections. These steps follow
+[OpenAI's MCP setup guide](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
+
+<Callout type="info">
+  A saved server and successful OAuth login do not prove that its tools are
+  available in the current task. Check the active connection, then ask:
+  **“Use Sim MCP to list up to five workspaces I can access. Do not change anything.”**
+  A successful read is the final check. If the tools are missing, follow
+  [connection troubleshooting](/mcp/troubleshooting) instead of repeating setup.
+</Callout>
+
+## Connect another app
+
+<Tabs items={['Claude Code', 'Claude', 'Cursor', 'VS Code']}>
   <Tab value="Claude Code">
     ```bash
     claude mcp add --transport http sim https://mcp.sim.ai/mcp
@@ -36,14 +76,6 @@ in every app below, or send an [API key](/mcp/authentication#api-keys).
     Connectors**, then connect it and sign in to Sim. For Team or Enterprise,
     an owner first adds it under **Organization settings → Connectors**. See
     [Claude's custom connector instructions](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp).
-  </Tab>
-  <Tab value="Codex">
-    ```bash
-    codex mcp add sim --url https://mcp.sim.ai/mcp
-    ```
-
-    Complete the browser sign-in. To sign in again later, run
-    `codex mcp login sim`.
   </Tab>
   <Tab value="Cursor">
     Add `sim` to `mcpServers` in `~/.cursor/mcp.json`, then enable it in
@@ -100,10 +132,24 @@ same request to the API. Reads leave your resources unchanged, and apps can ask
 you to confirm each change. See [Authentication](/mcp/authentication) to limit
 an app to reads.
 
-## Other Sim MCP surfaces
+## Choose an interface
 
-This server is for operating Sim. Two other MCP features do different jobs:
+The hosted server exposes four discovery and execution tools, not a separately
+named MCP tool for every operation. Use `search_operations` and
+`describe_operation` to find the exact operation and current input schema.
 
-- [Search MCP](/search/mcp) searches your organization's live provider sources with current access checks.
-- [MCP deployment](/workflows/deployment/mcp) exposes your own workflows as
-  tools, and [MCP tools](/agents/mcp) connect external servers to Sim agents.
+| Capability | Sim CLI (`sim`) | Hosted Sim MCP | Workflow MCP deployment |
+| --- | --- | --- | --- |
+| Workspace files: list, text reads, grep, edits, moves, versions | [Files commands](/cli/files) | JSON operations such as `listFiles`, `readFileText`, `searchFileContent`, and `editFileContent` | Only behavior implemented by the selected workflow |
+| Upload/download local file bytes | [Files commands](/cli/files) | Use CLI/API for the byte transfer; upload-session control operations alone do not transfer a local file | Depends on the workflow's input/output contract |
+| Edit an existing workflow | [Workflow commands](/cli/workflows) | `getWorkflowState` and `replaceWorkflowState` | Invokes the deployed workflow; does not expose the workspace editing API |
+| Deploy a workflow | [Workflow commands](/cli/workflows) | `deployWorkflow` | Configure the deployment in Sim or through CLI/API/hosted MCP |
+| Invoke a workflow | [Workflow commands](/cli/workflows) | `executeWorkflow`; async execution is deployment-only, while manual runs are synchronous or streamed through CLI/API | The selected workflows appear as their own tools |
+| Preview a partial retry | [Partial retry recipe](/cli/scripting#previewing-a-partial-retry) | `previewWorkflowRunFromBlock` reports candidate reruns and cached-output availability without executing | Not part of the deployed workflow tool interface |
+| Inspect runs and outputs | [Workflow commands](/cli/workflows) | `listWorkflowRuns`, `getWorkflowRun`, and other discovered run operations | Returns the invoked workflow's result |
+| Search workspace knowledge | [Knowledge commands](/cli/knowledge) | `searchKnowledge` | Only if the workflow performs that search |
+| Search live organization sources | Use the dedicated [Search MCP](/search/mcp) connection | Separate endpoint with `search` and `read_document` tools | Only if the workflow performs that search |
+
+The [external MCP settings](/agents/mcp) inside Sim configure tools that Sim
+calls; they do not configure an external assistant's connection to this server.
+See [Tools](/mcp/tools) for payload limits and the read/write boundary.

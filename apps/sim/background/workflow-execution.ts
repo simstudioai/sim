@@ -35,6 +35,7 @@ import {
   wasExecutionFinalizedByCore,
 } from '@/lib/workflows/executor/execution-core'
 import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-persistence'
+import { loadWorkflowDeploymentVersionState } from '@/lib/workflows/persistence/utils'
 import { WORKFLOW_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
@@ -72,6 +73,8 @@ export type WorkflowExecutionPayload = {
   input?: any
   triggerType?: CoreTriggerType
   triggerBlockId?: string
+  /** Trusted immutable deployment selected by the admitting boundary, never a wire input. */
+  deploymentVersionId?: string
   executionId?: string
   requestId?: string
   correlation?: AsyncExecutionCorrelation
@@ -229,6 +232,13 @@ export async function executeWorkflowJob(
         logger.info(`[${requestId}] Preprocessing passed. Using actor: ${actorUserId}`)
 
         const workflow = preprocessResult.workflowRecord!
+        const deployedState = payload.deploymentVersionId
+          ? await loadWorkflowDeploymentVersionState(
+              workflowId,
+              payload.deploymentVersionId,
+              workspaceId
+            )
+          : undefined
 
         const metadata: ExecutionMetadata = {
           requestId,
@@ -242,6 +252,7 @@ export async function executeWorkflowJob(
           workflowUserId: workflow.userId,
           triggerType: payload.triggerType || 'api',
           triggerBlockId: payload.triggerBlockId,
+          workflowStateOverride: deployedState,
           useDraftState: false,
           startTime: new Date().toISOString(),
           isClientSession: false,
@@ -256,7 +267,7 @@ export async function executeWorkflowJob(
           metadata,
           workflow,
           payload.input,
-          workflow.variables || {},
+          deployedState ? (deployedState.variables ?? {}) : workflow.variables || {},
           []
         )
 
