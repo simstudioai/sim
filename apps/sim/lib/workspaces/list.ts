@@ -125,29 +125,28 @@ export async function listWorkspacesForViewer(params: {
   const { userId, activeOrganizationId, scope = 'active' } = params
 
   /** Workspace pins ride along here; see `pinnedResourceTypeSchema` for why. */
-  const [creationPolicy, accessibleWorkspaces, userSettings, workspacePins, recentIds] =
-    await Promise.all([
-      getWorkspaceCreationPolicy({ userId, activeOrganizationId }),
-      listAccessibleWorkspaceRowsForUser(userId, scope).then((rows) =>
-        buildWorkspacesWithInviteFlags(rows, userId)
-      ),
-      db
-        .select({ lastActiveWorkspaceId: settings.lastActiveWorkspaceId })
-        .from(settings)
-        .where(eq(settings.userId, userId))
-        .limit(1),
-      db
-        .select({ resourceId: pinnedItem.resourceId })
-        .from(pinnedItem)
-        .where(and(eq(pinnedItem.userId, userId), eq(pinnedItem.resourceType, 'workspace'))),
-      listRecentWorkspaceIds(userId),
-    ])
-  const workspaces = sortByVisitRecency(accessibleWorkspaces, recentIds)
-  const [mostRecent] = workspaces
+  const [creationPolicy, workspaces, userSettings, workspacePins, recentIds] = await Promise.all([
+    getWorkspaceCreationPolicy({ userId, activeOrganizationId }),
+    listAccessibleWorkspaceRowsForUser(userId, scope).then((rows) =>
+      buildWorkspacesWithInviteFlags(rows, userId)
+    ),
+    db
+      .select({ lastActiveWorkspaceId: settings.lastActiveWorkspaceId })
+      .from(settings)
+      .where(eq(settings.userId, userId))
+      .limit(1),
+    db
+      .select({ resourceId: pinnedItem.resourceId })
+      .from(pinnedItem)
+      .where(and(eq(pinnedItem.userId, userId), eq(pinnedItem.resourceType, 'workspace'))),
+    listRecentWorkspaceIds(userId),
+  ])
+  const orderedWorkspaces = sortByVisitRecency(workspaces, recentIds)
+  const [mostRecent] = orderedWorkspaces
   const lastVisitedId = mostRecent && recentIds.includes(mostRecent.id) ? mostRecent.id : null
 
   return {
-    workspaces,
+    workspaces: orderedWorkspaces,
     /** Visits supersede the settings column, which only predates them. */
     lastActiveWorkspaceId: lastVisitedId ?? userSettings[0]?.lastActiveWorkspaceId ?? null,
     pinnedWorkspaceIds: workspacePins.map((row) => row.resourceId),

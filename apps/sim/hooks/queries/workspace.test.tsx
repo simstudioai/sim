@@ -78,7 +78,6 @@ function seedList(queryClient: QueryClient, pinnedWorkspaceIds: string[]) {
     workspaces: [],
     lastActiveWorkspaceId: null,
     pinnedWorkspaceIds,
-    recentWorkspaceIds: [],
     creationPolicy: null,
   })
 }

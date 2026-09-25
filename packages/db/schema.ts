@@ -1030,6 +1030,7 @@ export const settings = pgTable('settings', {
   copilotAutoAllowedTools: jsonb('copilot_auto_allowed_tools').notNull().default('[]'),
 
   // Workspace navigation
+  /** contract-pending(after #8284 is fully deployed): drop this column and its settings API fields — `workspace_visit` supersedes it, and the workspace list reads it only as a fallback for users with no visits. */
   lastActiveWorkspaceId: text('last_active_workspace_id'),
 
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
