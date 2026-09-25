@@ -37,6 +37,26 @@ function sequence(observation: ComputerUseSnapshot): ComputerUseResult {
 }
 
 describe('native computer model projection', () => {
+  it.each([
+    { nested: false, isActive: false },
+    { nested: true, isActive: false },
+    { nested: false, isActive: undefined },
+    { nested: true, isActive: undefined },
+  ])(
+    'preserves foreground state independently of AX editor focus (nested=$nested, isActive=$isActive)',
+    ({ nested, isActive }) => {
+      const state = snapshot()
+      if (isActive !== undefined) state.isActive = isActive
+      const result = computerToolResultForModel(nested ? sequence(state) : state)
+      const projected = 'observation' in result ? result.observation : result
+      if (isActive === undefined) expect(projected).not.toHaveProperty('isActive')
+      else expect(projected).toHaveProperty('isActive', false)
+      expect(projected).toMatchObject({
+        accessibilityTree: expect.stringContaining('focused editable'),
+      })
+    }
+  )
+
   it('lifts action observation pixels without duplicating bytes or losing partial dispatch', () => {
     const result = computerToolResultForModel(sequence(snapshot()))
     expect(result).toMatchObject({

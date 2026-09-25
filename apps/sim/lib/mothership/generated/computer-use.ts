@@ -101,7 +101,7 @@ export const ComputerUseSchema = z.union([
       .boolean()
       .optional()
       .describe(
-        "Set true to explicitly activate this app before the keyboard batch. Defaults to false; editor, window, and geometry checks still apply.",
+        "Explicitly bring this app to the foreground before the batch. Defaults to false; leave omitted for background input. An inactive app alone does not require activation. Do not set true when the user requires background operation. Editor, window, and geometry checks still apply.",
       ),
     steps: z
       .array(InputSequenceStep)
@@ -159,7 +159,12 @@ const ComputerUseNodeSchema = z.strictObject({
   label: z.string().max(8192).optional(),
   value: z.string().max(32_000).optional(),
   enabled: z.boolean().optional(),
-  focused: z.boolean().optional(),
+  focused: z
+    .boolean()
+    .optional()
+    .describe(
+      "Accessibility focus within this app; does not imply the app is foreground or an item is selected.",
+    ),
   editable: z.boolean().optional(),
   placeholder: z.string().max(1024).optional(),
   actions: z.array(z.string().max(128)).max(128),
@@ -180,6 +185,12 @@ export const ComputerUseScreenshotSchema = z.strictObject({
 export const ComputerUseSnapshotSchema = z.strictObject({
   kind: z.literal("state"),
   bundleId: BundleId,
+  isActive: z
+    .boolean()
+    .optional()
+    .describe(
+      "Whether this app was foreground when observed. Omitted means unknown; inactive apps may still support background controls.",
+    ),
   snapshotId: SnapshotId,
   windowId: WindowId,
   windows: z.array(ComputerUseWindowSchema).max(100),

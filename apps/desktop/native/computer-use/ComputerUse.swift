@@ -363,11 +363,25 @@ func requireForegroundTarget(pid: pid_t, windowID: String, point: CGPoint, frame
     }
     guard let top, (top[kCGWindowNumber as String] as? NSNumber)?.stringValue == windowID else { throw ComputerError("window_occluded", "The target point is covered by another window; bring the intended window forward and observe again.") }
 }
-func postMouse(pid: pid_t, type: CGEventType, point: CGPoint, button: CGMouseButton, count: Int = 1, windowID: String? = nil, frame: CGRect? = nil, release: Bool = false) throws {
+final class CoordinateDispatch {
+    private(set) var hasDispatched = false
+    func willDispatch() { hasDispatched = true }
+    func classify(_ error: ComputerError) -> ComputerError {
+        ComputerError(error.code, error.message, dispatchState: hasDispatched ? nil : "not_started")
+    }
+}
+@MainActor
+func coordinateAction(_ operation: (CoordinateDispatch) async throws -> Void) async throws {
+    let dispatch = CoordinateDispatch()
+    do { try await operation(dispatch) }
+    catch let error as ComputerError { throw dispatch.classify(error) }
+}
+func postMouse(pid: pid_t, type: CGEventType, point: CGPoint, button: CGMouseButton, count: Int = 1, windowID: String? = nil, frame: CGRect? = nil, release: Bool = false, dispatch: CoordinateDispatch) throws {
     guard let windowID, let frame else { throw ComputerError("invalid_window", "Mouse input requires an observed app window.") }
     if !release { try requireForegroundTarget(pid: pid, windowID: windowID, point: point, frame: frame) }
     guard let source = CGEventSource(stateID: .privateState), let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: button) else { throw ComputerError("input_failed", "Could not create mouse event.") }
     event.setIntegerValueField(.mouseEventClickState, value: Int64(count))
+    dispatch.willDispatch()
     event.post(tap: .cghidEventTap)
 }
 
@@ -482,6 +496,7 @@ final class Driver {
                 } catch let error as ComputerError { result["screenshotError"] = String((error.code + ": " + error.message).prefix(2000)) }
                 catch { result["screenshotError"] = String(("capture_failed: " + String(describing: error)).prefix(2000)) }
             }
+            result["isActive"] = app.isActive
             return result
         case "click", "type_text", "input_sequence", "press_key", "scroll", "drag", "set_value", "perform_action": break
         default: throw ComputerError("unknown_method", "Unknown computer-use method.")
@@ -508,13 +523,15 @@ final class Driver {
             guard ["left", "right"].contains(button), (1...3).contains(count) else { throw ComputerError("invalid_arguments", "Invalid button or clickCount.") }
             if p.elementId != nil && button == "left" && count == 1 { try axCheck(AXUIElementPerformAction(try snapshot.element(p.elementId), kAXPressAction as CFString)) }
             else {
-                let position = try point(p, app: app, snapshot: snapshot); let mouse: CGMouseButton = button == "right" ? .right : .left
-                let windowID = try required(p.windowId ?? snapshot.windowFrames.first(where: { $0.value.contains(position) })?.key, "windowId")
-                let frame = try required(snapshot.windowFrames[windowID], "window frame")
-                for click in 1...count {
-                    try checkCancellation()
-                    try postMouse(pid: pid, type: button == "right" ? .rightMouseDown : .leftMouseDown, point: position, button: mouse, count: click, windowID: windowID, frame: frame)
-                    try postMouse(pid: pid, type: button == "right" ? .rightMouseUp : .leftMouseUp, point: position, button: mouse, count: click, windowID: windowID, frame: frame, release: true)
+                try await coordinateAction { dispatch in
+                    let position = try point(p, app: app, snapshot: snapshot); let mouse: CGMouseButton = button == "right" ? .right : .left
+                    let windowID = try required(p.windowId ?? snapshot.windowFrames.first(where: { $0.value.contains(position) })?.key, "windowId")
+                    let frame = try required(snapshot.windowFrames[windowID], "window frame")
+                    for click in 1...count {
+                        try checkCancellation()
+                        try postMouse(pid: pid, type: button == "right" ? .rightMouseDown : .leftMouseDown, point: position, button: mouse, count: click, windowID: windowID, frame: frame, dispatch: dispatch)
+                        try postMouse(pid: pid, type: button == "right" ? .rightMouseUp : .leftMouseUp, point: position, button: mouse, count: click, windowID: windowID, frame: frame, release: true, dispatch: dispatch)
+                    }
                 }
             }
         case "type_text", "input_sequence":
@@ -594,27 +611,31 @@ final class Driver {
             }
             if !selectedAll { try postKey(pid: pid, code: code, flags: flags) }
         case "scroll":
-            let position = try point(p, app: app, snapshot: snapshot); let dx = p.deltaX ?? 0; let dy = p.deltaY ?? 0
-            guard dx.isFinite, dy.isFinite, abs(dx) <= 10000, abs(dy) <= 10000 else { throw ComputerError("invalid_arguments", "Scroll deltas exceed bounds.") }
-            guard let event = CGEvent(scrollWheelEvent2Source: CGEventSource(stateID: .privateState), units: .pixel, wheelCount: 2, wheel1: Int32(-dy), wheel2: Int32(-dx), wheel3: 0) else { throw ComputerError("input_failed", "Could not create scroll event.") }
-            let windowID = try required(p.windowId ?? snapshot.windowFrames.first(where: { $0.value.contains(position) })?.key, "windowId")
-            let frame = try required(snapshot.windowFrames[windowID], "window frame")
-            try requireForegroundTarget(pid: pid, windowID: windowID, point: position, frame: frame)
-            event.location = position; event.post(tap: .cghidEventTap)
+            try await coordinateAction { dispatch in
+                let position = try point(p, app: app, snapshot: snapshot); let dx = p.deltaX ?? 0; let dy = p.deltaY ?? 0
+                guard dx.isFinite, dy.isFinite, abs(dx) <= 10000, abs(dy) <= 10000 else { throw ComputerError("invalid_arguments", "Scroll deltas exceed bounds.") }
+                guard let event = CGEvent(scrollWheelEvent2Source: CGEventSource(stateID: .privateState), units: .pixel, wheelCount: 2, wheel1: Int32(-dy), wheel2: Int32(-dx), wheel3: 0) else { throw ComputerError("input_failed", "Could not create scroll event.") }
+                let windowID = try required(p.windowId ?? snapshot.windowFrames.first(where: { $0.value.contains(position) })?.key, "windowId")
+                let frame = try required(snapshot.windowFrames[windowID], "window frame")
+                try requireForegroundTarget(pid: pid, windowID: windowID, point: position, frame: frame)
+                event.location = position; dispatch.willDispatch(); event.post(tap: .cghidEventTap)
+            }
         case "drag":
-            let start = try point(p, app: app, snapshot: snapshot); let end = try point(p, app: app, snapshot: snapshot, end: true)
-            let windowID = try required(p.windowId, "windowId"); let frame = try required(snapshot.windowFrames[windowID], "window frame")
-            try postMouse(pid: pid, type: .leftMouseDown, point: start, button: .left, windowID: windowID, frame: frame)
-            var lastPoint = start
-            defer { try? postMouse(pid: pid, type: .leftMouseUp, point: lastPoint, button: .left, windowID: windowID, frame: frame, release: true) }
-            try await Task.sleep(for: .milliseconds(10))
-            for step in 1...10 {
-                try checkCancellation()
-                let amount = CGFloat(step) / 10
-                let position = CGPoint(x: start.x + (end.x - start.x) * amount, y: start.y + (end.y - start.y) * amount)
-                try postMouse(pid: pid, type: .leftMouseDragged, point: position, button: .left, windowID: windowID, frame: frame)
-                lastPoint = position
+            try await coordinateAction { dispatch in
+                let start = try point(p, app: app, snapshot: snapshot); let end = try point(p, app: app, snapshot: snapshot, end: true)
+                let windowID = try required(p.windowId, "windowId"); let frame = try required(snapshot.windowFrames[windowID], "window frame")
+                try postMouse(pid: pid, type: .leftMouseDown, point: start, button: .left, windowID: windowID, frame: frame, dispatch: dispatch)
+                var lastPoint = start
+                defer { try? postMouse(pid: pid, type: .leftMouseUp, point: lastPoint, button: .left, windowID: windowID, frame: frame, release: true, dispatch: dispatch) }
                 try await Task.sleep(for: .milliseconds(10))
+                for step in 1...10 {
+                    try checkCancellation()
+                    let amount = CGFloat(step) / 10
+                    let position = CGPoint(x: start.x + (end.x - start.x) * amount, y: start.y + (end.y - start.y) * amount)
+                    try postMouse(pid: pid, type: .leftMouseDragged, point: position, button: .left, windowID: windowID, frame: frame, dispatch: dispatch)
+                    lastPoint = position
+                    try await Task.sleep(for: .milliseconds(10))
+                }
             }
         default: throw ComputerError("unknown_method", "Unknown method.")
         }

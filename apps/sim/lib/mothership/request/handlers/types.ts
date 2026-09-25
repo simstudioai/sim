@@ -20,6 +20,7 @@ import { CopilotDegradedReason } from '@/lib/mothership/generated/trace-attribut
 import { recordDegraded } from '@/lib/mothership/request/metrics'
 import { markToolResultSeen } from '@/lib/mothership/request/sse-utils'
 import { setTerminalToolCallState } from '@/lib/mothership/request/tool-call-state'
+import { toolStatusOutput } from '@/lib/mothership/request/tools/tool-status-output'
 import type {
   ContentBlock,
   ExecutionContext,
@@ -299,7 +300,7 @@ export async function emitSyntheticToolResult(
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
         success,
-        output: resultPayload,
+        output: toolStatusOutput(resultPayload),
         ...(syntheticStatus ? { status: syntheticStatus } : {}),
         ...(!success && completion?.message ? { error: completion.message } : {}),
       },
