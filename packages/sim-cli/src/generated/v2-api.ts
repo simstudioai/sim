@@ -524,6 +524,30 @@ type ApplyWorkflowOperationsResponseRef1 = {
 }
 
 type ApplyWorkflowOperationsResponseRef2 = {
+  checks: Array<{
+    name:
+      | 'graph'
+      | 'fields'
+      | 'block-output-references'
+      | 'branch-output-references'
+      | 'embedded-code-syntax'
+      | 'credential-resource-references'
+      | 'agent-tool-references'
+      | 'table-fields'
+      | 'runtime-execution'
+    status: 'complete' | 'partial' | 'skipped'
+    detail: string
+  }>
+  codeIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    language: 'javascript'
+    message: string
+    line: number | null
+    column: number | null
+  }>
   sources: Array<{
     blockId: string
     blockName: string | null
@@ -4609,6 +4633,15 @@ export type DownloadRunFileQuery = Record<string, unknown>
 /** Non-JSON response (`binary`). */
 export type DownloadRunFileResponse = never
 
+/** `GET /api/v2/tools/files/download` */
+export type DownloadToolFileQuery = {
+  workspaceId: string
+  fileId: string
+}
+
+/** Non-JSON response (`binary`). */
+export type DownloadToolFileResponse = never
+
 /** `POST /api/v2/workflows/[workflowId]/duplicate` */
 export type DuplicateWorkflowParams = {
   workflowId: string
@@ -4743,6 +4776,10 @@ export type ExecuteWorkflowBody = {
   run?:
     | {
         source: 'deployment'
+        entry?: {
+          type: 'trigger'
+          blockId: string
+        }
       }
     | {
         source: 'manual'
@@ -4758,6 +4795,7 @@ export type ExecuteWorkflowBody = {
               sourceRunId: string
             }
       }
+  stopAfterBlockId?: string
   async?: boolean
   executionTimeoutSeconds?: number
   stream?: boolean
@@ -4847,6 +4885,8 @@ type ExportWorkflowResponseRef0 = {
     folderPath: string
   }
   state: Record<string, unknown>
+  representation: 'portable-export'
+  warnings: Array<string>
   referenceManifest?: {
     version: 1
     references: Array<{
@@ -5202,6 +5242,46 @@ type GetBlockResponseRef6 = {
 
 export type GetBlockResponse = {
   data: GetBlockResponseRef6
+}
+
+/** `GET /api/v2/credentials/[credentialId]` */
+export type GetCredentialParams = {
+  credentialId: string
+}
+
+export type GetCredentialQuery = {
+  workspaceId: string
+}
+
+type GetCredentialResponseRef0 = {
+  id: string
+  type: 'oauth' | 'service_account'
+  displayName: string
+  description: string | null
+  providerId: string | null
+  accountId: string | null
+  hasServiceAccountKey: boolean
+  role: 'admin' | 'member'
+  createdAt: string
+  updatedAt: string
+  diagnostics: {
+    identity: {
+      source: 'credential' | 'linked-account' | 'unknown'
+      subjectId: string | null
+      tenantId: string | null
+      externalAccountId: string | null
+      verifiedLive: false
+    }
+    scopes: {
+      source: 'credential' | 'linked-account' | 'unknown'
+      values: Array<string>
+    }
+    notes: Array<string>
+  }
+}
+
+export type GetCredentialResponse = {
+  data: GetCredentialResponseRef0
 }
 
 /** `GET /api/v2/custom-tools/[customToolId]` */
@@ -7284,6 +7364,43 @@ type ImportWorkflowResponseRef1 = {
 
 export type ImportWorkflowResponse = {
   data: ImportWorkflowResponseRef1
+}
+
+/** `GET /api/v2/workflows/[workflowId]/inspect` */
+export type InspectWorkflowParams = {
+  workflowId: string
+}
+
+export type InspectWorkflowQuery = {
+  blockId?: string
+  includeCode?: boolean
+}
+
+type InspectWorkflowResponseRef0 = {
+  representation: 'diagnostic'
+  workflowId: string
+  workspaceId: string
+  blocks: Array<{
+    id: string
+    name: string
+    type: string
+    enabled: boolean
+    parentId: string | null
+    inputs: Record<string, unknown>
+    omittedInputs: Array<string>
+  }>
+  edges: Array<{
+    source: string
+    target: string
+    sourceHandle: string | null
+    targetHandle: string | null
+  }>
+  truncated: boolean
+  notes: Array<string>
+}
+
+export type InspectWorkflowResponse = {
+  data: InspectWorkflowResponseRef0
 }
 
 /** `GET /api/v2/audit-logs` */
@@ -10228,6 +10345,44 @@ export type PreviewWorkflowImportResponse = {
   data: PreviewWorkflowImportResponseRef0
 }
 
+/** `GET /api/v2/workflows/[workflowId]/runs/preview` */
+export type PreviewWorkflowRunFromBlockParams = {
+  workflowId: string
+}
+
+export type PreviewWorkflowRunFromBlockQuery = {
+  blockId: string
+  sourceRunId: string
+}
+
+type PreviewWorkflowRunFromBlockResponseRef0 = {
+  workflowId: string
+  sourceRunId: string
+  startBlockId: string
+  validation: {
+    valid: boolean
+    error?: string
+  }
+  rerunBlocks: Array<{
+    blockId: string
+    name: string
+    type: string
+    executedInSource: boolean
+  }>
+  upstreamBlocks: Array<{
+    blockId: string
+    name: string
+    type: string
+    executedInSource: boolean
+    hasCachedOutput: boolean
+  }>
+  notes: Array<string>
+}
+
+export type PreviewWorkflowRunFromBlockResponse = {
+  data: PreviewWorkflowRunFromBlockResponseRef0
+}
+
 /** `POST /api/v2/workspaces/[workspaceId]/fork/preview` */
 export type PreviewWorkspaceForkParams = {
   workspaceId: string
@@ -11394,6 +11549,30 @@ export type ReplaceWorkflowStateBody = {
 }
 
 type ReplaceWorkflowStateResponseRef0 = {
+  checks: Array<{
+    name:
+      | 'graph'
+      | 'fields'
+      | 'block-output-references'
+      | 'branch-output-references'
+      | 'embedded-code-syntax'
+      | 'credential-resource-references'
+      | 'agent-tool-references'
+      | 'table-fields'
+      | 'runtime-execution'
+    status: 'complete' | 'partial' | 'skipped'
+    detail: string
+  }>
+  codeIssues: Array<{
+    blockId: string
+    blockName: string | null
+    blockType: string | null
+    field: string
+    language: 'javascript'
+    message: string
+    line: number | null
+    column: number | null
+  }>
   sources: Array<{
     blockId: string
     blockName: string | null
@@ -11465,6 +11644,14 @@ type ReplaceWorkflowStateResponseRef1 = {
   id: string
   warnings: Array<string>
   needsRedeployment: boolean
+  removedBindings: Array<{
+    blockId: string
+    blockName: string
+    field: string
+    valuePath: Array<string | number>
+    kind: 'credential' | 'table'
+    resourceId: string
+  }>
   lint: ReplaceWorkflowStateResponseRef0
   dryRun: boolean
 }
@@ -16138,6 +16325,27 @@ export const V2_OPERATIONS = {
     responseMode: 'binary',
     summary: 'Download Workflow Run File',
   },
+  downloadToolFile: {
+    method: 'GET',
+    path: '/api/v2/tools/files/download',
+    pathParams: [] as const,
+    responseMode: 'binary',
+    summary: 'Download Tool File',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace in which to authorize the download.',
+      },
+      fileId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'The file.id returned by a direct tool call, with context copilot. Workflow output files use Download Workflow Run File instead.',
+      },
+    },
+  },
   duplicateWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/[workflowId]/duplicate',
@@ -16229,6 +16437,11 @@ export const V2_OPERATIONS = {
         kind: 'unknown',
         describe:
           'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only.',
+      },
+      stopAfterBlockId: {
+        kind: 'string',
+        describe:
+          'Stop scheduling after this enabled top-level block completes (or all iterations of a loop/parallel container). Real execution: earlier and concurrent branches can still perform side effects; if a condition bypasses this block, the run can finish without stopping here. Applies to this invocation only; a later explicit resume does not inherit this limit. Does not change the saved graph. Use selectedOutputs to return formatter results. Incompatible with async.',
       },
       async: {
         kind: 'boolean',
@@ -16400,6 +16613,22 @@ export const V2_OPERATIONS = {
         required: true,
         describe:
           'Workspace whose integration allowlist, revealed preview blocks, and deployed custom blocks decide what this catalog contains.',
+      },
+    },
+  },
+  getCredential: {
+    method: 'GET',
+    path: '/api/v2/credentials/[credentialId]',
+    pathParams: ['credentialId'] as const,
+    pathParamDocs: { credentialId: 'Selected credential to inspect.' },
+    responseMode: 'json',
+    summary: 'Inspect Credential',
+    workspaceKeyUnsupported: true,
+    query: {
+      workspaceId: {
+        kind: 'string',
+        required: true,
+        describe: 'Workspace expected to own the selected credential.',
       },
     },
   },
@@ -17341,6 +17570,26 @@ export const V2_OPERATIONS = {
       previewFingerprint: {
         kind: 'string',
         describe: 'Fingerprint of the reviewed preview and its choices.',
+      },
+    },
+  },
+  inspectWorkflow: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/inspect',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Inspect Workflow',
+    query: {
+      blockId: {
+        kind: 'string',
+        describe:
+          'Inspect one block and its incident connections. Omit to inspect the draft graph.',
+      },
+      includeCode: {
+        kind: 'boolean',
+        describe:
+          'Include bounded code inputs. Code and free text can contain hardcoded secrets that automatic redaction cannot recognize.',
       },
     },
   },
@@ -19818,6 +20067,28 @@ export const V2_OPERATIONS = {
         kind: 'array',
         describe:
           'Destination-dependent choices keyed by source workflow, block, and field identities.',
+      },
+    },
+  },
+  previewWorkflowRunFromBlock: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/runs/preview',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'Preview Partial Workflow Run',
+    workspaceKeyUnsupported: true,
+    query: {
+      blockId: {
+        kind: 'string',
+        required: true,
+        describe: 'Saved draft block at which a later manual run would start.',
+      },
+      sourceRunId: {
+        kind: 'string',
+        required: true,
+        describe:
+          'Existing run in this workflow whose persisted state would supply cached upstream outputs.',
       },
     },
   },

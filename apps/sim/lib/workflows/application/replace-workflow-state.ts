@@ -19,6 +19,10 @@ import { withWorkflowBlockScope } from '@/lib/workflows/application/workflow-blo
 import { requireMutableWorkflow } from '@/lib/workflows/application/workflow-mutability'
 import { normalizeWorkflowVariables } from '@/lib/workflows/application/workflow-variables'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
+import {
+  collectRemovedWorkflowBindings,
+  type RemovedWorkflowBinding,
+} from '@/lib/workflows/editing/binding-changes'
 import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import { validateValueForSubBlockType } from '@/lib/workflows/editing/validation'
@@ -82,6 +86,8 @@ export interface ReplaceWorkflowStateResult {
   blocksCount: number
   edgesCount: number
   warnings: string[]
+  /** Non-secret credential/table references removed by this proposed replacement. */
+  removedBindings: RemovedWorkflowBinding[]
   needsRedeployment: boolean
   /** Advisory findings about the graph. Never blocks the write. */
   lint: WorkflowLintReport
@@ -138,9 +144,7 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
         principal.kind === 'delegated' &&
         principal.serviceId === 'copilot' &&
         Object.values(blocks).some((block) => getToolBindingAuthoringSchema(block.type))
-      const previous = enforceToolBindings
-        ? await loadWorkflowFromNormalizedTables(context.workflowId)
-        : undefined
+      const previous = await loadWorkflowFromNormalizedTables(context.workflowId)
       if (enforceToolBindings && !previous) {
         throw new OrchestrationError(
           'validation',
@@ -182,6 +186,12 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
         }
       }
 
+      const removedBindings = collectRemovedWorkflowBindings(previous?.blocks ?? {}, blocks)
+      const bindingWarnings = removedBindings.length
+        ? [
+            `This replacement removes ${removedBindings.length} credential/table binding references. Inspect removedBindings before saving; use workflows state get for in-place edits, not workflows export.`,
+          ]
+        : []
       const graph = {
         blocks,
         edges: sanitized.edges as WorkflowState['edges'],
@@ -227,7 +237,8 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
           workspaceId: context.workspaceId,
           blocksCount: Object.keys(graph.blocks).length,
           edgesCount: graph.edges.length,
-          warnings: [...validation.warnings, ...prepared.warnings],
+          warnings: [...validation.warnings, ...prepared.warnings, ...bindingWarnings],
+          removedBindings,
           needsRedeployment: await checkNeedsRedeployment(context.workflowId),
           lint,
           dryRun: true,
@@ -278,7 +289,8 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
         workspaceId: context.workspaceId,
         blocksCount: Object.keys(persisted.state.blocks).length,
         edgesCount: persisted.state.edges.length,
-        warnings: [...validation.warnings, ...persisted.warnings],
+        warnings: [...validation.warnings, ...persisted.warnings, ...bindingWarnings],
+        removedBindings,
         needsRedeployment: await checkNeedsRedeployment(context.workflowId),
         lint,
         dryRun: false,

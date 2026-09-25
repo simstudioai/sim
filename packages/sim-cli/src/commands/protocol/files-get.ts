@@ -6,6 +6,8 @@ import { Readable, type Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { Command } from 'commander'
 import { writeStdout } from '#sim-cli/output/io'
+import { describeOperation } from '#sim-cli/runtime/build'
+import type { OperationSpec } from '#sim-cli/runtime/types'
 import { clientFrom } from '../../context'
 import { embedStore } from '../../embed-context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
@@ -282,7 +284,7 @@ interface DownloadOutputOptions {
   force?: boolean
 }
 
-type DownloadOperation = (typeof V2_OPERATIONS)['downloadFile' | 'downloadFileVersion']
+type DownloadOperation = Pick<OperationSpec, 'path' | 'method' | 'query'>
 
 /**
  * Streams a binary v2 download to stdout or atomically to `--output-file`. Shared by every
@@ -292,7 +294,8 @@ async function downloadToOutput(
   command: Command,
   operation: DownloadOperation,
   pathParams: Record<string, string>,
-  options: DownloadOutputOptions
+  options: DownloadOutputOptions,
+  query: Record<string, string> = {}
 ): Promise<void> {
   const target = options.outputFile
   const writesToStdout = target === undefined || target === '-'
@@ -301,10 +304,12 @@ async function downloadToOutput(
   }
 
   const { client, profile } = clientFrom(command)
-  const workspaceId = client.requireWorkspace()
+  const workspaceQuery = operation.query?.workspaceId
+    ? { workspaceId: client.requireWorkspace() }
+    : {}
   const response = await client.requestRaw(resolvePath(operation.path, pathParams), {
     method: operation.method,
-    query: { workspaceId },
+    query: { ...query, ...workspaceQuery },
   })
   if (!response.body) {
     throw new SimApiError('File content response was empty.', response.status)
@@ -329,7 +334,7 @@ async function downloadToOutput(
 
   const savedTarget = await saveToFile(response.body, target, Boolean(options.force))
   printProtocolResult(profile.output, {
-    id: pathParams.fileId,
+    id: pathParams.fileId ?? query.fileId,
     path: savedTarget,
     status: 'saved',
   })
@@ -359,5 +364,52 @@ export function attachFileVersionDownload(versions: Command): void {
     .option('--force', 'Overwrite --output-file if it already exists')
     .action((fileId: string, version: string, options: DownloadOutputOptions, command: Command) =>
       downloadToOutput(command, V2_OPERATIONS.downloadFileVersion, { fileId, version }, options)
+    )
+}
+
+/** Downloads a personal file descriptor returned by a direct tools.execute call. */
+export function attachToolFileDownload(files: Command): void {
+  files
+    .command('download')
+    .argument('<fileId>', 'The returned file.id with context copilot, passed unchanged')
+    .allowExcessArguments(false)
+    .description(
+      describeOperation(
+        V2_OPERATIONS.downloadToolFile,
+        'Download a direct tool output owned by the current user'
+      )
+    )
+    .option('-o, --output-file <path>', 'Write content to a file instead of stdout')
+    .option('--force', 'Overwrite --output-file if it already exists')
+    .action((fileId: string, options: DownloadOutputOptions, command: Command) =>
+      downloadToOutput(command, V2_OPERATIONS.downloadToolFile, {}, options, { fileId })
+    )
+}
+
+/** Downloads run-produced files using the workflow's existing authorized binary endpoint. */
+export function attachWorkflowRunFileDownload(files: Command): void {
+  files
+    .command('download')
+    .argument('<workflowId>', 'Workflow identifier')
+    .argument('<runId>', 'Run identifier')
+    .argument('<fileId>', 'File identifier returned by the workflow run')
+    .allowExcessArguments(false)
+    .description('Download a workflow run output file')
+    .option('-o, --output-file <path>', 'Write content to a file instead of stdout')
+    .option('--force', 'Overwrite --output-file if it already exists')
+    .action(
+      (
+        workflowId: string,
+        runId: string,
+        fileId: string,
+        options: DownloadOutputOptions,
+        command: Command
+      ) =>
+        downloadToOutput(
+          command,
+          V2_OPERATIONS.downloadRunFile,
+          { workflowId, runId, fileId },
+          options
+        )
     )
 }

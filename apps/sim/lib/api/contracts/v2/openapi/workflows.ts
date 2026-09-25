@@ -28,6 +28,7 @@ import {
   withRequestBodyErrors,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import { workspaceSyncOpenApiRoutes } from '@/lib/api/contracts/v2/openapi/workspace-sync'
+import { v2InspectWorkflowContract } from '@/lib/api/contracts/v2/workflow-inspection'
 import {
   EXECUTE_OPTION_CONSTRAINTS,
   v2ActivateWorkflowVersionContract,
@@ -56,6 +57,7 @@ import {
   v2ListWorkflowsContract,
   v2ListWorkflowVersionsContract,
   v2MoveWorkflowsContract,
+  v2PreviewWorkflowRunFromBlockContract,
   v2RelocateWorkflowFolderContract,
   v2ReplaceWorkflowStateContract,
   v2RestoreWorkflowContract,
@@ -107,6 +109,8 @@ const WORKFLOW_FOLDER_EXAMPLE = {
 
 /** An empty lint report, for examples where the findings are not the subject. */
 const EMPTY_LINT_EXAMPLE = {
+  checks: [],
+  codeIssues: [],
   sources: [],
   sinks: [],
   orphanBlocks: [],
@@ -302,13 +306,53 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2InspectWorkflowContract,
+    workflowOperation({
+      applicationOperation: workflowOperations.read,
+      operationId: 'inspectWorkflow',
+      summary: 'Inspect Workflow',
+      description:
+        'Inspect a compact draft graph with block IDs, enabled states, connections, and bounded nonempty inputs. Credential fields and opaque credential-bearing inputs are withheld; code is omitted unless requested. This diagnostic representation is not suitable for Replace Workflow State. Automatic redaction cannot recognize every secret in arbitrary text or code.',
+      errors: RESOURCE_ERRORS,
+      success: jsonSuccess('A compact diagnostic view of the workflow draft.'),
+    }),
+    {
+      params: v2InspectWorkflowContract.params,
+      query: documentedSchema(
+        v2InspectWorkflowContract.query,
+        'InspectWorkflowQuery',
+        'Workflow inspection query',
+        'Optional block selection and code inclusion.'
+      ),
+      response: documentedSchema(
+        v2InspectWorkflowContract.response.schema,
+        'InspectWorkflowResponse',
+        'Workflow inspection response',
+        'A bounded diagnostic draft view, not an editable graph.',
+        [
+          {
+            data: {
+              representation: 'diagnostic',
+              workflowId: WORKFLOW_ID,
+              workspaceId: WORKSPACE_ID,
+              blocks: [],
+              edges: [],
+              truncated: false,
+              notes: [],
+            },
+          },
+        ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2GetWorkflowStateContract,
     workflowOperation({
       applicationOperation: workflowOperations.read,
       operationId: 'getWorkflowState',
       summary: 'Get Workflow State',
       description:
-        'Get the editable draft graph, including blocks, edges, loop and parallel containers, and variables. Use this state with Replace Workflow State to preserve workspace bindings; Export Workflow removes those bindings for portability. This read records no audit event, and `HEAD` mirrors `GET`.',
+        'Get the full editable draft graph, including blocks, edges, loop and parallel containers, variables, and stored input values. Use Inspect Workflow for compact, redacted diagnostics. Use this state with Replace Workflow State to preserve workspace bindings; Export Workflow removes those bindings for portability. This read records no audit event, and `HEAD` mirrors `GET`.',
       /**
        * No `413`: unlike the workflow reads beside it this one resolves no
        * folder path, so it never materializes the workspace's folder tree, and
@@ -361,6 +405,7 @@ const declaredRoutes = [
               warnings: [],
               needsRedeployment: true,
               dryRun: false,
+              removedBindings: [],
               lint: EMPTY_LINT_EXAMPLE,
             },
           },
@@ -402,6 +447,8 @@ const declaredRoutes = [
               inputValidationErrors: [],
               mintedBlockIds: { triage: 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77' },
               lint: {
+                checks: [],
+                codeIssues: [],
                 sources: [],
                 sinks: [],
                 orphanBlocks: [],
@@ -985,6 +1032,10 @@ const declaredRoutes = [
           {
             data: {
               version: '1.0',
+              representation: 'portable-export',
+              warnings: [
+                'Portable exports clear credential bindings. Use workflow state for in-place edits.',
+              ],
               exportedAt: '2026-08-09T18:04:11.000Z',
               workflow: {
                 id: WORKFLOW_ID,
@@ -1178,6 +1229,34 @@ const declaredRoutes = [
       body: v2ExecuteWorkflowContract.body,
       response: v2ExecuteWorkflowContract.response.schema,
       responses: { 200: executeSyncResponseSchema, 202: executeQueuedResponseSchema },
+    }
+  ),
+  defineOpenApiRoute(
+    v2PreviewWorkflowRunFromBlockContract,
+    workflowRunOperation({
+      applicationOperation: workflowOperations.previewManualFromBlock,
+      operationId: 'previewWorkflowRunFromBlock',
+      summary: 'Preview Partial Workflow Run',
+      description: `Inspect the current saved draft and one prior run without executing blocks or reserving a run ID. Returns executor entry validation, candidate rerun blocks, and upstream cached-output availability without output values. Requires write access to the workflow and OAuth api:read or a personal API key. Conditional paths are candidates, and a later run uses the draft saved at that time. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: jsonSuccess(
+        'A read-only partial-run preview, including any entry-validation failure.'
+      ),
+    }),
+    {
+      params: v2PreviewWorkflowRunFromBlockContract.params,
+      query: documentedSchema(
+        v2PreviewWorkflowRunFromBlockContract.query,
+        'PreviewWorkflowRunFromBlockQuery',
+        'Partial run preview query',
+        'Starting block and source run supplying cached upstream outputs.'
+      ),
+      response: documentedSchema(
+        v2PreviewWorkflowRunFromBlockContract.response.schema,
+        'PreviewWorkflowRunFromBlockResponse',
+        'Partial run preview response',
+        'Current draft graph candidates and source snapshot availability; no blocks are executed.'
+      ),
     }
   ),
   defineOpenApiRoute(

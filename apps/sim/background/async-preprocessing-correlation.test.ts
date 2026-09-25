@@ -222,6 +222,60 @@ describe('async preprocessing correlation threading', () => {
     )
   })
 
+  it('loads the admitted immutable deployment and its variables instead of the newer active draft', async () => {
+    const deployed = {
+      blocks: { schedule: { type: 'schedule' } },
+      edges: [],
+      loops: {},
+      parallels: {},
+      deploymentVersionId: 'admitted-version',
+      variables: { source: 'deployed' },
+    }
+    workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentVersionState.mockResolvedValueOnce(
+      deployed
+    )
+    mockPreprocessExecution.mockResolvedValueOnce({
+      success: true,
+      actorUserId: 'actor-1',
+      workflowRecord: {
+        id: 'workflow-1',
+        userId: 'owner-1',
+        workspaceId: 'workspace-1',
+        variables: { source: 'draft' },
+      },
+      billingAttribution,
+      executionTimeout: {},
+    })
+    mockExecuteWorkflowCore.mockResolvedValueOnce({
+      success: true,
+      status: 'success',
+      output: {},
+      metadata: { duration: 10, userId: 'actor-1' },
+    })
+    await executeWorkflowJob({
+      principal,
+      workflowId: 'workflow-1',
+      userId: 'actor-1',
+      workspaceId: 'workspace-1',
+      billingAttribution,
+      triggerType: 'api',
+      triggerBlockId: 'schedule',
+      deploymentVersionId: 'admitted-version',
+      executionId: 'execution-1',
+    })
+    expect(
+      workflowsPersistenceUtilsMockFns.mockLoadWorkflowDeploymentVersionState
+    ).toHaveBeenCalledWith('workflow-1', 'admitted-version', 'workspace-1')
+    expect(mockLoadDeployedWorkflowState).not.toHaveBeenCalled()
+    expect(mockExecutionSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ triggerBlockId: 'schedule', workflowStateOverride: deployed }),
+      expect.anything(),
+      undefined,
+      { source: 'deployed' },
+      expect.any(Array)
+    )
+  })
+
   it.each([
     {
       name: 'workspace API key',

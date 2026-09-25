@@ -1,5 +1,6 @@
 import {
   v2DeleteCredentialContract,
+  v2GetCredentialContract,
   v2UpdateCredentialContract,
 } from '@/lib/api/contracts/v2/credentials'
 import {
@@ -12,6 +13,7 @@ import {
   CredentialProviderOperationError,
   updateWorkspaceCredentialUseCase,
 } from '@/lib/credentials/application/credential-crud'
+import { inspectCredential } from '@/lib/credentials/application/inspect-credential'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import { toV2Credential } from '@/lib/credentials/application/presentation'
 import { deleteCredentialUseCase } from '@/lib/credentials/application/service-account'
@@ -45,6 +47,29 @@ function renderCredentialProviderError(error: unknown) {
 const credentialErrorPolicy = createV2ResourceConcealmentPolicy({
   notFoundMessage: 'Credential not found',
   render: (error) => renderCredentialProviderError(error) ?? v2CaughtOrchestrationError(error),
+})
+
+export const GET = defineV2JsonRoute({
+  contract: v2GetCredentialContract,
+  auth: v2ApiKeyAuth,
+  operation: credentialOperations.inspect,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: credentialErrorPolicy,
+  mapInput: ({ params, query }) => ({
+    credentialId: params.credentialId,
+    assertedWorkspaceId: query.workspaceId,
+  }),
+  useCase: inspectCredential,
+  present: ({ credential, access, diagnostics }) => ({
+    data: {
+      ...toV2Credential({
+        ...credential,
+        hasServiceAccountKey: Boolean(credential.encryptedServiceAccountKey),
+        role: access.isAdmin ? 'admin' : 'member',
+      }),
+      diagnostics,
+    },
+  }),
 })
 
 /**

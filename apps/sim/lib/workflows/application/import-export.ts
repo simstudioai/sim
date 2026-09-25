@@ -64,6 +64,8 @@ export interface ExportWorkflowInput {
 
 export interface ExportWorkflowResult {
   payload: WorkflowExportPayload
+  representation: 'portable-export'
+  warnings: string[]
   folderPath: string
 }
 
@@ -155,6 +157,13 @@ export const exportWorkflow = defineAuthorizedWorkflowUseCase({
     )
     return {
       payload,
+      representation: 'portable-export',
+      warnings: [
+        'This portable export clears credentials, secret values, and opaque table values. For in-place edits that preserve block IDs and binding references, use workflows state get, then workflows state replace --dry-run before saving. Treat editable state as private workspace configuration.',
+        input.includeWorkspaceBindings
+          ? 'Workspace resource bindings are retained, but credentials are still cleared. This export is not a complete editable-state snapshot.'
+          : 'Workspace resource bindings (including tables) are cleared. includeWorkspaceBindings=true retains resource references for same-workspace copies; includeReferences=true adds non-secret identifiers for mapped imports.',
+      ],
       folderPath: workflowFolderPathForId(folderIndex, context.workflow.folderId),
     }
   },

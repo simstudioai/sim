@@ -45,6 +45,7 @@ import {
   v2CreateCredentialConnectionContract,
   v2CreateServiceAccountCredentialContract,
   v2DeleteCredentialContract,
+  v2GetCredentialContract,
   v2ListCredentialProvidersContract,
   v2ListCredentialsContract,
   v2UpdateCredentialContract,
@@ -260,6 +261,7 @@ import {
   v2UpdateWorkflowGroupContract,
   v2UpsertTableRowContract,
 } from '@/lib/api/contracts/v2/tables'
+import { v2InspectWorkflowContract } from '@/lib/api/contracts/v2/workflow-inspection'
 import {
   v2CreateWorkflowMcpServerContract,
   v2DeleteWorkflowMcpServerContract,
@@ -295,6 +297,7 @@ import {
   v2ListWorkflowVersionsContract,
   v2MoveWorkflowsContract,
   v2PreviewWorkflowImportContract,
+  v2PreviewWorkflowRunFromBlockContract,
   v2RelocateWorkflowFolderContract,
   v2ReplaceWorkflowStateContract,
   v2RestoreWorkflowContract,
@@ -1151,7 +1154,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2ExecuteToolContract,
     summary: 'Run Tool',
     description:
-      'Run a built-in tool using published parameter IDs. Sim resolves `credentialId`, hosted keys, and whole-value `{{VAR_NAME}}` references for `user-only` parameters; other values pass through verbatim. Third-party refusal returns `200` with `status: "failed"`; the error envelope covers API failures. Hidden or missing tools return `404`; disallowed integrations return `403` with `error.details.code: INTEGRATION_NOT_ALLOWED`. Hosted-key use is billed to the workspace. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
+      'Run a built-in tool using published parameters and caller-owned credentials. Whole-value `{{VAR_NAME}}` references resolve for `user-only` parameters. Provider refusal returns `200` with `status: "failed"`; API failures use the error envelope. Hidden tools return `404`; blocked integrations return `403` with `error.details.code: INTEGRATION_NOT_ALLOWED`. Hosted-key use and measured Function sandbox costs are billed to the workspace. Function usage-limit checks can refuse execution with `402 USAGE_LIMIT_EXCEEDED`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.',
     workspaceKeyUnsupported: true,
     handler: () => import('@/app/api/v2/tools/[toolId]/execute/route').then((route) => route.POST),
   },
@@ -1201,6 +1204,15 @@ export const V2_MCP_OPERATIONS = {
     description:
       "Get a block's fields, conditions, operations, tool schemas, and triggers. Unversioned types resolve to the newest visible version; the returned `id` identifies that version. Hidden or missing blocks return `404`.\n\nOAuth scope: `api:read`.",
     handler: () => import('@/app/api/v2/blocks/[blockId]/route').then((route) => route.GET),
+  },
+  getCredential: {
+    contract: v2GetCredentialContract,
+    summary: 'Inspect Credential',
+    description:
+      "Inspect one selected connection's stored provider identity, recorded OAuth scopes, and access limitations. This does not decrypt secrets, contact the provider, or verify live resource access. Custom bot identities/scopes may be unknown. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/credentials/[credentialId]/route').then((route) => route.GET),
   },
   getCustomTool: {
     contract: v2GetCustomToolContract,
@@ -1527,7 +1539,7 @@ export const V2_MCP_OPERATIONS = {
     contract: v2GetWorkflowStateContract,
     summary: 'Get Workflow State',
     description:
-      'Get the editable draft graph, including blocks, edges, loop and parallel containers, and variables. Use this state with Replace Workflow State to preserve workspace bindings; Export Workflow removes those bindings for portability. This read records no audit event, and `HEAD` mirrors `GET`.\n\nOAuth scope: `api:read`.',
+      'Get the full editable draft graph, including blocks, edges, loop and parallel containers, variables, and stored input values. Use Inspect Workflow for compact, redacted diagnostics. Use this state with Replace Workflow State to preserve workspace bindings; Export Workflow removes those bindings for portability. This read records no audit event, and `HEAD` mirrors `GET`.\n\nOAuth scope: `api:read`.',
     handler: () =>
       import('@/app/api/v2/workflows/[workflowId]/state/route').then((route) => route.GET),
   },
@@ -1614,6 +1626,14 @@ export const V2_MCP_OPERATIONS = {
     description:
       'Create an undeployed workflow from a portable export object, bare state, or JSON string. Mapping options require a preview fingerprint and stable request ID; unresolved required configuration creates nothing. Mapped imports return source-to-imported block IDs and an operation receipt. Workspace folder trees exceeding 10,000 folders return `413`.\n\nOAuth scope: `api:write`.',
     handler: () => import('@/app/api/v2/workflows/import/route').then((route) => route.POST),
+  },
+  inspectWorkflow: {
+    contract: v2InspectWorkflowContract,
+    summary: 'Inspect Workflow',
+    description:
+      'Inspect a compact draft graph with block IDs, enabled states, connections, and bounded nonempty inputs. Credential fields and opaque credential-bearing inputs are withheld; code is omitted unless requested. This diagnostic representation is not suitable for Replace Workflow State. Automatic redaction cannot recognize every secret in arbitrary text or code.\n\nOAuth scope: `api:read`.',
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/inspect/route').then((route) => route.GET),
   },
   listAuditLogs: {
     contract: v2ListAuditLogsContract,
@@ -2126,6 +2146,15 @@ export const V2_MCP_OPERATIONS = {
       'Validate destination mappings and dependent choices without creating a workflow. Returns unresolved fields, discovery instructions, and a fingerprint required by mapped import. No source workspace is queried from imported provenance.\n\nOAuth scope: `api:write`.',
     handler: () =>
       import('@/app/api/v2/workflows/import/preview/route').then((route) => route.POST),
+  },
+  previewWorkflowRunFromBlock: {
+    contract: v2PreviewWorkflowRunFromBlockContract,
+    summary: 'Preview Partial Workflow Run',
+    description:
+      'Inspect the current saved draft and one prior run without executing blocks or reserving a run ID. Returns executor entry validation, candidate rerun blocks, and upstream cached-output availability without output values. Requires write access to the workflow and OAuth api:read or a personal API key. Conditional paths are candidates, and a later run uses the draft saved at that time. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.',
+    workspaceKeyUnsupported: true,
+    handler: () =>
+      import('@/app/api/v2/workflows/[workflowId]/runs/preview/route').then((route) => route.GET),
   },
   previewWorkspaceFork: {
     contract: v2PreviewWorkspaceForkContract,

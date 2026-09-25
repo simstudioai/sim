@@ -1,10 +1,12 @@
 import type { Principal } from '@sim/auth/principal'
+import { createBlock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   executeService: vi.fn(),
   resolvePermission: vi.fn(),
   resolveWorkflowContext: vi.fn(),
+  loadDeployedState: vi.fn(),
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({
@@ -23,6 +25,11 @@ vi.mock('@/lib/workflows/application/context', () => ({
 
 vi.mock('@/lib/workflows/executor/execute-service', () => ({
   executeWorkflowService: mocks.executeService,
+}))
+
+vi.mock('@/lib/workflows/persistence/utils', () => ({
+  loadDeployedWorkflowState: mocks.loadDeployedState,
+  NoActiveDeploymentError: class NoActiveDeploymentError extends Error {},
 }))
 
 import { PersonalApiKeysDisabledError } from '@/lib/core/application'
@@ -60,6 +67,47 @@ describe('executeWorkflowOperation', () => {
       error: null,
       hasResponseBlock: false,
     })
+  })
+
+  it('selects Schedule from the canonical deployed snapshot and pins the executor to that version', async () => {
+    mocks.resolveWorkflowContext.mockResolvedValue({
+      ...workflowContext,
+      workflow: { ...workflow, isDeployed: true },
+    })
+    mocks.loadDeployedState.mockResolvedValue({
+      deploymentVersionId: 'version-1',
+      blocks: { schedule: createBlock({ id: 'schedule', type: 'schedule' }) },
+    })
+    await executeWorkflowOperation.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { ...baseInput, stopAfterBlockId: 'formatter' },
+    })
+    expect(mocks.loadDeployedState).toHaveBeenCalledWith('workflow-1', 'workspace-1')
+    expect(mocks.executeService).toHaveBeenCalledWith(
+      expect.objectContaining({
+        triggerBlockId: 'schedule',
+        deploymentVersionId: 'version-1',
+        stopAfterBlockId: 'formatter',
+      })
+    )
+  })
+
+  it('rejects a draft-only trigger before claiming, billing or executing a deployed run', async () => {
+    mocks.resolveWorkflowContext.mockResolvedValue({
+      ...workflowContext,
+      workflow: { ...workflow, isDeployed: true },
+    })
+    mocks.loadDeployedState.mockResolvedValue({
+      deploymentVersionId: 'version-1',
+      blocks: { schedule: createBlock({ id: 'schedule', type: 'schedule' }) },
+    })
+    await expect(
+      executeWorkflowOperation.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { ...baseInput, triggerBlockId: 'draft-only' },
+      })
+    ).rejects.toThrow('active deployment')
+    expect(mocks.executeService).not.toHaveBeenCalled()
   })
 
   it.each([

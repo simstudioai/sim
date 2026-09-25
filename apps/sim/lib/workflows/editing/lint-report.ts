@@ -2,13 +2,16 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
 import { getTableById } from '@/lib/table/service'
+import { collectWorkflowCodeSyntax } from '@/lib/workflows/editing/code-syntax'
 import {
+  collectBranchDependentBlockOutputReferences,
   collectDanglingBlockOutputReferences,
   collectTableBlockFieldIssues,
   collectWorkflowFieldIssues,
   collectWorkflowTableIds,
   hasWorkflowEntryBlock,
   lintEditedWorkflowState,
+  type WorkflowLintCheck,
   type WorkflowLintReport,
   type WorkflowLintTableFieldIssue,
   type WorkflowLintTableSchema,
@@ -117,7 +120,29 @@ export async function buildWorkflowLintReport(
   if (options.requireComplete && !scope.subjectUserId) {
     throw new Error('Workflow reference checks require a user subject')
   }
+  const checks: WorkflowLintCheck[] = [
+    {
+      name: 'graph',
+      status: 'complete',
+      detail: 'Checked graph connections, entry blocks, and required ports.',
+    },
+    {
+      name: 'fields',
+      status: 'complete',
+      detail: 'Checked required fields and active canonical modes against block definitions.',
+    },
+    {
+      name: 'block-output-references',
+      status: 'partial',
+      detail:
+        'Checked named blocks and statically declared first-level output keys; dynamic output shapes and runtime values are not checked.',
+    },
+  ]
+  const syntax = await collectWorkflowCodeSyntax(graph.blocks)
+  const branches = collectBranchDependentBlockOutputReferences(graph)
+  checks.push(syntax.check, branches.check)
   const unresolvedReferences: WorkflowLintUnresolvedReference[] = [
+    ...branches.issues,
     ...(options.tables?.unresolvedReferences ?? []),
   ]
 
@@ -127,7 +152,10 @@ export async function buildWorkflowLintReport(
   unresolvedReferences.push(...collectDanglingBlockOutputReferences(graph))
 
   if (scope.subjectUserId) {
-    for (const collect of [collectUnresolvedReferences, collectUnresolvedAgentToolReferences]) {
+    for (const [name, collect] of [
+      ['credential-resource-references', collectUnresolvedReferences],
+      ['agent-tool-references', collectUnresolvedAgentToolReferences],
+    ] as const) {
       try {
         /**
          * Reported only through `lint`. These collectors are read-only, so the
@@ -144,7 +172,19 @@ export async function buildWorkflowLintReport(
           options
         )
         unresolvedReferences.push(...references)
+        checks.push({
+          name,
+          status: 'partial',
+          detail:
+            'Resolved static references for the acting user; dynamic references require runtime values.',
+        })
       } catch (error) {
+        checks.push({
+          name,
+          status: 'skipped',
+          detail:
+            'Reference lookup failed. Empty findings do not establish that the references are valid; retry validation.',
+        })
         logger.warn('Reference resolution lint failed', {
           workflowId: scope.workflowId,
           error: getErrorMessage(error),
@@ -158,7 +198,14 @@ export async function buildWorkflowLintReport(
     }
   }
 
+  if (!scope.subjectUserId) {
+    for (const name of ['credential-resource-references', 'agent-tool-references'] as const) {
+      checks.push({ name, status: 'skipped', detail: REFERENCES_UNCHECKED_NOTE })
+    }
+  }
+
   /** Standalone diagnostics have already read tables under application authorization. */
+  let tablesChecked = true
   let tableFieldIssues: WorkflowLintTableFieldIssue[] = options.tables?.tableFieldIssues ?? []
   if (!options.tables) {
     try {
@@ -167,6 +214,7 @@ export async function buildWorkflowLintReport(
         await loadTableSchemasForLint(graph.blocks, scope.workspaceId)
       )
     } catch (error) {
+      tablesChecked = false
       logger.warn('Table field lint failed', {
         workflowId: scope.workflowId,
         error: getErrorMessage(error),
@@ -179,6 +227,21 @@ export async function buildWorkflowLintReport(
     }
   }
 
+  checks.push(
+    {
+      name: 'table-fields',
+      status: tablesChecked ? 'partial' : 'skipped',
+      detail: tablesChecked
+        ? 'Checked literal filter/sort fields against accessible table schemas; dynamic table IDs and expressions require runtime values.'
+        : 'Table schema lookup failed; retry validation.',
+    },
+    {
+      name: 'runtime-execution',
+      status: 'skipped',
+      detail:
+        'No blocks were executed. External service access, dependency availability, resolved inputs, output values, and delivery success are not validated.',
+    }
+  )
   const graphLint = lintEditedWorkflowState(graph)
 
   const notes: string[] = [...(options.tables?.notes ?? [])]
@@ -198,6 +261,8 @@ export async function buildWorkflowLintReport(
    */
   return {
     ...graphLint,
+    checks,
+    codeIssues: syntax.issues,
     fieldIssues: collectWorkflowFieldIssues(graph.blocks),
     unresolvedReferences,
     tableFieldIssues,

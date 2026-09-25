@@ -23,7 +23,7 @@ export interface SlackApiRequest {
 
 export interface SlackMessage {
   channel: string
-  text: string
+  text?: string
   thread_ts?: string
   blocks?: unknown[]
   unfurl_links?: boolean

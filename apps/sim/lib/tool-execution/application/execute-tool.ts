@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { resolveBillingAttribution, toBillingContext } from '@/lib/billing/core/billing-attribution'
+import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import {
   isBlockTypeAllowed,
@@ -17,6 +18,7 @@ import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { principalUserId } from '@/lib/integrations/principal-scope.server'
+import { ToolExecutionUsageLimitError } from '@/lib/tool-execution/application/errors'
 import { toolExecutionOperations } from '@/lib/tool-execution/application/operations'
 import { executeTool as executeRegistryTool } from '@/tools'
 import type { ExecutableToolConfig } from '@/tools/types'
@@ -301,6 +303,14 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
       actorUserId: userId,
       workspaceId: context.workspaceId,
     })
+    if (toolId === 'function_execute') {
+      const usage = await checkExecutionUsageLimits(billingAttribution)
+      if (usage.isExceeded) {
+        throw new ToolExecutionUsageLimitError(
+          usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
+        )
+      }
+    }
 
     const params: Record<string, unknown> = {
       ...callerParams,
@@ -346,8 +356,8 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
     })
 
     /**
-     * Only a successful call that spent Sim's key — and that verdict is the
-     * registry's, not re-derived here.
+     * Meter successful hosted-key calls and measured Function sandbox costs, including failed
+     * sandbox runs. The registry supplies the measured cost; local Function runs have none.
      *
      * The registry decides whether Sim's key was used inside
      * `injectHostedKeyIfNeeded`, and a workspace or organization BYOK key is
@@ -365,8 +375,8 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
      * metered elsewhere. That no hosted tool does the same is what
      * `check-tool-param-reachability` now pins.
      */
-    if (result.success && tool.hosting) {
-      await meterHostedKeySpend({
+    if ((result.success && tool.hosting) || toolId === 'function_execute') {
+      await meterToolSpend({
         callId,
         toolId,
         userId,
@@ -386,7 +396,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
 })
 
 /**
- * Charges hosted-key spend this call incurred.
+ * Charges measured provider or Function sandbox spend this direct call incurred.
  *
  * `@/tools` computes the cost and hands it back on `output.cost.total`, but it
  * writes no ledger row: a workflow run bills through the execution ledger and
@@ -399,7 +409,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
  * reconciliation and the call still answers, the same choice
  * `applyHostedKeyCostToResult` makes one layer down.
  */
-async function meterHostedKeySpend(args: {
+async function meterToolSpend(args: {
   callId: string
   toolId: string
   userId: string
@@ -428,7 +438,7 @@ async function meterHostedKeySpend(args: {
       ],
     })
   } catch (error) {
-    logger.error('Hosted-key metering failed; tool call succeeded unbilled', {
+    logger.error('Direct tool metering failed; measured spend was not recorded', {
       toolId: args.toolId,
       workspaceId: args.workspaceId,
       cost,

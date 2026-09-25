@@ -182,6 +182,35 @@ sim workflows runs list [options]
 
 </CommandTable>
 
+## Preview candidate rerun blocks and cached upstream outputs without executing
+
+```bash
+sim workflows runs preview <workflowId> [options]
+```
+
+Preview candidate rerun blocks and cached upstream outputs without executing (OAuth login or personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--from-block <value>` | Yes | Saved draft block at which a later manual run would start. |
+| `--source-run <value>` | Yes | Existing run in this workflow whose persisted state would supply cached upstream outputs. |
+
+</CommandTable>
+
 ## Resume a paused run
 
 ```bash
@@ -236,6 +265,35 @@ sim workflows runs wait <runId> [options]
 | --- | --- | --- |
 | `--workflow <workflowId>` | Yes | Workflow ID. |
 | `--wait-timeout <seconds>` | No | Give up after this many seconds, or 0 to wait indefinitely (default: 3600). Bounds the whole wait; SIM_TIMEOUT_SECONDS bounds one request. |
+
+</CommandTable>
+
+## Download a workflow run output file
+
+```bash
+sim workflows runs files download <workflowId> <runId> <fileId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Workflow identifier |
+| `runId` | Yes | Run identifier |
+| `fileId` | Yes | File identifier returned by the workflow run |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-o, --output-file <path>` | No | Write content to a file instead of stdout. |
+| `--force` | No | Overwrite --output-file if it already exists. |
 
 </CommandTable>
 
@@ -531,6 +589,7 @@ sim workflows run <workflowId> [options]
 | Option | Required | Description |
 | --- | --- | --- |
 | `--input <json\|@file>` | No | Trigger input as JSON (JSON, or @path / @- to read a file or stdin). |
+| `--stop-after <value>` | No | Stop scheduling after this block finishes. Runs real actions; already-running branches can finish. Not available with --async. |
 | `--async` | No | Queue the run and return immediately. |
 | `--execution-timeout-seconds <value>` | No | Maximum duration of an asynchronous run, in seconds, capped by the plan's execution timeout. Requires `async: true`; otherwise returns `400`. |
 | `--select-output <value...>` | No | Return blockName.path values (e.g. agent_1.content), or childWorkflowId.blockName.path for a child workflow (applies to every invocation) — in blockOutputs on a sync run, or from the streamed result with --follow; missing paths are omitted. Not available with --async (space-separated, or @path / @- with one value per line; @@value for a literal leading @). |
@@ -783,6 +842,34 @@ sim workflows import [options]
 | `--preview-fingerprint <value>` | No | Fingerprint of the reviewed preview and its choices. |
 | `--wait` | No | Wait for the committed operation to finish; missing configuration and failure exit nonzero. |
 | `--wait-timeout <seconds>` | No | Maximum operation wait in seconds (default 3600; 0 waits indefinitely). |
+
+</CommandTable>
+
+## Inspect workflow
+
+```bash
+sim workflows inspect <workflowId> [options]
+```
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `workflowId` | Yes | Unique workflow identifier. |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--block-id <value>` | No | Inspect one block and its incident connections. Omit to inspect the draft graph. |
+| `--include-code` | No | Include bounded code inputs. Code and free text can contain hardcoded secrets that automatic redaction cannot recognize. |
+| `--no-include-code` | No | Send --include-code as false. |
 
 </CommandTable>
 

@@ -2758,43 +2758,43 @@
         }
       }
     },
-    "/api/v2/credentials/providers": {
+    "/api/v2/credentials/{credentialId}": {
       "get": {
-        "operationId": "listCredentialProviders",
-        "summary": "List Credential Providers",
-        "description": "List OAuth and service-account connection methods and their availability. OAuth options provide provider IDs for browser connections; service-account methods declare required fields and write-only secrets. Supports provider-name search. Returns the complete set in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
-        "x-sim-operation": "credentials.providers.list",
+        "operationId": "getCredential",
+        "summary": "Inspect Credential",
+        "description": "Inspect one selected connection's stored provider identity, recorded OAuth scopes, and access limitations. This does not decrypt secrets, contact the provider, or verify live resource access. Custom bot identities/scopes may be unknown. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "credentials.inspect",
         "x-oauth-scope": "api:read",
         "tags": ["Credentials"],
         "parameters": [
           {
+            "name": "credentialId",
+            "in": "path",
+            "required": true,
+            "description": "Selected credential to inspect.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Selected credential to inspect."
+            }
+          },
+          {
             "name": "workspaceId",
             "in": "query",
             "required": true,
-            "description": "Workspace used to evaluate credential-provider availability and integration policy.",
+            "description": "Workspace expected to own the selected credential.",
             "schema": {
               "type": "string",
               "minLength": 1,
               "maxLength": 128,
-              "description": "Workspace used to evaluate credential-provider availability and integration policy."
-            }
-          },
-          {
-            "name": "search",
-            "in": "query",
-            "required": false,
-            "description": "Case-insensitive substring match against the credential provider name.",
-            "schema": {
-              "description": "Case-insensitive substring match against the credential provider name.",
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 200
+              "description": "Workspace expected to own the selected credential."
             }
           }
         ],
         "responses": {
           "200": {
-            "description": "Credential provider catalog with caller-specific availability.",
+            "description": "Selected credential metadata and diagnostic coverage.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -2809,7 +2809,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ListCredentialProvidersResponse"
+                  "$ref": "#/components/schemas/GetCredentialResponse"
                 }
               }
             }
@@ -2836,83 +2836,7 @@
             "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
-      }
-    },
-    "/api/v2/credentials/connections": {
-      "post": {
-        "operationId": "createCredentialConnection",
-        "summary": "Create Credential Connection",
-        "description": "Create a short-lived browser URL for connecting an OAuth provider or reconnecting an existing OAuth credential. Open the URL, sign in as the authenticated user, complete provider authorization, then refresh the credentials list. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
-        "x-sim-operation": "credentials.connections.create",
-        "x-oauth-scope": "api:write",
-        "tags": ["Credentials"],
-        "requestBody": {
-          "required": true,
-          "description": "For a new connection, provide providerId and displayName. For a reconnect, provide only credentialId; the existing display name is preserved.",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateCredentialConnectionBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "A short-lived browser authorization URL.",
-            "headers": {
-              "X-RateLimit-Limit": {
-                "$ref": "#/components/headers/X-RateLimit-Limit"
-              },
-              "X-RateLimit-Remaining": {
-                "$ref": "#/components/headers/X-RateLimit-Remaining"
-              },
-              "X-RateLimit-Reset": {
-                "$ref": "#/components/headers/X-RateLimit-Reset"
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateCredentialConnectionResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "415": {
-            "$ref": "#/components/responses/UnsupportedMediaType"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimited"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
-          },
-          "503": {
-            "$ref": "#/components/responses/ServiceUnavailable"
-          }
-        }
-      }
-    },
-    "/api/v2/credentials/{credentialId}": {
+      },
       "delete": {
         "operationId": "deleteCredential",
         "summary": "Disconnect Credential",
@@ -3053,6 +2977,160 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UpdateCredentialResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/credentials/providers": {
+      "get": {
+        "operationId": "listCredentialProviders",
+        "summary": "List Credential Providers",
+        "description": "List OAuth and service-account connection methods and their availability. OAuth options provide provider IDs for browser connections; service-account methods declare required fields and write-only secrets. Supports provider-name search. Returns the complete set in one page; `nextCursor` is always null.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "credentials.providers.list",
+        "x-oauth-scope": "api:read",
+        "tags": ["Credentials"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace used to evaluate credential-provider availability and integration policy.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace used to evaluate credential-provider availability and integration policy."
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match against the credential provider name.",
+            "schema": {
+              "description": "Case-insensitive substring match against the credential provider name.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Credential provider catalog with caller-specific availability.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListCredentialProvidersResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/credentials/connections": {
+      "post": {
+        "operationId": "createCredentialConnection",
+        "summary": "Create Credential Connection",
+        "description": "Create a short-lived browser URL for connecting an OAuth provider or reconnecting an existing OAuth credential. Open the URL, sign in as the authenticated user, complete provider authorization, then refresh the credentials list. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "credentials.connections.create",
+        "x-oauth-scope": "api:write",
+        "tags": ["Credentials"],
+        "requestBody": {
+          "required": true,
+          "description": "For a new connection, provide providerId and displayName. For a reconnect, provide only credentialId; the existing display name is preserved.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCredentialConnectionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A short-lived browser authorization URL.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateCredentialConnectionResponse"
                 }
               }
             }
@@ -4601,7 +4679,7 @@
       "post": {
         "operationId": "executeTool",
         "summary": "Run Tool",
-        "description": "Run a built-in tool using published parameter IDs. Sim resolves `credentialId`, hosted keys, and whole-value `{{VAR_NAME}}` references for `user-only` parameters; other values pass through verbatim. Third-party refusal returns `200` with `status: \"failed\"`; the error envelope covers API failures. Hidden or missing tools return `404`; disallowed integrations return `403` with `error.details.code: INTEGRATION_NOT_ALLOWED`. Hosted-key use is billed to the workspace. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "description": "Run a built-in tool using published parameters and caller-owned credentials. Whole-value `{{VAR_NAME}}` references resolve for `user-only` parameters. Provider refusal returns `200` with `status: \"failed\"`; API failures use the error envelope. Hidden tools return `404`; blocked integrations return `403` with `error.details.code: INTEGRATION_NOT_ALLOWED`. Hosted-key use and measured Function sandbox costs are billed to the workspace. Function usage-limit checks can refuse execution with `402 USAGE_LIMIT_EXCEEDED`. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "tools.execute",
         "x-oauth-scope": "api:write",
         "tags": ["Catalog"],
@@ -4657,6 +4735,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/UsageLimitExceeded"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
@@ -4770,6 +4851,96 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListConnectorTypesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/v2/tools/files/download": {
+      "get": {
+        "operationId": "downloadToolFileV2",
+        "summary": "Download Tool File",
+        "description": "Download a personal output from a direct tool call using its unchanged file.id. Requires its original owner and current workspace access. Use Download Workflow Run File for workflow outputs. Files can expire. Workspace API keys return `403`; use a personal API key or scoped OAuth token. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success. `HEAD` omits `Content-Length`; use file metadata to size downloads.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "tools.files.download",
+        "x-oauth-scope": "api:read",
+        "tags": ["Catalog"],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "description": "Workspace in which to authorize the download.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace in which to authorize the download."
+            }
+          },
+          {
+            "name": "fileId",
+            "in": "query",
+            "required": true,
+            "description": "The file.id returned by a direct tool call, with context copilot. Workflow output files use Download Workflow Run File instead.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "description": "The file.id returned by a direct tool call, with context copilot. Workflow output files use Download Workflow Run File instead."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tool file bytes.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              },
+              "Content-Type": {
+                "$ref": "#/components/headers/Content-Type"
+              },
+              "Content-Disposition": {
+                "$ref": "#/components/headers/Content-Disposition"
+              },
+              "Content-Length": {
+                "$ref": "#/components/headers/Content-Length"
+              }
+            },
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
                 }
               }
             }
@@ -9109,6 +9280,31 @@
       }
     },
     "headers": {
+      "Content-Type": {
+        "description": "MIME type of the file, defaulting to application/octet-stream when the stored type is unavailable.",
+        "schema": {
+          "type": "string",
+          "title": "Content type",
+          "description": "MIME type of the file, defaulting to application/octet-stream when the stored type is unavailable."
+        }
+      },
+      "Content-Disposition": {
+        "description": "Attachment disposition containing sanitized and RFC 5987 encoded filenames.",
+        "schema": {
+          "type": "string",
+          "title": "Content disposition",
+          "description": "Attachment disposition containing sanitized and RFC 5987 encoded filenames."
+        }
+      },
+      "Content-Length": {
+        "description": "File size in bytes.",
+        "schema": {
+          "type": "string",
+          "pattern": "^(0|[1-9]\\d*)$",
+          "title": "Content length",
+          "description": "File size in bytes."
+        }
+      },
       "X-RateLimit-Limit": {
         "description": "Maximum requests allowed in the current window.",
         "schema": {
@@ -9187,6 +9383,22 @@
               "error": {
                 "code": "UNAUTHORIZED",
                 "message": "Authentication required"
+              }
+            }
+          }
+        }
+      },
+      "UsageLimitExceeded": {
+        "description": "The workspace has exceeded its usage or billing limits.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            },
+            "example": {
+              "error": {
+                "code": "USAGE_LIMIT_EXCEEDED",
+                "message": "Usage limit exceeded. Please upgrade your plan to continue."
               }
             }
           }
@@ -11952,6 +12164,199 @@
             "nextCursor": null
           }
         ]
+      },
+      "CredentialInspection": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique credential identifier."
+          },
+          "type": {
+            "type": "string",
+            "enum": ["oauth", "service_account"],
+            "description": "Authenticated connection type."
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Credential display name."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional credential description."
+          },
+          "providerId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Integration provider authenticated by this credential."
+          },
+          "accountId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Linked account identifier for OAuth credentials."
+          },
+          "hasServiceAccountKey": {
+            "type": "boolean",
+            "description": "Whether a service-account payload is stored. Its contents are never returned."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "member"],
+            "description": "Caller role for the credential."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the credential was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the credential was last updated."
+          },
+          "diagnostics": {
+            "type": "object",
+            "properties": {
+              "identity": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": ["credential", "linked-account", "unknown"],
+                    "description": "Stored metadata source for the reported identity; unknown means no identity is separately recorded."
+                  },
+                  "subjectId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Stored provider subject ID when separately recorded; null means unknown."
+                  },
+                  "tenantId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Stored provider tenant or Slack installation ID when available."
+                  },
+                  "externalAccountId": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Stored OAuth external account identifier; may include connection-specific suffixes and is not necessarily the acting bot/user ID."
+                  },
+                  "verifiedLive": {
+                    "type": "boolean",
+                    "const": false,
+                    "description": "Inspection never contacts the provider or validates secret material."
+                  }
+                },
+                "required": [
+                  "source",
+                  "subjectId",
+                  "tenantId",
+                  "externalAccountId",
+                  "verifiedLive"
+                ],
+                "additionalProperties": false,
+                "description": "Stored provider identity metadata; no live identity verification is performed."
+              },
+              "scopes": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "enum": ["credential", "linked-account", "unknown"],
+                    "description": "Stored metadata source for granted scopes; unknown means grants are not separately recorded."
+                  },
+                  "values": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Recorded granted scopes. An unknown source with an empty array does not mean the credential has no scopes."
+                  }
+                },
+                "required": ["source", "values"],
+                "additionalProperties": false,
+                "description": "Recorded granted scopes and their source, without requesting provider access."
+              },
+              "notes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Coverage limits and provider-specific access guidance."
+              }
+            },
+            "required": ["identity", "scopes", "notes"],
+            "additionalProperties": false,
+            "description": "Non-secret credential identity, recorded grants, and diagnostic coverage limits."
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "displayName",
+          "description",
+          "providerId",
+          "accountId",
+          "hasServiceAccountKey",
+          "role",
+          "createdAt",
+          "updatedAt",
+          "diagnostics"
+        ],
+        "additionalProperties": false,
+        "title": "Credential inspection",
+        "description": "Credential metadata with stored identity and scope diagnostics; no live provider verification."
+      },
+      "GetCredentialResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/CredentialInspection"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Get credential response",
+        "description": "Stored identity and scope diagnostics without secret material."
       },
       "V2CredentialProvider": {
         "oneOf": [

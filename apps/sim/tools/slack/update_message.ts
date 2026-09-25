@@ -50,9 +50,10 @@ export const slackUpdateMessageTool: InternalToolConfig<
     },
     text: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'New message text (supports Slack mrkdwn formatting)',
+      description:
+        'New message text, required unless blocks are provided. With blocks, used for notifications and screen readers.',
     },
     blocks: {
       type: 'json',

@@ -1,8 +1,4 @@
-import type {
-  DelegatedPrincipal,
-  OrganizationDelegatedPrincipal,
-  Principal,
-} from '@sim/auth/principal'
+import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -30,6 +26,7 @@ import {
 } from '@/lib/execution/code-placeholders'
 import { parseExecutionDeadlineHeader } from '@/lib/execution/execution-deadline-header'
 import { executeInIsolatedVM, type IsolatedVMBrokerHandler } from '@/lib/execution/isolated-vm'
+import { collectJavaScriptImportSegments } from '@/lib/execution/javascript-imports'
 import { CodeLanguage, DEFAULT_CODE_LANGUAGE, isValidCodeLanguage } from '@/lib/execution/languages'
 import {
   inspectPrivateSecretProvenanceRequest,
@@ -406,7 +403,7 @@ async function extractJavaScriptImports(code: string): Promise<{
       tsModule.ScriptKind.JS
     )
 
-    const importSegments: Array<{ text: string; start: number; end: number }> = []
+    const importSegments = collectJavaScriptImportSegments(sourceFile, tsModule)
     const identifierNames = new Set<string>()
     let hasRequireCalls = false
 
@@ -422,19 +419,6 @@ async function extractJavaScriptImports(code: string): Promise<{
       tsModule.forEachChild(node, visit)
     }
     visit(sourceFile)
-
-    sourceFile.statements.forEach((statement) => {
-      if (
-        tsModule.isImportDeclaration(statement) ||
-        tsModule.isImportEqualsDeclaration(statement)
-      ) {
-        importSegments.push({
-          text: statement.getFullText(sourceFile).trim(),
-          start: statement.getFullStart(),
-          end: statement.getEnd(),
-        })
-      }
-    })
 
     if (importSegments.length === 0) {
       return { imports: '', remainingCode: code, hasRequireCalls, identifierNames }
@@ -1009,7 +993,7 @@ function serializeForShellEnv(value: unknown, nullValue = ''): string {
 }
 
 interface FunctionRouteExecutionContext {
-  principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
+  principal: TrustedFunctionExecutionAuth['principal']
   workflowId?: string
   workspaceId?: string
   executionId?: string
@@ -2244,8 +2228,19 @@ async function collectSandboxOutputFiles(args: {
 export interface TrustedFunctionExecutionAuth {
   attributedUserId: string
   fileAccessUserId?: string
-  principal: DelegatedPrincipal | OrganizationDelegatedPrincipal
+  principal: Extract<
+    Principal,
+    {
+      kind:
+        | 'session'
+        | 'personal_api_key'
+        | 'oauth_access_token'
+        | 'delegated'
+        | 'organization_delegated'
+    }
+  >
   sandboxProfile?: 'mothership'
+  meterSandboxUsage?: boolean
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
 }
 
@@ -2347,7 +2342,9 @@ export async function executeFunctionRequest(
       _sandboxFiles,
     } = body
 
-    const meterRemoteSandboxUsage = Boolean(workflowId && !isCustomTool && !usesMothershipSandbox)
+    const meterRemoteSandboxUsage = Boolean(
+      (workflowId || auth.meterSandboxUsage) && !isCustomTool && !usesMothershipSandbox
+    )
 
     if (selectedSandboxId && !isRemoteSandboxEnabled) {
       return NextResponse.json(

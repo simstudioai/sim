@@ -7,6 +7,7 @@ import {
   getEffectiveBlockOutputs,
   getResponseFormatOutputs,
 } from '@/lib/workflows/blocks/block-outputs'
+import { validateConditionHandle, validateRouterHandle } from '@/lib/workflows/editing/validation'
 import { getBlock } from '@/blocks'
 import {
   isTriggerBlockType,
@@ -21,7 +22,6 @@ import {
   type InactiveModeValue,
 } from '@/serializer/index'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { validateConditionHandle, validateRouterHandle } from './validation'
 
 type BlockState = {
   id?: string
@@ -104,7 +104,32 @@ export interface WorkflowLintTableFieldIssue extends WorkflowLintBlockRef {
  * Aggregate lint report: the graph lint plus the config (Tier 1) and resolution
  * (Tier 2) checks. Returned in the edit_workflow result and written to lint.json.
  */
+export interface WorkflowLintCheck {
+  name:
+    | 'graph'
+    | 'fields'
+    | 'block-output-references'
+    | 'branch-output-references'
+    | 'embedded-code-syntax'
+    | 'credential-resource-references'
+    | 'agent-tool-references'
+    | 'table-fields'
+    | 'runtime-execution'
+  status: 'complete' | 'partial' | 'skipped'
+  detail: string
+}
+
+export interface WorkflowLintCodeIssue extends WorkflowLintBlockRef {
+  field: string
+  language: 'javascript'
+  message: string
+  line?: number
+  column?: number
+}
+
 export interface WorkflowLintReport extends WorkflowLintResult {
+  checks: WorkflowLintCheck[]
+  codeIssues: WorkflowLintCodeIssue[]
   fieldIssues: WorkflowLintFieldIssue[]
   unresolvedReferences: WorkflowLintUnresolvedReference[]
   tableFieldIssues: WorkflowLintTableFieldIssue[]
@@ -409,6 +434,7 @@ export function collectTableBlockFieldIssues(
 }
 
 type WorkflowLintIssueView = WorkflowLintResult & {
+  codeIssues?: WorkflowLintCodeIssue[]
   fieldIssues?: WorkflowLintFieldIssue[]
   unresolvedReferences?: WorkflowLintUnresolvedReference[]
   tableFieldIssues?: WorkflowLintTableFieldIssue[]
@@ -420,6 +446,7 @@ export function hasWorkflowLintIssues(lint: WorkflowLintIssueView) {
     lint.emptyOutgoingPorts.length > 0 ||
     lint.invalidBranchPorts.length > 0 ||
     lint.invalidConnectionTargets.length > 0 ||
+    (lint.codeIssues?.length ?? 0) > 0 ||
     (lint.fieldIssues?.length ?? 0) > 0 ||
     (lint.unresolvedReferences?.length ?? 0) > 0 ||
     (lint.tableFieldIssues?.length ?? 0) > 0
@@ -458,6 +485,12 @@ export function formatWorkflowLintMessage(lint: WorkflowLintIssueView) {
       `Connections pointing at missing blocks: ${lint.invalidConnectionTargets
         .map((edge) => `${edge.sourceBlockId} -> ${edge.targetBlockId}`)
         .join(', ')}`
+    )
+  }
+
+  if (lint.codeIssues?.length) {
+    parts.push(
+      `Invalid embedded JavaScript: ${lint.codeIssues.map((issue) => `"${issue.blockName || issue.blockId}".${issue.field}${issue.line ? `:${issue.line}` : ''} (${issue.message})`).join('; ')}`
     )
   }
 
@@ -727,4 +760,114 @@ export function collectDanglingBlockOutputReferences(
     }
   }
   return findings
+}
+
+/**
+ * Finds references crossing mutually exclusive condition/router paths. This is advisory:
+ * guarded expressions may intentionally handle absent outputs. Subflows and large graphs
+ * are explicitly skipped rather than pretending to prove their execution ordering.
+ */
+export function collectBranchDependentBlockOutputReferences(
+  graph: Pick<WorkflowState, 'blocks' | 'edges'>
+): { issues: WorkflowLintUnresolvedReference[]; check: WorkflowLintCheck } {
+  const blocks = graph.blocks as Record<string, BlockState>
+  const branches = Object.entries(blocks).filter(
+    ([, block]) => block.type === 'condition' || block.type === 'router_v2'
+  )
+  const check: WorkflowLintCheck = {
+    name: 'branch-output-references',
+    status: 'partial',
+    detail:
+      'Checks explicit condition/router paths for outputs unavailable on another connected branch. Guards inside expressions, runtime routing, and subflow execution are not proven.',
+  }
+  if (
+    Object.keys(blocks).length > 500 ||
+    graph.edges.length > 5000 ||
+    branches.length > 30 ||
+    Object.values(blocks).some((block) => block.type === 'loop' || block.type === 'parallel')
+  ) {
+    return {
+      issues: [],
+      check: {
+        ...check,
+        status: 'skipped',
+        detail:
+          'Branch-output analysis skipped for subflows or graphs exceeding 500 blocks, 5000 edges, or 30 branch blocks. Runtime output availability was not checked.',
+      },
+    }
+  }
+  const outgoing = new Map<string, string[]>()
+  const targetsByKey = new Map<string, string>()
+  for (const [id, block] of Object.entries(blocks)) {
+    targetsByKey.set(id, id)
+    if (block.name) targetsByKey.set(normalizeName(block.name), id)
+  }
+  for (const edge of graph.edges) {
+    if (!blocks[edge.source] || !blocks[edge.target]) continue
+    const targets = outgoing.get(edge.source) ?? []
+    targets.push(edge.target)
+    outgoing.set(edge.source, targets)
+  }
+  const paths = branches.flatMap(([branchId, branch]) => {
+    const rootsByHandle = new Map<string, string[]>()
+    for (const edge of graph.edges) {
+      if (
+        edge.source !== branchId ||
+        !edge.sourceHandle ||
+        edge.sourceHandle === 'error' ||
+        !blocks[edge.target]
+      )
+        continue
+      const roots = rootsByHandle.get(edge.sourceHandle) ?? []
+      roots.push(edge.target)
+      rootsByHandle.set(edge.sourceHandle, roots)
+    }
+    if (rootsByHandle.size < 2) return []
+    const reachability = [...rootsByHandle].map(([handle, roots]) => {
+      const reached = new Set<string>()
+      const pending = [...roots]
+      while (pending.length) {
+        const id = pending.pop()!
+        if (id === branchId || reached.has(id)) continue
+        reached.add(id)
+        pending.push(...(outgoing.get(id) ?? []))
+      }
+      return { handle, reached }
+    })
+    return [{ branchId, branch, reachability }]
+  })
+  const issues: WorkflowLintUnresolvedReference[] = []
+  for (const [blockId, block] of Object.entries(blocks)) {
+    for (const [field, subBlock] of Object.entries(block.subBlocks ?? {})) {
+      const leaves: string[] = []
+      collectStringLeaves(subBlock?.value, leaves)
+      const reported = new Set<string>()
+      for (const leaf of leaves) {
+        for (const token of referenceCandidates(leaf, field === 'code')) {
+          if (!REF_TOKEN_SHAPE.test(token)) continue
+          const head = token.split('.')[0] ?? ''
+          if ((SPECIAL_REFERENCE_PREFIXES as readonly string[]).includes(head)) continue
+          const targetId = targetsByKey.get(head) ?? targetsByKey.get(normalizeName(head))
+          if (!targetId || targetId === blockId || reported.has(token)) continue
+          for (const { branchId, branch, reachability } of paths) {
+            if (!reachability.some((path) => path.reached.has(targetId))) continue
+            const bypass = reachability.find(
+              (path) => path.reached.has(blockId) && !path.reached.has(targetId)
+            )
+            if (!bypass) continue
+            issues.push({
+              ...blockRef(blockId, block),
+              field,
+              value: `<${token}>`,
+              kind: 'block-output',
+              reason: `branch-dependent: "${branch.name || branchId}" can reach this block through "${bypass.handle}" without running "${blocks[targetId].name || targetId}". Guard the missing output or move the consuming block onto the producing branch.`,
+            })
+            reported.add(token)
+            break
+          }
+        }
+      }
+    }
+  }
+  return { issues, check }
 }

@@ -113,6 +113,58 @@ describe('replaceWorkflowState', () => {
     mocks.loadNormalized.mockResolvedValue({ blocks: {}, edges: [], loops: {}, parallels: {} })
   })
 
+  it.each([true, false])(
+    'reports binding removals before/after save (dryRun=%s)',
+    async (dryRun) => {
+      vi.mocked(getBlock).mockImplementation((type) =>
+        type === 'bound-test'
+          ? ({
+              type: 'bound-test',
+              subBlocks: [{ id: 'credential', type: 'oauth-input' }],
+              outputs: {},
+            } as never)
+          : defaultGetBlock?.(type)
+      )
+      const bound = {
+        ...BLOCK,
+        type: 'bound-test',
+        subBlocks: {
+          credential: { id: 'credential', type: 'oauth-input' as const, value: 'credential-1' },
+        },
+      }
+      mocks.loadNormalized.mockResolvedValue({
+        blocks: { [BLOCK.id]: bound },
+        edges: [],
+        loops: {},
+        parallels: {},
+      })
+      const result = await replaceWorkflowState.execute({
+        principal: sessionPrincipal,
+        input: { ...input, dryRun },
+      })
+      expect(result.removedBindings).toEqual([
+        expect.objectContaining({
+          blockId: BLOCK.id,
+          resourceId: 'credential-1',
+          kind: 'credential',
+          field: 'credential',
+        }),
+      ])
+      expect(result.warnings.join(' ')).toContain('removes 1 credential/table binding')
+      expect(mocks.loadNormalized).toHaveBeenCalledTimes(1)
+      expect(mocks.replace).toHaveBeenCalledTimes(dryRun ? 0 : 1)
+    }
+  )
+
+  it('does not read saved bindings before access is authorized', async () => {
+    mocks.resolvePermission.mockResolvedValue('read')
+    await expect(
+      replaceWorkflowState.execute({ principal: sessionPrincipal, input })
+    ).rejects.toThrow()
+    expect(mocks.loadNormalized).not.toHaveBeenCalled()
+    expect(mocks.replace).not.toHaveBeenCalled()
+  })
+
   /**
    * Two things this pins that a same-shape input and output cannot: the write
    * carries the **sanitized** graph, not the caller's body, and the reported

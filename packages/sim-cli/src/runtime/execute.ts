@@ -612,7 +612,7 @@ export async function executeOperation(
     profile.output,
     payload,
     commandSpec,
-    { expandedTrace: requestFlags.trace === true },
+    { expandedTrace: requestFlags.trace === true, summary: requestFlags.summary === true },
     // The envelope, not just the payload: a list that does not paginate states
     // its own truncation there, and unwrapping `data` discarded it.
     result

@@ -1,0 +1,138 @@
+---
+title: Connection checks
+description: Verify configuration, authentication, discovery, and a read-only call separately
+---
+
+This guide checks the hosted **Sim MCP server**, `https://mcp.sim.ai/mcp`.
+For selected workflow tools, use [MCP deployment](/workflows/deployment/mcp);
+for tools called by Sim, use [External MCP tools](/agents/mcp). The dedicated
+[Search MCP](/search/mcp) endpoint has a different tool list.
+
+## Check each stage
+
+| Stage | Evidence | What it establishes |
+| --- | --- | --- |
+| Configuration | `codex mcp get sim --json` shows an enabled Streamable HTTP server at the expected URL | The server is saved on that Codex host |
+| Authentication | Browser approval completes and the client reports a successful login | The client obtained credentials; it has not necessarily loaded tools |
+| Initialization | The MCP `initialize` response includes `protocolVersion`, `serverInfo`, and tool capabilities | The endpoint speaks MCP to this authenticated connection |
+| Discovery | `tools/list` returns `search_operations`, `describe_operation`, `call_read_operation`, and `call_write_operation` | The server exposed its tool catalog |
+| Task usability | The assistant successfully calls `call_read_operation` for `listWorkspaces` | The active task can use the connection and read authorized data |
+
+There are four MCP tools, not hundreds of individually named workspace tools.
+An empty list is unexpected for this endpoint. Seeing `call_write_operation`
+does not grant write access: Sim still checks the credential's scope and current
+resource permissions on every call.
+
+### Codex has saved the server, but this task has no tools
+
+1. Run `codex mcp get sim --json` on the host running the task. Check the URL and
+   enablement. A local CLI configuration does not configure a hosted web task.
+2. In the desktop client, open **Settings → MCP servers**, find Sim, and select
+   **Restart** after changes. The IDE extension uses **Restart extension**.
+3. Use `/mcp` in the desktop composer or terminal UI to inspect the active
+   connections. Check connection errors and any enabled/disabled tool filters.
+4. Ask the assistant to use `search_operations` for `listWorkspaces`, inspect it
+   with `describe_operation`, then call `call_read_operation` with
+   `{"operation":"listWorkspaces","query":{"limit":5}}`.
+
+These client controls are documented in [OpenAI's MCP guide](https://learn.chatgpt.com/docs/extend/mcp?surface=cli).
+Do not assume an already-open task hot-reloaded a CLI config edit or that starting
+a new task alone fixes discovery. Verify the active connection and the read.
+If direct discovery succeeds but the task still cannot call a tool, capture the
+client version and MCP connection error before changing Sim's configuration.
+
+## Read-only protocol smoke test
+
+Use this to isolate server behavior from an assistant's tool-loading behavior.
+It initializes MCP, discovers the tools, describes an operation, and reads up to
+five workspaces. It does not create a workflow, run one, or change workspace data.
+
+Use `curl` with `--fail-with-body` support and a Sim API key supplied through
+`SIM_API_KEY` in your local environment. Keep the key out of shared scripts and
+support reports. For OAuth, use your MCP client's authenticated connection to
+perform the same steps; the API-key test does not validate its stored OAuth grant.
+
+```bash
+export SIM_MCP_URL="https://mcp.sim.ai/mcp"
+export SIM_MCP_PROTOCOL_VERSION="2025-03-26"
+: "${SIM_API_KEY:?Set SIM_API_KEY to your Sim API key}"
+
+mcp_request() {
+  curl -q --silent --show-error --fail-with-body --max-time 30 \
+    "$SIM_MCP_URL" \
+    -H "X-API-Key: $SIM_API_KEY" \
+    -H 'Content-Type: application/json' \
+    -H 'Accept: application/json, text/event-stream' \
+    -H "MCP-Protocol-Version: $SIM_MCP_PROTOCOL_VERSION" \
+    --data "$1"
+}
+```
+
+For self-hosted Sim, set `SIM_MCP_URL` to your configured endpoint, usually
+`https://<your-sim-host>/api/mcp`.
+
+### 1. Initialize
+
+```bash
+mcp_request '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"sim-readonly-check","version":"1.0.0"}}}'
+```
+
+Expect a JSON-RPC `result` with `serverInfo.name` equal to `Sim`, a supported
+`protocolVersion`, and `capabilities.tools`. Stop on an HTTP or JSON-RPC error.
+Set `SIM_MCP_PROTOCOL_VERSION` to the returned protocol version for subsequent
+requests if it differs. The function ignores local curl defaults and sends one
+API-key header; do not add an OAuth bearer header to the same request.
+
+```bash
+mcp_request '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+```
+
+The notification has no JSON result. Sim's hosted server is stateless, so these
+requests do not need an `Mcp-Session-Id`. Opening the endpoint in a browser sends
+GET, which is not a connection test: this server accepts MCP messages through POST.
+
+### 2. Discover tools
+
+```bash
+mcp_request '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+```
+
+Expect the four tool names listed above in `result.tools`. If you instead see
+workflow names or `search`/`read_document`/`chat`, check the endpoint: those belong
+to a workflow deployment or Search MCP. Do not invoke a tool to guess what it does.
+
+### 3. Describe and perform one authorized read
+
+```bash
+mcp_request '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"describe_operation","arguments":{"operation":"listWorkspaces"}}}'
+
+mcp_request '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"call_read_operation","arguments":{"operation":"listWorkspaces","query":{"limit":5}}}}'
+```
+
+Successful tool results contain JSON encoded in `result.content` text entries.
+The final call contains the API's `data` list and pagination fields. An empty
+workspace list can be a valid authorized result; it is different from an empty
+MCP tool list. `result.isError: true` or a JSON-RPC `error` means the call failed,
+even if HTTP returned 200. A workspace key can see only its bound workspace.
+
+## Resolve common failures
+
+| Symptom | Next action |
+| --- | --- |
+| No saved `sim` server | Follow [Connect Codex](/mcp#connect-codex) on the task's host. Do not substitute Sim's external-tool settings. |
+| OAuth expired, revoked, or login incomplete | Run `codex mcp login sim` and complete approval; inspect the client connection error if it still fails. |
+| HTTP 401 with an API key | Verify the key belongs to this Sim deployment, is current, and is sent in one supported credential header. |
+| `insufficient_scope` | Reads need `api:read`; mutations and workflow execution need `api:write`. Reauthorize only for the access you intend to use. |
+| HTTP 403 or an operation denied | Check current workspace membership, role, organization credential policy, and the credential's workspace binding. Successful login does not override these. |
+| GET returns 405 | Use an MCP Streamable HTTP client or the POST smoke test; the endpoint is not a web page. |
+| Initialization or discovery times out | Inspect the client's MCP connection error; verify endpoint reachability, TLS, and proxy support for POST and the MCP headers. A self-hosted server must be reachable from the client's host. |
+| No tools after authentication | Compare `tools/list` with the active task inventory. Check enablement, client tool filters and organization policy, then use the documented client restart control. |
+| Only four tools appear | Expected. Use `search_operations` followed by `describe_operation`; operation IDs are not separate MCP tools. |
+| A known CLI command is absent | Check the [capability map](/mcp#choose-an-interface). Binary and streaming operations need CLI/API; Search MCP is separate. |
+| HTTP 429 or result too large | Respect the retry delay and reduce page size. MCP results are limited to 1 MiB. |
+
+When reporting a failure, include the endpoint, client version, failed stage,
+HTTP status, redacted error, and request ID if returned. Do not include tokens,
+API keys, or private workspace contents. A successful direct smoke test narrows
+the issue to the tested server/credential path; it does not prove another client's
+OAuth session or active task is healthy.

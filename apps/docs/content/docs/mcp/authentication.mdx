@@ -5,6 +5,11 @@ description: Sign in with OAuth, or connect with an API key
 
 import { Callout } from 'fumadocs-ui/components/callout'
 
+This page authenticates an external assistant to the hosted **Sim MCP server**
+at `https://mcp.sim.ai/mcp`. Start with [Connect an assistant](/mcp). Selected
+[workflow MCP deployments](/workflows/deployment/mcp) and
+[external tools used inside Sim](/agents/mcp) have their own setup guides.
+
 ## OAuth
 
 Most apps sign in with OAuth. The first time you connect, your app opens Sim in
@@ -21,6 +26,11 @@ The approval screen names the app and what it can do:
 Most apps request full access. To connect an app for reads only, configure it
 to request the `api:read` scope; changes then fail with an insufficient-scope
 error.
+
+For example, request read-only access in Codex with
+`codex mcp login sim --scopes api:read`. Confirm the access shown on Sim's
+approval screen. Authentication does not prove that the current task has loaded
+the tools; complete the [connection checks](/mcp/troubleshooting).
 
 Tokens are issued for the Sim MCP server itself. An app cannot take one to
 another service and use it there.
@@ -58,8 +68,8 @@ reaches only its own workspace, and a few account-level operations refuse it;
 `search_operations` marks them `personalCredentialOnly`.
 
 <Callout type="warn">
-  An API key does not expire until you revoke it. Prefer OAuth for any app that
-  can open a browser, and store keys in your app's secret or environment
+  API keys can have an expiration date and can be revoked. Prefer OAuth for any
+  app that can open a browser, and store keys in your app's secret or environment
   settings rather than in a shared config file.
 </Callout>
 

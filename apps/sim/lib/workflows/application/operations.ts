@@ -498,6 +498,16 @@ export const workflowOperations = {
     principalKinds: ['personal_api_key', 'oauth_access_token', 'delegated'],
     delegatedServices: ['copilot'],
   }),
+  /** permission-group-exempt: preview reads the draft and cached state under the same authoring role as manual execution. */
+  previewManualFromBlock: defineWorkspaceOperation({
+    id: 'workflows.manual.preview_from_block',
+    oauthScope: 'api:read',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    principalKinds: ['personal_api_key', 'oauth_access_token', 'delegated'],
+    delegatedServices: ['copilot'],
+  }),
   // permission-group-exempt: execution history is governed by workspace role; logs.cost and logs.trace_spans withhold fields inside a run, not the right to read one
   listRuns: defineWorkspaceOperation({
     id: 'workflows.runs.list',

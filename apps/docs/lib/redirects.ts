@@ -76,10 +76,9 @@ export const DOCS_REDIRECTS: DocsRedirect[] = [
     destination: '/workflows/deployment/mcp',
     permanent: true,
   },
-  // building-agents section renamed to agents; mcp and skills folded into it
+  /** The former building-agents section and skills live under agents. */
   { source: '/building-agents', destination: '/agents', permanent: true },
   { source: '/building-agents/:path*', destination: '/agents/:path*', permanent: true },
-  { source: '/mcp', destination: '/agents/mcp', permanent: true },
   { source: '/skills', destination: '/agents/skills', permanent: true },
   // tools/ + triggers/<service> unified into per-service integrations/ pages.
   // Specific moves first (Next applies the first matching redirect):

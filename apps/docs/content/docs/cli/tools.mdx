@@ -73,3 +73,32 @@ sim tools list [options]
 | `--limit <n>` | No | Maximum items to return (0 for everything). Defaults to `0`. |
 
 </CommandTable>
+
+## Download a direct tool output owned by the current user
+
+```bash
+sim tools files download <fileId> [options]
+```
+
+Download a direct tool output owned by the current user (OAuth login or personal API key required)
+
+**Arguments**
+
+<CommandTable>
+
+| Argument | Required | Description |
+| --- | --- | --- |
+| `fileId` | Yes | The returned file.id with context copilot, passed unchanged |
+
+</CommandTable>
+
+**Options**
+
+<CommandTable>
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `-o, --output-file <path>` | No | Write content to a file instead of stdout. |
+| `--force` | No | Overwrite --output-file if it already exists. |
+
+</CommandTable>

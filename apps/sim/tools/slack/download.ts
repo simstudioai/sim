@@ -58,7 +58,8 @@ export const slackDownloadTool: InternalToolConfig<SlackDownloadParams, SlackDow
   outputs: {
     file: {
       type: 'file',
-      description: 'Downloaded file stored in execution files',
+      description:
+        'Stored file descriptor. Download bytes using tools files download for direct calls, or workflows runs files download for workflow outputs.',
       properties: FILE_DOWNLOAD_OUTPUT_PROPERTIES,
     },
   },

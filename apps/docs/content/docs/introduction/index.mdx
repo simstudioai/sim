@@ -72,7 +72,15 @@ Sim provides native integrations with supported services:
 - **Search and data.** Google Search, Perplexity, Firecrawl, Exa AI.
 - **Databases.** PostgreSQL, MySQL, Supabase, Pinecone, Qdrant.
 
-For anything not built in, [MCP support](/agents/mcp) connects any external service or tool.
+## Connect through MCP
+
+[MCP](/mcp) connects Sim and external assistants in three directions:
+
+- **[Connect an assistant to Sim](/mcp).** Give Codex, Claude, or another MCP client access to your workspace through `https://mcp.sim.ai/mcp`.
+- **[Expose selected workflows as tools](/workflows/deployment/mcp).** Create a workflow MCP deployment for the workflows you choose.
+- **[Use external tools inside Sim](/agents/mcp).** Add another service's MCP server to a Sim workspace for your agents to use.
+
+For organization-wide source search, use the dedicated [Search MCP](/search/mcp).
 
 ## Deployment options
 

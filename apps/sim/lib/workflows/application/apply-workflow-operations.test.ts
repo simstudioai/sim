@@ -75,6 +75,10 @@ vi.mock('@/lib/workflows/editing/validation', () => ({
 vi.mock('@/lib/workflows/editing/lint', () => ({
   collectWorkflowFieldIssues: () => [],
   collectDanglingBlockOutputReferences: () => [],
+  collectBranchDependentBlockOutputReferences: () => ({
+    issues: [],
+    check: { name: 'branch-output-references', status: 'partial', detail: 'Static branches only' },
+  }),
   lintEditedWorkflowState: mocks.lintGraph,
 }))
 vi.mock('@/lib/billing/core/subscription', () => ({
@@ -230,7 +234,7 @@ describe('applyWorkflowOperations', () => {
     expect(result.applied).toBe(1)
     expect(mocks.lintGraph).toHaveBeenCalledTimes(1)
     expect(mocks.lintGraph.mock.calls[0][0].blocks).not.toHaveProperty('block-2')
-    expect(result.lint).toEqual({
+    expect(result.lint).toMatchObject({
       ...EMPTY_GRAPH_LINT,
       orphanBlocks: [orphan],
       fieldIssues: [],
@@ -262,13 +266,19 @@ describe('applyWorkflowOperations', () => {
       expect(dry.mintedBlockIds).toEqual({})
       expect(dry.previewBlockIds).toEqual({ triage: 'preview-uuid' })
       expect(dry.warnings).toContain(DRY_RUN_PREVIEW_BLOCK_IDS_WARNING)
+      mocks.applyOperations.mockReturnValueOnce({
+        state: graph(),
+        validationErrors: [],
+        skippedItems: [],
+        mintedBlockIds: { triage: 'committed-uuid' },
+      })
 
       const committed = await applyWorkflowOperations.execute({
         principal: sessionPrincipal,
         input: { workflowId: 'workflow-1', operations },
       })
 
-      expect(committed.mintedBlockIds).toEqual({ triage: 'preview-uuid' })
+      expect(committed.mintedBlockIds).toEqual({ triage: 'committed-uuid' })
       expect(committed.previewBlockIds).toBeUndefined()
       expect(committed.warnings).not.toContain(DRY_RUN_PREVIEW_BLOCK_IDS_WARNING)
     })

@@ -244,6 +244,8 @@ export const fileManageCompressBodySchema = z
     fileId: fileIdSelectionSchema.optional(),
     fileInput: z.unknown().optional(),
     archiveName: z.string().min(1).max(255).optional(),
+    folderPath: v2FolderPathInputSchema.optional(),
+    onConflict: z.enum(['rename', 'error']).default('rename'),
   })
   .refine(
     (data) =>

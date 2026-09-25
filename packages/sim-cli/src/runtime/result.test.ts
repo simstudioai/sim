@@ -33,6 +33,25 @@ describe('single-record output is only clamped for the human table', () => {
   })
 })
 
+describe('log summary output', () => {
+  it('projects a compact JSON result only when explicitly requested', () => {
+    const log = {
+      runId: 'run-1',
+      status: 'completed',
+      traceSpans: [],
+      finalOutput: { applicationOutcome: 'verification_blocked', source: 'large source body' },
+    }
+    renderResult('getLog', 'json', log, CLI_CONTRACT.getLog ?? {}, { summary: true })
+    expect(JSON.parse(logged[0])).toMatchObject({
+      executionStatus: 'completed',
+      applicationOutcome: 'verification_blocked',
+    })
+    expect(logged[0]).not.toContain('large source body')
+    renderResult('getLog', 'json', log, CLI_CONTRACT.getLog ?? {})
+    expect(JSON.parse(logged[1])).toEqual(log)
+  })
+})
+
 describe('inferred cells pick a format from the key shape', () => {
   const _row = {
     createdAt: '2026-08-17T20:35:38.478Z',

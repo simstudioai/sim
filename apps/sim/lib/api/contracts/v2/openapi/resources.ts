@@ -11,6 +11,7 @@ import {
   v2CreateCredentialConnectionContract,
   v2CreateServiceAccountCredentialContract,
   v2DeleteCredentialContract,
+  v2GetCredentialContract,
   v2ListCredentialProvidersContract,
   v2ListCredentialsContract,
   v2UpdateCredentialContract,
@@ -40,11 +41,13 @@ import {
   type ErrorResponseId,
   FULL_SET_LIST,
   HEAD_MIRRORS_GET,
+  HEAD_OMITS_PAYLOAD_HEADERS,
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
   RESOURCE_ERRORS,
   V2_AUTH_SECURITY,
   V2_AUTH_SECURITY_SCHEMES,
+  V2_BINARY_DOWNLOAD_HEADERS,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
   WORKSPACE_API_KEY_DENIED,
@@ -75,6 +78,7 @@ import {
   v2RevokeSkillEditorContract,
   v2UpdateSkillContract,
 } from '@/lib/api/contracts/v2/skills'
+import { v2DownloadToolFileContract } from '@/lib/api/contracts/v2/tool-files'
 import {
   v2CreateWorkflowMcpServerContract,
   v2DeleteWorkflowMcpServerContract,
@@ -1475,6 +1479,37 @@ const declaredRoutes = [
     }
   ),
   defineOpenApiRoute(
+    v2GetCredentialContract,
+    resourceOperation('Credentials', {
+      applicationOperation: credentialOperations.inspect,
+      operationId: 'getCredential',
+      summary: 'Inspect Credential',
+      description: `Inspect one selected connection's stored provider identity, recorded OAuth scopes, and access limitations. This does not decrypt secrets, contact the provider, or verify live resource access. Custom bot identities/scopes may be unknown. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_ERRORS,
+      success: { description: 'Selected credential metadata and diagnostic coverage.' },
+    }),
+    {
+      params: documentedSchema(
+        v2GetCredentialContract.params,
+        'GetCredentialParams',
+        'Get credential parameters',
+        'The selected credential identifier.'
+      ),
+      query: documentedSchema(
+        v2GetCredentialContract.query,
+        'GetCredentialQuery',
+        'Get credential query',
+        'Expected workspace ownership.'
+      ),
+      response: documentedSchema(
+        v2GetCredentialContract.response.schema,
+        'GetCredentialResponse',
+        'Get credential response',
+        'Stored identity and scope diagnostics without secret material.'
+      ),
+    }
+  ),
+  defineOpenApiRoute(
     v2ListCredentialProvidersContract,
     resourceOperation('Credentials', {
       applicationOperation: credentialOperations.listProviders,
@@ -2105,8 +2140,8 @@ const declaredRoutes = [
       applicationOperation: toolExecutionOperations.execute,
       operationId: 'executeTool',
       summary: 'Run Tool',
-      description: `Run a built-in tool using published parameter IDs. Sim resolves \`credentialId\`, hosted keys, and whole-value \`{{VAR_NAME}}\` references for \`user-only\` parameters; other values pass through verbatim. Third-party refusal returns \`200\` with \`status: "failed"\`; the error envelope covers API failures. Hidden or missing tools return \`404\`; disallowed integrations return \`403\` with \`error.details.code: INTEGRATION_NOT_ALLOWED\`. Hosted-key use is billed to the workspace. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_ERRORS,
+      description: `Run a built-in tool using published parameters and caller-owned credentials. Whole-value \`{{VAR_NAME}}\` references resolve for \`user-only\` parameters. Provider refusal returns \`200\` with \`status: "failed"\`; API failures use the error envelope. Hidden tools return \`404\`; blocked integrations return \`403\` with \`error.details.code: INTEGRATION_NOT_ALLOWED\`. Hosted-key use and measured Function sandbox costs are billed to the workspace. Function usage-limit checks can refuse execution with \`402 USAGE_LIMIT_EXCEEDED\`. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded'],
       success: { description: 'The outcome of the tool call.' },
     }),
     {
@@ -2165,6 +2200,29 @@ const declaredRoutes = [
           { data: [CONNECTOR_TYPE_SUMMARY_EXAMPLE], nextCursor: null },
           { data: [CONNECTOR_TYPE_EXAMPLE], nextCursor: null },
         ]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2DownloadToolFileContract,
+    resourceOperation('Catalog', {
+      applicationOperation: toolExecutionOperations.downloadFile,
+      operationId: 'downloadToolFileV2',
+      summary: 'Download Tool File',
+      description: `Download a personal output from a direct tool call using its unchanged file.id. Requires its original owner and current workspace access. Use Download Workflow Run File for workflow outputs. Files can expire. ${WORKSPACE_API_KEY_DENIED} ${HEAD_MIRRORS_GET} ${HEAD_OMITS_PAYLOAD_HEADERS}`,
+      errors: [...RESOURCE_ERRORS],
+      success: {
+        description: 'The tool file bytes.',
+        headers: [...RATE_LIMIT_HEADERS, 'Content-Type', 'Content-Disposition', 'Content-Length'],
+        contentTypes: ['application/octet-stream'],
+      },
+    }),
+    {
+      query: documentedSchema(
+        v2DownloadToolFileContract.query,
+        'DownloadToolFileQuery',
+        'Tool file download query',
+        'Original direct-call file identifier and workspace access context.'
       ),
     }
   ),
@@ -2251,7 +2309,7 @@ export const resourcesOpenApiDocument = defineOpenApiDocument({
   ],
   security: V2_AUTH_SECURITY,
   securitySchemes: V2_AUTH_SECURITY_SCHEMES,
-  headers: V2_COMMON_HEADERS,
+  headers: { ...V2_BINARY_DOWNLOAD_HEADERS, ...V2_COMMON_HEADERS },
   errorSchema: V2_ERROR_SCHEMA,
   /**
    * Most `409`s in this document are name collisions, but MCP tool discovery

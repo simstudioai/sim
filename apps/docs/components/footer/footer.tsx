@@ -26,7 +26,7 @@ const PRODUCT_LINKS: FooterItem[] = [
   { label: 'Workflows', href: '/workflows' },
   { label: 'Knowledge Base', href: '/knowledgebase' },
   { label: 'Tables', href: '/tables' },
-  { label: 'MCP', href: '/agents/mcp' },
+  { label: 'MCP', href: '/mcp' },
   { label: 'API', href: '/api-reference/getting-started' },
   { label: 'Self Hosting', href: '/platform/self-hosting' },
   { label: 'Status', href: 'https://status.sim.ai', external: true },

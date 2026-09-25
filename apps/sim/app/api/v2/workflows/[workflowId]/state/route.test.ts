@@ -64,6 +64,8 @@ function putRequest(body: unknown) {
 }
 
 const EMPTY_LINT = {
+  checks: [],
+  codeIssues: [],
   sources: [],
   sinks: [],
   orphanBlocks: [],
@@ -95,6 +97,7 @@ describe('/api/v2/workflows/[workflowId]/state', () => {
       warnings: ['Dropped edge "edge-9": target block does not exist'],
       needsRedeployment: true,
       lint: EMPTY_LINT,
+      removedBindings: [],
       dryRun: false,
     })
   })

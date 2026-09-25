@@ -4,13 +4,15 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import type { ExecuteWorkflowInput } from '@/lib/workflows/application/execute-workflow'
+import {
+  loadManualWorkflowFromBlockState,
+  loadManualWorkflowState,
+} from '@/lib/workflows/application/manual-workflow-state'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
   type ExecuteWorkflowServiceResult,
   executeWorkflowService,
 } from '@/lib/workflows/executor/execute-service'
-import { getExecutionStateForWorkflow } from '@/lib/workflows/executor/execution-state'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import {
   resolveTriggerRunOptions,
   validateTriggerInput,
@@ -36,17 +38,6 @@ function resolveContext<I extends ManualExecutionInput>({ input }: { input: I })
   return resolveActiveWorkflowApplicationContext({ workflowId: input.workflowId })
 }
 
-async function loadManualState(workflowId: string) {
-  const state = await loadWorkflowFromNormalizedTables(workflowId)
-  if (!state) {
-    throw new OrchestrationError(
-      'validation',
-      `Workflow ${workflowId} has no saved state to run manually.`
-    )
-  }
-  return state
-}
-
 function listTriggers(options: ReturnType<typeof resolveTriggerRunOptions>): string {
   return options.map((option) => `${option.triggerBlockId} (${option.blockName})`).join(', ')
 }
@@ -68,6 +59,7 @@ function executionServiceInput(params: {
     includeFileBase64: params.input.includeFileBase64,
     base64MaxBytes: params.input.base64MaxBytes,
     selectedOutputs: params.input.selectedOutputs,
+    stopAfterBlockId: params.input.stopAfterBlockId,
     rateLimitCounter: 'sync' as const,
     abortSignal: params.input.abortSignal,
     mode: params.input.mode,
@@ -89,7 +81,7 @@ export const executeManualWorkflowOperation = defineAuthorizedWorkflowUseCase({
         'input and run.entry.useMockPayload cannot be combined'
       )
     }
-    const state = await loadManualState(context.workflowId)
+    const state = await loadManualWorkflowState(context.workflowId)
     const options = resolveTriggerRunOptions(
       mergeSubblockStateWithValues(state.blocks),
       state.edges
@@ -137,21 +129,11 @@ export const executeManualWorkflowFromBlockOperation = defineAuthorizedWorkflowU
   operation: workflowOperations.executeManualFromBlock,
   resolveContext: resolveContext<ExecuteManualWorkflowFromBlockInput>,
   async execute({ principal, context, input }): Promise<ExecuteWorkflowServiceResult> {
-    const state = await loadManualState(context.workflowId)
-    if (!Object.hasOwn(state.blocks, input.blockId)) {
-      throw new OrchestrationError(
-        'validation',
-        `run.entry.blockId "${input.blockId}" is not a block in the current saved workflow.`
-      )
-    }
-
-    const sourceSnapshot = await getExecutionStateForWorkflow(input.sourceRunId, context.workflowId)
-    if (!sourceSnapshot) {
-      throw new OrchestrationError(
-        'not_found',
-        `No execution state found for source run "${input.sourceRunId}" in this workflow.`
-      )
-    }
+    const { sourceSnapshot } = await loadManualWorkflowFromBlockState({
+      workflowId: context.workflowId,
+      blockId: input.blockId,
+      sourceRunId: input.sourceRunId,
+    })
 
     return executeWorkflowService({
       ...executionServiceInput({ principal, context, input }),

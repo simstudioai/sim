@@ -634,11 +634,10 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       id: 'text',
       title: 'Message',
       type: 'long-input',
-      placeholder: 'Enter your message (supports Slack mrkdwn)',
+      placeholder: 'Message text; optional notification and accessibility fallback for Block Kit',
       condition: {
         field: 'operation',
         value: ['send', 'ephemeral', 'schedule_message'],
-        and: { field: 'messageFormat', value: 'blocks', not: true },
       },
       required: {
         field: 'operation',
@@ -1159,11 +1158,10 @@ Return ONLY the timestamp string - no explanations, no quotes, no extra text.`,
       id: 'updateText',
       title: 'New Message Text',
       type: 'long-input',
-      placeholder: 'Enter new message text (supports Slack mrkdwn)',
+      placeholder: 'New text; optional notification and accessibility fallback for Block Kit',
       condition: {
         field: 'operation',
         value: 'update',
-        and: { field: 'messageFormat', value: 'blocks', not: true },
       },
       required: {
         field: 'operation',
@@ -1925,7 +1923,6 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
           destinationType,
           channel,
           dmUserId,
-          messageFormat,
           text,
           title,
           content,
@@ -2037,7 +2034,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
 
         switch (operation) {
           case 'send': {
-            baseParams.text = messageFormat === 'blocks' && !text ? ' ' : text
+            baseParams.text = text
             if (threadTs) {
               baseParams.threadTs = threadTs
             }
@@ -2053,7 +2050,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
           }
 
           case 'ephemeral': {
-            baseParams.text = messageFormat === 'blocks' && !text ? ' ' : text
+            baseParams.text = text
             baseParams.user = ephemeralUser ? String(ephemeralUser).trim() : ''
             if (threadTs) {
               baseParams.threadTs = threadTs
@@ -2204,7 +2201,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
 
           case 'update':
             baseParams.timestamp = updateTimestamp
-            baseParams.text = messageFormat === 'blocks' && !updateText ? ' ' : updateText
+            baseParams.text = updateText
             if (blocks) {
               baseParams.blocks = blocks
             }
@@ -2346,7 +2343,7 @@ Return ONLY the integer Unix timestamp - no explanations, no quotes, no extra te
             break
 
           case 'schedule_message': {
-            baseParams.text = messageFormat === 'blocks' && !text ? ' ' : text
+            baseParams.text = text
             if (blocks) {
               baseParams.blocks = blocks
             }

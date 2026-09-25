@@ -112,6 +112,8 @@ describe('the command tree', () => {
       'folderPath: folder, to',
       'rowIds: row, row-ids',
       'limit: limit, max-rows',
+      /** Retry preview chooses an execution entry; inspection selects one block to read. */
+      'blockId: block-id, from-block',
     ])
   })
 })

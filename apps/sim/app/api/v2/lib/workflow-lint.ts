@@ -20,6 +20,15 @@ function blockRef(ref: WorkflowLintBlockRef) {
  */
 export function presentWorkflowLint(lint: WorkflowLintReport) {
   return {
+    checks: lint.checks,
+    codeIssues: lint.codeIssues.map((issue) => ({
+      ...blockRef(issue),
+      field: issue.field,
+      language: issue.language,
+      message: issue.message,
+      line: issue.line ?? null,
+      column: issue.column ?? null,
+    })),
     sources: lint.sources.map(blockRef),
     sinks: lint.sinks.map(blockRef),
     orphanBlocks: lint.orphanBlocks.map(blockRef),

@@ -31,6 +31,8 @@ export interface EnqueueWorkflowExecutionParams {
   input: unknown
   triggerType: CoreTriggerType
   triggerBlockId?: string
+  /** Immutable version selected while validating the deployment entry point. */
+  deploymentVersionId?: string
   executionId: string
   copilotToolCallId?: string
   callChain?: string[]
@@ -79,6 +81,7 @@ export async function enqueueWorkflowExecution(
     input,
     triggerType,
     triggerBlockId,
+    deploymentVersionId,
     executionId,
     copilotToolCallId,
     callChain,
@@ -113,6 +116,7 @@ export async function enqueueWorkflowExecution(
     input,
     triggerType,
     triggerBlockId,
+    deploymentVersionId,
     executionId,
     requestId,
     correlation,

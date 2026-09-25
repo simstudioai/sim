@@ -54,9 +54,10 @@ export const slackEphemeralMessageTool: InternalToolConfig<
     },
     text: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Message text to send (supports Slack mrkdwn formatting)',
+      description:
+        'Message text, required unless blocks are provided. With blocks, used for notifications and screen readers.',
     },
     threadTs: {
       type: 'string',

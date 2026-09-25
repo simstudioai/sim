@@ -1,7 +1,22 @@
 import { Command } from 'commander'
 import { describe, expect, it } from 'vitest'
-import { addOperationOptions } from './options'
-import type { OperationSpec } from './types'
+import { CLI_CONTRACT } from '#sim-cli/contract/commands'
+import { V2_OPERATIONS } from '#sim-cli/generated/v2-api'
+import { addOperationOptions } from '#sim-cli/runtime/options'
+import type { OperationSpec } from '#sim-cli/runtime/types'
+
+it('rejects simultaneous compact and expanded trace output', () => {
+  const command = new Command('get').exitOverride().configureOutput({ writeErr: () => {} })
+  addOperationOptions(
+    command,
+    'getLog',
+    CLI_CONTRACT.getLog ?? {},
+    V2_OPERATIONS.getLog as OperationSpec
+  )
+  expect(() => command.parse(['node', 'get', 'run-1', '--summary', '--trace'])).toThrow(
+    /cannot be used/
+  )
+})
 
 const LIST_FILES_NEGATABLE: OperationSpec = {
   method: 'GET',

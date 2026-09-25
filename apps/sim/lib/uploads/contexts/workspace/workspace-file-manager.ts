@@ -100,6 +100,7 @@ import {
 import { getWorkspaceFileSize, MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import type { ServableFile } from '@/lib/uploads/utils/file-utils.server'
+import { buildWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 import {
   MAX_SIM_PAGE_UPLOAD_SNIFF_BYTES,
@@ -449,7 +450,7 @@ export async function uploadWorkspaceFile(
       throw new OrchestrationError('not_found', 'Target folder not found')
     }
     folderId = resolvedFolderId
-    folderPath = resolvedFolderId ? folderPathSegments.join('/') : null
+    folderPath = resolvedFolderId ? buildWorkspaceFileFolderDisplayPath(folderPathSegments) : null
   } else {
     const folderTarget = await resolveWorkspaceFileFolderTarget(workspaceId, options?.folderId)
     folderId = folderTarget?.id ?? null

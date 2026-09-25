@@ -86,7 +86,15 @@ describe('buildWorkflowLintReport notes', () => {
         buildWorkflowLintReport(graph, scope, { requireComplete: true })
       ).rejects.toThrow('Workflow reference checks could not complete')
       collector.mockRejectedValueOnce(new Error('private lookup details'))
-      await expect(buildWorkflowLintReport(graph, scope)).resolves.toMatchObject({ notes: [] })
+      const report = await buildWorkflowLintReport(graph, scope)
+      expect(report.notes).toEqual([])
+      expect(report.checks).toContainEqual(
+        expect.objectContaining({
+          name: kind === 'references' ? 'credential-resource-references' : 'agent-tool-references',
+          status: 'skipped',
+        })
+      )
+      expect(JSON.stringify(report)).not.toContain('private lookup details')
     }
   )
 
@@ -94,6 +102,32 @@ describe('buildWorkflowLintReport notes', () => {
    * `--blocks '{}' --edges '[]'` used to lint perfectly clean, so a dry run gave
    * no hint that applying it would erase the workflow.
    */
+  it('reports syntax findings and explicitly distinguishes static validation from execution', async () => {
+    const report = await buildWorkflowLintReport(
+      {
+        blocks: {
+          renderer: {
+            ...block('renderer', 'function'),
+            subBlocks: {
+              code: { id: 'code', type: 'code', value: 'return /value/workspace/path;' },
+            },
+          },
+        },
+        edges: [],
+      },
+      scope
+    )
+    expect(report.codeIssues).toEqual([
+      expect.objectContaining({ blockId: 'renderer', message: 'Invalid regular expression flags' }),
+    ])
+    expect(report.checks).toContainEqual(
+      expect.objectContaining({ name: 'runtime-execution', status: 'skipped' })
+    )
+    expect(report.checks).toContainEqual(
+      expect.objectContaining({ name: 'embedded-code-syntax', status: 'complete' })
+    )
+  })
+
   it('notes a graph with no blocks', async () => {
     const report = await buildWorkflowLintReport({ blocks: {}, edges: [] } as never, scope)
 

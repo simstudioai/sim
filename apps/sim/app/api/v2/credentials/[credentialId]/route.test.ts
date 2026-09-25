@@ -9,6 +9,7 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  inspect: vi.fn(),
   update: vi.fn(),
   remove: vi.fn(),
 }))
@@ -23,7 +24,11 @@ vi.mock('@/lib/credentials/application/service-account', () => ({
 }))
 
 import { CredentialProviderOperationError } from '@/lib/credentials/application/credential-crud'
-import { PATCH } from '@/app/api/v2/credentials/[credentialId]/route'
+import { GET, PATCH } from '@/app/api/v2/credentials/[credentialId]/route'
+
+vi.mock('@/lib/credentials/application/inspect-credential', () => ({
+  inspectCredential: { operation: { id: 'credentials.inspect' }, execute: mocks.inspect },
+}))
 
 vi.mock('@/lib/credentials/application/credential-crud', async () => {
   const { OrchestrationError: BaseError } = await import('@/lib/core/orchestration/types')
@@ -167,6 +172,49 @@ describe('PATCH /api/v2/credentials/[credentialId]', () => {
         message: 'invalid_credentials',
         details: { providerErrorCode: 'invalid_credentials' },
       },
+    })
+  })
+})
+
+describe('GET /api/v2/credentials/[credentialId]', () => {
+  beforeEach(() => {
+    v2RouteMocks.authenticate.mockResolvedValue(auth)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
+    mocks.inspect.mockResolvedValue({
+      credential,
+      access: { isAdmin: false },
+      diagnostics: {
+        identity: {
+          source: 'unknown',
+          subjectId: null,
+          tenantId: null,
+          externalAccountId: null,
+          verifiedLive: false,
+        },
+        scopes: { source: 'unknown', values: [] },
+        notes: ['Stored metadata only'],
+      },
+    })
+  })
+
+  function request() {
+    return new NextRequest(
+      `http://localhost:3000/api/v2/credentials/${CREDENTIAL_ID}?workspaceId=${WORKSPACE_ID}`
+    )
+  }
+
+  it('projects diagnostic metadata without encrypted or raw secret fields', async () => {
+    const response = await GET(request(), context)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    const text = await response.text()
+    expect(text).not.toContain('MUST_NOT_LEAK_CIPHERTEXT')
+    expect(text).not.toContain('encryptedServiceAccountKey')
+    expect(JSON.parse(text).data).toMatchObject({
+      id: CREDENTIAL_ID,
+      role: 'member',
+      diagnostics: { scopes: { source: 'unknown', values: [] } },
     })
   })
 })

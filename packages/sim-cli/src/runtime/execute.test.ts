@@ -112,6 +112,53 @@ beforeEach(() => {
   output.format = 'json'
 })
 
+it('runs compact log diagnostics through the generated authenticated read', async () => {
+  const stdout = vi.spyOn(console, 'log').mockImplementation(() => {})
+  request.mockResolvedValue({
+    data: {
+      runId: 'run-1',
+      status: 'completed',
+      traceSpans: [],
+      finalOutput: { applicationOutcome: 'clarification_requested', source: 'hidden body' },
+    },
+  })
+  await executeOperation(
+    'getLog',
+    CLI_CONTRACT.getLog ?? {},
+    V2_OPERATIONS.getLog as OperationSpec,
+    ['run-1', { summary: true }, new Command('get')]
+  )
+  expect(request).toHaveBeenCalledTimes(1)
+  expect(request.mock.calls[0][0]).toBe('/api/v2/logs/run-1')
+  expect(request.mock.calls[0][1].query).not.toHaveProperty('summary')
+  expect(JSON.parse(String(stdout.mock.calls[0][0]))).toMatchObject({
+    executionStatus: 'completed',
+    applicationOutcome: 'clarification_requested',
+  })
+  expect(String(stdout.mock.calls[0][0])).not.toContain('hidden body')
+})
+
+it('maps partial-run preview aliases into a read request without executing', async () => {
+  vi.spyOn(console, 'log').mockImplementation(() => {})
+  request.mockResolvedValue({
+    data: { validation: { valid: true }, rerunBlocks: [], upstreamBlocks: [] },
+  })
+  await executeOperation(
+    'previewWorkflowRunFromBlock',
+    CLI_CONTRACT.previewWorkflowRunFromBlock ?? {},
+    V2_OPERATIONS.previewWorkflowRunFromBlock as OperationSpec,
+    ['workflow-1', { fromBlock: 'block-1', sourceRun: 'run-1' }, new Command('preview')]
+  )
+  expect(request).toHaveBeenCalledExactlyOnceWith(
+    '/api/v2/workflows/workflow-1/runs/preview',
+    expect.objectContaining({
+      method: 'GET',
+      query: { blockId: 'block-1', sourceRunId: 'run-1' },
+      body: undefined,
+    })
+  )
+})
+
 afterEach(() => {
   vi.restoreAllMocks()
 })

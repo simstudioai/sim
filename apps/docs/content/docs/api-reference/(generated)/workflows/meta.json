@@ -3,6 +3,7 @@
     "listWorkflows",
     "createWorkflowV2",
     "getWorkflow",
+    "inspectWorkflow",
     "updateWorkflowV2",
     "deleteWorkflowV2",
     "restoreWorkflow",

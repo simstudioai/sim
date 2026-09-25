@@ -54,9 +54,10 @@ export const slackMessageTool: InternalToolConfig<SlackMessageParams, SlackMessa
     },
     text: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Message text to send (supports Slack mrkdwn formatting)',
+      description:
+        'Message text, required unless blocks are provided. With blocks, used for notifications and screen readers.',
     },
     threadTs: {
       type: 'string',
@@ -69,7 +70,7 @@ export const slackMessageTool: InternalToolConfig<SlackMessageParams, SlackMessa
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Block Kit layout blocks as a JSON array. When provided, text becomes the fallback notification text.',
+        'Block Kit layout blocks as a JSON array. For messages without files, text is the notification fallback. With file attachments, Slack accepts blocks or initial text, so blocks take precedence.',
     },
     files: {
       type: 'file[]',
