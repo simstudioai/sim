@@ -16,8 +16,13 @@ vi.mock('@/lib/api/client/request', () => ({
 }))
 
 import { ApiClientError } from '@/lib/api/client/errors'
-import { createPinnedItemContract, deletePinnedItemContract } from '@/lib/api/contracts'
 import {
+  createPinnedItemContract,
+  deletePinnedItemContract,
+  recordWorkspaceVisitContract,
+} from '@/lib/api/contracts'
+import {
+  useRecordWorkspaceVisit,
   useToggleWorkspacePin,
   useWorkspacePermissionsQuery,
   workspaceKeys,
@@ -284,5 +289,109 @@ describe('useToggleWorkspacePin', () => {
     await flush()
 
     expect(readPins(queryClient)).toEqual(['ws-b'])
+  })
+})
+
+describe('useRecordWorkspaceVisit', () => {
+  function seedWorkspaces(queryClient: QueryClient, ids: string[]) {
+    queryClient.setQueryData(workspaceKeys.list('active'), {
+      workspaces: ids.map((id) => ({ id })),
+      lastActiveWorkspaceId: ids[0] ?? null,
+      pinnedWorkspaceIds: [],
+      creationPolicy: null,
+    })
+  }
+
+  function readList(queryClient: QueryClient) {
+    const data = queryClient.getQueryData<{
+      workspaces: { id: string }[]
+      lastActiveWorkspaceId: string | null
+    }>(workspaceKeys.list('active'))
+    return { ids: data?.workspaces.map(({ id }) => id), lastActive: data?.lastActiveWorkspaceId }
+  }
+
+  it('moves the workspace to the front before the server answers', async () => {
+    mockRequestJson.mockReturnValue(new Promise<never>(() => {}))
+    const { getResult, queryClient } = renderHookWithClient(() => useRecordWorkspaceVisit())
+    seedWorkspaces(queryClient, ['ws-a', 'ws-b', 'ws-c'])
+
+    act(() => getResult().mutate('ws-c'))
+    await flush()
+
+    expect(mockRequestJson).toHaveBeenCalledWith(recordWorkspaceVisitContract, {
+      params: { id: 'ws-c' },
+    })
+    expect(readList(queryClient)).toEqual({ ids: ['ws-c', 'ws-a', 'ws-b'], lastActive: 'ws-c' })
+  })
+
+  it('sends visits one at a time, in the order they happened', async () => {
+    let finishFirst: (value: { success: true }) => void = () => {}
+    mockRequestJson
+      .mockReturnValueOnce(new Promise((resolve) => (finishFirst = resolve)))
+      .mockResolvedValueOnce({ success: true })
+    const { getResult, queryClient } = renderHookWithClient(() => useRecordWorkspaceVisit())
+    seedWorkspaces(queryClient, ['ws-a', 'ws-b', 'ws-c'])
+
+    act(() => {
+      getResult().mutate('ws-b')
+      getResult().mutate('ws-c')
+    })
+    await flush()
+    expect(mockRequestJson).toHaveBeenCalledTimes(1)
+
+    finishFirst({ success: true })
+    await flush()
+    expect(mockRequestJson).toHaveBeenCalledTimes(2)
+    expect(mockRequestJson).toHaveBeenLastCalledWith(recordWorkspaceVisitContract, {
+      params: { id: 'ws-c' },
+    })
+  })
+
+  it('reconciles only after the last queued visit settles', async () => {
+    let finishFirst: (value: { success: true }) => void = () => {}
+    let finishSecond: (value: { success: true }) => void = () => {}
+    mockRequestJson
+      .mockReturnValueOnce(new Promise((resolve) => (finishFirst = resolve)))
+      .mockReturnValueOnce(new Promise((resolve) => (finishSecond = resolve)))
+    const { getResult, queryClient } = renderHookWithClient(() => useRecordWorkspaceVisit())
+    seedWorkspaces(queryClient, ['ws-a', 'ws-b', 'ws-c'])
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    act(() => {
+      getResult().mutate('ws-b')
+      getResult().mutate('ws-c')
+    })
+    await flush()
+    finishFirst({ success: true })
+    await flush()
+    expect(invalidate).not.toHaveBeenCalled()
+    expect(readList(queryClient).ids).toEqual(['ws-c', 'ws-b', 'ws-a'])
+
+    finishSecond({ success: true })
+    await flush()
+    expect(invalidate).toHaveBeenCalledTimes(1)
+  })
+
+  it('reconciles the list with the server once the visit settles', async () => {
+    mockRequestJson.mockRejectedValueOnce(apiError(500))
+    const { getResult, queryClient } = renderHookWithClient(() => useRecordWorkspaceVisit())
+    seedWorkspaces(queryClient, ['ws-a', 'ws-b'])
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    act(() => getResult().mutate('ws-b'))
+    await flush()
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: workspaceKeys.lists() })
+  })
+
+  it('leaves the order untouched for a workspace the list does not contain', async () => {
+    mockRequestJson.mockReturnValue(new Promise<never>(() => {}))
+    const { getResult, queryClient } = renderHookWithClient(() => useRecordWorkspaceVisit())
+    seedWorkspaces(queryClient, ['ws-a', 'ws-b'])
+
+    act(() => getResult().mutate('ws-gone'))
+    await flush()
+
+    expect(readList(queryClient)).toEqual({ ids: ['ws-a', 'ws-b'], lastActive: 'ws-a' })
   })
 })

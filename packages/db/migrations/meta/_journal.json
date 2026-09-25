@@ -2675,6 +2675,13 @@
       "when": 1790284582673,
       "tag": "0382_workspace_file_search_dispatch_handoff",
       "breakpoints": true
+    },
+    {
+      "idx": 383,
+      "version": "7",
+      "when": 1790296491758,
+      "tag": "0383_workspace_visit",
+      "breakpoints": true
     }
   ]
 }

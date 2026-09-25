@@ -7,25 +7,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockPush,
-  mockRequestJson,
+  mockRecordWorkspaceVisit,
   mockSwitchToWorkspace,
-  mockUseWorkspacesQuery,
+  mockUseOrderedWorkspacesQuery,
   mockUseWorkspaceCreationPolicy,
 } = vi.hoisted(() => ({
   mockPush: vi.fn(),
-  mockRequestJson: vi.fn(),
+  mockRecordWorkspaceVisit: vi.fn(),
   mockSwitchToWorkspace: vi.fn(),
-  mockUseWorkspacesQuery: vi.fn(),
+  mockUseOrderedWorkspacesQuery: vi.fn(),
   mockUseWorkspaceCreationPolicy: vi.fn(),
 }))
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/workspace/workspace-denied',
   useRouter: () => ({ push: mockPush }),
-}))
-
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mockRequestJson,
 }))
 
 vi.mock('@/hooks/queries/invitations', () => ({
@@ -37,11 +33,12 @@ vi.mock('@/hooks/queries/workspace', () => ({
   useDeleteWorkspace: () => ({ isPending: false, mutateAsync: vi.fn() }),
   useUpdateWorkspace: () => ({ mutateAsync: vi.fn() }),
   useWorkspaceCreationPolicy: mockUseWorkspaceCreationPolicy,
-  useWorkspacesQuery: mockUseWorkspacesQuery,
+  useOrderedWorkspacesQuery: mockUseOrderedWorkspacesQuery,
   /** No pins: this suite is about the deep-link guard, not switcher ordering. */
   EMPTY_PINNED_WORKSPACE_IDS: new Set<string>(),
   usePinnedWorkspaceIds: () => ({ data: new Set<string>() }),
   useToggleWorkspacePin: () => ({ mutate: vi.fn() }),
+  useRecordWorkspaceVisit: () => ({ mutate: mockRecordWorkspaceVisit }),
 }))
 
 vi.mock('@/stores/workflows/registry/store', () => ({
@@ -97,8 +94,8 @@ describe('resolveWorkspaceSwitchHref', () => {
   })
 })
 
-function Harness() {
-  useWorkspaceManagement({ workspaceId: 'workspace-denied', sessionUserId: 'user-1' })
+function Harness({ sessionUserId = 'user-1' }: { sessionUserId?: string }) {
+  useWorkspaceManagement({ workspaceId: 'workspace-denied', sessionUserId })
   return null
 }
 
@@ -110,8 +107,7 @@ describe('useWorkspaceManagement direct access guard', () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
-    localStorage.clear()
-    mockUseWorkspacesQuery.mockReturnValue({
+    mockUseOrderedWorkspacesQuery.mockReturnValue({
       data: [
         {
           id: 'workspace-accessible',
@@ -140,5 +136,21 @@ describe('useWorkspaceManagement direct access guard', () => {
     })
 
     expect(mockPush).not.toHaveBeenCalled()
+  })
+
+  it('records the visit once for the workspace in the URL', async () => {
+    await act(async () => root.render(<Harness />))
+    await act(async () => root.render(<Harness />))
+
+    expect(mockRecordWorkspaceVisit).toHaveBeenCalledTimes(1)
+    expect(mockRecordWorkspaceVisit).toHaveBeenCalledWith('workspace-denied')
+  })
+
+  it('waits for the session before recording the visit', async () => {
+    await act(async () => root.render(<Harness sessionUserId='' />))
+    expect(mockRecordWorkspaceVisit).not.toHaveBeenCalled()
+
+    await act(async () => root.render(<Harness />))
+    expect(mockRecordWorkspaceVisit).toHaveBeenCalledTimes(1)
   })
 })
