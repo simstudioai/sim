@@ -19,6 +19,7 @@ import {
   evaluateInIsolatedFrame,
   insertText,
   PRIMARY_CLICK,
+  pointerPathSteps,
   releaseFileInput,
   resolveFileInput,
   setColorScheme,
@@ -256,6 +257,26 @@ describe('browser-agent CDP instrumentation', () => {
         },
       ],
     ])
+  })
+
+  it('keeps the default drag pace and lands exactly on every via point', () => {
+    const direct = pointerPathSteps({ x: 0, y: 0 }, { via: [], durationMs: null }, { x: 120, y: 0 })
+    expect(direct.stepDelayMs).toBe(20)
+    expect(direct.points).toHaveLength(12)
+    expect(direct.points[0]).toEqual({ x: 10, y: 0 })
+    expect(direct.points[11]).toEqual({ x: 120, y: 0 })
+
+    const routed = pointerPathSteps(
+      { x: 0, y: 0 },
+      { via: [{ x: 100, y: 0 }], durationMs: 800 },
+      { x: 100, y: 300 }
+    )
+    expect(routed.points).toContainEqual({ x: 100, y: 0 })
+    expect(routed.points[routed.points.length - 1]).toEqual({ x: 100, y: 300 })
+    expect(routed.points.length * routed.stepDelayMs).toBeCloseTo(800)
+    // The longer second segment gets about three times the steps of the first.
+    const corner = routed.points.findIndex((point) => point.x === 100 && point.y === 0)
+    expect(routed.points.length - 1 - corner).toBeGreaterThan(corner * 2)
   })
 
   it('holds the button down for holdMs before releasing it', async () => {

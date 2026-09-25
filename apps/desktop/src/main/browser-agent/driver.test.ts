@@ -4623,6 +4623,98 @@ describe('credential protection', () => {
     expect(cdpCalls(contents, 'Input.setInterceptDrags').length).toBeGreaterThan(0)
   })
 
+  it('drags through via points at the requested pace', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      describePointTarget: { found: true, element: 'div "Card"' },
+      readActiveElementState: {},
+      readPageActionState: {},
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_drag', {
+      fromX: 40,
+      fromY: 50,
+      toX: 200,
+      toY: 260,
+      via: [{ x: 300, y: 50 }],
+      durationMs: 320,
+    })
+
+    expect(result).toMatchObject({ ok: true, result: { dispatched: true } })
+    const moves = cdpCalls(contents, 'Input.dispatchMouseEvent')
+      .map(([, event]) => event as { type?: string; x?: number; y?: number; buttons?: number })
+      .filter((event) => event.type === 'mouseMoved' && event.buttons === 1)
+    expect(moves.some((event) => event.x === 300 && event.y === 50)).toBe(true)
+    expect(moves.length).toBeGreaterThanOrEqual(20)
+  })
+
+  it('moves the pointer along a coordinate hover path with no button pressed', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      describePointTarget: { found: true, element: 'canvas "Field"' },
+      readActiveElementState: {},
+      readPageActionState: {},
+    })
+
+    const result = await driver.executeTool('chat-test', 'browser_hover', {
+      x: 400,
+      y: 300,
+      via: [
+        { x: 100, y: 300 },
+        { x: 250, y: 150 },
+      ],
+    })
+
+    expect(result).toMatchObject({ ok: true, result: { hovered: true, x: 400, y: 300 } })
+    const events = cdpCalls(contents, 'Input.dispatchMouseEvent').map(
+      ([, event]) => event as { type?: string; x?: number; y?: number; button?: string }
+    )
+    expect(events.every((event) => event.type === 'mouseMoved' && event.button === 'none')).toBe(
+      true
+    )
+    expect(events[0]).toMatchObject({ x: 100, y: 300 })
+    expect(events.some((event) => event.x === 250 && event.y === 150)).toBe(true)
+    expect(events[events.length - 1]).toMatchObject({ x: 400, y: 300 })
+  })
+
+  it('rejects pointer paths where they cannot apply', async () => {
+    await openPage()
+
+    const elementHover = await driver.executeTool('chat-test', 'browser_hover', {
+      elementId: 0,
+      via: [{ x: 1, y: 2 }],
+    })
+    const badPoint = await driver.executeTool('chat-test', 'browser_hover', {
+      x: 10,
+      y: 10,
+      via: [{ x: 'left', y: 2 }],
+    })
+    const tooLong = await driver.executeTool('chat-test', 'browser_drag', {
+      fromX: 1,
+      fromY: 1,
+      toX: 50,
+      toY: 50,
+      durationMs: 10_001,
+    })
+    const batched = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_click', args: { elementId: 0 } },
+        { tool: 'browser_hover', args: { x: 5, y: 5, durationMs: 500 } },
+      ],
+    })
+
+    expect(elementHover).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('coordinate hover'),
+    })
+    expect(badPoint).toMatchObject({ ok: false, error: expect.stringContaining('via point') })
+    expect(tooLong).toMatchObject({ ok: false, error: expect.stringContaining('durationMs') })
+    expect(batched).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('timed pointer path'),
+    })
+  })
+
   it('drags from a snapshot element to a coordinate target', async () => {
     const contents = await openPage()
     respondWith(contents, {

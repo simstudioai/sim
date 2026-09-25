@@ -191,6 +191,11 @@ function parseBatchActions(params: Record<string, unknown>): BatchAction[] {
     if (num(action.args, 'holdMs')) {
       throw new ToolError(`Batch action ${index} cannot press and hold; run it as its own click.`)
     }
+    if ('via' in action.args || 'durationMs' in action.args) {
+      throw new ToolError(
+        `Batch action ${index} cannot follow a timed pointer path; run it as its own action.`
+      )
+    }
     return { tool: action.tool, args: action.args }
   })
 }
@@ -1155,6 +1160,44 @@ function pointerClick(params: Record<string, unknown>): cdp.PointerClick {
     modifiers: cdpModifiers(parseModifiers(names)),
     holdMs,
   }
+}
+
+const NOTHING_RENDERED_AT_POINT =
+  "Nothing is rendered at that point. Coordinates are CSS pixels in the current viewport — when reading them off a browser_screenshot, follow its caption's X/Y coordinate mapping and crop origin."
+
+const MAX_POINTER_PATH_POINTS = 20
+/** Longest timed pointer movement; well inside the pointer tools' watchdog. */
+const MAX_POINTER_PATH_MS = 10_000
+
+/** The optional pointer route shared by `browser_drag` and coordinate `browser_hover`. */
+function pointerPath(params: Record<string, unknown>): cdp.PointerPath {
+  const rawVia = params.via ?? []
+  if (!Array.isArray(rawVia) || rawVia.length > MAX_POINTER_PATH_POINTS) {
+    throw new ToolError(
+      `via must be a list of at most ${MAX_POINTER_PATH_POINTS} {x, y} viewport points.`
+    )
+  }
+  const via = rawVia.map((point) => {
+    const x = isRecordLike(point) ? point.x : undefined
+    const y = isRecordLike(point) ? point.y : undefined
+    if (typeof x !== 'number' || typeof y !== 'number' || !Number.isFinite(x + y)) {
+      throw new ToolError('Each via point must be {x, y} in CSS viewport pixels.')
+    }
+    return { x, y }
+  })
+  const durationMs = params.durationMs ?? null
+  if (
+    durationMs !== null &&
+    (typeof durationMs !== 'number' ||
+      !Number.isInteger(durationMs) ||
+      durationMs < 0 ||
+      durationMs > MAX_POINTER_PATH_MS)
+  ) {
+    throw new ToolError(
+      `durationMs must be a whole number of milliseconds from 0 to ${MAX_POINTER_PATH_MS}.`
+    )
+  }
+  return { via, durationMs }
 }
 
 /** The exact client tool call executing now; the app binds file transfers to it. */
@@ -4465,6 +4508,52 @@ async function executeToolInner(
 
     case 'browser_hover': {
       const contents = session.requireAutomationTab().view.webContents
+      if (params.elementId === undefined) {
+        const x = requireNum(params, 'x')
+        const y = requireNum(params, 'y')
+        const path = pointerPath(params)
+        assertCurrentExecution()
+        assertActiveContents(contents)
+        const pointTarget = unwrapPageResult(
+          await execInPage(contents, describePointTarget, [x, y], false, executionDeadline)
+        )
+        if (!isRecordLike(pointTarget) || pointTarget.found !== true) {
+          throw new ToolError(NOTHING_RENDERED_AT_POINT)
+        }
+        const beforePage = await pageActionState(contents, true)
+        const beforeElement = await activeElementState(contents)
+        assertCurrentExecution()
+        await cdp.movePointer(contents, path, { x, y }, signal)
+        await sleep(150)
+        const afterElement = await activeElementState(contents)
+        const afterPage = await pageActionState(contents)
+        const observation = pageEffect(beforePage, afterPage, beforeElement, afterElement)
+        const effectObserved =
+          observation.effect.urlChanged ||
+          observation.effect.dialogChanged ||
+          observation.effect.popupChanged
+        return {
+          hovered: true,
+          x,
+          y,
+          trusted: true,
+          effect: observation.effect,
+          possibleEffectObserved: observation.possibleEffectObserved,
+          effectObserved,
+          ...(!effectObserved
+            ? {
+                note: observation.possibleEffectObserved
+                  ? 'The page changed while the pointer moved; confirm the intended effect with browser_snapshot or browser_screenshot.'
+                  : 'No tooltip, menu, or other strong hover effect was observed.',
+              }
+            : {}),
+        }
+      }
+      if ('via' in params || 'durationMs' in params) {
+        throw new ToolError(
+          'via and durationMs apply to a coordinate hover; pass x and y instead of elementId.'
+        )
+      }
       const elementId = requireNum(params, 'elementId')
       const target = pageTargetForElement(contents, elementId)
       const targetFrame = frameExecutionTarget(target, contents)
@@ -4645,9 +4734,7 @@ async function executeToolInner(
         await execInPage(contents, describePointTarget, [x, y], false, executionDeadline)
       )
       if (!isRecordLike(pointTarget) || pointTarget.found !== true) {
-        throw new ToolError(
-          "Nothing is rendered at that point. Coordinates are CSS pixels in the current viewport — when reading them off a browser_screenshot, follow its caption's X/Y coordinate mapping and crop origin."
-        )
+        throw new ToolError(NOTHING_RENDERED_AT_POINT)
       }
       if (pointTarget.fileInput === true) {
         throw new ToolError(FILE_INPUT_REFUSAL)
@@ -4838,6 +4925,7 @@ async function executeToolInner(
       const draggedTab = session.requireAutomationTab()
       const contents = draggedTab.view.webContents
       const dragNavigationEpoch = navigationEpoch(contents)
+      const path = pointerPath(params)
 
       const resolveEndpoint = async (
         which: 'from' | 'to'
@@ -4903,7 +4991,7 @@ async function executeToolInner(
       assertActiveContents(contents)
       const from = await resolveEndpoint('from')
       const to = await resolveEndpoint('to')
-      if (Math.abs(from.x - to.x) < 1 && Math.abs(from.y - to.y) < 1) {
+      if (path.via.length === 0 && Math.abs(from.x - to.x) < 1 && Math.abs(from.y - to.y) < 1) {
         throw new ToolError('The drag source and target are the same point; nothing to drag.')
       }
       const beforePage = await pageActionState(contents, true)
@@ -4912,7 +5000,7 @@ async function executeToolInner(
       assertActiveContents(contents, dragNavigationEpoch)
       let interception: { nativeDragIntercepted: boolean }
       try {
-        interception = await cdp.dragPointer(contents, from, to)
+        interception = await cdp.dragPointer(contents, from, to, path)
       } catch (error) {
         throw new ToolError(
           `Native drag dispatch failed (${getErrorMessage(error)}). The pointer may have been mid-drag; take a fresh snapshot to see the page's current state before retrying.`
