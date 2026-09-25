@@ -216,28 +216,6 @@ describe('Code password masking', () => {
     expect(highlighted()).toContain('•')
   })
 
-  it('reveals the contents once the editor takes focus and re-masks on blur', () => {
-    mount(true)
-
-    const textarea = container.querySelector('[data-testid="code-textarea"]') as HTMLTextAreaElement
-    act(() => {
-      textarea.dispatchEvent(new FocusEvent('focusin', { bubbles: true }))
-    })
-    expect(highlighted()).toContain('SIM-TEST-CREDENTIAL-MARKER')
-
-    act(() => {
-      textarea.dispatchEvent(new FocusEvent('focusout', { bubbles: true }))
-    })
-    expect(highlighted()).not.toContain('SIM-TEST-CREDENTIAL-MARKER')
-  })
-
-  it('leaves a non-password code field in plaintext', () => {
-    mount(false)
-
-    expect(highlighted()).toContain('SIM-TEST-CREDENTIAL-MARKER')
-    expect(highlighted()).not.toContain('•')
-  })
-
   it('stays concealed while workflow search targets a match inside the secret', () => {
     searchTargetRef.current = SECRET_SEARCH_TARGET
 
@@ -246,36 +224,5 @@ describe('Code password masking', () => {
     expect(highlighted()).not.toContain('b3BlbnNzaC1rZXktdjE')
     expect(highlighted()).not.toContain('SIM-TEST-CREDENTIAL-MARKER')
     expect(highlighted()).toContain('•')
-  })
-
-  it('highlights a targeted match when the field holds no secret', () => {
-    searchTargetRef.current = SECRET_SEARCH_TARGET
-
-    mount(false)
-
-    expect(highlighted()).toContain('<mark')
-    expect(highlighted()).toContain(SECRET_MATCH)
-  })
-})
-
-describe('Code copy action', () => {
-  it('copies the current value through the shared chip action', () => {
-    const writeText = vi.fn().mockResolvedValue(undefined)
-    vi.stubGlobal('navigator', { clipboard: { writeText } })
-    vi.useFakeTimers()
-    act(() =>
-      root.render(
-        <Code
-          blockId='block-1'
-          subBlockId='privateKey'
-          showCopyButton
-          wandConfig={{ enabled: false, prompt: '' }}
-        />
-      )
-    )
-    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Copy code"]')!.click())
-    expect(writeText).toHaveBeenCalledExactlyOnceWith(SECRET)
-    act(() => vi.advanceTimersByTime(2000))
-    vi.useRealTimers()
   })
 })

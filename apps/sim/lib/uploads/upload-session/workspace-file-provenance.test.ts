@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { PROVENANCE_MAX_ENTRIES } from '@/lib/execution/provenance-limits'
 import {

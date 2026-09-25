@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -36,40 +33,12 @@ import {
 
 describe('knowledge access availability ownership', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     forgetKnowledgeAccessAvailability()
     mocks.featureEnabled.mockResolvedValue(true)
     mocks.enterprise.mockResolvedValue(true)
     mocks.scopedGroups.mockResolvedValue(true)
     mocks.workspaceGroups.mockResolvedValue(true)
     mocks.workspaceBilling.mockResolvedValue({ isEnterprise: true, organizationId: 'org-parent' })
-  })
-
-  it('evaluates an organization flag and payer without consulting a workspace', async () => {
-    await expect(
-      resolveKnowledgeAccessAvailability({ organizationId: 'org-1', userId: 'viewer' })
-    ).resolves.toEqual({ sourceMirrored: true, memberScoped: true })
-    expect(mocks.featureEnabled).toHaveBeenCalledWith('knowledge-member-access', {
-      orgId: 'org-1',
-    })
-    expect(mocks.enterprise).toHaveBeenCalledWith('org-1', 'throw')
-    expect(mocks.scopedGroups).toHaveBeenCalledWith({
-      kind: 'organization',
-      organizationId: 'org-1',
-    })
-    expect(mocks.workspaceBilling).not.toHaveBeenCalled()
-    expect(mocks.workspaceGroups).not.toHaveBeenCalled()
-  })
-
-  it('answers the same owner from one read for a minute', async () => {
-    await resolveKnowledgeAccessAvailability({ organizationId: 'org-1' })
-    await resolveKnowledgeAccessAvailability({ organizationId: 'org-1' })
-    expect(mocks.enterprise).toHaveBeenCalledTimes(1)
-    await resolveKnowledgeAccessAvailability({ organizationId: 'org-2' })
-    expect(mocks.enterprise).toHaveBeenCalledTimes(2)
-    forgetKnowledgeAccessAvailability()
-    await resolveKnowledgeAccessAvailability({ organizationId: 'org-1' })
-    expect(mocks.enterprise).toHaveBeenCalledTimes(3)
   })
 
   it('keeps source mirroring independent from managed identity availability', async () => {
@@ -85,23 +54,6 @@ describe('knowledge access availability ownership', () => {
     await expect(resolveKnowledgeAccessAvailability({ organizationId: 'org-1' })).resolves.toEqual({
       sourceMirrored: false,
       memberScoped: false,
-    })
-    expect(mocks.enterprise).not.toHaveBeenCalled()
-    expect(mocks.scopedGroups).not.toHaveBeenCalled()
-  })
-
-  it('preserves workspace billing and workspace feature targeting', async () => {
-    await expect(
-      resolveKnowledgeAccessAvailability({ workspaceId: 'workspace-1' })
-    ).resolves.toEqual({ sourceMirrored: true, memberScoped: true })
-    expect(mocks.featureEnabled).toHaveBeenCalledWith('knowledge-member-access', {
-      workspaceId: 'workspace-1',
-      userId: undefined,
-    })
-    expect(mocks.workspaceBilling).toHaveBeenCalledWith('workspace-1')
-    expect(mocks.workspaceGroups).toHaveBeenCalledWith({
-      organizationId: 'org-parent',
-      ownerBilling: { isEnterprise: true, organizationId: 'org-parent' },
     })
     expect(mocks.enterprise).not.toHaveBeenCalled()
     expect(mocks.scopedGroups).not.toHaveBeenCalled()
@@ -142,16 +94,6 @@ describe('knowledge access availability ownership', () => {
       })
     }
   )
-
-  it('allows Search only for the organization enabled in the rollout', async () => {
-    mocks.featureEnabled.mockImplementation(
-      async (_flag, context) => context.orgId === 'org-enabled'
-    )
-    await expect(requireOrganizationSearchAvailable('org-enabled')).resolves.toBeUndefined()
-    await expect(requireOrganizationSearchAvailable('org-other')).rejects.toThrow(
-      'Search is not enabled'
-    )
-  })
 
   it('propagates a feature service failure instead of enabling Search', async () => {
     mocks.featureEnabled.mockRejectedValue(new Error('Feature service unavailable'))

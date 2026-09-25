@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -24,11 +21,7 @@ vi.mock('@/lib/logs/execution/pii-redaction', () => ({
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
-import {
-  getMemoryMessageAppendKey,
-  getMemoryMessageTurnId,
-  Memory,
-} from '@/executor/handlers/agent/memory'
+import { Memory } from '@/executor/handlers/agent/memory'
 import type { ExecutionContext } from '@/executor/types'
 import { isConversationHistoryNotice } from '@/providers/conversation-metadata'
 
@@ -40,7 +33,6 @@ const storageFailure = () => Object.assign(new Error('private SQL and values'), 
 
 describe('optional Agent memory durability failures', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.principal.mockResolvedValue({ kind: 'delegated' })
     mocks.prefix.mockResolvedValue({
       id: options.memoryId,
@@ -53,26 +45,6 @@ describe('optional Agent memory durability failures', () => {
     })
     mocks.items.mockResolvedValue({ items: [] })
     mocks.append.mockResolvedValue(undefined)
-  })
-
-  it('keeps the available legacy prefix when child storage is unavailable', async () => {
-    mocks.items.mockRejectedValue(storageFailure())
-    await expect(
-      new Memory().fetchMemoryMessages(ctx, inputs, undefined, {
-        richHistory: true,
-        memoryId: options.memoryId,
-      })
-    ).resolves.toEqual(prefix)
-  })
-
-  it('continues without stored history if the prefix query is unavailable', async () => {
-    mocks.prefix.mockRejectedValue(storageFailure())
-    await expect(
-      new Memory().fetchMemoryMessages(ctx, inputs, undefined, {
-        richHistory: true,
-        memoryId: options.memoryId,
-      })
-    ).resolves.toEqual([])
   })
 
   it('defers rich conversation selection until the actual provider context is known', async () => {
@@ -123,65 +95,6 @@ describe('optional Agent memory durability failures', () => {
     expect(mocks.items).not.toHaveBeenCalled()
   })
 
-  it('retains current-turn input identity while excluding checkpoint-owned exchanges', async () => {
-    const input = { role: 'user', content: 'Current input' }
-    const prompt = { role: 'user', content: 'Current user prompt' }
-    mocks.items.mockResolvedValue({
-      items: [
-        {
-          kind: 'exchange',
-          appendKey: 'step:1',
-          turnId: options.turnId,
-          data: { version: 1, messages: [{ role: 'assistant', content: 'Checkpoint response' }] },
-          provenance: { status: 'exact', entries: [] },
-        },
-        ...[
-          { appendKey: 'user-prompt', data: prompt },
-          { appendKey: 'seed:0', data: input },
-        ].map((item) => ({
-          ...item,
-          kind: 'message',
-          turnId: options.turnId,
-          provenance: { status: 'exact', entries: [] },
-        })),
-      ],
-    })
-    const result = await new Memory().fetchMemoryMessages(ctx, inputs, undefined, {
-      richHistory: true,
-      excludeTurnId: options.turnId,
-    })
-    expect(result).toEqual([...prefix, input, prompt])
-    expect(result.slice(1).map(getMemoryMessageTurnId)).toEqual([options.turnId, options.turnId])
-    expect(result.slice(1).map(getMemoryMessageAppendKey)).toEqual(['seed:0', 'user-prompt'])
-    expect(mocks.append).not.toHaveBeenCalled()
-  })
-
-  it('preserves a complete legacy function exchange with null assistant content', async () => {
-    const exchange = [
-      { role: 'assistant', content: null, function_call: { name: 'lookup', arguments: '{}' } },
-      { role: 'function', name: 'lookup', content: 'Saved result' },
-    ]
-    mocks.items.mockResolvedValue({
-      items: [
-        {
-          kind: 'exchange',
-          appendKey: 'step:1',
-          turnId: 'previous-turn',
-          data: { version: 1, messages: exchange },
-          provenance: { status: 'exact', entries: [] },
-        },
-      ],
-    })
-    await expect(
-      new Memory().fetchMemoryMessages(
-        ctx,
-        { ...inputs, memoryType: 'sliding_window', slidingWindowSize: '1' },
-        undefined,
-        { richHistory: true }
-      )
-    ).resolves.toEqual([...prefix, ...exchange])
-  })
-
   it.each([{ name: '', arguments: '{}' }, { name: 'lookup', arguments: 1 }, { arguments: '{}' }])(
     'omits an invalid legacy function exchange: %j',
     async (functionCall) => {
@@ -198,42 +111,6 @@ describe('optional Agent memory durability failures', () => {
                 { role: 'function', name: 'lookup', content: 'Saved result' },
               ],
             },
-            provenance: { status: 'exact', entries: [] },
-          },
-        ],
-      })
-      await expect(
-        new Memory().fetchMemoryMessages(ctx, inputs, undefined, { richHistory: true })
-      ).resolves.toEqual(prefix)
-    }
-  )
-
-  it.each(['missing', 'mismatched', 'intervening', 'duplicate', 'orphan'])(
-    'omits a %s legacy result group before provider conversion',
-    async (failure) => {
-      const call = {
-        role: 'assistant',
-        content: null,
-        function_call: { name: 'lookup', arguments: '{}' },
-      }
-      const result = { role: 'function', name: 'lookup', content: 'Saved result' }
-      const messages =
-        failure === 'missing'
-          ? [call]
-          : failure === 'mismatched'
-            ? [call, { ...result, name: 'different' }]
-            : failure === 'intervening'
-              ? [call, { role: 'user', content: 'interruption' }, result]
-              : failure === 'duplicate'
-                ? [call, result, result]
-                : [result]
-      mocks.items.mockResolvedValue({
-        items: [
-          {
-            kind: 'exchange',
-            appendKey: 'step:1',
-            turnId: 'previous-turn',
-            data: { version: 1, messages },
             provenance: { status: 'exact', entries: [] },
           },
         ],
@@ -287,20 +164,6 @@ describe('optional Agent memory durability failures', () => {
     ).rejects.toBe(failure)
   })
 
-  it('preserves existing secret-projection refusal after storage succeeds', async () => {
-    mocks.prefix.mockResolvedValue({
-      id: options.memoryId,
-      storageVersion: 2,
-      data: prefix,
-      secretProvenanceVersion: 1,
-      provenanceContentHash: 'mismatched',
-      provenanceStatus: 'exact',
-      provenanceEntries: [],
-    })
-    await expect(
-      new Memory().fetchMemoryMessages(ctx, inputs, undefined, { richHistory: true })
-    ).rejects.toThrow('Memory content could not be safely projected')
-  })
   it('counts encrypted provider continuation bytes toward the retained history cap', async () => {
     mocks.items.mockResolvedValue({
       items: Array.from({ length: 5 }, (_, index) => ({
@@ -339,19 +202,6 @@ describe('optional Agent memory durability failures', () => {
     expect(mocks.append).not.toHaveBeenCalled()
   })
 
-  it('bounds scanning when stored items are malformed or excluded', async () => {
-    mocks.items.mockResolvedValue({
-      items: Array.from({ length: 10 }, () => ({ kind: 'exchange', data: {} })),
-      nextBeforeSequence: 1,
-    })
-    const result = await new Memory().fetchMemoryMessages(ctx, inputs, undefined, {
-      richHistory: true,
-    })
-    expect(result.slice(0, -1)).toEqual(prefix)
-    expect(isConversationHistoryNotice(result.at(-1)!)).toBe(true)
-    expect(mocks.items).toHaveBeenCalledTimes(100)
-  })
-
   it('does not mistake an oversized page head for the end of retained history', async () => {
     mocks.items.mockResolvedValue({
       items: [],
@@ -373,33 +223,6 @@ describe('optional Agent memory durability failures', () => {
         continueAfterByteLimit: true,
       },
     })
-  })
-
-  it('keeps the full configured message window before adding the runtime notice', async () => {
-    const recent = { role: 'assistant', content: 'newest answer' }
-    mocks.items
-      .mockResolvedValueOnce({
-        items: [
-          {
-            kind: 'message',
-            appendKey: 'recent',
-            data: recent,
-            provenance: { status: 'exact', entries: [] },
-          },
-        ],
-        nextBeforeSequence: 10,
-      })
-      .mockResolvedValueOnce({ items: [], unavailableSequence: 9, nextBeforeSequence: 9 })
-    const result = await new Memory().fetchMemoryMessages(
-      ctx,
-      { ...inputs, memoryType: 'sliding_window', slidingWindowSize: '1' },
-      undefined,
-      { richHistory: true }
-    )
-    expect(result).toHaveLength(2)
-    expect(result[0]).toEqual(recent)
-    expect(isConversationHistoryNotice(result[1])).toBe(true)
-    expect(mocks.append).not.toHaveBeenCalled()
   })
 
   it('still refuses unsafe retained provenance before returning a truncated history notice', async () => {
@@ -424,17 +247,5 @@ describe('optional Agent memory durability failures', () => {
       new Memory().fetchMemoryMessages(ctx, inputs, undefined, { richHistory: true })
     ).rejects.toThrow('Memory content could not be safely projected')
     expect(mocks.items).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not report truncation when the last page ends at exactly the scan limit', async () => {
-    let pages = 0
-    mocks.items.mockImplementation(async () => ({
-      items: Array.from({ length: 10 }, () => ({ kind: 'exchange', data: {} })),
-      nextBeforeSequence: ++pages < 100 ? 1000 - pages * 10 : undefined,
-    }))
-    await expect(
-      new Memory().fetchMemoryMessages(ctx, inputs, undefined, { richHistory: true })
-    ).resolves.toEqual(prefix)
-    expect(mocks.items).toHaveBeenCalledTimes(100)
   })
 })

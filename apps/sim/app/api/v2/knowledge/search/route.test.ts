@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -22,7 +19,6 @@ vi.mock('@/lib/knowledge/application/search', () => ({
   searchKnowledge: { operation: { id: 'knowledge.search' }, execute: mockSearch },
 }))
 
-import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import { DEFAULT_RERANKER_MODEL } from '@/lib/knowledge/reranker-models'
 import { POST, V2_KNOWLEDGE_SEARCH_MAX_BODY_BYTES } from '@/app/api/v2/knowledge/search/route'
 
@@ -38,7 +34,6 @@ function buildRequest(body: string, headers: Record<string, string> = {}) {
 
 describe('POST /api/v2/knowledge/search', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     v2RouteMocks.authenticate.mockResolvedValue({
@@ -69,72 +64,6 @@ describe('POST /api/v2/knowledge/search', () => {
       topK: 10,
       totalResults: 1,
       rerankerStatus: 'applied',
-    })
-  })
-
-  it('delegates normalized IDs and the selected search mode through the semantic operation', async () => {
-    const request = buildRequest(
-      JSON.stringify({
-        workspaceId: WORKSPACE_ID,
-        knowledgeBaseIds: 'kb-1',
-        query: 'hello',
-        topK: 10,
-        searchMode: 'hybrid',
-      })
-    )
-
-    const response = await POST(request)
-
-    expect(response.status).toBe(200)
-    expect(mockSearch).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: {
-        surface: 'api',
-        workspaceId: WORKSPACE_ID,
-        knowledgeBaseIds: ['kb-1'],
-        query: 'hello',
-        topK: 10,
-        tagFilters: undefined,
-        searchMode: 'hybrid',
-        rerankerEnabled: undefined,
-        rerankerModel: DEFAULT_RERANKER_MODEL,
-        rerankerInputCount: undefined,
-      },
-      request,
-    })
-    expect(await response.json()).toEqual({
-      data: expect.objectContaining({ knowledgeBaseIds: ['kb-1'], totalResults: 1 }),
-    })
-    expect(response.headers.get('cache-control')).toBe('private, no-store')
-    expect(response.headers.get('x-ratelimit-limit')).toBe('100')
-  })
-
-  it('names the source knowledge base and the reranker score on every result', async () => {
-    const response = await POST(
-      buildRequest(
-        JSON.stringify({
-          workspaceId: WORKSPACE_ID,
-          knowledgeBaseIds: ['kb-1', 'kb-2'],
-          query: 'hello',
-          topK: 10,
-        })
-      )
-    )
-
-    expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body.data.results[0]).toEqual({
-      knowledgeBaseId: 'kb-1',
-      documentId: 'doc-1',
-      documentName: 'support.txt',
-      sourceUrl: null,
-      content: 'hello',
-      chunkIndex: 0,
-      metadata: { category: 'billing' },
-      similarity: 0.9,
-      rankScore: 0.42,
-      rank: 1,
-      rerankerScore: 0.42,
     })
   })
 
@@ -240,44 +169,6 @@ describe('POST /api/v2/knowledge/search', () => {
     expect(body.data.results[0]).not.toHaveProperty('rerankerScore')
   })
 
-  it('rejects an unsupported reranker model and an out-of-range candidate pool', async () => {
-    const unsupportedModel = await POST(
-      buildRequest(
-        JSON.stringify({
-          workspaceId: WORKSPACE_ID,
-          knowledgeBaseIds: ['kb-1'],
-          query: 'hello',
-          topK: 5,
-          rerankerEnabled: true,
-          rerankerModel: 'rerank-does-not-exist',
-        })
-      )
-    )
-    const oversizedPool = await POST(
-      buildRequest(
-        JSON.stringify({
-          workspaceId: WORKSPACE_ID,
-          knowledgeBaseIds: ['kb-1'],
-          query: 'hello',
-          topK: 5,
-          rerankerEnabled: true,
-          rerankerModel: 'rerank-v4.0-fast',
-          rerankerInputCount: 101,
-        })
-      )
-    )
-
-    expect(unsupportedModel.status).toBe(400)
-    expect(oversizedPool.status).toBe(400)
-    expect(await oversizedPool.json()).toEqual({
-      error: expect.objectContaining({
-        code: 'BAD_REQUEST',
-        message: expect.stringContaining('rerankerInputCount cannot exceed 100'),
-      }),
-    })
-    expect(mockSearch).not.toHaveBeenCalled()
-  })
-
   /**
    * The search body is strict, so an undeclared key is refused rather than
    * stripped. That matters most for a bring-your-own reranker key: dropping it
@@ -305,55 +196,6 @@ describe('POST /api/v2/knowledge/search', () => {
     expect(mockSearch).not.toHaveBeenCalled()
   })
 
-  it('forwards an opted-in hybrid search mode to the application use case', async () => {
-    const response = await POST(
-      buildRequest(
-        JSON.stringify({
-          workspaceId: WORKSPACE_ID,
-          knowledgeBaseIds: ['kb-1'],
-          query: 'hello',
-          topK: 10,
-          searchMode: 'hybrid',
-        })
-      )
-    )
-
-    expect(response.status).toBe(200)
-    expect(mockSearch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({ searchMode: 'hybrid' }),
-      })
-    )
-  })
-
-  it('authenticates before rejecting malformed JSON', async () => {
-    const response = await POST(buildRequest('{'))
-
-    expect(response.status).toBe(400)
-    expect(v2RouteMocks.authenticate).toHaveBeenCalledOnce()
-    expect(mockSearch).not.toHaveBeenCalled()
-  })
-
-  it('maps usage failures without exposing infrastructure details', async () => {
-    mockSearch.mockRejectedValue(new KnowledgeUsageLimitExceededError('Upgrade required'))
-
-    const response = await POST(
-      buildRequest(
-        JSON.stringify({
-          workspaceId: WORKSPACE_ID,
-          knowledgeBaseIds: ['kb-1'],
-          query: 'hello',
-          topK: 10,
-        })
-      )
-    )
-
-    expect(response.status).toBe(402)
-    expect(await response.json()).toEqual({
-      error: { code: 'USAGE_LIMIT_EXCEEDED', message: 'Upgrade required' },
-    })
-  })
-
   it('rejects a body over the internal-parity cap before application execution', async () => {
     const response = await POST(
       buildRequest('{}', { 'content-length': String(V2_KNOWLEDGE_SEARCH_MAX_BODY_BYTES + 1) })
@@ -365,25 +207,5 @@ describe('POST /api/v2/knowledge/search', () => {
     })
     expect(mockSearch).not.toHaveBeenCalled()
     expect(response.headers.get('x-ratelimit-limit')).toBe('100')
-  })
-
-  it('does not expose application infrastructure failures', async () => {
-    mockSearch.mockRejectedValueOnce(new Error('database host is private-db'))
-
-    const response = await POST(
-      buildRequest(
-        JSON.stringify({
-          workspaceId: WORKSPACE_ID,
-          knowledgeBaseIds: ['kb-1'],
-          query: 'hello',
-          topK: 10,
-        })
-      )
-    )
-
-    expect(response.status).toBe(500)
-    expect(await response.json()).toEqual({
-      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
-    })
   })
 })

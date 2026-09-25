@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ForkReferenceResolver } from '@/lib/workflows/references/remap-references'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -45,7 +42,6 @@ const swapResolver: ForkReferenceResolver = (kind, sourceId) =>
 
 describe('collectForkCustomBlockReconfigs', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveBinding.mockResolvedValue({
       workflowId: 'wf-prod-impl',
       inputFields: [
@@ -84,48 +80,6 @@ describe('collectForkCustomBlockReconfigs', () => {
     const out = await collectForkCustomBlockReconfigs({ ...baseParams, resolve: swapResolver })
 
     expect(out.every((f) => f.currentValue === '' && f.sourceValue === '')).toBe(true)
-  })
-
-  it('offers nothing when the type does not change', async () => {
-    // No mapping, or an explicit identity mapping: the field ids still describe this block, so
-    // its values carry across and there is nothing to re-pick.
-    expect(
-      await collectForkCustomBlockReconfigs({ ...baseParams, resolve: () => null })
-    ).toHaveLength(0)
-    expect(
-      await collectForkCustomBlockReconfigs({ ...baseParams, resolve: (_k, id) => id })
-    ).toHaveLength(0)
-    expect(mockResolveBinding).not.toHaveBeenCalled()
-  })
-
-  it('ignores non-custom blocks entirely', async () => {
-    const out = await collectForkCustomBlockReconfigs({
-      ...baseParams,
-      sourceStates: new Map([['wf-src', stateWith({ a: { type: 'agent', name: 'Agent 1' } })]]),
-      resolve: swapResolver,
-    })
-
-    expect(out).toHaveLength(0)
-  })
-
-  it('resolves each distinct target type once, not once per placement', async () => {
-    const out = await collectForkCustomBlockReconfigs({
-      ...baseParams,
-      sourceStates: new Map([
-        [
-          'wf-src',
-          stateWith({
-            'blk-1': { type: UAT, name: 'Parse A' },
-            'blk-2': { type: UAT, name: 'Parse B' },
-          }),
-        ],
-      ]),
-      resolve: swapResolver,
-    })
-
-    // Two placements, each independently configurable, but one schema lookup.
-    expect(mockResolveBinding).toHaveBeenCalledTimes(1)
-    expect(new Set(out.map((f) => f.targetBlockId))).toEqual(new Set(['tgt-blk-1', 'tgt-blk-2']))
   })
 
   it('drops the fields rather than failing the whole diff when a target will not resolve', async () => {

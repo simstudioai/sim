@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it, vi } from 'vitest'
 
 const { getLatestSeq, getOldestSeq, readEvents } = vi.hoisted(() => ({

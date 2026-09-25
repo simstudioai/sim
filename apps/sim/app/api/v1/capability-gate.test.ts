@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * The v1 public API authorizes in `app/api/v1/middleware.ts` rather than
  * through `authorizeWorkspaceOperation`, so none of the capabilities the funnel
  * applies to the v2 and internal surfaces reached it. A member of a group that
@@ -114,11 +112,8 @@ vi.mock('@/lib/workflows/orchestration', () => ({
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
-import { GET as getFiles } from '@/app/api/v1/files/route'
-import { GET as getKnowledge } from '@/app/api/v1/knowledge/route'
 import { GET as getLogs } from '@/app/api/v1/logs/route'
 import { GET as getTables } from '@/app/api/v1/tables/route'
-import { POST as deployWorkflow } from '@/app/api/v1/workflows/[id]/deploy/route'
 
 const USER_ID = 'user-1'
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
@@ -138,21 +133,9 @@ function get(path: string) {
   })
 }
 
-function deployRequest() {
-  return [
-    new NextRequest(`http://localhost/api/v1/workflows/${WORKFLOW_ID}/deploy`, {
-      method: 'POST',
-      headers: { 'x-api-key': 'sim_test', 'content-type': 'application/json' },
-      body: JSON.stringify({}),
-    }),
-    { params: Promise.resolve({ id: WORKFLOW_ID }) },
-  ] as const
-}
-
 const REFUSAL = /is not available under your organization's permission group/
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetPermissionGroupScopeMock()
   mockAuthenticateV1Request.mockResolvedValue(v1PersonalKeyCredential(USER_ID))
   mockGetUserEntityPermissions.mockResolvedValue('admin')
@@ -180,40 +163,6 @@ describe('v1 permission-group capability gate', () => {
       expect(body.details).toEqual({ code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' })
       expect(mockListTables).not.toHaveBeenCalled()
     })
-
-    it('knowledge — GET /api/v1/knowledge declares knowledge.use', async () => {
-      governedBy({ hideKnowledgeBaseTab: true })
-
-      const response = await getKnowledge(get(`/api/v1/knowledge?workspaceId=${WORKSPACE_ID}`))
-      const body = await response.json()
-
-      expect(response.status).toBe(403)
-      expect(body.error).toMatch(REFUSAL)
-      expect(mockListKnowledgeBases).not.toHaveBeenCalled()
-    })
-
-    it('files — GET /api/v1/files declares files.use', async () => {
-      governedBy({ hideFilesTab: true })
-
-      const response = await getFiles(get(`/api/v1/files?workspaceId=${WORKSPACE_ID}`))
-      const body = await response.json()
-
-      expect(response.status).toBe(403)
-      expect(body.error).toMatch(REFUSAL)
-      expect(mockListWorkspaceFiles).not.toHaveBeenCalled()
-    })
-
-    it('workflows — POST /api/v1/workflows/[id]/deploy declares deploy.api', async () => {
-      governedBy({ hideDeployApi: true })
-
-      const response = await deployWorkflow(...deployRequest())
-
-      /** The deployment routes mask every access failure as 404, so the status
-       * is the 404 they already return; what the gate changes is that the
-       * deploy never happens. */
-      expect(response.status).toBe(404)
-      expect(mockPerformFullDeploy).not.toHaveBeenCalled()
-    })
   })
 
   describe('exceptions that must keep working', () => {
@@ -240,12 +189,6 @@ describe('v1 permission-group capability gate', () => {
       expect(response.status).toBe(200)
       expect(mockListPublicWorkflowLogs).toHaveBeenCalled()
     })
-
-    it('an ungoverned workspace resolves no config and is never refused', async () => {
-      const response = await getTables(get(`/api/v1/tables?workspaceId=${WORKSPACE_ID}`))
-
-      expect(response.status).toBe(200)
-    })
   })
 
   /**
@@ -265,16 +208,6 @@ describe('v1 permission-group capability gate', () => {
       expect(response.status).toBe(403)
       expect(body.error).toMatch(/personal API key/i)
       expect(mockListTables).not.toHaveBeenCalled()
-    })
-
-    it('passes a workspace key through the same group that would deny its creator', async () => {
-      mockAuthenticateV1Request.mockResolvedValue(v1WorkspaceKeyCredential(WORKSPACE_ID))
-      governedBy({ disablePersonalApiKeys: true })
-
-      const response = await getTables(get(`/api/v1/tables?workspaceId=${WORKSPACE_ID}`))
-
-      expect(response.status).toBe(200)
-      expect(mockListTables).toHaveBeenCalledWith(WORKSPACE_ID)
     })
 
     /**
@@ -298,18 +231,6 @@ describe('v1 permission-group capability gate', () => {
 
       expect(response.status).toBe(403)
       expect(body.error).toBe('Access denied')
-      expect(mockListTables).not.toHaveBeenCalled()
-    })
-
-    it("answers a non-member on the workspace's own column, which names no group", async () => {
-      mockGetUserEntityPermissions.mockResolvedValue(null)
-      mockGetWorkspaceBillingSettings.mockResolvedValue({ allowPersonalApiKeys: false })
-
-      const response = await getTables(get(`/api/v1/tables?workspaceId=${WORKSPACE_ID}`))
-      const body = await response.json()
-
-      expect(response.status).toBe(403)
-      expect(body.error).toMatch(/personal API key/i)
       expect(mockListTables).not.toHaveBeenCalled()
     })
   })

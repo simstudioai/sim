@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { slackCanvasTool } from '@/tools/slack/canvas'
 import { slackCreateChannelCanvasTool } from '@/tools/slack/create_channel_canvas'

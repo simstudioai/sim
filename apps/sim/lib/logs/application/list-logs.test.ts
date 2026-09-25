@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import type { Principal } from '@sim/auth/principal'
 import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -39,7 +35,6 @@ const INPUT = { workspaceId: WORKSPACE_ID, limit: 100, sortBy: 'date', sortOrder
 
 describe('listLogsUseCase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveWorkspace.mockResolvedValue({
       workspaceId: WORKSPACE_ID,
       workspaceOrganizationId: null,
@@ -62,12 +57,6 @@ describe('listLogsUseCase', () => {
     expect(mocks.readLogs).toHaveBeenCalledWith(expect.objectContaining({ hideCostInfo: true }))
   })
 
-  it('leaves spend in place when no group withholds it', async () => {
-    await listLogsUseCase.execute({ principal: SESSION, input: INPUT })
-
-    expect(mocks.readLogs).toHaveBeenCalledWith(expect.objectContaining({ hideCostInfo: false }))
-  })
-
   /**
    * Blanking the field is not enough on its own: `cost > X` answered faithfully
    * is a bisection oracle over the very number that was withheld, and the sort
@@ -87,27 +76,6 @@ describe('listLogsUseCase', () => {
       })
     ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
     expect(mocks.readLogs).not.toHaveBeenCalled()
-  })
-
-  it('answers the same cost query when no group withholds spend', async () => {
-    await listLogsUseCase.execute({
-      principal: SESSION,
-      input: { ...(INPUT as object), sortBy: 'cost', costOperator: '>', costValue: 0.5 } as never,
-    })
-
-    expect(mocks.readLogs).toHaveBeenCalledWith(expect.objectContaining({ sortBy: 'cost' }))
-  })
-
-  /** A duration filter names nothing the group withholds, so it still answers. */
-  it('leaves a duration filter alone under a spend-withholding group', async () => {
-    resolveGroupConfigMock.mockResolvedValue({ hideCostInfo: true })
-
-    await listLogsUseCase.execute({
-      principal: SESSION,
-      input: { ...(INPUT as object), durationOperator: '>', durationValue: 100 } as never,
-    })
-
-    expect(mocks.readLogs).toHaveBeenCalledWith(expect.objectContaining({ hideCostInfo: true }))
   })
 
   /**

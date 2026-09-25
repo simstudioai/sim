@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -34,7 +31,6 @@ import { GET } from '@/app/api/auth/shopify/authorize/route'
 
 describe('Shopify authorize route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getSession.mockResolvedValue({ user: { id: 'user-1' } })
     mocks.requireConfiguredOAuthClient.mockReturnValue({
       values: {

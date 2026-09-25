@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   auditMock,
   dbChainMock,
@@ -102,7 +99,6 @@ async function execute() {
 
 describe('SSO JIT admission', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockEnsureUserInOrganizationTx.mockResolvedValue({
       success: true,

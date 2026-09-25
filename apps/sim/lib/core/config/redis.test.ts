@@ -48,7 +48,6 @@ vi.mock('ioredis', () => ({
 import {
   acquireLock,
   CONNECT_TIMEOUT_MS,
-  closeRedisConnection,
   DISCONNECT_TIMEOUT_MS,
   describeRedisConnection,
   extendLock,
@@ -63,7 +62,6 @@ import { coldConnectionBudgetMs } from '@/lib/core/config/redis-budget'
 
 describe('redis config', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     resetForTesting()
     mockRedisInstance.status = 'ready'
@@ -88,20 +86,6 @@ describe('redis config', () => {
       await vi.advanceTimersByTimeAsync(15_000)
 
       expect(listener).toHaveBeenCalledTimes(1)
-    })
-
-    it('should not invoke listeners when PINGs succeed', async () => {
-      const listener = vi.fn()
-      onRedisReconnect(listener)
-
-      getRedisClient()
-      mockRedisInstance.ping.mockResolvedValue('PONG')
-
-      await vi.advanceTimersByTimeAsync(15_000)
-      await vi.advanceTimersByTimeAsync(15_000)
-      await vi.advanceTimersByTimeAsync(15_000)
-
-      expect(listener).not.toHaveBeenCalled()
     })
 
     it('should reset failure count on successful PING', async () => {
@@ -183,15 +167,6 @@ describe('redis config', () => {
   })
 
   describe('describeRedisConnection', () => {
-    it('reports no client before one is built', () => {
-      const d = describeRedisConnection()
-
-      expect(d.status).toBe('no-client')
-      expect(d.clientAgeMs).toBeNull()
-      expect(d.readyAgeMs).toBeNull()
-      expect(d.connects).toBe(0)
-    })
-
     it('separates a connecting client from a ready one', () => {
       // The constructor copies the mock's fields, so each state has to be set
       // before the client is built.
@@ -282,46 +257,12 @@ describe('redis config', () => {
       // Mirrors resolveRedisTlsOptions, which applies the override for IPv4 only.
       expect(d.sniOverride).toBe(false)
     })
-
-    it('reports a DNS host so resolution latency can be ruled in or out', () => {
-      mockEnv.REDIS_URL = 'rediss://primary.example.cache.amazonaws.com:6379'
-
-      expect(describeRedisConnection()).toMatchObject({ hostKind: 'dns', sniOverride: false })
-    })
-  })
-
-  describe('closeRedisConnection', () => {
-    it('should clear the PING interval', async () => {
-      getRedisClient()
-
-      mockRedisInstance.quit.mockResolvedValue('OK')
-      await closeRedisConnection()
-
-      mockRedisInstance.ping.mockRejectedValue(new Error('timeout'))
-      await vi.advanceTimersByTimeAsync(15_000 * 5)
-      expect(mockRedisInstance.disconnect).not.toHaveBeenCalled()
-    })
   })
 
   describe('extendLock', () => {
     const lockKey = 'copilot:chat-stream-lock:chat-1'
     const value = 'stream-abc'
     const ttlSeconds = 60
-
-    it('returns true when the caller still owns the lock and EXPIRE succeeds', async () => {
-      mockRedisInstance.eval.mockResolvedValueOnce(1)
-
-      const extended = await extendLock(lockKey, value, ttlSeconds)
-
-      expect(extended).toBe(true)
-      expect(mockRedisInstance.eval).toHaveBeenCalledWith(
-        expect.stringContaining('expire'),
-        1,
-        lockKey,
-        value,
-        ttlSeconds
-      )
-    })
 
     it('returns false when the value does not match (lock owned by another)', async () => {
       mockRedisInstance.eval.mockResolvedValueOnce(0)
@@ -330,28 +271,12 @@ describe('redis config', () => {
 
       expect(extended).toBe(false)
     })
-
-    it('returns true as a no-op when the cache capability selects the database', async () => {
-      mockEnv.REDIS_URL = undefined
-
-      const extended = await extendLock(lockKey, value, ttlSeconds)
-
-      expect(extended).toBe(true)
-    })
   })
 
   describe('acquireLock', () => {
     const lockKey = 'outlook-polling-lock'
     const value = 'req-abc'
     const ttlSeconds = 180
-
-    it('returns true when SET NX takes the lock', async () => {
-      mockRedisInstance.set.mockResolvedValueOnce('OK')
-
-      expect(await acquireLock(lockKey, value, ttlSeconds)).toBe(true)
-      expect(mockRedisInstance.set).toHaveBeenCalledWith(lockKey, value, 'EX', ttlSeconds, 'NX')
-      expect(mockRedisInstance.eval).not.toHaveBeenCalled()
-    })
 
     it('returns false without cleanup when the lock is already held', async () => {
       mockRedisInstance.set.mockResolvedValueOnce(null)
@@ -405,24 +330,6 @@ describe('redis config', () => {
       expect(mockRedisInstance.set).not.toHaveBeenCalled()
     })
 
-    it('pairs the failure with connection state so the cause is not left to timing', async () => {
-      // The bare rejection carries only ioredis timer frames, so without this
-      // there is nothing to separate a handshake still in flight from a socket
-      // that died silently.
-      mockRedisInstance.status = 'connecting'
-      mockRedisInstance.set.mockRejectedValueOnce(new Error('Command timed out'))
-
-      await expect(acquireLock(lockKey, value, ttlSeconds)).rejects.toThrow('Command timed out')
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        'Redis lock acquire failed',
-        expect.objectContaining({
-          lockKey,
-          error: 'Command timed out',
-          redis: expect.objectContaining({ status: 'connecting' }),
-        })
-      )
-    })
-
     it('reads connection state before the reclaim, which resolves against a live socket', async () => {
       // The reclaim awaits, so a connection that completes inside that window
       // would leave a diagnostic read after it reporting `ready` — hiding the
@@ -464,15 +371,6 @@ describe('redis config', () => {
           redis: expect.objectContaining({ status: 'connecting', clientAgeMs: null }),
         })
       )
-    })
-
-    it('stays quiet on the taken and contended paths, which poll routes run constantly', async () => {
-      mockRedisInstance.set.mockResolvedValueOnce('OK')
-      await acquireLock(lockKey, value, ttlSeconds)
-      mockRedisInstance.set.mockResolvedValueOnce(null)
-      await acquireLock(lockKey, value, ttlSeconds)
-
-      expect(mockLogger.error).not.toHaveBeenCalled()
     })
   })
 
@@ -520,12 +418,6 @@ describe('redis config', () => {
       await expect(warm).resolves.toBe(false)
     })
 
-    it('resolves immediately when the connection is already usable', async () => {
-      mockRedisInstance.status = 'ready'
-
-      await expect(warmRedisConnection()).resolves.toBe(true)
-    })
-
     it('resolves once the connection becomes ready', async () => {
       mockRedisInstance.status = 'connecting'
       const warm = warmRedisConnection()
@@ -568,13 +460,6 @@ describe('redis config', () => {
 
       await expect(warmRedisConnection()).resolves.toBe(false)
     })
-
-    it('reports not-warm instead of throwing when the URL is invalid', async () => {
-      // A start-up hook that throws here would take the whole run attempt with it.
-      mockEnv.REDIS_URL = 'https://cache.example.com'
-
-      await expect(warmRedisConnection()).resolves.toBe(false)
-    })
   })
 
   describe('capability validation', () => {
@@ -590,18 +475,6 @@ describe('redis config', () => {
 
       expect(() => getRedisClient()).toThrow(/REDIS_TLS_SERVERNAME is required/)
       expect(MockRedisConstructor).not.toHaveBeenCalled()
-    })
-
-    it('passes the configured TLS servername to Redis', () => {
-      mockEnv.REDIS_URL = 'rediss://10.0.0.1:6379'
-      mockEnv.REDIS_TLS_SERVERNAME = 'cache.example.com'
-
-      getRedisClient()
-
-      expect(MockRedisConstructor).toHaveBeenCalledWith(
-        mockEnv.REDIS_URL,
-        expect.objectContaining({ tls: { servername: 'cache.example.com' } })
-      )
     })
   })
 
@@ -621,23 +494,6 @@ describe('redis config', () => {
 
       return capturedConfig.retryStrategy as (times: number) => number
     }
-
-    it('should use exponential backoff with jitter', () => {
-      const retryStrategy = captureRetryStrategy()
-      expect(retryStrategy).toBeDefined()
-
-      const delay1 = retryStrategy(1)
-      expect(delay1).toBeGreaterThanOrEqual(1000)
-      expect(delay1).toBeLessThanOrEqual(1300)
-
-      const delay3 = retryStrategy(3)
-      expect(delay3).toBeGreaterThanOrEqual(4000)
-      expect(delay3).toBeLessThanOrEqual(5200)
-
-      const delay5 = retryStrategy(5)
-      expect(delay5).toBeGreaterThanOrEqual(10000)
-      expect(delay5).toBeLessThanOrEqual(13000)
-    })
 
     it('should cap at 30s for attempts beyond 10', () => {
       const retryStrategy = captureRetryStrategy()

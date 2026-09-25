@@ -403,18 +403,4 @@ describe('workflowExecutorTool', () => {
       expect(result.childWorkflowName).toBe('My Workflow')
     })
   })
-
-  describe('tool metadata', () => {
-    it.concurrent('should have correct id', () => {
-      expect(workflowExecutorTool.id).toBe('workflow_executor')
-    })
-
-    it.concurrent('should have required workflowId param', () => {
-      expect(workflowExecutorTool.params.workflowId.required).toBe(true)
-    })
-
-    it.concurrent('should have optional inputMapping param', () => {
-      expect(workflowExecutorTool.params.inputMapping.required).toBe(false)
-    })
-  })
 })

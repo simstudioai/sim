@@ -4,8 +4,6 @@
  * The route is an adapter over `chat_deployments.list`, so the seams mocked here
  * are the canonical workflow/deployment reads and the workspace permission
  * resolver — not a route-local access helper.
- *
- * @vitest-environment node
  */
 import {
   authMockFns,
@@ -46,7 +44,6 @@ vi.mock('@/lib/chat-deployments/queries', () => ({
   listWorkspaceChatDeployments: vi.fn(),
 }))
 
-import { chatDeploymentOperations } from '@/lib/chat-deployments/application'
 import { GET } from '@/app/api/workflows/[id]/chat/status/route'
 
 const WORKFLOW_ID = 'workflow-1'
@@ -95,7 +92,6 @@ afterAll(() => {
 
 describe('workflow chat deployment status route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'member-1', name: 'Member', email: 'member@example.com' },
@@ -112,15 +108,6 @@ describe('workflow chat deployment status route', () => {
     queueTableRows(schemaMock.workflow, [
       { workflowId: WORKFLOW_ID, workflow: { id: WORKFLOW_ID }, workspaceId: WORKSPACE_ID },
     ])
-  })
-
-  it('returns 401 when there is no session', async () => {
-    authMockFns.mockGetSession.mockResolvedValue(null)
-
-    const response = await GET(request(), params)
-
-    expect(response.status).toBe(401)
-    expect(mocks.getLiveChatDeploymentForWorkflow).not.toHaveBeenCalled()
   })
 
   /**
@@ -154,35 +141,5 @@ describe('workflow chat deployment status route', () => {
 
     expect(response.status).toBe(404)
     expect(await response.json()).toMatchObject({ error: 'Chat not found or access denied' })
-  })
-
-  it('reports an inactive deployment as not deployed while still naming it', async () => {
-    mocks.getLiveChatDeploymentForWorkflow.mockResolvedValue(chatRow({ isActive: false }))
-
-    const body = await (await GET(request(), params)).json()
-
-    expect(body).toEqual({
-      isDeployed: false,
-      deployment: { id: CHAT_ID, identifier: 'victim-support' },
-    })
-  })
-
-  it('reports a workflow with no chat as not deployed', async () => {
-    mocks.getLiveChatDeploymentForWorkflow.mockResolvedValue(null)
-
-    const body = await (await GET(request(), params)).json()
-
-    expect(body).toEqual({ isDeployed: false, deployment: null })
-  })
-
-  /**
-   * The projection above is only safe because the fields it omits stay behind
-   * an admin operation. If `chat_deployments.read` were ever relaxed, this
-   * route would no longer be the narrower of the two.
-   */
-  it('keeps the detail read admin-gated and discovery capability-gated', () => {
-    expect(chatDeploymentOperations.read.minimumRole).toBe('admin')
-    expect(chatDeploymentOperations.list.minimumRole).toBe('read')
-    expect(chatDeploymentOperations.list.capability).toBe('deploy.chat')
   })
 })

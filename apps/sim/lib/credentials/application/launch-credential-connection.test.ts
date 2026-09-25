@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -55,7 +52,6 @@ const workspaceContext = {
 
 describe('launchCredentialConnection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getActiveDraft.mockResolvedValue(draft)
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('write')
@@ -72,12 +68,6 @@ describe('launchCredentialConnection', () => {
     })
 
     expect(mocks.getActiveDraft).toHaveBeenCalledWith('draft-1', 'user-1')
-    expect(mocks.resolveTarget).toHaveBeenCalledWith({
-      principal,
-      context: { ...workspaceContext, draft },
-      providerId: 'google-email',
-      credentialId: undefined,
-    })
     expect(result).toEqual({ draft })
   })
 

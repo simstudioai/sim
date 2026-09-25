@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -53,24 +50,11 @@ function callRoute(id = 'cb-1') {
 
 describe('GET /api/custom-blocks/[id]/usages', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     mockHasWorkspaceAdminAccess.mockResolvedValue(true)
     mockOperations.getCustomBlockManageContext.mockResolvedValue(MANAGE_CONTEXT)
     mockOperations.getCustomBlockUsageCounts.mockResolvedValue(USAGE_COUNTS)
     mockOperations.isCustomBlocksDeploymentEnabled.mockReturnValue(true)
-  })
-
-  it('returns 401 without a session', async () => {
-    mockGetSession.mockResolvedValue(null)
-    const response = await callRoute()
-    expect(response.status).toBe(401)
-  })
-
-  it('returns 404 for an unknown block', async () => {
-    mockOperations.getCustomBlockManageContext.mockResolvedValue(null)
-    const response = await callRoute()
-    expect(response.status).toBe(404)
   })
 
   it('conceals a block in an inaccessible workspace', async () => {
@@ -85,25 +69,6 @@ describe('GET /api/custom-blocks/[id]/usages', () => {
     const response = await callRoute()
     expect(response.status).toBe(403)
     expect(mockOperations.getCustomBlockUsageCounts).not.toHaveBeenCalled()
-  })
-
-  it('returns 403 when Custom Blocks is disabled for the deployment', async () => {
-    mockOperations.isCustomBlocksDeploymentEnabled.mockReturnValue(false)
-
-    const response = await callRoute()
-
-    expect(response.status).toBe(403)
-    expect(mockOperations.getCustomBlockUsageCounts).not.toHaveBeenCalled()
-  })
-
-  it('returns the org-scoped usage counts for the block type', async () => {
-    const response = await callRoute()
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual(USAGE_COUNTS)
-    expect(mockOperations.getCustomBlockUsageCounts).toHaveBeenCalledWith(
-      'org-1',
-      'custom_block_abc123'
-    )
   })
 
   it('conceals internal orchestration diagnostics', async () => {

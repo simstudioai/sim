@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, expect, it, vi } from 'vitest'
 
 const config = vi.hoisted(() => {
@@ -17,7 +16,6 @@ vi.mock('@/lib/core/config/appconfig', () => ({ fetchAppConfigProfile: config.fe
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 
 beforeEach(() => {
-  vi.clearAllMocks()
   config.document = {}
   config.fetch.mockImplementation((_ids, parse) => Promise.resolve(parse(config.document)))
 })

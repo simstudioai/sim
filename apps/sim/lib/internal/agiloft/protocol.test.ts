@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Every fixture below is quoted from Agiloft's own REST documentation so the
  * parser is pinned to the published response format rather than to a shape we
  * assumed.

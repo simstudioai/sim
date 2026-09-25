@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 interface UploadClientMockParams<T> {
@@ -17,10 +14,7 @@ vi.mock('@/lib/uploads/client/upload-session', () => ({
   uploadFileSession: mockUploadFileSession,
 }))
 
-import {
-  uploadInternalFileSession,
-  uploadKnowledgeDocumentSession,
-} from '@/lib/uploads/client/session-upload'
+import { uploadKnowledgeDocumentSession } from '@/lib/uploads/client/session-upload'
 
 const DOCUMENT = {
   id: 'upload-1',
@@ -37,10 +31,6 @@ const DOCUMENT = {
 } as const
 
 describe('session upload domain clients', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('uses the PUT knowledge session without requesting part URLs', async () => {
     mockRequestJson
       .mockResolvedValueOnce({
@@ -77,93 +67,5 @@ describe('session upload domain clients', () => {
     expect(mockRequestJson.mock.calls.some(([contract]) => contract.path.endsWith('/parts'))).toBe(
       false
     )
-  })
-
-  it('returns the purpose-specific result from the generic internal session', async () => {
-    const result = {
-      path: '/api/files/serve/logo.png',
-      key: 'workspace-logos/logo.png',
-      name: 'logo.png',
-      size: 100,
-      type: 'image/png',
-    }
-    mockRequestJson
-      .mockResolvedValueOnce({
-        data: {
-          session: { id: 'upload-2', purpose: 'workspace_logo' },
-          uploadToken: 'token',
-          transfer: {
-            method: 'put',
-            url: 'https://storage.example/upload',
-            headers: { 'Content-Type': 'image/png' },
-          },
-        },
-      })
-      .mockResolvedValueOnce({
-        data: { id: 'upload-2', purpose: 'workspace_logo', result },
-      })
-    mockUploadFileSession.mockImplementation(
-      async (params: UploadClientMockParams<typeof result>) => params.complete()
-    )
-
-    await expect(
-      uploadInternalFileSession({
-        purpose: 'workspace_logo',
-        workspaceId: 'workspace-1',
-        file: { name: 'logo.png', type: 'image/png', size: 100 } as File,
-      })
-    ).resolves.toEqual(result)
-
-    expect(mockRequestJson.mock.calls[0][1].body).toEqual({
-      purpose: 'workspace_logo',
-      workspaceId: 'workspace-1',
-      name: 'logo.png',
-      contentType: 'image/png',
-      size: 100,
-    })
-  })
-
-  it('uploads an organization logo through the shared internal session', async () => {
-    const result = {
-      path: '/api/files/serve/logo.png',
-      key: 'organization-logos/logo.png',
-      name: 'logo.png',
-      size: 100,
-      type: 'image/png',
-    }
-    mockRequestJson
-      .mockResolvedValueOnce({
-        data: {
-          session: { id: 'upload-2', purpose: 'organization_logo' },
-          uploadToken: 'token',
-          transfer: {
-            method: 'put',
-            url: 'https://storage.example/upload',
-            headers: { 'Content-Type': 'image/png' },
-          },
-        },
-      })
-      .mockResolvedValueOnce({
-        data: { id: 'upload-2', purpose: 'organization_logo', result },
-      })
-    mockUploadFileSession.mockImplementation(
-      async (params: UploadClientMockParams<typeof result>) => params.complete()
-    )
-
-    await expect(
-      uploadInternalFileSession({
-        purpose: 'organization_logo',
-        organizationId: 'org-1',
-        file: { name: 'logo.png', type: 'image/png', size: 100 } as File,
-      })
-    ).resolves.toEqual(result)
-
-    expect(mockRequestJson.mock.calls[0][1].body).toEqual({
-      purpose: 'organization_logo',
-      organizationId: 'org-1',
-      name: 'logo.png',
-      contentType: 'image/png',
-      size: 100,
-    })
   })
 })

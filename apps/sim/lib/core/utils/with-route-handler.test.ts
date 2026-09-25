@@ -1,12 +1,13 @@
-/**
- * @vitest-environment node
- */
-
 import { loggerMock } from '@sim/testing'
 import { NextRequest, NextResponse } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+
+/** Captured at import time: Vitest clears mock call history before every test. */
+const routeHandlerLogger = vi.mocked(loggerMock.createLogger).mock.results[
+  vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'RouteHandler')
+]?.value
 
 class TestHttpError extends HttpError {
   constructor(
@@ -62,9 +63,6 @@ describe('withRouteHandler', () => {
   })
 
   it('classifies errors after a client disconnect without using the unhandled fallback', async () => {
-    const routeHandlerLogger = vi.mocked(loggerMock.createLogger).mock.results[
-      vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'RouteHandler')
-    ]?.value
     routeHandlerLogger?.info.mockClear()
     routeHandlerLogger?.error.mockClear()
 

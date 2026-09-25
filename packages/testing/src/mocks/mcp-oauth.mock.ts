@@ -37,7 +37,7 @@ export class McpOauthRedirectRequiredMock extends Error {
   }
 }
 
-export class McpOauthInsecureUrlErrorMock extends Error {
+class McpOauthInsecureUrlErrorMock extends Error {
   constructor(public readonly url: string) {
     super(`Insecure MCP OAuth server URL: ${url}`)
     this.name = 'McpOauthInsecureUrlErrorMock'

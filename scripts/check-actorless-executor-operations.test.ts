@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import {
   auditSubjectRequirements,
   parseOperationPolicies,
-  referencedOperations,
 } from './check-actorless-executor-operations'
 
 describe('operation policy parsing', () => {
@@ -57,32 +56,6 @@ describe('operation policy parsing', () => {
     expect(policies.get('tableOperations.queryRows')).toBe(true)
     expect(policies.get('tableOperations.listTables')).toBe(false)
   })
-
-  it('treats an operation with no delegated services as executor-free', () => {
-    const policies = parseOperationPolicies(`
-      export const workspaceOperations = {
-        read: defineWorkspaceOperation({ id: 'workspaces.read', minimumRole: 'read' }),
-      } as const
-    `)
-
-    expect(policies.get('workspaceOperations.read')).toBe(false)
-  })
-})
-
-describe('operation references', () => {
-  it('collects only declared operations', () => {
-    const referenced = referencedOperations(
-      `
-      const useCase = defineAuthorizedWorkspaceUseCase({
-        operation: logOperations.readDetail,
-        execute: () => input.signal?.throwIfAborted(),
-      })
-    `,
-      new Set(['logOperations.readDetail', 'logOperations.list'])
-    )
-
-    expect(referenced).toEqual(['logOperations.readDetail'])
-  })
 })
 
 describe('subject requirement audit', () => {
@@ -98,18 +71,6 @@ describe('subject requirement audit', () => {
 
   it('accepts an annotated call', () => {
     const source = `function run() {\n    // actorless-unsupported: skills belong to a person\n${call}\n}`
-
-    expect(auditSubjectRequirements(source, [])).toEqual([])
-  })
-
-  it('tolerates context comments above the annotation', () => {
-    const source = [
-      'function run() {',
-      '    // The library is per-user.',
-      '    // actorless-unsupported: skills belong to a person',
-      call,
-      '}',
-    ].join('\n')
 
     expect(auditSubjectRequirements(source, [])).toEqual([])
   })

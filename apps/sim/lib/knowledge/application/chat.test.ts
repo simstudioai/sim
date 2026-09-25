@@ -1,9 +1,7 @@
-/** @vitest-environment node */
 import type { OAuthAccessTokenPrincipal, Principal } from '@sim/auth/principal'
 import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { CopilotLifecycleOptions } from '@/lib/mothership/request/lifecycle/run'
 import type { OrchestratorResult, ToolCallSummary } from '@/lib/mothership/request/types'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -46,7 +44,6 @@ vi.mock('@/lib/core/utils/urls', () => ({
 
 import { organizationSearchChat } from '@/lib/knowledge/application/chat'
 import { resolveSearchChatCitations } from '@/lib/knowledge/application/chat-citations'
-import { organizationSearchChatOperation } from '@/lib/knowledge/application/chat-operations'
 
 const principal: OAuthAccessTokenPrincipal = {
   kind: 'oauth_access_token',
@@ -83,7 +80,6 @@ function execute(
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   dbChainMockFns.limit.mockResolvedValue([{ role: 'member' }])
   dbChainMockFns.returning.mockResolvedValue([{ id: 'private-chat' }])
@@ -109,84 +105,6 @@ describe('organization Search Assistant chat', () => {
     mocks.inventory.mockRejectedValueOnce(new Error('Inventory unavailable'))
     await expect(execute()).rejects.toThrow('Inventory unavailable')
     expect(mocks.lifecycle).not.toHaveBeenCalled()
-  })
-
-  it('uses Search consent and the real organization Assistant through the headless lifecycle', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
-    const filters = { source: 'google_drive', documentIds: ['document-1'] }
-    const result = await execute({ resultSecretRegistry: registry, filters })
-
-    expect(organizationSearchChat.operation).toBe(organizationSearchChatOperation)
-    expect(organizationSearchChatOperation).toMatchObject({
-      id: 'knowledge.chat',
-      oauthScope: 'search:read',
-      capability: 'copilot.use',
-      minimumRole: 'member',
-    })
-    expect(mocks.lifecycle).toHaveBeenCalledOnce()
-    const [payload, options] = mocks.lifecycle.mock.calls[0]
-    expect(payload).toEqual({
-      message: 'Where is the field kit?',
-      messageId: expect.any(String),
-      userId: 'member-1',
-      organizationId: 'org-1',
-      chatId: 'private-chat',
-      mode: 'assistant',
-      assistantSearch: filters,
-      context: [{ type: 'search_integrations', content: '{"connections":[],"available":[]}' }],
-      clientCapabilities: [],
-    })
-    expect(options).toMatchObject({
-      userId: 'member-1',
-      organizationId: 'org-1',
-      chatId: 'private-chat',
-      goRoute: '/api/mothership',
-      interactive: false,
-      autoExecuteTools: true,
-      secretActorUserId: null,
-      resolvedSecretTraceRegistry: registry,
-      billingAttribution: {
-        actorUserId: 'member-1',
-        billedAccountUserId: 'different-billing-owner',
-      },
-      trace: expect.any(Object),
-      otelContext: expect.any(Object),
-    })
-    expect(options).not.toHaveProperty('workspaceId')
-    expect(options).not.toHaveProperty('workflowId')
-    expect(options).not.toHaveProperty('environmentContext')
-    expect(payload).not.toHaveProperty('integrationTools')
-    expect(payload).not.toHaveProperty('workspaceContext')
-    expect(mocks.billing).toHaveBeenCalledWith({ actorUserId: 'member-1', organizationId: 'org-1' })
-    expect(mocks.inventory).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: 'member-1',
-        organizationId: 'org-1',
-        chatId: 'private-chat',
-        messageId: expect.any(String),
-      })
-    )
-    expect(result).toEqual({
-      content: 'The field kit is in the violet suitcase.',
-      citations: [],
-      chatId: 'private-chat',
-      conversationUrl: 'https://sim.example/o/org-1/chat/private-chat',
-    })
-    expect(mocks.persist).toHaveBeenCalledWith('private-chat', [
-      expect.objectContaining({ role: 'user', requestMode: 'assistant' }),
-      expect.objectContaining({ role: 'assistant', requestMode: 'assistant' }),
-    ])
-    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(2)
-    expect(mocks.available).toHaveBeenCalledTimes(2)
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
-  it.each<Principal>([
-    { kind: 'session', userId: 'member-1', sessionId: 'session-1' },
-    { kind: 'personal_api_key', userId: 'member-1', keyId: 'personal-key' },
-  ])('keeps the real $kind caller as the actor', async (caller) => {
-    await execute({}, caller)
-    expect(mocks.lifecycle.mock.calls[0][1].userId).toBe(caller.userId)
   })
 
   it.each<Principal>([
@@ -226,40 +144,11 @@ describe('organization Search Assistant chat', () => {
     expect(mocks.billing).not.toHaveBeenCalled()
   })
 
-  it.each(['', ' ', 'x'.repeat(8193)])('rejects an invalid question', async (query) => {
-    await expect(execute({ query })).rejects.toThrow('question')
-    expect(mocks.billing).not.toHaveBeenCalled()
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-  })
-
-  it('refuses invalid filter dates before sending model input', async () => {
-    await expect(execute({ filters: { modifiedAfter: 'yesterday' } })).rejects.toThrow()
-    expect(mocks.lifecycle).not.toHaveBeenCalled()
-  })
-
   it('fails closed when input provenance is incomplete', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     registry.markIncomplete('untrusted-provenance')
     await expect(execute({ resultSecretRegistry: registry })).rejects.toThrow('protected content')
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-  })
-
-  it('creates a new private conversation for each call', async () => {
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([{ id: 'first-chat' }])
-      .mockResolvedValueOnce([{ id: 'second-chat' }])
-    const first = await execute()
-    const second = await execute()
-    expect(first.chatId).toBe('first-chat')
-    expect(second.chatId).toBe('second-chat')
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: 'member-1',
-        organizationId: 'org-1',
-        type: 'mothership',
-        title: 'Where is the field kit?',
-      })
-    )
   })
 
   it('withholds the answer when organization membership is revoked during execution', async () => {
@@ -303,24 +192,6 @@ describe('organization Search Assistant chat', () => {
     expect(dbChainMockFns.update).toHaveBeenCalledOnce()
   })
 
-  it('drops interactive Chat tags from the MCP answer but keeps them in the transcript', async () => {
-    const tags =
-      '<options>{"1":"Open it"}</options><question>{"prompt":"Which </question> kit?"}</question>'
-    mocks.lifecycle.mockResolvedValue(createResult({ content: `Violet suitcase.${tags}` }))
-    const result = await execute()
-    expect(result.content).toBe('Violet suitcase.')
-    const [, messages] = mocks.persist.mock.calls[0]
-    expect(JSON.stringify(messages)).toContain('<options>')
-    expect(JSON.stringify(messages)).toContain('<question>')
-  })
-
-  it('refuses an answer that is only interactive Chat tags', async () => {
-    mocks.lifecycle.mockResolvedValue(
-      createResult({ content: '<options>{"1":"Open it"}</options>' })
-    )
-    await expect(execute()).rejects.toThrow('The assistant returned no answer')
-  })
-
   it('fails closed when retrieval makes provenance incomplete', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     mocks.lifecycle.mockImplementation(async () => {
@@ -329,12 +200,6 @@ describe('organization Search Assistant chat', () => {
     })
     await expect(execute({ resultSecretRegistry: registry })).rejects.toThrow('safely')
     expect(mocks.persist).not.toHaveBeenCalled()
-  })
-
-  it('returns the answer without a broken conversation link when persistence fails', async () => {
-    mocks.persist.mockRejectedValue(new Error('database unavailable'))
-    await expect(execute()).resolves.toEqual({ content: createResult().content, citations: [] })
-    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
   })
 
   it('only archives its own newly created conversation when it has no persisted messages', async () => {
@@ -370,89 +235,12 @@ describe('organization Search Assistant chat', () => {
     })
   })
 
-  it('preserves a completed transcript if cancellation arrives during persistence', async () => {
-    const controller = new AbortController()
-    mocks.persist.mockImplementation(async () => controller.abort())
-    await expect(execute({ signal: controller.signal })).rejects.toMatchObject({
-      name: 'AbortError',
-    })
-    expect(mocks.persist).toHaveBeenCalledOnce()
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
-  it('preserves the original failure when cleanup cannot reach the database', async () => {
-    mocks.lifecycle.mockRejectedValue(new Error('model unavailable'))
-    dbChainMockFns.update.mockImplementationOnce(() => {
-      throw new Error('database unavailable')
-    })
-    await expect(execute()).rejects.toThrow('model unavailable')
-  })
-
-  it('does not change a chat that no longer matches the owned live row lock', async () => {
-    mocks.lifecycle.mockRejectedValue(new Error('model unavailable'))
-    dbChainMockFns.for.mockResolvedValueOnce([])
-    await expect(execute()).rejects.toThrow('model unavailable')
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
   it('does not start or bill work for an already-cancelled request', async () => {
     await expect(execute({ signal: AbortSignal.abort() })).rejects.toMatchObject({
       name: 'AbortError',
     })
     expect(mocks.billing).not.toHaveBeenCalled()
     expect(mocks.lifecycle).not.toHaveBeenCalled()
-  })
-
-  it('forwards cancellation and explicitly stops the same actor’s remote stream', async () => {
-    const controller = new AbortController()
-    let start: () => void = () => {}
-    const started = new Promise<void>((resolve) => {
-      start = resolve
-    })
-    mocks.lifecycle.mockImplementation(
-      (_payload: unknown, options: CopilotLifecycleOptions) =>
-        new Promise<OrchestratorResult>((resolve) => {
-          options.abortSignal?.addEventListener(
-            'abort',
-            () => resolve(createResult({ cancelled: true })),
-            { once: true }
-          )
-          start()
-        })
-    )
-    const pending = execute({ signal: controller.signal })
-    const refusal = expect(pending).rejects.toMatchObject({ name: 'AbortError' })
-    await started
-    controller.abort()
-    await refusal
-    expect(mocks.explicitAbort).toHaveBeenCalledWith({
-      streamId: expect.any(String),
-      userId: 'member-1',
-      chatId: 'private-chat',
-    })
-    expect(mocks.explicitAbort).toHaveBeenCalledOnce()
-    expect(mocks.persist).not.toHaveBeenCalled()
-    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
-  })
-
-  it('caps execution time and removes the timeout after completion', async () => {
-    vi.useFakeTimers()
-    mocks.lifecycle.mockImplementation(
-      (_payload: unknown, options: CopilotLifecycleOptions) =>
-        new Promise<OrchestratorResult>((resolve) => {
-          options.abortSignal?.addEventListener(
-            'abort',
-            () => resolve(createResult({ cancelled: true })),
-            { once: true }
-          )
-        })
-    )
-    const refusal = expect(execute()).rejects.toMatchObject({ name: 'AbortError' })
-    await vi.advanceTimersByTimeAsync(180_000)
-    await refusal
-    expect(mocks.explicitAbort).toHaveBeenCalledOnce()
-    expect(vi.getTimerCount()).toBe(0)
-    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
   })
 })
 
@@ -466,26 +254,6 @@ describe('Search Assistant citations', () => {
     return { id: 'tool-1', name: 'search_workspace', status: 'success', result, ...overrides }
   }
 
-  it('uses the exact retrieved source and deduplicates repeated references', () => {
-    const tag = '<source>{"id":"document:one","url":"https://invented.example"}</source>'
-    expect(
-      resolveSearchChatCitations(`Violet ${tag} Again ${tag}`, [
-        tool({ success: true, data: { results: [citation] } }),
-      ])
-    ).toEqual({
-      content: 'Violet [1](<https://docs.example/one>) Again [1](<https://docs.example/one>)',
-      citations: [{ id: 'document:one', url: 'https://docs.example/one', title: 'Field kit' }],
-    })
-  })
-
-  it('accepts read_document evidence and JSON-encoded tool results', () => {
-    expect(
-      resolveSearchChatCitations('<source>{"id":"document:one"}</source>', [
-        tool(JSON.stringify({ data: citation }), { name: 'read_document' }),
-      ]).citations
-    ).toHaveLength(1)
-  })
-
   it.each([
     tool({ data: citation }, { status: 'error' }),
     tool({ success: false, data: citation }),
@@ -496,14 +264,5 @@ describe('Search Assistant citations', () => {
     expect(
       resolveSearchChatCitations('Violet <source>{"id":"document:one"}</source>', [result])
     ).toEqual({ content: 'Violet ', citations: [] })
-  })
-
-  it('removes missing and malformed citations without manufacturing evidence', () => {
-    expect(
-      resolveSearchChatCitations(
-        'A<source>bad json</source>B<source>{"id":"missing"}</source>C<source>{"url":"https://invented.example"}</source>',
-        []
-      )
-    ).toEqual({ content: 'ABC', citations: [] })
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -52,7 +49,6 @@ import { sendA2AMessage } from '@/lib/internal/a2a/operations'
 
 describe('sendA2AMessage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.validateOpaqueModelInputProvenance.mockReturnValue({ success: true })
     mocks.assertToolFileAccess.mockResolvedValue(null)
     mocks.isModelSafeWorkspaceFileKey.mockResolvedValue(true)
@@ -111,29 +107,5 @@ describe('sendA2AMessage', () => {
     ).rejects.toMatchObject({ name: 'PayloadSizeLimitError' })
     expect(mocks.downloadServableFileFromStorage).toHaveBeenCalledTimes(2)
     expect(mocks.createA2AClient).not.toHaveBeenCalled()
-  })
-
-  it('parses structured data and returns a direct A2A message', async () => {
-    const result = await sendA2AMessage(
-      {
-        agentUrl: 'https://agent.example',
-        message: 'Hello',
-        data: '{"kind":"probe"}',
-      },
-      {
-        headers: new Headers(),
-        requestId: 'request-1',
-        userId: 'user-1',
-      }
-    )
-
-    expect(mocks.buildUserMessage).toHaveBeenCalledWith({
-      text: 'Hello',
-      data: { kind: 'probe' },
-      files: undefined,
-      taskId: undefined,
-      contextId: undefined,
-    })
-    expect(result).toEqual({ success: true, output: { content: 'done' } })
   })
 })

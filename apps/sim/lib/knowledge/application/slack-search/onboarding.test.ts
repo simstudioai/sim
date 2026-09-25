@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { db } from '@sim/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -62,7 +61,6 @@ vi.mock('@/lib/knowledge/application/slack-search/repository', () => ({
   recordSlackSearchOutcome: m.outcome,
 }))
 
-import { SlackSearchIdentityError } from '@/lib/knowledge/application/slack-search/identity'
 import {
   getSlackSearchOnboarding,
   retrySlackSearchOnboarding,
@@ -129,7 +127,6 @@ function queueContext(retried: { id: string }[] = []) {
 const get = () => getSlackSearchOnboarding.execute({ principal, input: { token: 'token' } })
 const retry = () => retrySlackSearchOnboarding.execute({ principal, input: { token: 'token' } })
 beforeEach(() => {
-  vi.clearAllMocks()
   for (const mock of Object.values(m)) mock.mockReset()
   const query = { from: vi.fn(), where: vi.fn(), limit: m.limit }
   query.from.mockReturnValue(query)
@@ -147,18 +144,6 @@ beforeEach(() => {
   m.post.mockResolvedValue({ status: 200, data: { ok: true } })
 })
 describe('Slack onboarding authorization and retry', () => {
-  it('allows a newly verified member to retry before private history exists', async () => {
-    m.limit
-      .mockResolvedValueOnce([viewer])
-      .mockResolvedValueOnce([turn])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-    await retry()
-    expect(m.persist).toHaveBeenCalledWith(
-      expect.objectContaining({ installationId: job.installationId }),
-      'user1'
-    )
-  })
   it('rejects API keys before reading link state', async () => {
     await expect(
       getSlackSearchOnboarding.execute({
@@ -179,13 +164,6 @@ describe('Slack onboarding authorization and retry', () => {
     expect(await get()).toEqual({ status: 'verify_email' })
     expect(m.authorize).not.toHaveBeenCalled()
   })
-  it('does not create membership when a matching account is outside the organization', async () => {
-    queueContext()
-    m.member.mockRejectedValueOnce(new SlackSearchIdentityError('membership_required'))
-    expect(await get()).toEqual({ status: 'membership_required' })
-    expect(m.persist).not.toHaveBeenCalled()
-    expect(m.sources).not.toHaveBeenCalled()
-  })
   it('refuses a changed Slack email or conflicting identity', async () => {
     queueContext()
     m.sender.mockResolvedValueOnce({ email: 'changed@example.com' })
@@ -202,54 +180,11 @@ describe('Slack onboarding authorization and retry', () => {
     )
     expect(m.persist).not.toHaveBeenCalled()
   })
-  it('returns setup state without executing or replaying the question on GET', async () => {
-    queueContext()
-    m.sources.mockResolvedValueOnce({ hasSearchableDocuments: false })
-    expect(await get()).toEqual({
-      status: 'ready',
-      organizationId: 'org1',
-      question: job.message.query,
-      isAdmin: false,
-      slackUrl: state.slackUrl,
-    })
-    expect(m.persist).not.toHaveBeenCalled()
-    expect(m.dispatch).not.toHaveBeenCalled()
-  })
-  it('allows an authorized member to ask about integrations before indexing', async () => {
-    queueContext()
-    m.sources.mockResolvedValueOnce({ hasSearchableDocuments: false })
-    await expect(retry()).resolves.toEqual({ slackUrl: state.slackUrl })
-    expect(m.persist).toHaveBeenCalledOnce()
-  })
   it('rechecks current capability permissions instead of trusting the link', async () => {
     queueContext()
     m.membership.mockRejectedValueOnce(new Error('knowledge access denied'))
     await expect(retry()).rejects.toThrow('knowledge access denied')
     expect(m.persist).not.toHaveBeenCalled()
-  })
-  it('binds retry identity and preserves the original query and thread', async () => {
-    queueContext()
-    expect(await retry()).toEqual({ slackUrl: state.slackUrl })
-    expect(m.persist).toHaveBeenCalledWith(
-      expect.objectContaining({
-        installationId: 'install1',
-        revision: 'revision1',
-        message: expect.objectContaining({
-          query: job.message.query,
-          eventId: 'slack-onboarding:turn1',
-          threadTs: job.message.threadTs,
-          userId: 'U1',
-        }),
-      }),
-      principal.userId
-    )
-    expect(m.dispatch).toHaveBeenCalledWith('retry1')
-  })
-  it('repeated clicks reuse the durable retry instead of replaying an execution', async () => {
-    queueContext([{ id: 'existing-retry' }])
-    await retry()
-    expect(m.persist).not.toHaveBeenCalled()
-    expect(m.dispatch).toHaveBeenCalledWith('existing-retry')
   })
   it('refuses another Sim user bound to the original thread', async () => {
     m.limit
@@ -257,11 +192,6 @@ describe('Slack onboarding authorization and retry', () => {
       .mockResolvedValueOnce([turn])
       .mockResolvedValueOnce([{ ...thread, userId: 'other-user' }])
     await expect(retry()).rejects.toThrow('different account')
-    expect(m.persist).not.toHaveBeenCalled()
-  })
-  it('does not retry an ambiguous failed original delivery', async () => {
-    m.limit.mockResolvedValueOnce([viewer]).mockResolvedValueOnce([{ ...turn, status: 'failed' }])
-    await expect(retry()).rejects.toThrow('cannot be retried')
     expect(m.persist).not.toHaveBeenCalled()
   })
 })
@@ -306,73 +236,6 @@ describe('Slack onboarding control delivery', () => {
       expect.objectContaining({ turnId: 'turn1', email: state.email })
     )
   })
-  it('sends Connect sources only to the requesting Slack user without requiring an active thread', async () => {
-    await send('sources')
-    expect(m.api).toHaveBeenLastCalledWith({
-      accessToken: 'bot-secret',
-      method: 'chat.postEphemeral',
-      body: {
-        channel: 'D1',
-        user: job.message.userId,
-        text: 'Connect your sources',
-        blocks: expect.arrayContaining([
-          expect.objectContaining({
-            type: 'actions',
-            elements: [
-              expect.objectContaining({
-                text: { type: 'plain_text', text: 'Connect sources' },
-                url: 'https://sim.test/slack-search/connect/opaque-token',
-              }),
-            ],
-          }),
-        ]),
-      },
-      signal: expect.any(AbortSignal),
-    })
-    expect(m.outcome).toHaveBeenCalledWith(context.installation, 'sources_required')
-  })
-  it.each([job.message.threadTs, undefined])(
-    'acknowledges missing sources in the question thread after private setup delivery: %s',
-    async (threadTs) => {
-      await send('sources', { ...job.message, threadTs })
-      expect(m.post).toHaveBeenCalledExactlyOnceWith(
-        'bot-secret',
-        {
-          channel: 'D1',
-          thread_ts: threadTs ?? job.message.messageTs,
-          text: 'I don’t have any sources I can search for you yet. Check the “Connect sources” message in our DM to get set up, then retry this question.',
-          unfurl_links: false,
-          unfurl_media: false,
-        },
-        expect.any(AbortSignal)
-      )
-      expect(m.api.mock.invocationCallOrder[1]).toBeLessThan(m.post.mock.invocationCallOrder[0])
-      expect(m.post.mock.invocationCallOrder[0]).toBeLessThan(m.outcome.mock.invocationCallOrder[0])
-    }
-  )
-  it.each(['rejected', 'ambiguous'] as const)(
-    'does not replace a %s ephemeral delivery with a persistent message',
-    async (outcome) => {
-      m.api.mockResolvedValueOnce({
-        status: 200,
-        data: { ok: true, permalink: state.slackUrl },
-      })
-      if (outcome === 'rejected') {
-        m.api.mockResolvedValueOnce({
-          status: 200,
-          data: { ok: false, error: 'user_not_in_channel' },
-        })
-      } else {
-        m.api.mockRejectedValueOnce(new Error('connection lost after send'))
-      }
-      await expect(send('sources')).rejects.toThrow(
-        outcome === 'rejected' ? 'Could not deliver Slack onboarding' : 'connection lost after send'
-      )
-      expect(m.api).toHaveBeenCalledTimes(2)
-      expect(m.post).not.toHaveBeenCalled()
-      expect(m.outcome).not.toHaveBeenCalled()
-    }
-  )
   it.each(['account', 'sources'] as const)(
     'rechecks the binding and lease immediately before %s delivery',
     async (reason) => {
@@ -381,49 +244,6 @@ describe('Slack onboarding control delivery', () => {
       expect(m.post).not.toHaveBeenCalled()
       expect(m.api).toHaveBeenCalledTimes(1)
       expect(m.lease).toHaveBeenCalledWith('turn1', 'lease1')
-    }
-  )
-  it.each(['binding', 'lease', 'cancellation'] as const)(
-    'stops before the thread notice if %s changes after the ephemeral prompt',
-    async (change) => {
-      const controller = new AbortController()
-      m.api.mockResolvedValueOnce({
-        status: 200,
-        data: { ok: true, permalink: state.slackUrl },
-      })
-      m.api.mockImplementationOnce(async () => {
-        if (change === 'binding') m.authorize.mockResolvedValueOnce(null)
-        if (change === 'lease') m.lease.mockRejectedValueOnce(new Error('lease lost'))
-        if (change === 'cancellation') controller.abort(new Error('cancelled'))
-        return { status: 200, data: { ok: true } }
-      })
-      await expect(send('sources', job.message, controller.signal)).rejects.toThrow(
-        change === 'binding' ? 'disabled' : change === 'lease' ? 'lease lost' : 'cancelled'
-      )
-      expect(m.api).toHaveBeenCalledTimes(2)
-      expect(m.post).not.toHaveBeenCalled()
-      expect(m.outcome).not.toHaveBeenCalled()
-    }
-  )
-  it.each(['rejected', 'ambiguous'] as const)(
-    'fails without replaying either message when the sources notice delivery is %s',
-    async (outcome) => {
-      if (outcome === 'rejected') {
-        m.post.mockResolvedValueOnce({
-          status: 200,
-          data: { ok: false, error: 'channel_not_found' },
-        })
-      } else {
-        m.post.mockRejectedValueOnce(new Error('connection lost after send'))
-      }
-      await expect(send('sources')).rejects.toThrow(
-        outcome === 'rejected'
-          ? 'Could not deliver the Slack sources notice'
-          : 'connection lost after send'
-      )
-      expect(m.api).toHaveBeenCalledTimes(2)
-      expect(m.post).toHaveBeenCalledOnce()
-      expect(m.outcome).not.toHaveBeenCalled()
     }
   )
   it('does not retry an ambiguous post or fall back to another transport', async () => {

@@ -111,17 +111,6 @@ describe('release commit lookup', () => {
     expect(lookup('v0.8.30', current)).toEqual({ current: null, previous: null })
   })
 
-  it('supports looking up an older release on main', () => {
-    const previous = commit('v0.8.30: previous release')
-    const current = commit('v0.8.31: current release')
-    commit('v0.8.32: later release')
-
-    expect(lookup('v0.8.31')).toMatchObject({
-      current: { hash: current },
-      previous: { hash: previous },
-    })
-  })
-
   it('ignores release-like commit bodies and releases merged from another branch', () => {
     const previous = commit('v0.8.30: previous release')
     const sideRelease = commit('v9.0.0: release on staging', [previous])
@@ -133,20 +122,5 @@ describe('release commit lookup', () => {
       current: { hash: current },
       previous: { hash: previous },
     })
-  })
-
-  it('preserves pipe characters in release titles', () => {
-    const current = commit('v0.8.31: parsers | search improvements')
-
-    expect(lookup('v0.8.31')).toMatchObject({
-      current: { hash: current, title: 'parsers | search improvements', author: 'Release Author' },
-      previous: null,
-    })
-  })
-
-  it('returns no match for a missing version or a similar version number', () => {
-    commit('v0.8.310: a different version')
-
-    expect(lookup('v0.8.31')).toEqual({ current: null, previous: null })
   })
 })

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
@@ -29,10 +29,6 @@ import {
 import type { ConfigStore } from '@/main/config'
 
 describe('clearBrowserProfile', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('requires settings erasure for sign-out but lets explicit server repair replace it', async () => {
     const config = {
       get: vi.fn(() => undefined),

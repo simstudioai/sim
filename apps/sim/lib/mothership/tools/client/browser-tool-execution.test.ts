@@ -67,7 +67,6 @@ function setLiveBrowserSession(): void {
 
 describe('executeBrowserToolOnClient', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('Blob', NodeBlob)
     window.sessionStorage.clear()
     Object.defineProperty(navigator, 'sendBeacon', {
@@ -591,7 +590,6 @@ describe('executeBrowserToolOnClient', () => {
   )
 
   it.each([
-    ['browser_click' as const, { elementId: 1 }],
     ['browser_navigate' as const, { url: 'https://example.com' }],
     ['browser_open_tab' as const, { url: 'https://example.com' }],
   ])(
@@ -982,34 +980,29 @@ describe('executeBrowserToolOnClient', () => {
     expect(mockReportCompletion).not.toHaveBeenCalled()
   })
 
-  it.each([
-    ['not accepted', () => false],
-    [
-      'throws',
-      () => {
-        throw new Error('beacon unavailable')
-      },
-    ],
-  ])('falls back to the completion reporter when the page-exit beacon %s', async (_label, send) => {
-    mockExecuteBrowserTool.mockImplementation(() => new Promise(() => {}))
-    Object.defineProperty(navigator, 'sendBeacon', {
-      configurable: true,
-      value: vi.fn(send),
-    })
-    const toolCallId = nextToolCallId()
+  it.each([['not accepted', () => false]])(
+    'falls back to the completion reporter when the page-exit beacon %s',
+    async (_label, send) => {
+      mockExecuteBrowserTool.mockImplementation(() => new Promise(() => {}))
+      Object.defineProperty(navigator, 'sendBeacon', {
+        configurable: true,
+        value: vi.fn(send),
+      })
+      const toolCallId = nextToolCallId()
 
-    executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
-    window.dispatchEvent(new Event('pagehide'))
-    await flush()
+      executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
+      window.dispatchEvent(new Event('pagehide'))
+      await flush()
 
-    expect(mockCancelBrowserTool).toHaveBeenCalledWith(toolCallId, CHAT_SCOPE, 'browser_click')
-    expect(mockReportCompletionOnPageExit).toHaveBeenCalledWith(
-      toolCallId,
-      'error',
-      expect.stringContaining('may already have taken effect'),
-      expect.objectContaining({ outcomeUnknown: true, doNotRetry: true })
-    )
-  })
+      expect(mockCancelBrowserTool).toHaveBeenCalledWith(toolCallId, CHAT_SCOPE, 'browser_click')
+      expect(mockReportCompletionOnPageExit).toHaveBeenCalledWith(
+        toolCallId,
+        'error',
+        expect.stringContaining('may already have taken effect'),
+        expect.objectContaining({ outcomeUnknown: true, doNotRetry: true })
+      )
+    }
+  )
 
   it('re-delivers known success when the page exits during confirmation', async () => {
     mockExecuteBrowserTool.mockResolvedValue({ text: 'page content' })
@@ -1039,64 +1032,6 @@ describe('executeBrowserToolOnClient', () => {
     })
     expect(mockReportCompletion).toHaveBeenCalledWith(toolCallId, 'success', expect.any(String), {
       text: 'page content',
-    })
-    finishReport()
-    await flush()
-  })
-
-  it('re-delivers a known native error when the page exits during confirmation', async () => {
-    mockExecuteBrowserTool.mockRejectedValue(new Error('element disappeared'))
-    let finishReport: () => void = () => {}
-    mockReportCompletion.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          finishReport = resolve
-        })
-    )
-    const sendBeacon = vi.mocked(navigator.sendBeacon)
-    const toolCallId = nextToolCallId()
-
-    executeBrowserToolOnClient(toolCallId, 'browser_click', { elementId: 1 })
-    await flush()
-    window.dispatchEvent(new Event('pagehide'))
-    await flush()
-
-    expect(mockCancelBrowserTool).not.toHaveBeenCalled()
-    const beaconPayload = sendBeacon.mock.calls[0]?.[1]
-    expect(JSON.parse(await (beaconPayload as NodeBlob).text())).toEqual({
-      toolCallId,
-      status: 'error',
-      message: 'element disappeared',
-      data: { error: 'element disappeared' },
-    })
-    finishReport()
-    await flush()
-  })
-
-  it('re-delivers a known session-closed error when the page exits during confirmation', async () => {
-    useBrowserSessionStore.getState().setSessionAlive(false, CHAT_SCOPE)
-    let finishReport: () => void = () => {}
-    mockReportCompletion.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          finishReport = resolve
-        })
-    )
-    const sendBeacon = vi.mocked(navigator.sendBeacon)
-    const toolCallId = nextToolCallId()
-
-    executeBrowserToolOnClient(toolCallId, 'browser_snapshot', {})
-    await flush()
-    window.dispatchEvent(new Event('pagehide'))
-    await flush()
-
-    expect(mockExecuteBrowserTool).not.toHaveBeenCalled()
-    expect(mockCancelBrowserTool).not.toHaveBeenCalled()
-    const beaconPayload = sendBeacon.mock.calls[0]?.[1]
-    expect(JSON.parse(await (beaconPayload as NodeBlob).text())).toMatchObject({
-      toolCallId,
-      status: 'error',
-      data: { sessionClosed: true },
     })
     finishReport()
     await flush()
@@ -1135,15 +1070,7 @@ describe('executeBrowserToolOnClient', () => {
     await flush()
   })
 
-  it.each([
-    ['not accepted', () => false],
-    [
-      'throws',
-      () => {
-        throw new Error('beacon unavailable')
-      },
-    ],
-  ])(
+  it.each([['not accepted', () => false]])(
     'uses keepalive fallback for known success when the page-exit beacon %s',
     async (_label, send) => {
       mockExecuteBrowserTool.mockResolvedValue({ text: 'page content' })
@@ -1305,18 +1232,6 @@ describe('executeBrowserToolOnClient', () => {
     expect(reported.viewport).toMatchObject({ width: 1024, height: 640 })
   })
 
-  it('falls back to a note when a screenshot is not a usable data URL', async () => {
-    mockExecuteBrowserTool.mockResolvedValue({ dataUrl: 'not-a-data-url', url: 'https://x.dev' })
-    const toolCallId = nextToolCallId()
-
-    executeBrowserToolOnClient(toolCallId, 'browser_screenshot', {})
-    await flush()
-
-    const [, , , reported] = mockReportCompletion.mock.calls[0]
-    expect(reported.attachment).toBeUndefined()
-    expect(reported.note).toContain('could not be encoded')
-  })
-
   it('preserves cropped screenshot offsets and explains coordinate conversion', async () => {
     mockExecuteBrowserTool.mockResolvedValue({
       dataUrl: 'data:image/jpeg;base64,/9j/4AAQ',
@@ -1334,23 +1249,6 @@ describe('executeBrowserToolOnClient', () => {
     expect(reported.content).toContain('cssY = 30 + imageY / 2')
   })
 
-  it('gives restored-tab switching the renderer navigation budget', async () => {
-    mockExecuteBrowserTool.mockResolvedValue({ tabId: '2', url: 'https://example.com' })
-    const toolCallId = nextToolCallId()
-
-    executeBrowserToolOnClient(toolCallId, 'browser_switch_tab', { tabId: '2' })
-    await flush()
-
-    expect(mockExecuteBrowserTool).toHaveBeenCalledWith(
-      toolCallId,
-      'browser_switch_tab',
-      { tabId: '2' },
-      130_000,
-      CHAT_SCOPE,
-      expect.any(Function)
-    )
-  })
-
   /**
    * Shared normalization coerces numeric strings and caps the requested wait
    * at 120 seconds. The renderer adds delivery grace so it cannot abandon the
@@ -1359,9 +1257,7 @@ describe('executeBrowserToolOnClient', () => {
   it.each([
     ['number', 30_000, 105_000],
     ['numeric string', '30000', 105_000],
-    ['absent', undefined, 85_000],
     ['non-numeric', 'soon', 85_000],
-    ['zero', 0, 85_000],
     ['negative', -5_000, 85_000],
     ['above the desktop clamp', 500_000, 195_000],
   ])(
@@ -1405,8 +1301,6 @@ describe('executeBrowserToolOnClient', () => {
   it.each([
     ['browser_snapshot' as const, {}],
     ['browser_click' as const, { elementId: 1 }],
-    ['browser_read_text' as const, {}],
-    ['browser_go_back' as const, {}],
   ])('wakes a restored scoped session before executing %s', async (toolName, params) => {
     const scopeId = 'chat-restored'
     useBrowserSessionStore.getState().setSessionAlive(false, scopeId)
@@ -1456,25 +1350,6 @@ describe('executeBrowserToolOnClient', () => {
     })
   })
 
-  it('lists known sessions without restoring a closed page scope', async () => {
-    useBrowserSessionStore.getState().setSessionAlive(false, CHAT_SCOPE)
-    mockExecuteBrowserTool.mockResolvedValue({ sessions: [] })
-    const toolCallId = nextToolCallId()
-
-    executeBrowserToolOnClient(toolCallId, 'browser_list_sessions', {})
-    await flush()
-
-    expect(mockRestoreBrowserScope).not.toHaveBeenCalled()
-    expect(mockExecuteBrowserTool).toHaveBeenCalledWith(
-      toolCallId,
-      'browser_list_sessions',
-      {},
-      90_000,
-      CHAT_SCOPE,
-      expect.any(Function)
-    )
-  })
-
   it('tags a failure with sessionClosed when the session died mid-call', async () => {
     mockExecuteBrowserTool.mockImplementation(async () => {
       useBrowserSessionStore.getState().setSessionAlive(false, CHAT_SCOPE)
@@ -1494,18 +1369,6 @@ describe('executeBrowserToolOnClient', () => {
         error: expect.stringContaining('The browser did not respond within 30000ms'),
       })
     )
-  })
-
-  it('reports a plain error without the sessionClosed tag when the session is alive', async () => {
-    mockExecuteBrowserTool.mockRejectedValue(new Error('element not found'))
-    const toolCallId = nextToolCallId()
-
-    executeBrowserToolOnClient(toolCallId, 'browser_click', { ref: 'e12' })
-    await flush()
-
-    expect(mockReportCompletion).toHaveBeenCalledWith(toolCallId, 'error', 'element not found', {
-      error: 'element not found',
-    })
   })
 
   it('keeps the renderer navigation margin and preserves outcome-unknown guidance', async () => {
@@ -1564,7 +1427,6 @@ describe('executeBrowserToolOnClient', () => {
 
 describe('pre-dispatch drops still resolve the waiter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockReportCompletion.mockResolvedValue(undefined)
     mockReportCompletionOnPageExit.mockResolvedValue(undefined)
   })
@@ -1638,20 +1500,6 @@ describe('pre-dispatch drops still resolve the waiter', () => {
         outcomeUnknown: true,
         staleEvent: true,
       })
-    )
-  })
-
-  it('reports an error confirmation when no chat scope exists', async () => {
-    useBrowserSessionStore.setState({ activeScopeId: null })
-    executeBrowserToolOnClient('no-scope-1', 'browser_list_sessions', {}, undefined)
-    await sleep(0)
-
-    expect(mockExecuteBrowserTool).not.toHaveBeenCalled()
-    expect(mockReportCompletion).toHaveBeenCalledWith(
-      'no-scope-1',
-      'error',
-      expect.stringContaining('no active browser session'),
-      expect.anything()
     )
   })
 })

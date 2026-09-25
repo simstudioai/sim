@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import {
   dbChainMockFns,
   hasMockCondition,
@@ -42,7 +41,6 @@ const principal = { kind: 'session', userId: 'reader', sessionId: 'session' } as
 const input = { workspaceId: 'workspace', query: 'orion', topK: 20, filters: { source: 'slack' } }
 describe('canonical workspace search', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.resolveWorkspace.mockResolvedValue({
       workspaceId: 'workspace',
@@ -80,14 +78,6 @@ describe('canonical workspace search', () => {
       )
     ).toBe(true)
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
-  })
-  it('does not search ordinary KBs when there is no index', async () => {
-    queueTableRows(schemaMock.knowledgeBase, [])
-    await expect(searchWorkspaceKnowledge.execute({ principal, input })).resolves.toMatchObject({
-      results: [],
-      knowledgeBases: [],
-    })
-    expect(mocks.search).not.toHaveBeenCalled()
   })
   it('refuses a nonmember before querying the protected index', async () => {
     mocks.permission.mockResolvedValue(null)

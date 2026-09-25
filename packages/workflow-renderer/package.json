@@ -77,6 +77,6 @@
     "remark-gfm": "^4.0.1",
     "streamdown": "2.5.0",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.0"
+    "vitest": "^5.0.1"
   }
 }

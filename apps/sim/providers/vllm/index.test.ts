@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -144,7 +141,6 @@ afterAll(resetEnvMock)
 
 describe('vllmProvider', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearProviderClientCacheForTests()
     openAIArgs.length = 0
     setEnv({ VLLM_BASE_URL: 'http://localhost:8000', VLLM_API_KEY: undefined })

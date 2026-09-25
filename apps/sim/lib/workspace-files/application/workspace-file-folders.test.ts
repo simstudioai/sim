@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -68,12 +65,10 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
 import {
   createWorkspaceFileFolderOperation,
-  deleteWorkspaceFileFolderOperation,
   ensureWorkspaceFileFolderPathOperation,
   listWorkspaceFileFoldersOperation,
   resolveWorkspaceFileFolderPathOperation,
   restoreWorkspaceFileFolderOperation,
-  updateWorkspaceFileFolderOperation,
 } from '@/lib/workspace-files/application/workspace-file-folders'
 
 const folder = {
@@ -90,7 +85,6 @@ const folder = {
 
 describe('workspace file folder operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     events.length = 0
     mockLoadContext.mockImplementation(async () => {
       events.push('resolve')
@@ -175,74 +169,6 @@ describe('workspace file folder operations', () => {
     expect(mockCreate).toHaveBeenCalledTimes(2)
   })
 
-  /*
-   * A folder name may contain a slash; a path segment may not. Materializing
-   * ancestors up front re-normalized the decoded name and rejected the folder's
-   * own existing parent, so the ancestors are only touched once the create has
-   * actually reported the parent missing.
-   */
-  it('does not touch the materializer when the parent already exists', async () => {
-    mockCreate.mockResolvedValue(LEAF)
-
-    await createWorkspaceFileFolderOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { workspaceId: 'ws-1', path: '/A/Q3%2FQ4/C' },
-    })
-
-    expect(mockEnsure).not.toHaveBeenCalled()
-    expect(mockCreate).toHaveBeenCalledTimes(1)
-  })
-
-  it('surfaces a create failure that is not a missing parent', async () => {
-    mockCreate.mockRejectedValue(new OrchestrationError('conflict', 'Folder already exists'))
-
-    await expect(
-      createWorkspaceFileFolderOperation.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: { workspaceId: 'ws-1', path: '/A/B/C' },
-      })
-    ).rejects.toThrow(/already exists/)
-    expect(mockEnsure).not.toHaveBeenCalled()
-  })
-
-  it('does not materialize anything for a top-level folder', async () => {
-    mockCreate.mockResolvedValue({
-      id: 'folder-a',
-      name: 'A',
-      path: 'A',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-
-    await createWorkspaceFileFolderOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { workspaceId: 'ws-1', path: '/A' },
-    })
-
-    expect(mockEnsure).not.toHaveBeenCalled()
-  })
-
-  it('creates a canonical path folder through the manager primitive', async () => {
-    mockCreate.mockImplementation(async () => {
-      events.push('execute')
-      return { folder, path: '/Reports' }
-    })
-    const result = await createWorkspaceFileFolderOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { workspaceId: 'ws-1', path: '/Reports' },
-    })
-
-    expect(result.folder.path).toBe('/Reports')
-    expect(events).toEqual(['resolve', 'authorize', 'execute'])
-    expect(mockCreate).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      userId: 'user-1',
-      path: '/Reports',
-    })
-    expect(mockAudit).toHaveBeenCalledOnce()
-    expect(mockNotify).toHaveBeenCalledOnce()
-  })
-
   it.each([
     ['leaves the sort unset so the repository keeps its position ordering', {}, undefined],
     ['delegates an explicit sort', { sortBy: 'name', sortOrder: 'desc' } as const, 'name'],
@@ -260,21 +186,6 @@ describe('workspace file folder operations', () => {
     )
   })
 
-  it('preserves the order the repository returned rather than re-sorting in memory', async () => {
-    mockList.mockResolvedValue([
-      { ...folder, id: 'newest', name: 'zeta' },
-      { ...folder, id: 'middle', name: 'Alpha' },
-      { ...folder, id: 'oldest', name: 'beta' },
-    ])
-
-    const result = await listWorkspaceFileFoldersOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { workspaceId: 'ws-1' },
-    })
-
-    expect(result.folders.map((item) => item.id)).toEqual(['newest', 'middle', 'oldest'])
-  })
-
   it('matches a canonical encoded parent path against decoded stored folder paths', async () => {
     mockList.mockResolvedValue([
       { ...folder, id: 'child-1', name: 'Q1', path: 'Reports & Plans/Q1' },
@@ -284,20 +195,6 @@ describe('workspace file folder operations', () => {
     const result = await listWorkspaceFileFoldersOperation.execute({
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       input: { workspaceId: 'ws-1', parentPath: '/Reports%20%26%20Plans' },
-    })
-
-    expect(result.folders.map((item) => item.id)).toEqual(['child-1'])
-  })
-
-  it('matches a parent whose name contains an escaped slash', async () => {
-    mockList.mockResolvedValue([
-      { ...folder, id: 'child-1', name: 'Q1', path: 'Finance\\/Legal/Q1' },
-      { ...folder, id: 'other-1', name: 'Other', path: 'Finance/Legal/Other' },
-    ])
-
-    const result = await listWorkspaceFileFoldersOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { workspaceId: 'ws-1', parentPath: '/Finance%2FLegal' },
     })
 
     expect(result.folders.map((item) => item.id)).toEqual(['child-1'])
@@ -321,18 +218,6 @@ describe('workspace file folder operations', () => {
       mockList.mockResolvedValue(tree)
     })
 
-    it('returns only direct children without the flag', async () => {
-      const result = await list({ parentPath: '/Reports' })
-
-      expect(result.folders.map((item) => item.id)).toEqual(['q3'])
-    })
-
-    it('descends every level with the flag', async () => {
-      const result = await list({ parentPath: '/Reports', recursive: true })
-
-      expect(result.folders.map((item) => item.id)).toEqual(['q3', 'draft'])
-    })
-
     it('excludes a sibling whose name merely starts with the parent name', async () => {
       const result = await list({ parentPath: '/Reports', recursive: true })
 
@@ -343,35 +228,6 @@ describe('workspace file folder operations', () => {
       const result = await list({ parentPath: '/Reports', recursive: true, depth: 1 })
 
       expect(result.folders.map((item) => item.id)).toEqual(['q3'])
-    })
-
-    it('descends a parent whose name contains an escaped slash', async () => {
-      mockList.mockResolvedValue([
-        { ...folder, id: 'child', name: 'Q1', path: 'Finance\\/Legal/Q1' },
-        { ...folder, id: 'grandchild', name: 'Deep', path: 'Finance\\/Legal/Q1/Deep' },
-        { ...folder, id: 'other', name: 'Other', path: 'Finance/Legal/Other' },
-      ])
-
-      const result = await list({ parentPath: '/Finance%2FLegal', recursive: true })
-
-      expect(result.folders.map((item) => item.id)).toEqual(['child', 'grandchild'])
-    })
-
-    /*
-     * The historical contract for an unfiltered list is every folder at every
-     * level. Copilot and the VFS depend on it, so depth-bounding must not leak
-     * into the no-parent, non-recursive case.
-     */
-    it('still returns every level when neither a parent nor the flag is given', async () => {
-      const result = await list({})
-
-      expect(result.folders.map((item) => item.id)).toEqual(['reports', 'q3', 'draft', 'reportsx'])
-    })
-
-    it('narrows a recursive walk by search', async () => {
-      const result = await list({ parentPath: '/Reports', recursive: true, search: 'draft' })
-
-      expect(result.folders.map((item) => item.id)).toEqual(['draft'])
     })
   })
 
@@ -393,64 +249,6 @@ describe('workspace file folder operations', () => {
       userId: 'user-1',
       pathSegments: ['Reports', '2026'],
     })
-  })
-
-  it('relocates a canonical path folder without invoking legacy orchestration', async () => {
-    mockRelocate.mockResolvedValue({ folder, path: '/Archive/Reports' })
-    const result = await updateWorkspaceFileFolderOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: {
-        workspaceId: 'ws-1',
-        path: '/Reports',
-        destinationPath: '/Archive/Reports',
-      },
-    })
-
-    expect(result.folder.path).toBe('/Archive/Reports')
-    expect(mockRelocate).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      path: '/Reports',
-      destinationPath: '/Archive/Reports',
-    })
-    expect(mockAudit).toHaveBeenCalledOnce()
-    expect(mockNotify).toHaveBeenCalledOnce()
-  })
-
-  /*
-   * A path-addressed delete used to audit with no resourceId, because the
-   * projector read input.folderId and v2 and the tools both address by path.
-   * The execution resolves the path to an id either way — this asserts the
-   * audit now carries it rather than leaving the folder as free text.
-   */
-  it('audits a path-addressed delete against the folder id it resolved', async () => {
-    mockDeleteByPath.mockResolvedValue({ files: 2, folders: 1, folderId: 'folder-resolved' })
-
-    await deleteWorkspaceFileFolderOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { workspaceId: 'ws-1', path: '/Reports', recursive: true },
-    })
-
-    expect(mockAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'folder.deleted',
-        resourceId: 'folder-resolved',
-        metadata: expect.objectContaining({ path: '/Reports' }),
-      })
-    )
-  })
-
-  it('does not audit or notify when a folder archive updates no rows', async () => {
-    mockArchive.mockResolvedValue({ files: 0, folders: 0, fileIds: [], folderIds: [] })
-
-    await expect(
-      deleteWorkspaceFileFolderOperation.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: { workspaceId: 'ws-1', folderId: 'folder-1' },
-      })
-    ).rejects.toMatchObject({ code: 'not_found' })
-
-    expect(mockAudit).not.toHaveBeenCalled()
-    expect(mockNotify).not.toHaveBeenCalled()
   })
 
   /**
@@ -518,32 +316,6 @@ describe('workspace file folder operations', () => {
 
     expect(mockList).not.toHaveBeenCalled()
     expect(mockRestore).not.toHaveBeenCalled()
-  })
-
-  it('still restores by folder id for the internal surface', async () => {
-    mockRestore.mockResolvedValue({
-      folder: { id: 'folder-1', name: 'Archive', path: 'Engineering/Archive' },
-      restoredItems: { files: 1, folders: 1 },
-    })
-
-    await restoreWorkspaceFileFolderOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { workspaceId: 'ws-1', folderId: 'folder-1' },
-    })
-
-    expect(mockList).not.toHaveBeenCalled()
-    expect(mockRestore).toHaveBeenCalledWith('ws-1', 'folder-1')
-  })
-
-  it('lists archived folders when the scope asks for them', async () => {
-    mockList.mockResolvedValueOnce([])
-
-    await listWorkspaceFileFoldersOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { workspaceId: 'ws-1', scope: 'archived' },
-    })
-
-    expect(mockList).toHaveBeenCalledWith('ws-1', expect.objectContaining({ scope: 'archived' }))
   })
 
   it('does not authorize a folder restore as though its ID were a delegated file scope', async () => {

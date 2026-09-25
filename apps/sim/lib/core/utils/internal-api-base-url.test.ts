@@ -8,8 +8,6 @@
  * is the sharp one — its own TSDoc notes the log-redaction persist path runs
  * inside the trigger.dev runtime — so setting the variable produced
  * `PII redaction failed: Unable to connect` on every worker-side redaction.
- *
- * @vitest-environment node
  */
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, describe, expect, it, vi } from 'vitest'

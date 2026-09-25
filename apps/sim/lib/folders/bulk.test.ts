@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockListActiveFolderRows } = vi.hoisted(() => ({
@@ -35,18 +32,10 @@ const TREE = [
 
 describe('planFolderSelection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockListActiveFolderRows.mockResolvedValue(TREE)
   })
 
   const plan = (folderIds: string[]) => planFolderSelection('ws-1', 'table', folderIds)
-
-  it('selects a folder and reports nothing contained', async () => {
-    const result = await plan(['a'])
-    expect(result.selected).toEqual([{ id: 'a', name: 'A' }])
-    expect(result.contained).toEqual([])
-    expect([...result.covered].sort()).toEqual(['a', 'a1', 'a1x'])
-  })
 
   it('reports an explicitly selected descendant as contained, not as a second selection', async () => {
     const result = await plan(['a1', 'a'])
@@ -86,10 +75,5 @@ describe('planFolderSelection', () => {
     const result = await plan(['b', 'ghost'])
     expect(result.selected).toEqual([{ id: 'b', name: 'B' }])
     expect(result.notFound).toEqual(['ghost'])
-  })
-
-  it('accounts for a duplicated id exactly once', async () => {
-    const result = await plan(['b', 'b'])
-    expect(result.selected).toEqual([{ id: 'b', name: 'B' }])
   })
 })

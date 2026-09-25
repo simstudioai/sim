@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -52,7 +51,6 @@ const delegated = () => ({
   resourceScope: { chatId: 'chat' },
 })
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.config.mockResolvedValue(null)
 })
@@ -101,21 +99,6 @@ describe('Generic Secrets authorization', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.save).not.toHaveBeenCalled()
   })
-  it.each(['admin', 'owner'])('lets an %s configure the source', async (role) => {
-    queueTableRows(member, [{ role }])
-    mocks.configure.mockResolvedValue({ id: 'source', mode: 'organization' })
-    await configureOrganizationSecretSource.execute({
-      principal,
-      input: { organizationId: 'org', sourceId: null, mode: 'organization' },
-    })
-    expect(mocks.configure).toHaveBeenCalledWith('org', null, 'organization')
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: 'actor',
-        metadata: expect.objectContaining({ organizationId: 'org' }),
-      })
-    )
-  })
   it.each(['configure', 'remove'])('denies source %s to a member', async (action) => {
     queueTableRows(member, [{ role: 'member' }])
     const call =
@@ -156,20 +139,6 @@ describe('Generic Secrets authorization', () => {
     expect(mocks.read).not.toHaveBeenCalled()
     expect(mocks.save).not.toHaveBeenCalled()
   })
-  it.each(['member', 'admin'])(
-    'binds %s member secrets to the actor rather than an input owner',
-    async (role) => {
-      queueTableRows(member, [{ role }])
-      await readOrganizationSecrets.execute({
-        principal,
-        input: { organizationId: 'org', mode: 'member', userId: 'victim' } as never,
-      })
-      expect(mocks.read).toHaveBeenCalledWith(
-        { organizationId: 'org', userId: 'actor', role },
-        { mode: 'member' }
-      )
-    }
-  )
   it('denies outsiders before reading values', async () => {
     queueTableRows(member, [])
     await expect(

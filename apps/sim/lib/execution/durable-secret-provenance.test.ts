@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   durableSecretProvenanceFromPrivateBundle,
   filterDurableSecretProvenanceBySourceValues,
@@ -260,10 +257,6 @@ describe('private durable provenance scope admission', () => {
 
 describe('importing unrecorded durable provenance', () => {
   const UNKNOWN = { status: 'unknown' } as const
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
 
   it('refuses unknown provenance at the shared import boundary', async () => {
     const registry = new ResolvedSecretTraceRegistry()

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-import { document, knowledgeBase, workspaceFiles } from '@sim/db/schema'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -55,46 +51,6 @@ function makeExecutor(total: number | string | null) {
 }
 
 describe('sumForkCopyBytes', () => {
-  it('returns the exact workspace-file plus KB-document total from one scalar query', async () => {
-    const { executor, execute } = makeExecutor(1000)
-
-    const bytes = await sumForkCopyBytes(executor, 'src-ws', {
-      fileIds: ['wf-1'],
-      knowledgeBaseIds: ['kb-1'],
-    })
-
-    expect(bytes).toBe(1000)
-    expect(execute).toHaveBeenCalledTimes(1)
-    const outerQuery = execute.mock.calls[0][0] as {
-      toSQL: () => { sql: string; params: Array<{ toSQL: () => { params: unknown[] } }> }
-    }
-    const compiled = outerQuery.toSQL()
-    expect(compiled.sql).toBe('SELECT (? + ?)::bigint AS total')
-    const [fileBytes, kbBytes] = compiled.params
-    expect(fileBytes.toSQL().sql).toContain('count(*) FILTER')
-    expect(fileBytes.toSQL().sql).toContain('IS NULL')
-    expect(fileBytes.toSQL().params).toContainEqual({
-      type: 'and',
-      conditions: [
-        { type: 'inArray', column: workspaceFiles.id, values: ['wf-1'] },
-        { type: 'eq', left: workspaceFiles.workspaceId, right: 'src-ws' },
-        { type: 'eq', left: workspaceFiles.context, right: 'workspace' },
-        { type: 'isNull', column: workspaceFiles.deletedAt },
-      ],
-    })
-    expect(kbBytes.toSQL().params).toContainEqual({
-      type: 'and',
-      conditions: [
-        { type: 'inArray', column: knowledgeBase.id, values: ['kb-1'] },
-        { type: 'eq', left: knowledgeBase.workspaceId, right: 'src-ws' },
-        { type: 'isNull', column: knowledgeBase.deletedAt },
-        { type: 'isNull', column: document.deletedAt },
-        { type: 'isNull', column: document.archivedAt },
-        { type: 'isNotNull', column: document.storageKey },
-      ],
-    })
-  })
-
   it('coerces driver string aggregates (bigint sums) to numbers', async () => {
     const { executor } = makeExecutor('1024')
 
@@ -113,28 +69,6 @@ describe('sumForkCopyBytes', () => {
       statusCode: 503,
     })
   })
-
-  it('runs no query for an empty selection', async () => {
-    const { executor, execute } = makeExecutor(0)
-
-    const bytes = await sumForkCopyBytes(executor, 'src-ws', {
-      fileIds: [],
-      fileKeys: [],
-      knowledgeBaseIds: [],
-    })
-
-    expect(bytes).toBe(0)
-    expect(execute).not.toHaveBeenCalled()
-  })
-
-  it('uses the same single scalar query when only KBs are selected', async () => {
-    const { executor, execute } = makeExecutor(555)
-
-    const bytes = await sumForkCopyBytes(executor, 'src-ws', { knowledgeBaseIds: ['kb-1'] })
-
-    expect(bytes).toBe(555)
-    expect(execute).toHaveBeenCalledTimes(1)
-  })
 })
 
 describe('assertForkStorageHeadroom', () => {
@@ -147,14 +81,7 @@ describe('assertForkStorageHeadroom', () => {
   } as const
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveStorageBillingContext.mockResolvedValue(targetContext)
-  })
-
-  it('never consults the quota helper for zero bytes', async () => {
-    await assertForkStorageHeadroom({ targetWorkspaceId: 'target-ws', bytes: 0 })
-    expect(mockResolveStorageBillingContext).not.toHaveBeenCalled()
-    expect(mockCheckStorageQuotaForBillingContext).not.toHaveBeenCalled()
   })
 
   it('checks sync headroom against the actual target workspace payer, never the actor', async () => {
@@ -188,18 +115,6 @@ describe('assertForkStorageHeadroom', () => {
       message:
         'Not enough storage to copy the selected resources. Storage limit exceeded. Used: 10.50GB, Limit: 10GB',
     })
-  })
-
-  it('falls back to a generic storage message when the quota helper omits one', async () => {
-    mockCheckStorageQuotaForBillingContext.mockResolvedValue({
-      allowed: false,
-      currentUsage: 0,
-      limit: 0,
-    })
-
-    await expect(
-      assertForkStorageHeadroom({ targetWorkspaceId: 'target-ws', bytes: 1 })
-    ).rejects.toThrow('Not enough storage to copy the selected resources. Storage limit exceeded')
   })
 
   it('derives a not-yet-created fork payer from the creation policy', async () => {

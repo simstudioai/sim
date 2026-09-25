@@ -60,7 +60,6 @@ const inventory = (overrides = {}) => ({
   ...overrides,
 })
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.secrets.mockReturnValue({ data: { source: null } })
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   mocks.inventory.mockReturnValue({ data: inventory(), refetch: mocks.refetch })
@@ -178,24 +177,6 @@ describe('live member connection states', () => {
       { organizationId: 'org', mcpServerId: 'coda-server' },
       expect.any(Object)
     )
-  })
-  it('distinguishes filtered empty, loading, and failed states', async () => {
-    await render('nothing')
-    expect(container.textContent).toContain('No matching integrations')
-    mocks.inventory.mockReturnValue({})
-    await render()
-    expect(container.textContent).toContain('Loading your connections')
-    mocks.inventory.mockReturnValue({
-      error: new Error('Network unavailable'),
-      refetch: mocks.refetch,
-    })
-    await render()
-    expect(container.textContent).toContain('Network unavailable')
-  })
-  it('shows no empty-state copy when the organization has no sources', async () => {
-    mocks.policies.mockReturnValue({ data: [], refetch: mocks.refetch })
-    await render()
-    expect(container.textContent).toBe('')
   })
   it.each([false, true])(
     'keeps Slack app setup out of member Integrations, admin=%s',

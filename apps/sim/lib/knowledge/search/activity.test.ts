@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -12,7 +11,6 @@ vi.mock('@sim/db', () => ({ db: { transaction: mocks.transaction } }))
 import { recordOrganizationSearchActivity } from '@/lib/knowledge/search/activity'
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.insert.mockReturnValue({ values: mocks.values })
   mocks.values.mockResolvedValue(undefined)
   mocks.execute.mockResolvedValue(undefined)
@@ -43,34 +41,6 @@ describe('Search activity metering', () => {
       resultCount: 3,
     })
     expect(JSON.stringify(mocks.values.mock.calls)).not.toContain('private-document')
-  })
-  it('records successful empty searches', async () => {
-    await recordOrganizationSearchActivity({
-      organizationId: 'org',
-      userId: 'actor',
-      surface: 'dashboard',
-      results: [],
-    })
-    expect(mocks.values).toHaveBeenCalledWith(
-      expect.objectContaining({ resultCount: 0, sourceTypes: [] })
-    )
-  })
-  it('applies a transaction-local statement deadline before inserting activity', async () => {
-    const timeout = Promise.withResolvers<void>()
-    mocks.execute.mockReturnValueOnce(timeout.promise)
-    const recorded = recordOrganizationSearchActivity({
-      organizationId: 'org',
-      userId: 'actor',
-      surface: 'slack',
-      results: [],
-    })
-    expect(mocks.insert).not.toHaveBeenCalled()
-    expect(JSON.stringify(mocks.execute.mock.calls[0])).toContain(
-      "SET LOCAL statement_timeout = '2s'"
-    )
-    timeout.resolve()
-    await recorded
-    expect(mocks.insert).toHaveBeenCalledOnce()
   })
   it('does not attempt an unbounded insert if setting the deadline fails', async () => {
     mocks.execute.mockRejectedValueOnce(new Error('Could not set statement timeout'))

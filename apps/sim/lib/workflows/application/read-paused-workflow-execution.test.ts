@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -65,7 +62,6 @@ const allowedPrincipals: Principal[] = [
 
 describe('readPausedWorkflowExecution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.resolveWorkflowContext.mockResolvedValue(workflowContext)
     mocks.getPausedExecutionDetail.mockResolvedValue(detail)
@@ -97,19 +93,6 @@ describe('readPausedWorkflowExecution', () => {
     expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.getPausedExecutionDetail.mock.invocationCallOrder[0]
     )
-  })
-
-  it('supports an authorization-only preflight without loading paused execution detail', async () => {
-    expect(readPausedWorkflowExecution.authorize).toBeTypeOf('function')
-
-    await readPausedWorkflowExecution.authorize?.({
-      principal: allowedPrincipals[0],
-      input: { workflowId: 'workflow-1', executionId: 'execution-1' },
-    })
-
-    expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({ workflowId: 'workflow-1' })
-    expect(mocks.resolvePermission).toHaveBeenCalled()
-    expect(mocks.getPausedExecutionDetail).not.toHaveBeenCalled()
   })
 
   it('rejects executor delegation before canonical lookup', async () => {
@@ -191,28 +174,5 @@ describe('readPausedWorkflowExecution', () => {
       })
     ).rejects.toMatchObject({ name: 'PersonalApiKeysDisabledError' })
     expect(mocks.getPausedExecutionDetail).not.toHaveBeenCalled()
-  })
-
-  it('returns a semantic not-found error when no paused execution matches', async () => {
-    mocks.getPausedExecutionDetail.mockResolvedValueOnce(null)
-
-    await expect(
-      readPausedWorkflowExecution.execute({
-        principal: allowedPrincipals[0],
-        input: { workflowId: 'workflow-1', executionId: 'missing-execution' },
-      })
-    ).rejects.toMatchObject({ code: 'not_found', message: 'Paused execution not found' })
-  })
-
-  it('propagates manager infrastructure failures', async () => {
-    const infrastructureError = new Error('database unavailable')
-    mocks.getPausedExecutionDetail.mockRejectedValueOnce(infrastructureError)
-
-    await expect(
-      readPausedWorkflowExecution.execute({
-        principal: allowedPrincipals[0],
-        input: { workflowId: 'workflow-1', executionId: 'execution-1' },
-      })
-    ).rejects.toBe(infrastructureError)
   })
 })

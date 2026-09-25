@@ -18,7 +18,7 @@ type MockFetch = Mock & {
  * Tool configuration interface (simplified for testing).
  * Compatible with actual tool configs from @/tools.
  */
-export interface TestToolConfig<P = unknown, R = unknown> {
+interface TestToolConfig<P = unknown, R = unknown> {
   id: string
   request: {
     url: string | ((params: P) => string)
@@ -32,7 +32,7 @@ export interface TestToolConfig<P = unknown, R = unknown> {
 /**
  * Tool response interface
  */
-export interface ToolResponse {
+interface ToolResponse {
   success: boolean
   output: Record<string, unknown>
   error?: string
@@ -56,7 +56,7 @@ const createMockHeaders = (customHeaders: Record<string, string> = {}) => {
  * Creates a mock fetch function with Next.js preconnect support.
  * Wraps the @sim/testing createMockFetch with tool-specific additions.
  */
-export function createToolMockFetch(
+function createToolMockFetch(
   responseData: unknown,
   options: { ok?: boolean; status?: number; headers?: Record<string, string> } = {}
 ) {
@@ -79,7 +79,7 @@ export function createToolMockFetch(
 /**
  * Creates a mock error fetch function.
  */
-export function createErrorFetch(errorMessage: string, status = 400) {
+function createErrorFetch(errorMessage: string, status = 400) {
   const error = new Error(errorMessage)
   ;(error as Error & { status: number }).status = status
 

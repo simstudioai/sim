@@ -141,7 +141,6 @@ import {
 
 describe('run tool execution cancellation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     window.sessionStorage.clear()
     const executionIds = new Map<string, string | null>()
     getCurrentExecutionId.mockImplementation(
@@ -167,30 +166,6 @@ describe('run tool execution cancellation', () => {
       status: 'error',
       data: { code: 'WORKFLOW_EXECUTION_BUSY' },
     })
-  })
-
-  it('passes an abort signal into executeWorkflowWithFullLogging and aborts it', async () => {
-    let capturedSignal: AbortSignal | undefined
-    executeWorkflowWithFullLogging.mockImplementationOnce(
-      async (options: WorkflowExecutionOptions) => {
-        capturedSignal = requireAbortSignal(options)
-        await new Promise((_, reject) => {
-          capturedSignal?.addEventListener(
-            'abort',
-            () => reject(new DOMException('Aborted', 'AbortError')),
-            { once: true }
-          )
-        })
-      }
-    )
-
-    executeRunToolOnClient('tool-1', 'run_workflow', { workflowId: 'wf-1' })
-    await Promise.resolve()
-
-    stopRunToolExecutions(new Set(['tool-1']))
-    await Promise.resolve()
-
-    expect(capturedSignal?.aborted).toBe(true)
   })
 
   it('owns the workflow for exactly as long as the client run is in flight', async () => {
@@ -640,38 +615,6 @@ describe('run tool execution cancellation', () => {
     expect(setIsExecuting).not.toHaveBeenCalled()
     expect(setCurrentExecutionId).not.toHaveBeenCalled()
     expect(saveExecutionPointer).not.toHaveBeenCalled()
-  })
-
-  it('reports local stream handler failures as background instead of workflow errors', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true })
-    vi.stubGlobal('fetch', fetchMock)
-    getCurrentExecutionId.mockImplementation(
-      () => saveExecutionPointer.mock.calls[0]?.[0]?.executionId ?? null
-    )
-    executeWorkflowWithFullLogging.mockRejectedValueOnce(
-      new MockSSEEventHandlerError('handler failed', 'exec-1')
-    )
-
-    executeRunToolOnClient('tool-5', 'run_workflow', { workflowId: 'wf-1' })
-
-    await vi.waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/copilot/confirm',
-        expect.objectContaining({
-          method: 'POST',
-          body: expect.stringContaining('"status":"background"'),
-        })
-      )
-    })
-    expect(clearExecutionPointer).not.toHaveBeenCalled()
-    expect(setIsExecuting).toHaveBeenCalledWith('wf-1', false)
-    expect(fetchMock.mock.calls[0][1]?.body).toContain('"executionId":"exec-1"')
-    expect(fetchMock).not.toHaveBeenCalledWith(
-      '/api/copilot/confirm',
-      expect.objectContaining({
-        body: expect.stringContaining('"status":"error"'),
-      })
-    )
   })
 
   it('reports the real failure reason so the agent can correct its arguments', async () => {

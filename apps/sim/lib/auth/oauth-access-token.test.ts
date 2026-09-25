@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { setRequestAuth } from '@sim/logger'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -68,7 +65,6 @@ describe('parseBearerToken', () => {
 
 describe('verifyOAuthAccessToken', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

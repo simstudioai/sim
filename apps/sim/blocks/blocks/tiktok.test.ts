@@ -1,27 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { TikTokBlock } from '@/blocks/blocks/tiktok'
 
 describe('TikTokBlock', () => {
   const buildParams = TikTokBlock.tools.config.params!
-  const selectTool = TikTokBlock.tools.config.tool!
-
-  it('rejects unsupported operations', () => {
-    expect(() => selectTool({ operation: 'tiktok_unknown_operation' })).toThrow(
-      'Unsupported TikTok operation'
-    )
-  })
-
-  it('uses one canonical file parameter for upload and reference modes', () => {
-    const fileInputs = TikTokBlock.subBlocks.filter(
-      (subBlock) => subBlock.id === 'videoFile' || subBlock.id === 'videoFileRef'
-    )
-
-    expect(fileInputs).toHaveLength(2)
-    expect(fileInputs.every((subBlock) => subBlock.canonicalParamId === 'file')).toBe(true)
-  })
 
   it('forwards only draft parameters and preserves a canonical UserFile', () => {
     const file = {

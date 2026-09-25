@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest, requestUtilsMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockCheckRateLimitDirect } = vi.hoisted(() => ({
   mockCheckRateLimitDirect: vi.fn(),
@@ -21,10 +18,6 @@ import {
 } from '@/lib/credential-groups/rate-limit'
 
 describe('public credential group rate limits', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('fails closed without a client IP when no independent backstop is declared', async () => {
     requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce(null)
 

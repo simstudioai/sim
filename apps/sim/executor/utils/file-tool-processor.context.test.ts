@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'

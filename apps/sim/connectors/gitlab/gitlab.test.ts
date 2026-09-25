@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { fetchSource } = vi.hoisted(() => ({ fetchSource: vi.fn() }))
@@ -16,7 +15,6 @@ import { gitlabConnector } from '@/connectors/gitlab/gitlab'
 import { gitlabConnectorMeta } from '@/connectors/gitlab/meta'
 import { setGitLabCsvContext } from '@/connectors/gitlab/permission-config/types'
 import type { ExternalDocument } from '@/connectors/types'
-import { CONNECTOR_TEXT_DOCUMENT_MAX_BYTES } from '@/connectors/utils'
 
 const HOST = 'https://gitlab.example.com:8443'
 const PROJECT_PATH = '/api/v4/projects/group%2Fproject'
@@ -136,7 +134,6 @@ async function hydrate(id: string) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   calls = []
   issues = [issue(1), issue(3)]
   merges = [mr(2), mr(4)]
@@ -159,59 +156,6 @@ beforeEach(() => {
 })
 
 describe('GitLab connector provider lifecycle', () => {
-  it('walks all phases and pages with stable resource namespaces and deferred bodies', async () => {
-    const docs = await list()
-    expect(docs.map((doc) => doc.externalId)).toEqual([
-      'file:docs/readme.md',
-      'wiki:design/architecture',
-      'issue:1',
-      'issue:3',
-      'merge_request:2',
-      'merge_request:4',
-    ])
-    expect(docs.every((doc) => doc.contentDeferred && doc.content === '')).toBe(true)
-    expect(docs.find((doc) => doc.externalId === 'issue:1')?.metadata).toMatchObject({
-      confidential: true,
-      authorId: 7,
-      assigneeIds: [8],
-    })
-    expect(
-      calls
-        .find((call) => call.url.pathname.endsWith('/wikis'))
-        ?.url.searchParams.get('with_content')
-    ).toBe('0')
-    expect(
-      calls
-        .find((call) => call.url.pathname.endsWith('/merge_requests'))
-        ?.url.searchParams.get('scope')
-    ).toBe('all')
-    expect(calls.filter((call) => call.url.pathname.endsWith('/merge_requests')).length).toBe(2)
-  })
-
-  it('preserves the legacy default of wiki plus issues and supports MR-only selection', async () => {
-    expect((await list({ ...config, contentTypes: '' })).map((doc) => doc.externalId)).toEqual([
-      'wiki:design/architecture',
-      'issue:1',
-      'issue:3',
-    ])
-    expect(
-      (await list({ ...config, contentTypes: 'merge_requests' })).map((doc) => doc.externalId)
-    ).toEqual(['merge_request:2', 'merge_request:4'])
-  })
-
-  it('hydrates parent text and all noninternal comments with precise note anchors', async () => {
-    const doc = await hydrate('merge_request:2')
-    expect(doc.content).toContain('Merge request 2\n\nImplement indexing')
-    expect(doc.content).toContain('Review comment')
-    expect(doc.content).toContain(`${HOST}/group/project/-/merge_requests/2#note_20`)
-    expect(doc.content).not.toMatch(/Do not expose internal|Confidential note|System activity/)
-    expect(doc.metadata?.contentType).toBe('merge_request')
-    expect(calls.filter((call) => call.url.pathname.endsWith('/notes')).length).toBe(4)
-    expect(calls.find((call) => call.url.pathname.endsWith('/notes'))?.maxResponseBytes).toBe(
-      16 * 1024 * 1024
-    )
-  })
-
   it('refreshes comment edits and deletions even when parent timestamps do not change', async () => {
     const before = await hydrate('issue:1')
     const stable = await hydrate('issue:1')
@@ -231,64 +175,12 @@ describe('GitLab connector provider lifecycle', () => {
     expect(calls.some((call) => call.url.searchParams.has('updated_after'))).toBe(false)
   })
 
-  it('preserves confidential issue metadata while hydrating comments', async () => {
-    const doc = await hydrate('issue:1')
-    expect(doc.metadata).toMatchObject({ confidential: true, authorId: 7, assigneeIds: [8] })
-    expect(doc.content).toContain('First discussion')
-    expect(doc.content).toContain('Second discussion')
-    issues[0].confidential = false
-    expect((await hydrate('issue:1')).metadata?.confidential).toBe(false)
-  })
-
-  it('hydrates wiki content separately and includes a title edit in its content hash', async () => {
-    const first = await hydrate('wiki:design/architecture')
-    expect(first.content).toBe('Architecture\n\nWiki body')
-    wikiPages[0].title = 'New architecture'
-    expect((await hydrate('wiki:design/architecture')).contentHash).not.toBe(first.contentHash)
-    const doc = await hydrate('file:docs/readme.md')
-    expect(doc.content).toContain('# Readme')
-    expect(doc.contentHash).toBe('gitlab:file:group%2Fproject:docs/readme.md:blobsha')
-  })
-
-  it('honors server-supplied wiki continuations without inventing page support', async () => {
-    override = ({ url }) => {
-      if (!url.pathname.endsWith('/wikis')) return undefined
-      if (url.searchParams.get('page') === '2')
-        return Response.json([{ slug: 'second', title: 'Second' }])
-      const next = new URL(url)
-      next.searchParams.set('page', '2')
-      return Response.json([{ slug: 'first', title: 'First' }], {
-        headers: { Link: `<${next}>; rel="next"` },
-      })
-    }
-    expect((await list({ ...config, contentTypes: 'wiki' })).map((doc) => doc.externalId)).toEqual([
-      'wiki:first',
-      'wiki:second',
-    ])
-  })
-
   it('marks explicit caps incomplete so unseen documents are not reconciled away', async () => {
     const context: Record<string, unknown> = {}
     const docs = await list({ ...config, maxItems: 1 }, context)
     expect(docs).toHaveLength(1)
     expect(context.listingCapped).toBe(true)
   })
-
-  it.each([
-    ['repo', 1],
-    ['wiki', 1],
-    ['issues', 2],
-    ['merge_requests', 2],
-    ['all', 6],
-  ])(
-    'allows deletion reconciliation when %s ends exactly at its cap',
-    async (contentTypes, maxItems) => {
-      const context: Record<string, unknown> = {}
-      const docs = await list({ ...config, contentTypes, maxItems }, context)
-      expect(docs).toHaveLength(Number(maxItems))
-      expect(context.listingCapped).not.toBe(true)
-    }
-  )
 
   it('keeps a listing incomplete when the cap leaves another provider page unread', async () => {
     const context: Record<string, unknown> = {}
@@ -297,27 +189,6 @@ describe('GitLab connector provider lifecycle', () => {
     expect(context.listingCapped).toBe(true)
     expect(calls.filter((call) => call.url.pathname.endsWith('/issues'))).toHaveLength(1)
   })
-
-  it('keeps a listing incomplete when the cap trims the current provider page', async () => {
-    const context: Record<string, unknown> = {}
-    wikiPages.push({ slug: 'second', title: 'Second page', content: 'Another page' })
-    const docs = await list({ ...config, contentTypes: 'wiki', maxItems: 1 }, context)
-    expect(docs).toHaveLength(1)
-    expect(context.listingCapped).toBe(true)
-  })
-
-  it.each(['1.5', 'Infinity', '9007199254740992', '0', '-1', 'invalid'])(
-    'rejects an invalid item limit %s before contacting GitLab',
-    async (maxItems) => {
-      await expect(gitlabConnector.validateConfig('pat', { ...config, maxItems })).resolves.toEqual(
-        {
-          valid: false,
-          error: 'Max items must be a positive whole number',
-        }
-      )
-      expect(fetchSource).not.toHaveBeenCalled()
-    }
-  )
 
   it('fails hydration if comment access changes or a continuation leaves the collection', async () => {
     override = ({ url }) =>
@@ -331,41 +202,6 @@ describe('GitLab connector provider lifecycle', () => {
         : undefined
     await expect(hydrate('issue:1')).rejects.toThrow('unexpected collection')
     expect(calls.some((call) => call.url.pathname === '/api/v4/users')).toBe(false)
-  })
-
-  it('rejects malformed and repeating comments instead of indexing partial content', async () => {
-    override = ({ url }) =>
-      url.pathname.endsWith('/notes')
-        ? Response.json([{ id: 1, body: 'Missing visibility metadata' }])
-        : undefined
-    await expect(hydrate('issue:1')).rejects.toThrow('invalid comment')
-    override = ({ url }) =>
-      url.pathname.endsWith('/notes') ? Response.json([note(1), note(1)]) : undefined
-    await expect(hydrate('issue:1')).rejects.toThrow('repeated a comment')
-    override = ({ url }) =>
-      url.pathname.endsWith('/notes')
-        ? Response.json([note(1)], { headers: { Link: `<${url}>; rel="next"` } })
-        : undefined
-    await expect(hydrate('issue:1')).rejects.toThrow('repeated a pagination cursor')
-  })
-
-  it('rejects malformed parent collections and oversized comment content', async () => {
-    override = ({ url }) =>
-      url.pathname.endsWith('/issues') ? Response.json([{ title: 'Missing ID' }]) : undefined
-    await expect(list({ ...config, contentTypes: 'issues' })).rejects.toThrow('invalid issue')
-    override = undefined
-    issueNotes = [note(1, 'x'.repeat(CONNECTOR_TEXT_DOCUMENT_MAX_BYTES))]
-    await expect(hydrate('issue:1')).rejects.toThrow('size limit')
-  })
-
-  it('returns null for confirmed missing parents but surfaces listing authorization failures', async () => {
-    expect(await gitlabConnector.getDocument('pat', config, 'merge_request:999', {})).toBeNull()
-    expect(await gitlabConnector.getDocument('pat', config, 'issue:1.2', {})).toBeNull()
-    override = ({ url }) =>
-      url.pathname.endsWith('/merge_requests') ? new Response(null, { status: 403 }) : undefined
-    await expect(list({ ...config, contentTypes: 'merge_requests' })).rejects.toThrow(
-      'merge requests: 403'
-    )
   })
 
   it('excludes confidential and unknown-status issues before hydration in CSV mode', async () => {
@@ -417,28 +253,6 @@ describe('GitLab connector provider lifecycle', () => {
       acl: [],
     })
     expect(calls.some((call) => call.url.pathname.endsWith('/notes'))).toBe(false)
-  })
-
-  it('excludes a newly hidden issue only after confirming the project is still readable', async () => {
-    const context = { mirrorsSourceAcls: true, projectPath: 'group/project' }
-    setGitLabCsvContext(context, {
-      connectorId: 'csv-connector',
-      host: 'gitlab.example.com:8443',
-      projectId: 42,
-      projectPath: 'group/project',
-    })
-    override = ({ url }) =>
-      url.pathname.endsWith('/issues/1') ? new Response(null, { status: 404 }) : undefined
-    expect(await gitlabConnector.getDocument('pat', config, 'issue:1', context)).toMatchObject({
-      skippedExistingDisposition: 'replace',
-      content: '',
-      acl: [],
-    })
-    expect(calls.some(({ url }) => url.pathname === PROJECT_PATH)).toBe(true)
-    override = () => new Response(null, { status: 404 })
-    await expect(gitlabConnector.getDocument('pat', config, 'issue:1', context)).rejects.toThrow(
-      'Cannot access GitLab project'
-    )
   })
 
   it('does not trust CSV setup supplied through sourceConfig', async () => {

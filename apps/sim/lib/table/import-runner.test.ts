@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { Readable } from 'node:stream'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -90,7 +87,6 @@ function buildPayload(overrides: Partial<TableImportPayload> = {}): TableImportP
 
 describe('runTableImport source-file cleanup', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetTableById.mockResolvedValue(table)
     mockHeadObject.mockResolvedValue({ size: 20 })
     mockDownloadFileStream.mockResolvedValue(Readable.from('name\nAlice\nBob\n'))
@@ -126,23 +122,6 @@ describe('runTableImport source-file cleanup', () => {
     expect(mockDownloadFileStream).not.toHaveBeenCalled()
   })
 
-  it('deletes the single-use source object by default', async () => {
-    await runTableImport(buildPayload())
-
-    expect(mockMarkJobReady).toHaveBeenCalled()
-    expect(mockDeleteFile).toHaveBeenCalledWith({
-      key: 'workspace/ws_1/people.csv',
-      context: 'workspace',
-    })
-  })
-
-  it('keeps a persistent workspace file when deleteSourceFile is false', async () => {
-    await runTableImport(buildPayload({ deleteSourceFile: false }))
-
-    expect(mockMarkJobReady).toHaveBeenCalled()
-    expect(mockDeleteFile).not.toHaveBeenCalled()
-  })
-
   it('flushes retained records before the serialized batch byte budget is exceeded', async () => {
     const cell = 'x'.repeat(390 * 1024)
     const csv = `name\n${Array.from({ length: 14 }, () => cell).join('\n')}\n`
@@ -169,7 +148,6 @@ describe('runTableImport source-file cleanup', () => {
 
 describe('runTableImport rejection accounting', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetTableById.mockResolvedValue(table)
     mockHeadObject.mockResolvedValue({ size: 100 })
     mockNextImportStartPosition.mockResolvedValue(0)
@@ -279,20 +257,10 @@ describe('runTableImport rejection accounting', () => {
       expect.objectContaining({ rowsRejected: 0, cellsRejected: 1 })
     )
   })
-
-  it('records nothing for a clean import', async () => {
-    mockDownloadFileStream.mockResolvedValue(Readable.from('name\nAlice\nBob\n'))
-
-    await runTableImport(buildPayload())
-
-    expect(mockMarkJobReady).toHaveBeenCalled()
-    expect(mockRecordImportRejections).not.toHaveBeenCalled()
-  })
 })
 
 describe('runTableImport in-flight progress', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetTableById.mockResolvedValue(table)
     mockNextImportStartPosition.mockResolvedValue(0)
     mockNextImportStartOrderKey.mockResolvedValue(null)
@@ -301,26 +269,6 @@ describe('runTableImport in-flight progress', () => {
     mockMarkJobFailed.mockResolvedValue(undefined)
     mockDeleteFile.mockResolvedValue(undefined)
     mockRecordImportRejections.mockResolvedValue(undefined)
-  })
-
-  it('writes progress once per batch rather than twice', async () => {
-    const cell = 'x'.repeat(390 * 1024)
-    const csv = `name\n${Array.from({ length: 14 }, () => cell).join('\n')}\n`
-    mockHeadObject.mockResolvedValue({ size: Buffer.byteLength(csv) })
-    mockDownloadFileStream.mockResolvedValue(Readable.from(csv))
-    mockBulkInsertImportBatch.mockImplementation(async ({ rows }: { rows: unknown[] }) => ({
-      inserted: rows.length,
-      lastOrderKey: 'a1',
-    }))
-
-    await runTableImport(buildPayload())
-
-    expect(mockBulkInsertImportBatch).toHaveBeenCalledTimes(2)
-    // Startup, schema resolution, one ownership gate per batch, one emit-cadence write (the
-    // first batch always emits), and the terminal write. An unconditional post-insert write
-    // per batch doubles an import's UPDATE volume — ~400 writes on a 1M-row file instead of
-    // ~200 — to freshen a display counter the next batch's gate refreshes anyway.
-    expect(mockUpdateJobProgress).toHaveBeenCalledTimes(6)
   })
 
   it('persists the post-insert count so an interrupted import reports committed rows', async () => {

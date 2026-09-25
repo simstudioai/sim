@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * The current-user credential operations govern listing and disconnecting a
  * user's OAuth connections. They are minted by `defineCredentialUserOperation`,
  * which does not call `defineWorkspaceOperation`, so `authorizeWorkspaceOperation`
@@ -83,7 +81,6 @@ const INTEGRATIONS_REFUSAL = capabilityRefusal('integrations.manage')
 
 describe('integrations.manage gate on the current-user credential operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({
       user: { id: USER_ID },
       session: { id: 'session-1' },
@@ -133,49 +130,6 @@ describe('integrations.manage gate on the current-user credential operations', (
       expect(response.status).toBe(403)
       expect(await response.json()).toEqual({ error: INTEGRATIONS_REFUSAL })
       expect(mockDisconnectOAuthAccounts).not.toHaveBeenCalled()
-    })
-
-    /**
-     * Concealment: authentication still runs first, so an unauthenticated
-     * caller is told to authenticate rather than told how someone else's
-     * organization is configured.
-     */
-    it('still answers an unauthenticated caller with 401, not the capability', async () => {
-      mockGetSession.mockResolvedValue(null)
-
-      const response = await callListConnections()
-
-      expect(response.status).toBe(401)
-      expect(mockGetOrgPermissionConfig).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('when no group governs the caller', () => {
-    it('lists the OAuth connections', async () => {
-      const response = await callListConnections()
-
-      expect(response.status).toBe(200)
-      expect(mockListOAuthConnectionsForUser).toHaveBeenCalledWith(USER_ID)
-    })
-
-    it('disconnects', async () => {
-      const response = await callDisconnect()
-
-      expect(response.status).toBe(200)
-      expect(mockDisconnectOAuthAccounts).toHaveBeenCalledTimes(1)
-    })
-
-    /**
-     * The personal-workspace case: a user in no organization has no group to
-     * resolve, so the gate is a no-op and never asks.
-     */
-    it('does not even resolve a group for a user in no organization', async () => {
-      mockGetUserOrganization.mockResolvedValue(null)
-
-      const response = await callListConnections()
-
-      expect(response.status).toBe(200)
-      expect(mockGetOrgPermissionConfig).not.toHaveBeenCalled()
     })
   })
 

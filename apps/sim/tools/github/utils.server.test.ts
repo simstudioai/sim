@@ -2,8 +2,6 @@
  * Pins the redirect contract of the GitHub direct-execution transport: the workspace
  * token must never cross an origin boundary, while a legitimate same-origin GitHub
  * redirect (a renamed repository) must stay authenticated.
- *
- * @vitest-environment node
  */
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 // Renders the real prune statements against the real drizzle dialect and
 // schema. These are raw `sql` templates, so a rendering bug only surfaces at
 // execution time — the global drizzle/schema mocks would hide it entirely.

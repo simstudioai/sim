@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1EventType,
@@ -121,7 +118,6 @@ describe('processFilePreviewStreamEvent — preview content emission', () => {
   const events: Array<{ payload: Record<string, unknown> }> = []
 
   beforeEach(() => {
-    vi.clearAllMocks()
     events.length = 0
     // An append base is available (a non-empty file) at durable version BASE_VERSION_MS, so the preview
     // text is composed as base + streamed content.
@@ -190,7 +186,6 @@ describe('processFilePreviewStreamEvent — preview target resolution', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     executeCopilotFileUseCaseMock.mockResolvedValue({
       files: [{ id: 'file-9', name: 'notes.md', folderPath: null }],
     })

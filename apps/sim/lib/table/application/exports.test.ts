@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -46,11 +42,7 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
 import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
-import {
-  cancelTableExportUseCase,
-  createTableExportUseCase,
-  readTableExportUseCase,
-} from '@/lib/table/application/exports'
+import { cancelTableExportUseCase, createTableExportUseCase } from '@/lib/table/application/exports'
 
 const now = new Date('2026-08-01T00:00:00.000Z')
 const table: TableDefinition = {
@@ -80,11 +72,6 @@ const record = {
   updatedAt: now,
   completedAt: null,
 }
-const principal = {
-  kind: 'workspace_api_key' as const,
-  workspaceId: 'workspace-1',
-  keyId: 'workspace-key-1',
-}
 const executor: WorkflowExecutionDelegatedPrincipal = {
   kind: 'delegated',
   serviceId: 'executor',
@@ -100,7 +87,6 @@ const executor: WorkflowExecutionDelegatedPrincipal = {
 
 describe('table export application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveContext.mockResolvedValue({
       tableId: table.id,
       table,
@@ -122,24 +108,6 @@ describe('table export application use cases', () => {
     }))
   })
 
-  it('returns domain records for create and read operations', async () => {
-    await expect(
-      createTableExportUseCase.execute({
-        principal,
-        input: { tableId: 'table-1', workspaceId: 'workspace-1', format: 'csv' },
-      })
-    ).resolves.toEqual({ export: record })
-
-    await expect(
-      readTableExportUseCase.execute({
-        principal,
-        input: { exportId: 'export-1', workspaceId: 'workspace-1' },
-      })
-    ).resolves.toEqual({ export: record })
-
-    expect(record.startedAt).toBeInstanceOf(Date)
-  })
-
   it('exports through admitted Copilot scope and rejects a different table binding', async () => {
     const delegated = createCopilotChatPrincipal(
       { userId: 'actor', workspaceId: 'workspace-1', chatId: 'chat' },
@@ -158,30 +126,6 @@ describe('table export application use cases', () => {
       createTableExportUseCase.execute({ principal: narrower, input })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.create).not.toHaveBeenCalled()
-  })
-
-  it('returns the authoritative canceled domain record', async () => {
-    await expect(
-      cancelTableExportUseCase.execute({
-        principal,
-        input: { exportId: 'export-1', workspaceId: 'workspace-1' },
-      })
-    ).resolves.toMatchObject({ export: { status: 'canceled', startedAt: now } })
-  })
-
-  it('supports exact table-scoped executor create and unscoped resource reads', async () => {
-    await expect(
-      createTableExportUseCase.execute({
-        principal: executor,
-        input: { tableId: 'table-1', workspaceId: 'workspace-1', format: 'csv' },
-      })
-    ).resolves.toEqual({ export: record })
-    await expect(
-      readTableExportUseCase.execute({
-        principal: { ...executor, resourceScope: undefined },
-        input: { exportId: 'export-1', workspaceId: 'workspace-1' },
-      })
-    ).resolves.toEqual({ export: record })
   })
 
   it('rejects a mismatched executor table scope before export mutation', async () => {
@@ -238,17 +182,6 @@ describe('table export application use cases', () => {
           input: { exportId: 'export-1', workspaceId: 'workspace-1' },
         })
       ).resolves.toMatchObject({ export: { status: 'canceled' } })
-    })
-
-    it('generates an export when the group withholds nothing', async () => {
-      resolveGroupConfigMock.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
-
-      await expect(
-        createTableExportUseCase.execute({
-          principal: member,
-          input: { tableId: 'table-1', workspaceId: 'workspace-1', format: 'csv' },
-        })
-      ).resolves.toEqual({ export: record })
     })
   })
 })

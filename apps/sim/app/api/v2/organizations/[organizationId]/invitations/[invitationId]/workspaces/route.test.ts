@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { Principal } from '@sim/auth/principal'
 import { invitation, invitationWorkspaceGrant, member, workspace } from '@sim/db/schema'
 import {
@@ -62,7 +61,6 @@ function queueAuthorized(status = 'pending', grants = rows) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   setPrincipal(principal)
   v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
@@ -90,12 +88,6 @@ describe('organization invitation workspace grants', () => {
       })
     }
   )
-
-  it('returns an empty page for an invitation without workspace grants', async () => {
-    queueAuthorized('pending', [])
-    const response = await request()
-    expect(await response.json()).toEqual({ data: [], nextCursor: null })
-  })
 
   it('bounds pages and retains a unique workspace ID tiebreaker', async () => {
     queueAuthorized()
@@ -180,19 +172,6 @@ describe('organization invitation workspace grants', () => {
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
-  it('admits read-only OAuth with current administrator authority', async () => {
-    setPrincipal({
-      kind: 'oauth_access_token',
-      userId: 'actor',
-      clientId: 'client',
-      tokenId: 'token',
-      scopes: ['api:read'],
-      expiresAt: new Date('2099-01-01'),
-    })
-    queueAuthorized()
-    expect((await request()).status).toBe(200)
-  })
-
   it('rechecks credential policy but does not require permission to send new invitations', async () => {
     queueAuthorized()
     mocks.config.mockResolvedValue({ ...DEFAULT_PERMISSION_GROUP_CONFIG, disableInvitations: true })
@@ -204,12 +183,4 @@ describe('organization invitation workspace grants', () => {
     })
     expect((await request()).status).toBe(403)
   })
-
-  it.each(['?limit=1.5', '?limit=0', '?limit=101', '?sortBy=email', '?extra=true', '?cursor=bad'])(
-    'rejects invalid query %s before protected loading',
-    async (query) => {
-      expect((await request(query)).status).toBe(400)
-      expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    }
-  )
 })

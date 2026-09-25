@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createEnvMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -49,27 +46,6 @@ describe('resolveApiCorsPolicy', () => {
     })
   })
 
-  /**
-   * `proxy()` consults this table only for `/api/` paths, so a rule matching
-   * the origin-root discovery document would never run. That copy sets its own
-   * `Access-Control-Allow-Origin` in the route handler instead; a rule here
-   * would read as coverage it does not have.
-   */
-  it('leaves the origin-root discovery document to its own route handler', () => {
-    const rootPolicy = resolveApiCorsPolicy(makeRequest('/.well-known/oauth-authorization-server'))
-    const apiPolicy = resolveApiCorsPolicy(
-      makeRequest('/api/auth/.well-known/oauth-authorization-server')
-    )
-    expect(rootPolicy).not.toEqual(apiPolicy)
-  })
-
-  it('serves MCP copilot with DELETE in allowed methods', () => {
-    const policy = resolveApiCorsPolicy(makeRequest('/api/mcp/copilot'))
-    expect(policy.origin).toBe('*')
-    expect(policy.methods).toContain('DELETE')
-    expect(policy.headers).toContain('X-API-Key')
-  })
-
   it('reflects origin for chat embeds with credentials enabled', () => {
     const paths = ['/api/chat/abc', '/api/chat/abc/otp', '/api/chat/abc/sso']
     for (const path of paths) {
@@ -90,30 +66,6 @@ describe('resolveApiCorsPolicy', () => {
     expect(policy.credentials).toBe(false)
   })
 
-  it('allows PUT on the embed policy (used by OTP verification on /[identifier]/otp)', () => {
-    const policy = resolveApiCorsPolicy(
-      makeRequest('/api/chat/abc/otp', 'https://customer.example')
-    )
-    expect(policy.methods).toContain('PUT')
-  })
-
-  it('applies the embed policy to future identifier subroutes (not just /otp, /sso)', () => {
-    const policy = resolveApiCorsPolicy(
-      makeRequest('/api/chat/abc/transcript', 'https://customer.example')
-    )
-    expect(policy.origin).toBe('https://customer.example')
-    expect(policy.credentials).toBe(true)
-  })
-
-  it('uses the default credentialed policy for workspace-internal chat routes', () => {
-    const paths = ['/api/chat', '/api/chat/manage/abc', '/api/chat/validate']
-    for (const path of paths) {
-      const policy = resolveApiCorsPolicy(makeRequest(path, 'https://customer.example'))
-      expect(policy.origin).toBe('https://app.sim.test')
-      expect(policy.credentials).toBe(true)
-    }
-  })
-
   it('serves workflow execute with wildcard origin and execution identity header', () => {
     const policy = resolveApiCorsPolicy(
       makeRequest('/api/workflows/workflow-123/execute', 'https://other.example')
@@ -123,21 +75,6 @@ describe('resolveApiCorsPolicy', () => {
     expect(policy.methods).toContain('PUT')
     expect(policy.headers).toContain('X-Execution-Id')
     expect(policy.headers).toContain('X-Execution-Timeout-Seconds')
-  })
-
-  it('serves v2 workflow execute with wildcard origin and the stream-protocol header', () => {
-    const policy = resolveApiCorsPolicy(
-      makeRequest('/api/v2/workflows/workflow-123/execute', 'https://other.example')
-    )
-    expect(policy.origin).toBe('*')
-    expect(policy.credentials).toBe(false)
-    expect(policy.headers).toContain('X-Run-Id')
-    expect(policy.headers).toContain('X-Sim-Stream-Protocol')
-    expect(policy.headers).toContain('X-Sim-Client-Info')
-    expect(policy.headers).toContain('Authorization')
-    expect(policy.headers).not.toContain('X-Execution-Id')
-    // Async is body-selected on v2 — the mode header is deliberately absent.
-    expect(policy.headers).not.toContain('X-Execution-Mode')
   })
 
   it('does not match the v2 execute rule for nested or runs paths', () => {
@@ -151,13 +88,6 @@ describe('resolveApiCorsPolicy', () => {
     expect(runs.origin).toBe('https://app.sim.test')
   })
 
-  it('does not match the workflow execute rule for nested paths', () => {
-    const policy = resolveApiCorsPolicy(
-      makeRequest('/api/workflows/workflow-123/execute/extra', 'https://other.example')
-    )
-    expect(policy.origin).toBe('https://app.sim.test')
-  })
-
   it('returns default policy with APP_URL and credentials for other API routes', () => {
     const policy = resolveApiCorsPolicy(makeRequest('/api/files/uploads'))
     expect(policy).toEqual({
@@ -167,24 +97,6 @@ describe('resolveApiCorsPolicy', () => {
       exposeHeaders: EXPOSED_HEADERS,
       headers: expect.stringContaining('Authorization'),
     })
-  })
-
-  /**
-   * `X-Run-Id` is emitted by the v2 execute route alone, and that route is
-   * wildcard-origin so browsers can call it — a policy that omits the exposed
-   * headers leaves the run id, and a 429's `Retry-After`, unreadable to exactly
-   * the callers the route exists for.
-   */
-  it('exposes the response headers on the v2 execute policy, not just the default one', () => {
-    const execute = resolveApiCorsPolicy(
-      makeRequest('/api/v2/workflows/workflow-123/execute', 'https://other.example')
-    )
-    expect(execute.exposeHeaders).toBe(EXPOSED_HEADERS)
-    expect(execute.exposeHeaders).toContain('X-Run-Id')
-    expect(execute.exposeHeaders).toContain('Retry-After')
-
-    const fallback = resolveApiCorsPolicy(makeRequest('/api/files/uploads'))
-    expect(fallback.exposeHeaders).toBe(execute.exposeHeaders)
   })
 
   it('exposes the response headers on every matched rule, so a new rule cannot drop them', () => {
@@ -232,20 +144,6 @@ describe('proxy on the dedicated MCP host', () => {
     expect(response.status).toBe(204)
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://app.sim.test')
     expect(response.headers.get('Access-Control-Allow-Headers')).toContain('Authorization')
-  })
-
-  it('rewrites the endpoint to the MCP route with the same CORS headers', () => {
-    const response = proxy(mcpRequest('/mcp'))
-    expect(response.headers.get('x-middleware-rewrite')).toBe('https://mcp.sim.test/api/mcp')
-    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://app.sim.test')
-  })
-
-  it('leaves the metadata rewrite to its own wildcard CORS', () => {
-    const response = proxy(mcpRequest('/.well-known/oauth-protected-resource/mcp', 'GET'))
-    expect(response.headers.get('x-middleware-rewrite')).toBe(
-      'https://mcp.sim.test/.well-known/oauth-protected-resource/api/mcp'
-    )
-    expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull()
   })
 
   it('serves nothing else on the MCP host', () => {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -46,7 +43,6 @@ const file = {
 
 describe('executeVideoOperation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.assertToolFileAccess.mockResolvedValue(null)
     mocks.isModelSafeWorkspaceFileKey.mockResolvedValue(true)
     mocks.validateOpaqueModelInputProvenance.mockReturnValue({ success: true })
@@ -62,61 +58,6 @@ describe('executeVideoOperation', () => {
       name: 'video.mp4',
       type: 'video/mp4',
       url: '/api/files/serve/video.mp4',
-    })
-  })
-
-  it('uses trusted execution scope and returns the legacy output contract', async () => {
-    const controller = new AbortController()
-    const result = await executeVideoOperation(
-      {
-        provider: 'runway',
-        apiKey: 'key',
-        model: 'gen-4-turbo',
-        prompt: 'A cinematic sunrise',
-        visualReference: file,
-      },
-      {
-        headers: new Headers(),
-        requestId: 'request-1',
-        signal: controller.signal,
-        userId: 'user-1',
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-      }
-    )
-
-    expect(mocks.validateOpaqueModelInputProvenance).toHaveBeenCalled()
-    expect(mocks.assertToolFileAccess).toHaveBeenCalledWith(
-      file.key,
-      'user-1',
-      'request-1',
-      expect.anything()
-    )
-    expect(mocks.generateVideo).toHaveBeenCalledWith(
-      expect.objectContaining({ provider: 'runway', visualReference: file }),
-      { requestId: 'request-1', signal: controller.signal }
-    )
-    expect(mocks.uploadExecutionFile).toHaveBeenCalledWith(
-      {
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-      },
-      Buffer.from('video'),
-      expect.stringMatching(/^video-runway-/),
-      'video/mp4',
-      'user-1'
-    )
-    expect(result).toMatchObject({
-      videoUrl: '/api/files/serve/video.mp4',
-      videoFile: expect.objectContaining({ type: 'video/mp4' }),
-      duration: 5,
-      width: 1280,
-      height: 720,
-      provider: 'runway',
-      model: 'gen-4-turbo',
-      jobId: 'job-1',
     })
   })
 

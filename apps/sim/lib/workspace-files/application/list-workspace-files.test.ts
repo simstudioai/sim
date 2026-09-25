@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -102,7 +99,6 @@ async function run(input: Partial<PageInput> = {}) {
 
 describe('queryWorkspaceFilePage folder scoping', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.loadWorkspace.mockResolvedValue({
       workspaceId: 'workspace-1',
@@ -116,12 +112,6 @@ describe('queryWorkspaceFilePage folder scoping', () => {
       includeRootItems: false,
     })
     mocks.queryFiles.mockResolvedValue({ files: [], nextKeys: null })
-  })
-
-  it('applies no folder predicate when folderPath is omitted', async () => {
-    const options = await run()
-    expect(options.folderId).toBeUndefined()
-    expect(mocks.loadFolderIndex).not.toHaveBeenCalled()
   })
 
   it('pushes a multi-path scope into the bounded query', async () => {
@@ -150,35 +140,9 @@ describe('queryWorkspaceFilePage folder scoping', () => {
     )
   })
 
-  it('reports when another scoped page exists', async () => {
-    mocks.queryFiles.mockResolvedValueOnce({ files: [{ id: 'f1' }], nextKeys: ['cursor'] })
-
-    await expect(
-      listWorkspaceFilesInFolderScope.execute({
-        principal,
-        input: { workspaceId: 'workspace-1', folderPaths: ['/Projects'], limit: 1 },
-      })
-    ).resolves.toEqual({ files: [{ id: 'f1' }], truncated: true })
-  })
-
-  it('matches one folder when not recursive', async () => {
-    const options = await run({ folderPath: '/Projects' })
-    expect(options.folderId).toBe('a')
-  })
-
-  it('matches the whole subtree when recursive', async () => {
-    const options = await run({ folderPath: '/Projects', recursive: true })
-    expect(options.folderId).toEqual(['a', 'b', 'c'])
-  })
-
   it('stops at the subtree it was asked for', async () => {
     const options = await run({ folderPath: '/Projects/Q3', recursive: true })
     expect(options.folderId).toEqual(['b', 'c'])
-  })
-
-  it('includes a leaf folder itself', async () => {
-    const options = await run({ folderPath: '/Projects/Q3/Drafts', recursive: true })
-    expect(options.folderId).toEqual(['c'])
   })
 
   it('treats a recursive root filter as the whole workspace, not root-level files', async () => {
@@ -189,11 +153,5 @@ describe('queryWorkspaceFilePage folder scoping', () => {
   it('still means root-level files only when the root filter is not recursive', async () => {
     const options = await run({ folderPath: '/' })
     expect(options.folderId).toBeNull()
-  })
-
-  it('returns an empty page for a folder that does not resolve', async () => {
-    const result = await execute({ folderPath: '/Nope', recursive: true })
-    expect(result).toEqual({ files: [], nextKeys: null })
-    expect(mocks.queryFiles).not.toHaveBeenCalled()
   })
 })

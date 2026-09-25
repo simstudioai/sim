@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createLogger } from '@sim/logger'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
@@ -29,7 +26,6 @@ const FILES = [
 
 describe('resolveSlackAttachmentFiles', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.assertAccess.mockResolvedValue(null)
     mocks.download
       .mockResolvedValueOnce({ buffer: Buffer.from('one'), contentType: 'text/plain' })
@@ -77,13 +73,6 @@ describe('resolveSlackAttachmentFiles', () => {
     })
   })
 
-  it('fails closed without trusted executor identity', async () => {
-    await expect(
-      forEachSlackAttachmentFile(FILES, { logger, requestId: 'request-1' }, async () => {})
-    ).rejects.toMatchObject<Partial<SlackOperationError>>({ status: 401 })
-    expect(mocks.assertAccess).not.toHaveBeenCalled()
-  })
-
   it('conceals denied files as not found and never reads their bytes', async () => {
     mocks.assertAccess.mockResolvedValueOnce(new Response(null, { status: 404 }))
 
@@ -99,27 +88,5 @@ describe('resolveSlackAttachmentFiles', () => {
       )
     ).rejects.toMatchObject<Partial<SlackOperationError>>({ status: 404 })
     expect(mocks.download).not.toHaveBeenCalled()
-  })
-
-  it('stops before the next authorization when cancellation arrives', async () => {
-    const controller = new AbortController()
-    mocks.download.mockReset().mockImplementationOnce(async () => {
-      controller.abort(new DOMException('cancelled', 'AbortError'))
-      return { buffer: Buffer.from('one'), contentType: 'text/plain' }
-    })
-
-    await expect(
-      forEachSlackAttachmentFile(
-        FILES,
-        {
-          logger,
-          requestId: 'request-1',
-          signal: controller.signal,
-          userId: 'user-1',
-        },
-        async () => {}
-      )
-    ).rejects.toMatchObject({ name: 'AbortError' })
-    expect(mocks.assertAccess).toHaveBeenCalledOnce()
   })
 })

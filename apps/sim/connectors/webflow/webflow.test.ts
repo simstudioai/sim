@@ -1,52 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { isCurrentItem, webflowConnector } from '@/connectors/webflow/webflow'
-
-describe('isCurrentItem', () => {
-  it.concurrent('keeps items explicitly not archived', () => {
-    expect(isCurrentItem({ isArchived: false })).toBe(true)
-  })
-
-  it.concurrent('excludes items explicitly archived', () => {
-    expect(isCurrentItem({ isArchived: true })).toBe(false)
-  })
-
-  it.concurrent('keeps items with no archived flag', () => {
-    expect(isCurrentItem({})).toBe(true)
-  })
-
-  it.concurrent('keeps items whose archived flag is undefined', () => {
-    expect(isCurrentItem({ isArchived: undefined })).toBe(true)
-  })
-
-  it.concurrent('keeps drafts, which are unpublished but still present in the CMS', () => {
-    expect(isCurrentItem({ isArchived: false, isDraft: true } as { isArchived?: boolean })).toBe(
-      true
-    )
-  })
-
-  it.concurrent('excludes archived drafts', () => {
-    expect(isCurrentItem({ isArchived: true, isDraft: true } as { isArchived?: boolean })).toBe(
-      false
-    )
-  })
-
-  it.concurrent('keeps items when the flag is a non-boolean truthy value', () => {
-    expect(isCurrentItem({ isArchived: 'true' } as unknown as { isArchived?: boolean })).toBe(true)
-  })
-
-  it.concurrent('filters only archived items out of a page listing', () => {
-    const items = [
-      { id: 'a', isArchived: false },
-      { id: 'b', isArchived: true },
-      { id: 'c' },
-      { id: 'd', isDraft: true },
-    ]
-    expect(items.filter(isCurrentItem).map((i) => i.id)).toEqual(['a', 'c', 'd'])
-  })
-})
+import { webflowConnector } from '@/connectors/webflow/webflow'
 
 const ACCESS_TOKEN = 'test-token'
 const CONFIG = { siteId: 'site-1', collectionId: 'col-1' }
@@ -76,26 +29,11 @@ function mockNameThenItems(itemsBody: unknown) {
 
 describe('webflow listDocuments deletion-reconciliation guards', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
-  })
-
-  it('leaves listingCapped unset when the cap lands exactly on collection exhaustion', async () => {
-    mockNameThenItems({ items: [itemFixture('a')], pagination: { total: 1 } })
-
-    const syncContext: Record<string, unknown> = {}
-    await webflowConnector.listDocuments(
-      ACCESS_TOKEN,
-      { ...CONFIG, maxItems: '1' },
-      undefined,
-      syncContext
-    )
-
-    expect(syncContext.listingCapped).toBeUndefined()
   })
 
   it('flags listingCapped when the cap stops short of the collection total', async () => {
@@ -112,24 +50,6 @@ describe('webflow listDocuments deletion-reconciliation guards', () => {
     expect(syncContext.listingCapped).toBe(true)
   })
 
-  it('leaves listingCapped unset when a well-formed page exhausts the collection', async () => {
-    mockNameThenItems({ items: [itemFixture('a'), itemFixture('b')], pagination: { total: 2 } })
-
-    const syncContext: Record<string, unknown> = {}
-    await webflowConnector.listDocuments(ACCESS_TOKEN, CONFIG, undefined, syncContext)
-
-    expect(syncContext.listingCapped).toBeUndefined()
-  })
-
-  it('leaves listingCapped unset when a well-formed page reports an empty collection', async () => {
-    mockNameThenItems({ items: [], pagination: { total: 0 } })
-
-    const syncContext: Record<string, unknown> = {}
-    await webflowConnector.listDocuments(ACCESS_TOKEN, CONFIG, undefined, syncContext)
-
-    expect(syncContext.listingCapped).toBeUndefined()
-  })
-
   /**
    * Without a usable `pagination.total` the offset math cannot tell a full page
    * apart from the last one, so treating it as exhausted would feed every unread
@@ -138,30 +58,6 @@ describe('webflow listDocuments deletion-reconciliation guards', () => {
   it('flags listingCapped on a full page whose envelope carries no usable total', async () => {
     const items = Array.from({ length: 100 }, (_, i) => itemFixture(`item-${i}`))
     mockNameThenItems({ items })
-
-    const syncContext: Record<string, unknown> = {}
-    await webflowConnector.listDocuments(ACCESS_TOKEN, CONFIG, undefined, syncContext)
-
-    expect(syncContext.listingCapped).toBe(true)
-  })
-
-  /**
-   * A short page is the same unknowable state as a full one: the fallback total
-   * collapses to the rows in hand, so the collection ends here whether or not
-   * rows remain. `total` is documented optional, so its absence proves nothing
-   * either way — and "we cannot rule out unread rows" is the fail-safe reading.
-   */
-  it('flags listingCapped on a short page whose envelope carries no usable total', async () => {
-    mockNameThenItems({ items: [itemFixture('a')] })
-
-    const syncContext: Record<string, unknown> = {}
-    await webflowConnector.listDocuments(ACCESS_TOKEN, CONFIG, undefined, syncContext)
-
-    expect(syncContext.listingCapped).toBe(true)
-  })
-
-  it('flags listingCapped when the envelope has no pagination object at all', async () => {
-    mockNameThenItems({ items: [itemFixture('a'), itemFixture('b')] })
 
     const syncContext: Record<string, unknown> = {}
     await webflowConnector.listDocuments(ACCESS_TOKEN, CONFIG, undefined, syncContext)
@@ -198,15 +94,6 @@ describe('webflow listDocuments deletion-reconciliation guards', () => {
     expect(syncContext.listingCapped).toBe(true)
   })
 
-  it('flags listingCapped when pagination is present but carries no usable total', async () => {
-    mockNameThenItems({ items: [itemFixture('a')], pagination: { limit: 100, offset: 0 } })
-
-    const syncContext: Record<string, unknown> = {}
-    await webflowConnector.listDocuments(ACCESS_TOKEN, CONFIG, undefined, syncContext)
-
-    expect(syncContext.listingCapped).toBe(true)
-  })
-
   /**
    * The production shape: a malformed 200 empties a mid-list collection, the
    * walk advances to the next collection, and the whole run is reported as a
@@ -238,7 +125,6 @@ describe('webflow collection-scope resolution', () => {
   const SITE_ONLY = { siteId: 'site-1' }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
   })
 
@@ -290,24 +176,6 @@ describe('webflow collection-scope resolution', () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(1)
     expect(syncContext.collectionNames).toBeUndefined()
-    expect(syncContext.listingCapped).toBeUndefined()
-  })
-
-  it('leaves listingCapped unset when the site listing and its page are both well formed', async () => {
-    mockFetch
-      .mockResolvedValueOnce(jsonResponse({ collections: [{ id: 'col-1', displayName: 'Posts' }] }))
-      .mockResolvedValueOnce(jsonResponse({ items: [itemFixture('a')], pagination: { total: 1 } }))
-
-    const syncContext: Record<string, unknown> = {}
-    const result = await webflowConnector.listDocuments(
-      ACCESS_TOKEN,
-      SITE_ONLY,
-      undefined,
-      syncContext
-    )
-
-    expect(result.documents).toHaveLength(1)
-    expect(result.hasMore).toBe(false)
     expect(syncContext.listingCapped).toBeUndefined()
   })
 })

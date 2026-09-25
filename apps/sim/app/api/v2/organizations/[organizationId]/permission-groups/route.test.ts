@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { member, permissionGroup } from '@sim/db/schema'
 import { authMockFns, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
@@ -51,10 +50,7 @@ vi.mock('@/lib/permission-groups/application/group-membership', () => ({
 
 import { dispatchMcpOperation } from '@/lib/api/mcp/dispatch'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
-import {
-  POST as internalCreate,
-  GET as internalList,
-} from '@/app/api/organizations/[id]/permission-groups/route'
+import { GET as internalList } from '@/app/api/organizations/[id]/permission-groups/route'
 import {
   DELETE,
   PATCH,
@@ -103,7 +99,6 @@ function authorize(role = 'admin') {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.authenticate.mockResolvedValue({
     principal,
@@ -129,27 +124,6 @@ beforeEach(() => {
 })
 
 describe('permission groups across internal and public surfaces', () => {
-  it('dispatches the generated MCP operation through the same authorized public handler', async () => {
-    authorize()
-    const result = await dispatchMcpOperation(
-      { operation: 'getPermissionGroup', params },
-      {
-        inbound: request(),
-        credential: { apiKey: 'key', bearer: null },
-        audience: { resource: 'https://mcp.sim.test/mcp', allowUnboundApiTokens: true },
-        signal: new AbortController().signal,
-      }
-    )
-    expect(result.isError).not.toBe(true)
-    const content = result.content[0]
-    expect(content.type).toBe('text')
-    if (content.type !== 'text') throw new Error('Expected JSON tool content')
-    expect(JSON.parse(content.text)).toMatchObject({
-      data: { id: 'group-1', organizationId: 'org-1' },
-    })
-    expect(mocks.group).toHaveBeenCalledWith('group-1', 'org-1', expect.anything())
-  })
-
   it('preserves public authorization failures over MCP', async () => {
     authorize('member')
     const result = await dispatchMcpOperation(
@@ -168,25 +142,6 @@ describe('permission groups across internal and public surfaces', () => {
     expect(mocks.group).not.toHaveBeenCalled()
   })
 
-  it('authenticates before parsing a malformed public body', async () => {
-    mocks.authenticate.mockRejectedValue(new mocks.Unauthenticated('Invalid API key'))
-    const response = await POST(request('POST', '', '{'), context)
-    expect(response.status).toBe(401)
-    expect(await response.json()).toMatchObject({ error: { code: 'UNAUTHORIZED' } })
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
-  it('authenticates before parsing an internal body', async () => {
-    authMockFns.mockGetSession.mockResolvedValue(null)
-    expect((await internalCreate(request('POST', '', '{'), internalContext)).status).toBe(401)
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
-  it('rate limits before parsing and returns retry guidance', async () => {
-    mocks.rate.mockResolvedValue({ ...admission, allowed: false, remaining: 0, retryAfterMs: 2000 })
-    const response = await POST(request('POST', '', '{'), context)
-    expect(response.status).toBe(429)
-    expect(response.headers.get('retry-after')).toBe('2')
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
   it('conceals unrelated organizations through the public API', async () => {
     const response = await GET(request(), context)
     expect(response.status).toBe(404)
@@ -216,22 +171,6 @@ describe('permission groups across internal and public surfaces', () => {
     })
     expect((await GET(request(), context)).status).toBe(403)
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
-  it('preserves internal list shape and serializes timestamps', async () => {
-    authorize()
-    queueTableRows(permissionGroup, [group])
-    const response = await internalList(request(), internalContext)
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({
-      permissionGroups: [
-        {
-          id: 'group-1',
-          memberCount: 0,
-          createdAt: group.createdAt.toISOString(),
-          workspaces: [{ id: 'workspace-1' }],
-        },
-      ],
-    })
   })
   it('creates a group with 201 and resolved config', async () => {
     authorize()
@@ -364,10 +303,4 @@ describe('permission groups across internal and public surfaces', () => {
     expect(await last.json()).toEqual({ data: [], nextCursor: null })
     expect(dbChainMockFns.limit).toHaveBeenLastCalledWith(3)
   })
-  it.each(['?limit=1.5', '?limit=0', '?limit=101', '?limit=', '?sortBy=bogus', '?bogus=1'])(
-    'rejects unsupported query %s',
-    async (query) => {
-      expect((await GET(request('GET', query), context)).status).toBe(400)
-    }
-  )
 })

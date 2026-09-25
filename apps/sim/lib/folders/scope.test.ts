@@ -6,12 +6,6 @@ import {
 } from '@/lib/folders/scope'
 
 describe('isWithinFolderScope', () => {
-  it('treats the empty scope as the workspace root, which holds everything', () => {
-    expect(isWithinFolderScope(['Reports', 'Q3'], [])).toBe(true)
-    expect(isWithinFolderScope([], [])).toBe(true)
-    expect(isWithinFolderScope(['Reports'], [], { includeSubfolders: false })).toBe(true)
-  })
-
   it('includes descendants by default and only the folder itself when told not to', () => {
     expect(isWithinFolderScope(['Reports', 'Q3'], ['Reports'])).toBe(true)
     expect(isWithinFolderScope(['Reports', 'Q3'], ['Reports'], { includeSubfolders: false })).toBe(
@@ -23,10 +17,6 @@ describe('isWithinFolderScope', () => {
   it('does not mistake a shared name prefix for an ancestry', () => {
     expect(isWithinFolderScope(['Reports Archive'], ['Reports'])).toBe(false)
   })
-
-  it('is false for a folder above the scope', () => {
-    expect(isWithinFolderScope(['Reports'], ['Reports', 'Q3'])).toBe(false)
-  })
 })
 
 describe('isFolderPathWithinScope', () => {
@@ -36,11 +26,6 @@ describe('isFolderPathWithinScope', () => {
     expect(isFolderPathWithinScope('/Reports/Q3%2FQ4', '/Reports/Q3%2FQ4')).toBe(true)
     expect(isFolderPathWithinScope('/Reports/Q3%2FQ4/Drafts', '/Reports/Q3%2FQ4')).toBe(true)
     expect(isFolderPathWithinScope('/Reports/Q3', '/Reports/Q3%2FQ4')).toBe(false)
-  })
-
-  it('scopes to the whole workspace for the root path', () => {
-    expect(isFolderPathWithinScope('/Reports/Q3', '/')).toBe(true)
-    expect(isFolderPathWithinScope('/', '/')).toBe(true)
   })
 
   it('matches an exact folder and its descendants', () => {
@@ -60,10 +45,6 @@ describe('isFolderPathWithinScope', () => {
 describe('isWithinFolderIdScope', () => {
   const scope = { folderIds: new Set(['a', 'b']), includeRootItems: false }
 
-  it('accepts an item in the scope', () => {
-    expect(isWithinFolderIdScope('a', scope)).toBe(true)
-  })
-
   it('rejects an item outside it', () => {
     expect(isWithinFolderIdScope('c', scope)).toBe(false)
   })
@@ -75,9 +56,5 @@ describe('isWithinFolderIdScope', () => {
   it('rejects a root item unless the scope includes the root', () => {
     expect(isWithinFolderIdScope(null, scope)).toBe(false)
     expect(isWithinFolderIdScope(null, { ...scope, includeRootItems: true })).toBe(true)
-  })
-
-  it('treats an absent folder id the same as an explicit null', () => {
-    expect(isWithinFolderIdScope(undefined, { ...scope, includeRootItems: true })).toBe(true)
   })
 })

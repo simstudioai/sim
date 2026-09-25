@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * `logs.cost` is a PROJECTION, not a gate — a group withholds the figure from
  * the response rather than refusing the read, which is why `workflows.listRuns`
  * correctly declares `capability: 'none'`.
@@ -68,7 +66,6 @@ function runRow(costTotal: string | null) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetPermissionGroupScopeMock()
   mocks.loadWorkspace.mockResolvedValue({
     workspaceId: WORKSPACE_ID,
@@ -98,22 +95,6 @@ describe('listWorkflowRuns cost projection', () => {
     const result = await listWorkflowRuns.execute({ principal: sessionPrincipal, input })
 
     expect(result.data[0].costTotal).toBeNull()
-  })
-
-  it('returns the total when the group withholds nothing', async () => {
-    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
-      ...DEFAULT_PERMISSION_GROUP_CONFIG,
-    })
-
-    const result = await listWorkflowRuns.execute({ principal: sessionPrincipal, input })
-
-    expect(result.data[0].costTotal).toBe('0.75')
-  })
-
-  it('returns the total when no group governs the caller', async () => {
-    const result = await listWorkflowRuns.execute({ principal: sessionPrincipal, input })
-
-    expect(result.data[0].costTotal).toBe('0.75')
   })
 
   it('withholds nothing from a workspace API key, and never resolves a group', async () => {

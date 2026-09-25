@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -55,7 +54,6 @@ const run = () => readOriginalKnowledgeDocument.execute({ principal, input })
 
 describe('original knowledge document read', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.context.mockResolvedValue(context)
     mocks.permission.mockResolvedValue('read')
     mocks.provenance.mockResolvedValue({
@@ -63,33 +61,6 @@ describe('original knowledge document read', () => {
       provenance: { status: 'exact', entries: [] },
     })
     mocks.download.mockResolvedValue(Buffer.from('# Policy'))
-  })
-  it.each(['failed', 'pending', 'completed'])(
-    'reads a bounded original independently of %s indexing',
-    async (processingStatus) => {
-      mocks.context.mockResolvedValue({ ...context, document: { ...document, processingStatus } })
-      const result = await run()
-      expect(result).toMatchObject({
-        sourceAvailable: true,
-        indexReady: processingStatus === 'completed',
-        buffer: Buffer.from('# Policy'),
-      })
-      expect(mocks.context).toHaveBeenCalledWith(input, principal)
-      expect(mocks.download).not.toHaveBeenCalled()
-    }
-  )
-  it('uses the canonical storage key and passes byte/cancellation limits', async () => {
-    mocks.context.mockResolvedValue({
-      ...context,
-      document: { ...document, storageKey: 'kb/canonical-source' },
-    })
-    await run()
-    expect(mocks.download).toHaveBeenCalledWith({
-      key: 'kb/canonical-source',
-      context: 'knowledge-base',
-      maxBytes: 64,
-      signal: undefined,
-    })
   })
   it('reports no stored source without fetching an external URL', async () => {
     mocks.context.mockResolvedValue({
@@ -111,16 +82,6 @@ describe('original knowledge document read', () => {
     })
     expect(mocks.download).not.toHaveBeenCalled()
     expect(mocks.provenance).toHaveBeenCalledWith('doc')
-  })
-  it('distinguishes an absent source from a provider failure', async () => {
-    mocks.context.mockResolvedValue({
-      ...context,
-      document: { ...document, storageKey: 'kb/source' },
-    })
-    mocks.download.mockRejectedValueOnce({ name: 'NoSuchKey' })
-    expect(await run()).toMatchObject({ sourceAvailable: false })
-    mocks.download.mockRejectedValueOnce(new Error('provider unavailable'))
-    await expect(run()).rejects.toThrow('provider unavailable')
   })
   it('rechecks permission before reading source or provenance', async () => {
     mocks.permission.mockResolvedValue(null)

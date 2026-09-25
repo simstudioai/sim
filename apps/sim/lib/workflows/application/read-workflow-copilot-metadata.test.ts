@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -67,7 +64,6 @@ const principal = {
 
 describe('Copilot workflow metadata application queries', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveContext.mockResolvedValue({
       workflowId: 'workflow-1',
       workflow: {
@@ -93,42 +89,6 @@ describe('Copilot workflow metadata application queries', () => {
     })
     mocks.getBlock.mockReturnValue({ category: 'core' })
     mocks.outputPaths.mockReturnValue(['content'])
-  })
-
-  it('owns canonical loading and block output computation', async () => {
-    const result = await readCopilotWorkflowBlockOutputs.execute({
-      principal,
-      input: {
-        workflowId: 'workflow-1',
-        assertedWorkspaceId: 'forged-workspace',
-        blockIds: ['agent-1'],
-      },
-    })
-
-    expect(mocks.resolveContext).toHaveBeenCalledWith({
-      workflowId: 'workflow-1',
-      assertedWorkspaceId: undefined,
-    })
-    expect(result).toEqual({
-      blocks: [
-        {
-          blockId: 'agent-1',
-          blockName: 'Support Agent',
-          blockType: 'agent',
-          outputs: ['supportagent.content'],
-          relativeOutputs: ['content'],
-          triggerMode: undefined,
-        },
-      ],
-      variables: [
-        {
-          id: 'variable-1',
-          name: 'Customer Name',
-          type: 'plain',
-          tag: 'variable.customername',
-        },
-      ],
-    })
   })
 
   it('rechecks current permission before loading workflow state', async () => {

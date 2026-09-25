@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -138,7 +134,6 @@ function versionState() {
 
 describe('GET /api/v2/workflows/[workflowId]/versions/[version]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -189,20 +184,10 @@ describe('GET /api/v2/workflows/[workflowId]/versions/[version]', () => {
     expect(JSON.stringify(subBlocks)).not.toContain('sk-tool-plaintext-secret')
     expect(JSON.stringify(subBlocks)).not.toContain('table-plaintext-secret')
   })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await get()
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
-  })
 })
 
 describe('PATCH /api/v2/workflows/[workflowId]/versions/[version]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -223,29 +208,6 @@ describe('PATCH /api/v2/workflows/[workflowId]/versions/[version]', () => {
     return PATCH(request, { params: Promise.resolve({ workflowId: 'workflow-1', version: '2' }) })
   }
 
-  it('writes metadata only after canonical workflow authorization', async () => {
-    const response = await patch({
-      name: 'Escalation routing',
-      description: 'Adds the escalation branch.',
-    })
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: {
-        version: 2,
-        name: 'Escalation routing',
-        description: 'Adds the escalation branch.',
-      },
-    })
-    expect(mocks.resolveWorkflowContext).toHaveBeenCalledBefore(mocks.updateVersionMetadata)
-    expect(mocks.updateVersionMetadata).toHaveBeenCalledWith({
-      workflowId: 'workflow-1',
-      version: 2,
-      name: 'Escalation routing',
-      description: 'Adds the escalation branch.',
-    })
-  })
-
   it('clears the release note on an explicit null and leaves an omitted label alone', async () => {
     mocks.updateVersionMetadata.mockResolvedValue({ name: 'Production', description: null })
 
@@ -263,26 +225,6 @@ describe('PATCH /api/v2/workflows/[workflowId]/versions/[version]', () => {
       name: undefined,
       description: null,
     })
-  })
-
-  it('rejects a body that would change nothing', async () => {
-    const response = await patch({})
-
-    expect(response.status).toBe(400)
-    const body = await response.json()
-    expect(body.error.code).toBe('BAD_REQUEST')
-    expect(JSON.stringify(body.error)).toContain(
-      'At least one of name or description must be provided'
-    )
-    expect(mocks.updateVersionMetadata).not.toHaveBeenCalled()
-  })
-
-  it('rejects the activation body shape rather than silently relabelling', async () => {
-    const response = await patch({ isActive: true })
-
-    expect(response.status).toBe(400)
-    expect((await response.json()).error.code).toBe('BAD_REQUEST')
-    expect(mocks.updateVersionMetadata).not.toHaveBeenCalled()
   })
 
   it('answers 404 for a version that does not exist', async () => {
@@ -312,14 +254,5 @@ describe('PATCH /api/v2/workflows/[workflowId]/versions/[version]', () => {
     expect(response.status).toBe(404)
     expect((await response.json()).error.code).toBe('NOT_FOUND')
     expect(mocks.updateVersionMetadata).not.toHaveBeenCalled()
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await patch({ name: 'Escalation routing' })
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 })

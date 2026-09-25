@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -66,7 +62,6 @@ function context(): MemoryToolOperationContext {
 
 describe('Memory direct operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.requestsProvenance.mockReturnValue(false)
     mocks.suppliesWriteProvenance.mockReturnValue(false)
     mocks.readWriteProvenance.mockReturnValue(undefined)

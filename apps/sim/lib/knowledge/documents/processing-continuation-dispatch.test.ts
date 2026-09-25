@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockTrigger, mockResolveTriggerRegion } = vi.hoisted(() => ({
   mockTrigger: vi.fn(),
@@ -47,10 +44,6 @@ function payload(lane: DocumentProcessingLane): DocumentProcessingPayload {
 }
 
 describe('dispatchDocumentProcessingContinuation', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   /**
    * A deferred backfill document resuming as interactive work would be a way
    * around the tenant's backfill ceiling: every quota or capacity deferral

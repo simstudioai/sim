@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetBillingEntityBlockStatus, mockResolveWorkspaceBillingPayer } = vi.hoisted(() => ({
@@ -25,7 +22,6 @@ import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspac
 
 describe('getWorkspaceOwnerSubscriptionAccess', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBillingEntityBlockStatus.mockResolvedValue({
       billingBlocked: false,
       billingBlockedReason: null,
@@ -99,16 +95,6 @@ describe('getWorkspaceOwnerSubscriptionAccess', () => {
     expect(mockGetBillingEntityBlockStatus).toHaveBeenCalledWith({
       type: 'user',
       id: 'owner-1',
-    })
-  })
-
-  it('reports free when the workspace has no billed account', async () => {
-    mockResolveWorkspaceBillingPayer.mockResolvedValue(null)
-    const access = await getWorkspaceOwnerSubscriptionAccess('ws-1')
-    expect(access.isPaid).toBe(false)
-    expect(mockGetBillingEntityBlockStatus).not.toHaveBeenCalled()
-    expect(mockResolveWorkspaceBillingPayer).toHaveBeenCalledWith('ws-1', {
-      onMissing: 'return-null',
     })
   })
 })

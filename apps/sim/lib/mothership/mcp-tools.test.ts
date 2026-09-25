@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { discoverServerTools, assertPermissionsAllowed, getServer, resolveTarget } = vi.hoisted(
@@ -34,7 +31,6 @@ import {
 
 describe('mothership MCP tool schemas', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     assertPermissionsAllowed.mockResolvedValue(undefined)
   })
 
@@ -133,7 +129,6 @@ describe('organization tagged MCP targets', () => {
   const owner = { userId: 'user-1', organizationId: 'org-1', chatId: 'chat-1' }
   const principal = { kind: 'session' as const, userId: 'user-1' }
   beforeEach(() => {
-    vi.clearAllMocks()
     getServer.mockImplementation(async ({ input }) => ({
       server: { workspaceId: input.serverId === 'server-a' ? 'workspace-a' : 'workspace-b' },
     }))

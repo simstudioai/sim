@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
-
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const { mockParseBuffer } = vi.hoisted(() => ({
   mockParseBuffer: vi.fn(),
@@ -29,10 +25,6 @@ import {
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 
 describe('document chunk production ceiling', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   afterEach(() => {
     vi.restoreAllMocks()
   })

@@ -1,7 +1,6 @@
 /**
  * @sim/testing - Shared testing utilities for Sim
  *
- * This package provides a comprehensive set of tools for writing tests:
  * - Factories: Create mock data with sensible defaults
  * - Builders: Fluent APIs for complex test scenarios
  * - Mocks: Reusable mock implementations
@@ -9,40 +8,13 @@
  *
  * @example
  * ```ts
- * import {
- *   // Factories
- *   createBlock,
- *   createStarterBlock,
- *   createLinearWorkflow,
- *   createExecutionContext,
- *
- *   // Builders
- *   WorkflowBuilder,
- *   ExecutionContextBuilder,
- *
- *   // Assertions
- *   expectBlockExists,
- *   expectEdgeConnects,
- *   expectBlockExecuted,
- * } from '@sim/testing'
- *
- * describe('MyFeature', () => {
- *   it('should work with a linear workflow', () => {
- *     const workflow = createLinearWorkflow(3)
- *     expectBlockExists(workflow.blocks, 'block-0', 'starter')
- *     expectEdgeConnects(workflow.edges, 'block-0', 'block-1')
- *   })
- *
- *   it('should work with a complex workflow', () => {
- *     const workflow = WorkflowBuilder.branching().build()
- *     expectBlockCount(workflow, 5)
- *   })
- * })
+ * import { authMockFns, createMockRequest, createWorkflowState } from '@sim/testing'
  * ```
  */
 
 export * from './assertions'
 export * from './builders'
+export * from './deferred'
 export * from './factories'
 export * from './mocks'
 export * from './types'

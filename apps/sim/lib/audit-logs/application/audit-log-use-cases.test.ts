@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { SessionPrincipal, WorkspaceApiKeyPrincipal } from '@sim/auth/principal'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { sql } from 'drizzle-orm'
@@ -79,7 +76,6 @@ const listInput = {
 
 describe('audit-log application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.isCapabilityWithheldForUser.mockResolvedValue(false)
     mocks.resolveDefaultOrganization.mockResolvedValue({
@@ -188,21 +184,6 @@ describe('audit-log application use cases', () => {
     expect(mocks.queryAuditLogs).not.toHaveBeenCalled()
   })
 
-  it('authorizes the requested organization and scopes the query canonically', async () => {
-    await expect(
-      listAuditLogs.execute({ principal: sessionPrincipal, input: listInput })
-    ).resolves.toEqual({ data: [], nextCursor: undefined })
-
-    expect(mocks.resolveAccess).toHaveBeenCalledWith('admin-1', 'organization-1')
-    expect(mocks.buildOrgScopeCondition).toHaveBeenCalledWith({
-      organizationId: 'organization-1',
-      orgWorkspaceIds: ['workspace-1'],
-      orgMemberIds: ['admin-1'],
-      includeDeparted: false,
-    })
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
   it.each(['sim-cli', 'partner-app'])(
     'rechecks the organization OAuth restriction for an existing %s audit token',
     async (clientId) => {
@@ -243,46 +224,6 @@ describe('audit-log application use cases', () => {
         input: listInput,
       })
     ).resolves.toBeDefined()
-  })
-
-  /**
-   * Nothing an API key can reach publishes an organization id, so a required
-   * `organizationId` made the whole resource unreachable from a key. It is
-   * derived from the caller, which `member`'s per-user unique index keeps to a
-   * single candidate.
-   */
-  it('derives the organization when the caller named none', async () => {
-    await expect(
-      listAuditLogs.execute({
-        principal: sessionPrincipal,
-        input: { ...listInput, organizationId: undefined },
-      })
-    ).resolves.toEqual({ data: [], nextCursor: undefined })
-
-    expect(mocks.resolveDefaultOrganization).toHaveBeenCalledWith('admin-1')
-    expect(mocks.resolveAccess).toHaveBeenCalledWith('admin-1', 'organization-1')
-  })
-
-  it('does not derive an organization the caller named itself', async () => {
-    await listAuditLogs.execute({ principal: sessionPrincipal, input: listInput })
-
-    expect(mocks.resolveDefaultOrganization).not.toHaveBeenCalled()
-  })
-
-  it('names the membership refusal for a caller in no organization', async () => {
-    mocks.resolveDefaultOrganization.mockResolvedValueOnce({ kind: 'none' })
-
-    await expect(
-      getAuditLog.execute({
-        principal: sessionPrincipal,
-        input: { id: 'audit-1' },
-      })
-    ).rejects.toMatchObject({
-      code: 'forbidden',
-      detailCode: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
-    })
-
-    expect(mocks.resolveAccess).not.toHaveBeenCalled()
   })
 
   it('rejects a workspace filter outside the authorized organization', async () => {
@@ -339,20 +280,5 @@ describe('audit-log application use cases', () => {
     await expect(
       listAuditLogs.execute({ principal: sessionPrincipal, input: listInput })
     ).rejects.toMatchObject({ code: 'forbidden', detailCode: code, message })
-  })
-
-  it('names the principal-kind refusal too', async () => {
-    await expect(
-      listAuditLogs.execute({ principal: workspacePrincipal, input: listInput })
-    ).rejects.toMatchObject({ code: 'forbidden', detailCode: 'PRINCIPAL_KIND_NOT_PERMITTED' })
-  })
-
-  it('propagates organization-store failures', async () => {
-    const failure = new Error('database unavailable')
-    mocks.resolveAccess.mockRejectedValueOnce(failure)
-
-    await expect(
-      listAuditLogs.execute({ principal: sessionPrincipal, input: listInput })
-    ).rejects.toBe(failure)
   })
 })

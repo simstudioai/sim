@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { openResourceInputSchema } from '@/lib/api/contracts/mothership-resource-tools'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -63,7 +62,6 @@ const context = {
 const invoke = (raw: unknown, ctx = context) =>
   openResourceServerTool.execute(openResourceInputSchema.parse(raw), ctx)
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.workflow.mockResolvedValue({ workflow: { name: 'Canonical workflow' } })
   mocks.file.mockResolvedValue({ file: { name: 'Canonical file' } })
   mocks.table.mockResolvedValue({ table: { name: 'Canonical table' } })

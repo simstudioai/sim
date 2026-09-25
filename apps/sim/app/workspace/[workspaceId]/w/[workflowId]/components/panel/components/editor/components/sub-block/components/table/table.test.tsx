@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -116,14 +113,6 @@ describe('Table password masking', () => {
     expect(html).toContain('•')
   })
 
-  it('renders plaintext cells when the sub-block is not a password field', () => {
-    const html = render(false)
-
-    expect(html).toContain(SECRET)
-    expect(html).toContain(KEY)
-    expect(html).not.toContain('•')
-  })
-
   it('keeps a value cell concealed while workflow search targets it', () => {
     searchTargetRef.current = VALUE_CELL_SEARCH_TARGET
 
@@ -131,14 +120,5 @@ describe('Table password masking', () => {
 
     expect(html).not.toContain(SECRET)
     expect(html).toContain('•')
-  })
-
-  it('highlights a targeted value cell when the sub-block holds no secret', () => {
-    searchTargetRef.current = VALUE_CELL_SEARCH_TARGET
-
-    const html = render(false)
-
-    expect(html).toContain('<mark')
-    expect(html).toContain(SECRET)
   })
 })

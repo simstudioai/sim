@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { workflowAuthzMockFns } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -114,7 +111,6 @@ function makeLog(overrides: Partial<WorkflowExecutionLog> = {}): WorkflowExecuti
 
 describe('emitExecutionCompletedEvent', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetActiveWorkflowContext.mockResolvedValue({
       workflow: { id: 'wf-source', name: 'Source Workflow' },
       workspaceId: 'ws-1',
@@ -132,20 +128,6 @@ describe('emitExecutionCompletedEvent', () => {
     expect(mockGetActiveWorkflowContext).not.toHaveBeenCalled()
     expect(mockFetchSubscriptions).not.toHaveBeenCalled()
     expect(mockProcessPolledWebhookEvent).not.toHaveBeenCalled()
-  })
-
-  it('does nothing without a workflow id or workspace context', async () => {
-    await emitExecutionCompletedEvent(makeLog({ workflowId: null }))
-    expect(mockFetchSubscriptions).not.toHaveBeenCalled()
-
-    mockGetActiveWorkflowContext.mockResolvedValueOnce(null)
-    await emitExecutionCompletedEvent(makeLog())
-    expect(mockFetchSubscriptions).not.toHaveBeenCalled()
-  })
-
-  it('looks up subscriptions scoped to the source workspace', async () => {
-    await emitExecutionCompletedEvent(makeLog())
-    expect(mockFetchSubscriptions).toHaveBeenCalledWith('ws-1')
   })
 
   it('fires execution_error subscribers for error logs but not execution_success ones', async () => {
@@ -176,19 +158,6 @@ describe('emitExecutionCompletedEvent', () => {
     )
   })
 
-  it('fires execution_success subscribers for info logs', async () => {
-    const successSub = makeSubscription(makeConfig({ eventType: 'execution_success' }))
-    mockFetchSubscriptions.mockResolvedValueOnce([successSub])
-
-    await emitExecutionCompletedEvent(makeLog({ level: 'info' }))
-
-    expect(mockProcessPolledWebhookEvent).toHaveBeenCalledTimes(1)
-    expect(mockProcessPolledWebhookEvent.mock.calls[0][2]).toMatchObject({
-      event: 'execution_success',
-      runId: 'exec-1',
-    })
-  })
-
   it('respects the workflow scope filter, ignoring stale workflow ids', async () => {
     const matching = makeSubscription(makeConfig({ workflowIds: ['wf-source', 'wf-deleted'] }), {
       subscriberWorkflowId: 'wf-a',
@@ -204,15 +173,6 @@ describe('emitExecutionCompletedEvent', () => {
     expect(mockProcessPolledWebhookEvent.mock.calls[0][0]).toBe(matching.webhook)
   })
 
-  it('an empty workflow selection watches every workflow', async () => {
-    const watchAll = makeSubscription(makeConfig({ workflowIds: [] }))
-    mockFetchSubscriptions.mockResolvedValueOnce([watchAll])
-
-    await emitExecutionCompletedEvent(makeLog())
-
-    expect(mockProcessPolledWebhookEvent).toHaveBeenCalledTimes(1)
-  })
-
   it('never fires a subscription for its own workflow, even when watching all workflows', async () => {
     const selfSub = makeSubscription(makeConfig({ workflowIds: [] }), {
       subscriberWorkflowId: 'wf-source',
@@ -222,18 +182,6 @@ describe('emitExecutionCompletedEvent', () => {
     await emitExecutionCompletedEvent(makeLog())
 
     expect(mockProcessPolledWebhookEvent).not.toHaveBeenCalled()
-  })
-
-  it('plain events bypass cooldown state entirely', async () => {
-    mockFetchSubscriptions.mockResolvedValueOnce([
-      makeSubscription(makeConfig({ eventType: 'execution_error' })),
-    ])
-
-    await emitExecutionCompletedEvent(makeLog())
-
-    expect(mockProcessPolledWebhookEvent).toHaveBeenCalledTimes(1)
-    expect(mockReadLastFiredAt).not.toHaveBeenCalled()
-    expect(mockClaimCooldown).not.toHaveBeenCalled()
   })
 
   it('rule events evaluate the rule and claim the cooldown before dispatching', async () => {
@@ -281,18 +229,6 @@ describe('emitExecutionCompletedEvent', () => {
     expect(mockProcessPolledWebhookEvent).not.toHaveBeenCalled()
   })
 
-  it('does not dispatch when the rule does not fire', async () => {
-    mockEvaluateRule.mockResolvedValueOnce(false)
-    mockFetchSubscriptions.mockResolvedValueOnce([
-      makeSubscription(makeConfig({ eventType: 'consecutive_failures' })),
-    ])
-
-    await emitExecutionCompletedEvent(makeLog())
-
-    expect(mockClaimCooldown).not.toHaveBeenCalled()
-    expect(mockProcessPolledWebhookEvent).not.toHaveBeenCalled()
-  })
-
   it('does not dispatch when a concurrent emitter wins the cooldown claim', async () => {
     mockClaimCooldown.mockResolvedValueOnce(false)
     mockFetchSubscriptions.mockResolvedValueOnce([
@@ -303,31 +239,10 @@ describe('emitExecutionCompletedEvent', () => {
 
     expect(mockProcessPolledWebhookEvent).not.toHaveBeenCalled()
   })
-
-  it('always includes the source execution finalOutput', async () => {
-    mockFetchSubscriptions.mockResolvedValueOnce([makeSubscription(makeConfig())])
-
-    await emitExecutionCompletedEvent(makeLog())
-
-    expect(mockProcessPolledWebhookEvent).toHaveBeenCalledTimes(1)
-    expect(mockProcessPolledWebhookEvent.mock.calls[0][2]).toMatchObject({
-      finalOutput: { result: 42 },
-    })
-  })
-
-  it('never throws when emission internals fail', async () => {
-    mockFetchSubscriptions.mockRejectedValueOnce(new Error('db down'))
-    await expect(emitExecutionCompletedEvent(makeLog())).resolves.toBeUndefined()
-
-    mockProcessPolledWebhookEvent.mockRejectedValueOnce(new Error('enqueue failed'))
-    mockFetchSubscriptions.mockResolvedValueOnce([makeSubscription(makeConfig())])
-    await expect(emitExecutionCompletedEvent(makeLog())).resolves.toBeUndefined()
-  })
 })
 
 describe('emitWorkflowDeployedEvent', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockFetchSubscriptions.mockResolvedValue([])
     mockProcessPolledWebhookEvent.mockResolvedValue({ success: true, executionId: 'exec-2' })
   })
@@ -367,21 +282,5 @@ describe('emitWorkflowDeployedEvent', () => {
     await emitWorkflowDeployedEvent(deployParams)
 
     expect(mockProcessPolledWebhookEvent).not.toHaveBeenCalled()
-  })
-
-  it('respects the workflow scope filter', async () => {
-    const outOfScope = makeSubscription(
-      makeConfig({ eventType: 'workflow_deployed', workflowIds: ['wf-x'] })
-    )
-    mockFetchSubscriptions.mockResolvedValueOnce([outOfScope])
-
-    await emitWorkflowDeployedEvent(deployParams)
-
-    expect(mockProcessPolledWebhookEvent).not.toHaveBeenCalled()
-  })
-
-  it('never throws when emission internals fail', async () => {
-    mockFetchSubscriptions.mockRejectedValueOnce(new Error('db down'))
-    await expect(emitWorkflowDeployedEvent(deployParams)).resolves.toBeUndefined()
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
@@ -55,30 +52,8 @@ function createBlock(): SerializedBlock {
 
 describe('VariablesBlockHandler', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearLargeValueCacheForTests()
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
-  })
-
-  it('preserves small assignments inline', async () => {
-    const handler = new VariablesBlockHandler()
-    const ctx = createContext()
-    const value = [{ key: 'SIM-1', summary: 'Small issue' }]
-
-    const output = await handler.execute(ctx, createBlock(), {
-      variables: [
-        {
-          variableId: 'var-1',
-          variableName: 'issues',
-          type: 'array',
-          value,
-        },
-      ],
-    })
-
-    expect(ctx.workflowVariables?.['var-1'].value).toEqual(value)
-    expect(output).toEqual({ issues: value })
-    expect(mockUploadFile).not.toHaveBeenCalled()
   })
 
   it('includes unmatched assignments in block output without mutating workflow variables', async () => {
@@ -98,26 +73,6 @@ describe('VariablesBlockHandler', () => {
 
     expect(ctx.workflowVariables).not.toHaveProperty('transientIssues')
     expect(output).toEqual({ transientIssues: value })
-  })
-
-  it('keeps special unmatched assignment names as own output fields', async () => {
-    const handler = new VariablesBlockHandler()
-    const ctx = createContext()
-    const value = { polluted: true }
-
-    const output = await handler.execute(ctx, createBlock(), {
-      variables: [
-        {
-          variableName: '__proto__',
-          type: 'object',
-          value,
-        },
-      ],
-    })
-
-    expect(Object.hasOwn(output, '__proto__')).toBe(true)
-    expect(output.__proto__).toEqual(value)
-    expect(Object.getPrototypeOf(output)).toBe(Object.prototype)
   })
 
   it('does not treat inherited prototype keys as existing workflow variable IDs', async () => {

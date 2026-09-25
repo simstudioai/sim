@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { credential } from '@sim/db/schema'
 import {
   auditMock,
@@ -59,7 +56,6 @@ const credentialRow = {
 
 describe('/api/credentials/[id]/members compatibility', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1' },

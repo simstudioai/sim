@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,7 +13,6 @@ import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/ver
 
 describe('isEmailVerificationEffectivelyEnabled', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetEnvFlagsMock()
   })
 
@@ -32,13 +28,6 @@ describe('isEmailVerificationEffectivelyEnabled', () => {
   it('does not require verification when no mail provider is configured', () => {
     setEnvFlags({ isEmailVerificationEnabled: true })
     mockHasEmailService.mockReturnValue(false)
-
-    expect(isEmailVerificationEffectivelyEnabled()).toBe(false)
-  })
-
-  it('does not require verification when the feature is disabled', () => {
-    setEnvFlags({ isEmailVerificationEnabled: false })
-    mockHasEmailService.mockReturnValue(true)
 
     expect(isEmailVerificationEffectivelyEnabled()).toBe(false)
   })

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { copilotChats } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { eq } from 'drizzle-orm'
@@ -44,7 +40,6 @@ function mockReads(opts: {
 
 describe('finalizeAssistantTurn', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     // Drain the once-queue (clearAllMocks/resetDbChainMock don't), then restore defaults.
     dbChainMockFns.limit.mockReset()
     resetDbChainMock()

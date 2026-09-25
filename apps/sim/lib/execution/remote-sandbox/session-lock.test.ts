@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { acquire, extend, release } = vi.hoisted(() => ({
@@ -16,7 +15,6 @@ import { withSandboxSessionLock } from '@/lib/execution/remote-sandbox/session-l
 
 describe('sandbox session coordination', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     acquire.mockResolvedValue(true)
     extend.mockResolvedValue(true)
     release.mockResolvedValue(true)

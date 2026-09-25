@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import { getToolMetadata, getToolParams } from '@/tools/metadata'
 import { getToolOutputsMetadata } from '@/tools/metadata-outputs'

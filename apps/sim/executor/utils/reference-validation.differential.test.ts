@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Differential test: narrowing the `{{ENV_VAR}}` body from `[^}]` to `[^{}]`
  * must not change resolution for any name the product can represent.
  *

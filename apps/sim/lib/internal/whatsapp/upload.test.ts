@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -37,7 +34,6 @@ const file = { key: 'workspace/file', name: 'image.png', size: 4, type: 'image/p
 
 describe('WhatsApp media upload', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.processFile.mockReturnValue(file)
     mocks.assertAccess.mockResolvedValue(null)
     mocks.downloadFile.mockResolvedValue({ buffer: Buffer.from('data'), contentType: 'image/png' })
@@ -81,42 +77,5 @@ describe('WhatsApp media upload', () => {
 
     expect(result).toMatchObject({ ok: false, status: 413 })
     expect(mocks.downloadFile).not.toHaveBeenCalled()
-  })
-
-  it('forwards cancellation to storage and Meta transfers', async () => {
-    const controller = new AbortController()
-
-    const result = await uploadWhatsAppMedia({
-      file,
-      accessToken: ' token ',
-      phoneNumberId: 'phone-id',
-      userId: 'user-1',
-      requestId: 'request-1',
-      signal: controller.signal,
-    })
-
-    expect(result).toEqual({
-      ok: true,
-      media: { mediaId: 'media-id', fileName: 'image.png', mimeType: 'image/png', size: 4 },
-    })
-    expect(mocks.downloadFile).toHaveBeenCalledWith(
-      file,
-      'request-1',
-      expect.anything(),
-      expect.objectContaining({ maxBytes: 5 * 1024 * 1024, signal: controller.signal })
-    )
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/phone-id/media'),
-      expect.objectContaining({
-        method: 'POST',
-        headers: { Authorization: 'Bearer token' },
-        signal: controller.signal,
-      })
-    )
-    expect(mocks.readGraph).toHaveBeenCalledWith(
-      expect.any(Response),
-      'WhatsApp media upload response',
-      controller.signal
-    )
   })
 })

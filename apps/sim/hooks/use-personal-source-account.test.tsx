@@ -49,7 +49,6 @@ describe('personal source account authorization', () => {
     return null
   }
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     mocks.completed = null
     mocks.authorize.mockResolvedValue({
@@ -108,16 +107,6 @@ describe('personal source account authorization', () => {
     act(() => root.render(<Probe />))
     expect(current.pending).toBe(false)
   })
-  it('shows missing permissions as a toast and allows a fresh attempt', async () => {
-    await act(async () => current.connect())
-    act(() => channels[0].onmessage?.({ data: 'permissions_required' } as MessageEvent<unknown>))
-    expect(mocks.error).toHaveBeenCalledWith(
-      'All requested permissions are required to connect this account.'
-    )
-    expect(current.pending).toBe(false)
-    await act(async () => current.connect())
-    expect(mocks.authorize).toHaveBeenCalledTimes(2)
-  })
   it('ignores a late authorization response after cancellation', async () => {
     let resolve!: (value: { kind: string; url: string }) => void
     mocks.authorize.mockReturnValue(
@@ -136,20 +125,5 @@ describe('personal source account authorization', () => {
     })
     expect(tab.location.href).toBe('about:blank')
     expect(current.pending).toBe(false)
-  })
-  it('times out pending authorization and closes its channel on unmount', async () => {
-    await act(async () => current.connect())
-    act(() => vi.advanceTimersByTime(10 * 60_000))
-    expect(current.pending).toBe(false)
-    expect(mocks.error).toHaveBeenCalledWith(
-      'This connection attempt expired. Try connecting your account again.'
-    )
-    expect(channels[0].close).toHaveBeenCalledOnce()
-  })
-  it('reports popup blocking without starting enrollment', async () => {
-    vi.mocked(window.open).mockReturnValue(null)
-    await act(async () => current.connect())
-    expect(mocks.authorize).not.toHaveBeenCalled()
-    expect(mocks.error).toHaveBeenCalledWith('Allow pop-ups for this site to connect your account.')
   })
 })

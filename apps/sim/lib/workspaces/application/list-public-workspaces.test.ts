@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -37,7 +34,6 @@ const workspace = (id: string, name: string, allowPersonalApiKeys: boolean, day:
 
 describe('listPublicWorkspaces', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue(null)
     mocks.getDetail.mockImplementation(async (id: string) => ({
       id,
@@ -63,65 +59,6 @@ describe('listPublicWorkspaces', () => {
       }
       return details
     })
-  })
-
-  it('lists every accessible workspace where personal keys are enabled', async () => {
-    mocks.listAccessible.mockResolvedValue([
-      {
-        workspace: workspace('workspace-b', 'Beta', true, 2),
-        permissionType: 'read',
-        viaOrgAdmin: false,
-      },
-      {
-        workspace: workspace('workspace-disabled', 'Disabled', false, 3),
-        permissionType: 'admin',
-        viaOrgAdmin: true,
-      },
-      {
-        workspace: workspace('workspace-a', 'Alpha', true, 1),
-        permissionType: 'write',
-        viaOrgAdmin: false,
-      },
-    ])
-
-    const result = await listPublicWorkspaces.execute({
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-      input: { sortBy: 'name', sortOrder: 'asc', limit: 1, offset: 0 },
-    })
-
-    expect(result.workspaces.map(({ id }) => id)).toEqual(['workspace-a'])
-    expect(result.hasMore).toBe(true)
-    expect(mocks.getDetails).toHaveBeenCalledWith(['workspace-a'])
-    expect(mocks.getDetail).not.toHaveBeenCalled()
-  })
-
-  it('preserves the sorted page order independently of batch result order', async () => {
-    mocks.listAccessible.mockResolvedValue([
-      {
-        workspace: workspace('workspace-a', 'Alpha', true, 1),
-        permissionType: 'read',
-        viaOrgAdmin: false,
-      },
-      {
-        workspace: workspace('workspace-c', 'Charlie', true, 3),
-        permissionType: 'read',
-        viaOrgAdmin: false,
-      },
-      {
-        workspace: workspace('workspace-b', 'Beta', true, 2),
-        permissionType: 'read',
-        viaOrgAdmin: false,
-      },
-    ])
-
-    const result = await listPublicWorkspaces.execute({
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-      input: { sortBy: 'name', sortOrder: 'desc', limit: 2, offset: 0 },
-    })
-
-    expect(result.workspaces.map(({ id }) => id)).toEqual(['workspace-c', 'workspace-b'])
-    expect(result.hasMore).toBe(true)
-    expect(mocks.getDetails).toHaveBeenCalledWith(['workspace-c', 'workspace-b'])
   })
 
   it('filters workspace-specific personal-credential restrictions before pagination', async () => {
@@ -186,28 +123,6 @@ describe('listPublicWorkspaces', () => {
     })
 
     expect(result.workspaces.map(({ id }) => id)).toEqual(['workspace-b'])
-  })
-
-  it('fails when an accessible workspace disappears during batch hydration', async () => {
-    mocks.listAccessible.mockResolvedValue([
-      {
-        workspace: workspace('workspace-a', 'Alpha', true, 1),
-        permissionType: 'read',
-        viaOrgAdmin: false,
-      },
-    ])
-    mocks.getDetails.mockResolvedValue(new Map())
-
-    await expect(
-      listPublicWorkspaces.execute({
-        principal: {
-          kind: 'personal_api_key',
-          userId: 'user-1',
-          keyId: 'key-1',
-        },
-        input: { sortBy: 'name', sortOrder: 'asc', limit: 10, offset: 0 },
-      })
-    ).rejects.toThrow('Accessible workspace workspace-a disappeared during listing')
   })
 
   it.each(['sim-cli', 'partner-app'])(

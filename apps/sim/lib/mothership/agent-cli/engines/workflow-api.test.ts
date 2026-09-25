@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it, vi } from 'vitest'
 import { v2ExecuteWorkflowBodySchema } from '@/lib/api/contracts/v2/workflows'
 import { workflowApiCommand } from '@/lib/mothership/agent-cli/engines/workflow-api'

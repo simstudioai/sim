@@ -231,8 +231,8 @@ export function useEntityList(workspaceId?: string) {
 
 ## Testing
 
-- Use Vitest.
-- Prefer `@vitest-environment node` unless DOM APIs are required.
+- Use the `test-audit` skill before writing or changing any test, and read `.claude/rules/sim-testing.md`. Never write unit tests after the code; prefer E2E/integration tests (`*.integration.ts`) at the real boundary; if you must test in isolation, write the failure modes down first.
+- Node is the default environment; add `/** @vitest-environment jsdom */` only for DOM tests. Vitest clears mocks before every test — no `vi.clearAllMocks()` in `beforeEach`.
 - Use `vi.hoisted()` + `vi.mock()` + static imports; do not use `vi.resetModules()` + `vi.doMock()` + dynamic imports except for true module-scope singletons.
 - Do not use `vi.importActual()`.
 - Prefer mocks and factories from `@sim/testing`.

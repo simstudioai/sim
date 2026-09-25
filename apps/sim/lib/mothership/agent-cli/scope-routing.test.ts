@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const boundary = vi.hoisted(() => ({
@@ -41,7 +40,6 @@ const stdout: AgentCliRequest = { invocation: { kind: 'stdout', stdout: '' } }
 
 describe('worker-local CLI authorization through the real handler and scope resolver', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     boundary.target.mockResolvedValue({
       workspaceId: selected,
       userId: 'actor',

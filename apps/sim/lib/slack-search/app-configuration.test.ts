@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { db } from '@sim/db'
 import { slackApp } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
@@ -41,7 +40,6 @@ const credentialKeys = [
 ] as const
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   Object.assign(m.env, {
     SLACK_SEARCH_APP_ID: 'ASHARED',

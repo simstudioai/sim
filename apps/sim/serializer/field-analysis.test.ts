@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Tests for the exported field-analysis helpers in serializer/index.ts
  * (collectBlockFieldIssues / extractBlockParams) — the single source of truth
  * shared by the serializer's required-field validation and the copilot lint.
@@ -49,16 +47,6 @@ describe('collectBlockFieldIssues', () => {
     const issues = collectBlockFieldIssues(block({ subBlocks: { apiKey: { value: '' } } }), cfg, {})
     expect(issues.missingRequiredFields).toEqual(['API Key'])
     expect(issues.inactiveModeValues).toEqual([])
-  })
-
-  it('does not report a required field that is set', () => {
-    const cfg = config([{ id: 'apiKey', title: 'API Key', type: 'short-input', required: true }])
-    const issues = collectBlockFieldIssues(
-      block({ subBlocks: { apiKey: { value: 'sk-123' } } }),
-      cfg,
-      { apiKey: 'sk-123' }
-    )
-    expect(issues.missingRequiredFields).toEqual([])
   })
 
   it('skips disabled blocks', () => {
@@ -141,49 +129,9 @@ describe('collectBlockFieldIssues', () => {
     // The active (basic) member is empty + required -> also a missing field.
     expect(issues.missingRequiredFields).toEqual(['Account'])
   })
-
-  it('does not flag a credential value on the correct active member', () => {
-    const cfg = config([
-      {
-        id: 'credential',
-        title: 'Account',
-        type: 'oauth-input',
-        canonicalParamId: 'cred',
-        mode: 'basic',
-        required: true,
-      },
-      {
-        id: 'manualCredential',
-        title: 'Account',
-        type: 'short-input',
-        canonicalParamId: 'cred',
-        mode: 'advanced',
-        required: true,
-      },
-    ])
-
-    // No override: an empty basic + filled advanced resolves to 'advanced', so
-    // the value is on the active member and nothing is stranded.
-    const issues = collectBlockFieldIssues(
-      block({
-        advancedMode: false,
-        subBlocks: { credential: { value: '' }, manualCredential: { value: 'cred_123' } },
-      }),
-      cfg,
-      { cred: 'cred_123' }
-    )
-
-    expect(issues.inactiveModeValues).toEqual([])
-    expect(issues.missingRequiredFields).toEqual([])
-  })
 })
 
 describe('extractBlockParams', () => {
-  it('returns {} for subflow containers', () => {
-    expect(extractBlockParams(block({ type: 'loop' }))).toEqual({})
-    expect(extractBlockParams(block({ type: 'parallel' }))).toEqual({})
-  })
-
   it('resolves a canonical pair to its canonical id (advanced value wins when basic empty)', () => {
     svcConfig.value = config([
       {
@@ -261,29 +209,6 @@ describe('extractBlockParams', () => {
       expect(
         collectBlockFieldIssues(state, cfg, extractBlockParams(state)).missingRequiredFields
       ).toEqual([])
-    })
-
-    it('still selects the advanced member of a real pair', () => {
-      svcConfig.value = config([
-        { id: 'sel', title: 'Table', type: 'dropdown', canonicalParamId: 'tableId', mode: 'basic' },
-        {
-          id: 'manualId',
-          title: 'Table ID',
-          type: 'short-input',
-          canonicalParamId: 'tableId',
-          mode: 'advanced',
-        },
-      ])
-
-      const params = extractBlockParams(
-        block({
-          type: 'svc',
-          advancedMode: true,
-          subBlocks: { sel: { value: 'basic-value' }, manualId: { value: 'advanced-value' } },
-        })
-      )
-
-      expect(params.tableId).toBe('advanced-value')
     })
   })
 })

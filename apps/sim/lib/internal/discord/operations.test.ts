@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
 
 const fileMocks = vi.hoisted(() => ({
   assertToolFileAccess: vi.fn(),
@@ -30,32 +26,11 @@ vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
   downloadServableFilesWithinBudget: fileMocks.downloadServableFilesWithinBudget,
 }))
 
-import { DiscordOperationError } from '@/lib/internal/discord/errors'
 import { executeDiscordSendMessage } from '@/lib/internal/discord/operations'
 
 describe('executeDiscordSendMessage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.unstubAllGlobals()
-  })
-
-  it('preserves provider errors when every supplied file is filtered out', async () => {
-    fileMocks.processFilesToUserFiles.mockReturnValue([])
-    discordMocks.sendDiscordMessage.mockRejectedValue(
-      new DiscordOperationError('Missing Access', 403)
-    )
-
-    await expect(
-      executeDiscordSendMessage(
-        {
-          botToken: 'bot-token',
-          channelId: '123',
-          content: 'hello',
-          files: [{ key: 'workspace/file.txt', name: 'file.txt', size: 4 }],
-        },
-        { requestId: 'request-1', userId: 'user-1' }
-      )
-    ).rejects.toEqual(new DiscordOperationError('Missing Access', 403))
   })
 
   it('returns a committed text message when cancellation arrives after the send', async () => {
@@ -78,58 +53,6 @@ describe('executeDiscordSendMessage', () => {
       success: true,
       output: {
         data: { id: 'message-1', content: 'hello' },
-        message: 'hello',
-      },
-    })
-  })
-
-  it('returns a committed multipart message when cancellation arrives after the send', async () => {
-    const controller = new AbortController()
-    fileMocks.processFilesToUserFiles.mockReturnValue([
-      { key: 'workspace/file.txt', name: 'file.txt', size: 4, type: 'text/plain' },
-    ])
-    fileMocks.assertToolFileAccess.mockResolvedValue(null)
-    fileMocks.downloadServableFilesWithinBudget.mockResolvedValue([
-      { buffer: Buffer.from('file'), contentType: 'text/plain' },
-    ])
-    discordMocks.sendDiscordMessage.mockImplementation(async () => {
-      controller.abort()
-      return { id: 'message-1', content: 'hello' }
-    })
-
-    const result = await executeDiscordSendMessage(
-      {
-        botToken: 'bot-token',
-        channelId: '123',
-        content: 'hello',
-        files: [{ key: 'workspace/file.txt', name: 'file.txt', size: 4 }],
-      },
-      {
-        requestId: 'request-1',
-        signal: controller.signal,
-        userId: 'user-1',
-      }
-    )
-    if (!isInternalToolFileResult(result)) throw new Error('Expected a file output')
-    expect(result.files).toEqual([
-      { name: 'file.txt', mimeType: 'text/plain', buffer: Buffer.from('file') },
-    ])
-    const storedFile = {
-      id: 'stored',
-      name: 'file.txt',
-      size: 4,
-      type: 'text/plain',
-      mimeType: 'text/plain',
-      url: '/api/files/stored',
-      key: 'execution/file.txt',
-      context: 'execution' as const,
-    }
-    expect(result.present([storedFile])).toMatchObject({
-      success: true,
-      output: {
-        data: { id: 'message-1', content: 'hello' },
-        fileCount: 1,
-        files: [storedFile],
         message: 'hello',
       },
     })

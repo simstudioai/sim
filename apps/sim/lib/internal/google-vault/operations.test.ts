@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -29,7 +26,6 @@ const storedFile = {
 
 describe('downloadGoogleVaultExportFile', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.validateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
     mocks.secureFetchWithPinnedIP.mockResolvedValue(
       new Response(new Uint8Array([1, 2, 3]), {

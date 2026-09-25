@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -18,7 +17,6 @@ import { loadLiveGitHubSources, loadLiveServiceSource } from '@/lib/sim-search/l
 
 describe('service source canonical namespace', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.context.mockResolvedValue({ workspaceOrganizationId: 'org' })
     mocks.available.mockResolvedValue(undefined)
@@ -74,7 +72,6 @@ describe('service source canonical namespace', () => {
 
 describe('GitHub App repository inventory', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.context.mockResolvedValue({ workspaceOrganizationId: 'org' })
   })

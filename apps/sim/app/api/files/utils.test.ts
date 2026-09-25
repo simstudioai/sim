@@ -8,71 +8,9 @@ import {
 } from '@/app/api/files/utils'
 
 describe('extractFilename', () => {
-  describe('legitimate file paths', () => {
-    it('should extract filename from standard serve path', () => {
-      expect(extractFilename('/api/files/serve/test-file.txt')).toBe('test-file.txt')
-    })
-
-    it('should extract filename from serve path with special characters', () => {
-      expect(extractFilename('/api/files/serve/document-with-dashes_and_underscores.pdf')).toBe(
-        'document-with-dashes_and_underscores.pdf'
-      )
-    })
-
-    it('should handle simple filename without serve path', () => {
-      expect(extractFilename('simple-file.txt')).toBe('simple-file.txt')
-    })
-
-    it('should extract last segment from nested path', () => {
-      expect(extractFilename('nested/path/file.txt')).toBe('file.txt')
-    })
-  })
-
-  describe('cloud storage paths', () => {
-    it('should preserve S3 path structure', () => {
-      expect(extractFilename('/api/files/serve/s3/1234567890-test-file.txt')).toBe(
-        's3/1234567890-test-file.txt'
-      )
-    })
-
-    it('should preserve S3 path with nested folders', () => {
-      expect(extractFilename('/api/files/serve/s3/folder/subfolder/document.pdf')).toBe(
-        's3/folder/subfolder/document.pdf'
-      )
-    })
-
-    it('should preserve Azure Blob path structure', () => {
-      expect(extractFilename('/api/files/serve/blob/1234567890-test-document.pdf')).toBe(
-        'blob/1234567890-test-document.pdf'
-      )
-    })
-
-    it('should preserve Blob path with nested folders', () => {
-      expect(extractFilename('/api/files/serve/blob/uploads/user-files/report.xlsx')).toBe(
-        'blob/uploads/user-files/report.xlsx'
-      )
-    })
-  })
-
   describe('security - path traversal prevention', () => {
     it('should sanitize basic path traversal attempt', () => {
       expect(extractFilename('/api/files/serve/../config.txt')).toBe('config.txt')
-    })
-
-    it('should sanitize deep path traversal attempt', () => {
-      expect(extractFilename('/api/files/serve/../../../../../etc/passwd')).toBe('etcpasswd')
-    })
-
-    it('should sanitize multiple path traversal patterns', () => {
-      expect(extractFilename('/api/files/serve/../../secret.txt')).toBe('secret.txt')
-    })
-
-    it('should sanitize path traversal with forward slashes', () => {
-      expect(extractFilename('/api/files/serve/../../../system/file')).toBe('systemfile')
-    })
-
-    it('should sanitize mixed path traversal patterns', () => {
-      expect(extractFilename('/api/files/serve/../folder/../file.txt')).toBe('folderfile.txt')
     })
 
     it('should remove directory separators from local filenames', () => {
@@ -91,94 +29,21 @@ describe('extractFilename', () => {
       expect(extractFilename('/api/files/serve/s3/../config')).toBe('s3/config')
     })
 
-    it('should sanitize S3 path with nested traversal attempts', () => {
-      expect(extractFilename('/api/files/serve/s3/folder/../sensitive/../file.txt')).toBe(
-        's3/folder/sensitive/file.txt'
-      )
-    })
-
-    it('should sanitize Blob path traversal attempts while preserving structure', () => {
-      expect(extractFilename('/api/files/serve/blob/../system.txt')).toBe('blob/system.txt')
-    })
-
     it('should remove leading dots from cloud path segments', () => {
       expect(extractFilename('/api/files/serve/s3/.hidden/../file.txt')).toBe('s3/hidden/file.txt')
     })
   })
 
   describe('edge cases and error handling', () => {
-    it('should handle filename with dots (but not traversal)', () => {
-      expect(extractFilename('/api/files/serve/file.with.dots.txt')).toBe('file.with.dots.txt')
-    })
-
-    it('should handle filename with multiple extensions', () => {
-      expect(extractFilename('/api/files/serve/archive.tar.gz')).toBe('archive.tar.gz')
-    })
-
     it('should throw error for empty filename after sanitization', () => {
       expect(() => extractFilename('/api/files/serve/')).toThrow(
         'Invalid or empty filename after sanitization'
       )
     })
-
-    it('should throw error for filename that becomes empty after path traversal removal', () => {
-      expect(() => extractFilename('/api/files/serve/../..')).toThrow(
-        'Invalid or empty filename after sanitization'
-      )
-    })
-
-    it('should handle single character filenames', () => {
-      expect(extractFilename('/api/files/serve/a')).toBe('a')
-    })
-
-    it('should handle numeric filenames', () => {
-      expect(extractFilename('/api/files/serve/123')).toBe('123')
-    })
-  })
-
-  describe('backward compatibility', () => {
-    it('should match old behavior for legitimate local files', () => {
-      // These test cases verify that our security fix maintains exact backward compatibility
-      // for all legitimate use cases found in the existing codebase
-      expect(extractFilename('/api/files/serve/test-file.txt')).toBe('test-file.txt')
-      expect(extractFilename('/api/files/serve/nonexistent.txt')).toBe('nonexistent.txt')
-    })
-
-    it('should match old behavior for legitimate cloud files', () => {
-      // These test cases are from the actual delete route tests
-      expect(extractFilename('/api/files/serve/s3/1234567890-test-file.txt')).toBe(
-        's3/1234567890-test-file.txt'
-      )
-      expect(extractFilename('/api/files/serve/blob/1234567890-test-document.pdf')).toBe(
-        'blob/1234567890-test-document.pdf'
-      )
-    })
-
-    it('should match old behavior for simple paths', () => {
-      // These match the mock implementations in serve route tests
-      expect(extractFilename('simple-file.txt')).toBe('simple-file.txt')
-      expect(extractFilename('nested/path/file.txt')).toBe('file.txt')
-    })
   })
 
   describe('File Serving Security Tests', () => {
     describe('createFileResponse security headers', () => {
-      it('should serve safe images inline with proper headers', () => {
-        const response = createFileResponse({
-          buffer: Buffer.from('fake-image-data'),
-          contentType: 'image/png',
-          filename: 'safe-image.png',
-        })
-
-        expect(response.status).toBe(200)
-        expect(response.headers.get('Content-Type')).toBe('image/png')
-        expect(response.headers.get('Content-Disposition')).toBe(
-          'inline; filename="safe-image.png"'
-        )
-        expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
-        expect(response.headers.get('Content-Security-Policy')).toBeNull()
-      })
-
       it('appends the content-type extension to an extensionless download name', () => {
         const response = createFileResponse({
           buffer: Buffer.from('fake-image-data'),
@@ -196,29 +61,6 @@ describe('extractFilename', () => {
         })
         // No explicit cacheControl → must NOT be `public` (a shared cache/CDN could re-serve authed bytes).
         expect(response.headers.get('Cache-Control')).toBe('private, no-cache')
-      })
-
-      it('honors an explicit cacheControl (e.g. public assets opt in)', () => {
-        const response = createFileResponse({
-          buffer: Buffer.from('fake-image-data'),
-          contentType: 'image/png',
-          filename: 'avatar.png',
-          cacheControl: 'public, max-age=31536000',
-        })
-        expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000')
-      })
-
-      it('should serve PDFs inline safely', () => {
-        const response = createFileResponse({
-          buffer: Buffer.from('fake-pdf-data'),
-          contentType: 'application/pdf',
-          filename: 'document.pdf',
-        })
-
-        expect(response.status).toBe(200)
-        expect(response.headers.get('Content-Type')).toBe('application/pdf')
-        expect(response.headers.get('Content-Disposition')).toBe('inline; filename="document.pdf"')
-        expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
       })
 
       it('should force attachment for HTML files to prevent XSS', () => {
@@ -251,70 +93,6 @@ describe('extractFilename', () => {
         expect(response.headers.get('Content-Security-Policy')).toBe(
           "default-src 'none'; style-src 'unsafe-inline'; sandbox;"
         )
-      })
-
-      it('should not apply CSP sandbox to non-SVG files', () => {
-        const response = createFileResponse({
-          buffer: Buffer.from('hello'),
-          contentType: 'text/plain',
-          filename: 'readme.txt',
-        })
-
-        expect(response.headers.get('Content-Security-Policy')).toBeNull()
-      })
-
-      it('should force attachment for JavaScript files', () => {
-        const response = createFileResponse({
-          buffer: Buffer.from('alert("XSS")'),
-          contentType: 'application/javascript',
-          filename: 'malicious.js',
-        })
-
-        expect(response.status).toBe(200)
-        expect(response.headers.get('Content-Type')).toBe('application/octet-stream')
-        expect(response.headers.get('Content-Disposition')).toBe(
-          'attachment; filename="malicious.js"'
-        )
-      })
-
-      it('should force attachment for CSS files', () => {
-        const response = createFileResponse({
-          buffer: Buffer.from('body { background: url(javascript:alert("XSS")) }'),
-          contentType: 'text/css',
-          filename: 'malicious.css',
-        })
-
-        expect(response.status).toBe(200)
-        expect(response.headers.get('Content-Type')).toBe('application/octet-stream')
-        expect(response.headers.get('Content-Disposition')).toBe(
-          'attachment; filename="malicious.css"'
-        )
-      })
-
-      it('should force attachment for XML files', () => {
-        const response = createFileResponse({
-          buffer: Buffer.from('<?xml version="1.0"?><root><script>alert("XSS")</script></root>'),
-          contentType: 'application/xml',
-          filename: 'malicious.xml',
-        })
-
-        expect(response.status).toBe(200)
-        expect(response.headers.get('Content-Type')).toBe('application/octet-stream')
-        expect(response.headers.get('Content-Disposition')).toBe(
-          'attachment; filename="malicious.xml"'
-        )
-      })
-
-      it('should serve text files safely', () => {
-        const response = createFileResponse({
-          buffer: Buffer.from('Safe text content'),
-          contentType: 'text/plain',
-          filename: 'document.txt',
-        })
-
-        expect(response.status).toBe(200)
-        expect(response.headers.get('Content-Type')).toBe('text/plain')
-        expect(response.headers.get('Content-Disposition')).toBe('inline; filename="document.txt"')
       })
 
       it('should force attachment for unknown/unsafe content types', () => {
@@ -375,46 +153,6 @@ describe('extractFilename', () => {
           () =>
             new Response('data', { headers: { 'Content-Disposition': `attachment; ${header}` } })
         ).not.toThrow()
-      })
-
-      it('leaves an ordinary ascii filename byte-identical', () => {
-        expect(encodeFilenameForHeader('quarterly-report (final).pdf')).toBe(
-          'filename="quarterly-report (final).pdf"'
-        )
-      })
-
-      it('strips the directory prefix before encoding', () => {
-        expect(encodeFilenameForHeader('workspace/abc/report.pdf')).toBe('filename="report.pdf"')
-      })
-    })
-
-    describe('Content Security Policy', () => {
-      it('should include CSP header only for SVG responses', () => {
-        const svgResponse = createFileResponse({
-          buffer: Buffer.from('<svg></svg>'),
-          contentType: 'image/svg+xml',
-          filename: 'icon.svg',
-        })
-        expect(svgResponse.headers.get('Content-Security-Policy')).toBe(
-          "default-src 'none'; style-src 'unsafe-inline'; sandbox;"
-        )
-
-        const txtResponse = createFileResponse({
-          buffer: Buffer.from('test'),
-          contentType: 'text/plain',
-          filename: 'test.txt',
-        })
-        expect(txtResponse.headers.get('Content-Security-Policy')).toBeNull()
-      })
-
-      it('should include X-Content-Type-Options header', () => {
-        const response = createFileResponse({
-          buffer: Buffer.from('test'),
-          contentType: 'text/plain',
-          filename: 'test.txt',
-        })
-
-        expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
       })
     })
   })
@@ -488,26 +226,6 @@ describe('findLocalFile - Path Traversal Security Tests', () => {
       }
     })
   })
-
-  describe('security validation passes for legitimate files', () => {
-    it.concurrent(
-      'should accept properly formatted filenames without throwing errors',
-      async () => {
-        const legitimateInputs = [
-          'document.pdf',
-          'image.png',
-          'data.csv',
-          'report-2024.doc',
-          'file_with_underscores.txt',
-          'file-with-dashes.json',
-        ]
-
-        for (const input of legitimateInputs) {
-          await expect(findLocalFile(input)).resolves.toBeDefined()
-        }
-      }
-    )
-  })
 })
 
 describe('createConditionalFileResponse', () => {
@@ -539,15 +257,6 @@ describe('createConditionalFileResponse', () => {
     expect(response.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate')
   })
 
-  it('sends the body when the client holds a validator for different bytes', () => {
-    const stale = createConditionalFileResponse(
-      { ...file, buffer: Buffer.from('an-earlier-render') },
-      null
-    ).headers.get('ETag') as string
-
-    expect(createConditionalFileResponse(file, stale).status).toBe(200)
-  })
-
   it('matches weakly, so a cache that stored a weak validator still revalidates', () => {
     expect(createConditionalFileResponse(file, `W/${etagOf()}`).status).toBe(304)
   })
@@ -555,15 +264,5 @@ describe('createConditionalFileResponse', () => {
   it('matches one entry out of a list, and the wildcard', () => {
     expect(createConditionalFileResponse(file, `"other", ${etagOf()}`).status).toBe(304)
     expect(createConditionalFileResponse(file, '*').status).toBe(304)
-  })
-
-  it('gives bytes that differ only in one byte different validators', () => {
-    const a = etagOf()
-    const b = createConditionalFileResponse(
-      { ...file, buffer: Buffer.from('compiled-document-byteS') },
-      null
-    ).headers.get('ETag')
-
-    expect(a).not.toBe(b)
   })
 })

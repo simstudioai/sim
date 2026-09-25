@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { credential, environment, workspaceEnvironment } from '@sim/db/schema'
 import {
   dbChainMockFns,
@@ -82,7 +79,6 @@ function mockSqlText(value: unknown): string {
 
 describe('materializeCopilotCodeSecrets', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockCheckWorkspaceAccess.mockResolvedValue({
       exists: true,

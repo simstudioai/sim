@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -121,7 +118,6 @@ describe('ffmpeg server tool secret provenance', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resolveWorkspaceFileReferenceMock.mockResolvedValue(file)
     fetchWorkspaceFileBufferMock.mockResolvedValue(Buffer.from('media'))
     getBoundWorkspaceFileSecretProvenanceMock.mockResolvedValue(EXACT_EMPTY)
@@ -323,7 +319,6 @@ describe('ffmpeg server tool input admission', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resolveWorkspaceFileReferenceMock.mockResolvedValue(file)
     fetchWorkspaceFileBufferMock.mockResolvedValue(Buffer.from('media'))
     getBoundWorkspaceFileSecretProvenanceMock.mockResolvedValue(EXACT_EMPTY)

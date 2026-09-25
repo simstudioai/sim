@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -16,7 +15,7 @@ vi.mock('@/lib/invitations/application/send-invitation-batch', () => ({
   sendInvitationBatch: { operation: { id: 'invitations.send_batch' }, execute: mocks.send },
 }))
 
-import { NoWorkspaceAccessError, WorkspaceApiKeyAuthorizationError } from '@/lib/core/application'
+import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { POST } from '@/app/api/v2/workspaces/[workspaceId]/invitations/route'
 
@@ -33,7 +32,6 @@ const call = (body: unknown, query = '') =>
   )
 
 beforeEach(() => {
-  vi.clearAllMocks()
   v2RouteMocks.authenticate.mockResolvedValue({
     principal,
     keyType: 'personal',
@@ -45,51 +43,6 @@ beforeEach(() => {
 })
 
 describe('workspace invitation public adapter', () => {
-  it('preserves partial recipient outcomes under the v2 data envelope', async () => {
-    const result = {
-      success: false,
-      successful: ['new@example.com'],
-      added: ['existing@example.com'],
-      failed: [{ email: 'failed@example.com', error: 'No available seats' }],
-      invitations: [
-        {
-          id: 'invitation-123',
-          email: 'new@example.com',
-          workspaceIds: [workspaceId],
-          permission: 'read',
-          membershipIntent: 'internal',
-        },
-        {
-          id: 'user-123',
-          email: 'existing@example.com',
-          workspaceIds: [workspaceId],
-          permission: 'read',
-          membershipIntent: 'internal',
-          instantAdd: true,
-          outcome: 'added',
-        },
-      ],
-    }
-    mocks.send.mockResolvedValue(result)
-    const response = await call({
-      emails: ['new@example.com', 'existing@example.com', 'failed@example.com'],
-    })
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: result })
-    expect(response.headers.get('cache-control')).toBe('private, no-store')
-    expect(mocks.send).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal,
-        input: {
-          workspaceIds: [workspaceId],
-          emails: ['new@example.com', 'existing@example.com', 'failed@example.com'],
-          permission: 'read',
-          membership: 'member',
-        },
-      })
-    )
-  })
-
   it.each([
     { emails: [] },
     { emails: Array.from({ length: 51 }, () => 'member@example.com') },
@@ -102,13 +55,6 @@ describe('workspace invitation public adapter', () => {
     expect(mocks.send).not.toHaveBeenCalled()
   })
 
-  it('rejects undeclared query fields', async () => {
-    expect((await call({ emails: ['member@example.com'] }, '?organizationId=other')).status).toBe(
-      400
-    )
-    expect(mocks.send).not.toHaveBeenCalled()
-  })
-
   it.each([
     new NoWorkspaceAccessError(),
     new OrchestrationError('not_found', 'Workspace not found'),
@@ -118,15 +64,6 @@ describe('workspace invitation public adapter', () => {
     expect(response.status).toBe(404)
     expect(await response.json()).toEqual({
       error: { code: 'NOT_FOUND', message: 'Workspace not found' },
-    })
-  })
-
-  it('publishes the shared workspace-key refusal code', async () => {
-    mocks.send.mockRejectedValue(new WorkspaceApiKeyAuthorizationError())
-    const response = await call({ emails: ['member@example.com'] })
-    expect(response.status).toBe(403)
-    expect(await response.json()).toMatchObject({
-      error: { code: 'FORBIDDEN', details: { code: 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED' } },
     })
   })
 })

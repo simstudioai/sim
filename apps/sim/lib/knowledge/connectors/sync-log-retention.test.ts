@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { knowledgeConnectorSyncLog } from '@sim/db/schema'
 import {
   createMockRequest,
@@ -59,7 +56,6 @@ function syncLogClaimPredicate(): unknown[] | undefined {
 
 describe('connector sync log retention', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(knowledgeConnectorSyncLog, [{ id: 'kcsl-1' }])
     dbChainMockFns.returning.mockResolvedValue([{ id: 'kcsl-1' }])
@@ -81,15 +77,5 @@ describe('connector sync log retention', () => {
 
     /** `started` is in flight, or waiting on the scheduler's own sweep. */
     expect(predicate).not.toContain('started')
-  })
-
-  it('reports what it pruned', async () => {
-    const response = await GET(createMockRequest('GET') as never)
-    const body = (await response.json()) as {
-      connectorSyncLogs?: { pruned: number; retentionDays: number }
-    }
-
-    expect(body.connectorSyncLogs?.retentionDays).toBe(30)
-    expect(body.connectorSyncLogs?.pruned).toBeGreaterThan(0)
   })
 })

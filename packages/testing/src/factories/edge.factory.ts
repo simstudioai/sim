@@ -5,7 +5,7 @@ import { generateRandomString } from '@sim/utils/random'
 /**
  * Options for creating a mock edge.
  */
-export interface EdgeFactoryOptions {
+interface EdgeFactoryOptions {
   id?: string
   source: string
   target: string
@@ -48,43 +48,4 @@ export function createEdge(options: EdgeFactoryOptions): any {
     type: options.type ?? 'default',
     data: options.data,
   }
-}
-
-/**
- * Creates multiple edges from a connection specification.
- *
- * @example
- * ```ts
- * const edges = createEdges([
- *   { source: 'start', target: 'agent' },
- *   { source: 'agent', target: 'end' },
- * ])
- * ```
- */
-export function createEdges(
-  connections: Array<{
-    source: string
-    target: string
-    sourceHandle?: string
-    targetHandle?: string
-  }>
-): any[] {
-  return connections.map((conn) => createEdge(conn))
-}
-
-/**
- * Creates a linear chain of edges connecting blocks in order.
- *
- * @example
- * ```ts
- * // Creates edges: a->b, b->c, c->d
- * const edges = createLinearEdges(['a', 'b', 'c', 'd'])
- * ```
- */
-export function createLinearEdges(blockIds: string[]): any[] {
-  const edges: any[] = []
-  for (let i = 0; i < blockIds.length - 1; i++) {
-    edges.push(createEdge({ source: blockIds[i], target: blockIds[i + 1] }))
-  }
-  return edges
 }

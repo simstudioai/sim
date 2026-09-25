@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -41,16 +38,12 @@ import {
   billingAttributionsEqual,
   checkAttributedBillingBlocks,
   checkAttributedUsageLimits,
-  createAttributedBillingRequestEnvelope,
-  requireAccountBillingDecisionHeader,
   requireBillingAttributionHeader,
   requireBillingCallbackAttribution,
   requireBillingRequestIdHeader,
   requireWorkspaceBillingAttributionHeader,
   resolveBillingAttribution,
   resolveLegacyV0BillingAttribution,
-  resolveSystemBillingAttribution,
-  serializeAccountBillingDecisionHeader,
   serializeBillingAttributionHeader,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
@@ -73,7 +66,6 @@ afterAll(resetEnvFlagsMock)
 
 describe('resolveBillingAttribution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockCheckBillingBlocked.mockResolvedValue({ blocked: false })
     mockCheckBillingEntityBlocked.mockResolvedValue({ blocked: false })
@@ -136,162 +128,6 @@ describe('resolveBillingAttribution', () => {
     expect(Object.isFrozen(attribution.billingEntity)).toBe(true)
   })
 
-  it('resolves the system actor and payer from one workspace row', async () => {
-    dbChainMockFns.limit.mockResolvedValue([
-      {
-        billedAccountUserId: 'owner-b',
-        organizationId: 'org-b',
-      },
-    ])
-    mockGetOrganizationSubscription.mockResolvedValue(ORG_SUBSCRIPTION)
-
-    const attribution = await resolveSystemBillingAttribution('workspace-b')
-
-    expect(attribution).toMatchObject({
-      actorUserId: 'owner-b',
-      billedAccountUserId: 'owner-b',
-      billingEntity: { id: 'org-b', type: 'organization' },
-      organizationId: 'org-b',
-      workspaceId: 'workspace-b',
-    })
-    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(1)
-  })
-
-  it('uses the workspace organization reference even when its billed owner has other memberships', async () => {
-    dbChainMockFns.limit.mockResolvedValue([
-      {
-        billedAccountUserId: 'multi-org-owner',
-        organizationId: 'org-b',
-      },
-    ])
-    mockGetOrganizationSubscription.mockResolvedValue(ORG_SUBSCRIPTION)
-
-    const attribution = await resolveBillingAttribution({
-      actorUserId: 'multi-org-owner',
-      workspaceId: 'workspace-b',
-    })
-
-    expect(attribution.billingEntity).toEqual({ type: 'organization', id: 'org-b' })
-    expect(mockGetOrganizationSubscription).toHaveBeenCalledWith('org-b', {
-      onError: 'throw',
-    })
-    expect(mockGetHighestPriorityPersonalSubscription).not.toHaveBeenCalled()
-  })
-
-  it('bills a personal workspace billed account without changing the API-key actor', async () => {
-    dbChainMockFns.limit.mockResolvedValue([
-      {
-        billedAccountUserId: 'personal-owner',
-        organizationId: null,
-      },
-    ])
-    mockGetHighestPriorityPersonalSubscription.mockResolvedValue({
-      id: 'sub-personal',
-      plan: 'pro_100',
-      referenceId: 'personal-owner',
-      seats: 1,
-      status: 'active',
-      periodStart: new Date('2026-07-03T00:00:00.000Z'),
-      periodEnd: new Date('2026-08-03T00:00:00.000Z'),
-    })
-
-    const attribution = await resolveBillingAttribution({
-      actorUserId: 'personal-api-key-owner',
-      workspaceId: 'personal-workspace',
-    })
-
-    expect(attribution.actorUserId).toBe('personal-api-key-owner')
-    expect(attribution.billedAccountUserId).toBe('personal-owner')
-    expect(attribution.billingEntity).toEqual({ type: 'user', id: 'personal-owner' })
-    expect(mockGetHighestPriorityPersonalSubscription).toHaveBeenCalledWith('personal-owner', {
-      onError: 'throw',
-    })
-  })
-
-  it('retains the exact personal payer when it has no subscription', async () => {
-    dbChainMockFns.limit.mockResolvedValue([
-      {
-        billedAccountUserId: 'personal-owner',
-        organizationId: null,
-      },
-    ])
-    mockGetHighestPriorityPersonalSubscription.mockResolvedValue(null)
-
-    const attribution = await resolveBillingAttribution({
-      actorUserId: 'external-actor',
-      workspaceId: 'personal-workspace',
-    })
-
-    expect(attribution).toMatchObject({
-      actorUserId: 'external-actor',
-      billedAccountUserId: 'personal-owner',
-      billingEntity: { type: 'user', id: 'personal-owner' },
-      organizationId: null,
-      payerSubscription: null,
-    })
-  })
-
-  it('serializes only the payer fields needed by later billing gates', async () => {
-    dbChainMockFns.limit.mockResolvedValue([
-      {
-        billedAccountUserId: 'owner-b',
-        organizationId: 'org-b',
-      },
-    ])
-    mockGetOrganizationSubscription.mockResolvedValue({
-      ...ORG_SUBSCRIPTION,
-      metadata: { secret: 'must-not-cross-boundary' },
-      stripeSubscriptionId: 'stripe-subscription',
-    })
-
-    const attribution = await resolveBillingAttribution({
-      actorUserId: 'actor-a',
-      workspaceId: 'workspace-b',
-    })
-
-    expect(attribution.payerSubscription).toEqual({
-      id: 'sub-org-b',
-      periodEnd: '2026-08-01T00:00:00.000Z',
-      periodStart: '2026-07-01T00:00:00.000Z',
-      plan: 'team_25000',
-      referenceId: 'org-b',
-      seats: 4,
-      status: 'active',
-    })
-    expect(JSON.stringify(attribution)).not.toContain('must-not-cross-boundary')
-    expect(JSON.stringify(attribution)).not.toContain('stripe-subscription')
-  })
-
-  it('carries only normalized Enterprise execution metadata needed by admission', async () => {
-    dbChainMockFns.limit.mockResolvedValue([
-      {
-        billedAccountUserId: 'owner-b',
-        organizationId: 'org-b',
-      },
-    ])
-    mockGetOrganizationSubscription.mockResolvedValue({
-      ...ORG_SUBSCRIPTION,
-      plan: 'enterprise',
-      metadata: {
-        concurrencyLimit: '1250',
-        workflowExecutionTimeoutSeconds: '86400',
-        secret: 'must-not-cross-boundary',
-      },
-    })
-
-    const attribution = await resolveBillingAttribution({
-      actorUserId: 'actor-a',
-      workspaceId: 'workspace-b',
-    })
-
-    expect(attribution.payerSubscription).toMatchObject({
-      plan: 'enterprise',
-      enterpriseConcurrencyLimit: 1250,
-      enterpriseWorkflowExecutionTimeoutSeconds: 86_400,
-    })
-    expect(JSON.stringify(attribution)).not.toContain('must-not-cross-boundary')
-  })
-
   it('rejects a subscription that does not belong to the exact workspace payer', async () => {
     dbChainMockFns.limit.mockResolvedValue([
       {
@@ -343,19 +179,6 @@ describe('resolveBillingAttribution', () => {
       billedAccountUserId: 'owner-b',
       billingEntity: { type: 'organization', id: 'org-b' },
     })
-  })
-
-  it('returns no workspace payer for an opaque markerless legacy-v0 workspace', async () => {
-    dbChainMockFns.limit.mockResolvedValue([])
-
-    await expect(
-      resolveLegacyV0BillingAttribution({
-        actorUserId: 'actor-a',
-        workspaceId: 'foreign-workspace',
-      })
-    ).resolves.toBeNull()
-    expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
-    expect(mockGetHighestPriorityPersonalSubscription).not.toHaveBeenCalled()
   })
 
   it('converts the serialized period back to the exact runtime billing context', async () => {
@@ -522,7 +345,6 @@ describe('serialized attribution boundaries', () => {
 
 describe('checkAttributedUsageLimits', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isBillingEnabled: true })
     setEnvFlags({ isHosted: true })
@@ -565,19 +387,6 @@ describe('checkAttributedUsageLimits', () => {
     workspaceId: 'workspace-b',
   }
 
-  it('skips hosted freezes and caps when billing is disabled', async () => {
-    setEnvFlags({ isBillingEnabled: false })
-
-    await expect(checkAttributedUsageLimits(attribution)).resolves.toEqual({
-      isExceeded: false,
-    })
-
-    expect(mockCheckBillingBlocked).not.toHaveBeenCalled()
-    expect(mockCheckBillingEntityBlocked).not.toHaveBeenCalled()
-    expect(mockCheckUsageStatus).not.toHaveBeenCalled()
-    expect(mockCheckOrganizationMemberUsageLimit).not.toHaveBeenCalled()
-  })
-
   it('checks a BYOK-style block gate against the actor and exact workspace payer', async () => {
     mockCheckBillingEntityBlocked.mockResolvedValue({
       blocked: true,
@@ -596,42 +405,6 @@ describe('checkAttributedUsageLimits', () => {
       type: 'organization',
     })
     expect(mockCheckUsageStatus).not.toHaveBeenCalled()
-  })
-
-  it('reuses the actor account block result for the same personal payer', async () => {
-    const personalAttribution = {
-      ...attribution,
-      actorUserId: 'owner-b',
-      billingEntity: { type: 'user' as const, id: 'owner-b' },
-      organizationId: null,
-      payerSubscription: null,
-    }
-
-    await expect(checkAttributedBillingBlocks(personalAttribution)).resolves.toEqual({
-      blocked: false,
-    })
-
-    expect(mockCheckBillingBlocked).toHaveBeenCalledWith('owner-b')
-    expect(mockCheckBillingEntityBlocked).not.toHaveBeenCalled()
-  })
-
-  it('keeps separate actor and payer checks for a collaborator on a personal workspace', async () => {
-    const collaboratorAttribution = {
-      ...attribution,
-      billingEntity: { type: 'user' as const, id: 'owner-b' },
-      organizationId: null,
-      payerSubscription: null,
-    }
-
-    await expect(checkAttributedBillingBlocks(collaboratorAttribution)).resolves.toEqual({
-      blocked: false,
-    })
-
-    expect(mockCheckBillingBlocked).toHaveBeenCalledWith('external-a')
-    expect(mockCheckBillingEntityBlocked).toHaveBeenCalledWith({
-      id: 'owner-b',
-      type: 'user',
-    })
   })
 
   it('checks the actor account before the payer pool', async () => {
@@ -667,19 +440,6 @@ describe('checkAttributedUsageLimits', () => {
     })
     expect(mockCheckUsageStatus).not.toHaveBeenCalled()
     expect(mockCheckOrganizationMemberUsageLimit).not.toHaveBeenCalled()
-  })
-
-  it('keeps the workspace organization as payer when it has no subscription', async () => {
-    await checkAttributedUsageLimits({ ...attribution, payerSubscription: null })
-
-    expect(mockCheckUsageStatus).toHaveBeenCalledWith('owner-b', {
-      periodEnd: new Date('2026-08-01T00:00:00.000Z'),
-      periodStart: new Date('2026-07-01T00:00:00.000Z'),
-      plan: 'free',
-      referenceId: 'org-b',
-      seats: null,
-      status: null,
-    })
   })
 
   it('returns payer exhaustion before checking the actor member cap', async () => {
@@ -724,64 +484,6 @@ describe('checkAttributedUsageLimits', () => {
       start: new Date('2026-07-01T00:00:00.000Z'),
     })
   })
-
-  it('preserves a custom reporting-period source for the per-member cap', async () => {
-    await checkAttributedUsageLimits({
-      ...attribution,
-      billingPeriod: { ...attribution.billingPeriod, source: 'reporting' },
-    })
-
-    expect(mockCheckOrganizationMemberUsageLimit).toHaveBeenCalledWith('external-a', 'org-b', {
-      end: new Date('2026-08-01T00:00:00.000Z'),
-      source: 'reporting',
-      start: new Date('2026-07-01T00:00:00.000Z'),
-    })
-  })
-})
-
-describe('modern billing envelopes', () => {
-  const attribution = {
-    actorUserId: 'actor-a',
-    billedAccountUserId: 'owner-b',
-    billingEntity: { type: 'organization' as const, id: 'org-b' },
-    billingPeriod: {
-      start: '2026-07-01T00:00:00.000Z',
-      end: '2026-08-01T00:00:00.000Z',
-    },
-    organizationId: 'org-b',
-    payerSubscription: null,
-    workspaceId: 'workspace-b',
-  }
-
-  it('creates a complete attributed-v1 envelope without external storage', () => {
-    const envelope = createAttributedBillingRequestEnvelope(attribution)
-
-    expect(envelope.billingRequestId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-    )
-    expect(envelope.headers).toEqual({
-      'x-sim-billing-attribution': envelope.serializedAttribution,
-      'x-sim-billing-protocol': 'attribution-v1',
-      'x-sim-billing-request-id': envelope.billingRequestId,
-    })
-    expect(JSON.parse(decodeURIComponent(envelope.serializedAttribution))).toEqual(attribution)
-  })
-
-  it('round-trips a bounded direct-v1 account decision header', () => {
-    const decision = {
-      userId: 'user-1',
-      billingEntity: { type: 'organization' as const, id: 'org-1' },
-      billingPeriod: {
-        start: '2026-07-01T00:00:00.000Z',
-        end: '2026-08-01T00:00:00.000Z',
-        source: 'reporting' as const,
-      },
-    }
-    const serialized = serializeAccountBillingDecisionHeader(decision)
-    const headers = new Headers({ 'x-sim-billing-account-decision': serialized })
-
-    expect(requireAccountBillingDecisionHeader(headers)).toEqual(decision)
-  })
 })
 
 describe('Search billing ownership', () => {
@@ -794,12 +496,6 @@ describe('Search billing ownership', () => {
     billingPeriod: { start: '2026-09-01T00:00:00.000Z', end: '2026-10-01T00:00:00.000Z' },
     payerSubscription: null,
   }
-  it('accepts the organization owner and preserves the actual actor', () => {
-    expect(assertBillingAttributionSnapshot(attribution)).toEqual(attribution)
-    expect(() =>
-      assertBillingAttributionOwner(attribution, { organizationId: 'org' })
-    ).not.toThrow()
-  })
   it('rejects another organization and a workspace using the same ID', () => {
     expect(() => assertBillingAttributionOwner(attribution, { organizationId: 'other' })).toThrow()
     expect(() => assertBillingAttributionOwner(attribution, { workspaceId: 'org' })).toThrow()

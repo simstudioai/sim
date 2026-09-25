@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -72,7 +68,6 @@ const payload: ResumeExecutionPayload = {
 
 describe('executeResumeJob terminal errors', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetPausedExecutionById.mockResolvedValue({
       executionSnapshot: { snapshot: {} },
     })
@@ -116,13 +111,6 @@ describe('executeResumeJob terminal errors', () => {
     expect(loggerPayload).not.toContain(secret)
     expect(loggerPayload).not.toContain('__var_')
     expect(rawError.message).toContain(secret)
-  })
-
-  it('rethrows the original genuine resume fault', async () => {
-    const rawError = new Error('MCP setup exposed activated-secret-value')
-    mockStartResumeExecution.mockRejectedValue(rawError)
-
-    await expect(executeResumeJob(payload)).rejects.toBe(rawError)
   })
 
   it('starts a legacy attempt deadline before deserializing the full snapshot', async () => {

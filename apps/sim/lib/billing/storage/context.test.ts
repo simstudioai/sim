@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockResolveWorkspaceBillingPayer } = vi.hoisted(() => ({
   mockResolveWorkspaceBillingPayer: vi.fn(),
@@ -14,10 +11,6 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 import { resolveStorageBillingContext } from '@/lib/billing/storage/context'
 
 describe('resolveStorageBillingContext', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('routes an external collaborator upload to the workspace organization payer', async () => {
     mockResolveWorkspaceBillingPayer.mockResolvedValue({
       billedAccountUserId: 'workspace-owner',

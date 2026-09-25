@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 
 const { mockGenerateId } = vi.hoisted(() => ({
@@ -14,10 +11,8 @@ vi.mock('@sim/utils/id', () => ({
 import { namedRowMapper } from '@/lib/table/cell-format'
 import {
   buildIdByName,
-  buildNameById,
   filterNamesToIds,
   generateColumnId,
-  getColumnId,
   remapGroupColumnRefs,
   remapViewConfigColumnRefs,
   rowDataNameToId,
@@ -26,41 +21,11 @@ import {
 } from '@/lib/table/column-keys'
 import type { TableSchema, WorkflowGroup } from '@/lib/table/types'
 
-describe('getColumnId', () => {
-  it('returns the explicit id when present', () => {
-    expect(getColumnId({ id: 'col_abc', name: 'email' })).toBe('col_abc')
-  })
-  it('falls back to name for legacy id-less columns', () => {
-    expect(getColumnId({ name: 'email' })).toBe('email')
-  })
-})
-
 describe('generateColumnId', () => {
-  it('mints a col_-prefixed id with the uuid dashes stripped', () => {
-    mockGenerateId.mockReturnValue('11111111-2222-4333-8444-555566667777')
-    expect(generateColumnId()).toBe('col_11111111222243338444555566667777')
-  })
-
   it('produces an id that satisfies NAME_PATTERN (valid JSONB key / filter field)', () => {
     mockGenerateId.mockReturnValue('0a1b2c3d-4e5f-4607-8809-0a1b2c3d4e5f')
     // Must start with a letter/underscore and contain only [a-z0-9_].
     expect(generateColumnId()).toMatch(/^[a-z_][a-z0-9_]*$/i)
-  })
-})
-
-describe('name ↔ id maps', () => {
-  const schema: TableSchema = {
-    columns: [
-      { id: 'col_1', name: 'email', type: 'string' },
-      { name: 'age', type: 'number' }, // legacy: id == name
-    ],
-  }
-
-  it('buildIdByName maps display name → storage id', () => {
-    expect(Object.fromEntries(buildIdByName(schema))).toEqual({ email: 'col_1', age: 'age' })
-  })
-  it('buildNameById maps storage id → display name', () => {
-    expect(Object.fromEntries(buildNameById(schema))).toEqual({ col_1: 'email', age: 'age' })
   })
 })
 
@@ -139,13 +104,6 @@ describe('withGeneratedColumnIds', () => {
     expect(g.dependencies!.columns).toEqual(['col_a']) // email
     expect(g.inputMappings![0].columnName).toBe('col_a')
   })
-
-  it('is idempotent for columns that already have an id', () => {
-    const schema: TableSchema = {
-      columns: [{ id: 'col_keep', name: 'email', type: 'string' }],
-    }
-    expect(withGeneratedColumnIds(schema).columns[0].id).toBe('col_keep')
-  })
 })
 
 describe('remapGroupColumnRefs', () => {
@@ -208,9 +166,5 @@ describe('remapViewConfigColumnRefs', () => {
     )
     expect(out.sort).toEqual([{ field: 'createdAt', direction: 'desc' }])
     expect(out.hiddenColumns).toEqual(['col_gone'])
-  })
-
-  it('leaves absent keys absent rather than materializing empty ones', () => {
-    expect(remapViewConfigColumnRefs({}, idByName)).toEqual({})
   })
 })

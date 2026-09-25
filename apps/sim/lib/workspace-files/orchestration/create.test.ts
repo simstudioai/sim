@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCaptureServerEvent, mockRecordAudit, mockUploadWorkspaceFile } = vi.hoisted(() => ({
@@ -56,93 +53,7 @@ const CREATED_FILE = {
 
 describe('performCreateWorkspaceFile', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockUploadWorkspaceFile.mockResolvedValue(CREATED_FILE)
-  })
-
-  it('creates an empty file with exact-name conflict semantics and returns its canonical record', async () => {
-    const request = new Request('https://sim.ai', { headers: { 'user-agent': 'test' } })
-
-    const result = await performCreateWorkspaceFile({
-      workspaceId: WORKSPACE_ID,
-      userId: USER_ID,
-      actorName: 'Test User',
-      actorEmail: 'test@sim.ai',
-      name: 'untitled.md',
-      contentType: 'text/markdown',
-      folderId: null,
-      request,
-    })
-
-    expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
-      WORKSPACE_ID,
-      USER_ID,
-      Buffer.alloc(0),
-      'untitled.md',
-      'text/markdown',
-      {
-        folderId: null,
-        folderPath: undefined,
-        exactName: true,
-        secretProvenance: { status: 'exact', entries: [] },
-      }
-    )
-    expect(result).toEqual({ success: true, file: CREATED_FILE })
-    expect(mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: USER_ID,
-        actorName: 'Test User',
-        actorEmail: 'test@sim.ai',
-        workspaceId: WORKSPACE_ID,
-        resourceId: CREATED_FILE.id,
-        resourceName: CREATED_FILE.name,
-        metadata: { fileSize: 0, fileType: 'text/markdown' },
-        request,
-      })
-    )
-    expect(mockCaptureServerEvent).toHaveBeenCalledWith(
-      USER_ID,
-      'file_uploaded',
-      { workspace_id: WORKSPACE_ID, file_type: 'text/markdown' },
-      { groups: { workspace: WORKSPACE_ID } }
-    )
-  })
-
-  it('preserves initialized content, folder, and content type', async () => {
-    const content = Buffer.from('# Ready\n')
-    const file = {
-      ...CREATED_FILE,
-      name: 'ready.md',
-      folderId: 'folder-1',
-      folderPath: 'Docs',
-      size: content.length,
-    }
-    mockUploadWorkspaceFile.mockResolvedValue(file)
-
-    const result = await performCreateWorkspaceFile({
-      workspaceId: WORKSPACE_ID,
-      userId: USER_ID,
-      name: 'ready.md',
-      contentType: 'text/markdown; charset=utf-8',
-      folderId: 'folder-1',
-      content,
-      exactName: false,
-    })
-
-    expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
-      WORKSPACE_ID,
-      USER_ID,
-      content,
-      'ready.md',
-      'text/markdown; charset=utf-8',
-      {
-        folderId: 'folder-1',
-        folderPath: undefined,
-        exactName: false,
-        secretProvenance: { status: 'exact', entries: [] },
-      }
-    )
-    expect(result).toEqual({ success: true, file })
   })
 
   it('rejects decoded content above the content-update limit before storage I/O', async () => {

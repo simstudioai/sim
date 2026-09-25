@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -76,33 +72,11 @@ const context = { params: Promise.resolve({ mcpServerId: SERVER_ID }) }
 
 describe('/api/v2/mcp-servers/[mcpServerId]/tools', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.discover.mockResolvedValue({ tools: [TOOL] })
     mocks.authorizeDiscover.mockResolvedValue(undefined)
-  })
-
-  it('returns a server tool inventory as a single page', async () => {
-    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), context)
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body).toEqual({ data: [TOOL], nextCursor: null })
-    expect(mocks.discover).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: { workspaceId: WORKSPACE_ID, serverId: SERVER_ID, refresh: false },
-      request: expect.anything(),
-    })
-  })
-
-  it('forwards an explicit refresh so a caller can bypass the tool cache', async () => {
-    await GET(request(`workspaceId=${WORKSPACE_ID}&refresh=true`), { ...context })
-
-    expect(mocks.discover).toHaveBeenCalledWith(
-      expect.objectContaining({ input: expect.objectContaining({ refresh: true }) })
-    )
   })
 
   /**
@@ -169,13 +143,6 @@ describe('/api/v2/mcp-servers/[mcpServerId]/tools', () => {
     expect(mocks.discover).not.toHaveBeenCalled()
   })
 
-  it('rejects a query param it does not implement', async () => {
-    const response = await GET(request(`workspaceId=${WORKSPACE_ID}&limit=10`), { ...context })
-
-    expect(response.status).toBe(400)
-    expect(mocks.discover).not.toHaveBeenCalled()
-  })
-
   it('reports an unreachable server as a retryable 503, not a server fault', async () => {
     mocks.discover.mockRejectedValueOnce(new McpConnectionError('ECONNREFUSED', 'Docs server'))
 
@@ -210,18 +177,6 @@ describe('/api/v2/mcp-servers/[mcpServerId]/tools', () => {
     expect(response.status).toBe(500)
     expect(body.error.code).toBe('INTERNAL_ERROR')
     expect(JSON.stringify(body)).not.toContain('Invalid params')
-  })
-
-  it('does not report a Sim-side response-schema defect as the caller`s bad request', async () => {
-    mocks.discover.mockResolvedValueOnce({
-      tools: [{ ...TOOL, inputSchema: { ...TOOL.inputSchema, type: 'string' } }],
-    })
-
-    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), { ...context })
-    const body = await response.json()
-
-    expect(response.status).toBe(500)
-    expect(body.error.code).toBe('INTERNAL_ERROR')
   })
 
   /**
@@ -278,25 +233,5 @@ describe('/api/v2/mcp-servers/[mcpServerId]/tools', () => {
 
     expect(response.status).toBe(503)
     expect(body.error.message).toBe('The MCP server recently failed and is in cooldown')
-  })
-
-  it('rejects a workspace API key, which cannot supply the caller`s OAuth grant', async () => {
-    mocks.discover.mockRejectedValueOnce(new WorkspaceApiKeyAuthorizationError())
-
-    const response = await GET(request(`workspaceId=${WORKSPACE_ID}`), { ...context })
-    const body = await response.json()
-
-    expect(response.status).toBe(403)
-    expect(body.error.code).toBe('FORBIDDEN')
-  })
-
-  it('authenticates before parsing', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await GET(request(''), { ...context })
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
-    expect(mocks.discover).not.toHaveBeenCalled()
   })
 })

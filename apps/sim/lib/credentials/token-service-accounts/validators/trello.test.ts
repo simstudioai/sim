@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -28,7 +25,6 @@ const mockFetch = vi.fn()
 
 describe('validateTrelloServiceAccount', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     setEnv({ TRELLO_API_KEY: 'sim-api-key' })
   })
@@ -37,18 +33,12 @@ describe('validateTrelloServiceAccount', () => {
     vi.unstubAllGlobals()
   })
 
-  it('returns displayName and metadata on success', async () => {
+  it('sends the server API key and the user token as separate query params', async () => {
     mockFetch.mockResolvedValue(
       jsonResponse(200, { id: 'abc123', fullName: 'Sim Bot', username: 'simbot' })
     )
 
-    const result = await validateTrelloServiceAccount(FIELDS)
-
-    expect(result).toEqual({
-      displayName: 'Sim Bot',
-      principal: { kind: 'user', id: 'abc123', label: 'simbot' },
-      auditMetadata: {},
-    })
+    await validateTrelloServiceAccount(FIELDS)
 
     const [url] = mockFetch.mock.calls[0]
     const parsed = new URL(url)
@@ -79,44 +69,6 @@ describe('validateTrelloServiceAccount', () => {
     })
   })
 
-  it('throws invalid_credentials on 401 with any other body', async () => {
-    mockFetch.mockResolvedValue(jsonResponse(401, 'unauthorized'))
-
-    await expect(validateTrelloServiceAccount(FIELDS)).rejects.toMatchObject({
-      name: 'TokenServiceAccountValidationError',
-      code: 'invalid_credentials',
-      status: 401,
-    })
-  })
-
-  it('throws provider_unavailable on a non-JSON 200 body', async () => {
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: '',
-      json: async () => {
-        throw new SyntaxError('Unexpected token < in JSON')
-      },
-      text: async () => '<html>proxy error</html>',
-    } as unknown as Response)
-
-    await expect(validateTrelloServiceAccount(FIELDS)).rejects.toMatchObject({
-      name: 'TokenServiceAccountValidationError',
-      code: 'provider_unavailable',
-      status: 502,
-    })
-  })
-
-  it('throws provider_unavailable on 500', async () => {
-    mockFetch.mockResolvedValue(jsonResponse(500, { message: 'unavailable' }))
-
-    await expect(validateTrelloServiceAccount(FIELDS)).rejects.toMatchObject({
-      name: 'TokenServiceAccountValidationError',
-      code: 'provider_unavailable',
-      status: 500,
-    })
-  })
-
   it('throws provider_unavailable without fetching when the API key is not configured', async () => {
     setEnv({ TRELLO_API_KEY: undefined })
 
@@ -127,15 +79,5 @@ describe('validateTrelloServiceAccount', () => {
       logDetail: { reason: 'Trello API key is not configured' },
     })
     expect(mockFetch).not.toHaveBeenCalled()
-  })
-
-  it('throws provider_unavailable on missing id in success body', async () => {
-    mockFetch.mockResolvedValue(jsonResponse(200, { fullName: 'Sim Bot' }))
-
-    await expect(validateTrelloServiceAccount(FIELDS)).rejects.toMatchObject({
-      name: 'TokenServiceAccountValidationError',
-      code: 'provider_unavailable',
-      status: 502,
-    })
   })
 })

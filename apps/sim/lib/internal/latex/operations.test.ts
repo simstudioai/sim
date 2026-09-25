@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -20,7 +17,6 @@ import { compileLatexDocument } from '@/lib/internal/latex/operations'
 
 describe('compileLatexDocument', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mocks.fetch)
     mocks.fetch.mockResolvedValue(
       new Response(new Uint8Array([1, 2, 3]), {

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, expect, it, vi } from 'vitest'
 import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
@@ -26,7 +25,6 @@ const plan: Pick<WorkflowImportPlan, 'bindings'> = {
   ],
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   access.mockResolvedValue({ ok: true, workspaceId: 'workspace' })
 })
 it.each(['sim:workspaces', 'sim:workflows'])(

@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Mount resolution for platform file objects. The authorization assertions run
  * against the real `assertUserFileContentAccess` rather than a stub: which files
  * a Function block may mount is the security-relevant part of this module, and
@@ -145,7 +143,6 @@ describe('planUserFileMounts', () => {
 
 describe('resolveUserFileMounts', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockHasCloudStorage.mockReturnValue(true)
     mockGeneratePresignedDownloadUrl.mockResolvedValue('https://presigned.example/object')
     mockReadWorkspaceFileRecordByKey.mockResolvedValue({ file: { id: 'wf_1' } })

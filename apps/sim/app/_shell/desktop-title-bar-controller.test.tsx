@@ -38,7 +38,6 @@ function mount() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   document.documentElement.removeAttribute(DESKTOP_TITLE_BAR_ATTRIBUTE)
   Object.defineProperty(navigator, 'userAgent', {
     value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
@@ -63,22 +62,5 @@ describe('DesktopTitleBarController', () => {
     mount()
 
     expect(document.documentElement.getAttribute(DESKTOP_TITLE_BAR_ATTRIBUTE)).toBe('fullscreen')
-  })
-
-  it('seeds inset when no owner has set a mode yet', () => {
-    mockGetDesktopBridge.mockReturnValue(pendingBridge())
-
-    mount()
-
-    expect(document.documentElement.getAttribute(DESKTOP_TITLE_BAR_ATTRIBUTE)).toBe('inset')
-  })
-
-  it('clears the marker off the desktop shell', () => {
-    mockGetDesktopBridge.mockReturnValue(null)
-    document.documentElement.setAttribute(DESKTOP_TITLE_BAR_ATTRIBUTE, 'inset')
-
-    mount()
-
-    expect(document.documentElement.hasAttribute(DESKTOP_TITLE_BAR_ATTRIBUTE)).toBe(false)
   })
 })

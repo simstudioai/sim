@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
 import { isCrossSiteSessionRequest } from '@/lib/core/security/same-origin'
@@ -14,19 +11,15 @@ describe('isCrossSiteSessionRequest', () => {
     expect(isCrossSiteSessionRequest(makeRequest({ 'sec-fetch-site': 'cross-site' }))).toBe(true)
   })
 
-  it('allows same-origin browser fetches', () => {
-    expect(isCrossSiteSessionRequest(makeRequest({ 'sec-fetch-site': 'same-origin' }))).toBe(false)
-  })
-
-  it('allows same-site fetches (sibling subdomains, e.g. www.<domain> -> <domain>)', () => {
-    expect(isCrossSiteSessionRequest(makeRequest({ 'sec-fetch-site': 'same-site' }))).toBe(false)
-  })
-
-  it('allows user-initiated requests (Sec-Fetch-Site: none)', () => {
-    expect(isCrossSiteSessionRequest(makeRequest({ 'sec-fetch-site': 'none' }))).toBe(false)
-  })
-
-  it('allows requests with no Sec-Fetch-Site header (older clients)', () => {
-    expect(isCrossSiteSessionRequest(makeRequest({}))).toBe(false)
+  it.each([
+    ['same-origin', { 'sec-fetch-site': 'same-origin' }],
+    [
+      'same-site (sibling subdomains, e.g. www.<domain> -> <domain>)',
+      { 'sec-fetch-site': 'same-site' },
+    ],
+    ['user-initiated (none)', { 'sec-fetch-site': 'none' }],
+    ['missing header (older clients)', {}],
+  ])('allows %s requests', (_label, headers: Record<string, string>) => {
+    expect(isCrossSiteSessionRequest(makeRequest(headers))).toBe(false)
   })
 })

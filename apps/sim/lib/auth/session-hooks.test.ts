@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import type { Session } from 'better-auth'
@@ -47,7 +44,6 @@ function transactionExecutor() {
 
 describe('prepareSessionForCreation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isBillingEnabled: true, isHosted: true, isAccessControlEnabled: false })
     invalidateSessionPolicyCache('org-1')
     isBlocked.mockReturnValue(false)

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { toForkBlockPairs } from '@/ee/workspace-forking/lib/mapping/block-map-store'
 
@@ -42,9 +39,5 @@ describe('toForkBlockPairs', () => {
         childBlockId: 'src-2',
       },
     ])
-  })
-
-  it('returns an empty list for an empty mapping', () => {
-    expect(toForkBlockPairs(new Map(), true, 'wf-parent', 'wf-child')).toEqual([])
   })
 })

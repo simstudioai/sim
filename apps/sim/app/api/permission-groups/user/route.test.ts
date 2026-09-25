@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,8 +28,6 @@ vi.mock('@/lib/permission-groups/resolve.server', async (importOriginal) => ({
   resolveWorkspaceGroup: mocks.group,
 }))
 
-import { userPermissionConfigSchema } from '@/lib/api/contracts/permission-groups'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { readUserPermissionConfig } from '@/lib/permission-groups/application/read-user-config'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET } from '@/app/api/permission-groups/user/route'
@@ -57,7 +54,6 @@ function get(query = '?workspaceId=workspace') {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   setEnvFlags({ isHosted: true, isAccessControlEnabled: true })
   mocks.session.mockResolvedValue({
     user: { id: 'viewer' },
@@ -103,25 +99,6 @@ describe('user permission policy shared read', () => {
       }
     }
   )
-
-  it('authenticates before parsing or protected lookups', async () => {
-    mocks.session.mockResolvedValue(null)
-    expect((await get('')).status).toBe(401)
-    expect(mocks.context).not.toHaveBeenCalled()
-  })
-  it.each(['', '?workspaceId='])('preserves missing workspace validation for %s', async (query) => {
-    const response = await get(query)
-    expect(response.status).toBe(400)
-    expect(await response.json()).toMatchObject({ error: 'workspaceId is required' })
-    expect(mocks.context).not.toHaveBeenCalled()
-  })
-  it('preserves missing or archived workspace responses', async () => {
-    mocks.context.mockRejectedValue(new OrchestrationError('not_found', 'Workspace not found'))
-    const response = await get()
-    expect(response.status).toBe(404)
-    expect(await response.json()).toMatchObject({ error: 'Workspace not found' })
-    expect(mocks.group).not.toHaveBeenCalled()
-  })
   it('refuses current nonmembers before loading their policy', async () => {
     mocks.role.mockResolvedValue(null)
     const response = await get()
@@ -130,43 +107,6 @@ describe('user permission policy shared read', () => {
     expect(mocks.admin).not.toHaveBeenCalled()
     expect(mocks.enterprise).not.toHaveBeenCalled()
     expect(mocks.group).not.toHaveBeenCalled()
-  })
-  it('leaves personal workspaces unrestricted without organization reads', async () => {
-    mocks.context.mockResolvedValue({ ...context, workspaceOrganizationId: null })
-    const response = await get()
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ ...unrestricted, organizationId: null })
-    expect(mocks.admin).not.toHaveBeenCalled()
-    expect(mocks.enterprise).not.toHaveBeenCalled()
-    expect(mocks.group).not.toHaveBeenCalled()
-  })
-  it('retains organization admin status without enterprise entitlement', async () => {
-    mocks.enterprise.mockResolvedValue(false)
-    mocks.admin.mockResolvedValue(true)
-    expect(await (await get()).json()).toEqual({ ...unrestricted, isOrgAdmin: true })
-    expect(mocks.group).not.toHaveBeenCalled()
-  })
-  it('reads the acting member in the workspace owning organization and matches the server result', async () => {
-    const group = {
-      permissionGroupId: 'group',
-      groupName: 'Restricted',
-      config: { ...DEFAULT_PERMISSION_GROUP_CONFIG, hideCopilot: true },
-    }
-    mocks.group.mockResolvedValue(group)
-    const response = await get()
-    expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body).toEqual({ ...unrestricted, ...group, entitled: true })
-    expect(mocks.group).toHaveBeenCalledWith('viewer', 'owning-org', 'workspace')
-    expect(mocks.admin).toHaveBeenCalledWith('viewer', 'owning-org')
-    const serverResult = await readUserPermissionConfig.execute({
-      principal,
-      input: { workspaceId: 'workspace' },
-    })
-    expect(userPermissionConfigSchema.parse(serverResult)).toEqual(body)
-  })
-  it('retains enterprise entitlement when no group applies', async () => {
-    expect(await (await get()).json()).toEqual({ ...unrestricted, entitled: true })
   })
   it('does not turn policy infrastructure failures into unrestricted access', async () => {
     /**

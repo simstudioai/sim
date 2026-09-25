@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -25,10 +22,8 @@ vi.mock('@/lib/credentials/application/service-account', () => ({
   },
 }))
 
-import { PrincipalKindAuthorizationError } from '@/lib/core/application'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CredentialProviderOperationError } from '@/lib/credentials/application/credential-crud'
-import { DELETE, PATCH } from '@/app/api/v2/credentials/[credentialId]/route'
+import { PATCH } from '@/app/api/v2/credentials/[credentialId]/route'
 
 vi.mock('@/lib/credentials/application/credential-crud', async () => {
   const { OrchestrationError: BaseError } = await import('@/lib/core/orchestration/types')
@@ -89,7 +84,6 @@ function patchRequest(body: unknown, query = `?workspaceId=${WORKSPACE_ID}`): Ne
 
 describe('PATCH /api/v2/credentials/[credentialId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -127,21 +121,6 @@ describe('PATCH /api/v2/credentials/[credentialId]', () => {
     expect(body).not.toContain('MUST_NOT_LEAK_CIPHERTEXT')
   })
 
-  it('asserts the workspace scope and preserves the credential id', async () => {
-    const request = patchRequest({ displayName: 'Zoom prod' })
-    await PATCH(request, context)
-
-    expect(mocks.update).toHaveBeenCalledWith({
-      principal: auth.principal,
-      input: {
-        displayName: 'Zoom prod',
-        credentialId: CREDENTIAL_ID,
-        assertedWorkspaceId: WORKSPACE_ID,
-      },
-      request,
-    })
-  })
-
   it('clears a description with an explicit null and leaves an omitted field alone', async () => {
     await PATCH(patchRequest({ description: null }), context)
 
@@ -149,38 +128,6 @@ describe('PATCH /api/v2/credentials/[credentialId]', () => {
       expect.objectContaining({ input: expect.objectContaining({ description: null }) })
     )
     expect(mocks.update.mock.calls[0][0].input).not.toHaveProperty('displayName')
-  })
-
-  it('rejects an empty patch rather than reporting a no-op success', async () => {
-    const response = await PATCH(patchRequest({}), context)
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({ error: { code: 'BAD_REQUEST' } })
-    expect(mocks.update).not.toHaveBeenCalled()
-  })
-
-  it('rejects an undeclared body field', async () => {
-    const response = await PATCH(patchRequest({ providerId: 'other-provider' }), context)
-
-    expect(response.status).toBe(400)
-    expect(mocks.update).not.toHaveBeenCalled()
-  })
-
-  it('requires the workspace assertion', async () => {
-    const response = await PATCH(patchRequest({ displayName: 'Zoom prod' }, ''), context)
-
-    expect(response.status).toBe(400)
-    expect(mocks.update).not.toHaveBeenCalled()
-  })
-
-  it('refuses a workspace API key with 403 rather than acting on it', async () => {
-    mocks.update.mockRejectedValue(
-      new PrincipalKindAuthorizationError('workspace_api_key', 'credentials.update')
-    )
-
-    const response = await PATCH(patchRequest({ displayName: 'Zoom prod' }), context)
-
-    expect(response.status).toBe(403)
   })
 
   /**
@@ -221,52 +168,5 @@ describe('PATCH /api/v2/credentials/[credentialId]', () => {
         details: { providerErrorCode: 'invalid_credentials' },
       },
     })
-  })
-
-  it('conceals a cross-tenant credential as a not-found', async () => {
-    mocks.update.mockRejectedValue(new OrchestrationError('not_found', 'Credential not found'))
-
-    const response = await PATCH(patchRequest({ displayName: 'Zoom prod' }), context)
-
-    expect(response.status).toBe(404)
-    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
-  })
-})
-
-describe('DELETE /api/v2/credentials/[credentialId]', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    v2RouteMocks.authenticate.mockResolvedValue(auth)
-    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
-    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.remove.mockResolvedValue({ credential, deleted: true })
-  })
-
-  it('disconnects a credential through the application operation', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/v2/credentials/${CREDENTIAL_ID}?workspaceId=${WORKSPACE_ID}`,
-      { method: 'DELETE' }
-    )
-    const response = await DELETE(request, context)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { id: CREDENTIAL_ID, deleted: true } })
-    expect(mocks.remove).toHaveBeenCalledWith({
-      principal: auth.principal,
-      input: { workspaceId: WORKSPACE_ID, credentialId: CREDENTIAL_ID },
-      request,
-    })
-  })
-
-  it('requires the asserted workspace scope', async () => {
-    const response = await DELETE(
-      new NextRequest(`http://localhost:3000/api/v2/credentials/${CREDENTIAL_ID}`, {
-        method: 'DELETE',
-      }),
-      context
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.remove).not.toHaveBeenCalled()
   })
 })

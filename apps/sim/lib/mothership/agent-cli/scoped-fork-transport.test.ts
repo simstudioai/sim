@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { runEmbeddedCli } from 'sim/embed'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -40,7 +39,6 @@ const transport = createScopedCliTransport(endpoint, {
 })
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.permission.mockResolvedValue('admin')
   mocks.workspace.mockImplementation(async (id: string) => ({
     id,

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { addLabelResourcesTool } from '@/tools/jotform/add_label_resources'
 import { createFormTool } from '@/tools/jotform/create_form'

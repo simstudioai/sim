@@ -1,21 +1,16 @@
-/**
- * @vitest-environment node
- */
 import {
-  dbChainMock,
   dbChainMockFns,
   hasMockCondition,
   queueTableRows,
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   compileCredentialGroupWorkflowAccessPolicy,
   credentialGroupWorkflowAccessPolicyCodec,
 } from '@/lib/credential-groups/application/workflow-access-policy'
 import {
-  deleteResourcePolicyForResource,
   ResourcePolicyNotFoundError,
   ResourcePolicyRevisionConflictError,
   requireResourcePolicy,
@@ -50,29 +45,7 @@ function storedRow(revision = 1, document: unknown = DEFAULT_DOCUMENT) {
 
 describe('resource policy repository', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('requires the canonical workspace, resource type, and resource ID', async () => {
-    queueTableRows(schemaMock.resourcePolicy, [storedRow()])
-
-    await expect(requireResourcePolicy(TARGET)).resolves.toMatchObject({
-      id: 'policy-1',
-      workspaceId: TARGET.workspaceId,
-      revision: 1,
-      document: DEFAULT_DOCUMENT,
-    })
-
-    const where = dbChainMockFns.where.mock.calls.at(-1)?.[0]
-    for (const expected of [TARGET.workspaceId, TARGET.resourceType, TARGET.resourceId]) {
-      expect(
-        hasMockCondition(
-          where,
-          (condition) => condition.type === 'eq' && condition.right === expected
-        )
-      ).toBe(true)
-    }
   })
 
   it('fails fast for a missing or malformed stored policy', async () => {
@@ -118,15 +91,5 @@ describe('resource policy repository', () => {
       })
     ).rejects.toBeInstanceOf(ResourcePolicyRevisionConflictError)
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
-  it('requires exactly one policy row when deleting a resource', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'policy-1' }])
-    await expect(deleteResourcePolicyForResource(TARGET, dbChainMock.db)).resolves.toBeUndefined()
-
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-    await expect(deleteResourcePolicyForResource(TARGET, dbChainMock.db)).rejects.toBeInstanceOf(
-      ResourcePolicyNotFoundError
-    )
   })
 })

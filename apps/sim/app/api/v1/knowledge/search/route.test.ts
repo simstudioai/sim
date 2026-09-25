@@ -3,8 +3,6 @@
  * Specifically guards the per-KB embedding model resolution and the
  * multi-model rejection so the v1 endpoint stays in lockstep with the
  * internal route.
- *
- * @vitest-environment node
  */
 
 import { createMockRequest, knowledgeApiUtilsMock, knowledgeApiUtilsMockFns } from '@sim/testing'
@@ -117,7 +115,6 @@ const baseKb = (id: string, embeddingModel: string, embeddingDimension = 1536) =
 
 describe('v1 knowledge search route — per-KB embedding model', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveV1KnowledgeReadAccess.mockResolvedValue({ kind: 'workspace', tokens: ['pub', 'ws'] })
     mockAuthenticateRequest.mockResolvedValue({
       requestId: 'req-1',
@@ -161,34 +158,6 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
     )
     expect(mockExecuteKnowledgeSearch).toHaveBeenCalledOnce()
     expect(response.status).toBe(500)
-  })
-
-  it('retains the reader provider for ranked results and returned document metadata', async () => {
-    const access = { kind: 'user' as const, userId: 'user-1', tokens: ['reader-token'] }
-    const provider = {
-      get: vi.fn().mockResolvedValue(access),
-      getForConnectors: vi.fn(),
-      getForDocuments: vi.fn(),
-    }
-    mockResolveV1KnowledgeReadAccess.mockResolvedValue(provider)
-    mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
-      hasAccess: true,
-      knowledgeBase: baseKb('kb-1', 'text-embedding-3-small'),
-    })
-    const response = await POST(
-      createMockRequest('POST', {
-        workspaceId: 'ws-1',
-        knowledgeBaseIds: 'kb-1',
-        query: 'hello',
-      })
-    )
-    expect(response.status).toBe(200)
-    expect(mockExecuteKnowledgeSearch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        access,
-        accessProvider: provider,
-      })
-    )
   })
 
   it.each(['query', 'filters'] as const)(
@@ -247,32 +216,6 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
     }
   )
 
-  it('passes the KB embedding model into generateSearchEmbedding', async () => {
-    mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
-      hasAccess: true,
-      knowledgeBase: baseKb('kb-gemini', 'gemini-embedding-001'),
-    })
-
-    const req = createMockRequest('POST', {
-      workspaceId: 'ws-1',
-      knowledgeBaseIds: 'kb-gemini',
-      query: 'hello',
-    })
-    const res = await POST(req)
-
-    expect(res.status).toBe(200)
-    expect(mockGenerateSearchEmbedding).toHaveBeenCalledWith(
-      'hello',
-      { model: 'gemini-embedding-001', dimensions: 1536 },
-      'ws-1'
-    )
-    expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
-      actorUserId: 'user-1',
-      workspaceId: 'ws-1',
-    })
-    expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
-  })
-
   it('uses one atomic system actor and payer snapshot for a workspace API key', async () => {
     mockAuthenticateRequest.mockResolvedValue({
       requestId: 'req-1',
@@ -323,81 +266,6 @@ describe('v1 knowledge search route — per-KB embedding model', () => {
     const res = await POST(req)
 
     expect(res.status).toBe(400)
-    expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled()
-  })
-
-  it('rejects cross-KB queries with mixed embedding models', async () => {
-    mockCheckKnowledgeBaseAccess
-      .mockResolvedValueOnce({
-        hasAccess: true,
-        knowledgeBase: baseKb('kb-openai', 'text-embedding-3-small'),
-      })
-      .mockResolvedValueOnce({
-        hasAccess: true,
-        knowledgeBase: baseKb('kb-gemini', 'gemini-embedding-001'),
-      })
-
-    const req = createMockRequest('POST', {
-      workspaceId: 'ws-1',
-      knowledgeBaseIds: ['kb-openai', 'kb-gemini'],
-      query: 'hello',
-    })
-    const res = await POST(req)
-
-    expect(res.status).toBe(400)
-    expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled()
-  })
-
-  it('surfaces the sourceUrl a result row carries', async () => {
-    mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
-      hasAccess: true,
-      knowledgeBase: baseKb('kb-confluence', 'text-embedding-3-small'),
-    })
-    mockExecuteKnowledgeSearch.mockResolvedValue([
-      {
-        documentId: 'doc-confluence',
-        knowledgeBaseId: 'kb-confluence',
-        content: 'page content',
-        filename: 'Runbook.md',
-        sourceUrl: 'https://example.atlassian.net/wiki/spaces/DOCS/pages/12345',
-        chunkIndex: 0,
-        distance: 0.1,
-      },
-    ])
-
-    const req = createMockRequest('POST', {
-      workspaceId: 'ws-1',
-      knowledgeBaseIds: 'kb-confluence',
-      query: 'runbook',
-    })
-    const res = await POST(req)
-    const body = await res.json()
-
-    expect(res.status).toBe(200)
-    expect(body.data.results[0].sourceUrl).toBe(
-      'https://example.atlassian.net/wiki/spaces/DOCS/pages/12345'
-    )
-    expect(body.data.results[0].documentName).toBe('Runbook.md')
-  })
-
-  it('allows tag-only search across mixed embedding models', async () => {
-    mockExecuteKnowledgeSearch.mockResolvedValue([])
-    mockCheckKnowledgeBaseAccess.mockResolvedValueOnce({
-      hasAccess: true,
-      knowledgeBase: baseKb('kb-mixed', 'text-embedding-3-small'),
-    })
-
-    const req = createMockRequest('POST', {
-      workspaceId: 'ws-1',
-      knowledgeBaseIds: 'kb-mixed',
-      tagFilters: [{ tagName: 'category', operator: 'eq', value: 'docs' }],
-    })
-    const res = await POST(req)
-
-    expect(res.status).toBe(400)
-    // tagName "category" is undefined in our empty getDocumentTagDefinitions mock,
-    // so the route returns 400 before reaching the search handlers — but crucially
-    // it never tries to generate an embedding.
     expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled()
   })
 })

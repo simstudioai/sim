@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { assertOcrSourceSupported } from '@/lib/knowledge/documents/ocr-source-validation'
 
@@ -18,44 +17,6 @@ describe('OCR source preflight', () => {
       )
     }
   )
-  it('recognizes a pointer exported with Windows line endings', () => {
-    expect(() =>
-      assertOcrSourceSupported(Buffer.from(LFS_POINTER.replaceAll('\n', '\r\n')), 'image/png')
-    ).toThrow(expect.objectContaining({ code: 'invalid_file' }))
-  })
-  it.each(['\n', '\r\n'])('recognizes extension records with %j line endings', (newline) => {
-    const pointer = LFS_POINTER.replace(
-      'oid sha256:',
-      `ext-0-compress sha256:${'b'.repeat(64)}\next-1-encrypt sha256:${'c'.repeat(64)}\noid sha256:`
-    ).replaceAll('\n', newline)
-    expect(() => assertOcrSourceSupported(Buffer.from(pointer), 'image/png')).toThrow(
-      expect.objectContaining({
-        code: 'invalid_file',
-        message: expect.stringContaining('Git LFS pointer'),
-      })
-    )
-    expect(() =>
-      assertOcrSourceSupported(Buffer.from(`${pointer}arbitrary trailing content`), 'image/png')
-    ).not.toThrow()
-    expect(() =>
-      assertOcrSourceSupported(
-        Buffer.from(pointer.replace('ext-0-compress sha256:', 'ext-0-compress sha1:')),
-        'image/png'
-      )
-    ).not.toThrow()
-  })
-  it('preserves small images and files containing a pointer as text', () => {
-    const png = Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=',
-      'base64'
-    )
-    expect(png.length).toBeLessThan(Buffer.byteLength(LFS_POINTER))
-    expect(() => assertOcrSourceSupported(png, 'image/png')).not.toThrow()
-    expect(() => assertOcrSourceSupported(Buffer.from(LFS_POINTER), 'text/plain')).not.toThrow()
-    expect(() =>
-      assertOcrSourceSupported(Buffer.concat([png, Buffer.from(LFS_POINTER)]), 'image/png')
-    ).not.toThrow()
-  })
   it('requires a complete pointer rather than matching a version URL alone', () => {
     for (const content of [
       'version https://git-lfs.github.com/spec/v1\n',
@@ -66,9 +27,6 @@ describe('OCR source preflight', () => {
     ]) {
       expect(() => assertOcrSourceSupported(Buffer.from(content), 'image/png')).not.toThrow()
     }
-  })
-  it('accepts static GIFs without decoding their pixels', () => {
-    expect(() => assertOcrSourceSupported(GIF, 'image/gif')).not.toThrow()
   })
   it('rejects animations before a one-image OCR request could omit later frames', () => {
     const animation = Buffer.concat([

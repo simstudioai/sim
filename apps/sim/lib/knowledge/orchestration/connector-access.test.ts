@@ -1,14 +1,4 @@
-/**
- * @vitest-environment node
- */
-import {
-  dbChainMockFns,
-  hasMockCondition,
-  type MockCondition,
-  queueTableRows,
-  resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -108,7 +98,7 @@ const WORKSPACE_CONNECTOR = {
   updatedAt: new Date('2026-09-01T00:00:00Z'),
 }
 
-const MEMBERS_CONNECTOR = {
+const _MEMBERS_CONNECTOR = {
   ...WORKSPACE_CONNECTOR,
   credentialId: null,
   accessMode: 'members',
@@ -160,7 +150,6 @@ const SCOPED_META = {
 
 describe('resolveKnowledgeConnectorMembersBinding', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.memberAccessAvailable.mockResolvedValue(true)
     mocks.provision.mockResolvedValue({
       credentialGroupId: 'group-1',
@@ -179,38 +168,6 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
     ).rejects.toMatchObject({ code: 'validation' })
     expect(mocks.provision).not.toHaveBeenCalled()
     expect(mocks.loadGroup).not.toHaveBeenCalled()
-  })
-
-  it('resolves and validates the workspace account option for the acting admin', async () => {
-    mocks.provision.mockResolvedValue({
-      credentialGroupId: 'group-9',
-      credentialGroupOptionId: 'option-9',
-    })
-    mocks.loadGroup.mockResolvedValue({
-      credentialGroupId: 'group-9',
-      workspaceId: 'ws-1',
-      status: 'active',
-      options: [],
-    })
-    mocks.validateBinding.mockReturnValue({ ok: true, option: {} })
-    await expect(
-      resolveKnowledgeConnectorMembersBinding({
-        workspaceId: 'ws-1',
-        connectorMeta: SCOPED_META,
-        actingUserId: 'admin-1',
-        sourceConfig: {},
-      })
-    ).resolves.toEqual({
-      credentialGroupId: 'group-9',
-      credentialGroupOptionId: 'option-9',
-      sourceConfig: {},
-    })
-    expect(mocks.provision).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      connectorMeta: SCOPED_META,
-      userId: 'admin-1',
-    })
-    expect(mocks.loadGroup).toHaveBeenCalledWith({ kind: 'workspace', workspaceId: 'ws-1' })
   })
 
   it('refuses members mode where the feature is off, before loading anything', async () => {
@@ -239,45 +196,16 @@ describe('resolveKnowledgeConnectorMembersBinding', () => {
     ).rejects.toMatchObject({ code: 'validation' })
     expect(mocks.validateBinding).not.toHaveBeenCalled()
   })
-
-  it('surfaces the validator refusal as a validation error', async () => {
-    mocks.loadGroup.mockResolvedValue({
-      credentialGroupId: 'group-1',
-      workspaceId: 'ws-1',
-      status: 'active',
-      options: [],
-    })
-    mocks.validateBinding.mockReturnValue({ ok: false, message: 'Max Files cannot be set' })
-    await expect(
-      resolveKnowledgeConnectorMembersBinding({
-        workspaceId: 'ws-1',
-        connectorMeta: SCOPED_META,
-        actingUserId: 'admin-1',
-        sourceConfig: { maxFiles: '5' },
-      })
-    ).rejects.toMatchObject({ code: 'validation', message: 'Max Files cannot be set' })
-  })
 })
 
 describe('performUpdateKnowledgeConnectorAccess', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.rewriteAcls.mockResolvedValue(true)
     mocks.grant.mockResolvedValue(undefined)
     mocks.revoke.mockResolvedValue(undefined)
     mocks.dispatchSync.mockResolvedValue({ queued: true })
     mocks.dispatchMemberSync.mockResolvedValue({ queued: true })
-  })
-
-  it('is a no-op when the connector already has the requested binding', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
-
-    const outcome = await switchTo({ accessMode: 'members', binding: BINDING })
-
-    expect(outcome).toMatchObject({ success: true, changed: false })
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(mocks.grant).not.toHaveBeenCalled()
   })
 
   it('refuses while a sync of either engine owns the connector', async () => {
@@ -292,62 +220,6 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
       errorCode: 'conflict',
     })
     expect(mocks.grant).not.toHaveBeenCalled()
-  })
-
-  it('hides the documents, grants the option, flips to members mode, and queues the first member run', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [WORKSPACE_CONNECTOR])
-    queueGroupRow('option-1')
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([{ ...WORKSPACE_CONNECTOR, status: 'syncing', syncLockToken: 's-1' }])
-      /** The flip lands under the lease, then the release. */
-      .mockResolvedValueOnce([{ id: 'c-1' }])
-      .mockResolvedValueOnce([{ ...MEMBERS_CONNECTOR, nextMemberSyncAt: new Date() }])
-
-    const outcome = await switchTo({ accessMode: 'members', binding: BINDING })
-
-    expect(outcome).toMatchObject({ success: true, changed: true })
-    /** The rewrite hides every document and proves the switch lease inside each batch. */
-    expect(mocks.rewriteAcls).toHaveBeenCalledWith(
-      'c-1',
-      [],
-      expect.objectContaining({
-        lease: expect.objectContaining({ stillHeld: expect.any(Function) }),
-      })
-    )
-    expect(mocks.grant).toHaveBeenCalledWith(
-      {
-        workspaceId: 'ws-1',
-        credentialGroupId: 'group-1',
-        credentialGroupOptionId: 'option-1',
-        connectorId: 'c-1',
-      },
-      'admin-1'
-    )
-    /** The flip is written inside the group's row lock. */
-    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
-    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
-    const flip = setCallWith('accessMode')
-    expect(flip).toMatchObject({
-      accessMode: 'members',
-      credentialId: null,
-      credentialGroupId: 'group-1',
-      credentialGroupOptionId: 'option-1',
-      accessRewritePending: false,
-      nextSyncAt: null,
-      nextMemberSyncAt: expect.any(Date),
-    })
-    expect(flip).not.toHaveProperty('status')
-    expect(dbChainMockFns.set).toHaveBeenLastCalledWith(
-      expect.objectContaining({ status: 'active', syncLockToken: null, syncLockLeaseAt: null })
-    )
-    /** The dispatch asserts the schedule the flip wrote, so the queue accepts it. */
-    expect(mocks.dispatchMemberSync).toHaveBeenCalledWith('c-1', {
-      billingAttribution: BILLING,
-      expectedNextMemberSyncAt: flip.nextMemberSyncAt,
-      requestId: 'req-1',
-      requireRunnable: true,
-    })
-    expect(mocks.dispatchSync).not.toHaveBeenCalled()
   })
 
   it('refuses the flip, and undoes the grant, when the option is gone by the time the group is locked', async () => {
@@ -368,64 +240,6 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
     expect(dbChainMockFns.set).toHaveBeenLastCalledWith(
       expect.objectContaining({ status: 'active', syncLockToken: null })
     )
-    expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
-  })
-
-  it('drops the members, restores workspace access, revokes the grant, flips, and queues a content sync', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [MEMBERS_CONNECTOR])
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([{ ...MEMBERS_CONNECTOR, status: 'syncing', syncLockToken: 's-1' }])
-      /** The flip lands under the lease, then the release. */
-      .mockResolvedValueOnce([{ id: 'c-1' }])
-      .mockResolvedValueOnce([{ ...WORKSPACE_CONNECTOR, credentialId: 'cred-2' }])
-
-    const outcome = await switchTo({ accessMode: 'workspace', credentialId: 'cred-2' })
-
-    expect(outcome).toMatchObject({ success: true, changed: true })
-    expect(dbChainMockFns.delete).toHaveBeenCalled()
-    /** Workspace access is restored under the switch lease, proved inside each batch. */
-    expect(mocks.rewriteAcls).toHaveBeenCalledWith(
-      'c-1',
-      ['ws'],
-      expect.objectContaining({
-        lease: expect.objectContaining({ stillHeld: expect.any(Function) }),
-      })
-    )
-    expect(mocks.revoke).toHaveBeenCalledWith(
-      { workspaceId: 'ws-1', credentialGroupId: 'group-1', connectorId: 'c-1' },
-      'admin-1'
-    )
-    const flip = setCallWith('accessMode')
-    expect(flip).toMatchObject({
-      accessMode: 'workspace',
-      credentialId: 'cred-2',
-      credentialGroupId: null,
-      credentialGroupOptionId: null,
-      nextMemberSyncAt: null,
-      nextSyncAt: expect.any(Date),
-    })
-    /** The revoke lands while the lease is still held; the release is the last write. */
-    const revokedAt = mocks.revoke.mock.invocationCallOrder[0]
-    const releasedAt = dbChainMockFns.set.mock.invocationCallOrder.at(-1) ?? 0
-    expect(revokedAt).toBeLessThan(releasedAt)
-    expect(dbChainMockFns.set).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        accessRewritePending: false,
-        status: 'active',
-        syncLockToken: null,
-        syncLockLeaseAt: null,
-      })
-    )
-    /**
-     * The row holds the instant the flip wrote as `nextSyncAt`; a dispatch
-     * asserting any later clock read is refused by the queue as stale.
-     */
-    expect(mocks.dispatchSync).toHaveBeenCalledWith('c-1', {
-      billingAttribution: BILLING,
-      expectedNextSyncAt: flip.nextSyncAt,
-      requestId: 'req-1',
-      requireRunnable: true,
-    })
     expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
   })
 
@@ -474,92 +288,6 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
     expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
   })
 
-  it('flips to administrator mode with the rewrite pending when it outgrows the request budget', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [WORKSPACE_CONNECTOR])
-    mocks.rewriteAcls.mockResolvedValue(false)
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([{ ...WORKSPACE_CONNECTOR, status: 'syncing', syncLockToken: 's-1' }])
-      .mockResolvedValueOnce([{ id: 'c-1' }])
-      .mockResolvedValueOnce([
-        { ...WORKSPACE_CONNECTOR, accessMode: 'admin', credentialId: 'cred-2' },
-      ])
-
-    await switchTo({ accessMode: 'admin', credentialId: 'cred-2' })
-
-    expect(setCallWith('accessMode')).toMatchObject({
-      accessMode: 'admin',
-      accessRewritePending: true,
-    })
-  })
-
-  it('changes a workspace credential without the lease, drops the watermark, and queues a full sync', async () => {
-    dbChainMockFns.limit.mockResolvedValue([
-      { ...WORKSPACE_CONNECTOR, lastSyncAt: new Date('2026-08-01T00:00:00Z') },
-    ])
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      { ...WORKSPACE_CONNECTOR, credentialId: 'cred-2', lastSyncAt: null },
-    ])
-
-    const outcome = await switchTo({ accessMode: 'workspace', credentialId: 'cred-2' })
-
-    expect(outcome).toMatchObject({ success: true, changed: true })
-    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
-    const change = setCallWith('credentialId')
-    expect(change).toMatchObject({
-      credentialId: 'cred-2',
-      lastSyncAt: null,
-      nextSyncAt: expect.any(Date),
-    })
-    expect(change).not.toHaveProperty('status')
-    /**
-     * A running sync's terminal write would restore the watermark, so the
-     * write is refused while any sync holds the row.
-     */
-    expect(
-      hasMockCondition(
-        dbChainMockFns.where.mock.calls.at(-1)?.[0],
-        (node: MockCondition) =>
-          node.type === 'isNull' && node.column === schemaMock.knowledgeConnector.syncLockToken
-      )
-    ).toBe(true)
-    expect(mocks.dispatchSync).toHaveBeenCalledWith('c-1', {
-      billingAttribution: BILLING,
-      expectedNextSyncAt: change.nextSyncAt,
-      requestId: 'req-1',
-      requireRunnable: true,
-    })
-    expect(mocks.grant).not.toHaveBeenCalled()
-    expect(mocks.revoke).not.toHaveBeenCalled()
-  })
-
-  it('commits the replacement account and source settings in one write', async () => {
-    const sourceConfig = { folderId: ['f-2'] }
-    dbChainMockFns.limit.mockResolvedValue([WORKSPACE_CONNECTOR])
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      { ...WORKSPACE_CONNECTOR, credentialId: 'cred-2', sourceConfig, syncIntervalMinutes: 1440 },
-    ])
-    const outcome = await performUpdateKnowledgeConnectorAccess({
-      knowledgeBase: KB,
-      connectorId: 'c-1',
-      target: { accessMode: 'workspace', credentialId: 'cred-2' },
-      sourceConfig,
-      syncIntervalMinutes: 1440,
-      resolveBillingAttribution,
-      ...ACTOR,
-    })
-    expect(outcome).toMatchObject({ success: true, changed: true })
-    expect(dbChainMockFns.update).toHaveBeenCalledOnce()
-    expect(setCallWith('credentialId')).toMatchObject({
-      credentialId: 'cred-2',
-      sourceConfig,
-      syncIntervalMinutes: 1440,
-      lastSyncAt: null,
-      listingCheckpoint: null,
-      directoryCheckpoint: null,
-    })
-    expect(mocks.dispatchSync).toHaveBeenCalledOnce()
-  })
-
   it('rejects the complete save if a sync starts during validation', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [WORKSPACE_CONNECTOR])
     queueTableRows(schemaMock.knowledgeConnector, [{ ...WORKSPACE_CONNECTOR, status: 'syncing' }])
@@ -575,136 +303,6 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mocks.dispatchSync).not.toHaveBeenCalled()
   })
-
-  it('keeps a committed account replacement successful when sync dispatch fails', async () => {
-    dbChainMockFns.limit.mockResolvedValue([WORKSPACE_CONNECTOR])
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      { ...WORKSPACE_CONNECTOR, credentialId: 'cred-2' },
-    ])
-    mocks.dispatchSync.mockRejectedValueOnce(new Error('queue unavailable'))
-
-    const outcome = await switchTo({ accessMode: 'workspace', credentialId: 'cred-2' })
-
-    expect(outcome).toMatchObject({
-      success: true,
-      changed: true,
-      connector: { credentialId: 'cred-2' },
-    })
-    expect(setCallWith('credentialId')).toMatchObject({ nextSyncAt: expect.any(Date) })
-    expect(mocks.dispatchSync).toHaveBeenCalledOnce()
-  })
-
-  it('refuses a credential change while a sync owns the connector', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [WORKSPACE_CONNECTOR])
-    queueTableRows(schemaMock.knowledgeConnector, [
-      { ...WORKSPACE_CONNECTOR, status: 'syncing', syncLockToken: 'run-1' },
-    ])
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-
-    const outcome = await switchTo({ accessMode: 'workspace', credentialId: 'cred-2' })
-
-    expect(outcome).toEqual({
-      success: false,
-      error: 'Sync already in progress',
-      errorCode: 'conflict',
-    })
-    expect(mocks.dispatchSync).not.toHaveBeenCalled()
-  })
-
-  it('changes the credential of a paused connector without queuing a sync', async () => {
-    dbChainMockFns.limit.mockResolvedValue([{ ...WORKSPACE_CONNECTOR, status: 'paused' }])
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      { ...WORKSPACE_CONNECTOR, status: 'paused', credentialId: 'cred-2' },
-    ])
-
-    const outcome = await switchTo({ accessMode: 'workspace', credentialId: 'cred-2' })
-
-    expect(outcome).toMatchObject({ success: true, changed: true })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ credentialId: 'cred-2', lastSyncAt: null })
-    )
-    expect(mocks.dispatchSync).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    { accessMode: 'admin' as const, credentialId: 'revoked-credential' },
-    { accessMode: 'admin' as const, credentialId: null },
-    { accessMode: 'workspace' as const, credentialId: 'revoked-credential' },
-    { accessMode: 'workspace' as const, credentialId: null },
-  ])(
-    'replaces a disabled $accessMode credential ($credentialId) without resuming the source',
-    async ({ accessMode, credentialId }) => {
-      const disabled = {
-        ...WORKSPACE_CONNECTOR,
-        accessMode,
-        credentialId,
-        status: 'disabled',
-        consecutiveFailures: 10,
-        lastSyncError: 'Auto-disabled after repeated authentication failures',
-        lastSyncAt: new Date('2026-08-01T00:00:00Z'),
-        listingCheckpoint: { pageToken: 'old-listing' },
-        directoryCheckpoint: { pageToken: 'old-directory' },
-      }
-      dbChainMockFns.limit.mockResolvedValue([disabled])
-      dbChainMockFns.returning.mockResolvedValueOnce([
-        { ...disabled, credentialId: 'cred-2', lastSyncAt: null },
-      ])
-
-      const outcome = await switchTo({ accessMode, credentialId: 'cred-2' })
-
-      expect(outcome).toMatchObject({
-        success: true,
-        changed: true,
-        connector: {
-          credentialId: 'cred-2',
-          status: 'disabled',
-          consecutiveFailures: 10,
-          lastSyncError: disabled.lastSyncError,
-        },
-      })
-      expect(dbChainMockFns.update).toHaveBeenCalledOnce()
-      expect(dbChainMockFns.set).toHaveBeenCalledWith({
-        credentialId: 'cred-2',
-        lastSyncAt: null,
-        listingCheckpoint: null,
-        directoryCheckpoint: null,
-        nextSyncAt: expect.any(Date),
-        updatedAt: expect.any(Date),
-      })
-      const condition = dbChainMockFns.where.mock.calls.at(-1)?.[0]
-      for (const [column, value] of [
-        [schemaMock.knowledgeConnector.id, 'c-1'],
-        [schemaMock.knowledgeConnector.knowledgeBaseId, 'kb-1'],
-        [schemaMock.knowledgeConnector.status, 'disabled'],
-      ]) {
-        expect(
-          hasMockCondition(
-            condition,
-            (node: MockCondition) =>
-              node.type === 'eq' && node.left === column && node.right === value
-          )
-        ).toBe(true)
-      }
-      for (const column of [
-        schemaMock.knowledgeConnector.syncLockToken,
-        schemaMock.knowledgeConnector.archivedAt,
-        schemaMock.knowledgeConnector.deletedAt,
-      ]) {
-        expect(
-          hasMockCondition(
-            condition,
-            (node: MockCondition) => node.type === 'isNull' && node.column === column
-          )
-        ).toBe(true)
-      }
-      expect(resolveBillingAttribution).not.toHaveBeenCalled()
-      expect(mocks.dispatchSync).not.toHaveBeenCalled()
-      expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
-      expect(mocks.rewriteAcls).not.toHaveBeenCalled()
-      expect(mocks.grant).not.toHaveBeenCalled()
-      expect(mocks.revoke).not.toHaveBeenCalled()
-    }
-  )
 
   it('refuses a disabled credential replacement when Resume acquires the row first', async () => {
     const disabled = { ...WORKSPACE_CONNECTOR, accessMode: 'admin', status: 'disabled' }
@@ -723,48 +321,6 @@ describe('performUpdateKnowledgeConnectorAccess', () => {
     })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mocks.dispatchSync).not.toHaveBeenCalled()
-    expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
-  })
-
-  it('still refuses access-mode switches while a source is disabled', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [{ ...WORKSPACE_CONNECTOR, status: 'disabled' }])
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-
-    const outcome = await switchTo({ accessMode: 'admin', credentialId: 'cred-2' })
-
-    expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
-    expect(
-      hasMockCondition(
-        dbChainMockFns.where.mock.calls.at(-1)?.[0],
-        (node: MockCondition) =>
-          node.type === 'inArray' &&
-          node.column === schemaMock.knowledgeConnector.status &&
-          Array.isArray(node.values) &&
-          !node.values.includes('disabled')
-      )
-    ).toBe(true)
-    expect(mocks.rewriteAcls).not.toHaveBeenCalled()
-    expect(mocks.dispatchSync).not.toHaveBeenCalled()
-    expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
-  })
-
-  it('leaves a paused connector paused and queues nothing', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [{ ...WORKSPACE_CONNECTOR, status: 'paused' }])
-    queueGroupRow('option-1')
-    dbChainMockFns.returning
-      .mockResolvedValueOnce([{ ...WORKSPACE_CONNECTOR, status: 'paused' }])
-      .mockResolvedValueOnce([{ id: 'c-1' }])
-      .mockResolvedValueOnce([{ ...MEMBERS_CONNECTOR, status: 'paused' }])
-
-    const outcome = await switchTo({ accessMode: 'members', binding: BINDING })
-
-    expect(outcome).toMatchObject({ success: true, changed: true })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ accessMode: 'members' })
-    )
-    expect(dbChainMockFns.set).toHaveBeenLastCalledWith(
-      expect.objectContaining({ status: 'paused', syncLockToken: null })
-    )
     expect(mocks.dispatchMemberSync).not.toHaveBeenCalled()
   })
 

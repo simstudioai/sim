@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetchProviderJson, mockResolveSelectorOAuthAccessToken } = vi.hoisted(() => ({
@@ -37,7 +34,6 @@ function listArgs(context: Record<string, string>): ExecuteServerSelectorArgs {
 
 describe('ClickUp server selector adapters', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveSelectorOAuthAccessToken.mockResolvedValue('server-only-token')
     mockFetchProviderJson.mockResolvedValue({ lists: [] })
   })

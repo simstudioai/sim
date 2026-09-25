@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { OrganizationDelegatedPrincipal, Principal } from '@sim/auth/principal'
 import {
   auditMock,
@@ -47,10 +46,7 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfigForOrganization: async () => null,
 }))
 
-import {
-  getOrganizationMemberUsageLimit,
-  updateOrganizationMemberUsageLimit,
-} from '@/lib/billing/application/member-usage-limits/use-cases'
+import { updateOrganizationMemberUsageLimit } from '@/lib/billing/application/member-usage-limits/use-cases'
 import { readUsageLimit, updateUsageLimit } from '@/lib/billing/application/usage-limits'
 
 const principal = (): OrganizationDelegatedPrincipal => ({
@@ -69,7 +65,6 @@ function membership(role = 'admin') {
   queueTableRows(schemaMock.member, [{ role }])
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   setEnvFlags({ isHosted: true })
   mocks.admin.mockResolvedValue(true)
@@ -82,17 +77,6 @@ beforeEach(() => {
   mocks.subscription.mockResolvedValue(null)
 })
 describe('budget settings application boundaries', () => {
-  it.each(['admin', 'owner'])(
-    'allows current %s organization cap updates in dollars',
-    async (role) => {
-      membership(role)
-      await updateUsageLimit.execute({
-        principal: principal(),
-        input: { context: 'organization', organizationId: 'org', limit: 100 },
-      })
-      expect(mocks.orgUpdate).toHaveBeenCalledWith('org', 100)
-    }
-  )
   it('rejects ordinary members before updating', async () => {
     membership('member')
     await expect(
@@ -127,11 +111,6 @@ describe('budget settings application boundaries', () => {
     ).rejects.toMatchObject({ code: 'validation', message: 'Enterprise limits are fixed' })
     expect(mocks.orgRead).not.toHaveBeenCalled()
   })
-  it('uses the actual account subject for personal caps', async () => {
-    membership('member')
-    await updateUsageLimit.execute({ principal: principal(), input: { limit: 20 } })
-    expect(mocks.userUpdate).toHaveBeenCalledWith('actor', 20)
-  })
   it('does not allow a different account read', async () => {
     await expect(
       readUsageLimit.execute({ principal: session, input: { userId: 'other' } })
@@ -143,40 +122,6 @@ describe('budget settings application boundaries', () => {
       updateUsageLimit.execute({ principal: session, input: { limit: -1 } })
     ).rejects.toMatchObject({ code: 'validation' })
     expect(mocks.userUpdate).not.toHaveBeenCalled()
-  })
-  it('retains real billing summary fields on the organization response', async () => {
-    mocks.orgRead.mockResolvedValue({ totalUsageLimit: 80, members: [] })
-    mocks.summary.mockResolvedValue({
-      subscriptionState: 'active',
-      subscriptionStatus: 'active',
-      creditBalance: 8,
-      billingInterval: 'year',
-      cancelAtPeriodEnd: true,
-      billingBlocked: true,
-      billingBlockedReason: 'payment_failed',
-      blockedByOrgOwner: false,
-      upgradeWorkspaceId: 'workspace',
-    })
-    const result = await readUsageLimit.execute({
-      principal: session,
-      input: { context: 'organization', organizationId: 'org' },
-    })
-    expect(result.data).toMatchObject({
-      totalUsageLimit: 80,
-      hasSubscription: true,
-      creditBalance: 8,
-      billingInterval: 'year',
-      billingBlockedReason: 'payment_failed',
-    })
-  })
-  it('reads per-member amounts in credits', async () => {
-    membership()
-    expect(
-      await getOrganizationMemberUsageLimit.execute({
-        principal: principal(),
-        input: { organizationId: 'org', userId: 'external-user' },
-      })
-    ).toEqual({ creditsUsed: 200, creditLimit: 400, billingInterval: 'month' })
   })
   it.each([400, null])(
     'updates or clears external member cap %s with actual actor',

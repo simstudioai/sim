@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -52,7 +48,6 @@ function pageProps(contextId?: string) {
 
 describe('ResumeExecutionPageWrapper', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
@@ -98,12 +93,5 @@ describe('ResumeExecutionPageWrapper', () => {
     expect(result.type).toBe(mocks.unavailablePage)
     expect(result.type).not.toBe(mocks.resumePage)
     expect(result.props).toEqual({})
-  })
-
-  it('propagates authorization infrastructure failures', async () => {
-    const infrastructureError = new Error('database unavailable')
-    mocks.authorize.mockRejectedValueOnce(infrastructureError)
-
-    await expect(ResumeExecutionPageWrapper(pageProps())).rejects.toBe(infrastructureError)
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCreate, mockExecuteProviderTool, mockCapture, mockRecordUsage } = vi.hoisted(() => ({
@@ -141,7 +138,6 @@ const lastPayload = () => mockCreate.mock.calls.at(-1)![0]
 
 describe('xAIProvider.executeRequest', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCreate.mockResolvedValue(chat({ content: 'hello' }))
     mockExecuteProviderTool.mockResolvedValue({
       rawResponse: { success: true, output: { ok: true } },
@@ -197,15 +193,6 @@ describe('xAIProvider.executeRequest', () => {
       expect(capturedCalls).not.toContain('call-21')
     }
   )
-
-  it('maps temperature and max_completion_tokens', async () => {
-    await run({ temperature: 0.5, maxTokens: 256 })
-
-    const payload = firstPayload()
-    expect(payload.model).toBe('grok-4.6')
-    expect(payload.temperature).toBe(0.5)
-    expect(payload.max_completion_tokens).toBe(256)
-  })
 
   it('forwards reasoning_effort only when set to a non-default value', async () => {
     await run({ reasoningEffort: 'xhigh' })

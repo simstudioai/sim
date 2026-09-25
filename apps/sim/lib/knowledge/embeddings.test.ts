@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as billingAttributionModule from '@/lib/billing/core/billing-attribution'
 import * as usageLogModule from '@/lib/billing/core/usage-log'
@@ -43,7 +40,6 @@ afterAll(() => {
 
 describe('recordSearchEmbeddingUsage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockRecordUsage.mockResolvedValue(undefined as never)
     mockCheckAndBillPayerOverageThreshold.mockResolvedValue(undefined as never)
     estimateTokenCountSpy.mockReturnValue({ count: 100 } as never)

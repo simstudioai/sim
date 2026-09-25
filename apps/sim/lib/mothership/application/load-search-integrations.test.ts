@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -41,7 +38,6 @@ const emptyPage: InventoryPage = {
 
 describe('loadCopilotSearchIntegrations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetEnvFlagsMock()
     authorizeChat.mockResolvedValue(undefined)
     listIntegrations.mockResolvedValue(emptyPage)

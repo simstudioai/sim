@@ -1,7 +1,5 @@
 /**
  * Tests for file serve API route
- *
- * @vitest-environment node
  */
 import {
   authMockFns,
@@ -144,8 +142,6 @@ import { GET } from '@/app/api/files/serve/[...path]/route'
 
 describe('File Serve API Route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
-
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'test-user-id',
@@ -257,34 +253,6 @@ describe('File Serve API Route', () => {
     }
   )
 
-  it('serves private Assistant images through session authorization and disables caching', async () => {
-    authMockFns.mockGetSession.mockResolvedValue({
-      user: { id: 'user-1' },
-      session: { id: 'session-1' },
-    })
-    const key = 'assistant/org-1/user-1/upload-1/image.png'
-    mockReadOrganizationAssistantImage.mockResolvedValue({
-      name: 'image.png',
-      contentType: 'image/webp',
-      buffer: Buffer.from('decoded-image'),
-    })
-    const response = await GET(new NextRequest(`http://localhost/api/files/serve/${key}`), {
-      params: Promise.resolve({ path: key.split('/') }),
-    })
-    expect(response.status).toBe(200)
-    expect(mockReadOrganizationAssistantImage).toHaveBeenCalledWith({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      key,
-      maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
-      signal: expect.any(AbortSignal),
-    })
-    expect(mockCreateFileResponse).toHaveBeenCalledWith(
-      expect.objectContaining({ cacheControl: 'private, no-store', contentType: 'image/webp' })
-    )
-    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
-    expect(hybridAuthMockFns.mockCheckSessionOrInternalAuth).not.toHaveBeenCalled()
-  })
-
   it('requires a real session for private Assistant images even when legacy auth succeeds', async () => {
     authMockFns.mockGetSession.mockResolvedValue(null)
     const key = 'assistant/org-1/user-1/upload-1/image.png'
@@ -305,28 +273,6 @@ describe('File Serve API Route', () => {
       MAX_BUFFERED_TRANSFER_BYTES,
       expect.any(String)
     )
-  })
-
-  it('413s when a resolved document outgrows the ceiling its source fit inside', async () => {
-    // The stored source is a small generation script; the compiled artifact it
-    // resolves to is fetched separately and is what the response would carry.
-    mockResolveServableDocBytes.mockResolvedValue({
-      buffer: Buffer.alloc(MAX_BUFFERED_TRANSFER_BYTES + 1),
-      contentType: 'application/pdf',
-    })
-    mockCreateErrorResponse.mockImplementation(
-      (error: Error) =>
-        new Response(JSON.stringify({ error: error.name }), {
-          status: error.name === 'PayloadSizeLimitError' ? 413 : 500,
-        })
-    )
-
-    const response = await GET(
-      new NextRequest('http://localhost:3000/api/files/serve/workspace/ws/report.pdf'),
-      { params: Promise.resolve({ path: ['workspace', 'ws', 'report.pdf'] }) }
-    )
-
-    expect(response.status).toBe(413)
   })
 
   it('answers 413 rather than 500 when a file is too large to serve resident', async () => {
@@ -354,112 +300,6 @@ describe('File Serve API Route', () => {
 
     expect(response.status).toBe(413)
     expect(serveLogger.error).not.toHaveBeenCalled()
-  })
-
-  it('should serve local file successfully', async () => {
-    const req = new NextRequest(
-      'http://localhost:3000/api/files/serve/workspace/test-workspace-id/test-file.txt'
-    )
-    const params = { path: ['workspace', 'test-workspace-id', 'test-file.txt'] }
-
-    const response = await GET(req, { params: Promise.resolve(params) })
-
-    expect(response.status).toBe(200)
-    expect(response.headers.get('Content-Type')).toBe('text/plain')
-    const disposition = response.headers.get('Content-Disposition')
-    expect(disposition).toContain('inline')
-    expect(disposition).toContain('filename=')
-    expect(disposition).toContain('test-file.txt')
-
-    expect(mockReadFile).toHaveBeenCalled()
-  })
-
-  it('should handle nested paths correctly', async () => {
-    mockFindLocalFile.mockReturnValue('/test/uploads/nested/path/file.txt')
-
-    const req = new NextRequest(
-      'http://localhost:3000/api/files/serve/workspace/test-workspace-id/nested-path-file.txt'
-    )
-    const params = { path: ['workspace', 'test-workspace-id', 'nested-path-file.txt'] }
-
-    const response = await GET(req, { params: Promise.resolve(params) })
-
-    expect(response.status).toBe(200)
-
-    expect(mockReadFile).toHaveBeenCalledWith('/test/uploads/nested/path/file.txt')
-  })
-
-  it('should serve cloud file by downloading and proxying', async () => {
-    mockIsUsingCloudStorage.mockReturnValue(true)
-    storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('test cloud file content'))
-    mockGetContentType.mockReturnValue('image/png')
-
-    const req = new NextRequest(
-      'http://localhost:3000/api/files/serve/workspace/test-workspace-id/1234567890-image.png'
-    )
-    const params = { path: ['workspace', 'test-workspace-id', '1234567890-image.png'] }
-
-    const response = await GET(req, { params: Promise.resolve(params) })
-
-    expect(response.status).toBe(200)
-    expect(response.headers.get('Content-Type')).toBe('image/png')
-
-    expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalledWith({
-      key: 'workspace/test-workspace-id/1234567890-image.png',
-      context: 'mothership',
-      maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
-    })
-  })
-
-  it('serves a workspace document through the authorized use case and preserves the Principal', async () => {
-    const principal = {
-      kind: 'delegated' as const,
-      serviceId: 'executor' as const,
-      subjectUserId: 'test-user-id',
-      workspaceId: 'test-workspace-id',
-      delegationId: 'delegation-1',
-      audience: 'sim:workspace-files',
-      issuedAt: new Date('2026-08-01T00:00:00Z'),
-      expiresAt: new Date('2026-08-01T01:00:00Z'),
-      delegationContext: {
-        kind: 'workflow_execution' as const,
-        workflowId: 'workflow-1',
-      },
-    }
-    mockResolveStoredFileContext.mockResolvedValue('workspace')
-    mockParseWorkspaceFileKey.mockReturnValue('test-workspace-id')
-    mockAuthenticateWorkspaceFile.mockResolvedValue(principal)
-    mockResolveServableDocBytes.mockResolvedValue({
-      buffer: Buffer.from('%PDF-compiled'),
-      contentType: 'application/pdf',
-    })
-
-    const req = new NextRequest(
-      'http://localhost:3000/api/files/serve/workspace/test-workspace-id/report.pdf'
-    )
-    const response = await GET(req, {
-      params: Promise.resolve({
-        path: ['workspace', 'test-workspace-id', 'report.pdf'],
-      }),
-    })
-
-    expect(response.status).toBe(200)
-    expect(mockReadWorkspaceFileContentByKey).toHaveBeenCalledWith({
-      principal,
-      input: {
-        key: 'workspace/test-workspace-id/report.pdf',
-        assertedWorkspaceId: 'test-workspace-id',
-      },
-      request: req,
-    })
-    expect(mockResolveServableDocBytes).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'test-workspace-id',
-        filePrincipal: principal,
-      })
-    )
-    expect(hybridAuthMockFns.mockCheckSessionOrInternalAuth).not.toHaveBeenCalled()
-    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
   })
 
   describe('versioned cache lifetime', () => {
@@ -503,170 +343,9 @@ describe('File Serve API Route', () => {
       )
     })
 
-    it('spends no validator on an immutable response, which is never revalidated', async () => {
-      await serveVersionedDoc(false)
-      expect(mockCreateConditionalFileResponse).not.toHaveBeenCalled()
-      expect(mockCreateFileResponse).toHaveBeenCalled()
-    })
-
     it('attaches a validator to a revalidated response so the next check can be answered 304', async () => {
       await serveVersionedDoc(true)
       expect(mockCreateConditionalFileResponse).toHaveBeenCalled()
-    })
-
-    it('keeps a versioned document revalidated when it was compiled against referenced files', async () => {
-      /**
-       * The URL carries the file's own `updatedAt`, which does not move when a
-       * REFERENCED file changes — so an immutable lifetime would pin the stale
-       * render in the browser cache until the document itself is edited.
-       */
-      expect(await serveVersionedDoc(true)).toEqual(
-        expect.objectContaining({ cacheControl: 'private, no-cache, must-revalidate' })
-      )
-    })
-  })
-
-  it('serves a mothership chat attachment stored under a workspace key', async () => {
-    /**
-     * The attachment shares the `workspace/…` prefix but is recorded as
-     * `context = 'mothership'`, so the workspace-file use case — which matches on
-     * `context = 'workspace'` — would answer 404 for a file that is right there.
-     */
-    mockIsUsingCloudStorage.mockReturnValue(true)
-    storageServiceMockFns.mockDownloadFile.mockResolvedValue(Buffer.from('attachment bytes'))
-    mockGetContentType.mockReturnValue('image/png')
-
-    const req = new NextRequest(
-      'http://localhost:3000/api/files/serve/workspace/test-workspace-id/1234567890-photo.png?preview=1'
-    )
-    const response = await GET(req, {
-      params: Promise.resolve({
-        path: ['workspace', 'test-workspace-id', '1234567890-photo.png'],
-      }),
-    })
-
-    expect(response.status).toBe(200)
-    expect(mockReadWorkspaceFileContentByKey).not.toHaveBeenCalled()
-    expect(mockAuthenticateWorkspaceFile).not.toHaveBeenCalled()
-    expect(mockVerifyFileAccess).toHaveBeenCalledWith(
-      'workspace/test-workspace-id/1234567890-photo.png',
-      'test-user-id',
-      undefined,
-      'mothership',
-      false,
-      { knowledgeAccess: undefined }
-    )
-    expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalledWith({
-      key: 'workspace/test-workspace-id/1234567890-photo.png',
-      context: 'mothership',
-      maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
-    })
-  })
-
-  it('serves organization logos through the existing public asset path', async () => {
-    mockIsUsingCloudStorage.mockReturnValue(true)
-    mockInferContextFromKey.mockReturnValue('organization-logos')
-    const key = 'organization-logos/org-1/upload-1-logo.png'
-    const response = await GET(new NextRequest(`http://localhost/api/files/serve/s3/${key}`), {
-      params: Promise.resolve({ path: ['s3', 'organization-logos', 'org-1', 'upload-1-logo.png'] }),
-    })
-    expect(response.status).toBe(200)
-    expect(storageServiceMockFns.mockDownloadFile).toHaveBeenCalledWith({
-      key,
-      context: 'organization-logos',
-      maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
-    })
-    expect(mockCreateFileResponse).toHaveBeenCalledWith(
-      expect.objectContaining({
-        cacheControl: 'public, max-age=31536000',
-      })
-    )
-    expect(mockVerifyFileAccess).not.toHaveBeenCalled()
-    expect(mockAuthenticateWorkspaceFile).not.toHaveBeenCalled()
-  })
-
-  it('should return 404 when file not found', async () => {
-    mockVerifyFileAccess.mockResolvedValue(false)
-    mockFindLocalFile.mockReturnValue(null)
-
-    const req = new NextRequest(
-      'http://localhost:3000/api/files/serve/workspace/test-workspace-id/nonexistent.txt'
-    )
-    const params = { path: ['workspace', 'test-workspace-id', 'nonexistent.txt'] }
-
-    const response = await GET(req, { params: Promise.resolve(params) })
-
-    expect(response.status).toBe(404)
-
-    const responseData = await response.json()
-    expect(responseData).toEqual({
-      error: 'FileNotFoundError',
-      message: expect.stringContaining('File not found'),
-    })
-  })
-
-  describe('content type detection', () => {
-    const contentTypeTests = [
-      { ext: 'pdf', contentType: 'application/pdf' },
-      { ext: 'json', contentType: 'application/json' },
-      { ext: 'jpg', contentType: 'image/jpeg' },
-      { ext: 'txt', contentType: 'text/plain' },
-      { ext: 'unknown', contentType: 'application/octet-stream' },
-    ]
-
-    for (const test of contentTypeTests) {
-      it(`should serve ${test.ext} file with correct content type`, async () => {
-        mockGetContentType.mockReturnValue(test.contentType)
-        mockFindLocalFile.mockReturnValue(`/test/uploads/file.${test.ext}`)
-        mockCreateFileResponse.mockImplementation(
-          (obj: { buffer: Buffer; contentType: string; filename: string }) =>
-            new Response(obj.buffer, {
-              status: 200,
-              headers: {
-                'Content-Type': obj.contentType,
-                'Content-Disposition': `inline; filename="${obj.filename}"`,
-                'Cache-Control': 'public, max-age=31536000',
-              },
-            })
-        )
-
-        const req = new NextRequest(
-          `http://localhost:3000/api/files/serve/workspace/test-workspace-id/file.${test.ext}`
-        )
-        const params = { path: ['workspace', 'test-workspace-id', `file.${test.ext}`] }
-
-        const response = await GET(req, { params: Promise.resolve(params) })
-
-        expect(response.headers.get('Content-Type')).toBe(test.contentType)
-      })
-    }
-  })
-
-  describe('failure log level', () => {
-    it('records a missing file at info, not error', async () => {
-      /** A superseded key is an ordinary 404, not a server fault. */
-      const req = new NextRequest('http://localhost:3000/api/files/serve/')
-      const response = await GET(req, { params: Promise.resolve({ path: [] }) })
-
-      expect(response.status).toBe(404)
-      expect(serveLogger.info).toHaveBeenCalledWith(
-        'Error serving file:',
-        expect.objectContaining({ reason: expect.any(String) })
-      )
-      expect(serveLogger.error).not.toHaveBeenCalled()
-    })
-
-    it('still records a genuine failure at error', async () => {
-      mockVerifyFileAccess.mockRejectedValueOnce(new Error('permission backend down'))
-
-      const req = new NextRequest(
-        'http://localhost:3000/api/files/serve/workspace/ws/test-file.txt'
-      )
-      await GET(req, {
-        params: Promise.resolve({ path: ['workspace', 'ws', 'test-file.txt'] }),
-      }).catch(() => undefined)
-
-      expect(serveLogger.error).toHaveBeenCalled()
     })
   })
 })

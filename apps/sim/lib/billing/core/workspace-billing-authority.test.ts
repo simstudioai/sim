@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { canUserManageWorkspaceBilling } from '@/lib/billing/core/workspace-billing-authority'
 
 const personalWorkspace = {
@@ -16,7 +13,6 @@ const organizationWorkspace = {
 
 describe('canUserManageWorkspaceBilling', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

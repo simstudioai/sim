@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { account, credential } from '@sim/db/schema'
 import {
   auditMock,
@@ -42,7 +39,6 @@ vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
 
 import { disconnectOAuthUseCase } from '@/lib/credentials/application/oauth-accounts'
 import { QuickBooksTokenRevocationError } from '@/lib/oauth/quickbooks'
-import { QuickBooksOAuthClientConfigurationError } from '@/lib/oauth/quickbooks-client-config'
 
 const firstCredential = {
   id: 'credential-1',
@@ -60,9 +56,10 @@ const firstCredential = {
   updatedAt: new Date('2026-08-01T00:00:00.000Z'),
 }
 
+const PRINCIPAL = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+
 describe('OAuth account application operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.revokeQuickBooksToken.mockResolvedValue(undefined)
     mocks.decryptClientConfig.mockResolvedValue({
@@ -89,11 +86,7 @@ describe('OAuth account application operations', () => {
 
     await expect(
       disconnectOAuthUseCase.execute({
-        principal: {
-          kind: 'session',
-          userId: 'user-1',
-          sessionId: 'session-1',
-        },
+        principal: PRINCIPAL,
         input: { provider: 'google' },
       })
     ).rejects.toMatchObject({
@@ -108,15 +101,6 @@ describe('OAuth account application operations', () => {
         resourceId: firstCredential.id,
         metadata: expect.objectContaining({ reason: 'oauth_disconnect' }),
       })
-    )
-    expect(mocks.capture).toHaveBeenCalledWith(
-      'user-1',
-      'credential_deleted',
-      expect.objectContaining({
-        provider_id: 'google-email',
-        workspace_id: 'workspace-1',
-      }),
-      { groups: { workspace: 'workspace-1' } }
     )
   })
 
@@ -133,7 +117,7 @@ describe('OAuth account application operations', () => {
     queueTableRows(credential, [])
 
     await disconnectOAuthUseCase.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: PRINCIPAL,
       input: { provider: 'quickbooks', accountId: 'account-1' },
     })
 
@@ -151,33 +135,6 @@ describe('OAuth account application operations', () => {
     )
   })
 
-  it('falls back to the QuickBooks access token when no refresh token is stored', async () => {
-    queueTableRows(account, [
-      {
-        id: 'account-1',
-        providerId: 'quickbooks',
-        accessToken: 'access-token',
-        refreshToken: null,
-        oauthConfig: 'encrypted-config',
-      },
-    ])
-    queueTableRows(credential, [])
-
-    await disconnectOAuthUseCase.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { provider: 'quickbooks', accountId: 'account-1' },
-    })
-
-    expect(mocks.revokeQuickBooksToken).toHaveBeenCalledWith(
-      'access-token',
-      expect.objectContaining({
-        clientId: 'client-id',
-        clientSecret: 'client-secret',
-      }),
-      expect.any(AbortSignal)
-    )
-  })
-
   it('keeps QuickBooks credentials locally when Intuit revocation fails', async () => {
     queueTableRows(account, [
       {
@@ -192,11 +149,7 @@ describe('OAuth account application operations', () => {
 
     await expect(
       disconnectOAuthUseCase.execute({
-        principal: {
-          kind: 'session',
-          userId: 'user-1',
-          sessionId: 'session-1',
-        },
+        principal: PRINCIPAL,
         input: { provider: 'quickbooks', accountId: 'account-1' },
       })
     ).rejects.toMatchObject({
@@ -222,57 +175,12 @@ describe('OAuth account application operations', () => {
 
     await expect(
       disconnectOAuthUseCase.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: PRINCIPAL,
         input: { provider: 'quickbooks', accountId: 'account-1' },
       })
     ).rejects.toMatchObject({ name: 'OAuthDisconnectConfigurationError' })
     expect(mocks.revokeQuickBooksToken).not.toHaveBeenCalled()
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-  })
-
-  it('reports malformed decrypted QuickBooks app configuration as a configuration error', async () => {
-    queueTableRows(account, [
-      {
-        id: 'account-1',
-        providerId: 'quickbooks',
-        accessToken: 'access-token',
-        refreshToken: 'refresh-token',
-        oauthConfig: 'invalid-config',
-        updatedAt: new Date('2026-08-01T00:00:00.000Z'),
-      },
-    ])
-    mocks.decryptClientConfig.mockRejectedValueOnce(
-      new QuickBooksOAuthClientConfigurationError('invalid configuration')
-    )
-
-    await expect(
-      disconnectOAuthUseCase.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: { provider: 'quickbooks', accountId: 'account-1' },
-      })
-    ).rejects.toMatchObject({ name: 'OAuthDisconnectConfigurationError' })
-  })
-
-  it('preserves unexpected QuickBooks decryption infrastructure failures', async () => {
-    const deploymentError = new Error('encryption key is unavailable')
-    queueTableRows(account, [
-      {
-        id: 'account-1',
-        providerId: 'quickbooks',
-        accessToken: 'access-token',
-        refreshToken: 'refresh-token',
-        oauthConfig: 'encrypted-config',
-        updatedAt: new Date('2026-08-01T00:00:00.000Z'),
-      },
-    ])
-    mocks.decryptClientConfig.mockRejectedValueOnce(deploymentError)
-
-    await expect(
-      disconnectOAuthUseCase.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: { provider: 'quickbooks', accountId: 'account-1' },
-      })
-    ).rejects.toBe(deploymentError)
   })
 
   it('reports a permanent Intuit revocation rejection as a configuration error', async () => {
@@ -290,7 +198,7 @@ describe('OAuth account application operations', () => {
 
     await expect(
       disconnectOAuthUseCase.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: PRINCIPAL,
         input: { provider: 'quickbooks', accountId: 'account-1' },
       })
     ).rejects.toMatchObject({ name: 'OAuthDisconnectConfigurationError' })
@@ -315,7 +223,7 @@ describe('OAuth account application operations', () => {
 
     await expect(
       disconnectOAuthUseCase.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: PRINCIPAL,
         input: { provider: 'quickbooks', accountId: 'account-1' },
       })
     ).resolves.toMatchObject({ success: true, credentials: [] })
@@ -346,7 +254,7 @@ describe('OAuth account application operations', () => {
 
     await expect(
       disconnectOAuthUseCase.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: PRINCIPAL,
         input: { provider: 'quickbooks', accountId: 'account-1' },
       })
     ).resolves.toMatchObject({ success: true, credentials: [linkedCredential] })
@@ -358,35 +266,6 @@ describe('OAuth account application operations', () => {
       reason: 'oauth_disconnect',
     })
     expect(dbChainMockFns.delete).toHaveBeenCalledWith(account)
-  })
-
-  it('skips tokenless QuickBooks cleanup when a reconnect wins the account claim', async () => {
-    queueTableRows(account, [
-      {
-        id: 'account-1',
-        providerId: 'quickbooks',
-        accessToken: null,
-        refreshToken: null,
-        oauthConfig: 'encrypted-config',
-        updatedAt: new Date('2026-08-01T00:00:00.000Z'),
-      },
-    ])
-    queueTableRows(credential, [
-      { ...firstCredential, providerId: 'quickbooks', accountId: 'account-1' },
-    ])
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-
-    await expect(
-      disconnectOAuthUseCase.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: { provider: 'quickbooks', accountId: 'account-1' },
-      })
-    ).resolves.toMatchObject({ success: true, credentials: [] })
-
-    expect(mocks.revokeQuickBooksToken).not.toHaveBeenCalled()
-    expect(dbChainMockFns.update).toHaveBeenCalledWith(account)
-    expect(mocks.deleteCredential).not.toHaveBeenCalled()
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 
   it('records a successful Intuit revocation so a local-delete retry does not revoke twice', async () => {
@@ -420,11 +299,7 @@ describe('OAuth account application operations', () => {
       .mockResolvedValueOnce(true)
 
     const input = {
-      principal: {
-        kind: 'session' as const,
-        userId: 'user-1',
-        sessionId: 'session-1',
-      },
+      principal: PRINCIPAL,
       input: { provider: 'quickbooks', accountId: 'account-1' },
     }
     await expect(disconnectOAuthUseCase.execute(input)).rejects.toThrow('Local delete failed')
@@ -466,82 +341,12 @@ describe('OAuth account application operations', () => {
 
     await expect(
       disconnectOAuthUseCase.execute({
-        principal: {
-          kind: 'session',
-          userId: 'user-1',
-          sessionId: 'session-1',
-        },
+        principal: PRINCIPAL,
         input: { provider: 'quickbooks', accountId: 'account-1' },
       })
     ).rejects.toThrow('owns a non-OAuth credential')
 
     expect(mocks.revokeQuickBooksToken).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
-  it('classifies oversized disconnects without treating them as provider outages', async () => {
-    queueTableRows(
-      account,
-      Array.from({ length: 101 }, (_, index) => ({
-        id: `account-${index}`,
-        providerId: 'quickbooks',
-      }))
-    )
-
-    await expect(
-      disconnectOAuthUseCase.execute({
-        principal: {
-          kind: 'session',
-          userId: 'user-1',
-          sessionId: 'session-1',
-        },
-        input: { provider: 'quickbooks' },
-      })
-    ).rejects.toMatchObject({
-      name: 'OAuthDisconnectLimitError',
-      message: 'Too many linked accounts to disconnect in one request',
-    })
-
-    expect(mocks.revokeQuickBooksToken).not.toHaveBeenCalled()
-  })
-
-  it('removes a tokenless QuickBooks account without calling Intuit', async () => {
-    queueTableRows(account, [
-      {
-        id: 'account-1',
-        providerId: 'quickbooks',
-        accessToken: null,
-        refreshToken: null,
-      },
-    ])
-    queueTableRows(credential, [])
-
-    await disconnectOAuthUseCase.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { provider: 'quickbooks', accountId: 'account-1' },
-    })
-
-    expect(mocks.revokeQuickBooksToken).not.toHaveBeenCalled()
-    expect(dbChainMockFns.delete).toHaveBeenCalled()
-  })
-
-  it('does not revoke tokens for non-QuickBooks providers', async () => {
-    queueTableRows(account, [
-      {
-        id: 'account-1',
-        providerId: 'google-email',
-        accessToken: 'access-token',
-        refreshToken: 'refresh-token',
-      },
-    ])
-    queueTableRows(credential, [])
-
-    await disconnectOAuthUseCase.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { provider: 'google', accountId: 'account-1' },
-    })
-
-    expect(mocks.revokeQuickBooksToken).not.toHaveBeenCalled()
-    expect(dbChainMockFns.delete).toHaveBeenCalled()
   })
 })

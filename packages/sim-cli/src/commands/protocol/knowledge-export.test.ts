@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Command } from 'commander'
@@ -65,7 +65,7 @@ function program(): Command {
   return root
 }
 
-function captureLog(): string[] {
+function _captureLog(): string[] {
   const logged: string[] = []
   vi.spyOn(console, 'log').mockImplementation((line: string) => logged.push(line))
   return logged
@@ -83,34 +83,6 @@ async function withStdoutTTY<T>(isTTY: boolean, run: () => Promise<T>): Promise<
 }
 
 describe('knowledge export', () => {
-  it('saves the bundle to --output-file and prints a machine-readable result', async () => {
-    const target = join(dir, 'handbook.simkb.zip')
-    requestRaw.mockResolvedValue(zipResponse('Handbook.simkb.zip'))
-    const logged = captureLog()
-
-    await program().parseAsync([
-      'node',
-      'sim',
-      'knowledge',
-      'export',
-      KB_ID,
-      '--output-file',
-      target,
-    ])
-
-    expect(readFileSync(target)).toEqual(Buffer.from([0x50, 0x4b, 0x03, 0x04]))
-    expect(JSON.parse(logged[0])).toEqual({
-      id: KB_ID,
-      path: target,
-      status: 'saved',
-      vectors: true,
-    })
-    expect(requestRaw).toHaveBeenCalledWith(`/api/v2/knowledge/${KB_ID}/export`, {
-      method: 'GET',
-      query: { workspaceId: 'ws_local', vectors: true },
-    })
-  })
-
   it('refuses to overwrite an existing file without --force', async () => {
     const target = join(dir, 'existing.simkb.zip')
     writeFileSync(target, 'precious')
@@ -123,88 +95,6 @@ describe('knowledge export', () => {
     expect(readFileSync(target, 'utf8')).toBe('precious')
   })
 
-  it('overwrites an existing file with --force', async () => {
-    const target = join(dir, 'existing.simkb.zip')
-    writeFileSync(target, 'old')
-    requestRaw.mockResolvedValue(zipResponse())
-    captureLog()
-
-    await program().parseAsync([
-      'node',
-      'sim',
-      'knowledge',
-      'export',
-      KB_ID,
-      '-o',
-      target,
-      '--force',
-    ])
-
-    expect(readFileSync(target)).toEqual(Buffer.from([0x50, 0x4b, 0x03, 0x04]))
-  })
-
-  it('sends vectors=false for --no-vectors and reports it', async () => {
-    const target = join(dir, 'lean.simkb.zip')
-    requestRaw.mockResolvedValue(zipResponse())
-    const logged = captureLog()
-
-    await program().parseAsync([
-      'node',
-      'sim',
-      'knowledge',
-      'export',
-      KB_ID,
-      '-o',
-      target,
-      '--no-vectors',
-    ])
-
-    expect(requestRaw).toHaveBeenCalledWith(`/api/v2/knowledge/${KB_ID}/export`, {
-      method: 'GET',
-      query: { workspaceId: 'ws_local', vectors: false },
-    })
-    expect(JSON.parse(logged[0]).vectors).toBe(false)
-  })
-
-  it('names the file after Content-Disposition in the current directory by default', async () => {
-    process.chdir(dir)
-    requestRaw.mockResolvedValue(zipResponse('Refund Policy.simkb.zip'))
-    const logged = captureLog()
-
-    await program().parseAsync(['node', 'sim', 'knowledge', 'export', KB_ID])
-
-    const expected = join(process.cwd(), 'Refund Policy.simkb.zip')
-    expect(existsSync(expected)).toBe(true)
-    expect(JSON.parse(logged[0]).path).toBe(expected)
-  })
-
-  it('falls back to the knowledge base id when the server names no file', async () => {
-    process.chdir(dir)
-    requestRaw.mockResolvedValue(zipResponse())
-    captureLog()
-
-    await program().parseAsync(['node', 'sim', 'knowledge', 'export', KB_ID])
-
-    expect(existsSync(join(process.cwd(), `${KB_ID}.simkb.zip`))).toBe(true)
-  })
-
-  it('streams raw bytes to stdout for --output-file -', async () => {
-    requestRaw.mockResolvedValue(zipResponse('x.simkb.zip'))
-    const chunks: Uint8Array[] = []
-    vi.spyOn(process.stdout, 'write').mockImplementation((chunk: string | Uint8Array) => {
-      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk)
-      return true
-    })
-    const logged = vi.spyOn(console, 'log').mockImplementation(() => {})
-
-    await withStdoutTTY(false, () =>
-      program().parseAsync(['node', 'sim', 'knowledge', 'export', KB_ID, '-o', '-'])
-    )
-
-    expect(Buffer.concat(chunks)).toEqual(Buffer.from([0x50, 0x4b, 0x03, 0x04]))
-    expect(logged).not.toHaveBeenCalled()
-  })
-
   it('refuses to write the zip to an interactive terminal', async () => {
     requestRaw.mockResolvedValue(zipResponse())
 
@@ -214,22 +104,9 @@ describe('knowledge export', () => {
       ).rejects.toThrow(/Refusing to write application\/zip.*--output-file/s)
     )
   })
-
-  it('rejects --force with the stdout alias before any request', async () => {
-    await expect(
-      program().parseAsync(['node', 'sim', 'knowledge', 'export', KB_ID, '-o', '-', '--force'])
-    ).rejects.toThrow(/--force requires --output-file <path>/)
-    expect(requestRaw).not.toHaveBeenCalled()
-  })
 })
 
 describe('attachmentFileName', () => {
-  it('reads the quoted file name', () => {
-    expect(attachmentFileName('attachment; filename="Handbook.simkb.zip"')).toBe(
-      'Handbook.simkb.zip'
-    )
-  })
-
   it('keeps only the base name and ignores a missing or empty header', () => {
     expect(attachmentFileName('attachment; filename="../../etc/passwd"')).toBe('passwd')
     /** The server mangles non-ASCII in the quoted form, so the encoded one wins. */

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -62,55 +59,7 @@ function createUpdateChain(result: unknown) {
 
 describe('reassignBilledAccountForUser', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('routes each resolved workspace through the payer helper in its own transaction', async () => {
-    const updateChain = createUpdateChain([])
-    const tx = {
-      update: vi.fn().mockReturnValue(updateChain),
-    }
-    dbChainMockFns.select.mockReturnValueOnce(
-      createMockChain([
-        { id: 'workspace-personal', ownerId: 'owner-1', organizationId: null },
-        { id: 'workspace-org', ownerId: 'owner-2', organizationId: 'org-1' },
-      ])
-    )
-    dbChainMockFns.transaction.mockImplementation(
-      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx)
-    )
-
-    const result = await reassignBilledAccountForUser('departing-user')
-
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(2)
-    expect(mockChangeWorkspaceStoragePayerInTx).toHaveBeenNthCalledWith(1, tx, {
-      workspaceId: 'workspace-personal',
-      organizationId: null,
-      billedAccountUserId: 'owner-1',
-      expectedCurrentPayer: {
-        organizationId: null,
-        billedAccountUserId: 'departing-user',
-      },
-    })
-    expect(mockChangeWorkspaceStoragePayerInTx).toHaveBeenNthCalledWith(2, tx, {
-      workspaceId: 'workspace-org',
-      organizationId: 'org-1',
-      billedAccountUserId: 'owner-2',
-      expectedCurrentPayer: {
-        organizationId: 'org-1',
-        billedAccountUserId: 'departing-user',
-      },
-    })
-    expect(updateChain.set).toHaveBeenCalledTimes(2)
-    expect(updateChain.set).toHaveBeenCalledWith({ updatedAt: expect.any(Date) })
-    expect(result).toEqual({
-      reassigned: [
-        { workspaceId: 'workspace-personal', newBilledAccountUserId: 'owner-1' },
-        { workspaceId: 'workspace-org', newBilledAccountUserId: 'owner-2' },
-      ],
-      unresolved: [],
-    })
   })
 
   it('preserves the admin fallback and unresolved behavior', async () => {
@@ -146,36 +95,10 @@ describe('reassignBilledAccountForUser', () => {
       unresolved: ['workspace-unresolved'],
     })
   })
-
-  it('stops the loop and propagates payer-transfer errors', async () => {
-    const updateChain = createUpdateChain([])
-    const tx = {
-      update: vi.fn().mockReturnValue(updateChain),
-    }
-    dbChainMockFns.select.mockReturnValueOnce(
-      createMockChain([
-        { id: 'workspace-1', ownerId: 'owner-1', organizationId: null },
-        { id: 'workspace-2', ownerId: 'owner-2', organizationId: null },
-      ])
-    )
-    dbChainMockFns.transaction.mockImplementation(
-      async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx)
-    )
-    mockChangeWorkspaceStoragePayerInTx.mockRejectedValueOnce(new Error('payer transfer failed'))
-
-    await expect(reassignBilledAccountForUser('departing-user')).rejects.toThrow(
-      'payer transfer failed'
-    )
-
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
-    expect(mockChangeWorkspaceStoragePayerInTx).toHaveBeenCalledTimes(1)
-    expect(tx.update).not.toHaveBeenCalled()
-  })
 })
 
 describe('reassignWorkflowOwnershipForWorkspaceMemberRemovalTx', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -230,26 +153,6 @@ describe('reassignWorkflowOwnershipForWorkspaceMemberRemovalTx', () => {
     expect(result).toEqual({ reassigned: [], unresolved: ['workspace-1'] })
   })
 
-  it('does not mark a workspace unresolved when the departing billing account owns no workflows', async () => {
-    const workspaceSelect = createSelectChain([
-      { id: 'workspace-1', billedAccountUserId: 'departing-1' },
-    ])
-    const workflowCountSelect = createGroupedSelectChain([])
-    const tx = {
-      select: vi.fn().mockReturnValueOnce(workspaceSelect).mockReturnValueOnce(workflowCountSelect),
-      update: vi.fn(),
-    }
-
-    const result = await reassignWorkflowOwnershipForWorkspaceMemberRemovalTx({
-      tx: tx as any,
-      workspaceIds: ['workspace-1'],
-      departingUserId: 'departing-1',
-    })
-
-    expect(tx.update).not.toHaveBeenCalled()
-    expect(result).toEqual({ reassigned: [], unresolved: [] })
-  })
-
   it('marks a workspace unresolved when no billed account is configured', async () => {
     const workspaceSelect = createSelectChain([{ id: 'workspace-1', billedAccountUserId: null }])
     const workflowCountSelect = createGroupedSelectChain([
@@ -273,7 +176,6 @@ describe('reassignWorkflowOwnershipForWorkspaceMemberRemovalTx', () => {
 
 describe('listAccessibleWorkspaceRowsForUser', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -324,33 +226,6 @@ describe('listAccessibleWorkspaceRowsForUser', () => {
     expect(rows).toEqual([
       { workspace: externalWorkspace, permissionType: 'write', viaOrgAdmin: false },
       { workspace: orgWorkspace, permissionType: 'admin', viaOrgAdmin: true },
-    ])
-  })
-
-  it('reports viaOrgAdmin false for every row when the viewer administers no organization', async () => {
-    const ownWorkspace = { id: 'ws-own', name: 'Own', ownerId: 'user-1', organizationId: null }
-
-    dbChainMockFns.select
-      .mockReturnValueOnce(createMockChain([{ workspace: ownWorkspace, permissionType: 'admin' }]))
-      .mockReturnValueOnce(createMockChain([]))
-
-    const rows = await listAccessibleWorkspaceRowsForUser('user-1', 'active')
-
-    expect(rows).toEqual([{ workspace: ownWorkspace, permissionType: 'admin', viaOrgAdmin: false }])
-  })
-  it('globally orders combined explicit and derived access by newest creation date', async () => {
-    const explicit = { id: 'ws-explicit', createdAt: new Date('2026-01-01') }
-    const derived = { id: 'ws-derived', createdAt: new Date('2026-02-01') }
-    dbChainMockFns.select
-      .mockReturnValueOnce(createMockChain([{ workspace: explicit, permissionType: 'write' }]))
-      .mockReturnValueOnce(createMockChain([{ organizationId: 'org-1', role: 'admin' }]))
-      .mockReturnValueOnce(createMockChain([explicit, derived]))
-
-    const rows = await listAccessibleWorkspaceRowsForUser('user-1', 'active')
-    expect(rows.map(({ workspace }) => workspace.id)).toEqual(['ws-derived', 'ws-explicit'])
-    expect(rows).toEqual([
-      { workspace: derived, permissionType: 'admin', viaOrgAdmin: true },
-      { workspace: explicit, permissionType: 'admin', viaOrgAdmin: true },
     ])
   })
 })

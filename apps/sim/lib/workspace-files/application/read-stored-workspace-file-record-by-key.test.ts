@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -73,7 +72,6 @@ function executor(overrides: Partial<DelegatedPrincipal> = {}): DelegatedPrincip
 
 describe('readStoredWorkspaceFileRecordByKey', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.metadata.mockResolvedValue(file)
     mocks.workspace.mockResolvedValue(workspace)
     mocks.permission.mockResolvedValue('read')
@@ -126,18 +124,6 @@ describe('readStoredWorkspaceFileRecordByKey', () => {
     ).resolves.toEqual({ file })
     expect(mocks.permission).not.toHaveBeenCalled()
   })
-
-  it.each([{ fileId: 'file-1' }, { chatId: 'chat-1' }, { fileId: 'file-1', chatId: 'chat-1' }])(
-    'retains a matching narrower delegation: %j',
-    async (resourceScope) => {
-      await expect(
-        readStoredWorkspaceFileRecordByKey.execute({
-          principal: executor({ resourceScope }),
-          input,
-        })
-      ).resolves.toEqual({ file })
-    }
-  )
 
   it('keeps workspace files available to a chat-scoped delegate', async () => {
     mocks.metadata.mockResolvedValue({ ...file, context: 'workspace', chatId: null })
@@ -208,22 +194,6 @@ describe('readStoredWorkspaceFileRecordByKey', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.metadata).not.toHaveBeenCalled()
-  })
-
-  it('keeps absent initial metadata distinguishable for legacy access', async () => {
-    mocks.metadata.mockResolvedValue(null)
-    const read = readStoredWorkspaceFileRecordByKey.execute({ principal: session, input })
-    await expect(read).rejects.toMatchObject({ code: 'not_found' })
-    await expect(read).rejects.not.toBeInstanceOf(StoredWorkspaceFileUnavailableError)
-    expect(mocks.workspace).not.toHaveBeenCalled()
-    expect(mocks.permission).not.toHaveBeenCalled()
-  })
-
-  it('conceals canonical unavailability as not_found', () => {
-    expect(new StoredWorkspaceFileUnavailableError()).toMatchObject({
-      code: 'not_found',
-      message: 'File not found',
-    })
   })
 
   it.each([

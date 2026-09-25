@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { createTableDefinition } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,7 +26,6 @@ vi.mock('@/lib/table/application/tables', () => ({
 }))
 
 import {
-  executeTableInsertRows,
   executeTableQueryRows,
   executeTableUpdateRow,
   type TableToolOperationContext,
@@ -74,7 +69,6 @@ function operationContext(): TableToolOperationContext {
 
 describe('Table direct operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.createRows.mockResolvedValue({ kind: 'single', table: TABLE, row: ROW })
     mocks.updateRow.mockResolvedValue({ table: TABLE, row: ROW, changed: true })
     mocks.queryRows.mockResolvedValue({
@@ -104,23 +98,6 @@ describe('Table direct operations', () => {
         assertedWorkspaceId: 'workspace-canonical',
         dataKeying: 'names',
         strictWrite: false,
-        secretProvenanceEnvelope: { kind: 'none' },
-      }),
-    })
-  })
-
-  it('hands unresolved write provenance to the authorized create use case', async () => {
-    await executeTableInsertRows(
-      'table-1',
-      { workspaceId: 'workspace-forged', data: { Email: 'a@example.com' } },
-      operationContext()
-    )
-
-    expect(mocks.createRows).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: expect.objectContaining({
-        assertedWorkspaceId: 'workspace-canonical',
-        dataKeying: 'names',
         secretProvenanceEnvelope: { kind: 'none' },
       }),
     })

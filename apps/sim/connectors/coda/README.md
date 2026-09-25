@@ -55,7 +55,7 @@ From `apps/sim`:
 
 ```sh
 bunx vitest run connectors/coda/coda.test.ts connectors/coda/permissions.test.ts lib/selectors/server/providers/coda.test.ts lib/credentials/token-service-accounts/validators/coda.test.ts lib/selectors/manifest.test.ts
-CODA_CONNECTOR_LIVE_TOKEN_FILE=/path/to/token bunx vitest run connectors/coda/coda.live.test.ts
+CODA_CONNECTOR_LIVE_TOKEN_FILE=/path/to/token bunx vitest run --mode live connectors/coda/coda.live.test.ts
 ```
 
 The provider test creates and deletes its own document. `CODA_CONNECTOR_LIVE_ORGANIZATION_ID` enables additional Enterprise export/ACL/directory checks against that fixture when the token belongs to an Enterprise organization. Set `CODA_CONNECTOR_LIVE_FIXTURE_FILE=/path/to/fixture.json` to retain it for the application test, then from the repository root:
@@ -64,7 +64,7 @@ The provider test creates and deletes its own document. `CODA_CONNECTOR_LIVE_ORG
 CODA_CONNECTOR_LIVE_TOKEN_FILE=/path/to/token \
 CODA_CONNECTOR_LIVE_FIXTURE_FILE=/path/to/fixture.json \
 CODA_CONNECTOR_LIVE_SECOND_EMAIL=second-user@example.com \
-bun scripts/test-knowledge-acls.ts coda-live.integration.ts
+bun run test:integration coda-live.integration.ts
 ```
 
 The application test uses disposable PostgreSQL/Redis, real credentials, Coda, source creation, ingestion, storage, and authorization. Set `CODA_CONNECTOR_LIVE_SCOPE=organization` to exercise organization credential creation and organization Search instead of a workspace knowledge base. Only embeddings are deterministic substitutes. It changes only the retained fixture's share, with notifications suppressed, and removes that share afterward. `CODA_CONNECTOR_LIVE_ALLOW_SHARING=false` explicitly skips the live grant/revoke cases when source policy prohibits sharing. `CODA_CONNECTOR_LIVE_UI_FIXTURE_FILE` optionally retains isolated rows and writes a temporary signed session for browser verification; use only with the runner's disposable-database retention options and remove both afterward.

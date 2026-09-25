@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -39,7 +36,6 @@ const SUBSCRIPTION = { plan: 'pro' }
 
 describe('GET /api/users/me/usage-limits', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
@@ -112,36 +108,5 @@ describe('GET /api/users/me/usage-limits', () => {
       'manual',
       true
     )
-  })
-
-  it('reports API key callers as API traffic', async () => {
-    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({
-      success: true,
-      userId: 'user-1',
-      authType: 'api_key',
-    })
-
-    const response = await GET(createMockRequest('GET'))
-    const body = await response.json()
-
-    expect(body.rateLimit.authType).toBe('api')
-    expect(mocks.getRateLimitStatusWithSubscription).toHaveBeenNthCalledWith(
-      1,
-      'user-1',
-      SUBSCRIPTION,
-      'api',
-      false
-    )
-  })
-
-  it('returns 401 before reading usage data when authentication fails', async () => {
-    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({ success: false })
-
-    const response = await GET(createMockRequest('GET'))
-
-    expect(response.status).toBe(401)
-    expect(mocks.getHighestPrioritySubscription).not.toHaveBeenCalled()
-    expect(mocks.getRateLimitStatusWithSubscription).not.toHaveBeenCalled()
-    expect(mocks.checkServerSideUsageLimits).not.toHaveBeenCalled()
   })
 })

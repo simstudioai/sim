@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { OAuthAccessTokenPrincipal, PersonalApiKeyPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { member, permissions, user, workspace } from '@sim/db/schema'
@@ -102,7 +101,6 @@ function queueScope(scope: AccessRequestScope) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.role.mockResolvedValue('admin')
   mocks.workspaceConfig.mockResolvedValue({ config: DEFAULT_PERMISSION_GROUP_CONFIG })

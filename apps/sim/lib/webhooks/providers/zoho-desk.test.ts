@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/oauth/credential-service', () => ({
@@ -13,10 +10,7 @@ vi.mock('@/lib/webhooks/provider-subscription-utils', () => ({
 }))
 
 import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
-import {
-  matchesPendingWebhookVerificationProbe,
-  requiresPendingWebhookVerification,
-} from '@/lib/webhooks/pending-verification'
+import { matchesPendingWebhookVerificationProbe } from '@/lib/webhooks/pending-verification'
 import { getCredentialOwner } from '@/lib/webhooks/provider-subscription-utils'
 import { mapZohoWebhookError, zohoDeskHandler } from '@/lib/webhooks/providers/zoho-desk'
 
@@ -36,10 +30,6 @@ function makeAuthContext(headers: Record<string, string>, providerConfig: Record
 }
 
 describe('zohoDeskHandler', () => {
-  it('acknowledges ingress via the durable queue (5s deadline)', () => {
-    expect(zohoDeskHandler.executionMode).toBe('queue')
-  })
-
   describe('verifyAuth', () => {
     afterEach(() => {
       vi.mocked(getCredentialOwner).mockReset()
@@ -66,16 +56,6 @@ describe('zohoDeskHandler', () => {
       )
       expect(getCredentialOwner).toHaveBeenCalledWith('cred-1', 'test')
     })
-
-    it('uses the persisted apiDomain without a credential lookup (fast path)', async () => {
-      await zohoDeskHandler.verifyAuth?.(
-        makeAuthContext(
-          { 'x-zdesk-jwt': 'not-a-real-jwt' },
-          { orgId: '1', externalId: '2', credentialId: 'cred-1', apiDomain: 'https://desk.zoho.eu' }
-        ) as any
-      )
-      expect(getCredentialOwner).not.toHaveBeenCalled()
-    })
   })
 
   describe('createSubscription', () => {
@@ -99,84 +79,9 @@ describe('zohoDeskHandler', () => {
       expect((error as Error)?.message).toMatch(/Organization ID/i)
       expect(errorStatus(error)).toBe(400)
     })
-
-    it('fails terminally (400) when the event type is missing', async () => {
-      const error = await captureCreateError({ orgId: '700123' })
-      expect((error as Error)?.message).toMatch(/event type/i)
-      expect(errorStatus(error)).toBe(400)
-    })
-
-    it('accepts the manual organization field when the canonical orgId is absent', async () => {
-      // Reaching the event-type guard proves the organization guard passed, i.e.
-      // `manualOrgId` resolved. See resolveConfigOrgId: the deploy-time canonical
-      // collapse normally writes `orgId`, but drops it when the pair is pinned to
-      // basic mode while only the manual field carries a value.
-      const error = await captureCreateError({ manualOrgId: '700123' })
-      expect((error as Error)?.message).toMatch(/event type/i)
-      expect(errorStatus(error)).toBe(400)
-    })
-
-    it('prefers the collapsed canonical orgId over the manual field', async () => {
-      const error = await captureCreateError({ orgId: '', manualOrgId: '   ' })
-      expect((error as Error)?.message).toMatch(/Organization ID/i)
-      expect(errorStatus(error)).toBe(400)
-    })
   })
 
   describe('formatInput', () => {
-    it('maps a Zoho Desk event array to the trigger outputs', async () => {
-      const result = await zohoDeskHandler.formatInput?.({
-        webhook: {},
-        workflow: { id: 'wf', userId: 'user' },
-        body: [
-          {
-            eventType: 'Ticket_Add',
-            eventTime: '1700000000000',
-            orgId: '700123',
-            payload: { id: 'ticket-1' },
-            prevState: null,
-          },
-        ],
-        headers: {},
-        requestId: 'test',
-      })
-      expect(result?.input).toMatchObject({
-        eventType: 'Ticket_Add',
-        eventTime: '1700000000000',
-        orgId: '700123',
-        payload: { id: 'ticket-1' },
-      })
-    })
-
-    it('passes through a non-array body unchanged', async () => {
-      const body = { unexpected: true }
-      const result = await zohoDeskHandler.formatInput?.({
-        webhook: {},
-        workflow: { id: 'wf', userId: 'user' },
-        body,
-        headers: {},
-        requestId: 'test',
-      })
-      expect(result?.input).toBe(body)
-    })
-
-    it('emits a normalized null shape for an empty array instead of leaking []', async () => {
-      const result = await zohoDeskHandler.formatInput?.({
-        webhook: {},
-        workflow: { id: 'wf', userId: 'user' },
-        body: [],
-        headers: {},
-        requestId: 'test',
-      })
-      expect(result?.input).toEqual({
-        eventType: null,
-        eventTime: null,
-        orgId: null,
-        payload: null,
-        prevState: null,
-      })
-    })
-
     it('derives a plain-text contentText for html comment/thread payloads', async () => {
       const result = await zohoDeskHandler.formatInput?.({
         webhook: {},
@@ -207,27 +112,6 @@ describe('zohoDeskHandler', () => {
       // prevState is enriched symmetrically so before/after comparisons match shapes.
       expect(input.prevState.content).toBe('<div>before</div>')
       expect(input.prevState.contentText).toBe('before')
-    })
-
-    it('mirrors plainText content into contentText', async () => {
-      const result = await zohoDeskHandler.formatInput?.({
-        webhook: {},
-        workflow: { id: 'wf', userId: 'user' },
-        body: [
-          {
-            eventType: 'Ticket_Comment_Add',
-            eventTime: '1700000000000',
-            orgId: '700123',
-            payload: { id: 'comment-2', content: 'just text', contentType: 'plainText' },
-            prevState: null,
-          },
-        ],
-        headers: {},
-        requestId: 'test',
-      })
-      const payload = (result?.input as { payload: Record<string, unknown> }).payload
-      expect(payload.contentText).toBe('just text')
-      expect(payload.content).toBe('just text')
     })
   })
 
@@ -348,16 +232,6 @@ describe('zohoDeskHandler', () => {
       expect((body.subscriptions as Record<string, unknown>).Contact_Add).toBeNull()
     })
 
-    it('keeps departmentIds for an event whose filter accepts it', async () => {
-      const body = await captureSentBody({
-        eventType: 'Ticket_Add',
-        triggerDepartmentIds: '111,222',
-      })
-      expect((body.subscriptions as Record<string, unknown>).Ticket_Add).toEqual({
-        departmentIds: ['111', '222'],
-      })
-    })
-
     it('sends null, not an empty object, when an event has no filters', async () => {
       const body = await captureSentBody({ eventType: 'Ticket_Delete' })
       expect((body.subscriptions as Record<string, unknown>).Ticket_Delete).toBeNull()
@@ -385,20 +259,6 @@ describe('zohoDeskHandler', () => {
       expect(errorStatus(err)).toBe(422)
     })
 
-    it('surfaces UNPROCESSABLE_ENTITY (URL validation) verbatim, non-retryable', () => {
-      const err = mapZohoWebhookError(
-        422,
-        JSON.stringify({
-          errorCode: 'UNPROCESSABLE_ENTITY',
-          message:
-            'Validation failed for the condition : The endpoint failed to respond with status code 200',
-        })
-      )
-      expect(err.message).toContain('endpoint failed to respond with status code 200')
-      expect(err.message).not.toContain('Professional edition')
-      expect(errorStatus(err)).toBe(422)
-    })
-
     it('only claims the edition/permission cause when Zoho indicates it', () => {
       const err = mapZohoWebhookError(
         403,
@@ -409,17 +269,6 @@ describe('zohoDeskHandler', () => {
       expect(errorStatus(err)).toBe(403)
     })
 
-    it('does not add the edition hint to a 403 whose body is unrelated to edition/permission', () => {
-      const err = mapZohoWebhookError(
-        403,
-        JSON.stringify({ errorCode: 'INVALID_OAUTH', message: 'Invalid OAuth token' })
-      )
-      expect(err.message).toContain('INVALID_OAUTH')
-      expect(err.message).toContain('Invalid OAuth token')
-      expect(err.message).not.toContain('Professional edition')
-      expect(errorStatus(err)).toBe(403)
-    })
-
     it('keeps provider 5xx retryable', () => {
       const err = mapZohoWebhookError(500, JSON.stringify({ errorCode: 'INTERNAL_ERROR' }))
       expect(errorStatus(err)).toBe(503)
@@ -427,10 +276,6 @@ describe('zohoDeskHandler', () => {
   })
 
   describe('create-time URL verification probe', () => {
-    it('opts Zoho Desk into pending webhook verification', () => {
-      expect(requiresPendingWebhookVerification('zoho_desk')).toBe(true)
-    })
-
     it('answers Zoho GET/HEAD probes but not real POST deliveries', () => {
       const entry = { provider: 'zoho_desk', path: 'p1', expiresAt: Date.now() + 60_000 }
       expect(

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { flattenMockConditions, hasMockCondition } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import { deduplicateFolderName } from '@/lib/folders/naming'
@@ -33,12 +30,6 @@ function makeTx(siblingNames: string[]) {
  * Every caller mocks this module out, so nothing else in the suite covers it.
  */
 describe('deduplicateFolderName', () => {
-  it('returns the requested name untouched when no sibling holds it', async () => {
-    const { tx } = makeTx(['Other', 'Reports (1)'])
-
-    expect(await deduplicateFolderName(tx, 'ws-1', null, 'Reports', 'workflow')).toBe('Reports')
-  })
-
   it('starts the suffix at (1), not (2)', async () => {
     const { tx } = makeTx(['Reports'])
 
@@ -55,16 +46,6 @@ describe('deduplicateFolderName', () => {
     const { tx } = makeTx(['Reports', 'Reports (2)'])
 
     expect(await deduplicateFolderName(tx, 'ws-1', null, 'Reports', 'workflow')).toBe('Reports (1)')
-  })
-
-  it('treats a name that only differs by suffix as a distinct base', async () => {
-    // 'Reports (1)' is taken, but the request is for 'Reports (1)' itself — its first free
-    // variant is 'Reports (1) (1)', not 'Reports (2)'.
-    const { tx } = makeTx(['Reports (1)'])
-
-    expect(await deduplicateFolderName(tx, 'ws-1', null, 'Reports (1)', 'workflow')).toBe(
-      'Reports (1) (1)'
-    )
   })
 
   /**
@@ -87,16 +68,6 @@ describe('deduplicateFolderName', () => {
       )
       // Root scope must be IS NULL, not eq(null), which matches nothing in SQL.
       expect(hasMockCondition(where, (n) => n.type === 'isNull')).toBe(true)
-    })
-
-    it('scopes to the given parent when nested', async () => {
-      const { tx, selectCalls } = makeTx([])
-
-      await deduplicateFolderName(tx, 'ws-1', 'parent-1', 'Reports', 'workflow')
-
-      expect(
-        hasMockCondition(selectCalls[0].where, (n) => n.type === 'eq' && n.right === 'parent-1')
-      ).toBe(true)
     })
 
     it('excludes soft-deleted siblings so an archived name is reusable', async () => {

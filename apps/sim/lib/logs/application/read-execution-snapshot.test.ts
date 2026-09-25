@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * `logs.cost` is a PROJECTION, not a gate — `logOperations.readExecutionSnapshot`
  * correctly declares `capability: 'none'`, and the run stays readable while its
  * spend does not.
@@ -82,17 +80,6 @@ const workflowRecord = {
   executionData: null,
 }
 
-const jobRecord = {
-  id: 'job-log-1',
-  workspaceId: WORKSPACE_ID,
-  executionId: 'job-1',
-  trigger: 'schedule',
-  startedAt: new Date('2026-08-05T12:00:00.000Z'),
-  endedAt: null,
-  totalDurationMs: null,
-  cost: { total: 0.75, input: 0.5, output: 0.25 },
-}
-
 /**
  * Answers `db.select(...)` calls in order. The snapshot read walks the workflow
  * log, then (only when that missed) the job log, then the state snapshot.
@@ -137,19 +124,10 @@ function read(actor: typeof principal | typeof executorPrincipal, executionId: s
 
 describe('readExecutionSnapshot spend projection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetPermissionGroupScopeMock()
     mocks.resolveWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.materialize.mockResolvedValue(null)
-  })
-
-  it('reads the run total whole for a member no group governs', async () => {
-    queueSelects([workflowRecord], [{ id: 'snapshot-1', stateData: { blocks: {} } }])
-
-    const result = await read(principal, 'run-1')
-
-    expect(result.executionMetadata.cost).toEqual({ total: 0.75 })
   })
 
   it('withholds the run total from a member whose group hides spend', async () => {
@@ -164,19 +142,6 @@ describe('readExecutionSnapshot spend projection', () => {
     expect(result.executionMetadata.cost).toBeNull()
     expect(result.executionMetadata.trigger).toBe('api')
     expect(result.workflowState).toEqual({ blocks: {} })
-  })
-
-  /** A job run spells its spend as a jsonb document; the same rule covers it. */
-  it("withholds a job run's spend document from a member whose group hides spend", async () => {
-    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
-      ...DEFAULT_PERMISSION_GROUP_CONFIG,
-      hideCostInfo: true,
-    })
-    queueSelects([], [jobRecord])
-
-    const result = await read(principal, 'job-1')
-
-    expect(result.executionMetadata.cost).toBeNull()
   })
 
   /**

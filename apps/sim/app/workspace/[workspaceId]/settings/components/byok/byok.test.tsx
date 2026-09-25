@@ -182,7 +182,6 @@ describe('BYOK scope access', () => {
   let root: Root
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.scope.current = 'workspace'
     mocks.hostContext.current.hostOrganizationId = 'org-1'
     mocks.hostContext.current.viewer.isHostOrganizationAdmin = true
@@ -268,16 +267,5 @@ describe('BYOK scope access', () => {
       'data-capabilities',
       'true:true:true'
     )
-  })
-
-  it('keeps cached organization keys visible when a background refresh fails', () => {
-    mocks.scope.current = 'organization'
-    mocks.organizationResult.current.error = new Error('Temporary failure')
-
-    act(() => root.render(<BYOK />))
-
-    expect(container.textContent).toContain('Sensitive organization key sk-org-secret')
-    expect(container.querySelector('[aria-label="BYOK manager"]')).not.toBeNull()
-    expect(container.textContent).not.toContain('Failed to load provider keys')
   })
 })

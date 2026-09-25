@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { sha256Hex } from '@sim/security/hash'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,7 +15,6 @@ import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-
 
 describe('consumed OAuth attempt identity', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getSession.mockResolvedValue({ user: { id: 'user-1', emailVerified: true } })
   })
   it('retains the old invitation identity without reauthenticating a rotated bearer', async () => {

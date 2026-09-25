@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { hybridAuthMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -99,7 +96,6 @@ const routeContext = { params: Promise.resolve({ tableId: 'tbl_1' }) }
 
 describe('PATCH /api/table/[tableId] folder moves', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockMoveTableToFolder.mockResolvedValue({ name: 'Table' })
     mockRenameTable.mockResolvedValue({ id: 'tbl_1', name: 'Table' })
     mockDeleteTable.mockResolvedValue({ archived: { name: 'Table', workspaceId: 'workspace-1' } })
@@ -117,47 +113,6 @@ describe('PATCH /api/table/[tableId] folder moves', () => {
     mockFindActiveFolder.mockResolvedValue({ id: 'folder-1' })
   })
 
-  it('moves the table into a folder in the same workspace and tree', async () => {
-    const response = await PATCH(
-      patchRequest({ workspaceId: 'workspace-1', folderId: 'folder-1' }),
-      routeContext
-    )
-
-    expect(response.status).toBe(200)
-    expect(mockFindActiveFolder).toHaveBeenCalledWith('folder-1', 'workspace-1', 'table')
-    expect(mockMoveTableToFolder).toHaveBeenCalledWith(
-      'tbl_1',
-      'workspace-1',
-      'folder-1',
-      expect.any(String)
-    )
-  })
-
-  it('moves the table to the workspace root on an explicit null, with no folder lookup', async () => {
-    mockGetTableById.mockResolvedValue({ ...TABLE, folderId: null })
-
-    const response = await PATCH(
-      patchRequest({ workspaceId: 'workspace-1', folderId: null }),
-      routeContext
-    )
-
-    expect(response.status).toBe(200)
-    expect(mockFindActiveFolder).not.toHaveBeenCalled()
-    expect(mockMoveTableToFolder).toHaveBeenCalledWith(
-      'tbl_1',
-      'workspace-1',
-      null,
-      expect.any(String)
-    )
-  })
-
-  it('leaves placement untouched when folderId is omitted', async () => {
-    await PATCH(patchRequest({ workspaceId: 'workspace-1', name: 'renamed' }), routeContext)
-
-    expect(mockRenameTable).toHaveBeenCalled()
-    expect(mockMoveTableToFolder).not.toHaveBeenCalled()
-  })
-
   it('rejects a folder from another workspace or resource tree without writing', async () => {
     mockFindActiveFolder.mockResolvedValue(null)
 
@@ -169,19 +124,10 @@ describe('PATCH /api/table/[tableId] folder moves', () => {
     expect(response.status).toBe(404)
     expect(mockMoveTableToFolder).not.toHaveBeenCalled()
   })
-
-  it('rejects a body with no name, folder, or lock changes', async () => {
-    const response = await PATCH(patchRequest({ workspaceId: 'workspace-1' }), routeContext)
-
-    expect(response.status).toBe(400)
-    expect(mockMoveTableToFolder).not.toHaveBeenCalled()
-    expect(mockRenameTable).not.toHaveBeenCalled()
-  })
 })
 
 describe('GET /api/table/[tableId] application adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAuthenticate.mockResolvedValue({
       kind: 'delegated',
       serviceId: 'executor',

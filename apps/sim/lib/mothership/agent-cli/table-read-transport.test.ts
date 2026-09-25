@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ scoped: vi.fn(), decrypt: vi.fn() }))
@@ -62,7 +61,6 @@ function projected(output: string, trace: ResolvedSecretTraceRegistry) {
 
 describe('table provenance at the CLI and model-result boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.decrypt.mockResolvedValue({ decrypted: SECRET })
   })
 

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { isRecordLike } from '@sim/utils/object'
 import { describe, expect, it, vi } from 'vitest'
 

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockUploadFile } = vi.hoisted(() => ({ mockUploadFile: vi.fn() }))
@@ -14,7 +13,6 @@ import type { UploadFileOptions } from '@/lib/uploads/shared/types'
 
 describe('Copilot output key allocation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockUploadFile.mockImplementation(async (options: UploadFileOptions) => ({
       key: options.customKey,
       path: `/api/files/serve/${encodeURIComponent(options.customKey!)}`,

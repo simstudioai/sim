@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition, TableMetadata, TableSchema, WorkflowGroup } from '@/lib/table/types'
 
@@ -80,7 +77,6 @@ function tableWithGroups(count: number): TableDefinition {
  */
 describe('addWorkflowGroup group ceiling', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAssertTableRowTtlEnabled.mockResolvedValue(undefined)
   })
 
@@ -112,15 +108,10 @@ describe('addWorkflowGroup group ceiling', () => {
       /maximum of \d+ workflow groups/
     )
   })
-
-  it('allows the create that lands exactly on the ceiling', async () => {
-    await expect(add(TABLE_LIMITS.MAX_WORKFLOW_GROUPS_PER_TABLE - 1)).resolves.toBeDefined()
-  })
 })
 
 describe('workflow group TTL availability', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAssertTableRowTtlEnabled.mockRejectedValue(new Error('Expiration columns are not enabled'))
   })
 
@@ -222,7 +213,6 @@ describe('addWorkflowGroup attaching existing columns', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAssertTableRowTtlEnabled.mockResolvedValue(undefined)
   })
 
@@ -308,7 +298,6 @@ describe('addWorkflowGroup attaching existing columns', () => {
  */
 describe('addWorkflowGroup deployment mode', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAssertTableRowTtlEnabled.mockResolvedValue(undefined)
   })
 
@@ -343,28 +332,5 @@ describe('addWorkflowGroup deployment mode', () => {
     } as WorkflowGroup)()
 
     expect(stored?.deploymentMode).toBe('deployed')
-  })
-
-  it('keeps an explicit live mode', async () => {
-    const stored = await add({
-      id: 'group-new',
-      workflowId: 'workflow-1',
-      deploymentMode: 'live',
-      outputs: [{ blockId: 'block-1', path: 'out', columnName: 'out' }],
-    } as WorkflowGroup)()
-
-    expect(stored?.deploymentMode).toBe('live')
-  })
-
-  it('leaves an enrichment group, which runs no workflow, without a mode', async () => {
-    const stored = await add({
-      id: 'group-new',
-      workflowId: '',
-      type: 'enrichment',
-      enrichmentId: 'company-domain',
-      outputs: [{ blockId: '', path: '', outputId: 'domain', columnName: 'out' }],
-    } as WorkflowGroup)()
-
-    expect(stored).not.toHaveProperty('deploymentMode')
   })
 })

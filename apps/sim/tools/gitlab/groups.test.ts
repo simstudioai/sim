@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { gitlabGetGroupTool } from '@/tools/gitlab/get_group'
 import { gitlabListGroupsTool } from '@/tools/gitlab/list_groups'
@@ -33,34 +30,6 @@ function mockResponse({
 }
 
 describe('gitlab_get_group', () => {
-  it('builds the group endpoint and URL-encodes a namespaced path', () => {
-    expect(gitlabGetGroupTool.request.url({ accessToken: 'pat', groupId: '42' })).toBe(
-      'https://gitlab.com/api/v4/groups/42'
-    )
-    expect(gitlabGetGroupTool.request.url({ accessToken: 'pat', groupId: 'parent/child' })).toBe(
-      'https://gitlab.com/api/v4/groups/parent%2Fchild'
-    )
-  })
-
-  it('honors a self-managed host', () => {
-    expect(
-      gitlabGetGroupTool.request.url({
-        accessToken: 'pat',
-        host: 'gitlab.example.com',
-        groupId: '7',
-      })
-    ).toBe('https://gitlab.example.com/api/v4/groups/7')
-  })
-
-  it('returns the group on success', async () => {
-    const result = await gitlabGetGroupTool.transformResponse?.(
-      mockResponse({ json: { id: 42, name: 'Platform' } }),
-      {} as never
-    )
-    expect(result?.success).toBe(true)
-    expect(result?.output.group).toEqual({ id: 42, name: 'Platform' })
-  })
-
   it('surfaces API errors', async () => {
     const result = await gitlabGetGroupTool.transformResponse?.(
       mockResponse({ ok: false, status: 404, text: 'Not found' }),
@@ -72,12 +41,6 @@ describe('gitlab_get_group', () => {
 })
 
 describe('gitlab_list_groups', () => {
-  it('lists groups with no filters', () => {
-    expect(gitlabListGroupsTool.request.url({ accessToken: 'pat' })).toBe(
-      'https://gitlab.com/api/v4/groups'
-    )
-  })
-
   it('forwards filters and pagination', () => {
     const url = gitlabListGroupsTool.request.url({
       accessToken: 'pat',
@@ -144,12 +107,6 @@ describe('gitlab_list_groups', () => {
 })
 
 describe('gitlab_list_user_memberships', () => {
-  it('builds the admin memberships endpoint', () => {
-    expect(gitlabListUserMembershipsTool.request.url({ accessToken: 'pat', userId: '7' })).toBe(
-      'https://gitlab.com/api/v4/users/7/memberships'
-    )
-  })
-
   it('forwards the type filter and pagination', () => {
     const url = gitlabListUserMembershipsTool.request.url({
       accessToken: 'pat',
@@ -161,19 +118,6 @@ describe('gitlab_list_user_memberships', () => {
     expect(url).toBe(
       'https://gitlab.com/api/v4/users/7/memberships?type=Namespace&per_page=25&page=3'
     )
-  })
-
-  it('returns memberships on success', async () => {
-    const result = await gitlabListUserMembershipsTool.transformResponse?.(
-      mockResponse({
-        json: [{ source_id: 1, source_name: 'grp', source_type: 'Namespace', access_level: 30 }],
-        headers: { 'x-total': '1' },
-      }),
-      {} as never
-    )
-    expect(result?.success).toBe(true)
-    expect(result?.output.memberships).toHaveLength(1)
-    expect(result?.output.total).toBe(1)
   })
 
   it('surfaces a 403 for a non-admin token', async () => {

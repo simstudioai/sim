@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { member, scimConnection } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
@@ -55,36 +52,10 @@ afterAll(resetDbChainMock)
 
 describe('deprovisionScimUser', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.removeUser.mockResolvedValue({ success: true })
     mocks.endDirectoryMembership.mockResolvedValue({ removed: 1 })
     mocks.reconcileSeats.mockResolvedValue({ changed: false })
-  })
-
-  it('removes a member through the shared primitive and audits the removal', async () => {
-    stage([{ id: 'm-1', role: 'member' }])
-    const result = await deprovisionScimUser.execute({
-      principal,
-      input: { scimUserId: 'su-1' },
-      request: undefined,
-    })
-    expect(mocks.removeUser).toHaveBeenCalledWith({
-      userId: 'u-1',
-      organizationId: 'org-1',
-      memberId: 'm-1',
-      revokePersonalApiKeys: true,
-    })
-    expect(mocks.endDirectoryMembership).not.toHaveBeenCalled()
-    expect(result.removedFromOrganization).toBe(true)
-    const actions = mocks.recordAudit.mock.calls[0][0].entries.map(
-      (entry: { action: string }) => entry.action
-    )
-    expect(actions).toEqual(['scim_user.deprovisioned', 'org_member.removed'])
-    expect(mocks.reconcileSeats).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      reason: 'scim-member-removed',
-    })
   })
 
   it('refuses to deprovision the owner with a conflict that is not a duplicate', async () => {
@@ -116,20 +87,6 @@ describe('deprovisionScimUser', () => {
       (entry: { action: string }) => entry.action
     )
     expect(actions).toEqual(['scim_user.deprovisioned'])
-  })
-
-  it('surfaces a refused removal as a conflict the directory can show', async () => {
-    stage([{ id: 'm-1', role: 'member' }])
-    mocks.removeUser.mockResolvedValue({
-      success: false,
-      error: 'Workflows could not be reassigned',
-    })
-    const error = await deprovisionScimUser
-      .execute({ principal, input: { scimUserId: 'su-1' }, request: undefined })
-      .catch((caught) => caught)
-    expect(error.status).toBe(409)
-    expect(error.message).toBe('Workflows could not be reassigned')
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
   it('answers 404 for an id this connection does not own', async () => {

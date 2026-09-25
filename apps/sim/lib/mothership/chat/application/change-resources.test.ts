@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ resolve: vi.fn(), authorize: vi.fn(), store: vi.fn() }))
@@ -15,7 +14,6 @@ import { createSearchResource } from '@/lib/mothership/resources/search'
 
 const principal = { kind: 'session', userId: 'reader', sessionId: 'session' } as const
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.resolve.mockResolvedValue({ organizationId: 'org', chatId: 'chat', userId: 'reader' })
   mocks.authorize.mockResolvedValue({ organizationId: 'org', userId: 'reader', role: 'member' })
   mocks.store.mockResolvedValue([])

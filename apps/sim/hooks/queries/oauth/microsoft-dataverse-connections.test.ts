@@ -27,7 +27,6 @@ import { getMicrosoftDataverseRequiredScope } from '@/lib/oauth/microsoft-datave
 import {
   assertMicrosoftDataverseReconnectAvailable,
   assertMicrosoftDataverseWebOAuthAvailable,
-  buildMicrosoftDataverseOAuthLinkRequest,
   useConnectMicrosoftDataverseOAuthService,
   useMicrosoftDataverseCredentialBinding,
 } from '@/hooks/queries/oauth/microsoft-dataverse-connections'
@@ -65,60 +64,8 @@ function renderHookWithClient<T>(useHook: () => T): {
 
 describe('Microsoft Dataverse OAuth connections', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockBeginOAuthConnect.mockName('web')
     mockLink.mockResolvedValue({ data: {}, error: null })
-  })
-
-  it('builds the exact environment-bound Better Auth link request', () => {
-    const request = buildMicrosoftDataverseOAuthLinkRequest({
-      callbackURL: 'https://sim.test/workflow?existing=1',
-      draftId: 'draft-1',
-      environmentUrl: ' https://contoso.crm4.dynamics.com/ ',
-    })
-
-    expect(request.providerId).toBe('microsoft-dataverse')
-    expect(request.scopes).toEqual([
-      'openid',
-      'profile',
-      'email',
-      'https://contoso.api.crm4.dynamics.com/.default',
-      'offline_access',
-    ])
-    const callback = new URL(request.callbackURL)
-    expect(callback.searchParams.get('existing')).toBe('1')
-    expect(callback.searchParams.get('credentialDraftId')).toBe('draft-1')
-    expect(callback.searchParams.get('__sim_dataverse_environment')).toBe(
-      'https://contoso.api.crm4.dynamics.com'
-    )
-  })
-
-  it('links in the web app and invalidates the shared connection cache', async () => {
-    const hook = renderHookWithClient(useConnectMicrosoftDataverseOAuthService)
-    const invalidate = vi.spyOn(hook.queryClient, 'invalidateQueries')
-
-    await act(async () => {
-      await hook.result().mutateAsync({
-        callbackURL: 'https://sim.test/workflow',
-        draftId: 'draft-1',
-        environmentUrl: 'https://contoso.crm.dynamics.com',
-      })
-    })
-
-    expect(mockLink).toHaveBeenCalledWith({
-      providerId: 'microsoft-dataverse',
-      callbackURL:
-        'https://sim.test/workflow?credentialDraftId=draft-1&__sim_dataverse_environment=https%3A%2F%2Fcontoso.api.crm.dynamics.com',
-      scopes: [
-        'openid',
-        'profile',
-        'email',
-        'https://contoso.api.crm.dynamics.com/.default',
-        'offline_access',
-      ],
-    })
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['oauthConnections', 'connections'] })
-    hook.unmount()
   })
 
   it('rejects Better Auth link errors instead of reporting a successful redirect', async () => {

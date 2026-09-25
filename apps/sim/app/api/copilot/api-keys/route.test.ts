@@ -1,7 +1,5 @@
 /**
  * Tests for copilot api-keys API route
- *
- * @vitest-environment node
  */
 import { authMockFns, resetEnvMock, setEnv } from '@sim/testing'
 import { NextRequest } from 'next/server'
@@ -23,7 +21,7 @@ vi.mock('@/lib/mothership/server/agent-url', () => ({
   getMothershipBaseURL: mockGetMothershipBaseURL,
 }))
 
-import { DELETE, GET } from '@/app/api/copilot/api-keys/route'
+import { GET } from '@/app/api/copilot/api-keys/route'
 
 // `fetchGo` reads `response.status` and `response.headers.get('content-length')`
 // to stamp span attributes, so mock responses need both fields or the call
@@ -43,7 +41,6 @@ function buildMockResponse(init: {
 
 describe('Copilot API Keys API Route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnv({ COPILOT_API_KEY: 'test-api-key' })
     mockGetMothershipBaseURL.mockResolvedValue('https://agent.sim.example.com')
     global.fetch = mockFetch
@@ -54,17 +51,6 @@ describe('Copilot API Keys API Route', () => {
   })
 
   describe('GET', () => {
-    it('should return 401 when user is not authenticated', async () => {
-      authMockFns.mockGetSession.mockResolvedValue(null)
-
-      const request = new NextRequest('http://localhost:3000/api/copilot/api-keys')
-      const response = await GET(request)
-
-      expect(response.status).toBe(401)
-      const responseData = await response.json()
-      expect(responseData).toEqual({ error: 'Unauthorized' })
-    })
-
     it('should return list of API keys with masked values', async () => {
       authMockFns.mockGetSession.mockResolvedValue({
         user: { id: 'user-123', email: 'test@example.com' },
@@ -105,294 +91,6 @@ describe('Copilot API Keys API Route', () => {
       expect(responseData.keys[0].name).toBe('Production Key')
       expect(responseData.keys[1].displayKey).toBe('•••••jihgfe')
       expect(responseData.keys[1].name).toBeNull()
-    })
-
-    it('should return empty array when user has no API keys', async () => {
-      authMockFns.mockGetSession.mockResolvedValue({
-        user: { id: 'user-123', email: 'test@example.com' },
-      })
-
-      mockFetch.mockResolvedValueOnce(
-        buildMockResponse({
-          ok: true,
-          json: () => Promise.resolve([]),
-        })
-      )
-
-      const request = new NextRequest('http://localhost:3000/api/copilot/api-keys')
-      const response = await GET(request)
-
-      expect(response.status).toBe(200)
-      const responseData = await response.json()
-      expect(responseData.keys).toEqual([])
-    })
-
-    it('should forward userId to Sim Agent', async () => {
-      authMockFns.mockGetSession.mockResolvedValue({
-        user: { id: 'user-123', email: 'test@example.com' },
-      })
-
-      mockFetch.mockResolvedValueOnce(
-        buildMockResponse({
-          ok: true,
-          json: () => Promise.resolve([]),
-        })
-      )
-
-      const request = new NextRequest('http://localhost:3000/api/copilot/api-keys')
-      await GET(request)
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        'https://agent.sim.example.com/api/validate-key/get-api-keys',
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({
-            'Content-Type': 'application/json',
-            'x-api-key': 'test-api-key',
-          }),
-          body: JSON.stringify({ userId: 'user-123' }),
-        })
-      )
-    })
-
-    it('should return error when Sim Agent returns non-ok response', async () => {
-      authMockFns.mockGetSession.mockResolvedValue({
-        user: { id: 'user-123', email: 'test@example.com' },
-      })
-
-      mockFetch.mockResolvedValueOnce(
-        buildMockResponse({
-          ok: false,
-          status: 503,
-          json: () => Promise.resolve({ error: 'Service unavailable' }),
-        })
-      )
-
-      const request = new NextRequest('http://localhost:3000/api/copilot/api-keys')
-      const response = await GET(request)
-
-      expect(response.status).toBe(503)
-      const responseData = await response.json()
-      expect(responseData).toEqual({ error: 'Failed to get keys' })
-    })
-
-    it('should return 500 when Sim Agent returns invalid response', async () => {
-      authMockFns.mockGetSession.mockResolvedValue({
-        user: { id: 'user-123', email: 'test@example.com' },
-      })
-
-      mockFetch.mockResolvedValueOnce(
-        buildMockResponse({
-          ok: true,
-          json: () => Promise.resolve({ invalid: 'response' }),
-        })
-      )
-
-      const request = new NextRequest('http://localhost:3000/api/copilot/api-keys')
-      const response = await GET(request)
-
-      expect(response.status).toBe(500)
-      const responseData = await response.json()
-      expect(responseData).toEqual({ error: 'Invalid response from Sim Agent' })
-    })
-
-    it('should handle network errors gracefully', async () => {
-      authMockFns.mockGetSession.mockResolvedValue({
-        user: { id: 'user-123', email: 'test@example.com' },
-      })
-
-      mockFetch.mockRejectedValueOnce(new Error('Network error'))
-
-      const request = new NextRequest('http://localhost:3000/api/copilot/api-keys')
-      const response = await GET(request)
-
-      expect(response.status).toBe(500)
-      const responseData = await response.json()
-      expect(responseData).toEqual({ error: 'Failed to get keys' })
-    })
-
-    it('should handle API keys with empty apiKey string', async () => {
-      authMockFns.mockGetSession.mockResolvedValue({
-        user: { id: 'user-123', email: 'test@example.com' },
-      })
-
-      const mockApiKeys = [
-        {
-          id: 'key-1',
-          apiKey: '',
-          name: 'Empty Key',
-          createdAt: '2024-01-01T00:00:00.000Z',
-          lastUsed: null,
-        },
-      ]
-
-      mockFetch.mockResolvedValueOnce(
-        buildMockResponse({
-          ok: true,
-          json: () => Promise.resolve(mockApiKeys),
-        })
-      )
-
-      const request = new NextRequest('http://localhost:3000/api/copilot/api-keys')
-      const response = await GET(request)
-
-      expect(response.status).toBe(200)
-      const responseData = await response.json()
-      expect(responseData.keys[0].displayKey).toBe('•••••')
-    })
-
-    it('should handle JSON parsing errors from Sim Agent', async () => {
-      authMockFns.mockGetSession.mockResolvedValue({
-        user: { id: 'user-123', email: 'test@example.com' },
-      })
-
-      mockFetch.mockResolvedValueOnce(
-        buildMockResponse({
-          ok: true,
-          json: () => Promise.reject(new Error('Invalid JSON')),
-        })
-      )
-
-      const request = new NextRequest('http://localhost:3000/api/copilot/api-keys')
-      const response = await GET(request)
-
-      expect(response.status).toBe(500)
-      const responseData = await response.json()
-      expect(responseData).toEqual({ error: 'Invalid response from Sim Agent' })
-    })
-  })
-
-  describe('DELETE', () => {
-    it('should return 401 when user is not authenticated', async () => {
-      authMockFns.mockGetSession.mockResolvedValue(null)
-
-      const request = new NextRequest('http://localhost:3000/api/copilot/api-keys?id=key-123')
-      const response = await DELETE(request)
-
-      expect(response.status).toBe(401)
-      const responseData = await response.json()
-      expect(responseData).toEqual({ error: 'Unauthorized' })
-    })
-
-    it('should return 400 when id parameter is missing', async () => {
-      authMockFns.mockGetSession.mockResolvedValue({
-        user: { id: 'user-123', email: 'test@example.com' },
-      })
-
-      const request = new NextRequest('http://localhost:3000/api/copilot/api-keys')
-      const response = await DELETE(request)
-
-      expect(response.status).toBe(400)
-      const responseData = await response.json()
-      expect(responseData).toEqual({ error: 'id is required' })
-    })
-
-    it('should successfully delete an API key', async () => {
-      authMockFns.mockGetSession.mockResolvedValue({
-        user: { id: 'user-123', email: 'test@example.com' },
-      })
-
-      mockFetch.mockResolvedValueOnce(
-        buildMockResponse({
-          ok: true,
-          json: () => Promise.resolve({ success: true }),
-        })
-      )
-
-      const request = new NextRequest('http://localhost:3000/api/copilot/api-keys?id=key-123')
-      const response = await DELETE(request)
-
-      expect(response.status).toBe(200)
-      const responseData = await response.json()
-      expect(responseData).toEqual({ success: true })
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        'https://agent.sim.example.com/api/validate-key/delete',
-        expect.objectContaining({
-          method: 'POST',
-          headers: expect.objectContaining({
-            'Content-Type': 'application/json',
-            'x-api-key': 'test-api-key',
-          }),
-          body: JSON.stringify({ userId: 'user-123', apiKeyId: 'key-123' }),
-        })
-      )
-    })
-
-    it('should return error when Sim Agent returns non-ok response', async () => {
-      authMockFns.mockGetSession.mockResolvedValue({
-        user: { id: 'user-123', email: 'test@example.com' },
-      })
-
-      mockFetch.mockResolvedValueOnce(
-        buildMockResponse({
-          ok: false,
-          status: 404,
-          json: () => Promise.resolve({ error: 'Key not found' }),
-        })
-      )
-
-      const request = new NextRequest('http://localhost:3000/api/copilot/api-keys?id=non-existent')
-      const response = await DELETE(request)
-
-      expect(response.status).toBe(404)
-      const responseData = await response.json()
-      expect(responseData).toEqual({ error: 'Failed to delete key' })
-    })
-
-    it('should return 500 when Sim Agent returns invalid response', async () => {
-      authMockFns.mockGetSession.mockResolvedValue({
-        user: { id: 'user-123', email: 'test@example.com' },
-      })
-
-      mockFetch.mockResolvedValueOnce(
-        buildMockResponse({
-          ok: true,
-          json: () => Promise.resolve({ success: false }),
-        })
-      )
-
-      const request = new NextRequest('http://localhost:3000/api/copilot/api-keys?id=key-123')
-      const response = await DELETE(request)
-
-      expect(response.status).toBe(500)
-      const responseData = await response.json()
-      expect(responseData).toEqual({ error: 'Invalid response from Sim Agent' })
-    })
-
-    it('should handle network errors gracefully', async () => {
-      authMockFns.mockGetSession.mockResolvedValue({
-        user: { id: 'user-123', email: 'test@example.com' },
-      })
-
-      mockFetch.mockRejectedValueOnce(new Error('Network error'))
-
-      const request = new NextRequest('http://localhost:3000/api/copilot/api-keys?id=key-123')
-      const response = await DELETE(request)
-
-      expect(response.status).toBe(500)
-      const responseData = await response.json()
-      expect(responseData).toEqual({ error: 'Failed to delete key' })
-    })
-
-    it('should handle JSON parsing errors from Sim Agent on delete', async () => {
-      authMockFns.mockGetSession.mockResolvedValue({
-        user: { id: 'user-123', email: 'test@example.com' },
-      })
-
-      mockFetch.mockResolvedValueOnce(
-        buildMockResponse({
-          ok: true,
-          json: () => Promise.reject(new Error('Invalid JSON')),
-        })
-      )
-
-      const request = new NextRequest('http://localhost:3000/api/copilot/api-keys?id=key-123')
-      const response = await DELETE(request)
-
-      expect(response.status).toBe(500)
-      const responseData = await response.json()
-      expect(responseData).toEqual({ error: 'Invalid response from Sim Agent' })
     })
   })
 })

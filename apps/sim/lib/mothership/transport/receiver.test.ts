@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { generateId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

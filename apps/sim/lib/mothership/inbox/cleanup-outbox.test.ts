@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { db } from '@sim/db'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,7 +27,6 @@ const payload = {
 let context: OutboxEventContext
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.getInbox.mockResolvedValue({
     inbox_id: payload.inboxId,

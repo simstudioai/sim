@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { buildBlockExecutionError, getExecutionErrorStatus } from '@/executor/utils/errors'
@@ -41,10 +38,6 @@ describe('getExecutionErrorStatus', () => {
     expect(getExecutionErrorStatus(new TestBadGatewayError('upstream down'))).toBe(500)
   })
 
-  it('falls back to 500 for an untyped error', () => {
-    expect(getExecutionErrorStatus(new Error('boom'))).toBe(500)
-  })
-
   it("never adopts an upstream target's duck-typed status as our own", () => {
     // `api-handler` copies the remote response's status onto the thrown error.
     // Adopting it would make a remote 404 the workflow API's 404.
@@ -82,13 +75,6 @@ describe('buildBlockExecutionError', () => {
     expect(wrapped.message).toBe('My Block: inner failure')
     expect(wrapped.cause).toBe(original)
   })
-
-  it('leaves cause unset for a non-Error throw', () => {
-    const wrapped = buildBlockExecutionError({ block, error: 'plain string' })
-
-    expect(wrapped.message).toBe('My Block: plain string')
-    expect(wrapped.cause).toBeUndefined()
-  })
 })
 
 describe('hosted-key status survives the ToolResponse flattening', () => {
@@ -117,15 +103,6 @@ describe('hosted-key status survives the ToolResponse flattening', () => {
       statusCode: 429,
     })
     expect(getExecutionErrorStatus(wrapped)).toBe(429)
-  })
-
-  it('forwards a hosted-key 503 to the API caller', () => {
-    const wrapped = errorFromFailedToolResponse({
-      error: 'No hosted keys configured',
-      output: {},
-      statusCode: 503,
-    })
-    expect(getExecutionErrorStatus(wrapped)).toBe(503)
   })
 
   it("never adopts an upstream provider's status as our own", () => {

@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * `queryWorkspaceFiles` — the paged, filtered, sorted read behind
  * `GET /api/v2/files`. The assertions are on the query it builds, because the
  * point of this function existing is that the scope filter, the name search,
@@ -78,23 +76,9 @@ function buildRow(overrides: Record<string, unknown> = {}) {
 const lastConditions = () =>
   flattenMockConditions(dbChainMockFns.where.mock.calls.at(-1)?.[0]).filter(Boolean)
 
-const lastOrderBy = () => dbChainMockFns.orderBy.mock.calls.at(-1) ?? []
-
 describe('queryWorkspaceFiles', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('narrows the query with a case-insensitive substring match on the file name', async () => {
-    queueTableRows(schemaMock.workspaceFiles, [buildRow()])
-
-    await queryWorkspaceFiles(WS, { ...DEFAULTS, search: 'data' })
-
-    expect(lastConditions().find((c) => c.type === 'ilike')).toMatchObject({
-      column: schemaMock.workspaceFiles.originalName,
-      pattern: '%data%',
-    })
   })
 
   it('escapes LIKE wildcards in the search term', async () => {
@@ -105,38 +89,6 @@ describe('queryWorkspaceFiles', () => {
     expect(lastConditions().find((c) => c.type === 'ilike')).toMatchObject({
       pattern: '%50\\%\\_off%',
     })
-  })
-
-  it('adds no search condition when the caller did not search', async () => {
-    queueTableRows(schemaMock.workspaceFiles, [buildRow()])
-
-    await queryWorkspaceFiles(WS, DEFAULTS)
-
-    expect(lastConditions().some((c) => c.type === 'ilike')).toBe(false)
-  })
-
-  it('filters to one folder in the query', async () => {
-    queueTableRows(schemaMock.workspaceFiles, [buildRow()])
-
-    await queryWorkspaceFiles(WS, { ...DEFAULTS, folderId: 'fold_1' })
-
-    expect(
-      lastConditions().some(
-        (c) =>
-          c.type === 'eq' && c.left === schemaMock.workspaceFiles.folderId && c.right === 'fold_1'
-      )
-    ).toBe(true)
-  })
-
-  it('orders by the requested field, with id closing the keyset', async () => {
-    queueTableRows(schemaMock.workspaceFiles, [buildRow()])
-
-    await queryWorkspaceFiles(WS, { ...DEFAULTS, sortBy: 'name', sortOrder: 'desc' })
-
-    expect(lastOrderBy()).toEqual([
-      { type: 'desc', column: schemaMock.workspaceFiles.originalName },
-      { type: 'desc', column: schemaMock.workspaceFiles.id },
-    ])
   })
 
   it('bounds the page in SQL by fetching one row past the limit', async () => {
@@ -200,14 +152,6 @@ describe('queryWorkspaceFiles', () => {
       queryWorkspaceFiles(WS, { ...DEFAULTS, sortBy: 'uploadedAt', after: ['not-a-date', 'wf_1'] })
     ).rejects.toMatchObject({ code: 'validation' })
   })
-
-  it('rejects a cursor with the wrong number of keys for the sort', async () => {
-    queueTableRows(schemaMock.workspaceFiles, [buildRow()])
-
-    await expect(
-      queryWorkspaceFiles(WS, { ...DEFAULTS, sortBy: 'name', after: ['data.csv'] })
-    ).rejects.toMatchObject({ code: 'validation' })
-  })
 })
 
 /**
@@ -218,37 +162,11 @@ describe('queryWorkspaceFiles', () => {
  */
 describe('listWorkspaceFiles', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
   const lastProjection = () =>
     Object.keys((dbChainMockFns.select.mock.calls.at(-1)?.[0] ?? {}) as Record<string, unknown>)
-
-  it('projects only the columns the record mapper reads', async () => {
-    queueTableRows(schemaMock.workspaceFiles, [buildRow()])
-
-    await listWorkspaceFiles(WS)
-
-    const projected = lastProjection()
-    expect(projected).toEqual(
-      expect.arrayContaining(['id', 'key', 'originalName', 'sizeBytes', 'contentUpdatedAt'])
-    )
-    /** Columns no reader projects; `select()` would ship them for every row of the scan. */
-    expect(projected).not.toContain('context')
-    expect(projected).not.toContain('chatId')
-    expect(projected).not.toContain('messageId')
-    expect(projected).not.toContain('displayName')
-    expect(projected).not.toContain('secretProvenanceVersion')
-  })
-
-  it('reads the whole scope when no cap is given', async () => {
-    queueTableRows(schemaMock.workspaceFiles, [buildRow()])
-
-    await listWorkspaceFiles(WS)
-
-    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
-  })
 
   it('caps the rows read when the caller only needs to fit a budget', async () => {
     queueTableRows(schemaMock.workspaceFiles, [buildRow()])

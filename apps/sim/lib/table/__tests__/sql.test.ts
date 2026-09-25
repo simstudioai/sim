@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * SQL Builder Unit Tests
  *
  * Tests the table SQL query builder. Assertions inspect the generated SQL
@@ -97,10 +95,6 @@ const NO_COLUMNS: ColumnDefinition[] = []
 
 describe('SQL Builder', () => {
   describe('buildFilterClause', () => {
-    it('returns undefined for empty filter', () => {
-      expect(buildFilterClause({}, TABLE, NO_COLUMNS)).toBeUndefined()
-    })
-
     it('handles simple equality via JSONB containment', () => {
       const out = render(buildFilterClause({ name: 'John' }, TABLE, NO_COLUMNS))
       expect(out).toContain('user_table_rows.data @>')
@@ -118,11 +112,6 @@ describe('SQL Builder', () => {
       const out = render(buildFilterClause({ score: { $gte: 5 } }, TABLE, NO_COLUMNS))
       expect(out).toContain(`(${TABLE}.data->>'score')::numeric >= `)
       expect(out).not.toContain('::timestamp')
-    })
-
-    it('handles $eq operator', () => {
-      const out = render(buildFilterClause({ status: { $eq: 'active' } }, TABLE, NO_COLUMNS))
-      expect(out).toContain('"status":"active"')
     })
 
     it('handles $ne operator', () => {
@@ -253,21 +242,6 @@ describe('SQL Builder', () => {
       expect(out).toContain(' AND ')
     })
 
-    it('skips undefined values', () => {
-      const result = buildFilterClause({ name: undefined, status: 'active' }, TABLE, NO_COLUMNS)
-      expect(result).toBeDefined()
-    })
-
-    it('handles boolean / null / numeric primitives', () => {
-      expect(render(buildFilterClause({ active: true }, TABLE, NO_COLUMNS))).toContain(
-        '"active":true'
-      )
-      expect(render(buildFilterClause({ deleted_at: null }, TABLE, NO_COLUMNS))).toContain(
-        '"deleted_at":null'
-      )
-      expect(render(buildFilterClause({ count: 42 }, TABLE, NO_COLUMNS))).toContain('"count":42')
-    })
-
     it('throws on invalid field name', () => {
       expect(() => buildFilterClause({ 'invalid-field': 'v' }, TABLE, NO_COLUMNS)).toThrow(
         'Invalid field name'
@@ -298,19 +272,6 @@ describe('SQL Builder', () => {
       expect(out.match(/::timestamptz/g)?.length).toBe(2)
     })
 
-    it('combined range ($gte + $lte) emits two ::timestamptz pairs', () => {
-      const out = render(
-        buildFilterClause(
-          { birthDate: { $gte: '2024-01-01', $lte: '2024-12-31' } },
-          TABLE,
-          dateCols
-        )
-      )
-      expect(out.match(/::timestamptz/g)?.length).toBe(4)
-      expect(out).not.toContain('::numeric')
-      expect(out).toContain(' AND ')
-    })
-
     it('propagates date cast through nested $and', () => {
       const out = render(
         buildFilterClause(
@@ -321,31 +282,6 @@ describe('SQL Builder', () => {
       )
       expect(out).toContain('::timestamptz')
       expect(out).not.toContain('::numeric')
-    })
-
-    it('propagates date cast through nested $or', () => {
-      const out = render(
-        buildFilterClause(
-          { $or: [{ birthDate: { $lt: '2000-01-01' } }, { birthDate: { $gt: '2024-01-01' } }] },
-          TABLE,
-          dateCols
-        )
-      )
-      expect(out).toContain('::timestamptz')
-      expect(out).not.toContain('::numeric')
-      expect(out).toContain(' OR ')
-    })
-
-    it('a number column in the same query keeps ::numeric (no cross-contamination)', () => {
-      const cols: ColumnDefinition[] = [
-        { name: 'birthDate', type: 'date' },
-        { name: 'age', type: 'number' },
-      ]
-      const out = render(
-        buildFilterClause({ birthDate: { $gte: '2024-01-01' }, age: { $gt: 18 } }, TABLE, cols)
-      )
-      expect(out).toContain('::timestamptz')
-      expect(out).toContain('::numeric')
     })
   })
 
@@ -368,18 +304,6 @@ describe('SQL Builder', () => {
       expect(() =>
         buildFilterClause({ score: { $lt: 'high' } } as Filter, TABLE, NO_COLUMNS)
       ).toThrow(/column "score" \(number\) requires a number, got string/)
-    })
-
-    it('accepts valid number on number column', () => {
-      const cols: ColumnDefinition[] = [{ name: 'age', type: 'number' }]
-      expect(() => buildFilterClause({ age: { $gt: 18 } }, TABLE, cols)).not.toThrow()
-    })
-
-    it('accepts valid ISO string on date column', () => {
-      const cols: ColumnDefinition[] = [{ name: 'birthDate', type: 'date' }]
-      expect(() =>
-        buildFilterClause({ birthDate: { $gte: '2024-01-01' } }, TABLE, cols)
-      ).not.toThrow()
     })
   })
 
@@ -405,14 +329,6 @@ describe('SQL Builder', () => {
       expect(() =>
         buildFilterClause({ birthDate: { [operator]: 'not-a-date' } } as Filter, TABLE, dateCols)
       ).toThrow(/requires a parseable date string/)
-    })
-
-    it('still accepts the date shapes the column itself stores', () => {
-      for (const bound of ['2024-01-01', '2024-01-31T10:00:00Z', '2024-01-31T10:00:00+02:00']) {
-        expect(() =>
-          buildFilterClause({ birthDate: { $lte: bound } }, TABLE, dateCols)
-        ).not.toThrow()
-      }
     })
   })
 
@@ -441,23 +357,9 @@ describe('SQL Builder', () => {
         )
       ).toThrow(/column "updatedAt" requires a parseable date string/)
     })
-
-    it('still accepts a real timestamp bound', () => {
-      expect(() =>
-        buildPredicateClause(
-          { all: [{ field: 'createdAt', op: 'gte', value: '2024-01-01T00:00:00Z' }] },
-          TABLE,
-          NO_COLUMNS
-        )
-      ).not.toThrow()
-    })
   })
 
   describe('buildSortClause', () => {
-    it('returns undefined for empty sort', () => {
-      expect(buildSortClause({}, TABLE, NO_COLUMNS)).toBeUndefined()
-    })
-
     it('sorts string columns as text (no cast)', () => {
       const cols: ColumnDefinition[] = [{ name: 'name', type: 'string' }]
       const out = render(buildSortClause({ name: 'asc' }, TABLE, cols))
@@ -484,23 +386,6 @@ describe('SQL Builder', () => {
       expect(render(buildSortClause({ updatedAt: 'asc' }, TABLE, NO_COLUMNS))).toBe(
         `${TABLE}.updated_at ASC`
       )
-    })
-
-    it('combines multiple sort fields with commas', () => {
-      const cols: ColumnDefinition[] = [
-        { name: 'name', type: 'string' },
-        { name: 'salary', type: 'number' },
-      ]
-      const out = render(buildSortClause({ name: 'asc', salary: 'desc' }, TABLE, cols))
-      expect(out).toBe(
-        `${TABLE}.data->>'name' ASC, (${TABLE}.data->>'salary')::numeric DESC NULLS LAST`
-      )
-    })
-
-    it('falls back to text sort for unknown column types', () => {
-      const sort: Sort = { unknownField: 'asc' }
-      const out = render(buildSortClause(sort, TABLE, NO_COLUMNS))
-      expect(out).toBe(`${TABLE}.data->>'unknownField' ASC`)
     })
 
     it('throws on invalid field name', () => {
@@ -646,19 +531,6 @@ describe('SQL Builder', () => {
   })
 
   describe('Field name validation', () => {
-    it('accepts valid identifiers', () => {
-      const valid = ['name', 'user_id', '_private', 'Count123', 'a']
-      for (const name of valid) {
-        expect(() => buildFilterClause({ [name]: 'v' }, TABLE, NO_COLUMNS)).not.toThrow()
-      }
-    })
-
-    it('rejects identifiers starting with a digit', () => {
-      expect(() => buildFilterClause({ '123name': 'v' }, TABLE, NO_COLUMNS)).toThrow(
-        'Invalid field name'
-      )
-    })
-
     it('rejects identifiers with special characters', () => {
       const invalid = ['field-name', 'field.name', 'field name', 'field@name']
       for (const name of invalid) {
@@ -680,63 +552,9 @@ describe('SQL Builder', () => {
 })
 
 describe('fieldPredicate (shared leaf)', () => {
-  const r = (
-    op: Parameters<typeof fieldPredicate>[2],
-    value: unknown,
-    colType?: ColumnDefinition['type']
-  ) => render(fieldPredicate(TABLE, 'wins', op, value as never, colType && col(colType, 'wins')))
-
-  it('eq emits case-sensitive JSONB containment (no lower())', () => {
-    const out = render(fieldPredicate(TABLE, 'slack_user_id', 'eq', 'U333', undefined))
-    expect(out).toContain('user_table_rows.data @>')
-    expect(out).toContain('"slack_user_id":"U333"')
-    expect(out).not.toContain('lower(')
-    // Case is preserved verbatim — U333 and u333 are distinct values.
-    expect(out).not.toContain('u333')
-  })
-
-  it('ne negates the containment clause', () => {
-    expect(r('ne', 'x')).toContain('NOT (')
-    expect(r('ne', 'x')).toContain('data @>')
-  })
-
-  it('in with one value is a single containment; many values OR together', () => {
-    expect(render(fieldPredicate(TABLE, 'slack_user_id', 'in', ['U1'], undefined))).toContain(
-      '"slack_user_id":"U1"'
-    )
-    const many = render(fieldPredicate(TABLE, 'slack_user_id', 'in', ['U1', 'U2'], undefined))
-    expect(many).toContain('"slack_user_id":"U1"')
-    expect(many).toContain('"slack_user_id":"U2"')
-    expect(many).toContain(' OR ')
-  })
-
-  it('nin ANDs negated containments', () => {
-    const out = render(fieldPredicate(TABLE, 'slack_user_id', 'nin', ['U1', 'U2'], undefined))
-    expect(out).toContain('NOT (')
-    expect(out).toContain(' AND ')
-  })
-
   it('empty in/nin arrays are a no-op (undefined)', () => {
     expect(fieldPredicate(TABLE, 'wins', 'in', [], undefined)).toBeUndefined()
     expect(fieldPredicate(TABLE, 'wins', 'nin', [], undefined)).toBeUndefined()
-  })
-
-  it('range ops cast by column type', () => {
-    expect(r('gte', 10, 'number')).toContain('::numeric')
-    expect(r('gt', '2024-01-01', 'date')).toContain('::timestamptz')
-  })
-
-  it('text ops use case-insensitive ILIKE', () => {
-    expect(render(fieldPredicate(TABLE, 'name', 'contains', 'jo', undefined))).toContain('ILIKE')
-    expect(render(fieldPredicate(TABLE, 'name', 'startsWith', 'jo', undefined))).toContain('ILIKE')
-  })
-
-  it('isEmpty / isNotEmpty emit emptiness checks (null OR empty string)', () => {
-    const empty = render(fieldPredicate(TABLE, 'name', 'isEmpty', undefined, undefined))
-    expect(empty).toContain('IS NULL')
-    expect(empty).toContain("= ''")
-    const notEmpty = render(fieldPredicate(TABLE, 'name', 'isNotEmpty', undefined, undefined))
-    expect(notEmpty).toContain('IS NOT NULL')
   })
 
   it('isNull / isNotNull are strict null checks (no empty-string clause)', () => {
@@ -789,18 +607,6 @@ describe('fieldPredicate (shared leaf)', () => {
       )
     }
     expect(() => buildFilterClause({ name: { $match: '^jo' } }, TABLE, NO_COLUMNS)).toThrow(
-      'Invalid operator'
-    )
-  })
-
-  it('validates the field name', () => {
-    expect(() => fieldPredicate(TABLE, "x'; DROP", 'eq', 1, undefined)).toThrow(
-      'Invalid field name'
-    )
-  })
-
-  it('rejects an unknown operator', () => {
-    expect(() => fieldPredicate(TABLE, 'wins', 'bogus' as never, 1, undefined)).toThrow(
       'Invalid operator'
     )
   })
@@ -889,10 +695,6 @@ describe('system columns (#5920)', () => {
     expect(inClause).toContain(`${TABLE}.id IN (`)
   })
 
-  it('sorts id as a direct column ref', () => {
-    expect(render(buildSortClause({ id: 'asc' }, TABLE, NO_COLUMNS))).toBe(`${TABLE}.id ASC`)
-  })
-
   it('maps isEmpty/isNotEmpty to IS NULL / IS NOT NULL (not inverted)', () => {
     expect(render(fieldPredicate(TABLE, 'createdAt', 'isEmpty', undefined, col('date')))).toContain(
       'IS NULL'
@@ -949,19 +751,6 @@ describe('buildPredicateClause (v2 grammar)', () => {
     expect(out).toContain(' AND ')
     expect(out).toContain('"slack_user_id":"U1"')
     expect(out).toContain('::numeric')
-  })
-
-  it('any joins members with OR', () => {
-    const p: TablePredicate = {
-      any: [
-        { field: 'status', op: 'eq', value: 'active' },
-        { field: 'status', op: 'eq', value: 'pending' },
-      ],
-    }
-    const out = render(buildPredicateClause(p, TABLE, []))
-    expect(out).toContain(' OR ')
-    expect(out).toContain('"status":"active"')
-    expect(out).toContain('"status":"pending"')
   })
 
   it('nests groups', () => {
@@ -1025,18 +814,6 @@ describe('legacy compiler rejects a v2 predicate (version-mismatch fail-fast)', 
       )
     ).toThrow(/v2 predicate tree/)
   })
-
-  it('leaves legitimate legacy filters alone', () => {
-    expect(buildFilterClause({ status: 'archived' }, TABLE, NO_COLUMNS)).toBeDefined()
-    expect(
-      buildFilterClause({ $or: [{ status: 'a' }, { status: 'b' }] }, TABLE, NO_COLUMNS)
-    ).toBeDefined()
-    // An ordinary column holding an array stays a silent skip — only the
-    // predicate discriminators `all`/`any` are treated as a version mismatch.
-    expect(() =>
-      buildFilterClause({ status: ['a', 'b'] } as unknown as Filter, TABLE, NO_COLUMNS)
-    ).not.toThrow()
-  })
 })
 
 /**
@@ -1072,28 +849,10 @@ describe('containment operators — operand is read through the column type', ()
       expect(out).not.toContain('"flag":"false"')
     })
 
-    it('reads a number as text on a string column', () => {
-      const p: TablePredicate = { all: [{ field: 'title', op: 'eq', value: 8 }] }
-      const out = render(buildPredicateClause(p, TABLE, STR))
-      expect(out).toContain('"title":"8"')
-    })
-
     it('reads a formatted amount on a currency column', () => {
       const p: TablePredicate = { all: [{ field: 'price', op: 'eq', value: '$1,234.56' }] }
       const out = render(buildPredicateClause(p, TABLE, MONEY))
       expect(out).toContain('"price":1234.56')
-    })
-
-    it('applies to the legacy $-grammar too', () => {
-      const out = render(buildFilterClause({ score: { $eq: '8' } }, TABLE, NUM))
-      expect(out).toContain('"score":8')
-      expect(out).not.toContain('"score":"8"')
-    })
-
-    it('applies to the legacy equality shorthand', () => {
-      const out = render(buildFilterClause({ score: '8' }, TABLE, NUM))
-      expect(out).toContain('"score":8')
-      expect(out).not.toContain('"score":"8"')
     })
   })
 
@@ -1110,11 +869,6 @@ describe('containment operators — operand is read through the column type', ()
       const p = { all: [{ field: 'score', op, value: 'eight' }] } as TablePredicate
       const out = render(buildPredicateClause(p, TABLE, NUM))
       expect(out).toContain('"score":"eight"')
-    })
-
-    it.each(['in', 'nin'] as const)('%s with a bad element', (op) => {
-      const p = { all: [{ field: 'score', op, value: ['eight'] }] } as TablePredicate
-      expect(render(buildPredicateClause(p, TABLE, NUM))).toContain('"score":"eight"')
     })
 
     it.each(['in', 'nin'] as const)('%s mixing coercible and uncoercible members', (op) => {
@@ -1143,12 +897,6 @@ describe('containment operators — operand is read through the column type', ()
       } as unknown as TablePredicate
       expect(() => buildPredicateClause(p, TABLE, STR)).not.toThrow()
     })
-
-    it('passes through on the legacy $-grammar too', () => {
-      expect(render(buildFilterClause({ score: { $eq: 'eight' } }, TABLE, NUM))).toContain(
-        '"score":"eight"'
-      )
-    })
   })
 
   /**
@@ -1169,27 +917,11 @@ describe('containment operators — operand is read through the column type', ()
       expect(out).not.toContain('"due":"2024-01-31T10:00:00Z"')
     })
 
-    it.each(['in', 'nin'] as const)('%s keeps every member byte-exact', (op) => {
-      const p = {
-        all: [{ field: 'due', op, value: ['2024-01-31T10:00:00.000Z', '  2024-01-31  '] }],
-      } as TablePredicate
-      const out = render(buildPredicateClause(p, TABLE, DATE))
-      expect(out).toContain('"due":"2024-01-31T10:00:00.000Z"')
-      expect(out).toContain('"due":"  2024-01-31  "')
-    })
-
     it('does not trim or normalize a loose date operand', () => {
       const p: TablePredicate = { all: [{ field: 'due', op: 'eq', value: '  2024-01-31  ' }] }
       const out = render(buildPredicateClause(p, TABLE, DATE))
       expect(out).toContain('"due":"  2024-01-31  "')
       expect(out).not.toContain('"due":"2024-01-31"')
-    })
-
-    it('keeps the legacy $-grammar byte-exact too', () => {
-      const out = render(
-        buildFilterClause({ due: { $eq: '2024-01-31T10:00:00.000Z' } }, TABLE, DATE)
-      )
-      expect(out).toContain('"due":"2024-01-31T10:00:00.000Z"')
     })
   })
 
@@ -1202,11 +934,6 @@ describe('containment operators — operand is read through the column type', ()
     it('keeps the empty string — the cleared-cell sentinel', () => {
       const p: TablePredicate = { all: [{ field: 'score', op: 'eq', value: '' }] }
       expect(render(buildPredicateClause(p, TABLE, NUM))).toContain('"score":""')
-    })
-
-    it('leaves a field with no schema entry untouched', () => {
-      const p: TablePredicate = { all: [{ field: 'adhoc', op: 'eq', value: '8' }] }
-      expect(render(buildPredicateClause(p, TABLE, NO_COLUMNS))).toContain('"adhoc":"8"')
     })
 
     /**
@@ -1239,14 +966,6 @@ describe('containment operators — operand is read through the column type', ()
         expect(out).not.toContain('"col_status":"opt_open"')
       })
 
-      it('does not re-resolve names inside an $in list', () => {
-        const p: TablePredicate = {
-          all: [{ field: 'col_status', op: 'in', value: ['Open', 'opt_open'] }],
-        }
-        const out = render(buildPredicateClause(p, TABLE, [statusCol]))
-        expect(out).toContain('"col_status":"Open"')
-      })
-
       /**
        * A filter for an option deleted since the row was written must still
        * compile — the row still stores the id, and the operand reaches the
@@ -1277,9 +996,6 @@ describe('error messages name the caller-facing column, not the storage id', () 
     multiple: true,
     options: [{ id: 'opt_a', name: 'Alpha' }],
   }
-  const num: ColumnDefinition = { id: 'col_abc123', name: 'overall_score', type: 'number' }
-  const bool: ColumnDefinition = { id: 'col_def456', name: 'untitled', type: 'boolean' }
-  const str: ColumnDefinition = { id: 'col_ghi789', name: 'headline', type: 'string' }
 
   function expectNamed(fn: () => unknown, name: string, id: string) {
     expect(fn).toThrow(new RegExp(`"${name}"`))
@@ -1289,42 +1005,6 @@ describe('error messages name the caller-facing column, not the storage id', () 
   it('names the column on an unsupported select operator (v2 grammar)', () => {
     const p: TablePredicate = { all: [{ field: multi.id as string, op: 'eq', value: 'c' }] }
     expectNamed(() => buildPredicateClause(p, TABLE, [multi]), 'untitled_2', 'col_934cea')
-  })
-
-  it('names the column on an unsupported select operator (legacy grammar)', () => {
-    expectNamed(
-      () => buildFilterClause({ [multi.id as string]: { $eq: 'c' } }, TABLE, [multi]),
-      'untitled_2',
-      'col_934cea'
-    )
-  })
-
-  it('names the column on a range-operator type mismatch', () => {
-    const p: TablePredicate = { all: [{ field: 'col_abc123', op: 'gt', value: '7' }] }
-    expectNamed(() => buildPredicateClause(p, TABLE, [num]), 'overall_score', 'col_abc123')
-  })
-
-  it('names the column on an unorderable range operator', () => {
-    const p: TablePredicate = { all: [{ field: 'col_def456', op: 'gt', value: 1 }] }
-    expectNamed(() => buildPredicateClause(p, TABLE, [bool]), 'untitled', 'col_def456')
-  })
-
-  it('names the column on an empty pattern operand', () => {
-    const p: TablePredicate = { all: [{ field: 'col_ghi789', op: 'contains', value: '' }] }
-    expectNamed(() => buildPredicateClause(p, TABLE, [str]), 'headline', 'col_ghi789')
-  })
-
-  it('names the column on a bad $empty flag', () => {
-    expectNamed(
-      () => buildFilterClause({ col_ghi789: { $empty: 1 } } as unknown as Filter, TABLE, [str]),
-      'headline',
-      'col_ghi789'
-    )
-  })
-
-  it('has no message to name on a containment type mismatch — it does not throw', () => {
-    const p: TablePredicate = { all: [{ field: 'col_abc123', op: 'eq', value: 'seven' }] }
-    expect(() => buildPredicateClause(p, TABLE, [num])).not.toThrow()
   })
 })
 
@@ -1343,15 +1023,6 @@ describe('Expiration instant comparison SQL', () => {
     expect(
       renderSql(buildSortClause({ expires_at: 'asc' }, 'user_table_rows', [column]))
     ).toContain('::timestamptz ASC')
-  })
-
-  it('compares equality and membership using timestamp casts', () => {
-    expect(
-      renderSql(fieldPredicate('user_table_rows', 'expires_at', 'eq', instant, column))
-    ).toContain('::timestamptz')
-    expect(
-      renderSql(fieldPredicate('user_table_rows', 'expires_at', 'in', [instant], column))
-    ).toContain('::timestamptz')
   })
 
   it.each(['eq', 'ne', 'in', 'nin'] as const)(

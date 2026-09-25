@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -86,7 +83,6 @@ describe('POST /api/workflows/[id]/log completion attribution', () => {
   const VICTIM_EXECUTION_ID = 'exec-victim-uuid'
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mockValidateWorkflowAccess.mockResolvedValue({
@@ -156,29 +152,6 @@ describe('POST /api/workflows/[id]/log completion attribution', () => {
     expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mockStart).not.toHaveBeenCalled()
     expect(mockSafeComplete).not.toHaveBeenCalled()
-  })
-
-  it('fails closed when the persisted execution has no attribution snapshot', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      {
-        workflowId: OWNER_WORKFLOW_ID,
-        workspaceId: 'workspace-1',
-        executionData: {},
-      },
-    ])
-
-    const res = await POST(
-      makeRequest(OWNER_WORKFLOW_ID, {
-        executionId: 'legacy-execution-id',
-        result: validResult,
-      }),
-      { params: Promise.resolve({ id: OWNER_WORKFLOW_ID }) }
-    )
-
-    expect(res.status).toBe(500)
-    expect(mockGetWorkspaceBilledAccountUserId).not.toHaveBeenCalled()
-    expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
-    expect(mockStart).not.toHaveBeenCalled()
   })
 
   it('rejects a completion from an actor other than the persisted execution actor', async () => {
@@ -279,38 +252,6 @@ describe('POST /api/workflows/[id]/log completion attribution', () => {
     })
   })
 
-  it('completes with a valid persisted attribution snapshot', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      {
-        workflowId: OWNER_WORKFLOW_ID,
-        workspaceId: 'workspace-1',
-        executionData: { billingAttribution: storedBillingAttribution },
-      },
-    ])
-
-    const res = await POST(
-      makeRequest(OWNER_WORKFLOW_ID, {
-        executionId: 'existing-execution-id',
-        result: validResult,
-      }),
-      { params: Promise.resolve({ id: OWNER_WORKFLOW_ID }) }
-    )
-
-    expect(res.status).toBe(200)
-    expect(mockGetWorkspaceBilledAccountUserId).not.toHaveBeenCalled()
-    expect(mockResolveBillingAttribution).not.toHaveBeenCalled()
-    expect(mockStart).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: 'user-1',
-        actorUserId: 'user-1',
-        billingAttribution: storedBillingAttribution,
-        workspaceId: 'workspace-1',
-        skipLogCreation: true,
-      })
-    )
-    expect(mockSafeComplete).toHaveBeenCalledOnce()
-  })
-
   it('restores trusted Secrets provenance before projecting legacy completion traces', async () => {
     const trustedExecutionState = {
       blockStates: { 'function-1': { output: { result: 'raw-secret-value' } } },
@@ -350,41 +291,6 @@ describe('POST /api/workflows/[id]/log completion attribution', () => {
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     })
     expect(mockSafeComplete).toHaveBeenCalledWith(
-      expect.objectContaining({ executionState: trustedExecutionState })
-    )
-  })
-
-  it('forwards trusted execution state through legacy error completion', async () => {
-    const trustedExecutionState = {
-      blockStates: { 'function-1': { output: { error: 'raw-secret-value' } } },
-      executedBlocks: ['function-1'],
-      blockLogs: [],
-      decisions: { router: {}, condition: {} },
-      completedLoops: [],
-      activeExecutionPath: ['function-1'],
-      resolvedSecretTraceProvenance: { version: 1, complete: true, entries: [] },
-    }
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      {
-        workflowId: OWNER_WORKFLOW_ID,
-        workspaceId: 'workspace-1',
-        executionData: {
-          billingAttribution: storedBillingAttribution,
-          executionState: trustedExecutionState,
-        },
-      },
-    ])
-
-    const res = await POST(
-      makeRequest(OWNER_WORKFLOW_ID, {
-        executionId: 'trusted-error-execution-id',
-        result: { success: false, error: 'failed' },
-      }),
-      { params: Promise.resolve({ id: OWNER_WORKFLOW_ID }) }
-    )
-
-    expect(res.status).toBe(200)
-    expect(mockSafeCompleteWithError).toHaveBeenCalledWith(
       expect.objectContaining({ executionState: trustedExecutionState })
     )
   })

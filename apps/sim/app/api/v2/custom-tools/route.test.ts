@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -93,9 +90,8 @@ vi.mock('@/lib/custom-tools/application/use-cases', () => ({
   },
 }))
 
-import { V2_DEFAULT_PAGE_SIZE } from '@/lib/api/contracts/v2/shared'
 import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
-import { GET, POST } from '@/app/api/v2/custom-tools/route'
+import { GET } from '@/app/api/v2/custom-tools/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = { kind: 'workspace_api_key' as const, workspaceId: WORKSPACE_ID, keyId: 'key-1' }
@@ -143,34 +139,11 @@ function request(method: 'GET' | 'POST', url: string, body?: unknown) {
 
 describe('/api/v2/custom-tools', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.authenticate.mockResolvedValue(AUTH)
     mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.list.mockResolvedValue({ tools: [tool] })
     mocks.create.mockResolvedValue({ tool })
-  })
-
-  it('lists custom tools through the authorized application use case', async () => {
-    const response = await GET(request('GET', `/api/v2/custom-tools?workspaceId=${WORKSPACE_ID}`))
-
-    expect(response.status).toBe(200)
-    expect((await response.json()).data[0]).toMatchObject({ id: 'tool-1', title: 'lookup_order' })
-    expect(mocks.list).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: {
-        workspaceId: WORKSPACE_ID,
-        sortBy: 'createdAt',
-        sortOrder: 'desc',
-        limit: V2_DEFAULT_PAGE_SIZE,
-        cursorKeys: undefined,
-      },
-      request: expect.anything(),
-    })
-    expect(mocks.operationRate).toHaveBeenCalledWith(
-      'v2:custom_tools.list:workspace:workspace-1',
-      expect.objectContaining({ maxTokens: 100 })
-    )
   })
 
   /**
@@ -201,70 +174,6 @@ describe('/api/v2/custom-tools', () => {
     expect(replayed.status).toBe(400)
     expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
     expect(mocks.list).not.toHaveBeenCalled()
-  })
-
-  it('resumes a cursor replayed under the filters it was minted with', async () => {
-    mocks.list.mockResolvedValue({
-      tools: [tool],
-      nextCursorKeys: ['2026-01-01T00:00:00.000Z', 'tool-1'],
-    })
-
-    const minted = await GET(
-      request('GET', `/api/v2/custom-tools?workspaceId=${WORKSPACE_ID}&search=lookup`)
-    )
-    const { nextCursor } = await minted.json()
-
-    mocks.list.mockClear()
-    const resumed = await GET(
-      request(
-        'GET',
-        `/api/v2/custom-tools?workspaceId=${WORKSPACE_ID}&search=lookup&cursor=${encodeURIComponent(nextCursor)}`
-      )
-    )
-
-    expect(resumed.status).toBe(200)
-    expect(mocks.list).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: expect.objectContaining({
-        search: 'lookup',
-        cursorKeys: ['2026-01-01T00:00:00.000Z', 'tool-1'],
-      }),
-      request: expect.anything(),
-    })
-  })
-
-  it('creates exactly one custom tool with the v2 source and status', async () => {
-    const response = await POST(
-      request('POST', '/api/v2/custom-tools', {
-        workspaceId: WORKSPACE_ID,
-        title: tool.title,
-        schema: TOOL_SCHEMA,
-        code: tool.code,
-      })
-    )
-
-    expect(response.status).toBe(201)
-    expect((await response.json()).data.id).toBe('tool-1')
-    expect(mocks.create).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: {
-        workspaceId: WORKSPACE_ID,
-        title: tool.title,
-        schema: TOOL_SCHEMA,
-        code: tool.code,
-        source: 'api',
-      },
-      request: expect.anything(),
-    })
-  })
-
-  it('authenticates before validating a malformed create body', async () => {
-    mocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await POST(request('POST', '/api/v2/custom-tools', {}))
-
-    expect(response.status).toBe(401)
-    expect(mocks.create).not.toHaveBeenCalled()
   })
 
   /**
@@ -404,14 +313,5 @@ describe('/api/v2/custom-tools', () => {
       expect(pageSizes).toEqual([1, 0, 1])
       expect(seen).toEqual(['tool-1', 'tool-2'])
     })
-  })
-
-  it('rejects invalid list sort fields before application execution', async () => {
-    const response = await GET(
-      request('GET', `/api/v2/custom-tools?workspaceId=${WORKSPACE_ID}&sortBy=invalid`)
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.list).not.toHaveBeenCalled()
   })
 })

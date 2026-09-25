@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { GenerateContentParameters, GenerateContentResponse } from '@google/genai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StreamingExecution } from '@/executor/types'
@@ -56,7 +53,6 @@ async function run(
 
 describe('Vertex Gemini request compatibility', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockExecuteTool.mockResolvedValue({ success: true, output: { value: 'tool result' } })
   })
 

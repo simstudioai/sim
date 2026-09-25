@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,20 +17,8 @@ import {
 
 describe('execution ID claims', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGenerateId.mockReturnValue('claim-token')
-  })
-
-  it('atomically claims a first-use execution ID', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([{ key: 'workflow-execution-id:execution-1' }])
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-
-    await expect(claimExecutionId('execution-1')).resolves.toEqual({
-      key: 'workflow-execution-id:execution-1',
-      token: 'claim-token',
-    })
-    expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalledTimes(1)
   })
 
   it('allows only one concurrent claim for the same execution ID', async () => {

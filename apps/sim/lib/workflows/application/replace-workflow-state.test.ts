@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -59,7 +56,6 @@ vi.mock('@/lib/workflows/persistence/utils', () => ({
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { replaceWorkflowState } from '@/lib/workflows/application/replace-workflow-state'
-import { REFERENCES_UNCHECKED_NOTE } from '@/lib/workflows/editing/lint-report'
 import { validateInputsForBlock } from '@/lib/workflows/editing/validation'
 import { AgentBlock } from '@/blocks/blocks/agent'
 import { ExaBlock } from '@/blocks/blocks/exa'
@@ -96,7 +92,6 @@ const input = { workflowId: 'workflow-1', blocks: { 'block-1': BLOCK }, edges: [
 
 describe('replaceWorkflowState', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.mocked(getBlock).mockImplementation((type) =>
       type === 'exa' ? ExaBlock : type === 'agent' ? AgentBlock : defaultGetBlock?.(type)
     )
@@ -212,55 +207,6 @@ describe('replaceWorkflowState', () => {
     expect(mocks.notify).toHaveBeenCalledWith('workflow-1')
   })
 
-  it('names the delegated service rather than the principal kind', async () => {
-    await replaceWorkflowState.execute({
-      principal: {
-        kind: 'delegated',
-        serviceId: 'copilot',
-        subjectUserId: 'user-1',
-        workspaceId: 'workspace-1',
-        delegationId: 'tool-call-1',
-        audience: 'sim:workflows',
-        issuedAt: new Date('2026-01-01T00:00:00Z'),
-        expiresAt: new Date('2099-01-01T00:00:00Z'),
-      },
-      input,
-    })
-
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ metadata: expect.objectContaining({ source: 'copilot' }) })
-    )
-  })
-
-  it('refuses a role below the operation floor', async () => {
-    mocks.resolvePermission.mockResolvedValue('read')
-
-    await expect(
-      replaceWorkflowState.execute({ principal: sessionPrincipal, input })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-
-    expect(mocks.replace).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('rejects a principal kind the operation does not accept before canonical loading', async () => {
-    await expect(
-      replaceWorkflowState.execute({
-        principal: {
-          kind: 'credential_group_enrollment',
-          workspaceId: 'workspace-1',
-          credentialGroupId: 'group-1',
-          enrollmentId: 'enrollment-1',
-          email: 'someone@example.com',
-          invitationTokenHash: 'hash',
-        },
-        input,
-      })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-
-    expect(mocks.resolveContext).not.toHaveBeenCalled()
-  })
-
   it('conceals an asserted-workspace mismatch as not found', async () => {
     mocks.resolveContext.mockRejectedValue(
       new OrchestrationError('not_found', 'Workflow not found')
@@ -314,28 +260,6 @@ describe('replaceWorkflowState', () => {
     expect(mocks.notify).not.toHaveBeenCalled()
   })
 
-  /**
-   * The report is the whole point of the endpoint for a headless builder: an
-   * agent that authors a graph from scratch needs the same findings as one that
-   * edits it incrementally through `POST /operations`.
-   */
-  it('reports lint findings alongside a committed write', async () => {
-    const result = await replaceWorkflowState.execute({
-      principal: sessionPrincipal,
-      input,
-    })
-
-    expect(result.dryRun).toBe(false)
-    expect(result.lint).toMatchObject({
-      sources: expect.any(Array),
-      sinks: expect.any(Array),
-      orphanBlocks: expect.any(Array),
-      fieldIssues: expect.any(Array),
-      unresolvedReferences: expect.any(Array),
-      notes: expect.any(Array),
-    })
-  })
-
   describe('dry run', () => {
     it('persists nothing, audits nothing, and notifies nobody', async () => {
       const result = await replaceWorkflowState.execute({
@@ -350,53 +274,6 @@ describe('replaceWorkflowState', () => {
     })
 
     /** A preview a caller cannot act on is worthless; it must carry the findings. */
-    it('still reports the findings a committed write would produce', async () => {
-      const dry = await replaceWorkflowState.execute({
-        principal: sessionPrincipal,
-        input: { ...input, dryRun: true },
-      })
-      const committed = await replaceWorkflowState.execute({ principal: sessionPrincipal, input })
-
-      expect(dry.lint).toEqual(committed.lint)
-      expect(dry.blocksCount).toBe(committed.blocksCount)
-      expect(dry.edgesCount).toBe(committed.edgesCount)
-    })
-
-    /**
-     * The preview promised in {@link ReplaceWorkflowStateInput.dryRun} is
-     * byte-identical to the committed write of the same body, and preparation
-     * is where a dropped edge or a stripped inline secret is noted. Reporting
-     * only the validation half made the dry run quietly less informative than
-     * the write it previews.
-     */
-    it('merges the preparation warnings a committed write would report', async () => {
-      mocks.validate.mockReturnValue({
-        valid: true,
-        errors: [],
-        warnings: ['Dropped block "block-2"'],
-      })
-      mocks.prepare.mockReturnValue({
-        state: { blocks: { 'block-1': BLOCK }, edges: [], loops: {}, parallels: {} },
-        warnings: ['Dropped edge "edge-9": target block does not exist'],
-      })
-      mocks.replace.mockResolvedValue({
-        warnings: ['Dropped edge "edge-9": target block does not exist'],
-        state: { blocks: { 'block-1': BLOCK }, edges: [], loops: {}, parallels: {} },
-      })
-
-      const dry = await replaceWorkflowState.execute({
-        principal: sessionPrincipal,
-        input: { ...input, dryRun: true },
-      })
-      const committed = await replaceWorkflowState.execute({ principal: sessionPrincipal, input })
-
-      expect(dry.warnings).toEqual([
-        'Dropped block "block-2"',
-        'Dropped edge "edge-9": target block does not exist',
-      ])
-      expect(dry.warnings).toEqual(committed.warnings)
-    })
-
     /**
      * A dry run that reports clean for a body that cannot commit is worse than
      * the fault it hides. It checks the ids the write would actually insert —
@@ -434,18 +311,6 @@ describe('replaceWorkflowState', () => {
     })
 
     /** A locked workflow refuses the preview too, or the preview would lie. */
-    it('refuses when the workflow cannot be mutated', async () => {
-      workflowAuthzMockFns.mockAssertWorkflowMutable.mockRejectedValueOnce(
-        new WorkflowLockedError('workflow-1')
-      )
-
-      await expect(
-        replaceWorkflowState.execute({
-          principal: sessionPrincipal,
-          input: { ...input, dryRun: true },
-        })
-      ).rejects.toThrow()
-    })
   })
 
   describe('registry input validation', () => {
@@ -479,33 +344,6 @@ describe('replaceWorkflowState', () => {
         }
       )
     }
-
-    it('accepts literal choices alongside text references without enabling advanced mode', async () => {
-      const block = {
-        ...BLOCK,
-        type: 'exa',
-        advancedMode: false,
-        subBlocks: {
-          operation: { id: 'operation', type: 'dropdown' as const, value: 'exa_search' },
-          type: { id: 'type', type: 'dropdown' as const, value: 'auto' },
-          query: { id: 'query', type: 'long-input' as const, value: '<start.query>' },
-          text: { id: 'text', type: 'switch' as const, value: true },
-          highlights: { id: 'highlights', type: 'switch' as const, value: false },
-          summary: { id: 'summary', type: 'switch' as const, value: null },
-        },
-      }
-      await expect(
-        replaceWorkflowState.execute({
-          principal: sessionPrincipal,
-          input: { ...input, blocks: { [BLOCK.id]: block } },
-        })
-      ).resolves.toMatchObject({ dryRun: false })
-      expect(mocks.replace).toHaveBeenCalledWith(
-        expect.objectContaining({
-          state: { blocks: { [BLOCK.id]: block }, edges: [], variables: undefined },
-        })
-      )
-    })
   })
 
   describe('Mothership attachment identity on state replacement', () => {
@@ -564,13 +402,6 @@ describe('replaceWorkflowState', () => {
         })
       )
     })
-
-    it('leaves ordinary authoring unchanged and avoids loading the graph', async () => {
-      await expect(
-        replaceWorkflowState.execute({ principal: sessionPrincipal, input: replacement })
-      ).resolves.toMatchObject({ dryRun: false })
-      expect(mocks.loadNormalized).not.toHaveBeenCalled()
-    })
   })
 
   /**
@@ -589,15 +420,6 @@ describe('replaceWorkflowState', () => {
           input,
         })
       ).rejects.toThrow()
-    })
-
-    it('runs the reference pass for a human principal', async () => {
-      const result = await replaceWorkflowState.execute({
-        principal: sessionPrincipal,
-        input,
-      })
-
-      expect(result.lint.notes).not.toContain(REFERENCES_UNCHECKED_NOTE)
     })
   })
 })

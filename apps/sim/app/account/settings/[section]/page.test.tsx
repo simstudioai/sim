@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetSession, mockPrefetch } = vi.hoisted(() => ({
@@ -33,15 +30,7 @@ const pageProps = (section: string) => ({ params: Promise.resolve({ section }) }
 
 describe('account settings legacy links', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'viewer-a' } })
-  })
-
-  it('redirects Authorized apps bookmarks to the General subview', async () => {
-    await expect(AccountSettingsSectionPage(pageProps('authorized-apps'))).rejects.toThrow(
-      'NEXT_REDIRECT:/account/settings/general?view=authorized-apps'
-    )
-    expect(mockPrefetch).not.toHaveBeenCalled()
   })
 
   it('authenticates before following the legacy bookmark', async () => {

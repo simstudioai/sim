@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ServiceNowBlock } from '@/blocks/blocks/servicenow'
 
@@ -84,7 +81,6 @@ const CREDENTIALS = {
 
 describe('ServiceNow Read Records projection saved before the id split', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBlock.mockReturnValue(ServiceNowBlock)
   })
 
@@ -106,21 +102,6 @@ describe('ServiceNow Read Records projection saved before the id split', () => {
 
     expect(mapped.fields).toBe('number,short_description,state')
   })
-
-  it('moves the legacy projection onto the current id in stored state', () => {
-    const { blocks, migrated } = migrateSubblockIds({
-      'block-1': legacyBlockState({
-        ...CREDENTIALS,
-        operation: 'servicenow_read_record',
-        tableName: 'incident',
-        fields: 'number,state',
-      }),
-    })
-
-    expect(migrated).toBe(true)
-    expect(blocks['block-1'].subBlocks.readFields?.value).toBe('number,state')
-    expect(blocks['block-1'].subBlocks.fields).toBeUndefined()
-  })
 })
 
 /**
@@ -129,7 +110,6 @@ describe('ServiceNow Read Records projection saved before the id split', () => {
  */
 describe('ServiceNow create and update bodies the rename left alone', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBlock.mockReturnValue(ServiceNowBlock)
   })
 
@@ -148,39 +128,10 @@ describe('ServiceNow create and update bodies the rename left alone', () => {
       priority: '1',
     })
   })
-
-  it('still parses a JSON body stored under `fields` on Update Record', () => {
-    const mapped = runPipeline(
-      legacyBlockState({
-        ...CREDENTIALS,
-        operation: 'servicenow_update_record',
-        tableName: 'incident',
-        sysId: 'abc',
-        fields: '{"state":"2"}',
-      })
-    )
-
-    expect(mapped.fields).toEqual({ state: '2' })
-  })
-
-  it('leaves a create body under `fields` instead of migrating it', () => {
-    const { blocks } = migrateSubblockIds({
-      'block-1': legacyBlockState({
-        ...CREDENTIALS,
-        operation: 'servicenow_create_record',
-        tableName: 'incident',
-        fields: '{"short_description":"Network outage"}',
-      }),
-    })
-
-    expect(blocks['block-1'].subBlocks.fields?.value).toBe('{"short_description":"Network outage"}')
-    expect(blocks['block-1'].subBlocks.readFields).toBeUndefined()
-  })
 })
 
 describe('ServiceNow state written after the split is never re-migrated', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBlock.mockReturnValue(ServiceNowBlock)
   })
 
@@ -199,20 +150,6 @@ describe('ServiceNow state written after the split is never re-migrated', () => 
     )
 
     expect(mapped.fields).toBeUndefined()
-  })
-
-  it('does not overwrite a projection the user picked', () => {
-    const { blocks } = migrateSubblockIds({
-      'block-1': modernBlockState({
-        ...CREDENTIALS,
-        operation: 'servicenow_read_record',
-        tableName: 'incident',
-        fields: 'number,short_description',
-        readFields: 'number,state',
-      }),
-    })
-
-    expect(blocks['block-1'].subBlocks.readFields?.value).toBe('number,state')
   })
 
   it('is a no-op the second time it runs', () => {

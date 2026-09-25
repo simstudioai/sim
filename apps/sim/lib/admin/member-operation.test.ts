@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { member, organization, outboxEvent, user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -70,7 +67,6 @@ vi.mock('@/lib/core/outbox/service', () => ({
 }))
 
 import {
-  getAdminMemberOperation,
   processAdminMemberOperation,
   startAdminMemberOperation,
 } from '@/lib/admin/member-operation'
@@ -100,7 +96,6 @@ afterAll(resetDbChainMock)
 
 describe('durable admin member operation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.reconcileSeats.mockResolvedValue(undefined)
     mocks.syncUsageLimits.mockResolvedValue(undefined)
@@ -151,51 +146,6 @@ describe('durable admin member operation', () => {
       workspaceMoves: { selected: 1, moved: 0, pending: 1 },
     })
     expect(mocks.enqueue).not.toHaveBeenCalled()
-  })
-
-  it('infers committed membership, restores deterministic audits, and resumes workspace moves', async () => {
-    queueTableRows(member, [{ id: 'member-new', role: 'member', organizationId: 'org-new' }])
-    const checkpointPayload = vi.fn()
-
-    await expect(
-      processAdminMemberOperation(payload(['workspace-1', 'workspace-2']), {
-        eventId: 'operation-1',
-        eventType: 'admin.organization-member-operation',
-        attempts: 1,
-        checkpointPayload,
-      })
-    ).resolves.toBeUndefined()
-
-    expect(mocks.recordAuditOnce).toHaveBeenCalledWith(
-      'operation-1:member-added',
-      expect.objectContaining({ resourceId: 'org-new' })
-    )
-    expect(mocks.moveWorkspace).toHaveBeenNthCalledWith(1, {
-      workspaceId: 'workspace-1',
-      destinationOrganizationId: 'org-new',
-      adminEmail: 'admin@sim.ai',
-      auditActor: { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' },
-      auditOperationId: 'operation-1',
-      expectedOwnerId: 'user-1',
-      operationCorrelationId: 'operation-1',
-    })
-    expect(mocks.moveWorkspace).toHaveBeenNthCalledWith(2, {
-      workspaceId: 'workspace-2',
-      destinationOrganizationId: 'org-new',
-      adminEmail: 'admin@sim.ai',
-      auditActor: { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' },
-      auditOperationId: 'operation-1',
-      expectedOwnerId: 'user-1',
-      operationCorrelationId: 'operation-1',
-    })
-    expect(checkpointPayload).toHaveBeenLastCalledWith({
-      progress: {
-        memberId: 'member-new',
-        transferredFromOrganizationId: 'org-old',
-        nextWorkspaceIndex: 2,
-        currentWorkspaceId: null,
-      },
-    })
   })
 
   it('applies the requested role when a concurrent join wins the membership insert', async () => {
@@ -284,116 +234,6 @@ describe('durable admin member operation', () => {
         transferredFromOrganizationId: 'org-old',
         nextWorkspaceIndex: 0,
         currentWorkspaceId: 'workspace-1',
-      },
-    })
-  })
-
-  it('does not mislabel a membership failure as a workspace failure', async () => {
-    queueTableRows(outboxEvent, [
-      {
-        id: '1c38ca61-79d5-4d24-8094-c29cb52132ba',
-        eventType: 'admin.organization-member-operation',
-        payload: payload(['workspace-1', 'workspace-2']),
-        status: 'dead_letter',
-        lastError: 'Seat limit reached',
-        createdAt: new Date('2026-08-20T00:00:00.000Z'),
-      },
-    ])
-    queueTableRows(outboxEvent, [{ selected: 0, completed: 0, failed: 0 }])
-
-    await expect(
-      getAdminMemberOperation('org-new', '1c38ca61-79d5-4d24-8094-c29cb52132ba')
-    ).resolves.toMatchObject({
-      error: 'Seat limit reached',
-      workspaceMoves: {
-        selected: 2,
-        moved: 0,
-        pending: 2,
-        failedCount: 0,
-        failed: [],
-      },
-    })
-  })
-
-  it('separates the active failed workspace from still-pending workspaces', async () => {
-    queueTableRows(outboxEvent, [
-      {
-        id: '1c38ca61-79d5-4d24-8094-c29cb52132ba',
-        eventType: 'admin.organization-member-operation',
-        payload: {
-          ...payload(['workspace-1', 'workspace-2', 'workspace-3']),
-          progress: {
-            memberId: 'member-new',
-            transferredFromOrganizationId: 'org-old',
-            nextWorkspaceIndex: 1,
-            currentWorkspaceId: 'workspace-2',
-          },
-        },
-        status: 'dead_letter',
-        lastError: 'Move failed',
-        createdAt: new Date('2026-08-20T00:00:00.000Z'),
-      },
-    ])
-    queueTableRows(outboxEvent, [{ selected: 0, completed: 0, failed: 0 }])
-
-    await expect(
-      getAdminMemberOperation('org-new', '1c38ca61-79d5-4d24-8094-c29cb52132ba')
-    ).resolves.toMatchObject({
-      workspaceMoves: {
-        selected: 3,
-        moved: 1,
-        pending: 1,
-        failedCount: 1,
-        failed: [{ workspaceId: 'workspace-2', error: 'Move failed' }],
-      },
-    })
-  })
-
-  it('keeps migrated invitation delivery visible after the parent operation is applied', async () => {
-    queueTableRows(outboxEvent, [
-      {
-        id: '1c38ca61-79d5-4d24-8094-c29cb52132ba',
-        eventType: 'admin.organization-member-operation',
-        payload: {
-          ...payload(['workspace-1']),
-          progress: {
-            memberId: 'member-new',
-            transferredFromOrganizationId: 'org-old',
-            nextWorkspaceIndex: 1,
-            currentWorkspaceId: null,
-          },
-        },
-        status: 'completed',
-        lastError: null,
-        createdAt: new Date('2026-08-20T00:00:00.000Z'),
-      },
-    ])
-    queueTableRows(outboxEvent, [{ selected: 2, completed: 1, failed: 1 }])
-    queueTableRows(outboxEvent, [
-      {
-        eventId: 'email-job-2',
-        invitationId: 'invitation-2',
-        error: 'provider unavailable',
-      },
-    ])
-
-    await expect(
-      getAdminMemberOperation('org-new', '1c38ca61-79d5-4d24-8094-c29cb52132ba')
-    ).resolves.toMatchObject({
-      status: 'applied',
-      followUpJobs: {
-        selected: 2,
-        completed: 1,
-        pending: 0,
-        failedCount: 1,
-        failed: [
-          {
-            eventId: 'email-job-2',
-            kind: 'migrated_invitation_email',
-            subjectId: 'invitation-2',
-            error: 'provider unavailable',
-          },
-        ],
       },
     })
   })

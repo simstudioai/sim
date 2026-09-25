@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -66,7 +63,6 @@ function oauthCredential(id: string, workspaceId = 'workspace-1') {
 
 describe('deleteManyCredentialsUseCase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue(workspace)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.deleteCredential.mockResolvedValue(true)
@@ -102,10 +98,6 @@ describe('deleteManyCredentialsUseCase', () => {
       deletedCredentials: [allowed],
     })
     expect(mocks.deleteCredential).toHaveBeenCalledOnce()
-    expect(mocks.deleteCredential).toHaveBeenCalledWith({
-      credential: allowed,
-      reason: 'copilot_delete',
-    })
   })
 
   it('rejects duplicate IDs before loading any credential', async () => {

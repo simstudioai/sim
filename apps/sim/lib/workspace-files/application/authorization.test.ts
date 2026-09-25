@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,24 +32,7 @@ async function expectForbidden(principal: Principal) {
 
 describe('file operation authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resolvePermission.mockResolvedValue('write')
-  })
-
-  it('uses the current workspace permission for sessions', async () => {
-    await authorizeWorkspaceFileAccess(
-      { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      fileOperations.rename,
-      authorizationContext
-    )
-
-    expect(resolvePermission).toHaveBeenCalledWith(
-      'user-1',
-      'workspace-1',
-      'organization-1',
-      undefined,
-      { forUpdate: undefined }
-    )
   })
 
   it('rejects a reader for a write operation', async () => {

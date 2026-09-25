@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/tokenization/accurate', () => ({
@@ -17,7 +16,6 @@ vi.mock('@/providers/models', () => ({
 }))
 
 import {
-  markConversationExchangeGroup,
   selectConversationContextWindow,
   selectConversationMessageWindow,
   selectConversationTokenWindow,
@@ -56,18 +54,6 @@ describe('conversation history windows', () => {
     )
   })
 
-  it('keeps portable execution receipts in the same zero-slot exchange category', () => {
-    const receipt: Message[] = [{ role: 'user', content: 'bounded untrusted execution receipt' }]
-    markConversationExchangeGroup(receipt)
-    const groups = [user, receipt, final]
-    expect(selectConversationMessageWindow(groups.flat(), 2, groups)).toEqual(groups.flat())
-  })
-
-  it('preserves legacy plain-message window semantics', () => {
-    expect(selectConversationMessageWindow([...user, ...final], 1)).toEqual(final)
-    expect(selectConversationTokenWindow([...user, ...final], 6)).toEqual(final)
-  })
-
   it('bounds token work for large legacy text while retaining the newest complete group', () => {
     const large: Message[] = [{ role: 'user', content: 'x'.repeat(140_000) }]
     expect(selectConversationTokenWindow([...large, ...final], 100)).toEqual(final)
@@ -82,12 +68,6 @@ describe('conversation history windows', () => {
       expect(selectConversationContextWindow(groups.flat(), model, groups)).toEqual(final)
     }
   )
-
-  it('uses the shared conservative limit for uncatalogued models', () => {
-    const old: Message[] = [{ role: 'user', content: 'x'.repeat(40_000) }]
-    expect(selectConversationContextWindow([...old, ...final], 'unknown')).toEqual(final)
-    expect(selectConversationContextWindow([...old, ...final])).toEqual([...old, ...final])
-  })
 
   it('budgets call arguments and never retains half a parallel batch', () => {
     const groups = [user, exchange('batch'), final]

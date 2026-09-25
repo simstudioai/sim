@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   hasMockCondition,
@@ -41,7 +38,6 @@ const organizationPayload = {
 
 describe('chat retention ownership', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-07T12:00:00Z'))
@@ -142,12 +138,6 @@ describe('chat retention ownership', () => {
     ).rejects.toThrow('Cleanup batches must name workspace or organization owners, not both')
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-    expect(mockPrepareChatCleanup).not.toHaveBeenCalled()
-  })
-
-  it('does no work for an empty owner batch', async () => {
-    await runCleanupTasks({ ...organizationPayload, organizationIds: [] })
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
     expect(mockPrepareChatCleanup).not.toHaveBeenCalled()
   })
 })

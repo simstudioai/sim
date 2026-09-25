@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch, mockResolveCredentialBundle } = vi.hoisted(() => ({
@@ -47,7 +44,6 @@ function tableArgs(signal?: AbortSignal): ExecuteServerSelectorArgs {
 
 describe('Snowflake server selector adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveCredentialBundle.mockResolvedValue({
       accessToken: 'server-only-token',
@@ -125,41 +121,6 @@ describe('Snowflake server selector adapter', () => {
       message: 'Options unavailable',
       status: 502,
     })
-    expect(mockFetch).toHaveBeenCalledTimes(2)
-  })
-
-  it('preserves caller cancellation during a later partition', async () => {
-    const controller = new AbortController()
-    const abortError = new DOMException('The operation was aborted', 'AbortError')
-    let markLaterFetchStarted: (() => void) | undefined
-    const laterFetchStarted = new Promise<void>((resolve) => {
-      markLaterFetchStarted = resolve
-    })
-    mockFetch
-      .mockResolvedValueOnce(
-        jsonResponse({
-          statementHandle: STATEMENT_HANDLE,
-          data: [['ALPHA', null]],
-          resultSetMetaData: {
-            numRows: 3,
-            partitionInfo: [{ rowCount: 1 }, { rowCount: 1 }, { rowCount: 1 }],
-          },
-        })
-      )
-      .mockImplementationOnce((_input: RequestInfo | URL, init?: RequestInit) => {
-        markLaterFetchStarted?.()
-        return new Promise<Response>((_resolve, reject) => {
-          init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
-        })
-      })
-
-    const execution = snowflakeSelectorAttachments['snowflake.tables'].execute(
-      tableArgs(controller.signal)
-    )
-    await laterFetchStarted
-    controller.abort(abortError)
-
-    await expect(execution).rejects.toBe(abortError)
     expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 

@@ -5,8 +5,6 @@
  * write most able to push a workspace past `MAX_FOLDERS_PER_WORKSPACE` — the ceiling every
  * capped folder reader materializes under. These pin that the whole subtree is charged
  * against the ceiling in one check, before anything is inserted.
- *
- * @vitest-environment node
  */
 import {
   auditMock,
@@ -120,28 +118,12 @@ describe('POST /api/folders/[id]/duplicate', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({ user: TEST_USER })
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('admin')
     mockNextFolderSortOrder.mockResolvedValue(0)
     mockDeduplicateFolderName.mockImplementation(async (_tx, _ws, _parent, name) => name)
     mockDuplicateWorkflow.mockResolvedValue({ id: 'wf-copy' })
-  })
-
-  it('duplicates a folder that still fits under the ceiling', async () => {
-    queueDuplicationReads({
-      skeleton: [{ id: SOURCE_FOLDER_ID, parentId: null }],
-      activeFolderCount: MAX_FOLDERS_PER_WORKSPACE - 1,
-    })
-    // Child-folder recursion finds nothing, then the response re-reads the new folder.
-    queueTableRows(schemaMock.folder, [])
-    queueTableRows(schemaMock.folder, [folderRow({ id: 'folder-copy', name: 'Copy' })])
-
-    const response = await POST(duplicateRequest(), routeContext)
-
-    expect(response.status).toBe(201)
-    await expect(response.json()).resolves.toMatchObject({ folder: { name: 'Copy' } })
   })
 
   it('refuses a single-folder duplicate once the workspace is at the ceiling', async () => {

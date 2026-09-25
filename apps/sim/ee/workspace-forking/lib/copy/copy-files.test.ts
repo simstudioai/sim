@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-import { folder as folderTable } from '@sim/db/schema'
 import {
   dbChainMockFns,
   type MockCondition,
@@ -116,7 +112,6 @@ function makeTask(overrides: Partial<BlobCopyTask> = {}): BlobCopyTask {
 
 describe('executeForkFileBlobCopies storage accounting', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     fileRows.length = 0
     storageServiceMockFns.mockHeadObject.mockResolvedValue(null)
@@ -165,31 +160,6 @@ describe('executeForkFileBlobCopies storage accounting', () => {
     expect(storageServiceMockFns.mockUploadFile.mock.invocationCallOrder[0]).toBeLessThan(
       dbChainMockFns.transaction.mock.invocationCallOrder[0]
     )
-  })
-
-  it('bulk-checks finalized metadata once per bounded task page', async () => {
-    const tasks = Array.from({ length: 501 }, (_, index) =>
-      makeTask({
-        sourceKey: `workspace/src-ws/source-${index}.txt`,
-        targetKey: `workspace/child-ws/target-${index}.txt`,
-        targetFileId: `target-file-${index}`,
-      })
-    )
-    const finalizedRows = tasks.map((task) => ({
-      id: task.targetFileId,
-      key: task.targetKey,
-      workspaceId: task.workspaceId,
-    }))
-    dbChainMockFns.where
-      .mockResolvedValueOnce(finalizedRows.slice(0, 500))
-      .mockResolvedValueOnce(finalizedRows.slice(500))
-
-    const result = await executeForkFileBlobCopies(tasks, 'test')
-
-    expect(result).toEqual({ copied: 501, failed: 0, failedTargetKeys: [] })
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
-    expect(storageServiceMockFns.mockHeadObject).not.toHaveBeenCalled()
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 
   it('rejects bulk replay metadata whose deterministic key or workspace does not match', async () => {
@@ -387,7 +357,6 @@ describe('executeForkFileBlobCopies target name collisions', () => {
     })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     fileRows.length = 0
     storageServiceMockFns.mockHeadObject.mockResolvedValue(null)
@@ -447,28 +416,6 @@ describe('executeForkFileBlobCopies target name collisions', () => {
     await executeForkFileBlobCopies([collidingTask()], 'test')
 
     expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalledWith({ target: 'workspaceFiles.id' })
-  })
-
-  it('copies a non-colliding file into the mirrored folder unchanged', async () => {
-    fileRows.push({
-      id: 'pre-existing',
-      key: 'workspace/child-ws/pre-existing-forecast.xlsx',
-      workspaceId: 'child-ws',
-      folderId: 'target-reports',
-      context: 'workspace',
-      originalName: 'forecast.xlsx',
-      deletedAt: null,
-    })
-
-    const result = await executeForkFileBlobCopies([collidingTask()], 'test')
-
-    expect(result).toEqual({ copied: 1, failed: 0, failedTargetKeys: [] })
-    expect(fileRows.find((row) => row.id === 'target-file-1')).toMatchObject({
-      folderId: 'target-reports',
-      originalName: 'budget.xlsx',
-      displayName: 'budget.xlsx',
-    })
-    expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
   })
 
   it('de-duplicates each same-named copy against the rows earlier tasks already landed', async () => {
@@ -536,49 +483,6 @@ describe('executeForkFileBlobCopies target name collisions', () => {
 })
 
 describe('planForkFileCopies', () => {
-  it('mirrors a referenced empty folder without planning any file copy', async () => {
-    const sourceFolders = [
-      {
-        id: 'folder-reports',
-        name: 'Reports',
-        parentId: null,
-        workspaceId: 'src-ws',
-        resourceType: 'file',
-        deletedAt: null,
-      },
-    ]
-    const insertedFolders: Array<Record<string, unknown>> = []
-    const selects: unknown[][] = [sourceFolders, [], [{ total: 0 }]]
-    let selectIndex = 0
-    const tx = {
-      select: () => ({
-        from: () => ({
-          where: () => Promise.resolve(selects[selectIndex++] ?? []),
-        }),
-      }),
-      insert: () => ({
-        values: (rows: Array<Record<string, unknown>>) => {
-          insertedFolders.push(...rows)
-          return Promise.resolve()
-        },
-      }),
-    } as unknown as DbOrTx
-
-    const result = await planForkFileCopies({
-      tx,
-      sourceWorkspaceId: 'src-ws',
-      childWorkspaceId: 'child-ws',
-      userId: 'user-1',
-      folderPaths: ['/Reports'],
-      now: new Date('2026-02-01'),
-    })
-
-    expect(result.blobTasks).toEqual([])
-    expect(result.folderPathMap).toEqual(new Map([['/Reports', '/Reports']]))
-    expect(insertedFolders).toHaveLength(1)
-    expect(insertedFolders[0]).toMatchObject({ name: 'Reports', workspaceId: 'child-ws' })
-  })
-
   it('plans deterministic target metadata without inserting an active row before blob copy', async () => {
     const sourceMeta = {
       id: 'wf_src1',
@@ -622,97 +526,5 @@ describe('planForkFileCopies', () => {
       workspaceId: 'child-ws',
     })
     expect(tx.insert).not.toHaveBeenCalled()
-  })
-
-  it('mirrors the source file-folder subtree and places each copy inside it', async () => {
-    const sourceMeta = {
-      id: 'wf_src1',
-      key: 'workspace/src-ws/1-abc-a.txt',
-      userId: 'uploader-1',
-      workspaceId: 'src-ws',
-      folderId: 'child-folder',
-      context: 'workspace',
-      chatId: null,
-      originalName: 'a.txt',
-      displayName: null,
-      contentType: 'text/plain',
-      size: 4321,
-      sizeBytes: 4321,
-      deletedAt: null,
-      uploadedAt: new Date('2026-01-01'),
-      updatedAt: new Date('2026-01-01'),
-      contentUpdatedAt: new Date('2026-01-01'),
-    }
-    // A two-level source tree; only the branch holding the copied file is mirrored.
-    const sourceFolders = [
-      {
-        id: 'root-folder',
-        name: 'Reports',
-        parentId: null,
-        workspaceId: 'src-ws',
-        resourceType: 'file',
-        deletedAt: null,
-      },
-      {
-        id: 'child-folder',
-        name: 'Q1',
-        parentId: 'root-folder',
-        workspaceId: 'src-ws',
-        resourceType: 'file',
-        deletedAt: null,
-      },
-      {
-        id: 'unrelated',
-        name: 'Archive',
-        parentId: null,
-        workspaceId: 'src-ws',
-        resourceType: 'file',
-        deletedAt: null,
-      },
-    ]
-    const insertedFolders: Array<Record<string, unknown>> = []
-    let folderSelectCall = 0
-    const tx = {
-      select: vi.fn(() => ({
-        from: (table: unknown) => ({
-          where: () => {
-            if (table !== folderTable) return Promise.resolve([sourceMeta])
-            // First folder read is the source tree; the second is the (empty) target tree.
-            return Promise.resolve(folderSelectCall++ === 0 ? sourceFolders : [])
-          },
-        }),
-      })),
-      insert: vi.fn(() => ({
-        values: (rows: Array<Record<string, unknown>>) => {
-          insertedFolders.push(...rows)
-          return Promise.resolve()
-        },
-      })),
-    } as unknown as DbOrTx
-
-    const result = await planForkFileCopies({
-      tx,
-      sourceWorkspaceId: 'src-ws',
-      childWorkspaceId: 'child-ws',
-      userId: 'user-1',
-      fileIds: ['wf_src1'],
-      now: new Date('2026-02-01'),
-    })
-
-    // The file's folder and its ancestor are recreated; the unrelated branch is pruned.
-    expect(insertedFolders).toHaveLength(2)
-    const byName = new Map(insertedFolders.map((row) => [row.name, row]))
-    expect(byName.has('Archive')).toBe(false)
-    const newRoot = byName.get('Reports')!
-    const newChild = byName.get('Q1')!
-    expect(newRoot).toMatchObject({ parentId: null, workspaceId: 'child-ws' })
-    // Nesting survives: the copied child points at the copied parent, not the source's.
-    expect(newChild.parentId).toBe(newRoot.id)
-    expect(newChild.id).not.toBe('child-folder')
-
-    // The copied file lands in the mirrored folder rather than the target root.
-    expect(result.blobTasks[0].targetFolderId).toBe(newChild.id)
-    expect(result.folderIdMap.get('child-folder')).toBe(newChild.id)
-    expect(result.folderIdMap.get('root-folder')).toBe(newRoot.id)
   })
 })

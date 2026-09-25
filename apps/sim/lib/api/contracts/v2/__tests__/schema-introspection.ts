@@ -13,7 +13,7 @@
 /** Depth cap so a self-referential `lazy` schema cannot spin the walk. */
 export const MAX_SCHEMA_DEPTH = 12
 
-export interface SchemaLike {
+interface SchemaLike {
   def?: Record<string, unknown>
   safeParse: (value: unknown) => { success: boolean; error?: { issues: readonly unknown[] } }
 }
@@ -30,22 +30,10 @@ function schemaDef(schema: unknown): Record<string, unknown> | undefined {
  * member: asserting against the union itself is satisfied by any one strict
  * member, so a sibling that stopped being strict would still sweep green.
  *
- * A schema the walk cannot resolve falls back to the schema itself, so callers
- * that only `safeParse` the result keep working; use `rejectsUnknownKeys` when
- * an unresolvable schema must be distinguishable from a non-strict one.
- *
  * Note that a Zod 4 `.refine()` is a check on the schema rather than a wrapper,
  * so a refined object still reports `def.type === 'object'` and needs no
  * unwrapping here.
  */
-export function strictnessTargets(
-  schema: SchemaLike,
-  depth: number = MAX_SCHEMA_DEPTH
-): SchemaLike[] {
-  const resolved = resolveStrictnessTargets(schema, depth)
-  return resolved ?? [schema]
-}
-
 function resolveStrictnessTargets(schema: unknown, depth: number): SchemaLike[] | null {
   if (!schema || depth <= 0) return null
   const def = schemaDef(schema)

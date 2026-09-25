@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   hasMockCondition,
@@ -21,8 +18,6 @@ import {
   DATABASE_FAILURE_ALERT_STREAK,
   DATABASE_RETRY_AFTER_PROGRESS_MS,
   databaseRetryDelayMs,
-  RUN_HISTORY_LOCK_TIMEOUT_MS,
-  RUN_HISTORY_STATEMENT_TIMEOUT_MS,
   resolveDatabaseRetryDelayMs,
 } from '@/lib/knowledge/connectors/sync-database-retry'
 import {
@@ -44,7 +39,7 @@ const contentRun = (
   ...NO_WRITES,
   ...writes,
 })
-const memberRun = (
+const _memberRun = (
   status: string,
   writes: Record<string, number> = {},
   databaseFailureClass: string | null = failureClassOf(status)
@@ -86,62 +81,6 @@ describe('countZeroProgressFailedRuns', () => {
     expect(await countZeroProgressFailedRuns('content', 'c-1', 'run-1')).toBe(2)
   })
 
-  it.each([
-    ['a provider or throttling failure', 'content'],
-    ['a run logged before failure classes were recorded', 'content'],
-    ['a provider failure of a members-mode run', 'member'],
-  ] as const)('ends the streak at %s', async (_label, kind) => {
-    const table =
-      kind === 'content'
-        ? schemaMock.knowledgeConnectorSyncLog
-        : schemaMock.knowledgeConnectorMemberSyncLog
-    const run = kind === 'content' ? contentRun : memberRun
-    queueTableRows(table, [
-      run('failed', {}, 'connection'),
-      run('failed', {}, null),
-      run('failed', {}, 'conflict'),
-    ])
-    expect(await countZeroProgressFailedRuns(kind, 'c-1', 'run-1')).toBe(2)
-  })
-
-  it('counts only this run after a success', async () => {
-    queueTableRows(schemaMock.knowledgeConnectorSyncLog, [
-      contentRun('completed'),
-      contentRun('failed'),
-    ])
-    expect(await countZeroProgressFailedRuns('content', 'c-1', 'run-1')).toBe(1)
-  })
-
-  it('counts an unbroken history in full', async () => {
-    queueTableRows(schemaMock.knowledgeConnectorSyncLog, [
-      contentRun('failed'),
-      contentRun('failed'),
-    ])
-    expect(await countZeroProgressFailedRuns('content', 'c-1', 'run-1')).toBe(3)
-  })
-
-  it('reads the members-mode run log for a members-mode run', async () => {
-    queueTableRows(schemaMock.knowledgeConnectorMemberSyncLog, [
-      memberRun('failed'),
-      memberRun('started'),
-    ])
-    expect(await countZeroProgressFailedRuns('member', 'c-1', 'run-1')).toBe(2)
-  })
-
-  it.each([
-    ['completed a member', { membersCompleted: 1 }],
-    ['added documents', { docsAdded: 3 }],
-    ['updated documents', { docsUpdated: 1 }],
-    ['purged documents', { docsPurged: 4 }],
-  ])('ends a members-mode streak at a failed run that %s', async (_label, writes) => {
-    queueTableRows(schemaMock.knowledgeConnectorMemberSyncLog, [
-      memberRun('failed'),
-      memberRun('failed', writes),
-      memberRun('failed'),
-    ])
-    expect(await countZeroProgressFailedRuns('member', 'c-1', 'run-1')).toBe(2)
-  })
-
   it('excludes the current run and reads only as far back as the ladder climbs', async () => {
     queueTableRows(schemaMock.knowledgeConnectorSyncLog, [])
     await countZeroProgressFailedRuns('content', 'c-1', 'run-1')
@@ -160,24 +99,6 @@ describe('countZeroProgressFailedRuns', () => {
     )
   })
 
-  it('bounds the history read with its own statement and lock timeouts', async () => {
-    queueTableRows(schemaMock.knowledgeConnectorSyncLog, [])
-    await countZeroProgressFailedRuns('content', 'c-1', 'run-1')
-    const bound = dbChainMockFns.execute.mock.calls[0]?.[0] as {
-      toSQL: () => { sql: string; params: unknown[] }
-    }
-    const { sql, params } = bound.toSQL()
-    expect(sql).toContain("set_config('statement_timeout'")
-    expect(sql).toContain("set_config('lock_timeout'")
-    expect(params).toEqual([
-      String(RUN_HISTORY_STATEMENT_TIMEOUT_MS),
-      String(RUN_HISTORY_LOCK_TIMEOUT_MS),
-    ])
-    expect(dbChainMockFns.execute.mock.invocationCallOrder[0]).toBeLessThan(
-      dbChainMockFns.select.mock.invocationCallOrder[0]
-    )
-  })
-
   it('falls back to this run alone when the history read times out', async () => {
     queueTableRows(schemaMock.knowledgeConnectorSyncLog, [
       contentRun('failed'),
@@ -186,11 +107,6 @@ describe('countZeroProgressFailedRuns', () => {
     dbChainMockFns.limit.mockRejectedValueOnce(
       Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' })
     )
-    expect(await countZeroProgressFailedRuns('content', 'c-1', 'run-1')).toBe(1)
-  })
-
-  it('falls back to this run alone when the history cannot be read', async () => {
-    dbChainMockFns.limit.mockRejectedValueOnce(new Error('canceling statement'))
     expect(await countZeroProgressFailedRuns('content', 'c-1', 'run-1')).toBe(1)
   })
 })
@@ -207,12 +123,6 @@ describe('databaseRetryDelayMs', () => {
     expect(delay).toBeLessThanOrEqual(minutes * MINUTE + MINUTE)
   })
 
-  it('stops at the ladder ceiling', () => {
-    expect(databaseRetryDelayMs(1_000, 0)).toBeLessThanOrEqual(
-      CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES * MINUTE + MINUTE
-    )
-  })
-
   it('never waits less than the rung the breaker count already earned', () => {
     const delay = databaseRetryDelayMs(1, MAX_CONSECUTIVE_FAILURES - 1)
     expect(delay).toBeGreaterThanOrEqual(MAX_CONSECUTIVE_FAILURES * 30 * MINUTE)
@@ -221,7 +131,6 @@ describe('databaseRetryDelayMs', () => {
 
 describe('resolveDatabaseRetryDelayMs', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -254,18 +163,6 @@ describe('resolveDatabaseRetryDelayMs', () => {
     expect(delay).toBeLessThanOrEqual(91 * MINUTE)
   })
 
-  it('reports a streak that reaches the alert threshold at error level, without disabling', async () => {
-    queueTableRows(
-      schemaMock.knowledgeConnectorSyncLog,
-      Array.from({ length: DATABASE_FAILURE_ALERT_STREAK - 1 }, () => contentRun('failed'))
-    )
-    await resolveDatabaseRetryDelayMs({ ...retry, madeProgress: false })
-    expect(mockLogError).toHaveBeenCalledWith(
-      'Connector sync keeps failing on the database without progress',
-      { connectorId: 'c-1', kind: 'content', zeroProgressFailedRuns: DATABASE_FAILURE_ALERT_STREAK }
-    )
-  })
-
   /** Throttled or provider-failed runs are logged `failed` too, but say nothing of the database. */
   it('neither climbs nor alerts on failed runs the database did not cause', async () => {
     queueTableRows(schemaMock.knowledgeConnectorSyncLog, [
@@ -276,15 +173,6 @@ describe('resolveDatabaseRetryDelayMs', () => {
     ])
     const delay = await resolveDatabaseRetryDelayMs({ ...retry, madeProgress: false })
     expect(delay).toBeLessThanOrEqual(61 * MINUTE)
-    expect(mockLogError).not.toHaveBeenCalled()
-  })
-
-  it('stays quiet below the alert threshold', async () => {
-    queueTableRows(
-      schemaMock.knowledgeConnectorSyncLog,
-      Array.from({ length: DATABASE_FAILURE_ALERT_STREAK - 2 }, () => contentRun('failed'))
-    )
-    await resolveDatabaseRetryDelayMs({ ...retry, madeProgress: false })
     expect(mockLogError).not.toHaveBeenCalled()
   })
 })

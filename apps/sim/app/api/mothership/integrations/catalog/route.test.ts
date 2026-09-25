@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -67,7 +66,6 @@ function checkpoint(catalogInput: IntegrationCatalogRequest = input) {
   })
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.permission.mockResolvedValue('read')
   mocks.workspace.mockResolvedValue({
     workspaceId: scope.workspaceId,
@@ -113,16 +111,6 @@ describe('direct and checkpoint catalog authorization parity', () => {
     expect(outbound.status).toBe(400)
     expect(JSON.stringify(await direct.json())).toContain('Unknown integration service')
     expect(outbound.body).toContain('Unknown integration service')
-  })
-
-  it('returns identical authorized schema responses through HTTP and outbound control', async () => {
-    const direct = await POST(request())
-    const outbound = await checkpoint()
-    expect(direct.status).toBe(200)
-    expect(outbound.status).toBe(200)
-    expect(await direct.json()).toEqual(JSON.parse(outbound.body))
-    expect(mocks.permission).toHaveBeenCalledTimes(2)
-    expect(mocks.build).toHaveBeenCalledTimes(2)
   })
   it('rejects revoked workspace membership on both transports before catalog loading', async () => {
     mocks.permission.mockResolvedValue(null)

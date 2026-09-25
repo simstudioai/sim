@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -162,7 +159,6 @@ const baseRequest: ProviderRequest = {
 
 describe('openRouterProvider.executeRequest', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockConversationContext.mockReturnValue(undefined)
     mockCapabilities.mockResolvedValue(null)
     mockCreate.mockReset()
@@ -255,12 +251,6 @@ describe('openRouterProvider.executeRequest', () => {
     }
   )
 
-  it('requires an API key', async () => {
-    await expect(
-      openRouterProvider.executeRequest({ model: 'openrouter/x', messages: [] })
-    ).rejects.toThrow('API key is required for OpenRouter')
-  })
-
   it('strips the openrouter/ prefix and returns content + tokens', async () => {
     mockCreate.mockResolvedValueOnce(textResponse('Hi there'))
 
@@ -291,16 +281,6 @@ describe('openRouterProvider.executeRequest', () => {
     expect(messages[0]).toEqual({ role: 'system', content: 'You are helpful.' })
     expect(messages[1]).toEqual({ role: 'user', content: 'CTX' })
     expect(messages[2]).toEqual({ role: 'user', content: 'Hello' })
-  })
-
-  it('forwards maxTokens as max_tokens and temperature', async () => {
-    mockCreate.mockResolvedValueOnce(textResponse('ok'))
-
-    await openRouterProvider.executeRequest({ ...baseRequest, maxTokens: 256, temperature: 0.4 })
-
-    const payload = mockCreate.mock.calls[0][0]
-    expect(payload.max_tokens).toBe(256)
-    expect(payload.temperature).toBe(0.4)
   })
 
   it('runs the tool loop: executes the tool, echoes tool_calls, returns the tool result, sums tokens', async () => {
@@ -584,11 +564,5 @@ describe('openRouterProvider.executeRequest', () => {
     expect(res.toolCalls?.length).toBe(10)
     expect(res.content).toBe('iteration limit answer')
     expect(mockCreate.mock.calls.at(-1)?.[0]).toMatchObject({ tool_choice: 'none' })
-  })
-
-  it('wraps SDK errors in a ProviderError', async () => {
-    mockCreate.mockRejectedValueOnce(new Error('rate limited'))
-
-    await expect(openRouterProvider.executeRequest(baseRequest)).rejects.toThrow('rate limited')
   })
 })

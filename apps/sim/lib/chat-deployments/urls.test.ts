@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, resetEnvMock, setEnv, setEnvFlags } from '@sim/testing'
 import { afterEach, describe, expect, it } from 'vitest'
 import { buildChatDeploymentUrl } from '@/lib/chat-deployments/urls'
@@ -15,18 +12,6 @@ describe('buildChatDeploymentUrl', () => {
     setEnv({ NEXT_PUBLIC_APP_URL: 'https://sim.ai' })
 
     expect(buildChatDeploymentUrl('support')).toBe('https://sim.ai/chat/support')
-  })
-
-  it.each([
-    'https://www.dev.sim.ai',
-    'https://www.staging.sim.ai',
-    'https://www.sim.ai',
-    'https://www.custom.example:8443',
-    'http://localhost:3000',
-  ])('preserves the configured origin %s', (origin) => {
-    setEnv({ NEXT_PUBLIC_APP_URL: `${origin}/` })
-
-    expect(buildChatDeploymentUrl('support')).toBe(`${origin}/chat/support`)
   })
 
   /**

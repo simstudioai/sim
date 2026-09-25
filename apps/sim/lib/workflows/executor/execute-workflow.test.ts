@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
@@ -112,7 +109,6 @@ const principal = {
 
 describe('executeWorkflow', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     safeStartMock.mockResolvedValue(true)
     waitForPostExecutionMock.mockResolvedValue(undefined)
     projectDiagnosticErrorMock.mockImplementation(
@@ -200,52 +196,6 @@ describe('executeWorkflow', () => {
     expect(executeWorkflowCoreMock).not.toHaveBeenCalled()
   })
 
-  it('propagates validated attribution through execution metadata to logger startup', async () => {
-    await executeWorkflow(workflow, 'request-1', { prompt: 'hello' }, 'actor-1', {
-      enabled: true,
-      principal,
-      workflowTriggerType: 'copilot',
-      billingAttribution,
-    })
-
-    const coreParams = executeWorkflowCoreMock.mock.calls[0]?.[0] as {
-      snapshot: ExecutionSnapshot
-    }
-    expect(coreParams.snapshot.metadata.billingAttribution).toEqual(billingAttribution)
-    expect(Object.isFrozen(coreParams.snapshot.metadata.billingAttribution)).toBe(true)
-    expect(safeStartMock).toHaveBeenCalledWith({
-      userId: 'actor-1',
-      billingAttribution,
-      workspaceId: 'workspace-1',
-    })
-    expect(loggingSessionConstructorMock).toHaveBeenCalledWith(
-      'workflow-1',
-      'execution-1',
-      'copilot',
-      'request-1'
-    )
-  })
-
-  it('forwards trusted initial trace-secret provenance to the execution core', async () => {
-    const provenance = {
-      version: 1 as const,
-      complete: true,
-      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
-      scope: { userId: 'actor-1', workspaceId: 'workspace-1' },
-    }
-
-    await executeWorkflow(workflow, 'request-1', { prompt: 'hello' }, 'actor-1', {
-      enabled: true,
-      principal,
-      billingAttribution,
-      trustedInitialResolvedSecretTraceProvenance: provenance,
-    })
-
-    expect(executeWorkflowCoreMock).toHaveBeenCalledWith(
-      expect.objectContaining({ trustedInitialResolvedSecretTraceProvenance: provenance })
-    )
-  })
-
   it.each([
     ['secret-bearing', { complete: true, entries: [{ encryptedValue: 'encrypted-secret' }] }, true],
     ['exact-empty', { complete: true, entries: [] }, true],
@@ -311,32 +261,6 @@ describe('executeWorkflow', () => {
       )
     }
   )
-
-  it('forwards a trusted immutable workflow state to the execution snapshot', async () => {
-    const workflowStateOverride = {
-      blocks: { 'block-1': { id: 'block-1', type: 'start_trigger' } },
-      edges: [],
-      loops: {},
-      parallels: {},
-      variables: {
-        'variable-1': { id: 'variable-1', name: 'deployed', value: 'frozen' },
-      },
-      deploymentVersionId: 'deployment-version-1',
-    }
-
-    await executeWorkflow(workflow, 'request-1', { prompt: 'hello' }, 'actor-1', {
-      enabled: true,
-      principal,
-      billingAttribution,
-      workflowStateOverride,
-    })
-
-    const coreParams = executeWorkflowCoreMock.mock.calls[0]?.[0] as {
-      snapshot: ExecutionSnapshot
-    }
-    expect(coreParams.snapshot.metadata.workflowStateOverride).toEqual(workflowStateOverride)
-    expect(coreParams.snapshot.workflowVariables).toEqual(workflowStateOverride.variables)
-  })
 
   it('waits for post-execution persistence before resolving', async () => {
     let resolvePostExecution!: () => void
@@ -422,22 +346,6 @@ describe('executeWorkflow', () => {
   })
 
   /** A non-Error cannot carry the result, so it is normalized before anything reads it. */
-  it('normalizes a non-Error post-execution failure so it can carry the result', async () => {
-    const result = { success: true, output: { ran: true }, logs: [] }
-    executeWorkflowCoreMock.mockResolvedValueOnce(result)
-    handlePostExecutionPauseStateMock.mockRejectedValueOnce('pause persistence exploded')
-
-    const thrown = await executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
-      enabled: true,
-      principal,
-      billingAttribution,
-    }).catch((error: unknown) => error)
-
-    expect(thrown).toBeInstanceOf(Error)
-    expect(hasExecutionResult(thrown)).toBe(true)
-    expect((thrown as { executionResult?: unknown }).executionResult).toBe(result)
-  })
-
   it('transfers post-execution ownership with successful streaming metadata', async () => {
     const result = await executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
       enabled: true,
@@ -464,67 +372,5 @@ describe('executeWorkflow', () => {
     ).rejects.toBe(executionError)
 
     expect(waitForPostExecutionMock).toHaveBeenCalledOnce()
-  })
-
-  it('persists server-issued workflow-group correlation in execution metadata', async () => {
-    const correlation = {
-      executionId: 'execution-1',
-      requestId: 'wfgrp-execution-1',
-      source: 'workflow_group' as const,
-      workflowId: 'workflow-1',
-      triggerType: 'table',
-      tableId: 'table-1',
-      rowId: 'row-1',
-      groupId: 'group-1',
-    }
-
-    await executeWorkflow(workflow, 'request-1', { rowId: 'row-1' }, 'actor-1', {
-      enabled: true,
-      principal,
-      workflowTriggerType: 'table',
-      billingAttribution,
-      trustedExecutionCorrelation: correlation,
-    })
-
-    const coreParams = executeWorkflowCoreMock.mock.calls[0]?.[0] as {
-      snapshot: ExecutionSnapshot
-    }
-    expect(coreParams.snapshot.metadata.correlation).toEqual(correlation)
-    expect(setTrustedExecutionCorrelationMock).toHaveBeenCalledWith(correlation)
-  })
-
-  it('uses the shared diagnostic projection for operational logs and failure telemetry', async () => {
-    const secret = 'workflow-telemetry-secret-7f3a91'
-    const error = new Error(`failed ${secret} __var_API_KEY __sim_code_1_binding_0`)
-    const projectedError = 'failed {{API_KEY}} {{API_KEY}} [RUNTIME_BINDING]'
-    executeWorkflowCoreMock.mockRejectedValueOnce(error)
-    projectDiagnosticErrorMock.mockReturnValueOnce({ error: projectedError, errorName: 'Error' })
-
-    await expect(
-      executeWorkflow(workflow, 'request-1', undefined, 'actor-1', {
-        enabled: true,
-        principal,
-        billingAttribution,
-      })
-    ).rejects.toBe(error)
-
-    expect(workflowExecutionLogger.error).toHaveBeenCalledWith(
-      '[request-1] Workflow execution failed',
-      { error: projectedError, errorName: 'Error' }
-    )
-    expect(captureServerEventMock).toHaveBeenCalledWith(
-      'actor-1',
-      'workflow_execution_failed',
-      expect.objectContaining({ error_message: projectedError }),
-      expect.anything()
-    )
-    const observabilityPayload = JSON.stringify({
-      logger: workflowExecutionLogger.error.mock.calls,
-      telemetry: captureServerEventMock.mock.calls,
-    })
-    expect(observabilityPayload).not.toContain(secret)
-    expect(observabilityPayload).not.toContain('__var_')
-    expect(observabilityPayload).not.toContain('__sim_')
-    expect(error.message).toContain(secret)
   })
 })

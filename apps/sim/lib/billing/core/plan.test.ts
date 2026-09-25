@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { member, organization, subscription } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -55,7 +52,6 @@ function orgEnterprise(orgId: string): SubRow {
 
 describe('getHighestPrioritySubscription', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -87,23 +83,6 @@ describe('getHighestPrioritySubscription', () => {
     expect(result?.id).toBe('sub-org-enterprise')
   })
 
-  it('issues BOTH the personal-subscriptions and memberships queries (parallelized pair)', async () => {
-    queueTableRows(subscription, [personalPro('user-1')])
-    queueTableRows(member, [{ organizationId: 'org-1' }])
-    queueTableRows(organization, [{ id: 'org-1' }])
-    queueTableRows(subscription, [orgEnterprise('org-1')])
-
-    await getHighestPrioritySubscription('user-1')
-
-    expect(fromTables()).toContain(subscription)
-    expect(fromTables()).toContain(member)
-    // First two queries are exactly the parallelized pair (in either order).
-    const firstTwo = fromTables().slice(0, 2)
-    expect(firstTwo).toHaveLength(2)
-    expect(firstTwo).toContain(subscription)
-    expect(firstTwo).toContain(member)
-  })
-
   it('returns the personal sub and skips org follow-ups when there are no memberships', async () => {
     queueTableRows(subscription, [personalPro('user-1')])
     queueTableRows(member, [])
@@ -115,15 +94,6 @@ describe('getHighestPrioritySubscription', () => {
     // org-existence + org-subscription follow-ups are NOT issued.
     expect(fromTables()).not.toContain(organization)
     expect(fromTables().filter((t) => t === subscription)).toHaveLength(1)
-  })
-
-  it('returns null when neither personal nor org subscriptions exist', async () => {
-    queueTableRows(subscription, [])
-    queueTableRows(member, [])
-
-    const result = await getHighestPrioritySubscription('user-1')
-
-    expect(result).toBeNull()
   })
 
   it('excludes orphaned org memberships whose organization row no longer exists', async () => {

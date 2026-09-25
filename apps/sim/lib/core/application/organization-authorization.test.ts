@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type {
   OAuthAccessTokenPrincipal,
   OrganizationDelegatedPrincipal,
@@ -48,7 +47,6 @@ const oauth: OAuthAccessTokenPrincipal = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.membership.mockResolvedValue([{ role: 'member' }])
   mocks.config.mockResolvedValue(null)
   const query = { from: vi.fn(), where: vi.fn(), limit: mocks.membership }

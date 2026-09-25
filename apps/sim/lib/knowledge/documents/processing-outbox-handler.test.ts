@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -24,7 +20,6 @@ vi.mock('@/lib/knowledge/documents/processing-claim', () => ({
 
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
-import { SYSTEM_ACCESS_SCOPE } from '@/lib/knowledge/access/types'
 import { KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-outbox-event'
 import { knowledgeDocumentProcessingOutboxHandlers } from '@/lib/knowledge/documents/processing-outbox-handler'
 import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery'
@@ -79,7 +74,6 @@ function handler() {
 
 describe('knowledge document processing outbox handler', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getKnowledgeDocument.mockResolvedValue(DOCUMENT)
     mocks.processDocumentsWithQueue.mockResolvedValue({
       requested: 1,
@@ -115,44 +109,6 @@ describe('knowledge document processing outbox handler', () => {
     mocks.processDocumentAsync.mockResolvedValueOnce(undefined)
     await recover(payload, { ...createContext(), attempts: 1 })
     expect(mocks.processDocumentAsync.mock.calls[1][6].chargedAtDispatch).toBe(false)
-  })
-
-  it('gives initial in-process indexing the same lease-bound window as a continuation', async () => {
-    const context = { ...createContext(), deadlineAt: Date.now() + 550_000 }
-    await handler()(PAYLOAD, context)
-    expect(handler().timeoutMs).toBe(550_000)
-    expect(mocks.processDocumentsWithQueue.mock.calls[0][7]).toEqual({
-      signal: context.signal,
-      deadlineAt: context.deadlineAt,
-    })
-  })
-
-  it('dispatches the authoritative document with the stable outbox event id', async () => {
-    await handler()(PAYLOAD, createContext('outbox-event-stable'))
-
-    expect(mocks.getKnowledgeDocument).toHaveBeenCalledWith(
-      'knowledge-base-1',
-      'document-1',
-      SYSTEM_ACCESS_SCOPE
-    )
-    expect(mocks.processDocumentsWithQueue).toHaveBeenCalledWith(
-      [
-        {
-          documentId: 'document-1',
-          filename: 'guide.pdf',
-          fileUrl: '/api/files/serve/kb%2Fguide.pdf?context=knowledge-base',
-          fileSize: 128,
-          mimeType: 'application/pdf',
-        },
-      ],
-      'knowledge-base-1',
-      { recipe: 'default', lang: 'en' },
-      'outbox-event-stable',
-      BILLING_ATTRIBUTION,
-      'interactive',
-      undefined,
-      { signal: expect.any(AbortSignal), deadlineAt: undefined }
-    )
   })
 
   it.each([

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -25,7 +22,6 @@ import { enqueueWorkspaceFileSearchDispatch } from '@/lib/workspace-files/search
 
 describe('workspace file search dispatcher enqueue', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-29T12:34:45.000Z'))
     mocks.resolveRegion.mockResolvedValue('us-east-1')

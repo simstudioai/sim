@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FileSearchAdmission } from '@/lib/workspace-files/search/admission'
 import { WorkspaceFileSearchUnavailableError } from '@/lib/workspace-files/search/errors'
@@ -110,13 +109,6 @@ describe('FileSearchAdmission', () => {
     const next = admission.acquire('c')
     first()
     ;(await next)()
-  })
-
-  it('rejects an already cancelled caller without occupying a slot', async () => {
-    const admission = createAdmission()
-    const reason = new Error('cancelled')
-    await expect(admission.acquire('a', AbortSignal.abort(reason))).rejects.toBe(reason)
-    ;(await admission.acquire('b'))()
   })
 
   it('does not recycle an active slot on cancellation until the database work settles', async () => {

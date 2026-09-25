@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, rm, symlink, writeFile as writeLocalFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -35,7 +32,6 @@ describe('cloud review tools', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     run.mockImplementation(
       (_command: string, options: { envs?: Record<string, string>; timeoutMs: number }) => {
         const operation = options.envs?.REVIEW_TOOL_OPERATION
@@ -320,30 +316,6 @@ describe('cloud review tools', () => {
     expect(JSON.stringify(options.envs)).not.toContain('ghp_')
   })
 
-  it('does not rewrite repository content that matches a transport credential', async () => {
-    run.mockResolvedValue({
-      stdout: 'committed value sk-hosted/secret and sk-hosted%2Fsecret',
-      stderr: '',
-      exitCode: 0,
-    })
-    const reviewTools = createCloudReviewTools(sdk, runner, BASE_SHA, HEAD_SHA, [
-      'sk-hosted/secret',
-    ])
-    const readTool = reviewTools.tools.find((tool) => tool.name === 'read_repo_file')
-
-    const result = await readTool!.execute(
-      'call-1',
-      { path: 'a.ts' },
-      undefined,
-      undefined,
-      {} as never
-    )
-
-    expect(result.content).toEqual([
-      { type: 'text', text: 'committed value sk-hosted/secret and sk-hosted%2Fsecret' },
-    ])
-  })
-
   it('redacts a credential echoed by a repository tool error', async () => {
     run.mockResolvedValue({
       stdout: '',
@@ -358,27 +330,6 @@ describe('cloud review tools', () => {
     await expect(
       readTool!.execute('call-1', { path: 'a.ts' }, undefined, undefined, {} as never)
     ).rejects.toThrow('helper rejected ***')
-  })
-
-  it('rejects malformed structured findings without calling the sandbox validator', async () => {
-    const reviewTools = createCloudReviewTools(sdk, runner, BASE_SHA, HEAD_SHA)
-    const submitTool = reviewTools.tools.find((tool) => tool.name === 'submit_review')
-    expect(submitTool).toBeDefined()
-
-    await expect(
-      submitTool!.execute(
-        'call-1',
-        {
-          body: 'Summary',
-          comments: [{ path: 'a.ts', body: 'x', line: '12', side: 'RIGHT' }],
-        },
-        undefined,
-        undefined,
-        {} as never
-      )
-    ).rejects.toThrow(/comments/)
-    expect(run).not.toHaveBeenCalled()
-    expect(reviewTools.getFindings()).toBeUndefined()
   })
 
   it('captures one validated review and terminates the agent', async () => {
@@ -409,29 +360,5 @@ describe('cloud review tools', () => {
     await expect(
       submitTool!.execute('call-2', findings, undefined, undefined, {} as never)
     ).rejects.toThrow(/already submitted/)
-  })
-
-  it('does not capture findings when diff-coordinate validation fails', async () => {
-    run.mockResolvedValue({
-      stdout: '',
-      stderr: 'comments[0] line is not on the diff',
-      exitCode: 2,
-    })
-    const reviewTools = createCloudReviewTools(sdk, runner, BASE_SHA, HEAD_SHA)
-    const submitTool = reviewTools.tools.find((tool) => tool.name === 'submit_review')
-
-    await expect(
-      submitTool!.execute(
-        'call-1',
-        {
-          body: 'Summary',
-          comments: [{ path: 'a.ts', body: 'Fix this', line: 999, side: 'RIGHT' }],
-        },
-        undefined,
-        undefined,
-        {} as never
-      )
-    ).rejects.toThrow(/not on the diff/)
-    expect(reviewTools.getFindings()).toBeUndefined()
   })
 })

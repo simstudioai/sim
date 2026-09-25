@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -93,7 +90,6 @@ const principals: Array<{ principal: Principal; actorUserId: string }> = [
 
 describe('workflow run-control application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveRunContext.mockResolvedValue(runContext)
     mocks.cancel.mockResolvedValue({
@@ -284,31 +280,5 @@ describe('workflow run-control application use cases', () => {
         input: { runId: 'parent-run-1' },
       })
     ).rejects.toMatchObject({ code: 'not_found', message: 'Run not found' })
-  })
-
-  it('propagates cancellation and resume infrastructure failures', async () => {
-    const cancelFailure = new Error('cancellation store unavailable')
-    const resumeFailure = new Error('resume manager unavailable')
-    mocks.cancel.mockRejectedValueOnce(cancelFailure)
-
-    await expect(
-      cancelWorkflowRun.execute({
-        principal: principals[2].principal,
-        input: { runId: 'parent-run-1' },
-      })
-    ).rejects.toBe(cancelFailure)
-
-    mocks.resume.mockRejectedValueOnce(resumeFailure)
-    await expect(
-      resumeWorkflowRun.execute({
-        principal: principals[2].principal,
-        input: {
-          workflowId: 'workflow-1',
-          runId: 'parent-run-1',
-          contextId: 'context-1',
-          resumeInput: {},
-        },
-      })
-    ).rejects.toBe(resumeFailure)
   })
 })

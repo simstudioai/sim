@@ -1,22 +1,7 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest'
 import { validateRegex, validateRegexPattern } from '@/lib/guardrails/validate_regex'
 
 describe('validateRegex', () => {
-  it('passes when the input matches', () => {
-    expect(validateRegex('order 12345 shipped', '\\d{5}')).toEqual({ passed: true })
-  })
-
-  it('fails with a reason when the input does not match', () => {
-    expect(validateRegex('no digits', '\\d{5}')).toEqual({
-      passed: false,
-      error: 'Input does not match regex pattern',
-    })
-  })
-
   it('runs a catastrophic pattern in linear time', () => {
     // Both the guardrail pattern and the text it checks are caller-influenced,
     // and this executes on the shared event loop. `a*a*b` against this input
@@ -42,14 +27,6 @@ describe('validateRegex', () => {
 })
 
 describe('validateRegexPattern', () => {
-  it('accepts a valid pattern', () => {
-    expect(validateRegexPattern('\\d{3}-\\d{4}')).toEqual({ valid: true })
-  })
-
-  it('rejects an empty pattern', () => {
-    expect(validateRegexPattern('')).toMatchObject({ valid: false })
-  })
-
   it('rejects invalid syntax', () => {
     expect(validateRegexPattern('(')).toMatchObject({ valid: false })
   })

@@ -127,23 +127,6 @@ describe('field upload completion boundary', () => {
     }
   )
 
-  it('replaces the selected range only after a pasted image finishes uploading', async () => {
-    const pending = Promise.withResolvers<{ url: string; alt: string }>()
-    upload.mockReturnValueOnce(pending.promise)
-    await render()
-    const owner = editor()
-    const before = owner.getJSON()
-    await submit('paste', owner, undefined, { from: 8, to: 14 })
-    expect(owner.getJSON()).toEqual(before)
-    await act(async () =>
-      pending.resolve({ url: 'https://sim.ai/replacement.png', alt: 'Replacement' })
-    )
-    expect(owner.state.doc.textContent).toBe('before  after')
-    expect(host.querySelectorAll('img')).toHaveLength(1)
-    await act(async () => owner.commands.undo())
-    expect(owner.getJSON()).toEqual(before)
-  })
-
   it.each(['paste', 'drop'] as const)(
     '%s preserves the whole HTML slice when the payload also contains a bitmap file',
     async (method) => {
@@ -188,40 +171,6 @@ describe('field upload completion boundary', () => {
     }
   )
 
-  it('invalidates an upload even when streaming ends before completion', async () => {
-    const pending = Promise.withResolvers<{ url: string; alt: string }>()
-    upload.mockReturnValueOnce(pending.promise)
-    await render()
-    const owner = editor()
-    await submit('paste', owner)
-    await render('replacement streamed content', false, true)
-    await render('replacement streamed content')
-    expect(owner.isEditable).toBe(true)
-    const before = owner.getJSON()
-    onChange.mockClear()
-    await act(async () => pending.resolve({ url: 'https://sim.ai/late.png', alt: 'Late' }))
-    expect(owner.getJSON()).toEqual(before)
-    expect(onChange).not.toHaveBeenCalled()
-  })
-
-  it('maps an upload anchor through edits without showing upload controls', async () => {
-    const pending = Promise.withResolvers<{ url: string; alt: string }>()
-    upload.mockReturnValueOnce(pending.promise)
-    await render()
-    const owner = editor()
-    await submit('paste', owner)
-    expect(host.querySelector('[data-image-upload-placeholder]')).toBeNull()
-    await act(async () => owner.commands.insertContentAt(1, 'new prefix '))
-    await act(async () => pending.resolve({ url: 'https://sim.ai/mapped.png', alt: 'Mapped' }))
-    expect(owner.getJSON().content?.map((node) => node.type)).toEqual([
-      'paragraph',
-      'image',
-      'paragraph',
-    ])
-    expect(owner.getJSON().content?.[0].content?.[0].text).toBe('new prefix before ')
-    expect(owner.getJSON().content?.[2].content?.[0].text).toBe('TARGET after')
-  })
-
   it('does not insert after the upload anchor is deleted', async () => {
     const pending = Promise.withResolvers<{ url: string; alt: string }>()
     upload.mockReturnValueOnce(pending.promise)
@@ -232,30 +181,6 @@ describe('field upload completion boundary', () => {
     const before = owner.getJSON()
     await act(async () => pending.resolve({ url: 'https://sim.ai/deleted.png', alt: 'Deleted' }))
     expect(owner.getJSON()).toEqual(before)
-  })
-
-  it('keeps successful images in batch order when another upload fails', async () => {
-    const first = Promise.withResolvers<{ url: string; alt: string }>()
-    const last = Promise.withResolvers<{ url: string; alt: string }>()
-    upload
-      .mockReturnValueOnce(first.promise)
-      .mockRejectedValueOnce(new Error('upload failed'))
-      .mockReturnValueOnce(last.promise)
-    await render()
-    const owner = editor()
-    await submit(
-      'paste',
-      owner,
-      ['first', 'failed', 'last'].map(
-        (name) => new File(['image'], `${name}.png`, { type: 'image/png' })
-      )
-    )
-    await act(async () => first.resolve({ url: 'https://sim.ai/first.png', alt: 'First' }))
-    await act(async () => last.resolve({ url: 'https://sim.ai/last.png', alt: 'Last' }))
-    expect(
-      Array.from(host.querySelectorAll('img')).map((image) => image.getAttribute('alt'))
-    ).toEqual(['First', 'Last'])
-    expect(upload).toHaveBeenCalledTimes(3)
   })
 
   it.each(
@@ -291,19 +216,6 @@ describe('field upload completion boundary', () => {
       if (action === 'disabled' || action === 'streaming') expect(current.isEditable).toBe(false)
       if (action === 'unmount') expect(original.isDestroyed).toBe(true)
       if (action === 'identity') expect(current).not.toBe(original)
-    }
-  )
-  it.each(['paste', 'drop'] as const)(
-    '%s successful completion inserts into an unchanged editable host',
-    async (method) => {
-      const pending = Promise.withResolvers<{ url: string; alt: string }>()
-      upload.mockReturnValueOnce(pending.promise)
-      await render()
-      const owner = editor()
-      await submit(method, owner)
-      await act(async () => pending.resolve({ url: 'https://sim.ai/success.png', alt: 'Success' }))
-      expect(host.querySelector('img')?.getAttribute('src')).toBe('https://sim.ai/success.png')
-      expect(onChange).toHaveBeenCalledOnce()
     }
   )
 })

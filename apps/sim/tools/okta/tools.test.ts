@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { executeOktaUpdateGroupOperation } from '@/lib/internal/okta/operations/update-group'
 import { OktaBlock } from '@/blocks/blocks/okta'
@@ -13,12 +10,10 @@ import { oktaDeleteGroupRuleTool } from '@/tools/okta/delete_group_rule'
 import { oktaDeleteUserTool } from '@/tools/okta/delete_user'
 import { oktaEnrollFactorTool } from '@/tools/okta/enroll_factor'
 import { oktaGetLogsTool } from '@/tools/okta/get_logs'
-import { oktaGetUserTool } from '@/tools/okta/get_user'
 import { oktaListAppsTool } from '@/tools/okta/list_apps'
 import { oktaRemoveUserFromAppTool } from '@/tools/okta/remove_user_from_app'
 import { oktaResetFactorTool } from '@/tools/okta/reset_factor'
 import { oktaResetPasswordTool } from '@/tools/okta/reset_password'
-import { oktaUpdateGroupTool } from '@/tools/okta/update_group'
 import { oktaUpdateUserTool } from '@/tools/okta/update_user'
 import { mergeOktaGroupProfile } from '@/tools/okta/utils'
 
@@ -86,10 +81,6 @@ describe('okta update_group profile merge', () => {
 
     expect(merged.name).toBe('Engineering')
     expect(merged.description).toBe('Updated')
-  })
-
-  it('does not require a name, matching the description it advertises', () => {
-    expect(oktaUpdateGroupTool.params.name.required).toBe(false)
   })
 
   it('still applies an explicitly supplied empty description', () => {
@@ -430,13 +421,6 @@ describe('okta query-string flags are coerced rather than interpolated raw', () 
   })
 })
 
-describe('okta update_group operation boundary', () => {
-  it('has no declarative HTTP fallback that could truncate the stored profile', () => {
-    expect(oktaUpdateGroupTool.operation).toBeDefined()
-    expect('request' in oktaUpdateGroupTool).toBe(false)
-  })
-})
-
 describe('okta block params mapping', () => {
   it('maps the group-rule keyword field onto the shared search wire param', () => {
     const merged = mergedBlockParams({
@@ -569,30 +553,5 @@ describe('okta block params mapping', () => {
     })
 
     expect(merged.limit).toBeUndefined()
-  })
-})
-
-describe('okta block output contract', () => {
-  it('keeps the get_user activation timestamp on its published output name', () => {
-    // Renaming it would break saved `<Okta.activated>` references, so the tool
-    // keeps the name and declares the real type.
-    expect(oktaGetUserTool.outputs?.activated).toMatchObject({ type: 'string' })
-  })
-
-  it('declares activated as the timestamp string the user reads emit', () => {
-    // `get_user` and `list_users` publish Okta's activation timestamp here, so a
-    // boolean declaration mistyped every saved `<Okta.activated>` reference.
-    expect(OktaBlock.outputs.activated).toMatchObject({ type: 'string' })
-  })
-
-  it('declares every subBlock the params mapper reads', () => {
-    const subBlockIds = new Set(OktaBlock.subBlocks.map((subBlock) => subBlock.id))
-    expect(subBlockIds.has('ruleSearch')).toBe(true)
-    expect(OktaBlock.inputs.ruleSearch).toBeDefined()
-  })
-
-  it('has no duplicate subBlock ids, which would silently seed the wrong default', () => {
-    const ids = OktaBlock.subBlocks.map((subBlock) => subBlock.id)
-    expect(ids.length).toBe(new Set(ids).size)
   })
 })

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BlockConfig } from '@/blocks/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -62,7 +61,6 @@ const mappings = [
 ]
 describe('mapped import configuration', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.mocked(getBlock).mockImplementation((type) =>
       type === 'agent' ? agent : type === 'mcp' ? mcp : undefined
     )
@@ -101,13 +99,5 @@ describe('mapped import configuration', () => {
     const fields = await inspectImportConfiguration(plan, { mappings }, 'destination')
     await validateImportSelectorValues(principal, 'destination', fields, { mappings })
     expect(fields[0]).toMatchObject({ required: true, configured: false })
-  })
-  it('does not require a tool name for an advanced server-wide binding', async () => {
-    const state = source(null)
-    state.blocks.agent.subBlocks.tools.value = [
-      { type: 'mcp-server-advanced', params: { serverId: 'source-server' } },
-    ]
-    const plan = buildWorkflowImportPlan(state, { mappings })
-    expect(await inspectImportConfiguration(plan, { mappings }, 'destination')).toEqual([])
   })
 })

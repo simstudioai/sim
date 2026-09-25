@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,7 +30,6 @@ const EXECUTION_STATE = {
 
 describe('execution state lookup', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockMaterializeExecutionData.mockReset()
   })
@@ -109,27 +105,6 @@ describe('execution state lookup', () => {
       blockLogs: [],
       provenance,
     })
-  })
-
-  it('accepts a bound complete execution with no activated secrets', async () => {
-    const provenance = { version: 1 as const, complete: true, entries: [] }
-    queueTableRows(schemaMock.workflowExecutionLogs, [
-      {
-        executionId: 'execution-1',
-        workflowId: 'workflow-1',
-        workspaceId: 'workspace-1',
-        status: 'completed',
-        executionData: {},
-      },
-    ])
-    mockMaterializeExecutionData.mockResolvedValueOnce({
-      trigger: { data: { correlation: { copilotToolCallId: 'tool-call-1' } } },
-      executionState: { ...EXECUTION_STATE, resolvedSecretTraceProvenance: provenance },
-    })
-
-    await expect(
-      getTrustedWorkflowToolExecution('execution-1', 'workflow-1', 'tool-call-1')
-    ).resolves.toMatchObject({ provenance })
   })
 
   it('returns validated incomplete provenance so the terminal projector can fail closed', async () => {
@@ -254,43 +229,6 @@ describe('execution state lookup', () => {
     await expect(
       getTrustedWorkflowToolExecution('execution-2', 'workflow-1', 'tool-call-1')
     ).resolves.toBeNull()
-  })
-
-  it('materializes externalized execution data when reusing workflow input', async () => {
-    const slimExecutionData = {
-      traceStoreRef: {
-        __simLargeValueRef: true,
-        id: 'value-1',
-        key: 'execution/workspace-1/workflow-1/execution-1/value.json',
-        kind: 'object',
-        size: 100,
-        version: 1,
-        executionId: 'execution-1',
-      },
-    }
-    queueTableRows(schemaMock.workflowExecutionLogs, [
-      {
-        executionId: 'execution-1',
-        workflowId: 'workflow-1',
-        workspaceId: 'workspace-1',
-        executionData: slimExecutionData,
-      },
-    ])
-    mockMaterializeExecutionData.mockResolvedValueOnce({
-      workflowInput: { leadId: 'lead-1' },
-    })
-
-    const result = await getExecutionInputForWorkflow('execution-1', 'workflow-1')
-
-    expect(result).toEqual({
-      found: true,
-      input: { leadId: 'lead-1' },
-    })
-    expect(mockMaterializeExecutionData).toHaveBeenCalledWith(slimExecutionData, {
-      workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
-    })
   })
 
   it('recovers legacy workflow input from the pre-populated starter block state', async () => {

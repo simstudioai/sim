@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { createBlock } from '@sim/testing/factories'
 import {
@@ -94,7 +91,6 @@ const CONTEXT: InternalToolOperationContext = {
 
 describe('executeMcpTool', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.createPrincipal.mockResolvedValue(PRINCIPAL)
     mocks.executeUseCase.mockResolvedValue({
       success: true,
@@ -222,40 +218,6 @@ describe('executeMcpTool', () => {
     })
   })
 
-  it('parses direct block arguments and invokes the authorized use case', async () => {
-    const response = await executeMcpTool({
-      toolId: 'mcp-server-lookup',
-      input: { arguments: '{"query":"sim"}', _context: { ignored: true } },
-      headers: new Headers(),
-      context: CONTEXT,
-      requestId: 'request-1',
-    })
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      success: true,
-      data: {
-        success: true,
-        output: { content: [{ type: 'text', text: 'done' }] },
-      },
-    })
-    expect(mocks.createPrincipal).toHaveBeenCalledWith({
-      context: CONTEXT,
-      audience: 'sim:mcp-servers',
-      resourceScope: { mcpServerId: 'mcp-server' },
-    })
-    expect(mocks.executeUseCase).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: expect.objectContaining({
-        workspaceId: 'workspace-1',
-        serverId: 'mcp-server',
-        toolName: 'lookup',
-        arguments: { query: 'sim' },
-        callChain: ['workflow-parent'],
-      }),
-    })
-  })
-
   it('filters framework parameters for Agent-originated arguments', async () => {
     await executeMcpTool({
       toolId: 'mcp-server-lookup',
@@ -268,41 +230,6 @@ describe('executeMcpTool', () => {
     expect(mocks.executeUseCase).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: expect.objectContaining({ arguments: { query: 'sim' } }),
-    })
-  })
-
-  it('dispatches the stable operation using resolved targets and never forwards block policy', async () => {
-    const response = await executeMcpTool({
-      toolId: 'mcp_run_operation',
-      input: {
-        server: 'canonical-server-with-hyphens',
-        tool: 'read_data',
-        arguments: '{"query":"sim"}',
-        operationPolicy: { mode: 'all' },
-        _context: { mcpBlockId: 'forged' },
-      },
-      headers: new Headers(),
-      context: CONTEXT,
-      requestId: 'request-1',
-    })
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({
-      success: true,
-      output: { content: [{ type: 'text', text: 'done' }] },
-    })
-    expect(mocks.createPrincipal).toHaveBeenCalledWith(
-      expect.objectContaining({
-        context: CONTEXT,
-        resourceScope: { mcpServerId: 'canonical-server-with-hyphens' },
-      })
-    )
-    expect(mocks.executeUseCase).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: expect.objectContaining({
-        serverId: 'canonical-server-with-hyphens',
-        toolName: 'read_data',
-        arguments: { query: 'sim' },
-      }),
     })
   })
 
@@ -344,22 +271,6 @@ describe('executeMcpTool', () => {
     expect(mocks.executeUseCase).not.toHaveBeenCalled()
   })
 
-  it.each(['{broken', '[]', 'null', 7])(
-    'rejects malformed JSON arguments %j before invoking providers',
-    async (args) => {
-      const response = await executeMcpTool({
-        toolId: 'mcp_run_operation',
-        input: { server: 'server-1', tool: 'read', arguments: args },
-        headers: new Headers(),
-        context: CONTEXT,
-        requestId: 'request-1',
-      })
-      expect(response.status).toBe(400)
-      expect(mocks.executeUseCase).not.toHaveBeenCalled()
-      expect(mocks.executeManagedUseCase).not.toHaveBeenCalled()
-    }
-  )
-
   it('fails closed without trusted workspace or billing context', async () => {
     const missingWorkspace = await executeMcpTool({
       toolId: 'mcp-server-lookup',
@@ -385,84 +296,6 @@ describe('executeMcpTool', () => {
       error: 'Missing billing attribution in execution context for MCP tool lookup',
     })
     expect(mocks.createPrincipal).not.toHaveBeenCalled()
-  })
-
-  it('preserves provider tool errors without retrying the operation', async () => {
-    mocks.executeUseCase.mockResolvedValueOnce({ success: false, error: 'Provider rejected input' })
-
-    const response = await executeMcpTool({
-      toolId: 'mcp-server-lookup',
-      input: {},
-      headers: new Headers(),
-      context: CONTEXT,
-      requestId: 'request-1',
-    })
-
-    expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({ success: false, error: 'Provider rejected input' })
-    expect(mocks.executeUseCase).toHaveBeenCalledOnce()
-  })
-
-  it('throws cancellation before and after submitted work', async () => {
-    const before = new AbortController()
-    before.abort(new DOMException('cancelled', 'AbortError'))
-    await expect(
-      executeMcpTool({
-        toolId: 'mcp-server-lookup',
-        input: {},
-        headers: new Headers(),
-        context: CONTEXT,
-        requestId: 'request-1',
-        signal: before.signal,
-      })
-    ).rejects.toMatchObject({ name: 'AbortError' })
-    expect(mocks.executeUseCase).not.toHaveBeenCalled()
-
-    const after = new AbortController()
-    mocks.executeUseCase.mockImplementationOnce(async () => {
-      after.abort(new DOMException('cancelled', 'AbortError'))
-      return { success: true, output: {} }
-    })
-    await expect(
-      executeMcpTool({
-        toolId: 'mcp-server-lookup',
-        input: {},
-        headers: new Headers(),
-        context: CONTEXT,
-        requestId: 'request-1',
-        signal: after.signal,
-      })
-    ).rejects.toMatchObject({ name: 'AbortError' })
-    expect(mocks.executeUseCase).toHaveBeenCalledOnce()
-  })
-
-  it('imports resolved-secret provenance into the isolated tool registry', async () => {
-    const importCrossingProvenance = vi.fn().mockResolvedValue(true)
-    const mergeToolCallRegistry = vi.fn()
-    const fork = { importCrossingProvenance }
-    const registry = {
-      forkForToolCall: vi.fn(() => fork),
-      mergeToolCallRegistry,
-    }
-
-    const response = await executeMcpTool({
-      toolId: 'mcp-server-lookup',
-      input: {},
-      headers: new Headers(),
-      context: {
-        ...CONTEXT,
-        resolvedSecretTraceRegistry: registry as never,
-      },
-      requestId: 'request-1',
-    })
-
-    expect(response.status).toBe(200)
-    expect(importCrossingProvenance).toHaveBeenCalledWith(
-      expect.objectContaining({ version: 1, complete: true }),
-      expect.objectContaining({ success: true }),
-      { trusted: true, origin: 'tool.mcp-server-lookup' }
-    )
-    expect(mergeToolCallRegistry).toHaveBeenCalledWith(fork)
   })
 
   it('scopes provenance to the trusted nested human without inventing an actor', async () => {

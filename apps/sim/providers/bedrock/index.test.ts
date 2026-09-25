@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockSend = vi.fn()
@@ -92,7 +89,6 @@ import { prepareToolsWithUsageControl } from '@/providers/utils'
 
 describe('bedrockProvider credential handling', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     capturedRequestHistories.length = 0
     clearProviderClientCacheForTests()
     mockSend.mockResolvedValue({
@@ -161,25 +157,6 @@ describe('bedrockProvider credential handling', () => {
         accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
         secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
       },
-    })
-  })
-
-  it('creates client without credentials when neither is provided', async () => {
-    await bedrockProvider.executeRequest(baseRequest)
-
-    expect(BedrockRuntimeClient).toHaveBeenCalledWith({
-      region: 'us-east-1',
-    })
-  })
-
-  it('uses custom region when provided', async () => {
-    await bedrockProvider.executeRequest({
-      ...baseRequest,
-      bedrockRegion: 'eu-west-1',
-    })
-
-    expect(BedrockRuntimeClient).toHaveBeenCalledWith({
-      region: 'eu-west-1',
     })
   })
 

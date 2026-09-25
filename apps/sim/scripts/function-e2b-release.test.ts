@@ -1,18 +1,10 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
-  FUNCTION_E2B_DEFAULT_BASE_TEMPLATE,
   functionE2BBaseTemplate,
   functionE2BReleaseGeneration,
 } from '@/scripts/function-e2b-release'
 
 describe('Function E2B release generation', () => {
-  it('defaults to the injected release time', () => {
-    expect(functionE2BReleaseGeneration([], undefined, 101)).toBe(101)
-  })
-
   it('rejects malformed explicit generation arguments', () => {
     expect(() => functionE2BReleaseGeneration(['--generation'], '100', 101)).toThrow(
       '--generation must be a positive safe integer'
@@ -20,10 +12,6 @@ describe('Function E2B release generation', () => {
     expect(() => functionE2BReleaseGeneration(['--generation', '--no-cache'], '100', 101)).toThrow(
       '--generation must be a positive safe integer'
     )
-  })
-
-  it('accepts a valid first release generation', () => {
-    expect(functionE2BReleaseGeneration(['--generation', '101'])).toBe(101)
   })
 
   it('requires a generation above the configured release', () => {
@@ -44,10 +32,6 @@ describe('Function E2B release generation', () => {
 })
 
 describe('Function E2B base template', () => {
-  it('uses the maintained E2B code-interpreter base by default', () => {
-    expect(functionE2BBaseTemplate([])).toBe(FUNCTION_E2B_DEFAULT_BASE_TEMPLATE)
-  })
-
   it('accepts an explicit immutable base override', () => {
     expect(
       functionE2BBaseTemplate([

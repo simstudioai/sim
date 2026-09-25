@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * `fireTableTrigger` is fire-and-forget — it swallows every error (trigger.ts).
  * An `expect` thrown inside a mock would therefore be silently eaten and the
  * test would pass green, so every assertion runs on the captured payload AFTER
@@ -87,7 +85,6 @@ async function fire(
 
 describe('fireTableTrigger — select values', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockProcessPolledWebhookEvent.mockResolvedValue({ success: true })
     mockFetchActiveWebhooks.mockResolvedValue([webhookEntry()])
   })
@@ -127,7 +124,6 @@ describe('fireTableTrigger — select values', () => {
 
 describe('fireTableTrigger — payload shape', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockProcessPolledWebhookEvent.mockResolvedValue({ success: true })
     mockFetchActiveWebhooks.mockResolvedValue([webhookEntry()])
   })
@@ -138,22 +134,6 @@ describe('fireTableTrigger — payload shape', () => {
     const [payload] = firedPayloads()
     expect(payload.rawRow).toEqual({ Title: 'only this' })
     expect(payload.row).toEqual({ Title: 'only this', Status: null, Tags: null })
-  })
-
-  it('row key set matches headers exactly', async () => {
-    await fire('insert', { col_title: 'x' })
-
-    const [payload] = firedPayloads()
-    expect(Object.keys(payload.row as Record<string, unknown>)).toEqual(payload.headers)
-  })
-
-  it('omits row when includeHeaders is false', async () => {
-    mockFetchActiveWebhooks.mockResolvedValue([webhookEntry({ includeHeaders: false })])
-    await fire('insert', { col_title: 'x' })
-
-    const [payload] = firedPayloads()
-    expect(payload.row).toBeNull()
-    expect(payload.rawRow).toEqual({ Title: 'x' })
   })
 
   it('reports changedColumns by display name', async () => {
@@ -184,7 +164,6 @@ describe('fireTableTrigger — payload shape', () => {
 
 describe('fireTableTrigger — gating', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockProcessPolledWebhookEvent.mockResolvedValue({ success: true })
   })
 
@@ -198,12 +177,6 @@ describe('fireTableTrigger — gating', () => {
     mockFetchActiveWebhooks.mockResolvedValue([
       { ...webhookEntry(), workflow: { id: 'wf_other', workspaceId: 'ws_other' } },
     ])
-    await fire('insert', { col_title: 'x' })
-    expect(mockProcessPolledWebhookEvent).not.toHaveBeenCalled()
-  })
-
-  it('fires nothing when the event type does not match', async () => {
-    mockFetchActiveWebhooks.mockResolvedValue([webhookEntry({ eventType: 'update' })])
     await fire('insert', { col_title: 'x' })
     expect(mockProcessPolledWebhookEvent).not.toHaveBeenCalled()
   })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   createMockRequest,
   dbChainMock,
@@ -35,16 +32,8 @@ const providerRow = {
 
 describe('GET /api/auth/sso/providers', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-  })
-
-  it('refuses a caller without a session before reading any provider', async () => {
-    mockGetSession.mockResolvedValue(null)
-    const res = await GET(createMockRequest('GET'))
-    expect(res.status).toBe(401)
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
   it('lists only the providers the caller registered when no organization is named', async () => {

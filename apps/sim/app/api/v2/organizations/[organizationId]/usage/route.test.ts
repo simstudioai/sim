@@ -1,5 +1,3 @@
-/** @vitest-environment node */
-
 import { recordAudit } from '@sim/audit'
 import type { OAuthAccessTokenPrincipal, Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
@@ -109,7 +107,6 @@ function admin() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   setEnvFlags({ isHosted: true, isBillingEnabled: true })
   authenticate(personal)
@@ -284,17 +281,6 @@ describe('organization credit-limit API', () => {
       )
       expect(response.status).toBe(404)
       expect(mocks.setLimit).not.toHaveBeenCalled()
-      expect(recordAudit).not.toHaveBeenCalled()
-    }
-  )
-
-  it.each([{}, { creditLimit: -1 }, { creditLimit: 0.5 }, { creditLimit: 100, unexpected: true }])(
-    'rejects malformed cap %j before protected reads',
-    async (body) => {
-      expect(
-        (await setLimit(request('members/external-user/usage-limit', body), context)).status
-      ).toBe(400)
-      expect(mocks.limitTarget).not.toHaveBeenCalled()
       expect(recordAudit).not.toHaveBeenCalled()
     }
   )

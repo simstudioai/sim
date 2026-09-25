@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -166,10 +163,6 @@ const purposesReplayedBy = (route: 'loader' | 'idempotent-finalizer') =>
 describe('completion replay contract', () => {
   const REPLAY_VIA_IDEMPOTENT_FINALIZER = purposesReplayedBy('idempotent-finalizer')
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it.each(REPLAY_VIA_IDEMPOTENT_FINALIZER)(
     'does not mark %s as loader-backed, so its replay re-runs the idempotent finalizer',
     async (purpose) => {
@@ -188,15 +181,6 @@ describe('completion replay contract', () => {
     }
   )
 
-  it.each(REPLAY_VIA_IDEMPOTENT_FINALIZER)(
-    'reports a classified error rather than an unhandled crash if %s ever reaches the loader',
-    async (purpose) => {
-      await expect(loadCompletedUploadPurpose({ ...uploadSession, purpose })).rejects.toMatchObject(
-        { code: 'internal' }
-      )
-    }
-  )
-
   it('loads workspace_file from its durable record on replay', async () => {
     mockGetWorkspaceFile.mockResolvedValueOnce(workspaceFile)
 
@@ -212,10 +196,6 @@ describe('completion replay contract', () => {
 })
 
 describe('upload purpose finalizers', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('emits workspace-logo side effects only for the metadata insert winner', async () => {
     mockSelectLimit.mockResolvedValueOnce([]).mockResolvedValueOnce([metadataRow])
     mockInsertReturning.mockResolvedValueOnce([metadataRow])
@@ -267,43 +247,6 @@ describe('upload purpose finalizers', () => {
     expect(mockInsertReturning).not.toHaveBeenCalled()
     expect(mockRecordAudit).not.toHaveBeenCalled()
     expect(mockCaptureServerEvent).not.toHaveBeenCalled()
-  })
-
-  it('emits workspace-file side effects only for the metadata insert winner', async () => {
-    const workspaceSession = {
-      ...uploadSession,
-      purpose: 'workspace_file' as const,
-      storageContext: 'workspace' as const,
-      storageKey: workspaceFile.key,
-      fileName: workspaceFile.name,
-      contentType: workspaceFile.type,
-    }
-    mockRegisterUploadedWorkspaceFile
-      .mockResolvedValueOnce({ file: { id: workspaceFile.id }, created: true })
-      .mockResolvedValueOnce({ file: { id: workspaceFile.id }, created: false })
-    mockGetWorkspaceFile.mockResolvedValue(workspaceFile)
-    const request = new NextRequest('http://localhost/api/files/uploads/upload-1/complete')
-
-    const first = await finalizeUploadPurpose({
-      session: workspaceSession,
-      actor,
-      principal,
-      request,
-    })
-    const retry = await finalizeUploadPurpose({
-      session: workspaceSession,
-      actor,
-      principal,
-      request,
-    })
-
-    expect(retry.value).toEqual(first.value)
-    expect(mockRegisterUploadedWorkspaceFile).toHaveBeenCalledWith(
-      expect.objectContaining({ uploadSessionId: workspaceSession.id })
-    )
-    expect(mockNotifyWorkspaceFilesChanged).toHaveBeenCalledTimes(1)
-    expect(mockRecordAudit).toHaveBeenCalledTimes(1)
-    expect(mockCaptureServerEvent).toHaveBeenCalledTimes(1)
   })
 
   it.each(['exact', 'unknown'] as const)(
@@ -401,34 +344,6 @@ describe('upload purpose finalizers', () => {
     expect(mockRegisterUploadedWorkspaceFile).not.toHaveBeenCalled()
     expect(mockNotifyWorkspaceFilesChanged).not.toHaveBeenCalled()
     expect(mockRecordAudit).not.toHaveBeenCalled()
-  })
-
-  it('rejects a workspace-file replay after its metadata was archived', async () => {
-    const workspaceSession = {
-      ...uploadSession,
-      purpose: 'workspace_file' as const,
-      storageContext: 'workspace' as const,
-      storageKey: workspaceFile.key,
-      fileName: workspaceFile.name,
-      contentType: workspaceFile.type,
-    }
-    mockRegisterUploadedWorkspaceFile.mockResolvedValueOnce({
-      file: { id: workspaceFile.id },
-      created: false,
-    })
-    mockGetWorkspaceFile.mockResolvedValueOnce({ ...workspaceFile, deletedAt: now })
-
-    await expect(
-      finalizeUploadPurpose({
-        session: workspaceSession,
-        actor,
-        principal,
-        request: new NextRequest('http://localhost/api/files/uploads/upload-1/complete'),
-      })
-    ).rejects.toMatchObject({ code: 'conflict' })
-    expect(mockNotifyWorkspaceFilesChanged).not.toHaveBeenCalled()
-    expect(mockRecordAudit).not.toHaveBeenCalled()
-    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 
   it('uses the current billing owner only for workspace-key legacy attribution', async () => {

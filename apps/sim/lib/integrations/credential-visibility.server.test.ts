@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IntegrationAvailability } from '@/lib/integrations/availability'
 import type { OAuthServiceMetadata } from '@/lib/oauth/types'
@@ -58,7 +54,6 @@ function availability(
 
 describe('integration credential visibility', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     getBlockMock.mockImplementation((type: string) => ({ type }))
     getIntegrationAvailabilityMock.mockReturnValue([
       availability('notion_v2', 'limited', {

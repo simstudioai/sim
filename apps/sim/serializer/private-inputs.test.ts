@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
@@ -21,7 +17,6 @@ import { Serializer } from '@/serializer'
 
 describe('Serializer private inputs', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBlock.mockReturnValue({
       name: 'Private lifecycle block',
       description: 'Test block',

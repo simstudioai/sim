@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 // Renders the real key-removal expression against the real drizzle dialect.
 // utils.test.ts mocks drizzle wholesale, so its assertions passed against BOTH
 // previously-broken forms (`- ${keys}::text[]` and `- ${sql.param(keys)}::text[]`).

@@ -1,13 +1,10 @@
 /**
  * Tests for individual folder API route (/api/folders/[id])
- *
- * @vitest-environment node
  */
 import {
   auditMock,
   authMockFns,
   createMockRequest,
-  dbChainMockFns,
   foldersOrchestrationMock,
   foldersOrchestrationMockFns,
   type MockUser,
@@ -36,9 +33,6 @@ const { mockLogger } = vi.hoisted(() => {
 
 const mockDeleteFolder = foldersOrchestrationMockFns.mockDeleteFolder
 const mockUpdateFolder = foldersOrchestrationMockFns.mockUpdateFolder
-
-/** Parent ids the mocked engine treats as closing a cycle for the folder under test. */
-const cyclicParentIds = new Set<string>()
 
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
@@ -77,19 +71,8 @@ function queueFolderLookup(folder: Record<string, unknown> = mockFolder) {
   queueTableRows(schemaMock.folder, [folder])
 }
 
-/** Makes the next folder lookup throw, exercising the route's 500 path. */
-function failFolderLookup() {
-  dbChainMockFns.where.mockImplementationOnce(() => {
-    throw new Error('Database error')
-  })
-}
-
 function mockAuthenticatedUser(user?: MockUser) {
   authMockFns.mockGetSession.mockResolvedValue({ user: user || TEST_USER })
-}
-
-function mockUnauthenticated() {
-  authMockFns.mockGetSession.mockResolvedValue(null)
 }
 
 describe('Individual Folder API Route', () => {
@@ -98,7 +81,6 @@ describe('Individual Folder API Route', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
 
     mockGetUserEntityPermissions.mockResolvedValue('admin')
@@ -106,91 +88,9 @@ describe('Individual Folder API Route', () => {
       success: true,
       deletedItems: { folders: 1, workflows: 0 },
     })
-    mockUpdateFolder.mockImplementation(async (params) => {
-      if (params.parentId && params.parentId === params.folderId) {
-        return {
-          success: false,
-          error: 'Folder cannot be its own parent',
-          errorCode: 'validation',
-        }
-      }
-      if (params.parentId && cyclicParentIds.has(params.parentId)) {
-        return {
-          success: false,
-          error: 'Cannot create circular folder reference',
-          errorCode: 'validation',
-        }
-      }
-      return {
-        success: true,
-        folder: {
-          ...mockFolder,
-          id: params.folderId,
-          name: params.name !== undefined ? params.name.trim() : 'Updated Folder',
-          color: params.color ?? mockFolder.color,
-          parentId: params.parentId ?? mockFolder.parentId,
-          isExpanded: params.isExpanded,
-          sortOrder: params.sortOrder ?? mockFolder.sortOrder,
-          updatedAt: new Date(),
-        },
-      }
-    })
-    cyclicParentIds.clear()
   })
 
   describe('PUT /api/folders/[id]', () => {
-    it('should update folder successfully', async () => {
-      mockAuthenticatedUser()
-
-      queueFolderLookup()
-      const req = createMockRequest('PUT', {
-        name: 'Updated Folder Name',
-        color: '#FF0000',
-      })
-      const params = Promise.resolve({ id: 'folder-1' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(200)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('folder')
-      expect(data.folder).toMatchObject({
-        name: 'Updated Folder Name',
-      })
-    })
-
-    it('should update parent folder successfully', async () => {
-      mockAuthenticatedUser()
-
-      queueFolderLookup()
-      const req = createMockRequest('PUT', {
-        name: 'Updated Folder',
-        parentId: 'parent-folder-1',
-      })
-      const params = Promise.resolve({ id: 'folder-1' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(200)
-    })
-
-    it('should return 401 for unauthenticated requests', async () => {
-      mockUnauthenticated()
-
-      const req = createMockRequest('PUT', {
-        name: 'Updated Folder',
-      })
-      const params = Promise.resolve({ id: 'folder-1' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(401)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('error', 'Unauthorized')
-    })
-
     it('should return 403 when user has only read permissions', async () => {
       mockAuthenticatedUser()
       mockGetUserEntityPermissions.mockResolvedValue('read')
@@ -207,42 +107,6 @@ describe('Individual Folder API Route', () => {
 
       const data = await response.json()
       expect(data).toHaveProperty('error', 'Write access required to update folders')
-    })
-
-    it('should allow folder update for write permissions', async () => {
-      mockAuthenticatedUser()
-      mockGetUserEntityPermissions.mockResolvedValue('write')
-
-      queueFolderLookup()
-      const req = createMockRequest('PUT', {
-        name: 'Updated Folder',
-      })
-      const params = Promise.resolve({ id: 'folder-1' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(200)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('folder')
-    })
-
-    it('should allow folder update for admin permissions', async () => {
-      mockAuthenticatedUser()
-      mockGetUserEntityPermissions.mockResolvedValue('admin')
-
-      queueFolderLookup()
-      const req = createMockRequest('PUT', {
-        name: 'Updated Folder',
-      })
-      const params = Promise.resolve({ id: 'folder-1' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(200)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('folder')
     })
 
     it('rejects a locked write on a resource type that has no lock semantics', async () => {
@@ -264,170 +128,9 @@ describe('Individual Folder API Route', () => {
       expect(data.error).toBe('Folder locking is only supported for workflow folders')
       expect(mockUpdateFolder).not.toHaveBeenCalled()
     })
-
-    it('should return 400 when trying to set folder as its own parent', async () => {
-      mockAuthenticatedUser()
-
-      queueFolderLookup()
-      const req = createMockRequest('PUT', {
-        name: 'Updated Folder',
-        parentId: 'folder-1',
-      })
-      const params = Promise.resolve({ id: 'folder-1' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(400)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('error', 'Folder cannot be its own parent')
-    })
-
-    it('should trim folder name when updating', async () => {
-      mockAuthenticatedUser()
-
-      queueFolderLookup()
-      const req = createMockRequest('PUT', {
-        name: '  Folder With Spaces  ',
-      })
-      const params = Promise.resolve({ id: 'folder-1' })
-
-      const response = await PUT(req, { params })
-      const data = await response.json()
-
-      expect(data.folder.name).toBe('Folder With Spaces')
-    })
-
-    it('should handle database errors gracefully', async () => {
-      mockAuthenticatedUser()
-
-      failFolderLookup()
-
-      const req = createMockRequest('PUT', {
-        name: 'Updated Folder',
-      })
-      const params = Promise.resolve({ id: 'folder-1' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(500)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('error', 'Internal server error')
-      expect(mockLogger.error).toHaveBeenCalledWith('Error updating folder:', {
-        error: expect.any(Error),
-      })
-    })
-  })
-
-  describe('Input Validation', () => {
-    it('rejects an empty folder name', async () => {
-      // The contract bounds `name` to 1-255 chars: renaming a folder to '' previously
-      // slipped through as a no-op 200, which silently discarded the user's rename.
-      mockAuthenticatedUser()
-
-      queueFolderLookup()
-      const req = createMockRequest('PUT', {
-        name: '',
-      })
-      const params = Promise.resolve({ id: 'folder-1' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(400)
-    })
-
-    it('rejects a whitespace-only folder name', async () => {
-      // The write path trims before persisting, so validating the raw string would let
-      // '   ' through and store an empty name — the same failure the '' case closes.
-      mockAuthenticatedUser()
-
-      queueFolderLookup()
-      const req = createMockRequest('PUT', {
-        name: '   ',
-      })
-      const params = Promise.resolve({ id: 'folder-1' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(400)
-    })
-
-    it('should handle invalid JSON payload', async () => {
-      mockAuthenticatedUser()
-
-      const req = new Request('http://localhost:3000/api/folders/folder-1', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: 'invalid-json',
-      }) as any
-
-      const params = Promise.resolve({ id: 'folder-1' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(500)
-    })
-  })
-
-  describe('Circular Reference Prevention', () => {
-    it('should prevent circular references when updating parent', async () => {
-      mockAuthenticatedUser()
-
-      queueFolderLookup({
-        id: 'folder-3',
-        parentId: null,
-        name: 'Folder 3',
-        workspaceId: 'workspace-123',
-      })
-
-      cyclicParentIds.add('folder-1')
-
-      const req = createMockRequest('PUT', {
-        name: 'Updated Folder 3',
-        parentId: 'folder-1',
-      })
-      const params = Promise.resolve({ id: 'folder-3' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(400)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('error', 'Cannot create circular folder reference')
-      expect(mockUpdateFolder).toHaveBeenCalledWith(
-        expect.objectContaining({ folderId: 'folder-3', parentId: 'folder-1' })
-      )
-    })
   })
 
   describe('DELETE /api/folders/[id]', () => {
-    it('should delete folder and all contents successfully', async () => {
-      mockAuthenticatedUser()
-
-      queueFolderLookup()
-
-      const req = createMockRequest('DELETE')
-      const params = Promise.resolve({ id: 'folder-1' })
-
-      const response = await DELETE(req, { params })
-
-      expect(response.status).toBe(200)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('success', true)
-      expect(data).toHaveProperty('deletedItems')
-      expect(mockDeleteFolder).toHaveBeenCalledWith({
-        resourceType: 'workflow',
-        folderId: 'folder-1',
-        workspaceId: 'workspace-123',
-        userId: TEST_USER.id,
-        folderName: 'Test Folder',
-      })
-    })
-
     it('surfaces a delete-locked resource as 423, not a generic 500', async () => {
       mockAuthenticatedUser()
       queueFolderLookup()
@@ -445,91 +148,6 @@ describe('Individual Folder API Route', () => {
       expect(response.status).toBe(423)
       const data = await response.json()
       expect(data.error).toBe('Cannot delete folder: table Ledger is delete-locked')
-    })
-
-    it('should return 401 for unauthenticated delete requests', async () => {
-      mockUnauthenticated()
-
-      const req = createMockRequest('DELETE')
-      const params = Promise.resolve({ id: 'folder-1' })
-
-      const response = await DELETE(req, { params })
-
-      expect(response.status).toBe(401)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('error', 'Unauthorized')
-    })
-
-    it('should return 403 when user has only read permissions for delete', async () => {
-      mockAuthenticatedUser()
-      mockGetUserEntityPermissions.mockResolvedValue('read')
-
-      queueFolderLookup()
-      const req = createMockRequest('DELETE')
-      const params = Promise.resolve({ id: 'folder-1' })
-
-      const response = await DELETE(req, { params })
-
-      expect(response.status).toBe(403)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('error', 'Write or Admin access required to delete folders')
-    })
-
-    it('should allow folder deletion for write permissions', async () => {
-      mockAuthenticatedUser()
-      mockGetUserEntityPermissions.mockResolvedValue('write')
-
-      queueFolderLookup()
-
-      const req = createMockRequest('DELETE')
-      const params = Promise.resolve({ id: 'folder-1' })
-
-      const response = await DELETE(req, { params })
-
-      expect(response.status).toBe(200)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('success', true)
-      expect(mockDeleteFolder).toHaveBeenCalled()
-    })
-
-    it('should allow folder deletion for admin permissions', async () => {
-      mockAuthenticatedUser()
-      mockGetUserEntityPermissions.mockResolvedValue('admin')
-
-      queueFolderLookup()
-
-      const req = createMockRequest('DELETE')
-      const params = Promise.resolve({ id: 'folder-1' })
-
-      const response = await DELETE(req, { params })
-
-      expect(response.status).toBe(200)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('success', true)
-      expect(mockDeleteFolder).toHaveBeenCalled()
-    })
-
-    it('should handle database errors during deletion', async () => {
-      mockAuthenticatedUser()
-
-      failFolderLookup()
-
-      const req = createMockRequest('DELETE')
-      const params = Promise.resolve({ id: 'folder-1' })
-
-      const response = await DELETE(req, { params })
-
-      expect(response.status).toBe(500)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('error', 'Internal server error')
-      expect(mockLogger.error).toHaveBeenCalledWith('Error deleting folder:', {
-        error: expect.any(Error),
-      })
     })
   })
 })

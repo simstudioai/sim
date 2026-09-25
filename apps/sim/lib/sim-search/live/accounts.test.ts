@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -53,7 +52,6 @@ function metadata(revokedAt: Date | null = null) {
 
 describe('live account discovery boundaries', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.personal.mockResolvedValue([account])
     mocks.tokens.mockResolvedValue([])

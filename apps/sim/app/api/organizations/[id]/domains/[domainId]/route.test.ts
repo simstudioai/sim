@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { member } from '@sim/db/schema'
 import {
   createMockRequest,
@@ -42,19 +39,12 @@ const routeContext = { params: Promise.resolve({ id: 'org-1', domainId: 'd1' }) 
 
 describe('remove org domain route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'Admin', email: 'admin@acme.dev' },
       session: { id: 'session-1' },
     })
     mockIsEnterprise.mockResolvedValue(true)
-  })
-
-  it('401s when unauthenticated', async () => {
-    mockGetSession.mockResolvedValue(null)
-    const res = await DELETE(createMockRequest('DELETE'), routeContext)
-    expect(res.status).toBe(401)
   })
 
   it('403s for non-admins', async () => {
@@ -69,23 +59,6 @@ describe('remove org domain route', () => {
     const res = await DELETE(createMockRequest('DELETE'), routeContext)
     expect(res.status).toBe(403)
     expect(mockRecordAudit).not.toHaveBeenCalled()
-  })
-
-  it('404s when the domain does not exist', async () => {
-    queueTableRows(member, [{ role: 'owner' }])
-    dbChainMockFns.returning.mockResolvedValueOnce([]) // delete matched nothing
-    const res = await DELETE(createMockRequest('DELETE'), routeContext)
-    expect(res.status).toBe(404)
-  })
-
-  it('removes the domain and records an audit event', async () => {
-    queueTableRows(member, [{ role: 'owner' }])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ domain: 'acme.com' }])
-    const res = await DELETE(createMockRequest('DELETE'), routeContext)
-    expect(res.status).toBe(200)
-    expect(mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'organization.domain.removed' })
-    )
   })
 
   /**

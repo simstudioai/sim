@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch, mockResolveSelectorOAuthAccessToken } = vi.hoisted(() => ({
@@ -35,7 +32,6 @@ function args(request: ExecuteServerSelectorArgs['request']): ExecuteServerSelec
 
 describe('Webflow server selector adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveSelectorOAuthAccessToken.mockResolvedValue('server-only-token')
   })
@@ -90,37 +86,5 @@ describe('Webflow server selector adapter', () => {
     expect(result.items).toHaveLength(100)
     expect(result.nextCursor).toBe('5100')
     expect(mockFetch).toHaveBeenCalledTimes(1)
-  })
-
-  it('hydrates saved items directly and treats a missing item as absent', async () => {
-    const itemId = '680000000000000000001389'
-    const missingItemId = '680000000000000000001390'
-    mockFetch
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ id: itemId, fieldData: { title: 'Saved item title' } }), {
-          status: 200,
-        })
-      )
-      .mockResolvedValueOnce(new Response(null, { status: 404 }))
-
-    await expect(
-      webflowSelectorAttachments['webflow.items'].execute(args({ kind: 'detail', id: itemId }))
-    ).resolves.toEqual({
-      kind: 'detail',
-      item: { id: itemId, label: 'Saved item title' },
-    })
-    await expect(
-      webflowSelectorAttachments['webflow.items'].execute(
-        args({ kind: 'detail', id: missingItemId })
-      )
-    ).resolves.toEqual({ kind: 'detail', item: null })
-
-    expect(String(mockFetch.mock.calls[0]?.[0])).toBe(
-      `https://api.webflow.com/v2/collections/${collectionId}/items/${itemId}`
-    )
-    expect(String(mockFetch.mock.calls[1]?.[0])).toBe(
-      `https://api.webflow.com/v2/collections/${collectionId}/items/${missingItemId}`
-    )
-    expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 })

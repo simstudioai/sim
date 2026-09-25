@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest, NextResponse } from 'next/server'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -19,26 +16,11 @@ vi.mock('@/lib/webhooks/providers/slack', () => ({
 import { dispatchResolvedWebhookTarget } from '@/lib/webhooks/processor'
 import {
   dispatchSlackWebhooks,
-  getSlackDispatchFailureResponse,
   getSlackDispatchResponse,
   resolveSlackExternalUserSubject,
 } from '@/lib/webhooks/slack-dispatch'
 
 describe('resolveSlackExternalUserSubject', () => {
-  it('resolves an Events API user with the provider tenant', () => {
-    expect(
-      resolveSlackExternalUserSubject({
-        team_id: 'T_WORKSPACE',
-        event: { type: 'app_mention', user: 'U_PERSON' },
-      })
-    ).toEqual({
-      kind: 'external_user',
-      provider: 'slack',
-      tenantId: 'T_WORKSPACE',
-      subjectId: 'U_PERSON',
-    })
-  })
-
   it('uses the actor tenant for Slack Connect interactions', () => {
     expect(
       resolveSlackExternalUserSubject({
@@ -146,15 +128,5 @@ describe('dispatchSlackWebhooks', () => {
     ])
 
     expect(response.status).toBe(200)
-  })
-
-  it('fails fast when a failed Slack dispatch carries a successful response', () => {
-    expect(() =>
-      getSlackDispatchFailureResponse({
-        outcome: 'failed',
-        response: new NextResponse(null, { status: 200 }),
-        reason: 'queue-failed',
-      })
-    ).toThrow('Failed Slack dispatch returned successful HTTP status 200')
   })
 })

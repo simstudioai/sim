@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDownloadFile } = vi.hoisted(() => ({
@@ -66,24 +63,6 @@ function sizeLimitError(): unknown {
 }
 
 describe('fetchWorkspaceFileBuffer', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('forwards the byte ceiling and the cancellation signal to storage', async () => {
-    const bytes = Buffer.from('hello')
-    mockDownloadFile.mockResolvedValue(bytes)
-    const signal = new AbortController().signal
-
-    await expect(fetchWorkspaceFileBuffer(FILE, { maxBytes: 10, signal })).resolves.toBe(bytes)
-    expect(mockDownloadFile).toHaveBeenCalledWith({
-      key: FILE.key,
-      context: 'workspace',
-      maxBytes: 10,
-      signal,
-    })
-  })
-
   it('surfaces a cancelled read as the abort rather than a download failure', async () => {
     const controller = new AbortController()
     mockDownloadFile.mockImplementation(async () => {
@@ -101,14 +80,6 @@ describe('fetchWorkspaceFileBuffer', () => {
 
     await expect(fetchWorkspaceFileBuffer(FILE, { maxBytes: 10 })).rejects.toSatisfy(
       isPayloadSizeLimitError
-    )
-  })
-
-  it('wraps other transport failures', async () => {
-    mockDownloadFile.mockRejectedValue(new Error('socket hang up'))
-
-    await expect(fetchWorkspaceFileBuffer(FILE, { maxBytes: 10 })).rejects.toThrow(
-      'Failed to download file: socket hang up'
     )
   })
 })

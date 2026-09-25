@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ session: vi.fn(), authorize: vi.fn(), redirect: vi.fn() }))
@@ -32,7 +31,6 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import OrganizationProviderPage from '@/app/o/[organizationId]/settings/integrations/providers/[connectorType]/page'
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.session.mockResolvedValue({ user: { id: 'admin-1' } })
   mocks.authorize.mockResolvedValue(true)
 })

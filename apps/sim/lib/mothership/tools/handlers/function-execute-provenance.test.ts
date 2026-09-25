@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { setEnv } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

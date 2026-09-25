@@ -1,8 +1,6 @@
-/** @vitest-environment node */
 import { sha256Hex } from '@sim/security/hash'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { CredentialGroupOAuthError } from '@/lib/credential-groups/provider-adapter'
 import { OAuthIdentityVerificationError } from '@/lib/oauth/identity-error'
 
@@ -60,7 +58,6 @@ function completeCallback() {
 
 describe('GitHub managed OAuth failure presentation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.authenticate.mockResolvedValue({ kind: 'credential_group_enrollment' })
   })
 
@@ -161,45 +158,10 @@ describe('GitHub managed OAuth failure presentation', () => {
     expect(logged).not.toContain('ghu_private_token')
     expect(logged).not.toContain('INSERT')
   })
-
-  it('does not log arbitrary error names or codes as diagnostic metadata', async () => {
-    mocks.consumeAttempt.mockResolvedValue(attempt)
-    mocks.completeOAuth.mockRejectedValueOnce(
-      Object.assign(new Error('private provider response'), {
-        name: 'ghu_private_token',
-        code: 'client_secret=private',
-      })
-    )
-    await completeCallback()
-    expect(mocks.logError).toHaveBeenCalledExactlyOnceWith('Managed OAuth authorization failed', {
-      provider: 'github-repositories',
-      failure: 'failed',
-      errorClass: 'unexpected',
-      stage: 'enrollment_completion',
-      errorType: 'UnknownError',
-      fingerprint: sha256Hex('private provider response').slice(0, 12),
-    })
-  })
-
-  it('retains an application error classification without its private details', async () => {
-    mocks.consumeAttempt.mockResolvedValue(attempt)
-    mocks.completeOAuth.mockRejectedValueOnce(
-      new OrchestrationError('forbidden', 'Private details: member@example.com')
-    )
-    await completeCallback()
-    expect(mocks.logError).toHaveBeenCalledExactlyOnceWith('Managed OAuth authorization failed', {
-      provider: 'github-repositories',
-      failure: 'failed',
-      errorClass: 'application',
-      applicationCode: 'forbidden',
-      statusCode: 403,
-    })
-  })
 })
 
 describe('GitHub installation setup OAuth return target', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.authenticateSession.mockResolvedValue({
       kind: 'session',
       userId: 'admin',

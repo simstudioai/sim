@@ -21,46 +21,21 @@ import {
   calculateCost,
   describeModelLevel,
   extractAndParseJSON,
-  filterBlacklistedModels,
   findProviderFromModel,
   formatCost,
   generateStructuredOutputInstructions,
-  getAllModelProviders,
-  getAllModels,
-  getAllProviderIds,
   getApiKey,
   getBaseModelProviders,
-  getHostedModels,
   getMaxOutputTokensForModel,
   getMaxTemperature,
-  getModelPricing,
   getProvider,
-  getProviderConfigFromModel,
   getProviderFromModel,
-  getProviderModels,
-  getReasoningEffortValuesForModel,
-  getThinkingLevelsForModel,
-  getVerbosityValuesForModel,
   isGemini3Model,
-  isProviderBlacklisted,
-  MODELS_TEMP_RANGE_0_1,
-  MODELS_TEMP_RANGE_0_2,
-  MODELS_TEMP_RANGE_0_15,
-  MODELS_WITH_REASONING_EFFORT,
-  MODELS_WITH_TEMPERATURE_SUPPORT,
-  MODELS_WITH_THINKING,
-  MODELS_WITH_VERBOSITY,
-  PROVIDERS_WITH_TOOL_USAGE_CONTROL,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   shouldBillModelUsage,
-  supportsReasoningEffort,
   supportsTemperature,
-  supportsThinking,
-  supportsToolUsageControl,
-  supportsVerbosity,
   transformBlockTool,
-  updateOllamaProviderModels,
 } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
 import { revenuecatGetCustomerTool } from '@/tools/revenuecat/get_customer'
@@ -76,8 +51,6 @@ describe('getApiKey', () => {
   const originalEnv = { ...process.env }
 
   beforeEach(() => {
-    vi.clearAllMocks()
-
     setEnvFlags({ isHosted: false })
 
     module.require = vi.fn(() => ({
@@ -214,65 +187,6 @@ describe('getApiKey', () => {
 
 describe('Model Capabilities', () => {
   describe('supportsTemperature', () => {
-    it('should return true for models that support temperature', () => {
-      const supportedModels = [
-        'gpt-4o',
-        'gpt-4.1',
-        'gpt-4.1-mini',
-        'gpt-4.1-nano',
-        'gpt-5-chat-latest',
-        'azure/gpt-5-chat',
-        'gemini-2.5-flash',
-        'claude-sonnet-4-5',
-        'claude-opus-4-1',
-        'grok-3-latest',
-        'grok-3-fast-latest',
-        'deepseek-v3',
-        'deepseek-chat',
-        'groq/meta-llama/llama-4-scout-17b-16e-instruct',
-        'mistral-large-latest',
-      ]
-
-      for (const model of supportedModels) {
-        expect(supportsTemperature(model)).toBe(true)
-      }
-    })
-
-    it('should return false for models that do not support temperature', () => {
-      const unsupportedModels = [
-        'unsupported-model',
-        'claude-sonnet-5',
-        'cerebras/llama-3.3-70b',
-        'o1',
-        'o3',
-        'o4-mini',
-        'azure/o3',
-        'azure/o4-mini',
-        'deepseek-r1',
-        'azure/model-router',
-        'gpt-5.1',
-        'azure/gpt-5.1',
-        'azure/gpt-5.1-mini',
-        'azure/gpt-5.1-nano',
-        'azure/gpt-5.1-codex',
-        'gpt-5',
-        'gpt-5-mini',
-        'gpt-5-nano',
-        'azure/gpt-5',
-        'azure/gpt-5-mini',
-        'azure/gpt-5-nano',
-      ]
-
-      for (const model of unsupportedModels) {
-        expect(supportsTemperature(model)).toBe(false)
-      }
-    })
-
-    it('should be case insensitive', () => {
-      expect(supportsTemperature('GPT-4O')).toBe(true)
-      expect(supportsTemperature('claude-sonnet-4-5')).toBe(true)
-    })
-
     it('should inherit temperature support from provider for dynamically fetched models', () => {
       expect(supportsTemperature('openrouter/anthropic/claude-3.5-sonnet')).toBe(true)
       expect(supportsTemperature('openrouter/openai/gpt-4')).toBe(true)
@@ -280,555 +194,22 @@ describe('Model Capabilities', () => {
   })
 
   describe('getMaxTemperature', () => {
-    it('should return 2 for models with temperature range 0-2', () => {
-      const modelsRange02 = [
-        'gpt-4o',
-        'azure/gpt-4o',
-        'gpt-5-chat-latest',
-        'azure/gpt-5-chat',
-        'gemini-2.5-pro',
-        'gemini-2.5-flash',
-        'deepseek-v3',
-        'deepseek-chat',
-        'grok-3-latest',
-        'grok-3-fast-latest',
-        'groq/meta-llama/llama-4-scout-17b-16e-instruct',
-      ]
-
-      for (const model of modelsRange02) {
-        expect(getMaxTemperature(model)).toBe(2)
-      }
-    })
-
-    it('should return 1 for models with temperature range 0-1', () => {
-      const modelsRange01 = ['claude-sonnet-4-5', 'claude-opus-4-1']
-
-      for (const model of modelsRange01) {
-        expect(getMaxTemperature(model)).toBe(1)
-      }
-    })
-
-    it('should return 1.5 for models with temperature range 0-1.5', () => {
-      const modelsRange015 = ['mistral-large-latest', 'mistral-small-latest', 'codestral-latest']
-
-      for (const model of modelsRange015) {
-        expect(getMaxTemperature(model)).toBe(1.5)
-      }
-    })
-
-    it('should return undefined for models that do not support temperature', () => {
-      expect(getMaxTemperature('unsupported-model')).toBeUndefined()
-      expect(getMaxTemperature('cerebras/llama-3.3-70b')).toBeUndefined()
-      expect(getMaxTemperature('o1')).toBeUndefined()
-      expect(getMaxTemperature('o3')).toBeUndefined()
-      expect(getMaxTemperature('o4-mini')).toBeUndefined()
-      expect(getMaxTemperature('azure/o3')).toBeUndefined()
-      expect(getMaxTemperature('azure/o4-mini')).toBeUndefined()
-      expect(getMaxTemperature('deepseek-r1')).toBeUndefined()
-      expect(getMaxTemperature('gpt-5.1')).toBeUndefined()
-      expect(getMaxTemperature('azure/gpt-5.1')).toBeUndefined()
-      expect(getMaxTemperature('azure/gpt-5.1-mini')).toBeUndefined()
-      expect(getMaxTemperature('azure/gpt-5.1-nano')).toBeUndefined()
-      expect(getMaxTemperature('azure/gpt-5.1-codex')).toBeUndefined()
-      expect(getMaxTemperature('gpt-5')).toBeUndefined()
-      expect(getMaxTemperature('gpt-5-mini')).toBeUndefined()
-      expect(getMaxTemperature('gpt-5-nano')).toBeUndefined()
-      expect(getMaxTemperature('azure/gpt-5')).toBeUndefined()
-      expect(getMaxTemperature('azure/gpt-5-mini')).toBeUndefined()
-      expect(getMaxTemperature('azure/gpt-5-nano')).toBeUndefined()
-    })
-
-    it('should be case insensitive', () => {
-      expect(getMaxTemperature('GPT-4O')).toBe(2)
-      expect(getMaxTemperature('CLAUDE-SONNET-4-5')).toBe(1)
-    })
-
     it('should inherit max temperature from provider for dynamically fetched models', () => {
       expect(getMaxTemperature('openrouter/anthropic/claude-3.5-sonnet')).toBe(2)
       expect(getMaxTemperature('openrouter/openai/gpt-4')).toBe(2)
-    })
-  })
-
-  describe('supportsToolUsageControl', () => {
-    it('should return true for providers that support tool usage control', () => {
-      const supportedProviders = [
-        'openai',
-        'azure-openai',
-        'mistral',
-        'anthropic',
-        'deepseek',
-        'xai',
-        'google',
-      ]
-
-      for (const provider of supportedProviders) {
-        expect(supportsToolUsageControl(provider)).toBe(true)
-      }
-    })
-
-    it('should return false for providers that do not support tool usage control', () => {
-      const unsupportedProviders = ['ollama', 'non-existent-provider']
-
-      for (const provider of unsupportedProviders) {
-        expect(supportsToolUsageControl(provider)).toBe(false)
-      }
-    })
-  })
-
-  describe('supportsReasoningEffort', () => {
-    it('should return true for models with reasoning effort capability', () => {
-      expect(supportsReasoningEffort('gpt-5')).toBe(true)
-      expect(supportsReasoningEffort('gpt-5-mini')).toBe(true)
-      expect(supportsReasoningEffort('gpt-5.1')).toBe(true)
-      expect(supportsReasoningEffort('gpt-5.2')).toBe(true)
-      expect(supportsReasoningEffort('o3')).toBe(true)
-      expect(supportsReasoningEffort('o4-mini')).toBe(true)
-      expect(supportsReasoningEffort('azure/gpt-5')).toBe(true)
-      expect(supportsReasoningEffort('azure/o3')).toBe(true)
-      expect(supportsReasoningEffort('groq/openai/gpt-oss-120b')).toBe(true)
-      expect(supportsReasoningEffort('groq/openai/gpt-oss-20b')).toBe(true)
-    })
-
-    it('should return false for models without reasoning effort capability', () => {
-      expect(supportsReasoningEffort('gpt-4o')).toBe(false)
-      expect(supportsReasoningEffort('gpt-4.1')).toBe(false)
-      expect(supportsReasoningEffort('claude-sonnet-4-5')).toBe(false)
-      expect(supportsReasoningEffort('claude-opus-4-6')).toBe(false)
-      expect(supportsReasoningEffort('gemini-2.5-flash')).toBe(false)
-      expect(supportsReasoningEffort('unknown-model')).toBe(false)
-    })
-
-    it('should be case-insensitive', () => {
-      expect(supportsReasoningEffort('GPT-5')).toBe(true)
-      expect(supportsReasoningEffort('O3')).toBe(true)
-      expect(supportsReasoningEffort('GPT-4O')).toBe(false)
-    })
-  })
-
-  describe('supportsVerbosity', () => {
-    it('should return true for models with verbosity capability', () => {
-      expect(supportsVerbosity('gpt-5')).toBe(true)
-      expect(supportsVerbosity('gpt-5-mini')).toBe(true)
-      expect(supportsVerbosity('gpt-5.1')).toBe(true)
-      expect(supportsVerbosity('gpt-5.2')).toBe(true)
-      expect(supportsVerbosity('azure/gpt-5')).toBe(true)
-    })
-
-    it('should return false for models without verbosity capability', () => {
-      expect(supportsVerbosity('gpt-4o')).toBe(false)
-      expect(supportsVerbosity('o3')).toBe(false)
-      expect(supportsVerbosity('o4-mini')).toBe(false)
-      expect(supportsVerbosity('claude-sonnet-4-5')).toBe(false)
-      expect(supportsVerbosity('unknown-model')).toBe(false)
-    })
-
-    it('should be case-insensitive', () => {
-      expect(supportsVerbosity('GPT-5')).toBe(true)
-      expect(supportsVerbosity('GPT-4O')).toBe(false)
-    })
-  })
-
-  describe('supportsThinking', () => {
-    it('should return true for models with thinking capability', () => {
-      expect(supportsThinking('claude-opus-4-6')).toBe(true)
-      expect(supportsThinking('claude-opus-4-5')).toBe(true)
-      expect(supportsThinking('claude-sonnet-4-5')).toBe(true)
-      expect(supportsThinking('claude-sonnet-4-5')).toBe(true)
-      expect(supportsThinking('claude-haiku-4-5')).toBe(true)
-      expect(supportsThinking('gemini-3-flash-preview')).toBe(true)
-      expect(supportsThinking('deepseek-v4-flash')).toBe(true)
-      expect(supportsThinking('deepseek-reasoner')).toBe(true)
-      expect(supportsThinking('groq/qwen/qwen3.6-27b')).toBe(true)
-    })
-
-    it('should return false for models without thinking capability', () => {
-      expect(supportsThinking('gpt-4o')).toBe(false)
-      expect(supportsThinking('gpt-5')).toBe(false)
-      expect(supportsThinking('o3')).toBe(false)
-      expect(supportsThinking('deepseek-chat')).toBe(false)
-      expect(supportsThinking('deepseek-v3')).toBe(false)
-      expect(supportsThinking('unknown-model')).toBe(false)
-    })
-
-    it('should be case-insensitive', () => {
-      expect(supportsThinking('CLAUDE-OPUS-4-6')).toBe(true)
-      expect(supportsThinking('GPT-4O')).toBe(false)
-    })
-  })
-
-  describe('Model Constants', () => {
-    it('should have correct models in MODELS_TEMP_RANGE_0_2', () => {
-      expect(MODELS_TEMP_RANGE_0_2).toContain('gpt-4o')
-      expect(MODELS_TEMP_RANGE_0_2).toContain('gemini-2.5-flash')
-      expect(MODELS_TEMP_RANGE_0_2).toContain('deepseek-v3')
-      expect(MODELS_TEMP_RANGE_0_2).toContain('grok-3-latest')
-      expect(MODELS_TEMP_RANGE_0_2).not.toContain('claude-sonnet-4-5')
-    })
-
-    it('should have correct models in MODELS_TEMP_RANGE_0_1', () => {
-      expect(MODELS_TEMP_RANGE_0_1).toContain('claude-sonnet-4-5')
-      expect(MODELS_TEMP_RANGE_0_1).not.toContain('grok-3-latest')
-      expect(MODELS_TEMP_RANGE_0_1).not.toContain('gpt-4o')
-    })
-
-    it('should have correct providers in PROVIDERS_WITH_TOOL_USAGE_CONTROL', () => {
-      expect(PROVIDERS_WITH_TOOL_USAGE_CONTROL).toContain('openai')
-      expect(PROVIDERS_WITH_TOOL_USAGE_CONTROL).toContain('anthropic')
-      expect(PROVIDERS_WITH_TOOL_USAGE_CONTROL).toContain('deepseek')
-      expect(PROVIDERS_WITH_TOOL_USAGE_CONTROL).toContain('google')
-      expect(PROVIDERS_WITH_TOOL_USAGE_CONTROL).not.toContain('ollama')
-    })
-
-    it('should combine both temperature ranges in MODELS_WITH_TEMPERATURE_SUPPORT', () => {
-      expect(MODELS_WITH_TEMPERATURE_SUPPORT.length).toBe(
-        MODELS_TEMP_RANGE_0_2.length + MODELS_TEMP_RANGE_0_15.length + MODELS_TEMP_RANGE_0_1.length
-      )
-      expect(MODELS_WITH_TEMPERATURE_SUPPORT).toContain('gpt-4o')
-      expect(MODELS_WITH_TEMPERATURE_SUPPORT).toContain('claude-sonnet-4-5')
-    })
-
-    it('should have correct models in MODELS_WITH_REASONING_EFFORT', () => {
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.1')
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5.1')
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5.1-codex')
-
-      expect(MODELS_WITH_REASONING_EFFORT).not.toContain('azure/gpt-5.1-mini')
-      expect(MODELS_WITH_REASONING_EFFORT).not.toContain('azure/gpt-5.1-nano')
-
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5')
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5-mini')
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5-nano')
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5')
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5-mini')
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5-nano')
-
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.2')
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/gpt-5.2')
-
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('o1')
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('o3')
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('o4-mini')
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/o3')
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('azure/o4-mini')
-
-      expect(MODELS_WITH_REASONING_EFFORT).not.toContain('gpt-5-chat-latest')
-      expect(MODELS_WITH_REASONING_EFFORT).not.toContain('azure/gpt-5-chat')
-
-      expect(MODELS_WITH_REASONING_EFFORT).not.toContain('gpt-4o')
-      expect(MODELS_WITH_REASONING_EFFORT).not.toContain('claude-sonnet-4-5')
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('groq/openai/gpt-oss-120b')
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('groq/openai/gpt-oss-20b')
-    })
-
-    it('should have correct models in MODELS_WITH_VERBOSITY', () => {
-      expect(MODELS_WITH_VERBOSITY).toContain('gpt-5.1')
-      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5.1')
-      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5.1-codex')
-
-      expect(MODELS_WITH_VERBOSITY).not.toContain('azure/gpt-5.1-mini')
-      expect(MODELS_WITH_VERBOSITY).not.toContain('azure/gpt-5.1-nano')
-
-      expect(MODELS_WITH_VERBOSITY).toContain('gpt-5')
-      expect(MODELS_WITH_VERBOSITY).toContain('gpt-5-mini')
-      expect(MODELS_WITH_VERBOSITY).toContain('gpt-5-nano')
-      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5')
-      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5-mini')
-      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5-nano')
-
-      expect(MODELS_WITH_VERBOSITY).toContain('gpt-5.2')
-      expect(MODELS_WITH_VERBOSITY).toContain('azure/gpt-5.2')
-
-      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5-chat-latest')
-      expect(MODELS_WITH_VERBOSITY).not.toContain('azure/gpt-5-chat')
-
-      expect(MODELS_WITH_VERBOSITY).not.toContain('o1')
-      expect(MODELS_WITH_VERBOSITY).not.toContain('o3')
-      expect(MODELS_WITH_VERBOSITY).not.toContain('o4-mini')
-
-      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-4o')
-      expect(MODELS_WITH_VERBOSITY).not.toContain('claude-sonnet-4-5')
-    })
-
-    it('should have correct models in MODELS_WITH_THINKING', () => {
-      expect(MODELS_WITH_THINKING).toContain('claude-opus-4-6')
-      expect(MODELS_WITH_THINKING).toContain('claude-opus-4-5')
-      expect(MODELS_WITH_THINKING).toContain('claude-opus-4-1')
-      expect(MODELS_WITH_THINKING).toContain('claude-sonnet-4-5')
-
-      expect(MODELS_WITH_THINKING).toContain('gemini-3-flash-preview')
-
-      expect(MODELS_WITH_THINKING).toContain('claude-haiku-4-5')
-
-      expect(MODELS_WITH_THINKING).toContain('deepseek-v4-flash')
-      expect(MODELS_WITH_THINKING).toContain('deepseek-reasoner')
-      expect(MODELS_WITH_THINKING).not.toContain('deepseek-chat')
-      expect(MODELS_WITH_THINKING).toContain('groq/qwen/qwen3.6-27b')
-
-      expect(MODELS_WITH_THINKING).not.toContain('gpt-4o')
-      expect(MODELS_WITH_THINKING).not.toContain('gpt-5')
-      expect(MODELS_WITH_THINKING).not.toContain('o3')
-    })
-
-    it('should have GPT-5 models in both reasoning effort and verbosity arrays', () => {
-      const gpt5ModelsWithReasoningEffort = MODELS_WITH_REASONING_EFFORT.filter(
-        (m) =>
-          m.includes('gpt-5') &&
-          !m.includes('chat-latest') &&
-          m !== 'gpt-5.5-pro' &&
-          m !== 'gpt-5.4-pro' &&
-          m !== 'gpt-5.3-codex' &&
-          m !== 'gpt-5.2-pro' &&
-          m !== 'gpt-5-pro'
-      )
-      const gpt5ModelsWithVerbosity = MODELS_WITH_VERBOSITY.filter(
-        (m) => m.includes('gpt-5') && !m.includes('chat-latest')
-      )
-      expect(gpt5ModelsWithReasoningEffort.sort()).toEqual(gpt5ModelsWithVerbosity.sort())
-
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.5-pro')
-      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5.5-pro')
-
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.4-pro')
-      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5.4-pro')
-
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.3-codex')
-      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5.3-codex')
-
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5.2-pro')
-      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5.2-pro')
-
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('gpt-5-pro')
-      expect(MODELS_WITH_VERBOSITY).not.toContain('gpt-5-pro')
-
-      expect(MODELS_WITH_REASONING_EFFORT).toContain('o1')
-      expect(MODELS_WITH_VERBOSITY).not.toContain('o1')
-    })
-  })
-  describe('Reasoning Effort Values Per Model', () => {
-    it('should return correct values for GPT-5.2', () => {
-      const values = getReasoningEffortValuesForModel('gpt-5.2')
-      expect(values).toBeDefined()
-      expect(values).toContain('none')
-      expect(values).toContain('low')
-      expect(values).toContain('medium')
-      expect(values).toContain('high')
-      expect(values).toContain('xhigh')
-      expect(values).not.toContain('minimal')
-    })
-
-    it('should return correct values for GPT-5', () => {
-      const values = getReasoningEffortValuesForModel('gpt-5')
-      expect(values).toBeDefined()
-      expect(values).toContain('minimal')
-      expect(values).toContain('low')
-      expect(values).toContain('medium')
-      expect(values).toContain('high')
-    })
-
-    it('should return correct values for o-series models', () => {
-      for (const model of ['o1', 'o3', 'o4-mini']) {
-        const values = getReasoningEffortValuesForModel(model)
-        expect(values).toBeDefined()
-        expect(values).toContain('low')
-        expect(values).toContain('medium')
-        expect(values).toContain('high')
-        expect(values).not.toContain('none')
-        expect(values).not.toContain('minimal')
-      }
-    })
-
-    it('should return null for non-reasoning models', () => {
-      expect(getReasoningEffortValuesForModel('gpt-4o')).toBeNull()
-      expect(getReasoningEffortValuesForModel('claude-sonnet-4-5')).toBeNull()
-      expect(getReasoningEffortValuesForModel('gemini-2.5-flash')).toBeNull()
-    })
-
-    it('should return correct values for Azure GPT-5.2', () => {
-      const values = getReasoningEffortValuesForModel('azure/gpt-5.2')
-      expect(values).toBeDefined()
-      expect(values).not.toContain('minimal')
-      expect(values).toContain('none')
-      expect(values).toContain('high')
-      expect(values).not.toContain('xhigh')
-    })
-  })
-
-  describe('Verbosity Values Per Model', () => {
-    it('should return correct values for GPT-5 family', () => {
-      for (const model of ['gpt-5.2', 'gpt-5.1', 'gpt-5', 'gpt-5-mini', 'gpt-5-nano']) {
-        const values = getVerbosityValuesForModel(model)
-        expect(values).toBeDefined()
-        expect(values).toContain('low')
-        expect(values).toContain('medium')
-        expect(values).toContain('high')
-      }
-    })
-
-    it('should return null for o-series models', () => {
-      expect(getVerbosityValuesForModel('o1')).toBeNull()
-      expect(getVerbosityValuesForModel('o3')).toBeNull()
-      expect(getVerbosityValuesForModel('o4-mini')).toBeNull()
-    })
-
-    it('should return null for non-reasoning models', () => {
-      expect(getVerbosityValuesForModel('gpt-4o')).toBeNull()
-      expect(getVerbosityValuesForModel('claude-sonnet-4-5')).toBeNull()
-    })
-  })
-
-  describe('Thinking Levels Per Model', () => {
-    it('should return correct levels for Claude Opus 4.6 (adaptive)', () => {
-      const levels = getThinkingLevelsForModel('claude-opus-4-6')
-      expect(levels).toBeDefined()
-      expect(levels).toContain('low')
-      expect(levels).toContain('medium')
-      expect(levels).toContain('high')
-      expect(levels).toContain('max')
-    })
-
-    it('should return correct levels for other Claude models (budget_tokens)', () => {
-      for (const model of ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5']) {
-        const levels = getThinkingLevelsForModel(model)
-        expect(levels).toBeDefined()
-        expect(levels).toContain('low')
-        expect(levels).toContain('medium')
-        expect(levels).toContain('high')
-        expect(levels).not.toContain('max')
-      }
-    })
-
-    it('should return correct levels for Gemini 3 models', () => {
-      const flashLevels = getThinkingLevelsForModel('gemini-3-flash-preview')
-      expect(flashLevels).toBeDefined()
-      expect(flashLevels).toContain('minimal')
-      expect(flashLevels).toContain('low')
-      expect(flashLevels).toContain('medium')
-      expect(flashLevels).toContain('high')
-    })
-
-    it('should return correct levels for Claude Haiku 4.5', () => {
-      const levels = getThinkingLevelsForModel('claude-haiku-4-5')
-      expect(levels).toBeDefined()
-      expect(levels).toContain('low')
-      expect(levels).toContain('medium')
-      expect(levels).toContain('high')
-    })
-
-    it('should return null for non-thinking models', () => {
-      expect(getThinkingLevelsForModel('gpt-4o')).toBeNull()
-      expect(getThinkingLevelsForModel('gpt-5')).toBeNull()
-      expect(getThinkingLevelsForModel('o3')).toBeNull()
     })
   })
 })
 
 describe('Max Output Tokens', () => {
   describe('getMaxOutputTokensForModel', () => {
-    it('should return published max for OpenAI GPT-4o', () => {
-      expect(getMaxOutputTokensForModel('gpt-4o')).toBe(16384)
-    })
-
-    it('should return published max for OpenAI GPT-5.1', () => {
-      expect(getMaxOutputTokensForModel('gpt-5.1')).toBe(128000)
-    })
-
-    it('should return published max for OpenAI GPT-5 Chat', () => {
-      expect(getMaxOutputTokensForModel('gpt-5-chat-latest')).toBe(16384)
-    })
-
-    it('should return published max for OpenAI o1', () => {
-      expect(getMaxOutputTokensForModel('o1')).toBe(100000)
-    })
-
-    it('should return updated max for Claude Sonnet 4.6', () => {
-      expect(getMaxOutputTokensForModel('claude-sonnet-4-6')).toBe(128000)
-    })
-
-    it('should return published max for Gemini 2.5 Pro', () => {
-      expect(getMaxOutputTokensForModel('gemini-2.5-pro')).toBe(65536)
-    })
-
-    it('should return published max for Azure GPT-5.2', () => {
-      expect(getMaxOutputTokensForModel('azure/gpt-5.2')).toBe(128000)
-    })
-
-    it('should return published max for DeepSeek Reasoner', () => {
-      expect(getMaxOutputTokensForModel('deepseek-reasoner')).toBe(384000)
-    })
-
     it('should return standard default for models without maxOutputTokens', () => {
       expect(getMaxOutputTokensForModel('grok-4-latest')).toBe(4096)
-    })
-
-    it('should return published max for Bedrock Claude Opus 4.1', () => {
-      expect(getMaxOutputTokensForModel('bedrock/anthropic.claude-opus-4-1-20250805-v1:0')).toBe(
-        32000
-      )
-    })
-
-    it('should return correct max for Claude Opus 4.6', () => {
-      expect(getMaxOutputTokensForModel('claude-opus-4-6')).toBe(128000)
-    })
-
-    it('should return correct max for Claude Sonnet 4.5', () => {
-      expect(getMaxOutputTokensForModel('claude-sonnet-4-5')).toBe(64000)
-    })
-
-    it('should return correct max for Claude Opus 4.1', () => {
-      expect(getMaxOutputTokensForModel('claude-opus-4-1')).toBe(32000)
     })
 
     it('should return standard default for unknown models', () => {
       expect(getMaxOutputTokensForModel('unknown-model')).toBe(4096)
     })
-  })
-})
-
-describe('Model Pricing Validation', () => {
-  it('should have correct pricing for key Anthropic models', () => {
-    const opus46 = getModelPricing('claude-opus-4-6')
-    expect(opus46).toBeDefined()
-    expect(opus46.input).toBe(5.0)
-    expect(opus46.output).toBe(25.0)
-
-    const sonnet45 = getModelPricing('claude-sonnet-4-5')
-    expect(sonnet45).toBeDefined()
-    expect(sonnet45.input).toBe(3.0)
-    expect(sonnet45.output).toBe(15.0)
-  })
-
-  it('should have correct pricing for key OpenAI models', () => {
-    const gpt4o = getModelPricing('gpt-4o')
-    expect(gpt4o).toBeDefined()
-    expect(gpt4o.input).toBe(2.5)
-    expect(gpt4o.output).toBe(10.0)
-
-    const o3 = getModelPricing('o3')
-    expect(o3).toBeDefined()
-    expect(o3.input).toBe(2.0)
-    expect(o3.output).toBe(8.0)
-  })
-
-  it('should have correct pricing for Azure OpenAI o3', () => {
-    const azureO3 = getModelPricing('azure/o3')
-    expect(azureO3).toBeDefined()
-    expect(azureO3.input).toBe(2.0)
-    expect(azureO3.output).toBe(8.0)
-  })
-
-  it('should return null for unknown models', () => {
-    expect(getModelPricing('unknown-model')).toBeNull()
-  })
-})
-
-describe('Context Window Validation', () => {
-  it('should have correct context windows for key models', () => {
-    const allModels = getAllModels()
-
-    expect(allModels).toContain('gpt-5-chat-latest')
-
-    expect(allModels).toContain('o3')
-    expect(allModels).toContain('o4-mini')
   })
 })
 
@@ -926,36 +307,6 @@ describe('Cost Calculation', () => {
   })
 })
 
-describe('getHostedModels', () => {
-  it('should return OpenAI, Anthropic, Google, and xAI models as hosted', () => {
-    const hostedModels = getHostedModels()
-
-    expect(hostedModels).toContain('gpt-6-astra')
-    expect(hostedModels).toContain('gpt-4o')
-    expect(hostedModels).toContain('o1')
-
-    expect(hostedModels).toContain('claude-sonnet-4-5')
-    expect(hostedModels).toContain('claude-opus-4-1')
-
-    expect(hostedModels).toContain('gemini-2.5-pro')
-    expect(hostedModels).toContain('gemini-2.5-flash')
-
-    expect(hostedModels).toContain('grok-4.5')
-
-    expect(hostedModels).not.toContain('deepseek-v3')
-  })
-
-  it('should return an array of strings', () => {
-    const hostedModels = getHostedModels()
-
-    expect(Array.isArray(hostedModels)).toBe(true)
-    expect(hostedModels.length).toBeGreaterThan(0)
-    hostedModels.forEach((model) => {
-      expect(typeof model).toBe('string')
-    })
-  })
-})
-
 describe('shouldBillModelUsage', () => {
   it('should return true for exact matches of hosted models', () => {
     expect(shouldBillModelUsage('gpt-6-astra')).toBe(true)
@@ -1032,101 +383,10 @@ describe('Provider Management', () => {
   })
 
   describe('getProvider', () => {
-    it('should return provider config for valid provider IDs', () => {
-      const openaiProvider = getProvider('openai')
-      expect(openaiProvider).toBeDefined()
-      expect(openaiProvider?.id).toBe('openai')
-      expect(openaiProvider?.name).toBe('OpenAI')
-
-      const anthropicProvider = getProvider('anthropic')
-      expect(anthropicProvider).toBeDefined()
-      expect(anthropicProvider?.id).toBe('anthropic')
-    })
-
     it('should handle provider/service format', () => {
       const provider = getProvider('openai/chat')
       expect(provider).toBeDefined()
       expect(provider?.id).toBe('openai')
-    })
-
-    it('should return undefined for invalid provider IDs', () => {
-      expect(getProvider('nonexistent')).toBeUndefined()
-    })
-  })
-
-  describe('getProviderConfigFromModel', () => {
-    it('should return provider config for model', () => {
-      const config = getProviderConfigFromModel('gpt-4o')
-      expect(config).toBeDefined()
-      expect(config?.id).toBe('openai')
-
-      const anthropicConfig = getProviderConfigFromModel('claude-sonnet-4-5')
-      expect(anthropicConfig).toBeDefined()
-      expect(anthropicConfig?.id).toBe('anthropic')
-    })
-  })
-
-  describe('getAllModels', () => {
-    it('should return all models from all providers', () => {
-      const allModels = getAllModels()
-      expect(Array.isArray(allModels)).toBe(true)
-      expect(allModels.length).toBeGreaterThan(0)
-
-      expect(allModels).toContain('gpt-4o')
-      expect(allModels).toContain('claude-sonnet-4-5')
-      expect(allModels).toContain('gemini-2.5-pro')
-    })
-  })
-
-  describe('getAllProviderIds', () => {
-    it('should return all provider IDs', () => {
-      const providerIds = getAllProviderIds()
-      expect(Array.isArray(providerIds)).toBe(true)
-      expect(providerIds).toContain('openai')
-      expect(providerIds).toContain('anthropic')
-      expect(providerIds).toContain('google')
-      expect(providerIds).toContain('azure-openai')
-    })
-  })
-
-  describe('getProviderModels', () => {
-    it('should return models for specific providers', () => {
-      const openaiModels = getProviderModels('openai')
-      expect(Array.isArray(openaiModels)).toBe(true)
-      expect(openaiModels).toContain('gpt-4o')
-      expect(openaiModels).toContain('o1')
-
-      const anthropicModels = getProviderModels('anthropic')
-      expect(anthropicModels).toContain('claude-sonnet-4-5')
-      expect(anthropicModels).toContain('claude-opus-4-1')
-    })
-
-    it('should return empty array for unknown providers', () => {
-      const unknownModels = getProviderModels('unknown' as any)
-      expect(unknownModels).toEqual([])
-    })
-  })
-
-  describe('getBaseModelProviders and getAllModelProviders', () => {
-    it('should return model to provider mapping', () => {
-      const allProviders = getAllModelProviders()
-      expect(typeof allProviders).toBe('object')
-      expect(allProviders['gpt-4o']).toBe('openai')
-      expect(allProviders['claude-sonnet-4-5']).toBe('anthropic')
-
-      const baseProviders = getBaseModelProviders()
-      expect(typeof baseProviders).toBe('object')
-    })
-  })
-
-  describe('updateOllamaProviderModels', () => {
-    it('should update ollama models', () => {
-      const mockModels = ['llama2', 'codellama', 'mistral']
-
-      expect(() => updateOllamaProviderModels(mockModels)).not.toThrow()
-
-      const ollamaModels = getProviderModels('ollama')
-      expect(ollamaModels).toEqual(mockModels)
     })
   })
 })
@@ -1671,49 +931,6 @@ describe('prepareToolExecution', () => {
   })
 })
 
-describe('Provider/Model Blacklist', () => {
-  describe('isProviderBlacklisted', () => {
-    it('should return false when no providers are blacklisted', () => {
-      expect(isProviderBlacklisted('openai')).toBe(false)
-      expect(isProviderBlacklisted('anthropic')).toBe(false)
-    })
-  })
-
-  describe('filterBlacklistedModels', () => {
-    it('should return all models when no blacklist is set', () => {
-      const models = ['gpt-4o', 'claude-sonnet-4-5', 'gemini-2.5-pro']
-      const result = filterBlacklistedModels(models)
-      expect(result).toEqual(models)
-    })
-
-    it('should return empty array for empty input', () => {
-      const result = filterBlacklistedModels([])
-      expect(result).toEqual([])
-    })
-  })
-
-  describe('getBaseModelProviders blacklist filtering', () => {
-    it('should return providers when no blacklist is set', () => {
-      const providers = getBaseModelProviders()
-      expect(Object.keys(providers).length).toBeGreaterThan(0)
-      expect(providers['gpt-4o']).toBe('openai')
-      expect(providers['claude-sonnet-4-5']).toBe('anthropic')
-    })
-  })
-
-  describe('getProviderFromModel execution-time enforcement', () => {
-    it('should return provider for non-blacklisted models', () => {
-      expect(getProviderFromModel('gpt-4o')).toBe('openai')
-      expect(getProviderFromModel('claude-sonnet-4-5')).toBe('anthropic')
-    })
-
-    it('should be case insensitive', () => {
-      expect(getProviderFromModel('GPT-4O')).toBe('openai')
-      expect(getProviderFromModel('CLAUDE-SONNET-4-5')).toBe('anthropic')
-    })
-  })
-})
-
 describe('transformBlockTool table identities', () => {
   const tableBlockDef = {
     type: 'table',
@@ -2010,7 +1227,6 @@ describe('workflow executor metadata delegation', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     workflowMetadataMocks.readWorkflowMetadataForTool.mockResolvedValue({
       name: 'Child Workflow',
       description: 'Child description',

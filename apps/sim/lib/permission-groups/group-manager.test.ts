@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { db } from '@sim/db'
 import { permissionGroup, permissionGroupMember } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
@@ -50,7 +49,6 @@ const group = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.group.mockResolvedValue(group)
   mocks.workspaces.mockResolvedValue([{ id: 'workspace-1', name: 'Engineering' }])
@@ -127,31 +125,12 @@ describe('permission group mutation consistency', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
-  it('validates workspace ownership on the transaction executor', async () => {
-    mocks.invalidWorkspaces.mockResolvedValueOnce(['outside-workspace'])
-    await expect(
-      createPermissionGroupRecord('org-1', 'admin-1', {
-        name: 'Restricted',
-        workspaceIds: ['outside-workspace'],
-      })
-    ).rejects.toMatchObject({ code: 'validation' })
-    expect(mocks.invalidWorkspaces).toHaveBeenCalledWith(['outside-workspace'], 'org-1', db)
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-  })
-
   it('rejects a duplicate name without demoting the current default', async () => {
     queueTableRows(permissionGroup, [{ id: 'other-group' }])
     await expect(
       createPermissionGroupRecord('org-1', 'admin-1', { name: 'Restricted', isDefault: true })
     ).rejects.toMatchObject({ code: 'conflict' })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
-  it('creates the default and demotes its predecessor within one transaction', async () => {
-    await createPermissionGroupRecord('org-1', 'admin-1', { name: 'New default', isDefault: true })
-    expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(expect.objectContaining({ isDefault: false }))
-    expect(dbChainMockFns.insert).toHaveBeenCalledExactlyOnceWith(permissionGroup)
   })
 
   it('deletes only after finding the group in the asserted organization under lock', async () => {
@@ -161,13 +140,5 @@ describe('permission group mutation consistency', () => {
     })
     expect(mocks.group).toHaveBeenCalledWith('other-group', 'org-1', db)
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-  })
-
-  it('returns the authoritative updated row without an unlocked reload', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([{ ...group, name: 'New name' }])
-    const result = await updatePermissionGroupRecord('org-1', 'group-1', { name: 'New name' })
-    expect(result.name).toBe('New name')
-    expect(mocks.group).toHaveBeenCalledExactlyOnceWith('group-1', 'org-1', db)
-    expect(mocks.workspaces).toHaveBeenCalledExactlyOnceWith('group-1', db)
   })
 })

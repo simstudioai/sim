@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import {
   knowledgeConnector,
   member,
@@ -75,7 +74,6 @@ const principal = { kind: 'session', sessionId: 'session', userId: 'actor' } as 
 const input = { organizationId: 'organization', connectorType: 'gmail', approved: true }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   resetEnvFlagsMock()
   mocks.config.mockResolvedValue(null)

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ defineRoute: vi.fn((definition) => definition) }))
@@ -17,13 +14,7 @@ vi.mock('@/lib/api/server/routes', () => ({
 }))
 
 import { v2ImportWorkflowContract } from '@/lib/api/contracts/v2/workflows'
-import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
-import {
-  type ImportWorkflowResult,
-  importWorkflow,
-} from '@/lib/workflows/application/import-export'
-import { workflowOperations } from '@/lib/workflows/application/operations'
-import { MAX_IMPORT_BODY_BYTES } from '@/lib/workflows/operations/import-workflow'
+import type { ImportWorkflowResult } from '@/lib/workflows/application/import-export'
 import { POST } from '@/app/api/v2/workflows/import/route'
 
 /** With `defineV2JsonRoute` mocked to return its definition, `POST` is that definition. */
@@ -44,15 +35,6 @@ const importedWorkflow = {
 }
 
 describe('/api/v2/workflows/import route definition', () => {
-  it('uses authorized admission and preserves the bounded import lifecycle', () => {
-    expect(POST).toMatchObject({
-      operation: workflowOperations.import,
-      useCase: importWorkflow,
-      errorPolicy: v2WorkflowErrorPolicies.import,
-      parseOptions: { maxBodyBytes: MAX_IMPORT_BODY_BYTES },
-    })
-  })
-
   /**
    * The presenter dropped the imported blocks, so an import that created three
    * blocks answered with nothing a caller could check short of reading the
@@ -90,24 +72,5 @@ describe('/api/v2/workflows/import route definition', () => {
     const serialized = await Response.json(body).json()
     expect(serialized.data).not.toHaveProperty('blocks')
     expect(v2ImportWorkflowContract.response.schema.parse(serialized)).toEqual(serialized)
-  })
-
-  /**
-   * Export clears workspace bindings, so a round-tripped workflow used to land
-   * silently unable to run. The warnings are the response's way of saying which
-   * fields to set, and the contract requires the array even when it is empty.
-   */
-  it('presents the stripped-binding warnings and the contract requires them', () => {
-    const warnings = ['Lookup: tableId was stripped by export; set it before running']
-
-    const body = definition.present({ workflow: importedWorkflow, folderPath: '/', warnings })
-
-    expect(body.data.warnings).toEqual(warnings)
-    expect(v2ImportWorkflowContract.response.schema.parse(body)).toEqual(body)
-    expect(
-      v2ImportWorkflowContract.response.schema.safeParse({
-        data: { ...body.data, warnings: undefined },
-      }).success
-    ).toBe(false)
   })
 })

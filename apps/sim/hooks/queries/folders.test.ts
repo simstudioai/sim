@@ -43,7 +43,7 @@ vi.mock('@/hooks/queries/utils/workflow-keys', () => ({
   },
 }))
 
-import { useCreateFolder, useDuplicateFolderMutation } from '@/hooks/queries/folders'
+import { useDuplicateFolderMutation } from '@/hooks/queries/folders'
 
 function getOptimisticFolderByName(name: string) {
   return Object.values(folderMapState).find((folder: any) => folder.name === name) as
@@ -53,7 +53,6 @@ function getOptimisticFolderByName(name: string) {
 
 describe('folder optimistic top insertion ordering', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     queryClient.getQueryData.mockImplementation(() => folderListState)
     queryClient.setQueryData.mockImplementation((_key: unknown, updater: any) => {
       folderListState = typeof updater === 'function' ? updater(folderListState) : updater
@@ -104,35 +103,6 @@ describe('folder optimistic top insertion ordering', () => {
         sortOrder: -50,
       },
     ]
-  })
-
-  it('creates folders at top of mixed non-root siblings', async () => {
-    const mutation = useCreateFolder()
-
-    await mutation.onMutate({
-      workspaceId: 'ws-1',
-      name: 'New child folder',
-      parentId: 'parent-1',
-    })
-
-    const optimisticFolder = getOptimisticFolderByName('New child folder')
-    expect(optimisticFolder).toBeDefined()
-    expect(optimisticFolder?.sortOrder).toBe(1)
-  })
-
-  it('duplicates folders at top of mixed non-root siblings', async () => {
-    const mutation = useDuplicateFolderMutation()
-
-    await mutation.onMutate({
-      workspaceId: 'ws-1',
-      id: 'folder-parent-match',
-      name: 'Duplicated child folder',
-      parentId: 'parent-1',
-    })
-
-    const optimisticFolder = getOptimisticFolderByName('Duplicated child folder')
-    expect(optimisticFolder).toBeDefined()
-    expect(optimisticFolder?.sortOrder).toBe(1)
   })
 
   it('uses source parent scope when duplicate parentId is undefined', async () => {

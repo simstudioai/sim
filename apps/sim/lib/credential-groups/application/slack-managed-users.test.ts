@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { credentialGroup } from '@sim/db/schema'
 import { auditMock, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -63,7 +60,6 @@ const attempt = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.available.mockResolvedValue(true)
   mocks.organizationAccess.mockResolvedValue({

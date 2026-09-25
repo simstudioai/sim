@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -25,38 +22,11 @@ const req = (q: string) =>
 
 describe('GET /api/workspaces/[id]/files/inline', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'u1' }, session: { id: 's1' } })
     mockReadInline.mockResolvedValue({
       file: { name: 'photo.png', type: 'image/png', size: PNG.length },
       stream: new Blob([new Uint8Array(PNG)]).stream(),
       contentAddressed: false,
-    })
-  })
-
-  it('serves authenticated workspace-scoped content by file id', async () => {
-    const res = await GET(req('fileId=wf_abc'), params)
-
-    expect(res.status).toBe(200)
-    expect(mockReadInline).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal: { kind: 'session', userId: 'u1', sessionId: 's1' },
-        input: { workspaceId: 'ws-1', fileId: 'wf_abc' },
-      })
-    )
-    // A file id names the FILE, whose bytes move under it on every edit — so it must revalidate.
-    expect(res.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate')
-    expect(res.headers.get('Content-Disposition')).toBe('inline; filename="photo.png"')
-  })
-
-  it('passes key references to the shared read use case', async () => {
-    const res = await GET(req('key=workspace%2Fws-1%2Fphoto.png'), params)
-
-    expect(res.status).toBe(200)
-    expect(mockReadInline.mock.calls[0][0].input).toEqual({
-      workspaceId: 'ws-1',
-      key: 'workspace/ws-1/photo.png',
-      fileId: undefined,
     })
   })
 
@@ -87,20 +57,5 @@ describe('GET /api/workspaces/[id]/files/inline', () => {
 
     expect(res.status).toBe(404)
     expect(await res.json()).toEqual({ error: 'FileNotFoundError', message: 'Not found' })
-  })
-
-  it('authenticates before parsing invalid input', async () => {
-    mockGetSession.mockResolvedValue(null)
-
-    const res = await GET(req(''), params)
-
-    expect(res.status).toBe(401)
-    expect(mockReadInline).not.toHaveBeenCalled()
-  })
-
-  it('returns a validation response when both references are supplied', async () => {
-    const res = await GET(req('key=k&fileId=f'), params)
-    expect(res.status).toBe(400)
-    expect(mockReadInline).not.toHaveBeenCalled()
   })
 })

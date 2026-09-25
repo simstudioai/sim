@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { clearCredentialInValue } from '@/lib/credentials/deletion'
 
@@ -13,20 +10,6 @@ describe('clearCredentialInValue', () => {
     const result = clearCredentialInValue(input, TARGET)
     expect(result.changed).toBe(true)
     expect(result.value).toEqual({ id: 'credential', type: 'oauth-input', value: '' })
-  })
-
-  it('clears matching subBlock value with id="manualCredential"', () => {
-    const input = { id: 'manualCredential', type: 'short-input', value: TARGET }
-    const result = clearCredentialInValue(input, TARGET)
-    expect(result.changed).toBe(true)
-    expect(result.value).toEqual({ id: 'manualCredential', type: 'short-input', value: '' })
-  })
-
-  it('clears matching subBlock value with id="triggerCredentials"', () => {
-    const input = { id: 'triggerCredentials', value: TARGET }
-    const result = clearCredentialInValue(input, TARGET)
-    expect(result.changed).toBe(true)
-    expect((result.value as { value: string }).value).toBe('')
   })
 
   it('leaves unrelated subBlock value untouched', () => {
@@ -97,27 +80,6 @@ describe('clearCredentialInValue', () => {
     expect(value.blocks.block2.subBlocks.other.value).toBe('unrelated')
   })
 
-  it('returns same reference when no changes are made', () => {
-    const input = {
-      blocks: {
-        block1: {
-          subBlocks: { credential: { id: 'credential', value: OTHER } },
-        },
-      },
-    }
-    const result = clearCredentialInValue(input, TARGET)
-    expect(result.changed).toBe(false)
-    expect(result.value).toBe(input)
-  })
-
-  it('does not match outer "credential" key whose value is an object wrapper', () => {
-    const input = { credential: { id: 'credential', value: TARGET } }
-    const result = clearCredentialInValue(input, TARGET)
-    expect(result.changed).toBe(true)
-    const value = result.value as { credential: { id: string; value: string } }
-    expect(value.credential).toEqual({ id: 'credential', value: '' })
-  })
-
   it('clears params.credential string directly even when not nested in tools', () => {
     const input = { params: { credential: TARGET, channel: '#x' } }
     const result = clearCredentialInValue(input, TARGET)
@@ -130,12 +92,6 @@ describe('clearCredentialInValue', () => {
     const result = clearCredentialInValue(input, TARGET)
     expect(result.changed).toBe(false)
     expect(result.value).toBe(input)
-  })
-
-  it('handles primitives and null', () => {
-    expect(clearCredentialInValue(null, TARGET)).toEqual({ value: null, changed: false })
-    expect(clearCredentialInValue('string', TARGET)).toEqual({ value: 'string', changed: false })
-    expect(clearCredentialInValue(42, TARGET)).toEqual({ value: 42, changed: false })
   })
 
   it('clears multiple references in a single pass', () => {

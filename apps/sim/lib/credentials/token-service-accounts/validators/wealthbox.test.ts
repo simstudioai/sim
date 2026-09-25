@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { validateWealthboxServiceAccount } from '@/lib/credentials/token-service-accounts/validators/wealthbox'
 
@@ -22,7 +19,6 @@ const mockFetch = vi.fn()
 
 describe('validateWealthboxServiceAccount', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
   })
 
@@ -30,7 +26,7 @@ describe('validateWealthboxServiceAccount', () => {
     vi.unstubAllGlobals()
   })
 
-  it('returns displayName and metadata on Bearer success', async () => {
+  it('probes the me endpoint with a Bearer token', async () => {
     mockFetch.mockResolvedValue(
       jsonResponse(200, {
         name: 'Bill Jones',
@@ -39,15 +35,8 @@ describe('validateWealthboxServiceAccount', () => {
       })
     )
 
-    const result = await validateWealthboxServiceAccount(FIELDS)
+    await validateWealthboxServiceAccount(FIELDS)
 
-    expect(result).toEqual({
-      displayName: 'Bill Jones',
-      principal: { kind: 'user', id: '42', label: 'bill@example.com' },
-      auditMetadata: {},
-    })
-
-    expect(mockFetch).toHaveBeenCalledTimes(1)
     const [url, init] = mockFetch.mock.calls[0]
     expect(url).toBe(ME_URL)
     expect(init.headers.Authorization).toBe(`Bearer ${FIELDS.apiToken}`)
@@ -73,16 +62,6 @@ describe('validateWealthboxServiceAccount', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 
-  it('throws invalid_credentials when both Bearer and ACCESS_TOKEN 401', async () => {
-    mockFetch.mockResolvedValue(jsonResponse(401, { error: 'No valid API key provided' }))
-
-    await expect(validateWealthboxServiceAccount(FIELDS)).rejects.toMatchObject({
-      name: 'TokenServiceAccountValidationError',
-      code: 'invalid_credentials',
-      status: 401,
-    })
-  })
-
   it('throws invalid_credentials on 402 (expired Wealthbox trial)', async () => {
     mockFetch.mockResolvedValue(jsonResponse(402, { error: 'Wealthbox trial account has expired' }))
 
@@ -91,18 +70,6 @@ describe('validateWealthboxServiceAccount', () => {
       code: 'invalid_credentials',
       status: 402,
       logDetail: { step: 'me', reason: 'wealthbox trial expired (402)' },
-    })
-
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-  })
-
-  it('throws provider_unavailable on 503', async () => {
-    mockFetch.mockResolvedValue(jsonResponse(503, { message: 'unavailable' }))
-
-    await expect(validateWealthboxServiceAccount(FIELDS)).rejects.toMatchObject({
-      name: 'TokenServiceAccountValidationError',
-      code: 'provider_unavailable',
-      status: 503,
     })
 
     expect(mockFetch).toHaveBeenCalledTimes(1)

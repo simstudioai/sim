@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
 
@@ -83,7 +80,6 @@ function contextWithSecrets(
 
 describe('Mothership media model boundaries', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(true)
     mockResolveWorkspaceFileReference.mockResolvedValue(file)
     mockReadWorkspaceFileContent.mockResolvedValue({ file, content: Buffer.from('opaque-media') })

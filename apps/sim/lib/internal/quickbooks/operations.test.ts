@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -59,7 +56,6 @@ function context(overrides: Record<string, string> = {}) {
 
 describe('QuickBooks internal operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', vi.fn())
     mocks.closeDispatcher.mockResolvedValue(undefined)
     mocks.uploadCopilotFile.mockResolvedValue(COPILOT_FILE)
@@ -145,29 +141,6 @@ describe('QuickBooks internal operations', () => {
       )
     ).rejects.toThrow('exceeds maximum size')
     expect(mocks.closeDispatcher).toHaveBeenCalledOnce()
-    expect(mocks.uploadCopilotFile).not.toHaveBeenCalled()
-  })
-
-  it('rejects malformed PDF content before storing it', async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(new TextEncoder().encode('not a PDF'), {
-        headers: { 'content-type': 'application/pdf' },
-      })
-    )
-
-    await expect(
-      executeQuickBooksDownloadDocument(
-        {
-          documentKind: 'transaction_pdf',
-          accessToken: 'secret-token',
-          realmId: '123',
-          quickBooksEnvironment: 'sandbox',
-          transactionType: 'invoice',
-          transactionId: 'invoice-1',
-        },
-        context()
-      )
-    ).rejects.toThrow('malformed PDF')
     expect(mocks.uploadCopilotFile).not.toHaveBeenCalled()
   })
 

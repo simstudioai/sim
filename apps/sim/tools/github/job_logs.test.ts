@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { jobLogsTool } from '@/tools/github/job_logs'
 import type { JobLogsParams } from '@/tools/github/types'

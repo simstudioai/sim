@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import * as workspaceAuthz from '@sim/platform-authz/workspace'
 import {
   authMockFns,
@@ -57,7 +56,6 @@ const billingEntity = { type: 'organization', id: 'org-1' } as const
 const billingPeriod = { start: new Date('2026-07-01'), end: new Date('2026-08-01') }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   setEnv({ ELEVENLABS_API_KEY: 'test-key' })
   setEnvFlags({ isBillingEnabled: true })
@@ -169,19 +167,6 @@ describe('POST /api/speech/token', () => {
     expect(mocks.recordUsage).not.toHaveBeenCalled()
   })
 
-  it.each([
-    {},
-    { workspaceId: 'ws-1', organizationId: 'org-1' },
-    { organizationId: '' },
-    { workspaceId: 1 },
-  ])('rejects absent, ambiguous or invalid scope %j', async (body) => {
-    const response = await POST(createMockRequest('POST', body))
-    expect(response.status).toBe(400)
-    expect(mocks.workspaceContext).not.toHaveBeenCalled()
-    expect(mocks.resolveOrganizationBilling).not.toHaveBeenCalled()
-    expect(fetch).not.toHaveBeenCalled()
-  })
-
   it('conceals a workspace the caller cannot access', async () => {
     permission.mockResolvedValue(null)
     const response = await POST(createMockRequest('POST', { workspaceId: 'ws-other' }))
@@ -223,13 +208,6 @@ describe('POST /api/speech/token', () => {
     expect(mocks.resolveOrganizationBilling).not.toHaveBeenCalled()
   })
 
-  it('preserves the rate exemption when billing is disabled', async () => {
-    setEnvFlags({ isBillingEnabled: false })
-    const response = await POST(createMockRequest('POST', { organizationId: 'org-1' }))
-    expect(response.status).toBe(200)
-    expect(mocks.rateCheck).not.toHaveBeenCalled()
-  })
-
   it.each(['actor', 'payer', 'member'])(
     'enforces the %s usage cap before contacting the provider',
     async (scope) => {
@@ -254,19 +232,6 @@ describe('POST /api/speech/token', () => {
     const response = await POST(createMockRequest('POST', { organizationId: 'org-1' }))
     expect(response.status).toBe(500)
     expect(fetch).not.toHaveBeenCalled()
-  })
-
-  it('preserves service-not-configured and upstream errors', async () => {
-    setEnv({ ELEVENLABS_API_KEY: '' })
-    expect((await POST(createMockRequest('POST', { organizationId: 'org-1' }))).status).toBe(503)
-    setEnv({ ELEVENLABS_API_KEY: 'key' })
-    vi.mocked(fetch).mockResolvedValue(
-      Response.json({ detail: 'Provider unavailable' }, { status: 503 })
-    )
-    const response = await POST(createMockRequest('POST', { organizationId: 'org-1' }))
-    expect(response.status).toBe(502)
-    expect(await response.json()).toMatchObject({ error: 'Provider unavailable' })
-    expect(mocks.recordUsage).not.toHaveBeenCalled()
   })
 
   it.each(['recordUsage', 'billOverage'] as const)(

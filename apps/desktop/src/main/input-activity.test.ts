@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { WebContents } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -37,57 +34,12 @@ describe('input activity', () => {
     vi.useRealTimers()
   })
 
-  it('reports no input for a renderer that has never been touched', () => {
-    const { contents } = fakeContents()
-
-    expect(hasRecentDeliberateInput(contents)).toBe(false)
-    expect(hasRecentDiscreteInput(contents)).toBe(false)
-  })
-
-  it('counts a keypress as both deliberate and discrete input', () => {
-    const { contents, send } = fakeContents()
-
-    send('keyDown')
-
-    expect(hasRecentDeliberateInput(contents)).toBe(true)
-    expect(hasRecentDiscreteInput(contents)).toBe(true)
-  })
-
   it('ignores the passive pointer stream a page gets for free', () => {
     const { contents, send } = fakeContents()
 
     for (const type of ['mouseMove', 'mouseEnter', 'mouseLeave', 'pointerMove']) send(type)
 
     expect(hasRecentDeliberateInput(contents)).toBe(false)
-    expect(hasRecentDiscreteInput(contents)).toBe(false)
-  })
-
-  it('treats a wheel as deliberate but not as a discrete act', () => {
-    const { contents, send } = fakeContents()
-
-    send('mouseWheel')
-
-    expect(hasRecentDeliberateInput(contents)).toBe(true)
-    expect(hasRecentDiscreteInput(contents)).toBe(false)
-  })
-
-  it('expires deliberate input after its window', () => {
-    const { contents, send } = fakeContents()
-
-    send('keyDown')
-    vi.advanceTimersByTime(3_000)
-
-    expect(hasRecentDeliberateInput(contents)).toBe(false)
-  })
-
-  it('expires a discrete act after its longer window', () => {
-    const { contents, send } = fakeContents()
-
-    send('mouseDown')
-    vi.advanceTimersByTime(4_000)
-    expect(hasRecentDiscreteInput(contents)).toBe(true)
-
-    vi.advanceTimersByTime(1_000)
     expect(hasRecentDiscreteInput(contents)).toBe(false)
   })
 

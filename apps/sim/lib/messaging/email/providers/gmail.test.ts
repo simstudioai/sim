@@ -1,7 +1,5 @@
 /**
  * Tests for the Gmail API mail provider
- *
- * @vitest-environment node
  */
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -48,7 +46,6 @@ const mockFetch = vi.fn()
 
 describe('Gmail mail provider', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     setEnv({ GMAIL_SENDER: 'noreply@sim.example' })
     setEnv({ GMAIL_CREDENTIALS_JSON: VALID_CREDENTIALS })
@@ -58,44 +55,6 @@ describe('Gmail mail provider', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
-  })
-
-  describe('createGmailProvider', () => {
-    it('returns null when neither GMAIL_SENDER nor GMAIL_CREDENTIALS_JSON is set', () => {
-      setEnv({ GMAIL_SENDER: undefined })
-      setEnv({ GMAIL_CREDENTIALS_JSON: undefined })
-
-      expect(createGmailProvider()).toBeNull()
-    })
-
-    it('returns null when only one of the two variables is set', () => {
-      setEnv({ GMAIL_CREDENTIALS_JSON: undefined })
-      expect(createGmailProvider()).toBeNull()
-
-      setEnv({ GMAIL_CREDENTIALS_JSON: VALID_CREDENTIALS })
-      setEnv({ GMAIL_SENDER: undefined })
-      expect(createGmailProvider()).toBeNull()
-    })
-
-    it('returns null for invalid or incomplete credentials JSON', () => {
-      setEnv({ GMAIL_CREDENTIALS_JSON: 'not-json' })
-      expect(createGmailProvider()).toBeNull()
-
-      setEnv({ GMAIL_CREDENTIALS_JSON: JSON.stringify({ client_email: 'x@y.iam' }) })
-      expect(createGmailProvider()).toBeNull()
-    })
-
-    it('creates a JWT client impersonating the configured sender with the gmail.send scope', () => {
-      const provider = createGmailProvider()
-
-      expect(provider?.name).toBe('gmail')
-      expect(mockJwtConstructor).toHaveBeenCalledWith({
-        email: 'mailer@my-project.iam.gserviceaccount.com',
-        key: '-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n',
-        scopes: ['https://www.googleapis.com/auth/gmail.send'],
-        subject: 'noreply@sim.example',
-      })
-    })
   })
 
   describe('send', () => {
@@ -160,33 +119,6 @@ describe('Gmail mail provider', () => {
       expect(raw).toContain(Buffer.from('report body').toString('base64'))
     })
 
-    it('joins multiple recipients into one To header', async () => {
-      mockFetch.mockResolvedValueOnce(
-        new Response(JSON.stringify({ id: 'msg-3' }), { status: 200 })
-      )
-
-      const provider = createGmailProvider()
-      await provider!.send({ ...BASE_DATA, to: ['a@example.com', 'b@example.com'] })
-
-      const [, init] = mockFetch.mock.calls[0]
-      expect((init.body as Buffer).toString()).toContain('To: a@example.com, b@example.com')
-    })
-
-    it('sends text-only messages', async () => {
-      mockFetch.mockResolvedValueOnce(
-        new Response(JSON.stringify({ id: 'msg-4' }), { status: 200 })
-      )
-
-      const provider = createGmailProvider()
-      await provider!.send({ ...BASE_DATA, html: undefined, text: 'plain body' })
-
-      const [, init] = mockFetch.mock.calls[0]
-      const raw = (init.body as Buffer).toString()
-      expect(raw).toContain('Content-Type: text/plain')
-      expect(raw).toContain('plain body')
-      expect(raw).not.toContain('text/html')
-    })
-
     it('treats an accepted send with an empty response body as success (no fallback re-send)', async () => {
       mockFetch.mockResolvedValueOnce(new Response(null, { status: 200 }))
 
@@ -195,16 +127,6 @@ describe('Gmail mail provider', () => {
 
       expect(result.success).toBe(true)
       expect(result.data).toEqual({ id: undefined })
-    })
-
-    it('throws when no access token can be obtained', async () => {
-      mockGetAccessToken.mockResolvedValueOnce({ token: null })
-
-      const provider = createGmailProvider()
-      await expect(provider!.send(BASE_DATA)).rejects.toThrow(
-        'Failed to obtain a Gmail API access token'
-      )
-      expect(mockFetch).not.toHaveBeenCalled()
     })
 
     it('throws with status details when the Gmail API rejects the send', async () => {

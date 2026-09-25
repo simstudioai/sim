@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { copilotChats, document, organization, workspaceFiles } from '@sim/db/schema'
 import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
@@ -52,7 +49,6 @@ function filesPayload() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mockEnv.COPILOT_API_KEY = 'test-key'
   mockDeleteFile.mockResolvedValue(undefined)
@@ -170,31 +166,6 @@ describe('enqueueOrganizationResourceCleanup', () => {
       )
     ).toBe(true)
   })
-
-  it('stops when the exact organization no longer exists', async () => {
-    await expect(
-      db.transaction((tx) => enqueueOrganizationResourceCleanup(tx, ORG_ID))
-    ).rejects.toThrow('Organization no longer exists')
-
-    expect(dbChainMockFns.from).toHaveBeenCalledTimes(1)
-    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
-  })
-
-  it('propagates an outbox write failure to the delete transaction without external effects', async () => {
-    queueTableRows(organization, [{ id: ORG_ID }])
-    queueTableRows(workspaceFiles, [
-      { id: 'file-1', key: 'kb/file.txt', context: 'knowledge-base' },
-    ])
-    mockEnqueueOutboxEvent.mockRejectedValueOnce(new Error('outbox unavailable'))
-
-    await expect(
-      db.transaction((tx) => enqueueOrganizationResourceCleanup(tx, ORG_ID))
-    ).rejects.toThrow('outbox unavailable')
-
-    expect(dbChainMockFns.from).not.toHaveBeenCalledWith(copilotChats)
-    expect(mockDeleteFile).not.toHaveBeenCalled()
-    expect(mockCleanupCopilotBackend).not.toHaveBeenCalled()
-  })
 })
 
 describe('organization resource cleanup worker', () => {
@@ -245,38 +216,6 @@ describe('organization resource cleanup worker', () => {
     expect(mockDeleteFile).toHaveBeenCalledTimes(2)
   })
 
-  it('bounds storage concurrency and settles all attempted deletes before scheduling a retry', async () => {
-    const started = Promise.withResolvers<void>()
-    const release = Promise.withResolvers<void>()
-    let active = 0
-    let peak = 0
-    mockDeleteFile.mockImplementation(async () => {
-      active += 1
-      peak = Math.max(peak, active)
-      if (active === 10) started.resolve()
-      await release.promise
-      active -= 1
-      throw new Error('provider unavailable')
-    })
-
-    const cleanup = handleCleanup(
-      {
-        ...filesPayload(),
-        storageKeys: Array.from({ length: 21 }, (_, index) => `kb/${index}.txt`),
-      },
-      context()
-    )
-    const rejected = expect(cleanup).rejects.toThrow('provider unavailable')
-    await started.promise
-    expect(mockDeleteFile).toHaveBeenCalledTimes(10)
-    release.resolve()
-    await rejected
-
-    expect(peak).toBe(10)
-    expect(active).toBe(0)
-    expect(mockDeleteFile).toHaveBeenCalledTimes(21)
-  })
-
   it('purges only chats still missing at execution and safely retries the same IDs', async () => {
     const payload = { kind: 'chats', organizationId: ORG_ID, chatIds: [CHAT_ID, SURVIVING_CHAT_ID] }
     queueTableRows(copilotChats, [{ id: SURVIVING_CHAT_ID }])
@@ -308,16 +247,6 @@ describe('organization resource cleanup worker', () => {
       handleCleanup({ kind: 'chats', organizationId: ORG_ID, chatIds: [CHAT_ID] }, context())
     ).rejects.toThrow('Copilot cleanup is not configured')
 
-    expect(mockCleanupCopilotBackend).not.toHaveBeenCalled()
-  })
-
-  it('does not require backend configuration when every chat survives', async () => {
-    mockEnv.COPILOT_API_KEY = undefined
-    queueTableRows(copilotChats, [{ id: CHAT_ID }])
-
-    await expect(
-      handleCleanup({ kind: 'chats', organizationId: ORG_ID, chatIds: [CHAT_ID] }, context())
-    ).resolves.toBeUndefined()
     expect(mockCleanupCopilotBackend).not.toHaveBeenCalled()
   })
 

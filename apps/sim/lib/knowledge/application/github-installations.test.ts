@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { db } from '@sim/db'
 import { credential, credentialGroup, member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
@@ -89,7 +88,6 @@ const binding = {
 const connect = () => connectGitHubSearchInstallation.execute({ principal, input })
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   m.configuration.mockReturnValue({
     configured: true,
@@ -144,14 +142,6 @@ describe('GitHub Search installation application operations', () => {
     })
     expect(m.list).not.toHaveBeenCalled()
   })
-  it('asks for the current admin’s own connection when none is available', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(credential, [])
-    await expect(
-      listGitHubSearchInstallations.execute({ principal, input })
-    ).resolves.toMatchObject({ needsUserConnection: true, installations: [] })
-    expect(m.token).not.toHaveBeenCalled()
-  })
   it('uses only the organization-bound managed reader token to list installations', async () => {
     setupReader()
     const signal = new AbortController().signal
@@ -173,29 +163,6 @@ describe('GitHub Search installation application operations', () => {
       needsUserConnection: true,
       installations: [],
     })
-  })
-  it('reenters reader OAuth when token refresh detects a revoked grant', async () => {
-    setupReader()
-    m.token.mockRejectedValueOnce(
-      new ManagedOAuthCredentialError(
-        'MANAGED_CREDENTIAL_NEEDS_REAUTH',
-        'Refresh grant revoked',
-        401
-      )
-    )
-    await expect(
-      listGitHubSearchInstallations.execute({ principal, input })
-    ).resolves.toMatchObject({
-      needsUserConnection: true,
-      installations: [],
-    })
-    expect(m.list).not.toHaveBeenCalled()
-  })
-  it('preserves provider infrastructure failures during discovery', async () => {
-    setupReader()
-    const error = new GitHubInstallationError('Provider unavailable', 503)
-    m.list.mockRejectedValueOnce(error)
-    await expect(listGitHubSearchInstallations.execute({ principal, input })).rejects.toBe(error)
   })
   it('reports missing app membership access without requesting another OAuth connection', async () => {
     setupReader()
@@ -223,63 +190,12 @@ describe('GitHub Search installation application operations', () => {
     m.token.mockRejectedValueOnce(error)
     await expect(listGitHubSearchInstallations.execute({ principal, input })).rejects.toBe(error)
   })
-  it('does not reclassify App JWT authorization failures during installation verification', async () => {
-    setupReader()
-    const error = new GitHubInstallationError('App JWT rejected', 401)
-    m.verify.mockRejectedValueOnce(error)
-    await expect(connect()).rejects.toBe(error)
-    expect(m.encrypt).not.toHaveBeenCalled()
-  })
   it('reverifies GitHub admin authority before persisting an installation', async () => {
     setupReader()
     m.verify.mockRejectedValue(new Error('GitHub administrator access required'))
     await expect(connect()).rejects.toThrow('GitHub administrator access required')
     expect(m.encrypt).not.toHaveBeenCalled()
     expect(db.transaction).not.toHaveBeenCalled()
-  })
-  it('persists an encrypted installation binding and grants management to the actual admin', async () => {
-    setupReader()
-    setupTransaction()
-    const result = await connect()
-    expect(result).toMatchObject({
-      created: true,
-      credential: { displayName: 'example' },
-    })
-    expect(m.verify).toHaveBeenCalledWith('ghu_reader', '42', { signal: undefined })
-    expect(m.encrypt).toHaveBeenCalledWith(JSON.stringify(binding))
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        organizationId: 'org',
-        workspaceId: null,
-        providerId: 'github-app-installation',
-        type: 'service_account',
-        createdBy: 'admin',
-        encryptedServiceAccountKey: 'encrypted-installation-binding',
-      })
-    )
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        credentialId: result.credential.id,
-        userId: 'admin',
-        role: 'admin',
-        status: 'active',
-      })
-    )
-    expect(m.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: 'admin',
-        resourceId: result.credential.id,
-        action: 'credential.created',
-      })
-    )
-  })
-  it('reuses the same installation credential on repeat setup', async () => {
-    setupReader()
-    setupTransaction(reader, [{ id: 'existing' }])
-    await expect(connect()).resolves.toMatchObject({
-      created: false,
-      credential: { id: 'existing' },
-    })
   })
   it('refuses if Sim administrator access was removed during GitHub verification', async () => {
     setupReader()

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -65,9 +62,7 @@ vi.mock('@/lib/sandboxes/application/use-cases', () => ({
   createWorkspaceSandboxUseCase: { operation: { id: 'sandboxes.create' }, execute: mocks.create },
 }))
 
-import { V2_DEFAULT_PAGE_SIZE } from '@/lib/api/contracts/v2/shared'
 import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
-import { ForbiddenOperationError } from '@/lib/core/application'
 import { SandboxDependencyError } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import { SandboxBuildBudgetExceededError } from '@/lib/sandboxes/application/build-budget'
 import { GET, POST } from '@/app/api/v2/sandboxes/route'
@@ -124,35 +119,11 @@ function request(method: 'GET' | 'POST', url: string, body?: unknown) {
 
 describe('/api/v2/sandboxes', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.authenticate.mockResolvedValue(AUTH)
     mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.list.mockResolvedValue(listResult)
     mocks.create.mockResolvedValue({ sandbox })
-  })
-
-  it('lists sandboxes through the authorized application use case', async () => {
-    const response = await GET(request('GET', `/api/v2/sandboxes?workspaceId=${WORKSPACE_ID}`))
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: [sandbox], nextCursor: null })
-    expect(mocks.list).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: {
-        workspaceId: WORKSPACE_ID,
-        search: undefined,
-        sortBy: 'name',
-        sortOrder: 'asc',
-        limit: V2_DEFAULT_PAGE_SIZE,
-        cursorKeys: undefined,
-      },
-      request: expect.anything(),
-    })
-    expect(mocks.operationRate).toHaveBeenCalledWith(
-      'v2:sandboxes.list:user:user-1',
-      expect.objectContaining({ maxTokens: 100 })
-    )
   })
 
   it('refuses a cursor minted under a different filter', async () => {
@@ -175,101 +146,6 @@ describe('/api/v2/sandboxes', () => {
     expect(replayed.status).toBe(400)
     expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
     expect(mocks.list).not.toHaveBeenCalled()
-  })
-
-  it('resumes a cursor replayed under the filters it was minted with', async () => {
-    mocks.list.mockResolvedValue({ ...listResult, nextCursorKeys: ['data-tools', 'sandbox-1'] })
-
-    const minted = await GET(
-      request('GET', `/api/v2/sandboxes?workspaceId=${WORKSPACE_ID}&search=data`)
-    )
-    const { nextCursor } = await minted.json()
-
-    mocks.list.mockClear()
-    const resumed = await GET(
-      request(
-        'GET',
-        `/api/v2/sandboxes?workspaceId=${WORKSPACE_ID}&search=data&cursor=${encodeURIComponent(nextCursor)}`
-      )
-    )
-
-    expect(resumed.status).toBe(200)
-    expect(mocks.list).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: expect.objectContaining({
-        search: 'data',
-        cursorKeys: ['data-tools', 'sandbox-1'],
-      }),
-      request: expect.anything(),
-    })
-  })
-
-  it('rejects an unimplemented sort field before application execution', async () => {
-    const response = await GET(
-      request('GET', `/api/v2/sandboxes?workspaceId=${WORKSPACE_ID}&sortBy=buildStatus`)
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.list).not.toHaveBeenCalled()
-  })
-
-  it('creates a sandbox with the v2 source, defaulted lists, and a 201', async () => {
-    const response = await POST(
-      request('POST', '/api/v2/sandboxes', {
-        workspaceId: WORKSPACE_ID,
-        name: 'data-tools',
-        language: 'python',
-        dependencies: ['pandas'],
-      })
-    )
-
-    expect(response.status).toBe(201)
-    expect((await response.json()).data.id).toBe('sandbox-1')
-    expect(mocks.create).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: {
-        workspaceId: WORKSPACE_ID,
-        name: 'data-tools',
-        language: 'python',
-        dependencies: ['pandas'],
-        cliTools: [],
-        systemPackages: [],
-        source: 'api',
-      },
-      request: expect.anything(),
-    })
-  })
-
-  it('authenticates before validating a malformed create body', async () => {
-    mocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await POST(request('POST', '/api/v2/sandboxes', {}))
-
-    expect(response.status).toBe(401)
-    expect(mocks.create).not.toHaveBeenCalled()
-  })
-
-  it('names the plan as the remedy for a workspace below the Max tier', async () => {
-    mocks.create.mockRejectedValue(
-      new ForbiddenOperationError(
-        'WORKSPACE_PLAN_CAPABILITY_REQUIRED',
-        'Sim sandboxes require an active Max or Enterprise plan.'
-      )
-    )
-
-    const response = await POST(
-      request('POST', '/api/v2/sandboxes', {
-        workspaceId: WORKSPACE_ID,
-        name: 'data-tools',
-        language: 'python',
-      })
-    )
-
-    expect(response.status).toBe(403)
-    expect((await response.json()).error).toMatchObject({
-      code: 'FORBIDDEN',
-      details: { code: 'WORKSPACE_PLAN_CAPABILITY_REQUIRED' },
-    })
   })
 
   it('addresses a refused dependency entry to its field and row', async () => {

@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockResolve, mockWarn } = vi.hoisted(() => ({
   mockResolve: vi.fn(),
@@ -42,10 +39,6 @@ function resolved(addresses: string[]) {
 }
 
 describe('validateUrlWithDNS address classification', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('drops a private co-record and pins the public one', async () => {
     // The gap this closes: one address used to be classified, so which record
     // got judged was a matter of resolver order.

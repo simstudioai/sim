@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { Readable } from 'node:stream'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -40,7 +37,6 @@ const baseStreamOptions = {
 
 describe('TikTok video upload streaming', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockBackoffWithJitter.mockReturnValue(0)
     mockParseRetryAfter.mockReturnValue(25)
   })

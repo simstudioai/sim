@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { transformBlockTool } from '@/providers/utils'
 import { normalizeToolId } from '@/tools/normalize'
 
@@ -25,10 +22,6 @@ const options = {
 }
 
 describe('transformBlockTool — custom blocks', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('builds an id-keyed deployed_block_executor tool and omits file[] fields', async () => {
     mockResolve.mockResolvedValue({
       workflowId: 'wf-src',

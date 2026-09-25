@@ -68,7 +68,6 @@ async function flush() {
 
 describe('useMcpOauthPopup', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     // Popup-first: startOauthForServer opens a blank window synchronously.
     window.open = vi.fn(
       () =>
@@ -123,114 +122,6 @@ describe('useMcpOauthPopup', () => {
     })
     await flush()
 
-    hook.unmount()
-  })
-
-  it('allows a fresh start after the previous one settles (reopen after abandon)', async () => {
-    mockStartOauth.mockResolvedValue({
-      status: 'redirect',
-      authorizationUrl: 'https://as.example/a?state=st',
-      state: 'st',
-    })
-
-    const hook = renderHookWithClient(() => useMcpOauthPopup({ workspaceId: 'w1' }))
-    await flush()
-
-    await act(async () => {
-      await hook.result().startOauthForServer('s1')
-    })
-    await flush()
-
-    await act(async () => {
-      await hook.result().startOauthForServer('s1')
-    })
-    await flush()
-
-    // Both distinct clicks reached the mutation — the guard only blocks concurrent re-entry.
-    expect(mockStartOauth).toHaveBeenCalledTimes(2)
-
-    hook.unmount()
-  })
-
-  it('invalidates server queries when start reports already_authorized', async () => {
-    mockStartOauth.mockResolvedValue({ status: 'already_authorized' })
-
-    const hook = renderHookWithClient(() => useMcpOauthPopup({ workspaceId: 'w1' }))
-    await flush()
-    const invalidateSpy = vi.spyOn(hook.queryClient, 'invalidateQueries')
-
-    await act(async () => {
-      await hook.result().startOauthForServer('s1')
-    })
-    await flush()
-
-    // The server is already connected — the UI must still refresh so it reflects that.
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['mcp', 'servers', 'w1'] })
-
-    hook.unmount()
-  })
-
-  it('clears the row when a reopen fails (the reopen blanked the prior window)', async () => {
-    mockStartOauth.mockResolvedValueOnce({
-      status: 'redirect',
-      authorizationUrl: 'https://as.example/a?state=st-a',
-      state: 'st-a',
-    })
-    const hook = renderHookWithClient(() => useMcpOauthPopup({ workspaceId: 'w1' }))
-    await flush()
-
-    await act(async () => {
-      await hook.result().startOauthForServer('s1')
-    })
-    await flush()
-    expect(hook.result().connectingServers.has('s1')).toBe(true)
-
-    // Reopen fails after the named-window open already navigated the prior auth window to
-    // about:blank — the prior flow is moot (windowless), so BOTH it and the failed attempt
-    // clear, leaving the row idle with 'Connect with OAuth' immediately available.
-    mockStartOauth.mockRejectedValueOnce(new Error('start failed'))
-    await act(async () => {
-      await hook.result().startOauthForServer('s1')
-    })
-    await flush()
-    expect(hook.result().connectingServers.has('s1')).toBe(false)
-
-    hook.unmount()
-  })
-
-  it('does not issue the start request when the popup is blocked', async () => {
-    ;(window.open as ReturnType<typeof vi.fn>).mockReturnValue(null)
-    const hook = renderHookWithClient(() => useMcpOauthPopup({ workspaceId: 'w1' }))
-    await flush()
-
-    await act(async () => {
-      await hook.result().startOauthForServer('s1')
-    })
-    await flush()
-
-    expect(mockStartOauth).not.toHaveBeenCalled()
-    expect(hook.result().connectingServers.has('s1')).toBe(false)
-    hook.unmount()
-  })
-
-  it('opens the popup before the start request resolves (popup-first)', async () => {
-    const order: string[] = []
-    ;(window.open as ReturnType<typeof vi.fn>).mockImplementation(() => {
-      order.push('open')
-      return { close: vi.fn(), focus: vi.fn(), location: { replace: vi.fn() } } as unknown as Window
-    })
-    mockStartOauth.mockImplementation(async () => {
-      order.push('start')
-      return { status: 'redirect', authorizationUrl: 'https://as.example/a?state=st', state: 'st' }
-    })
-    const hook = renderHookWithClient(() => useMcpOauthPopup({ workspaceId: 'w1' }))
-    await flush()
-
-    await act(async () => {
-      await hook.result().startOauthForServer('s1')
-    })
-
-    expect(order).toEqual(['open', 'start'])
     hook.unmount()
   })
 

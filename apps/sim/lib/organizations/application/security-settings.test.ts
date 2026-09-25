@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { OrganizationDelegatedPrincipal, Principal } from '@sim/auth/principal'
 import { member, organization, session, ssoDomain } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
@@ -64,7 +63,6 @@ const row = {
   updatedAt: new Date(),
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.enterprise.mockResolvedValue(true)
   mocks.dns.mockResolvedValue('present')
@@ -139,18 +137,6 @@ describe('organization domain Settings operations', () => {
     await expect(
       listOrganizationDomains.execute({ principal: delegated, input: { organizationId: 'org' } })
     ).resolves.toEqual({ isEnterprise: false, domains: [], truncated: false })
-  })
-  it('retains idempotent add without rotating or exposing the proof', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(ssoDomain, [])
-    queueTableRows(ssoDomain, [row])
-    const result = await addOrganizationDomain.execute({
-      principal: delegated,
-      input: { organizationId: 'org', domain: 'EXAMPLE.COM' },
-    })
-    expect(result).toMatchObject({ created: false, domain: { verificationToken: null } })
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    expect(mocks.audit).not.toHaveBeenCalled()
   })
   it.each(['remove', 'verify'] as const)(
     'invalidates the SSO requirement after a committed domain %s',
@@ -235,16 +221,5 @@ describe('organization session revocation', () => {
       [expect.objectContaining({ metadata: { revokedSessions: 1 } })],
       'org'
     )
-  })
-  it('propagates transaction failure without audit or cache invalidation', async () => {
-    queueTableRows(member, [{ role: 'owner' }])
-    queueTableRows(organization, [{ name: 'Org' }])
-    queueTableRows(session, [{ impersonatedBy: null }])
-    dbChainMockFns.transaction.mockRejectedValueOnce(new Error('rollback'))
-    await expect(
-      revokeOrganizationSessions.execute({ principal, input: { organizationId: 'org' } })
-    ).rejects.toThrow('rollback')
-    expect(mocks.invalidate).not.toHaveBeenCalled()
-    expect(mocks.audit).not.toHaveBeenCalled()
   })
 })

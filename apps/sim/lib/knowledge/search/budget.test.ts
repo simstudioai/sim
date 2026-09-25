@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { db } from '@sim/db'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SearchBudget, SearchDeadlineError } from '@/lib/knowledge/search/budget'

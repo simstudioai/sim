@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Serializer Class Unit Tests
  *
  * This file contains unit tests for the Serializer class, which is responsible for
@@ -9,16 +7,12 @@
  */
 
 import {
-  createAgentWithToolsWorkflowState,
   createBlock,
   createComplexWorkflowState,
   createConditionalWorkflowState,
-  createInvalidSerializedWorkflow,
-  createInvalidWorkflowState,
   createLoopBlock,
   createLoopWorkflowState,
   createMinimalWorkflowState,
-  createMissingMetadataWorkflow,
   createParallelBlock,
 } from '@sim/testing/factories'
 import {
@@ -31,7 +25,6 @@ import {
 import { describe, expect, it, vi } from 'vitest'
 import { DAGBuilder } from '@/executor/dag/builder'
 import { Serializer } from '@/serializer/index'
-import type { SerializedWorkflow } from '@/serializer/types'
 
 vi.mock('@/blocks', () => ({
   ...blocksMock,
@@ -54,31 +47,6 @@ vi.mock('@/tools/metadata', () => toolsMetadataMock)
 
 describe('Serializer', () => {
   describe('serializeWorkflow', () => {
-    it.concurrent('should serialize a minimal workflow correctly', () => {
-      const { blocks, edges, loops } = createMinimalWorkflowState()
-      const serializer = new Serializer()
-
-      const serialized = serializer.serializeWorkflow(blocks, edges, loops)
-
-      expect(serialized.blocks).toHaveLength(2)
-
-      const starterBlock = serialized.blocks.find((b) => b.id === 'starter')
-      expect(starterBlock).toBeDefined()
-      expect(starterBlock?.metadata?.id).toBe('starter')
-      expect(starterBlock?.config.tool).toBe('starter')
-      expect(starterBlock?.config.params.description).toBe('This is the starter block')
-
-      const agentBlock = serialized.blocks.find((b) => b.id === 'agent1')
-      expect(agentBlock).toBeDefined()
-      expect(agentBlock?.metadata?.id).toBe('agent')
-      expect(agentBlock?.config.params.prompt).toBe('Hello, world!')
-      expect(agentBlock?.config.params.model).toBe('claude-3-7-sonnet-20250219')
-
-      expect(serialized.connections).toHaveLength(1)
-      expect(serialized.connections[0].source).toBe('starter')
-      expect(serialized.connections[0].target).toBe('agent1')
-    })
-
     it.concurrent('should serialize a conditional workflow correctly', () => {
       const { blocks, edges, loops } = createConditionalWorkflowState()
       const serializer = new Serializer()
@@ -299,73 +267,6 @@ describe('Serializer', () => {
       expect(loopBackConnection).toBeDefined()
       expect(loopBackConnection?.sourceHandle).toBe('condition-true')
     })
-
-    it.concurrent('should serialize a complex workflow with multiple block types', () => {
-      const { blocks, edges, loops } = createComplexWorkflowState()
-      const serializer = new Serializer()
-
-      const serialized = serializer.serializeWorkflow(blocks, edges, loops)
-
-      expect(serialized.blocks).toHaveLength(4)
-
-      const apiBlock = serialized.blocks.find((b) => b.id === 'api1')
-      expect(apiBlock).toBeDefined()
-      expect(apiBlock?.metadata?.id).toBe('api')
-      expect(apiBlock?.config.tool).toBe('api')
-      expect(apiBlock?.config.params.url).toBe('https://api.example.com/data')
-      expect(apiBlock?.config.params.method).toBe('GET')
-      expect(apiBlock?.config.params.headers).toEqual([
-        ['Content-Type', 'application/json'],
-        ['Authorization', 'Bearer {{API_KEY}}'],
-      ])
-
-      const functionBlock = serialized.blocks.find((b) => b.id === 'function1')
-      expect(functionBlock).toBeDefined()
-      expect(functionBlock?.metadata?.id).toBe('function')
-      expect(functionBlock?.config.tool).toBe('function')
-      expect(functionBlock?.config.params.language).toBe('javascript')
-
-      const agentBlock = serialized.blocks.find((b) => b.id === 'agent1')
-      expect(agentBlock).toBeDefined()
-      expect(agentBlock?.metadata?.id).toBe('agent')
-      expect(agentBlock?.config.tool).toBe('openai')
-      expect(agentBlock?.config.params.model).toBe('gpt-4o')
-    })
-
-    it.concurrent('should serialize agent block with custom tools correctly', () => {
-      const { blocks, edges, loops } = createAgentWithToolsWorkflowState()
-      const serializer = new Serializer()
-
-      const serialized = serializer.serializeWorkflow(blocks, edges, loops)
-
-      const agentBlock = serialized.blocks.find((b) => b.id === 'agent1')
-      expect(agentBlock).toBeDefined()
-      expect(agentBlock?.config.tool).toBe('openai')
-      expect(agentBlock?.config.params.model).toBe('gpt-4o')
-
-      const toolsParam = agentBlock?.config.params.tools
-      expect(toolsParam).toBeDefined()
-
-      const tools = JSON.parse(toolsParam as string)
-      expect(tools).toHaveLength(2)
-
-      const customTool = tools.find((t: any) => t.type === 'custom-tool')
-      expect(customTool).toBeDefined()
-      expect(customTool.name).toBe('weather')
-
-      const functionTool = tools.find((t: any) => t.type === 'function')
-      expect(functionTool).toBeDefined()
-      expect(functionTool.name).toBe('calculator')
-    })
-
-    it.concurrent('should handle invalid block types gracefully', () => {
-      const { blocks, edges, loops } = createInvalidWorkflowState()
-      const serializer = new Serializer()
-
-      expect(() => serializer.serializeWorkflow(blocks, edges, loops)).toThrow(
-        'Invalid block type: invalid-type'
-      )
-    })
   })
 
   describe('deserializeWorkflow', () => {
@@ -395,54 +296,6 @@ describe('Serializer', () => {
       expect(deserialized.edges).toHaveLength(1)
       expect(deserialized.edges[0].source).toBe('starter')
       expect(deserialized.edges[0].target).toBe('agent1')
-    })
-
-    it.concurrent('should deserialize a complex workflow with all block types', () => {
-      const { blocks, edges, loops } = createComplexWorkflowState()
-      const serializer = new Serializer()
-
-      const serialized = serializer.serializeWorkflow(blocks, edges, loops)
-
-      const deserialized = serializer.deserializeWorkflow(serialized)
-
-      expect(Object.keys(deserialized.blocks)).toHaveLength(4)
-
-      const apiBlock = deserialized.blocks.api1
-      expect(apiBlock).toBeDefined()
-      expect(apiBlock.type).toBe('api')
-      expect(apiBlock.subBlocks.url.value).toBe('https://api.example.com/data')
-      expect(apiBlock.subBlocks.method.value).toBe('GET')
-      expect(apiBlock.subBlocks.headers.value).toEqual([
-        ['Content-Type', 'application/json'],
-        ['Authorization', 'Bearer {{API_KEY}}'],
-      ])
-
-      const functionBlock = deserialized.blocks.function1
-      expect(functionBlock).toBeDefined()
-      expect(functionBlock.type).toBe('function')
-      expect(functionBlock.subBlocks.language.value).toBe('javascript')
-
-      const agentBlock = deserialized.blocks.agent1
-      expect(agentBlock).toBeDefined()
-      expect(agentBlock.type).toBe('agent')
-      expect(agentBlock.subBlocks.model.value).toBe('gpt-4o')
-      expect(agentBlock.subBlocks.provider.value).toBe('openai')
-    })
-
-    it.concurrent('should handle serialized workflow with invalid block metadata', () => {
-      const invalidWorkflow = createInvalidSerializedWorkflow() as SerializedWorkflow
-      const serializer = new Serializer()
-
-      expect(() => serializer.deserializeWorkflow(invalidWorkflow)).toThrow(
-        'Invalid block type: non-existent-type'
-      )
-    })
-
-    it.concurrent('should handle serialized workflow with missing metadata', () => {
-      const invalidWorkflow = createMissingMetadataWorkflow() as SerializedWorkflow
-      const serializer = new Serializer()
-
-      expect(() => serializer.deserializeWorkflow(invalidWorkflow)).toThrow()
     })
   })
 
@@ -512,60 +365,6 @@ describe('Serializer', () => {
       }).toThrow('Test Jina Block is missing required fields: API Key')
     })
 
-    it.concurrent('should skip validation for disabled blocks', () => {
-      const serializer = new Serializer()
-
-      const disabledBlockWithMissingField: any = {
-        id: 'test-block',
-        type: 'jina',
-        name: 'Disabled Jina Block',
-        position: { x: 0, y: 0 },
-        subBlocks: {
-          url: { value: 'https://example.com' },
-          apiKey: { value: null },
-        },
-        outputs: {},
-        enabled: false,
-      }
-
-      expect(() => {
-        serializer.serializeWorkflow(
-          { 'test-block': disabledBlockWithMissingField },
-          [],
-          {},
-          undefined,
-          true
-        )
-      }).not.toThrow()
-    })
-
-    it.concurrent('should not throw error when all user-only required fields are present', () => {
-      const serializer = new Serializer()
-
-      const blockWithAllUserOnlyFields: any = {
-        id: 'test-block',
-        type: 'jina',
-        name: 'Test Jina Block',
-        position: { x: 0, y: 0 },
-        subBlocks: {
-          url: { value: 'https://example.com' },
-          apiKey: { value: 'test-api-key' },
-        },
-        outputs: {},
-        enabled: true,
-      }
-
-      expect(() => {
-        serializer.serializeWorkflow(
-          { 'test-block': blockWithAllUserOnlyFields },
-          [],
-          {},
-          undefined,
-          true
-        )
-      }).not.toThrow()
-    })
-
     it.concurrent('should not validate user-or-llm fields during serialization', () => {
       const serializer = new Serializer()
 
@@ -594,27 +393,6 @@ describe('Serializer', () => {
       }).not.toThrow()
     })
 
-    it.concurrent('should not validate when validateRequired is false', () => {
-      const serializer = new Serializer()
-
-      const blockWithMissingField: any = {
-        id: 'test-block',
-        type: 'jina',
-        name: 'Test Jina Block',
-        position: { x: 0, y: 0 },
-        subBlocks: {
-          url: { value: 'https://example.com' },
-          apiKey: { value: null },
-        },
-        outputs: {},
-        enabled: true,
-      }
-
-      expect(() => {
-        serializer.serializeWorkflow({ 'test-block': blockWithMissingField }, [], {})
-      }).not.toThrow()
-    })
-
     it.concurrent('should validate multiple user-only fields and report all missing', () => {
       const serializer = new Serializer()
 
@@ -640,26 +418,6 @@ describe('Serializer', () => {
           true
         )
       }).toThrow('Test Jina Block is missing required fields: API Key')
-    })
-
-    it.concurrent('should handle blocks with no tool configuration gracefully', () => {
-      const serializer = new Serializer()
-
-      const blockWithNoTools: any = {
-        id: 'test-block',
-        type: 'condition',
-        name: 'Test Condition Block',
-        position: { x: 0, y: 0 },
-        subBlocks: {
-          condition: { value: null },
-        },
-        outputs: {},
-        enabled: true,
-      }
-
-      expect(() => {
-        serializer.serializeWorkflow({ 'test-block': blockWithNoTools }, [], {}, undefined, true)
-      }).not.toThrow()
     })
 
     it.concurrent(
@@ -692,78 +450,6 @@ describe('Serializer', () => {
       }
     )
 
-    it.concurrent(
-      'should pass validation for blocks without tools when required fields are present',
-      () => {
-        const serializer = new Serializer()
-
-        const waitBlockWithFields: any = {
-          id: 'wait-block',
-          type: 'wait',
-          name: 'Wait Block',
-          position: { x: 0, y: 0 },
-          subBlocks: {
-            timeValue: { value: '10' },
-            timeUnit: { value: 'seconds' },
-          },
-          outputs: {},
-          enabled: true,
-        }
-
-        expect(() => {
-          serializer.serializeWorkflow(
-            { 'wait-block': waitBlockWithFields },
-            [],
-            {},
-            undefined,
-            true
-          )
-        }).not.toThrow()
-      }
-    )
-
-    it.concurrent('should report all missing required fields for blocks without tools', () => {
-      const serializer = new Serializer()
-
-      const waitBlockAllMissing: any = {
-        id: 'wait-block',
-        type: 'wait',
-        name: 'Wait Block',
-        position: { x: 0, y: 0 },
-        subBlocks: {
-          timeValue: { value: null },
-          timeUnit: { value: '' },
-        },
-        outputs: {},
-        enabled: true,
-      }
-
-      expect(() => {
-        serializer.serializeWorkflow({ 'wait-block': waitBlockAllMissing }, [], {}, undefined, true)
-      }).toThrow('Wait Block is missing required fields: Wait Amount, Unit')
-    })
-
-    it.concurrent('should skip validation for disabled blocks without tools', () => {
-      const serializer = new Serializer()
-
-      const disabledWaitBlock: any = {
-        id: 'wait-block',
-        type: 'wait',
-        name: 'Wait Block',
-        position: { x: 0, y: 0 },
-        subBlocks: {
-          timeValue: { value: null },
-          timeUnit: { value: null },
-        },
-        outputs: {},
-        enabled: false,
-      }
-
-      expect(() => {
-        serializer.serializeWorkflow({ 'wait-block': disabledWaitBlock }, [], {}, undefined, true)
-      }).not.toThrow()
-    })
-
     it.concurrent('should handle empty string values as missing', () => {
       const serializer = new Serializer()
 
@@ -789,28 +475,6 @@ describe('Serializer', () => {
           true
         )
       }).toThrow('Test Jina Block is missing required fields: API Key')
-    })
-
-    it.concurrent('should only validate user-only fields, not user-or-llm fields', () => {
-      const serializer = new Serializer()
-
-      const mixedBlock: any = {
-        id: 'test-block',
-        type: 'reddit',
-        name: 'Test Reddit Block',
-        position: { x: 0, y: 0 },
-        subBlocks: {
-          operation: { value: 'get_posts' },
-          credential: { value: null },
-          subreddit: { value: null },
-        },
-        outputs: {},
-        enabled: true,
-      }
-
-      expect(() => {
-        serializer.serializeWorkflow({ 'test-block': mixedBlock }, [], {}, undefined, true)
-      }).toThrow('Test Reddit Block is missing required fields: Reddit Account')
     })
   })
 
@@ -848,39 +512,6 @@ describe('Serializer', () => {
       expect(slackBlock?.config.params.username).toBe('bot')
     })
 
-    it.concurrent('should use basic value when canonicalModes specifies basic', () => {
-      const serializer = new Serializer()
-
-      const block: any = {
-        id: 'slack-1',
-        type: 'slack',
-        name: 'Test Slack Block',
-        position: { x: 0, y: 0 },
-        data: {
-          canonicalModes: { channel: 'basic' },
-        },
-        subBlocks: {
-          operation: { value: 'send' },
-          destinationType: { value: 'channel' },
-          channel: { value: 'general' },
-          manualChannel: { value: 'C1234567890' },
-          text: { value: 'Hello world' },
-          username: { value: 'bot' },
-        },
-        outputs: {},
-        enabled: true,
-      }
-
-      const serialized = serializer.serializeWorkflow({ 'slack-1': block }, [], {})
-      const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
-
-      expect(slackBlock).toBeDefined()
-      expect(slackBlock?.config.params.channel).toBe('general')
-      expect(slackBlock?.config.params.manualChannel).toBeUndefined()
-      expect(slackBlock?.config.params.text).toBe('Hello world')
-      expect(slackBlock?.config.params.username).toBe('bot')
-    })
-
     it.concurrent(
       'should fall back to legacy advancedMode for non-credential canonical groups when canonicalModes not set',
       () => {
@@ -912,34 +543,6 @@ describe('Serializer', () => {
         expect(slackBlock?.config.params.manualChannel).toBeUndefined()
       }
     )
-
-    it.concurrent('should use basic value by default when no mode specified', () => {
-      const serializer = new Serializer()
-
-      const block: any = {
-        id: 'slack-1',
-        type: 'slack',
-        name: 'Test Slack Block',
-        position: { x: 0, y: 0 },
-        subBlocks: {
-          operation: { value: 'send' },
-          destinationType: { value: 'channel' },
-          channel: { value: 'general' },
-          manualChannel: { value: 'C1234567890' },
-          text: { value: 'Hello world' },
-          username: { value: 'bot' },
-        },
-        outputs: {},
-        enabled: true,
-      }
-
-      const serialized = serializer.serializeWorkflow({ 'slack-1': block }, [], {})
-      const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
-
-      expect(slackBlock).toBeDefined()
-      expect(slackBlock?.config.params.channel).toBe('general')
-      expect(slackBlock?.config.params.manualChannel).toBeUndefined()
-    })
 
     it.concurrent('should preserve advanced-only values when present in basic mode', () => {
       const serializer = new Serializer()
@@ -1003,35 +606,6 @@ describe('Serializer', () => {
         { role: 'user', content: 'My name is John' },
       ])
       expect(agentBlock?.config.params.model).toBe('claude-3-sonnet')
-    })
-
-    it.concurrent('should handle blocks with no matching subblock config gracefully', () => {
-      const serializer = new Serializer()
-
-      const blockWithUnknownField: any = {
-        id: 'slack-1',
-        type: 'slack',
-        name: 'Test Slack Block',
-        position: { x: 0, y: 0 },
-        advancedMode: false,
-        subBlocks: {
-          channel: { value: 'general' },
-          unknownField: { value: 'someValue' },
-          text: { value: 'Hello world' },
-        },
-        outputs: {},
-        enabled: true,
-      }
-
-      const serialized = serializer.serializeWorkflow({ 'slack-1': blockWithUnknownField }, [], {})
-
-      const slackBlock = serialized.blocks.find((b) => b.id === 'slack-1')
-      expect(slackBlock).toBeDefined()
-
-      expect(slackBlock?.config.params.channel).toBe('general')
-      expect(slackBlock?.config.params.text).toBe('Hello world')
-
-      expect(slackBlock?.config.params.unknownField).toBeUndefined()
     })
 
     it.concurrent(

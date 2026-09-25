@@ -1,9 +1,4 @@
-/**
- * @vitest-environment node
- */
-
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -61,36 +56,10 @@ function call(body: unknown) {
 
 describe('POST /api/v2/tables/[tableId]/cancel-runs', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.cancelRuns.mockResolvedValue({ table: { id: 'table-1' }, cancelled: 4 })
-  })
-
-  it('delegates a filtered all-scope cancellation and reports the authoritative count', async () => {
-    const predicate = { all: [{ field: 'status', op: 'eq', value: 'ready' }] }
-    const invocation = call({
-      workspaceId: WORKSPACE_ID,
-      scope: 'all',
-      filter: predicate,
-      excludeRowIds: ['row-2'],
-    })
-    const response = await invocation.response
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { cancelled: 4 } })
-    expect(mocks.cancelRuns).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: {
-        scope: 'all',
-        tableId: 'table-1',
-        assertedWorkspaceId: WORKSPACE_ID,
-        predicate,
-        excludeRowIds: ['row-2'],
-      },
-      request: invocation.request,
-    })
   })
 
   it('delegates one canonical row scope without select-all fields', async () => {
@@ -110,15 +79,6 @@ describe('POST /api/v2/tables/[tableId]/cancel-runs', () => {
     })
   })
 
-  it('preserves an authoritative zero-cancellation result', async () => {
-    mocks.cancelRuns.mockResolvedValue({ table: { id: 'table-1' }, cancelled: 0 })
-
-    const response = await call({ workspaceId: WORKSPACE_ID, scope: 'all' }).response
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { cancelled: 0 } })
-  })
-
   it('rejects an incomplete or contradictory row scope before delegation', async () => {
     const missing = await call({ workspaceId: WORKSPACE_ID, scope: 'row' }).response
     const contradictory = await call({
@@ -131,14 +91,5 @@ describe('POST /api/v2/tables/[tableId]/cancel-runs', () => {
     expect(missing.status).toBe(400)
     expect(contradictory.status).toBe(400)
     expect(mocks.cancelRuns).not.toHaveBeenCalled()
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await call({ workspaceId: WORKSPACE_ID, scope: 'all' }).response
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 })

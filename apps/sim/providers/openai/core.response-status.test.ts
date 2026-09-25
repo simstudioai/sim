@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Pins the non-streaming status/error gate, and pins its `incomplete` policy to the one
  * `streamResponsesTurn` applies so the two paths cannot silently diverge.
  */
@@ -82,7 +80,6 @@ describe('OpenAI non-streaming response status handling', () => {
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as any
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCaptureStep.mockReset()
     mockRecordToolError.mockReset()
     mockConversationContext.mockReset()

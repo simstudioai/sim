@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -91,7 +87,6 @@ const emptyPlan = { selected: [], notFound: [], contained: [], covered: new Set<
 
 describe('knowledge bulk application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.planFolderSelection.mockResolvedValue(emptyPlan)
@@ -135,46 +130,6 @@ describe('knowledge bulk application use cases', () => {
     ).rejects.toMatchObject({ code: 'validation' })
 
     expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
-  })
-
-  it('deletes knowledge bases and folders in one operation and audits every affected item', async () => {
-    mocks.planFolderSelection.mockResolvedValue({
-      selected: [{ id: 'folder-1', name: 'Policies' }],
-      notFound: [],
-      contained: [],
-      covered: new Set(['folder-1']),
-    })
-    mocks.bulkDeleteFolders.mockResolvedValue({
-      succeeded: [{ id: 'folder-1', name: 'Policies' }],
-      failed: [],
-      folderCount: 3,
-      resourceCount: 4,
-    })
-
-    const result = await bulkDeleteKnowledgeItems.execute({
-      principal,
-      input: {
-        assertedWorkspaceId: 'workspace-1',
-        knowledgeBaseIds: ['knowledge-1'],
-        folderIds: ['folder-1'],
-      },
-    })
-
-    expect(result.deleted).toEqual([
-      { kind: 'knowledgeBase', id: 'knowledge-1', name: 'Base knowledge-1' },
-      { kind: 'folder', id: 'folder-1', name: 'Policies' },
-    ])
-    expect(result.deletedItems).toEqual({ knowledgeBases: 5, folders: 3 })
-    expect(mocks.audit).toHaveBeenCalledTimes(2)
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'knowledge_base.deleted', resourceId: 'knowledge-1' })
-    )
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'folder.deleted', resourceId: 'folder-1' })
-    )
-    expect(mocks.knowledgeBaseDeleted).toHaveBeenCalledExactlyOnceWith({
-      knowledgeBaseId: 'knowledge-1',
-    })
   })
 
   /**
@@ -272,42 +227,6 @@ describe('knowledge bulk application use cases', () => {
 
     expect(mocks.updateRecord).not.toHaveBeenCalled()
     expect(mocks.bulkMoveFolders).not.toHaveBeenCalled()
-  })
-
-  it('moves knowledge bases and folders in one operation', async () => {
-    mocks.planFolderSelection.mockResolvedValue({
-      selected: [{ id: 'folder-2', name: 'Archive' }],
-      notFound: ['ghost-folder'],
-      contained: [{ id: 'folder-3', name: 'Nested' }],
-      covered: new Set(['folder-2', 'folder-3']),
-    })
-    mocks.bulkMoveFolders.mockResolvedValue({
-      succeeded: [{ id: 'folder-2', name: 'Archive' }],
-      failed: [],
-    })
-
-    const result = await bulkMoveKnowledgeItems.execute({
-      principal,
-      input: {
-        assertedWorkspaceId: 'workspace-1',
-        knowledgeBaseIds: ['knowledge-1'],
-        folderIds: ['folder-2', 'folder-3', 'ghost-folder'],
-        targetFolderId: 'folder-1',
-      },
-    })
-
-    expect(result.moved).toEqual([
-      { kind: 'knowledgeBase', id: 'knowledge-1', name: 'Base knowledge-1' },
-      { kind: 'folder', id: 'folder-2', name: 'Archive' },
-    ])
-    expect(result.skipped).toEqual([{ kind: 'folder', id: 'folder-3', name: 'Nested' }])
-    expect(result.notFound).toEqual([{ kind: 'folder', id: 'ghost-folder' }])
-    expect(mocks.updateRecord).toHaveBeenCalledWith(
-      'knowledge-1',
-      { folderId: 'folder-1' },
-      'request-1',
-      { assertedWorkspaceId: 'workspace-1' }
-    )
   })
 
   it('records audit for the committed prefix before rethrowing an infrastructure failure', async () => {

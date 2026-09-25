@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockLimit, mockSelect } = vi.hoisted(() => ({
@@ -33,7 +30,6 @@ import { enrichSandboxCapabilities } from '@/lib/execution/remote-sandbox/wand-e
 
 describe('enrichSandboxCapabilities', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockSelect.mockReturnValue({
       from: () => ({
         where: () => ({ limit: mockLimit }),

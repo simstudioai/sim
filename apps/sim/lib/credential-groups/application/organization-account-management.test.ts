@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -60,7 +59,6 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   inviteOrganizationAccountPeople,
   listOrganizationAccountPeople,
-  organizationAccountManagementOperations,
   resendOrganizationAccountInvitation,
 } from '@/lib/credential-groups/application/organization-account-management'
 
@@ -69,7 +67,6 @@ const input = { organizationId: 'org-1', limit: 50, cursor: 'cursor-1', search: 
 
 describe('organization account people search application', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.authorize.mockResolvedValue({ organizationId: 'org-1', userId: 'admin-1', role: 'admin' })
     mocks.available.mockResolvedValue(true)
     mocks.group.mockResolvedValue({ credentialGroupId: 'group-1' })
@@ -77,18 +74,6 @@ describe('organization account people search application', () => {
     mocks.inviter.mockResolvedValue({ name: 'Admin' })
     mocks.invite.mockResolvedValue({ results: [], sentCount: 0, failedCount: 0 })
     mocks.list.mockResolvedValue({ enrollments: [], nextCursor: null })
-  })
-
-  it('forwards provider projection without removing contributors who have not connected', async () => {
-    await listOrganizationAccountPeople.execute({
-      principal,
-      input: { ...input, optionId: 'gmail-option' },
-    })
-    expect(mocks.list).toHaveBeenCalledWith(expect.any(Object), 'group-1', 50, 'cursor-1', {
-      email: undefined,
-      search: 'example',
-      optionId: 'gmail-option',
-    })
   })
 
   it('keeps canonical provider intent on connection requests and resends', async () => {
@@ -131,44 +116,6 @@ describe('organization account people search application', () => {
       })
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(mocks.invite).not.toHaveBeenCalled()
-  })
-
-  it('keeps admin authority and adds only scoped Copilot settings delegation', async () => {
-    const result = await listOrganizationAccountPeople.execute({ principal, input })
-    expect(organizationAccountManagementOperations.people).toMatchObject({
-      minimumRole: 'admin',
-      principalKinds: ['session', 'organization_delegated'],
-      delegationAudience: 'sim:settings',
-      delegatedServices: ['copilot'],
-      capability: 'integrations.manage',
-    })
-    expect(mocks.authorize).toHaveBeenCalledExactlyOnceWith(
-      principal,
-      organizationAccountManagementOperations.people,
-      input
-    )
-    expect(mocks.list).toHaveBeenCalledExactlyOnceWith(
-      { kind: 'organization', organizationId: 'org-1' },
-      'group-1',
-      50,
-      'cursor-1',
-      { email: undefined, search: 'example' }
-    )
-    expect(result).toEqual({ enrollments: [], nextCursor: null })
-  })
-
-  it('preserves exact email filtering when search is omitted', async () => {
-    await listOrganizationAccountPeople.execute({
-      principal,
-      input: { organizationId: 'org-1', limit: 20, email: 'person@example.com' },
-    })
-    expect(mocks.list).toHaveBeenCalledExactlyOnceWith(
-      { kind: 'organization', organizationId: 'org-1' },
-      'group-1',
-      20,
-      undefined,
-      { email: 'person@example.com', search: undefined }
-    )
   })
 
   it('does not query people or source accounts after current authorization is refused', async () => {

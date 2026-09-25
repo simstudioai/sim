@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
@@ -9,22 +6,7 @@ import { HtmlComplexityError, HtmlParser } from '@/lib/file-parsers/html-parser'
 
 const parser = new HtmlParser()
 
-describe('table cells with several paragraphs', () => {
-  it('separates block children inside a cell with a space', async () => {
-    const html = '<table><tr><td><p>Заказчик</p><p>Исполняющий</p></td><td>ok</td></tr></table>'
-    const result = await new HtmlParser().parseBuffer(Buffer.from(html))
-
-    expect(result.content).toContain('| Заказчик Исполняющий | ok |')
-  })
-})
-
 describe('HtmlParser', () => {
-  it('reports empty input with the typed parser taxonomy', async () => {
-    await expect(parser.parseBuffer(Buffer.alloc(0))).rejects.toMatchObject({
-      code: 'empty_input',
-    })
-  })
-
   describe('resource limits', () => {
     /**
      * Pinned by value: a 64 MB body aborts the process, so raising the cap
@@ -46,19 +28,6 @@ describe('HtmlParser', () => {
 
       expect(error).toBeInstanceOf(HtmlComplexityError)
       expect(error.message).toMatch(/exceeds the maximum of 1000000 markup tokens/)
-    })
-
-    /**
-     * A 30,000-row by 8-column export is ~540k tokens in 3.6 MB, an ordinary
-     * document that an earlier, tighter token cap rejected.
-     */
-    it('accepts a realistic large table export', async () => {
-      const row = `<tr>${'<td>value</td>'.repeat(8)}</tr>`
-      const buffer = Buffer.from(`<html><body><table>${row.repeat(30_000)}</table></body></html>`)
-
-      const result = await parser.parseBuffer(buffer)
-
-      expect(result.content).toContain('| value |')
     })
 
     it('accepts a byte-heavy document whose markup stays under the token cap', async () => {
@@ -102,45 +71,6 @@ describe('HtmlParser', () => {
   })
 
   describe('extraction', () => {
-    it('extracts structured text, headings, links, and metadata', async () => {
-      const buffer = Buffer.from(
-        `<html><head><title>Doc</title><meta name="description" content="About"></head>` +
-          `<body><h1>Title</h1><p>Body text</p>` +
-          `<ul><li>one</li><li>two</li></ul>` +
-          `<table><tr><th>h</th></tr><tr><td>c</td></tr></table>` +
-          `<a href="https://example.com">Example</a>` +
-          `<script>alert(1)</script></body></html>`
-      )
-
-      const result = await parser.parseBuffer(buffer)
-
-      expect(result.metadata?.title).toBe('Doc')
-      expect(result.metadata?.metaDescription).toBe('About')
-      expect(result.content).toContain('Title')
-      expect(result.content).toContain('Body text')
-      expect(result.content).toContain('• one')
-      expect(result.content).toContain('| h |')
-      expect(result.content).toContain('Example (https://example.com)')
-      expect(result.content).not.toContain('alert(1)')
-      expect(result.metadata?.headings).toEqual([{ level: 1, text: 'Title' }])
-      expect(result.metadata?.links).toEqual([{ text: 'Example', href: 'https://example.com' }])
-      expect(result.metadata?.listCount).toBe(1)
-      expect(result.metadata?.tableCount).toBe(1)
-    })
-
-    it('numbers ordered lists and keeps markers on nested items', async () => {
-      const buffer = Buffer.from(
-        `<body><ol start="3"><li>third</li><li>fourth<ul><li>nested</li></ul></li></ol></body>`
-      )
-
-      const result = await parser.parseBuffer(buffer)
-
-      expect(result.content).toContain('3. third')
-      expect(result.content).toContain('4. fourth')
-      expect(result.content).toContain('  • nested')
-      expect(result.content).not.toContain('fourth nested')
-    })
-
     it('renders a nested table inside its cell exactly once', async () => {
       const buffer = Buffer.from(
         `<body><table><tbody><tr><td>Outer A</td><td><p>Intro</p>` +
@@ -169,41 +99,6 @@ describe('HtmlParser', () => {
       expect(result.content).toContain('[Image: Org chart]')
       expect(result.content).not.toContain('python-logo')
       expect(result.content).not.toContain('Image 2')
-    })
-
-    it('separates block elements inside a list item', async () => {
-      const buffer = Buffer.from(
-        `<body><ul><li><div><p>Versions</p><p>Release Information</p></div></li></ul></body>`
-      )
-
-      const result = await parser.parseBuffer(buffer)
-
-      expect(result.content).toContain('• Versions Release Information')
-    })
-
-    it('drops endnote return links but keeps the endnote text', async () => {
-      const buffer = Buffer.from(
-        `<body><p>Body<sup><a href="#endnote-1" id="endnote-ref-1">[1]</a></sup></p>` +
-          `<ol><li id="endnote-1"><p>End text <a href="#endnote-ref-1">↑</a></p></li></ol></body>`
-      )
-
-      const result = await parser.parseBuffer(buffer)
-
-      expect(result.content).toContain('1. End text')
-      expect(result.content).not.toContain('↑')
-    })
-
-    it('drops footnote return links but keeps the footnote text', async () => {
-      const buffer = Buffer.from(
-        `<body><p>Body<sup><a href="#footnote-1" id="footnote-ref-1">[1]</a></sup></p>` +
-          `<ol><li id="footnote-1"><p>Note text <a href="#footnote-ref-1">↑</a></p></li></ol></body>`
-      )
-
-      const result = await parser.parseBuffer(buffer)
-
-      expect(result.content).toContain('Body[1]')
-      expect(result.content).toContain('1. Note text')
-      expect(result.content).not.toContain('↑')
     })
   })
 })

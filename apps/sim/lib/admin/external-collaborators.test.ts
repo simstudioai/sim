@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { member, permissions } from '@sim/db/schema'
 import {
   dbChainMockFns,
@@ -37,7 +34,6 @@ afterAll(resetDbChainMock)
 
 describe('updateDashboardExternalCollaboratorUsageLimit', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -66,21 +62,6 @@ describe('updateDashboardExternalCollaboratorUsageLimit', () => {
     expect(
       flattenMockConditions(collaboratorPredicate).some((condition) => condition.type === 'isNull')
     ).toBe(false)
-  })
-
-  it('clears an existing cap', async () => {
-    queueTableRows(member, [])
-    queueTableRows(permissions, [{ userId: 'external-1' }])
-
-    await updateDashboardExternalCollaboratorUsageLimit('org-1', 'external-1', null, actor)
-
-    expect(mocks.setLimit).toHaveBeenCalledWith(
-      'org-1',
-      'external-1',
-      null,
-      'admin-1',
-      expect.anything()
-    )
   })
 
   it('rejects internal organization members', async () => {

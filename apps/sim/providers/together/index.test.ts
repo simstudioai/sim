@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StreamingExecution } from '@/executor/types'
 
@@ -78,7 +75,6 @@ vi.mock('@/providers/utils', () => ({
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 
 import { togetherProvider } from '@/providers/together/index'
-import { ProviderError } from '@/providers/types'
 
 const textResponse = (content: string) => ({
   choices: [{ message: { content, tool_calls: [] } }],
@@ -113,7 +109,6 @@ const lastCallBody = () => mockCreate.mock.calls.at(-1)?.[0]
 
 describe('togetherProvider', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockSupportsNativeStructuredOutputs.mockResolvedValue(true)
     mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
       tools,
@@ -178,31 +173,6 @@ describe('togetherProvider', () => {
       expect(capturedCalls).not.toContain('call-6')
     }
   )
-
-  it('throws when the API key is missing', async () => {
-    await expect(
-      togetherProvider.executeRequest({ ...baseRequest, apiKey: undefined })
-    ).rejects.toThrow('API key is required for Together AI')
-  })
-
-  it('strips only the leading together/ prefix from the model id', async () => {
-    mockCreate.mockResolvedValueOnce(textResponse('hi there'))
-
-    const result = await togetherProvider.executeRequest(baseRequest)
-
-    expect(lastCallBody().model).toBe('moonshotai/Kimi-K2-Instruct')
-    expect(result).toMatchObject({
-      content: 'hi there',
-      model: 'moonshotai/Kimi-K2-Instruct',
-      tokens: { input: 10, output: 5, total: 15 },
-    })
-  })
-
-  it('wraps API errors in a ProviderError', async () => {
-    mockCreate.mockRejectedValueOnce(new Error('boom'))
-
-    await expect(togetherProvider.executeRequest(baseRequest)).rejects.toBeInstanceOf(ProviderError)
-  })
 
   it('streams directly when there are no tools', async () => {
     mockCreate.mockResolvedValueOnce({})

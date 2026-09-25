@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { quickbooksAddAttachmentTool } from '@/tools/quickbooks/add_attachment'
 import {

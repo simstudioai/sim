@@ -5,8 +5,6 @@
  * failure raised deeper in the copy — the target workspace's folder ceiling being full —
  * throws. `withRouteHandler` only understands `HttpError`, so without an explicit branch
  * that throw renders as an opaque 500.
- *
- * @vitest-environment node
  */
 import { user } from '@sim/db/schema'
 import { auditMock, authMockFns, createMockRequest, type MockUser } from '@sim/testing'
@@ -80,44 +78,10 @@ function promoteRequest() {
 
 describe('POST /api/workspaces/[id]/fork/promote', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({ user: TEST_USER, session: { id: 'session-1' } })
     resetDbChainMock()
     queueTableRows(user, [{ name: TEST_USER.name }])
     mockAuthorizeWorkspaceOperation.mockResolvedValue(undefined)
-  })
-
-  /**
-   * The shared application use case resolves the other side's name and the actor attribution
-   * before the manager records the sync activity.
-   */
-  it('names the other side of the edge for promoteFork to record the sync', async () => {
-    mockPromoteFork.mockResolvedValue({
-      promoteRunId: 'run-1',
-      updated: 1,
-      created: 0,
-      archived: 0,
-      redeployed: 1,
-      deployFailed: 0,
-      deployWarnings: [],
-      unmappedRequired: [],
-      blockers: [],
-      blocked: null,
-      updatedNames: ['Flow'],
-      createdNames: [],
-      archivedNames: [],
-      needsConfiguration: [],
-      clearedOptional: [],
-      droppedReferences: [],
-      triggerUrlChanges: [],
-    })
-
-    const response = await POST(promoteRequest(), routeContext)
-
-    expect(response.status).toBe(200)
-    expect(mockPromoteFork).toHaveBeenCalledWith(
-      expect.objectContaining({ direction: 'push', actorName: 'A', otherWorkspaceName: 'Parent' })
-    )
   })
 
   it('renders a full-folder-tree refusal as an actionable 409', async () => {

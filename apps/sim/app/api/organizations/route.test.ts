@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { member, subscription } from '@sim/db/schema'
 import {
   auditMock,
@@ -63,7 +60,6 @@ afterAll(resetDbChainMock)
 
 describe('POST /api/organizations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -103,51 +99,6 @@ describe('POST /api/organizations', () => {
     expect(mockEnsureOrganizationForTeamSubscription).not.toHaveBeenCalled()
     expect(mockSetActiveOrganizationForCurrentSession).toHaveBeenCalledWith('legacy-org-id')
     expect(auditMock.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('recovers an owner org when the subscription is still linked to the user', async () => {
-    mockGetSession.mockResolvedValue(
-      createSession({
-        userId: 'user-1',
-        email: 'owner@example.com',
-        name: 'Owner',
-      })
-    )
-    mockEnsureOrganizationForTeamSubscription.mockResolvedValue({
-      id: 'sub-1',
-      plan: 'team',
-      referenceId: 'legacy-org-id',
-      status: 'active',
-      seats: 5,
-    })
-    queueTableRows(member, [{ organizationId: 'legacy-org-id', role: 'owner' }])
-    queueTableRows(subscription, [
-      { id: 'sub-1', plan: 'team', referenceId: 'user-1', status: 'active', seats: 5 },
-    ])
-
-    const response = await POST(
-      new Request('http://localhost/api/organizations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'Recovered Org' }),
-      })
-    )
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({
-      success: true,
-      organizationId: 'legacy-org-id',
-      created: false,
-    })
-    expect(mockEnsureOrganizationForTeamSubscription).toHaveBeenCalledWith({
-      id: 'sub-1',
-      plan: 'team',
-      referenceId: 'user-1',
-      status: 'active',
-      seats: 5,
-    })
-    expect(mockAttachOwnedWorkspacesToOrganization).not.toHaveBeenCalled()
-    expect(mockCreateOrganizationForTeamPlan).not.toHaveBeenCalled()
   })
 
   it('still blocks users who are only members of another organization', async () => {

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -41,7 +40,6 @@ const context = {
   requestMode: 'agent',
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.chat.mockResolvedValue({})
   mocks.authorize.mockResolvedValue(undefined)
   mocks.list.mockResolvedValue({ sources: [], nextCursor: 'next' })

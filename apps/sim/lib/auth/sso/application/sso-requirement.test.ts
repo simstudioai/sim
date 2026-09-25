@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMock,
   dbChainMockFns,
@@ -58,7 +55,6 @@ beforeAll(() => {
 afterAll(resetEnvFlagsMock)
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mockAuthorize.mockResolvedValue({ organizationId: ORG_ID, userId: 'u1', role: 'owner' })
   mockIsEntitled.mockResolvedValue(true)

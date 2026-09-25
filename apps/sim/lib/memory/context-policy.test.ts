@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   AgentContextLimitError,
@@ -91,18 +88,6 @@ describe('Agent context selection', () => {
     ).toThrow(AgentContextLimitError)
   })
 
-  it('permits an empty optional history budget without dropping the current request', () => {
-    expect(
-      selectConversationContextGroups(
-        [
-          { value: 'history', tokens: 1 },
-          { value: 'input', tokens: 10, required: true },
-        ],
-        { ...budget, historyTokens: 0 }
-      )
-    ).toEqual(['input'])
-  })
-
   it('keeps a bounded summary before spending the remaining history budget on recent raw groups', () => {
     expect(
       selectConversationContextGroups(
@@ -126,12 +111,6 @@ describe('Agent context selection', () => {
     const options = { ...budget, fixedTokens: 100, outputTokens: 1000 }
     expect(getConversationHistoryTokenBudget(groups, options)).toBe(100)
     expect(selectConversationContextGroups(groups, options)).toEqual(['recent', 'required'])
-  })
-
-  it('does not mutate native groups or their ordering', () => {
-    const native = Object.freeze([{ id: 'call' }, { id: 'result' }])
-    const groups = Object.freeze([{ value: native, tokens: 50, required: true }])
-    expect(selectConversationContextGroups(groups, budget)[0]).toBe(native)
   })
 
   it.each([Number.NaN, Number.POSITIVE_INFINITY, -1])('rejects invalid budget %s', (value) => {

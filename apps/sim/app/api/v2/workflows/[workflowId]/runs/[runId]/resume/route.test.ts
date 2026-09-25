@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -64,8 +61,6 @@ vi.mock('@/lib/core/utils/urls', () => ({
 }))
 
 import { v2ResumeWorkflowContract } from '@/lib/api/contracts/v2/workflows'
-import { PersonalApiKeysDisabledError } from '@/lib/core/application'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { POST } from '@/app/api/v2/workflows/[workflowId]/runs/[runId]/resume/route'
 
@@ -89,7 +84,6 @@ function makeRequest(body: string) {
 
 describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/resume', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.admit.mockResolvedValue({ success: true, auth: { principal } })
   })
 
@@ -117,25 +111,6 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/resume', () => {
       { kind: 'public-api' },
       { execute: mocks.resume }
     )
-    expect(mocks.resume).not.toHaveBeenCalled()
-  })
-
-  it('stops at request-rate admission without invoking resume execution controls', async () => {
-    mocks.admit.mockResolvedValueOnce({
-      success: false,
-      response: NextResponse.json(
-        { error: { code: 'RATE_LIMITED', message: 'Rate limit exceeded' } },
-        { status: 429, headers: { 'Retry-After': '7' } }
-      ),
-    })
-    const { request, context } = makeRequest(
-      JSON.stringify({ contextId: 'context-1', input: { approved: true } })
-    )
-
-    const response = await POST(request, context)
-
-    expect(response.status).toBe(429)
-    expect(response.headers.get('Retry-After')).toBe('7')
     expect(mocks.resume).not.toHaveBeenCalled()
   })
 
@@ -229,29 +204,6 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/resume', () => {
       },
     })
     expect(v2ResumeWorkflowContract.response.schema.parse(body)).toEqual(body)
-  })
-
-  it('conceals canonical parent-run/workflow mismatches as absence', async () => {
-    mocks.resume.mockRejectedValueOnce(new OrchestrationError('not_found', 'Run not found'))
-    const { request, context } = makeRequest(JSON.stringify({ contextId: 'context-4' }))
-
-    const response = await POST(request, context)
-
-    expect(response.status).toBe(404)
-    expect((await response.json()).error).toMatchObject({
-      code: 'NOT_FOUND',
-      message: 'Run not found',
-    })
-  })
-
-  it('preserves the personal-key-disabled authorization response as forbidden', async () => {
-    mocks.resume.mockRejectedValueOnce(new PersonalApiKeysDisabledError())
-    const { request, context } = makeRequest(JSON.stringify({ contextId: 'context-5' }))
-
-    const response = await POST(request, context)
-
-    expect(response.status).toBe(403)
-    expect((await response.json()).error.code).toBe('FORBIDDEN')
   })
 
   it('returns a safe error when the resume manager fails', async () => {

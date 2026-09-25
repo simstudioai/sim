@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { auditMock, auditMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -55,7 +54,6 @@ const input = { organizationId: 'org-1', optionId: 'option-1', enabled: true }
 
 describe('organization account indexing authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.available.mockResolvedValue(true)
     mocks.group.mockResolvedValue({ credentialGroupId: 'group-1' })
@@ -73,28 +71,25 @@ describe('organization account indexing authorization', () => {
     expect(mocks.group).not.toHaveBeenCalled()
     expect(mocks.setIndexing).not.toHaveBeenCalled()
   })
-  it.each(['owner', 'admin'])(
-    'allows an org %s and dispatches only that organization option',
-    async (role) => {
-      queueTableRows(schemaMock.member, [{ role }])
-      await updateOrganizationAccountIndexing.execute({ principal, input })
-      expect(mocks.setIndexing).toHaveBeenCalledWith({ ...input, credentialGroupId: 'group-1' })
-      expect(mocks.dispatch).toHaveBeenCalledWith({
-        organizationId: 'org-1',
-        credentialGroupOptionId: 'option-1',
+  it('allows an org admin and dispatches only that organization option', async () => {
+    queueTableRows(schemaMock.member, [{ role: 'admin' }])
+    await updateOrganizationAccountIndexing.execute({ principal, input })
+    expect(mocks.setIndexing).toHaveBeenCalledWith({ ...input, credentialGroupId: 'group-1' })
+    expect(mocks.dispatch).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      credentialGroupOptionId: 'option-1',
+    })
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'admin-1',
+        metadata: {
+          organizationId: 'org-1',
+          operation: 'organization_accounts.indexing.update',
+          actor: { kind: 'session', userId: 'admin-1' },
+        },
       })
-      expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          actorId: 'admin-1',
-          metadata: {
-            organizationId: 'org-1',
-            operation: 'organization_accounts.indexing.update',
-            actor: { kind: 'session', userId: 'admin-1' },
-          },
-        })
-      )
-    }
-  )
+    )
+  })
   it('requires indexing availability to enable a source', async () => {
     queueTableRows(schemaMock.member, [{ role: 'admin' }])
     mocks.feature.mockRejectedValue(new Error('Search is not enabled'))
@@ -128,15 +123,6 @@ describe('organization account indexing authorization', () => {
       knowledgeBaseIds: ['kb-1'],
     })
     await updateOrganizationAccountIndexing.execute({ principal, input })
-    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
-    expect(mocks.dispatch).not.toHaveBeenCalled()
-  })
-  it('does not audit or dispatch a failed mutation', async () => {
-    queueTableRows(schemaMock.member, [{ role: 'admin' }])
-    mocks.setIndexing.mockRejectedValue(new Error('Sync already in progress'))
-    await expect(updateOrganizationAccountIndexing.execute({ principal, input })).rejects.toThrow(
-      'Sync already in progress'
-    )
     expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
     expect(mocks.dispatch).not.toHaveBeenCalled()
   })

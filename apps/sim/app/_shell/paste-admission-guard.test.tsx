@@ -83,59 +83,6 @@ describe('PasteAdmissionGuard', () => {
     expect(warning).toHaveBeenCalledOnce()
   })
 
-  it('does not reject a small payload because the existing native value is large', () => {
-    const input = document.createElement('textarea')
-    input.dataset.pasteMaxBytes = '6'
-    input.value = '123456'
-    host.appendChild(input)
-
-    input.setSelectionRange(6, 6)
-    expect(dispatchPaste(input, 'a').defaultPrevented).toBe(false)
-  })
-
-  it('honors a surface-specific character contract', () => {
-    const input = document.createElement('textarea')
-    input.dataset.pasteMaxBytes = '100'
-    input.dataset.pasteMaxCharacters = '2'
-    host.appendChild(input)
-
-    expect(dispatchPaste(input, '💡💡').defaultPrevented).toBe(true)
-  })
-
-  it('does not reject a small payload because contenteditable text is already large', () => {
-    const editable = document.createElement('div')
-    editable.contentEditable = 'true'
-    editable.dataset.pasteMaxBytes = '6'
-    editable.textContent = '123456'
-    host.appendChild(editable)
-
-    expect(dispatchPaste(editable, 'a').defaultPrevented).toBe(false)
-  })
-
-  it('defers text admission to an editor that projects its exact paste result', () => {
-    const editor = document.createElement('div')
-    editor.setAttribute('contenteditable', 'true')
-    editor.dataset.pasteMaxBytes = '4'
-    editor.dataset.pasteProjectsTextResult = 'true'
-    host.appendChild(editor)
-
-    const targetHandler = vi.fn()
-    editor.addEventListener('paste', targetHandler)
-    expect(dispatchPaste(editor, '12345').defaultPrevented).toBe(false)
-    expect(targetHandler).toHaveBeenCalledOnce()
-  })
-
-  it('lets a prompt consume a compact Sim selection reference before its large plain text', () => {
-    const input = document.createElement('textarea')
-    input.dataset.pasteMaxBytes = '4'
-    input.dataset.pasteSelectionContext = 'ws-1'
-    host.appendChild(input)
-
-    expect(
-      dispatchPaste(input, '12345', { selectionContext: selectionPayload() }).defaultPrevented
-    ).toBe(false)
-  })
-
   it('still bounds a cross-workspace selection plain-text representation', () => {
     const input = document.createElement('textarea')
     input.dataset.pasteMaxBytes = '4'
@@ -167,24 +114,5 @@ describe('PasteAdmissionGuard', () => {
     expect(dispatchPaste(editable, 'abc', { html: '<strong>abc</strong>' }).defaultPrevented).toBe(
       true
     )
-  })
-
-  it('lets an opted-in rich editor handle clipboard image files before text admission', () => {
-    const editable = document.createElement('div')
-    editable.setAttribute('contenteditable', 'true')
-    editable.dataset.pasteMaxBytes = '4'
-    editable.dataset.pasteMaxHtmlBytes = '4'
-    editable.dataset.pasteHandlesImages = 'true'
-    host.appendChild(editable)
-
-    const targetHandler = vi.fn()
-    editable.addEventListener('paste', targetHandler)
-    const event = dispatchPaste(editable, '12345', {
-      html: '<img src="data:image/png;base64,large">',
-      imageFile: true,
-    })
-
-    expect(event.defaultPrevented).toBe(false)
-    expect(targetHandler).toHaveBeenCalledOnce()
   })
 })

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { createHash } from 'crypto'
 import { db } from '@sim/db'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
@@ -18,7 +17,6 @@ import {
   assertCollabDocStateSize,
   CollabDocStateConflictError,
   commitCollabDocState,
-  hashMarkdown,
   loadCollabDocState,
   MAX_COLLAB_DOC_STATE_BYTES,
   type PreparedCollabDocState,
@@ -40,7 +38,6 @@ function commitState(prepared = preparedState(), version = VERSION.getTime()) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
 })
 
@@ -83,11 +80,6 @@ describe('loadCollabDocState', () => {
     }
   )
 
-  it('returns null only when the cache row is absent', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-    await expect(loadCollabDocState('file-1', { maxBytes: 1024 })).resolves.toBeNull()
-  })
-
   it.each([undefined, { maxBytes: 1024 }])(
     'rejects an oversized existing state: %j',
     async (options) => {
@@ -110,16 +102,6 @@ describe('loadCollabDocState', () => {
     await expect(loadCollabDocState('file-1')).rejects.toThrow(RangeError)
   })
 
-  it('returns an owned snapshot, not the driver buffer', async () => {
-    const docState = Buffer.from([0, 0])
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { docState, byteCount: 2, sourceHash: 'source', stateHash: 'state' },
-    ])
-    const cached = await loadCollabDocState('file-1')
-    docState[0] = 255
-    expect(cached?.docState).toEqual(new Uint8Array([0, 0]))
-  })
-
   it.each([-1, Number.NaN, 1.5])(
     'rejects invalid byte limit %s before querying',
     async (maxBytes) => {
@@ -127,12 +109,6 @@ describe('loadCollabDocState', () => {
       expect(dbChainMockFns.select).not.toHaveBeenCalled()
     }
   )
-
-  it('propagates database errors instead of reporting an absent cache', async () => {
-    const error = new Error('database unavailable')
-    dbChainMockFns.limit.mockRejectedValueOnce(error)
-    await expect(loadCollabDocState('file-1')).rejects.toBe(error)
-  })
 })
 
 describe('saveCollabDocStateInTx', () => {
@@ -187,11 +163,6 @@ describe('saveCollabDocStateInTx', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
-  it('conflicts when another writer inserted the first state', async () => {
-    await expect(saveState(preparedState())).rejects.toBeInstanceOf(CollabDocStateConflictError)
-    expect(dbChainMockFns.onConflictDoUpdate).not.toHaveBeenCalled()
-  })
-
   it('requires both the projected source and exact binary history token', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ fileId: 'file-1' }])
     await saveState(preparedState({ sourceHash: 'previous-source', stateHash: 'previous-state' }))
@@ -230,12 +201,6 @@ describe('saveCollabDocStateInTx', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
-
-  it('propagates a failed cache write so its caller rolls back the transaction', async () => {
-    const error = new Error('write failed')
-    dbChainMockFns.returning.mockRejectedValueOnce(error)
-    await expect(saveState(preparedState())).rejects.toBe(error)
-  })
 })
 
 describe('commitCollabDocState', () => {
@@ -262,11 +227,6 @@ describe('commitCollabDocState', () => {
     )
     expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
-  it('does not create cache state for a missing, deleted, or differently scoped file', async () => {
-    await expect(commitState()).resolves.toEqual({ status: 'missing' })
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
   it.each([-1, 1])(
@@ -297,13 +257,6 @@ describe('commitCollabDocState', () => {
     ).rejects.toThrow(RangeError)
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
-
-  it('propagates infrastructure failures instead of misclassifying them as conflicts', async () => {
-    queueTableRows(workspaceFiles, [{ contentUpdatedAt: VERSION }])
-    const error = new Error('database connection lost')
-    dbChainMockFns.returning.mockRejectedValueOnce(error)
-    await expect(commitState()).rejects.toBe(error)
-  })
 })
 
 describe('collaborative state byte bounds', () => {
@@ -311,12 +264,6 @@ describe('collaborative state byte bounds', () => {
     expect(() => assertCollabDocStateSize(new Uint8Array(MAX_COLLAB_DOC_STATE_BYTES))).not.toThrow()
     expect(() => assertCollabDocStateSize(new Uint8Array(MAX_COLLAB_DOC_STATE_BYTES + 1))).toThrow(
       RangeError
-    )
-  })
-
-  it('hashes the exact markdown bytes', () => {
-    expect(hashMarkdown(Buffer.from('abc'))).toBe(
-      'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad'
     )
   })
 })

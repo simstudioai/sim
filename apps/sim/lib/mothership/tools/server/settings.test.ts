@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Guards the isolate hardening contract in `isolated-vm-worker.cjs`: no raw
  * `ivm.Reference` host bridge may survive as an isolate global once user code
  * runs. Each bootstrap must capture its bridges in a closure and list their

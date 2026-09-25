@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TOOL_RESULT_UNAVAILABLE_ERROR } from '@/lib/mothership/request/tools/resolved-secret-result'
 
@@ -19,7 +16,6 @@ import { createServerToolHandler } from '@/lib/mothership/tools/registry/server-
 
 describe('server tool adapter authority boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.routeExecution.mockResolvedValue({ success: true })
   })
 

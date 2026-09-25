@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -32,7 +31,6 @@ const complete = { title: 'Guide', description: null, siteName: null }
 
 describe('link preview cache lifetime', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.get.mockResolvedValue(null)
     mocks.set.mockResolvedValue('OK')
   })

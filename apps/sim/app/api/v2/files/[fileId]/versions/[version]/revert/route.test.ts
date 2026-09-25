@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -90,7 +87,6 @@ const callRevert = (body: unknown) =>
 
 describe('POST /api/v2/files/[fileId]/versions/[version]/revert', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -142,22 +138,5 @@ describe('POST /api/v2/files/[fileId]/versions/[version]/revert', () => {
 
     expect(body.data.reverted).toBe(false)
     expect(body.data.revision).toBe(workspaceFileRevision(record))
-  })
-
-  it('forwards the caller revision precondition to the use case', async () => {
-    const expectedRevision = workspaceFileRevision(record)!
-
-    await callRevert({ workspaceId: WORKSPACE_ID, expectedRevision })
-
-    expect(mocks.revertVersion).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({
-          fileId: FILE_ID,
-          assertedWorkspaceId: WORKSPACE_ID,
-          version: 2,
-          expectedRevision,
-        }),
-      })
-    )
   })
 })

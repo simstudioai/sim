@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { read, mint, fetchBootstrap, baseURL, connection, endpoint } = vi.hoisted(() => ({

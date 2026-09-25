@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { evalScript, transaction, getRedis, getStorage } = vi.hoisted(() => ({

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -27,7 +24,6 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 
 describe('executeFunctionTool', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.executeChat.mockResolvedValue(Response.json({ success: true }))
     mocks.execute.mockResolvedValue(Response.json({ success: true }))
   })

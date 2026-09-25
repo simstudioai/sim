@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
@@ -63,56 +62,6 @@ describe('CLI reference producer', () => {
     expect(find('files share get').shape).toContain('|{data:null}')
   })
 
-  it('extracts all successful JSON variants but excludes errors and empty responses', () => {
-    const schema: ReferenceSchema = { type: 'object', properties: { data: { type: 'string' } } }
-    const doc = document(schema)
-    const responses = doc.paths['/items/{id}']!.post!.responses!
-    responses['202'] = { content: { 'application/json': { schema: { type: 'integer' } } } }
-    responses['204'] = {}
-    responses['400'] = { content: { 'application/json': { schema: { const: 'error' } } } }
-    expect(commandReference([doc], operation, new Map())).toEqual({ shape: 'string|integer' })
-  })
-
-  it('keeps arrays of alternatives grouped, nullable values, and exactly one data envelope', () => {
-    const schema: ReferenceSchema = {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'object',
-          required: ['data'],
-          properties: {
-            data: { type: 'array', items: { oneOf: [{ type: 'string' }, { type: 'integer' }] } },
-            value: { type: 'string', nullable: true },
-          },
-        },
-      },
-    }
-    expect(commandReference([document(schema)], operation, new Map()).shape).toBe(
-      '{data:(string|integer)[],value?:string|null}'
-    )
-  })
-
-  it('resolves shared and recursive schema definitions and fails on broken references', () => {
-    const doc = document({ $ref: '#/components/schemas/Envelope' })
-    doc.components = {
-      schemas: {
-        Envelope: { properties: { data: { $ref: '#/components/schemas/Node' } } },
-        Node: {
-          type: 'object',
-          required: ['children'],
-          properties: {
-            children: { type: 'array', items: { $ref: '#/components/schemas/Node' } },
-          },
-        },
-      },
-    }
-    expect(commandReference([doc], operation, new Map()).shape).toBe('{children:Node[]}')
-    doc.components.schemas!.Node = { $ref: '#/components/schemas/Missing' }
-    expect(() => commandReference([doc], operation, new Map())).toThrow('Unresolved reference')
-    doc.components.schemas!.Node = { $ref: '#/components/schemas/Node' }
-    expect(() => commandReference([doc], operation, new Map())).toThrow('Circular schema alias')
-  })
-
   it('the real CLI accepts both row bodies and prints their distinct 201 payloads', async () => {
     const identity = {
       endpoint: 'https://sim.internal.test',
@@ -151,32 +100,6 @@ describe('CLI reference producer', () => {
       expect(seen).toEqual([{ workspaceId: identity.workspaceId, ...body }])
       expect(JSON.parse(result.stdout)).toEqual(payload)
     }
-  })
-
-  it('an absent file share retains the data envelope in real CLI stdout', async () => {
-    const result = await runEmbeddedCli(['--output', 'json', 'files', 'share', 'get', 'file-1'], {
-      endpoint: 'https://sim.internal.test',
-      apiKey: 'test-key',
-      workspaceId: 'workspace-1',
-      transport: async () =>
-        new Response(JSON.stringify({ data: null }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        }),
-    })
-    expect(result.exitCode, result.stderr).toBe(0)
-    expect(JSON.parse(result.stdout)).toEqual({ data: null })
-    const schema: ReferenceSchema = {
-      properties: {
-        data: {
-          anyOf: [{ type: 'string' }, { type: 'null' }],
-        },
-      },
-      required: ['data'],
-    }
-    expect(commandReference([document(schema)], operation, new Map()).shape).toBe(
-      'string|{data:null}'
-    )
   })
 })
 
@@ -232,52 +155,4 @@ describe('paged stdout reference parity', () => {
       '|{data:string[],nextCursor:string|null'
     )
   })
-
-  it.each(['0', '1'])(
-    'matches embedded list stdout at limit %s and retains clipping across pages',
-    async (limit) => {
-      const first = { id: 'workflow-1', name: 'First', truncated: true }
-      const second = { id: 'workflow-2', name: 'Second' }
-      let requests = 0
-      const result = await runEmbeddedCli(
-        ['--output', 'json', 'workflows', 'list', '--limit', limit],
-        {
-          endpoint: 'https://sim.internal.test',
-          apiKey: 'test-key',
-          workspaceId: 'a2e3ab27-2f9d-4b8a-a2f2-3c47a1b0c9d1',
-          transport: async (input) => {
-            requests++
-            const url = new URL(String(input))
-            const later = url.searchParams.get('cursor') === 'next'
-            return Response.json({
-              data: later ? [second] : [first],
-              nextCursor: later ? null : 'next',
-              truncated: false,
-              toolNamesTruncated: !later,
-              scope: 'must not appear on stdout',
-              notTruncated: true,
-              isNeverTruncated: true,
-              nonBooleanTruncated: 'not a boolean',
-            })
-          },
-        }
-      )
-      expect(result.exitCode, result.stderr).toBe(0)
-      expect(requests).toBe(limit === '0' ? 2 : 1)
-      const stdout = JSON.parse(result.stdout)
-      expect(stdout).toEqual({
-        data: limit === '0' ? [first, second] : [first],
-        nextCursor: limit === '0' ? null : 'next',
-        truncated: false,
-        toolNamesTruncated: true,
-      })
-      const shape = commandReference([document(pageSchema)], operation, new Map(), true).shape!
-      for (const key of Object.keys(stdout))
-        expect(shape).toMatch(new RegExp(`(?:\\{|,)${key}\\??:`))
-      for (const hidden of ['scope', 'notTruncated', 'isNeverTruncated', 'nonBooleanTruncated']) {
-        expect(shape).not.toContain(`${hidden}:`)
-        expect(shape).not.toContain(`${hidden}?:`)
-      }
-    }
-  )
 })

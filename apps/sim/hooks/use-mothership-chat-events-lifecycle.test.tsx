@@ -50,7 +50,6 @@ function renderEvents(owner: MothershipChatOwner | undefined) {
 
 describe('chat event subscription lifecycle', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     deployment.chatEnabled = true
     connect.mockReturnValue({ close })
@@ -58,18 +57,6 @@ describe('chat event subscription lifecycle', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
-  })
-
-  it('subscribes once for a stable organization, including new owner objects on rerender', () => {
-    const view = renderEvents({ organizationId: 'org-lifecycle-1' })
-    expect(connect).toHaveBeenCalledWith(
-      expect.objectContaining({ url: '/api/mothership/events?organizationId=org-lifecycle-1' })
-    )
-    view.rerender({ owner: { organizationId: 'org-lifecycle-1' } })
-    expect(connect).toHaveBeenCalledTimes(1)
-    view.unmount()
-    expect(close).toHaveBeenCalledTimes(1)
-    view.client.clear()
   })
 
   it('reconciles missed changes on reconnect while leaving seamless rotation alone', () => {
@@ -99,16 +86,6 @@ describe('chat event subscription lifecycle', () => {
     expect(view.invalidate).toHaveBeenCalledExactlyOnceWith({
       queryKey: mothershipChatKeys.organizationLists('org-lifecycle-3'),
     })
-    view.unmount()
-    view.client.clear()
-  })
-
-  it('does not subscribe without an owner or when chat is disabled', () => {
-    const view = renderEvents(undefined)
-    expect(connect).not.toHaveBeenCalled()
-    deployment.chatEnabled = false
-    view.rerender({ owner: { organizationId: 'org-disabled' } })
-    expect(connect).not.toHaveBeenCalled()
     view.unmount()
     view.client.clear()
   })

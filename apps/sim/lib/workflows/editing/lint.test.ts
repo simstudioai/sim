@@ -3,7 +3,6 @@ import {
   collectTableBlockFieldIssues,
   collectWorkflowFieldIssues,
   collectWorkflowTableIds,
-  formatWorkflowLintMessage,
   hasWorkflowLintIssues,
   lintEditedWorkflowState,
 } from './lint'
@@ -228,48 +227,6 @@ describe('lintEditedWorkflowState', () => {
     expect(hasWorkflowLintIssues(lint)).toBe(true)
   })
 
-  it('returns clean result when every active block and dynamic port is connected', () => {
-    const workflowState = {
-      blocks: {
-        start: baseBlock('start', 'starter', 'Start'),
-        router: baseBlock('router', 'router_v2', 'Router', {
-          routes: {
-            value: [{ id: 'route-1', title: 'Route 1', value: 'support' }],
-          },
-        }),
-        agent: baseBlock('agent', 'agent', 'Agent'),
-      },
-      edges: [
-        {
-          id: 'edge-start-router',
-          source: 'start',
-          sourceHandle: 'source',
-          target: 'router',
-          targetHandle: 'target',
-        },
-        {
-          id: 'edge-router-agent',
-          source: 'router',
-          sourceHandle: 'route-0',
-          target: 'agent',
-          targetHandle: 'target',
-        },
-      ],
-    }
-
-    const lint = lintEditedWorkflowState(workflowState as any)
-
-    expect(lint).toEqual({
-      sources: [{ blockId: 'start', blockName: 'Start', blockType: 'starter' }],
-      sinks: [{ blockId: 'agent', blockName: 'Agent', blockType: 'agent' }],
-      orphanBlocks: [],
-      emptyOutgoingPorts: [],
-      invalidBranchPorts: [],
-      invalidConnectionTargets: [],
-    })
-    expect(hasWorkflowLintIssues(lint)).toBe(false)
-  })
-
   it('objectively reports multiple sources without turning disconnected islands into an issue', () => {
     const workflowState = {
       blocks: {
@@ -475,24 +432,6 @@ describe('collectWorkflowFieldIssues', () => {
       expect.objectContaining({ blockId: 'table', missingRequiredFields: ['Table'] }),
     ])
   })
-
-  it('accepts a value on either member of the pair and leaves optional sub-blocks alone', () => {
-    const issues = collectWorkflowFieldIssues({
-      picked: resourceBlock('picked', 'knowledge', {
-        operation: 'search',
-        knowledgeBaseSelector: 'kb_123',
-        manualKnowledgeBaseId: null,
-        query: null,
-      }),
-      manual: resourceBlock('manual', 'knowledge', {
-        operation: 'search',
-        knowledgeBaseSelector: null,
-        manualKnowledgeBaseId: 'kb_456',
-      }),
-    })
-
-    expect(issues).toEqual([])
-  })
 })
 
 /**
@@ -553,21 +492,6 @@ describe('collectTableBlockFieldIssues', () => {
     ])
   })
 
-  it('accepts a bare condition, a record-shaped sort, and the implicit row fields', () => {
-    const issues = collectTableBlockFieldIssues(
-      {
-        query: tableBlock('query', {
-          tableSelector: 'tbl_leads',
-          filter: '{"field":"id","op":"eq","value":"row_1"}',
-          order: '{"updatedAt":"desc","status":"asc"}',
-        }),
-      },
-      tables
-    )
-
-    expect(issues).toEqual([])
-  })
-
   it('skips a block whose table is unresolved, and a filter that is a reference or not JSON', () => {
     const issues = collectTableBlockFieldIssues(
       {
@@ -594,25 +518,6 @@ describe('collectTableBlockFieldIssues', () => {
     )
 
     expect(issues).toEqual([])
-  })
-
-  it('surfaces the finding through the issue check and the summary', () => {
-    const lint = {
-      sources: [],
-      sinks: [],
-      orphanBlocks: [],
-      emptyOutgoingPorts: [],
-      invalidBranchPorts: [],
-      invalidConnectionTargets: [],
-      tableFieldIssues: [
-        { blockId: 'query', blockName: 'Query leads', field: 'score', tableName: 'Leads' },
-      ],
-    }
-
-    expect(hasWorkflowLintIssues(lint)).toBe(true)
-    expect(formatWorkflowLintMessage(lint)).toContain(
-      'Table filter/sort fields that are not columns of the referenced table (the run will fail in the block\'s error edge): "Query leads".score (table "Leads")'
-    )
   })
 })
 

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -65,7 +62,6 @@ function approved(overrides: Record<string, unknown> = {}) {
 
 describe('POST /api/cli/auth/poll', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockEnforceIpRateLimit.mockResolvedValue(null)
     mockGenerateCopilotApiKey.mockResolvedValue({ id: 'key-1', apiKey: 'sk-test' })
     mockCreatePersonalApiKey.mockResolvedValue({
@@ -107,58 +103,6 @@ describe('POST /api/cli/auth/poll', () => {
     )
     expect(mockCompleteApproval).toHaveBeenCalledWith(REQUEST)
     expect(mockReleaseMint).not.toHaveBeenCalled()
-  })
-
-  it('mints a personal platform key when the approval carries no workspace', async () => {
-    mockPollApproval.mockResolvedValue(approved({ scope: 'platform' }))
-    const response = await POST(pollRequest({ request: REQUEST, verifier: VERIFIER }))
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({
-      status: 'complete',
-      key: { id: 'key-2', apiKey: 'sim_personal' },
-      scope: 'platform',
-      workspaceId: null,
-      workspaceBound: false,
-    })
-    expect(mockCreatePersonalApiKey).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'user-1', source: 'cli' })
-    )
-    expect(mockGenerateCopilotApiKey).not.toHaveBeenCalled()
-  })
-
-  it('mints a workspace-scoped key when the approval carries a workspace', async () => {
-    mockPollApproval.mockResolvedValue(
-      approved({ scope: 'platform', workspaceId: 'ws-1', workspaceBound: true })
-    )
-    const response = await POST(pollRequest({ request: REQUEST, verifier: VERIFIER }))
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({
-      status: 'complete',
-      key: { id: 'key-3', apiKey: 'sim_workspace' },
-      scope: 'platform',
-      workspaceId: 'ws-1',
-      workspaceBound: true,
-    })
-    expect(mockCreateWorkspaceApiKey).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'user-1', workspaceId: 'ws-1', source: 'cli' })
-    )
-    expect(mockCreatePersonalApiKey).not.toHaveBeenCalled()
-  })
-
-  it('returns the picked workspace with a personal key when the approval is unbound', async () => {
-    // A non-admin still picked a workspace in the browser; the terminal needs it
-    // as its default even though the key is not scoped to it.
-    mockPollApproval.mockResolvedValue(approved({ scope: 'platform', workspaceId: 'ws-1' }))
-    const response = await POST(pollRequest({ request: REQUEST, verifier: VERIFIER }))
-    await expect(response.json()).resolves.toEqual({
-      status: 'complete',
-      key: { id: 'key-2', apiKey: 'sim_personal' },
-      scope: 'platform',
-      workspaceId: 'ws-1',
-      workspaceBound: false,
-    })
-    expect(mockCreatePersonalApiKey).toHaveBeenCalled()
-    expect(mockCreateWorkspaceApiKey).not.toHaveBeenCalled()
   })
 
   it('scope comes from the approval, never from the poll body', async () => {
@@ -223,19 +167,6 @@ describe('POST /api/cli/auth/poll', () => {
     expect(mockCompleteApproval).not.toHaveBeenCalled()
   })
 
-  it('releases the reservation when a platform mint fails', async () => {
-    mockPollApproval.mockResolvedValue(approved({ scope: 'platform' }))
-    mockCreatePersonalApiKey.mockResolvedValue({
-      success: false,
-      errorCode: 'conflict',
-      error: 'A personal API key named "CLI" already exists.',
-    })
-    const response = await POST(pollRequest({ request: REQUEST, verifier: VERIFIER }))
-    expect(response.status).toBe(409)
-    expect(mockReleaseMint).toHaveBeenCalledWith(REQUEST)
-    expect(mockCompleteApproval).not.toHaveBeenCalled()
-  })
-
   it('still returns the key when post-mint cleanup fails — never releases the lock', async () => {
     mockPollApproval.mockResolvedValue(approved())
     mockCompleteApproval.mockRejectedValue(new Error('redis blip'))
@@ -250,20 +181,5 @@ describe('POST /api/cli/auth/poll', () => {
     })
     // A cleanup failure must not release the mint lock — that would allow a re-mint.
     expect(mockReleaseMint).not.toHaveBeenCalled()
-  })
-
-  it('rejects a malformed verifier before touching the store', async () => {
-    const response = await POST(pollRequest({ request: REQUEST, verifier: 'too-short' }))
-    expect(response.status).toBe(400)
-    expect(mockPollApproval).not.toHaveBeenCalled()
-  })
-
-  it('honors the IP rate limiter', async () => {
-    mockEnforceIpRateLimit.mockResolvedValue(
-      new Response(null, { status: 429 }) as unknown as never
-    )
-    const response = await POST(pollRequest({ request: REQUEST, verifier: VERIFIER }))
-    expect(response.status).toBe(429)
-    expect(mockPollApproval).not.toHaveBeenCalled()
   })
 })

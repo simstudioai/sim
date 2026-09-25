@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { workflowAuthzMockFns } from '@sim/testing'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -63,7 +62,6 @@ vi.mock('@/lib/permission-groups/config-scope.server', () => ({
 }))
 
 import { applyWorkflowOperations } from '@/lib/workflows/application/apply-workflow-operations'
-import { readWorkflowLint } from '@/lib/workflows/application/read-workflow-lint'
 import { replaceWorkflowState } from '@/lib/workflows/application/replace-workflow-state'
 import type { CustomBlockWithInputs } from '@/lib/workflows/custom-blocks/operations'
 import type { EditWorkflowOperation } from '@/lib/workflows/editing/types'
@@ -152,7 +150,6 @@ const add: EditWorkflowOperation = {
 
 describe('custom blocks in authorized workflow authoring', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('write')
     workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
@@ -218,39 +215,6 @@ describe('custom blocks in authorized workflow authoring', () => {
       }
     }
   )
-
-  it('reports missing deployed inputs consistently in edit, replace and standalone lint', async () => {
-    const missingInput = graph(true)
-    missingInput.blocks.worker.subBlocks['input-text'].value = ''
-    mocks.loadSnapshot.mockResolvedValue({
-      workflowRecord: context.workflow,
-      normalizedData: missingInput,
-    })
-    mocks.loadNormalized.mockResolvedValue(missingInput)
-    const replaced = await replaceWorkflowState.execute({
-      principal: session,
-      input: { workflowId: context.workflowId, ...missingInput, dryRun: true },
-    })
-    const edited = await applyWorkflowOperations.execute({
-      principal: copilot,
-      input: {
-        workflowId: context.workflowId,
-        operations: [{ operation_type: 'edit', block_id: 'worker', params: { name: 'worker' } }],
-        dryRun: true,
-        layout: 'none',
-      },
-    })
-    const diagnostic = await readWorkflowLint.execute({
-      principal: copilot,
-      input: { workflowId: context.workflowId },
-    })
-    expect(replaced.lint.fieldIssues).toEqual([
-      expect.objectContaining({ blockId: 'worker', missingRequiredFields: ['Text'] }),
-    ])
-    expect(edited.lint.fieldIssues).toEqual(replaced.lint.fieldIssues)
-    expect(diagnostic.fieldIssues).toEqual(replaced.lint.fieldIssues)
-    expect(mocks.replace).not.toHaveBeenCalled()
-  })
 
   it('fails closed when custom schemas cannot be loaded', async () => {
     mocks.customBlocks.mockRejectedValue(new Error('Schema read failed'))

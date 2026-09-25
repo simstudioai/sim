@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch, mockResolveSelectorAtlassianCloudId, mockResolveSelectorCredentialBundle } =
@@ -39,7 +36,6 @@ function args(): ExecuteServerSelectorArgs {
 
 describe('Jira server selector adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveSelectorCredentialBundle.mockResolvedValue({ accessToken: 'server-only-token' })
     mockResolveSelectorAtlassianCloudId.mockResolvedValue('cloud-1')

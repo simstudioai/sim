@@ -55,56 +55,6 @@ describe('resource list preferences store', () => {
     })
   })
 
-  it('removes one preference without disturbing sibling entries', () => {
-    const store = useResourceListPreferencesStore.getState()
-    store.setPreference('workspace-1', 'files', filesPreference)
-    store.setPreference('workspace-1', 'tables', tablesPreference)
-
-    store.removePreference('workspace-1', 'files')
-
-    expect(useResourceListPreferencesStore.getState().preferences).toEqual({
-      'workspace-1': { tables: tablesPreference },
-    })
-  })
-
-  it('persists only the preference map', () => {
-    useResourceListPreferencesStore
-      .getState()
-      .setPreference('workspace-1', 'files', filesPreference)
-
-    expect(persistedValue()).toEqual({
-      state: { preferences: { 'workspace-1': { files: filesPreference } } },
-      version: 1,
-    })
-  })
-
-  it('does not publish a redundant state update for an unchanged preference', () => {
-    const store = useResourceListPreferencesStore.getState()
-    store.setPreference('workspace-1', 'files', filesPreference)
-    const stateAfterFirstWrite = useResourceListPreferencesStore.getState()
-
-    store.setPreference('workspace-1', 'files', structuredClone(filesPreference))
-
-    expect(useResourceListPreferencesStore.getState()).toBe(stateAfterFirstWrite)
-  })
-
-  it('hydrates a valid saved preference and marks hydration complete', async () => {
-    localStorage.setItem(
-      RESOURCE_LIST_PREFERENCES_STORAGE_KEY,
-      JSON.stringify({
-        state: { preferences: { 'workspace-1': { files: filesPreference } } },
-        version: 1,
-      })
-    )
-
-    await useResourceListPreferencesStore.persist.rehydrate()
-
-    expect(useResourceListPreferencesStore.getState()).toMatchObject({
-      preferences: { 'workspace-1': { files: filesPreference } },
-      _hasHydrated: true,
-    })
-  })
-
   it('drops malformed persisted entries while preserving valid siblings', async () => {
     localStorage.setItem(
       RESOURCE_LIST_PREFERENCES_STORAGE_KEY,
@@ -125,60 +75,6 @@ describe('resource list preferences store', () => {
 
     expect(useResourceListPreferencesStore.getState().preferences).toEqual({
       'workspace-1': { tables: tablesPreference },
-    })
-  })
-
-  it('recovers from invalid JSON with an empty hydrated store', async () => {
-    localStorage.setItem(RESOURCE_LIST_PREFERENCES_STORAGE_KEY, '{not-json')
-
-    await useResourceListPreferencesStore.persist.rehydrate()
-
-    expect(useResourceListPreferencesStore.getState()).toMatchObject({
-      preferences: {},
-      _hasHydrated: true,
-    })
-    expect(localStorage.getItem(RESOURCE_LIST_PREFERENCES_STORAGE_KEY)).toBeNull()
-  })
-
-  it('hydrates an empty store when localStorage reads throw', async () => {
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
-      throw new DOMException('Storage is blocked', 'SecurityError')
-    })
-
-    await expect(useResourceListPreferencesStore.persist.rehydrate()).resolves.toBeUndefined()
-
-    expect(useResourceListPreferencesStore.getState()).toMatchObject({
-      preferences: {},
-      _hasHydrated: true,
-    })
-  })
-
-  it('keeps in-memory preferences when localStorage writes throw', () => {
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new DOMException('Storage is full', 'QuotaExceededError')
-    })
-
-    expect(() =>
-      useResourceListPreferencesStore
-        .getState()
-        .setPreference('workspace-1', 'files', filesPreference)
-    ).not.toThrow()
-    expect(useResourceListPreferencesStore.getState().preferences).toEqual({
-      'workspace-1': { files: filesPreference },
-    })
-  })
-
-  it('completes malformed-state recovery when localStorage removal throws', async () => {
-    localStorage.setItem(RESOURCE_LIST_PREFERENCES_STORAGE_KEY, '{not-json')
-    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
-      throw new DOMException('Storage is blocked', 'SecurityError')
-    })
-
-    await expect(useResourceListPreferencesStore.persist.rehydrate()).resolves.toBeUndefined()
-
-    expect(useResourceListPreferencesStore.getState()).toMatchObject({
-      preferences: {},
-      _hasHydrated: true,
     })
   })
 

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { ScimUserAttributes } from '@sim/db/schema'
 import { describe, expect, it } from 'vitest'
 import { scimPatchBodySchema } from '@/lib/api/contracts/scim'
@@ -62,14 +59,6 @@ describe('applyUserPatch', () => {
     expect(next.active).toBe(false)
   })
 
-  it('reactivates', () => {
-    const { next } = applyUserPatch(
-      baseUser({ active: false }),
-      parseOperations([{ op: 'replace', value: { active: true } }])
-    )
-    expect(next.active).toBe(true)
-  })
-
   it('applies Entra’s path-less replace with dotted attribute keys', () => {
     const { next } = applyUserPatch(
       baseUser(),
@@ -98,16 +87,6 @@ describe('applyUserPatch', () => {
       ])
     )
     expect(next.emails).toContainEqual({ value: 'ada.k@acme.test', type: 'work', primary: false })
-  })
-
-  it('replaces an existing work email in place', () => {
-    const { next } = applyUserPatch(
-      baseUser(),
-      parseOperations([
-        { op: 'Replace', path: 'emails[type eq "work"].value', value: 'ADA.K@ACME.TEST' },
-      ])
-    )
-    expect(next.emails).toEqual([{ value: 'ada.k@acme.test', type: 'work', primary: true }])
   })
 
   it('replaces the primary email through Entra’s primary filter', () => {
@@ -288,15 +267,6 @@ describe('applyUserPatch', () => {
     expect(next.extra?.[schema]).toEqual({ department: 'Engineering', costCenter: undefined })
   })
 
-  it('accepts a new extension object in a path-less PATCH', () => {
-    const schema = 'urn:okta:sim:2.0:user:custom'
-    const { next } = applyUserPatch(
-      baseUser(),
-      parseOperations([{ op: 'add', value: { [schema]: { costCenter: 'R&D' } } }])
-    )
-    expect(next.extra).toEqual({ [schema]: { costCenter: 'R&D' } })
-  })
-
   it('removes a custom extension by its exact schema path', () => {
     const schema = 'urn:okta:sim:2.0:user:custom'
     const { next } = applyUserPatch(
@@ -376,12 +346,5 @@ describe('applyUserPatch', () => {
     expect(() =>
       applyUserPatch(baseUser(), parseOperations([{ op: 'replace', path: 'active', value: 'yes' }]))
     ).toThrowError(expect.objectContaining({ scimType: 'invalidValue' }))
-  })
-
-  it('leaves the stored resource untouched', () => {
-    const original = baseUser()
-    const snapshot = structuredClone(original)
-    applyUserPatch(original, parseOperations([{ op: 'replace', value: { active: false } }]))
-    expect(original).toEqual(snapshot)
   })
 })

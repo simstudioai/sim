@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -140,7 +137,6 @@ const context = {
  */
 describe('skill operations under a group that blocks skills', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('admin')
   })
 

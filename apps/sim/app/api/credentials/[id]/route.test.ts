@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CredentialAccessRequiredError } from '@/lib/credentials/application/authorized-credential-use-case'
@@ -37,7 +34,6 @@ const routeContext = { params: Promise.resolve({ id: CREDENTIAL_ID }) }
 
 describe('GET /api/credentials/[id]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'writer-1' },
       session: { id: 'session-1' },

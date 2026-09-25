@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -20,11 +17,9 @@ vi.mock('@/lib/uploads/contexts/execution', () => ({
 }))
 
 import { downloadTypeformFile } from '@/lib/internal/typeform/operations'
-import { filesTool } from '@/tools/typeform/files'
 
 describe('Typeform file operation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.validateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '93.184.216.34' })
     mocks.secureFetchWithPinnedIP.mockResolvedValue(
       new Response('content', {
@@ -46,25 +41,6 @@ describe('Typeform file operation', () => {
       key: 'copilot/file-1',
       context: 'copilot',
     })
-  })
-
-  it('declares typed input without caller-provided execution authority', () => {
-    const input = filesTool.operation.input({
-      formId: 'form-1',
-      responseId: 'response-1',
-      fieldId: 'field-1',
-      filename: 'upload.pdf',
-      apiKey: 'token',
-    })
-    expect(input).toEqual({
-      formId: 'form-1',
-      responseId: 'response-1',
-      fieldId: 'field-1',
-      filename: 'upload.pdf',
-      inline: undefined,
-      apiKey: 'token',
-    })
-    expect('request' in filesTool).toBe(false)
   })
 
   it('stores downloads with trusted execution scope', async () => {

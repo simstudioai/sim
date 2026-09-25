@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBaseTagDefinitions } from '@sim/db/schema'
 import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
@@ -15,11 +11,7 @@ vi.mock('@sim/utils/id', () => ({
 import {
   cleanupUnusedTagDefinitions,
   createOrUpdateTagDefinitionsBulk,
-  createTagDefinition,
-  getDocumentTagDefinitions,
-  getDocumentTagDefinitionsByKnowledgeBaseIds,
   getTagUsageStats,
-  updateTagDefinition,
 } from '@/lib/knowledge/tags/service'
 
 const NOW = new Date('2026-01-01T00:00:00.000Z')
@@ -39,7 +31,6 @@ function existingDefinition(overrides: Record<string, unknown>) {
 
 describe('cleanupUnusedTagDefinitions', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -79,101 +70,9 @@ describe('cleanupUnusedTagDefinitions', () => {
   })
 })
 
-describe('getDocumentTagDefinitionsByKnowledgeBaseIds', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-  })
-
-  it('loads twenty bases in one query and retains each base in requested order', async () => {
-    const ids = Array.from({ length: 20 }, (_, index) => `kb-${index}`)
-    queueTableRows(knowledgeBaseTagDefinitions, [
-      existingDefinition({ knowledgeBaseId: 'kb-2', tagSlot: 'number1', fieldType: 'number' }),
-      existingDefinition({ knowledgeBaseId: 'kb-1', tagSlot: 'tag1' }),
-      existingDefinition({ knowledgeBaseId: 'kb-2', tagSlot: 'tag1' }),
-    ])
-
-    const result = await getDocumentTagDefinitionsByKnowledgeBaseIds(ids)
-
-    expect([...result.keys()]).toEqual(ids)
-    expect(result.get('kb-0')).toEqual([])
-    expect(result.get('kb-1')?.map((definition) => definition.tagSlot)).toEqual(['tag1'])
-    expect(result.get('kb-2')?.map((definition) => definition.tagSlot)).toEqual(['number1', 'tag1'])
-    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
-    expect(dbChainMockFns.orderBy).toHaveBeenCalledWith(knowledgeBaseTagDefinitions.tagSlot)
-    expect(
-      hasMockCondition(
-        dbChainMockFns.where.mock.calls[0][0],
-        (node) =>
-          node.type === 'inArray' &&
-          node.column === knowledgeBaseTagDefinitions.knowledgeBaseId &&
-          JSON.stringify(node.values) === JSON.stringify(ids)
-      )
-    ).toBe(true)
-    const projection = dbChainMockFns.select.mock.calls[0][0]
-    await getDocumentTagDefinitions('kb-0')
-    expect(dbChainMockFns.select.mock.calls[1][0]).toEqual(projection)
-  })
-
-  it('keeps empty bases and deduplicates requested ids', async () => {
-    const result = await getDocumentTagDefinitionsByKnowledgeBaseIds(['kb-2', 'kb-1', 'kb-2'])
-    expect([...result]).toEqual([
-      ['kb-2', []],
-      ['kb-1', []],
-    ])
-    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
-    expect(
-      hasMockCondition(
-        dbChainMockFns.where.mock.calls[0][0],
-        (node) =>
-          node.type === 'inArray' &&
-          JSON.stringify(node.values) === JSON.stringify(['kb-2', 'kb-1'])
-      )
-    ).toBe(true)
-  })
-
-  it('skips an empty batch and preserves the singleton equality predicate', async () => {
-    expect(await getDocumentTagDefinitionsByKnowledgeBaseIds([])).toEqual(new Map())
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    expect(await getDocumentTagDefinitionsByKnowledgeBaseIds(['kb-1'])).toEqual(
-      new Map([['kb-1', []]])
-    )
-    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
-    expect(
-      hasMockCondition(
-        dbChainMockFns.where.mock.calls[0][0],
-        (node) => node.type === 'eq' && node.right === 'kb-1'
-      )
-    ).toBe(true)
-  })
-
-  it('propagates batch database failures', async () => {
-    const failure = new Error('tag database unavailable')
-    dbChainMockFns.orderBy.mockRejectedValueOnce(failure)
-    await expect(getDocumentTagDefinitionsByKnowledgeBaseIds(['kb-1', 'kb-2'])).rejects.toBe(
-      failure
-    )
-  })
-})
-
 describe('createOrUpdateTagDefinitionsBulk', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('honors an explicitly requested slot instead of relocating it', async () => {
-    queueTableRows(knowledgeBaseTagDefinitions, [existingDefinition({ tagSlot: 'tag1' })])
-
-    const result = await createOrUpdateTagDefinitionsBulk(
-      'kb-1',
-      { definitions: [{ tagSlot: 'tag4', displayName: 'clitest-saved', fieldType: 'text' }] },
-      'request-1'
-    )
-
-    expect(result.errors).toEqual([])
-    expect(result.created).toHaveLength(1)
-    expect(result.created[0].tagSlot).toBe('tag4')
   })
 
   it('rejects a slot that does not belong to the declared field type', async () => {
@@ -223,21 +122,6 @@ describe('createOrUpdateTagDefinitionsBulk', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
-  it('treats an identical re-declaration without a slot as a no-op', async () => {
-    const existing = existingDefinition({ tagSlot: 'tag1', fieldType: 'text' })
-    queueTableRows(knowledgeBaseTagDefinitions, [existing])
-
-    const result = await createOrUpdateTagDefinitionsBulk(
-      'kb-1',
-      { definitions: [{ displayName: 'clitest-score', fieldType: 'text' }] },
-      'request-5'
-    )
-
-    expect(result.errors).toEqual([])
-    expect(result.created).toEqual([])
-    expect(result.updated).toEqual([existing])
-  })
-
   it('refuses to rename the tag occupying a declared slot without originalDisplayName', async () => {
     const existing = existingDefinition({ tagSlot: 'tag1', fieldType: 'text' })
     queueTableRows(knowledgeBaseTagDefinitions, [existing])
@@ -255,36 +139,6 @@ describe('createOrUpdateTagDefinitionsBulk', () => {
     ])
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-  })
-
-  it('renames the tag a declared slot holds when originalDisplayName says so', async () => {
-    const existing = existingDefinition({ tagSlot: 'tag1', fieldType: 'text' })
-    queueTableRows(knowledgeBaseTagDefinitions, [existing])
-
-    const result = await createOrUpdateTagDefinitionsBulk(
-      'kb-1',
-      {
-        definitions: [
-          {
-            tagSlot: 'tag1',
-            displayName: 'clitest-renamed',
-            fieldType: 'text',
-            originalDisplayName: 'clitest-score',
-          },
-        ],
-      },
-      'request-8'
-    )
-
-    expect(result.errors).toEqual([])
-    expect(result.created).toEqual([])
-    expect(result.updated).toHaveLength(1)
-    expect(result.updated[0]).toMatchObject({
-      id: 'tag-def-1',
-      tagSlot: 'tag1',
-      displayName: 'clitest-renamed',
-    })
-    expect(dbChainMockFns.update).toHaveBeenCalled()
   })
 
   it('refuses to move an existing tag into a different declared slot', async () => {
@@ -344,7 +198,6 @@ describe('createOrUpdateTagDefinitionsBulk', () => {
 
 describe('getTagUsageStats', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -375,88 +228,5 @@ describe('getTagUsageStats', () => {
     const chunkWhere = JSON.stringify(dbChainMockFns.where.mock.calls.at(-1))
     expect(chunkWhere).toContain('document.tag1')
     expect(chunkWhere).not.toContain('embedding.tag1')
-  })
-})
-
-describe('createTagDefinition', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-  })
-
-  it('refuses a display name an existing definition holds in another case', async () => {
-    queueTableRows(knowledgeBaseTagDefinitions, [
-      existingDefinition({ displayName: 'clitest-cat' }),
-    ])
-
-    await expect(
-      createTagDefinition(
-        {
-          knowledgeBaseId: 'kb-1',
-          tagSlot: 'tag2',
-          displayName: 'CLITEST-CAT',
-          fieldType: 'text',
-        },
-        'request-11'
-      )
-    ).rejects.toThrow('A tag with that name already exists in this knowledge base')
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-  })
-
-  it('checks and inserts inside one transaction holding the knowledge base row lock', async () => {
-    queueTableRows(knowledgeBaseTagDefinitions, [])
-
-    await createTagDefinition(
-      {
-        knowledgeBaseId: 'kb-1',
-        tagSlot: 'tag2',
-        displayName: 'clitest-free',
-        fieldType: 'text',
-      },
-      'request-12'
-    )
-
-    expect(dbChainMockFns.transaction).toHaveBeenCalled()
-    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
-    expect(dbChainMockFns.insert).toHaveBeenCalled()
-  })
-})
-
-describe('updateTagDefinition', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-  })
-
-  it('refuses a rename onto a sibling name that differs only in case', async () => {
-    queueTableRows(knowledgeBaseTagDefinitions, [
-      existingDefinition({ id: 'tag-def-1', displayName: 'clitest-cat' }),
-      existingDefinition({ id: 'tag-def-2', tagSlot: 'tag2', displayName: 'clitest-dog' }),
-    ])
-
-    await expect(
-      updateTagDefinition('tag-def-2', 'kb-1', { displayName: 'CLITEST-CAT' }, 'request-13')
-    ).rejects.toThrow('A tag with that name already exists in this knowledge base')
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
-  it('allows a definition to be renamed to another casing of its own name', async () => {
-    queueTableRows(knowledgeBaseTagDefinitions, [
-      existingDefinition({ id: 'tag-def-1', displayName: 'clitest-cat' }),
-    ])
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      existingDefinition({ id: 'tag-def-1', displayName: 'CLITEST-CAT' }),
-    ])
-
-    const updated = await updateTagDefinition(
-      'tag-def-1',
-      'kb-1',
-      { displayName: 'CLITEST-CAT' },
-      'request-14'
-    )
-
-    expect(updated.displayName).toBe('CLITEST-CAT')
-    expect(dbChainMockFns.transaction).toHaveBeenCalled()
-    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
   })
 })

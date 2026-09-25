@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * The block shape from the originally reported workflow. Identifiers are
  * replaced; the stored subblock spelling is reproduced exactly, because that is
  * the part that carries the bug.

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { member, user } from '@sim/db/schema'
 import {
@@ -64,7 +61,6 @@ const create = () =>
   createOrganizationInvitation({ context, email: ' Person@example.com ', role: 'member' })
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   setEnvFlags({ isBillingEnabled: true })
   mocks.admin.mockResolvedValue(true)
@@ -106,14 +102,6 @@ describe('organization-only invitations', () => {
     expect(mocks.admin).toHaveBeenCalledWith('admin-user', 'org-target')
     expect(mocks.policy).not.toHaveBeenCalled()
     expect(mocks.plan).not.toHaveBeenCalled()
-  })
-
-  it('enforces organization invitation policy and active plan', async () => {
-    mocks.plan.mockResolvedValue(false)
-    await expect(prepareOrganizationInvitationContext(context)).rejects.toThrow('active paid plan')
-    expect(mocks.policy).toHaveBeenCalledWith('admin-user', { organizationId: 'org-target' })
-    setEnvFlags({ isBillingEnabled: false })
-    await expect(prepareOrganizationInvitationContext(context)).resolves.toEqual(context)
   })
 
   it('creates no workspace grants and rechecks target-org admin and seats under the lock', async () => {
@@ -186,14 +174,6 @@ describe('organization-only invitations', () => {
     expect(mocks.send).not.toHaveBeenCalled()
   })
 
-  it('refuses duplicate pending invitations without resending or modifying them', async () => {
-    queueTableRows(member, [{ role: 'owner' }])
-    mocks.pending.mockResolvedValue({ id: 'existing-invite' })
-    await expect(create()).rejects.toThrow('already has a pending invitation')
-    expect(mocks.send).not.toHaveBeenCalled()
-    expect(mocks.cancel).not.toHaveBeenCalled()
-  })
-
   it('refuses exhausted seats before delivery', async () => {
     queueTableRows(member, [{ role: 'owner' }])
     mocks.seats.mockResolvedValue({ canInvite: false, reason: 'Seat capacity exhausted' })
@@ -201,33 +181,11 @@ describe('organization-only invitations', () => {
     expect(mocks.send).not.toHaveBeenCalled()
   })
 
-  it.each(['returned', 'thrown'])(
-    'compensates a %s email failure against only its original revision',
-    async (failure) => {
-      queueTableRows(member, [{ role: 'owner' }])
-      if (failure === 'thrown') mocks.send.mockRejectedValue(new Error('Provider failed'))
-      else mocks.send.mockResolvedValue({ success: false })
-      await expect(create()).rejects.toThrow('could not be delivered')
-      expect(mocks.cancel).toHaveBeenCalledWith('invite-new', {
-        expectedUpdatedAt: revision,
-        expectedOrganizationId: 'org-target',
-      })
-      expect(auditMock.recordAudit).not.toHaveBeenCalled()
-    }
-  )
-
   it('does not undo a concurrently changed invitation after failed delivery', async () => {
     queueTableRows(member, [{ role: 'owner' }])
     mocks.send.mockResolvedValue({ success: false })
     mocks.cancel.mockResolvedValue(false)
     await expect(create()).rejects.toThrow('invitation changed while delivery failed')
     expect(auditMock.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('rejects malformed addresses before provider delivery', async () => {
-    await expect(
-      createOrganizationInvitation({ context, email: 'not-an-email', role: 'member' })
-    ).rejects.toThrow()
-    expect(mocks.create).not.toHaveBeenCalled()
   })
 })

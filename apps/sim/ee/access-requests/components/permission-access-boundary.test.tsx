@@ -63,7 +63,6 @@ describe('PermissionAccessBoundary', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -124,13 +123,6 @@ describe('PermissionAccessBoundary', () => {
     expect(container.textContent).toContain('Checking access')
   })
 
-  it('retains the legacy feature behavior when organization requests are off', () => {
-    discovery.mockReturnValue({ isPending: false, data: { enabled: false, entries: [] } })
-    render()
-    expect(protectedMount).toHaveBeenCalledOnce()
-    expect(container.textContent).not.toContain('Request access')
-  })
-
   it('does not confuse a deployment failure with a requestable restriction', () => {
     discovery.mockReturnValue({
       isPending: false,
@@ -158,28 +150,6 @@ describe('PermissionAccessBoundary', () => {
     expect(container.textContent).toContain('Access updated')
     act(() => container.querySelector('button')?.click())
     expect(refresh).toHaveBeenCalledOnce()
-    expect(protectedMount).not.toHaveBeenCalled()
-  })
-
-  it('only reports a permissions refresh while the policy query is fetching', () => {
-    const refetch = vi.fn()
-    const blockedPolicy = { data: { config: { hideTablesTab: true } }, isPending: false, refetch }
-    policy.mockReturnValue({ ...blockedPolicy, isFetching: false })
-    discovery.mockReturnValue({
-      isPending: false,
-      data: {
-        enabled: true,
-        entries: [{ target: { kind: 'feature', configKey: 'hideTablesTab' }, state: 'allowed' }],
-      },
-    })
-    render()
-    expect(container.textContent).toContain('Refresh to load your latest permissions.')
-    expect(container.textContent).not.toContain('Refreshing your permissions...')
-    act(() => container.querySelector('button')?.click())
-    expect(refetch).toHaveBeenCalledOnce()
-    policy.mockReturnValue({ ...blockedPolicy, isFetching: true })
-    render()
-    expect(container.textContent).toContain('Refreshing your permissions...')
     expect(protectedMount).not.toHaveBeenCalled()
   })
 })

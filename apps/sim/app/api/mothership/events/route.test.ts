@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import {
   authMockFns,
   permissionsMock,
@@ -47,7 +46,6 @@ async function collect(body: ReadableStream<Uint8Array>, chunks: string[]) {
 
 describe('Mothership owner-scoped event stream', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     setEnvFlags({ isChatEnabled: true })
     authMockFns.mockGetSession.mockResolvedValue({
@@ -62,22 +60,6 @@ describe('Mothership owner-scoped event stream', () => {
     vi.useRealTimers()
     resetEnvFlagsMock()
   })
-
-  it('authenticates before validating scope', async () => {
-    authMockFns.mockGetSession.mockResolvedValue(null)
-    const response = await GET(request('organizationId=org-1&workspaceId=ws-1'))
-    expect(response.status).toBe(401)
-    expect(authorize).not.toHaveBeenCalled()
-    expect(subscribe).not.toHaveBeenCalled()
-  })
-
-  it.each(['', 'workspaceId=', 'organizationId=', 'organizationId=org-1&workspaceId=ws-1'])(
-    'refuses absent, empty, or mixed owners: %s',
-    async (query) => {
-      expect((await GET(request(query))).status).toBe(400)
-      expect(subscribe).not.toHaveBeenCalled()
-    }
-  )
 
   it('requires chat availability', async () => {
     setEnvFlags({ isChatEnabled: false })

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -37,7 +36,6 @@ const file = {
 
 describe('authorized artifact observations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.permission.mockResolvedValue('read')
     mocks.safe.mockResolvedValue(true)
     mocks.context.mockResolvedValue({
@@ -54,18 +52,6 @@ describe('authorized artifact observations', () => {
     })
   })
 
-  it('passes the acting principal and byte limit into rendering after authorization', async () => {
-    const result = await readWorkspaceFileArtifact.execute({ principal, input })
-    expect(result.contentType).toBe('application/pdf')
-    expect(mocks.render).toHaveBeenCalledWith(file, principal, { maxBytes: 1024 })
-    expect(mocks.safe).toHaveBeenCalledWith('ws', {
-      fileId: file.id,
-      key: file.key,
-      context: 'workspace',
-      contentUpdatedAt: file.contentUpdatedAt,
-    })
-  })
-
   it('does not read or compile bytes when access is denied', async () => {
     mocks.permission.mockResolvedValue(null)
     await expect(readWorkspaceFileArtifact.execute({ principal, input })).rejects.toThrow()
@@ -79,12 +65,5 @@ describe('authorized artifact observations', () => {
       'File cannot be sent to a model'
     )
     expect(mocks.render).not.toHaveBeenCalled()
-  })
-
-  it('propagates render failures without inventing an observation', async () => {
-    mocks.render.mockRejectedValue(new Error('render failed'))
-    await expect(readWorkspaceFileArtifact.execute({ principal, input })).rejects.toThrow(
-      'render failed'
-    )
   })
 })

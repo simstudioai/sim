@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { metadata, readWorkspaceFile } = vi.hoisted(() => ({
@@ -41,7 +40,6 @@ const record = {
 
 describe('stored file provenance source', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     metadata.mockResolvedValue(record)
     readWorkspaceFile.mockResolvedValue({ file: {} })
   })

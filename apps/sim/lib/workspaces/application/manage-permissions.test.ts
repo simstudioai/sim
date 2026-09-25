@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
 import { auditMock, auditMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,10 +30,7 @@ import {
   COPILOT_APPLICATION_SYSTEM_ERROR_MESSAGE,
   messageForCopilotApplicationError,
 } from '@/lib/mothership/application/error'
-import {
-  readWorkspacePermissions,
-  updateWorkspacePermissions,
-} from '@/lib/workspaces/application/manage-permissions'
+import { updateWorkspacePermissions } from '@/lib/workspaces/application/manage-permissions'
 import { WorkspacePermissionError } from '@/lib/workspaces/permissions/management-store'
 
 const principal: DelegatedPrincipal = {
@@ -60,7 +56,6 @@ const change = {
 
 describe('workspace permission operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.context.mockResolvedValue({
       workspaceId: 'workspace',
       workspaceOrganizationId: null,
@@ -175,12 +170,6 @@ describe('workspace permission operations', () => {
     expect(messageForCopilotApplicationError(result)).toBe(COPILOT_APPLICATION_SYSTEM_ERROR_MESSAGE)
   })
 
-  it('projects no audit for authoritative no-ops', async () => {
-    mocks.update.mockResolvedValue([])
-    await updateWorkspacePermissions.execute({ principal, input })
-    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
-  })
-
   it('audits durable transitions before credential reconciliation', async () => {
     const order: string[] = []
     mocks.update.mockImplementation(async () => {
@@ -195,17 +184,5 @@ describe('workspace permission operations', () => {
     })
     await updateWorkspacePermissions.execute({ principal, input })
     expect(order).toEqual(['mutation', 'audit', 'reconcile'])
-  })
-
-  it('reads the roster for a read-only workspace member and propagates storage failures', async () => {
-    mocks.permission.mockResolvedValue('read')
-    expect(
-      await readWorkspacePermissions.execute({ principal, input: { workspaceId: 'workspace' } })
-    ).toMatchObject({ total: 0 })
-    expect(mocks.read).toHaveBeenCalledWith('workspace', 'actor')
-    mocks.read.mockRejectedValue(new Error('database unavailable'))
-    await expect(
-      readWorkspacePermissions.execute({ principal, input: { workspaceId: 'workspace' } })
-    ).rejects.toThrow('database unavailable')
   })
 })

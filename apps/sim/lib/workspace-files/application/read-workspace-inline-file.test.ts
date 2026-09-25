@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { Readable } from 'node:stream'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -38,7 +35,6 @@ const file = {
 
 describe('readWorkspaceInlineFile', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockLoadContext.mockResolvedValue({
       fileId: 'f1',
       workspaceId: 'ws-1',

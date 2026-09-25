@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -74,7 +71,6 @@ function claimedCall(toolName: string, args: Record<string, unknown>) {
 
 describe('browser file transfer use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.claimDownload.mockResolvedValue(true)
     mocks.getRunSegment.mockResolvedValue({

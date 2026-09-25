@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { OPERATION_TARGETS, SUBBLOCK_OPERATIONS } from '@sim/realtime-protocol/constants'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -62,7 +61,6 @@ describe('search replacement persistence', () => {
   const replacement = [{ ...expected[0], params: { ...expected[0].params, code: 'return 2' } }]
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockTransaction.mockImplementation(
       async (callback: (tx: typeof transaction) => Promise<void>) => callback(transaction)
     )
@@ -127,7 +125,6 @@ describe('subblock update with canonical modes persistence', () => {
   const canonicalModes = { '0:projectId': 'advanced' as const, model: 'basic' as const }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockTransaction.mockImplementation(
       async (callback: (tx: typeof transaction) => Promise<void>) => callback(transaction)
     )

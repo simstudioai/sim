@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { account } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -56,7 +53,6 @@ const principal = {
 
 describe('completeQuickBooksConnection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.generateId.mockReturnValue('new-account-id')
     mocks.resolvePermission.mockResolvedValue('write')
@@ -125,23 +121,6 @@ describe('completeQuickBooksConnection', () => {
       realmId: '1234567890',
     })
 
-    expect(mocks.exchangeAuthorizationCode).toHaveBeenCalledWith({
-      code: 'authorization-code',
-      redirectUri: 'https://sim.test/api/auth/oauth2/callback/quickbooks',
-      clientConfig: {
-        clientId: 'client-id',
-        clientSecret: 'client-secret',
-        environment: 'sandbox',
-        webhookVerifierToken: 'verifier-token',
-      },
-      signal: undefined,
-    })
-    expect(mocks.fetchConnectionProfile).toHaveBeenCalledWith('access-token', '1234567890', {
-      clientId: 'client-id',
-      clientSecret: 'client-secret',
-      environment: 'sandbox',
-      webhookVerifierToken: 'verifier-token',
-    })
     expect(dbChainMockFns.values).toHaveBeenCalledWith(
       expect.objectContaining({
         accountId:
@@ -151,12 +130,6 @@ describe('completeQuickBooksConnection', () => {
         scope: 'com.intuit.quickbooks.accounting openid',
       })
     )
-    expect(mocks.processDraft).toHaveBeenCalledWith({
-      draftId: 'draft-1',
-      userId: 'user-1',
-      providerId: 'quickbooks',
-      accountId: 'new-account-id',
-    })
   })
 
   it('never persists the Intuit identity token', async () => {

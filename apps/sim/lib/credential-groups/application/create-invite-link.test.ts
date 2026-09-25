@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { SessionPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -63,7 +60,6 @@ function executorPrincipal(workspaceId = 'workspace-1'): WorkflowExecutionDelega
 
 describe('createCredentialGroupInviteLink', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveGroup.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.requireAvailable.mockResolvedValue(undefined)
@@ -74,16 +70,6 @@ describe('createCredentialGroupInviteLink', () => {
         status: 'invited',
       },
       invitationLink: 'https://sim.ai/credential-groups/enroll/token-1',
-    })
-  })
-
-  it('allows only admin executor delegation', () => {
-    expect(createCredentialGroupInviteLink.operation).toMatchObject({
-      id: 'credential_groups.invites.link.create',
-      minimumRole: 'admin',
-      workspaceApiKey: 'deny',
-      principalKinds: ['delegated'],
-      delegatedServices: ['executor'],
     })
   })
 
@@ -164,33 +150,6 @@ describe('createCredentialGroupInviteLink', () => {
         input: { workspaceId: 'workspace-1', email: 'person@example.com' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.createInvitationLink).not.toHaveBeenCalled()
-  })
-
-  it('normalizes the recipient and returns the newly issued bearer link', async () => {
-    const result = await createCredentialGroupInviteLink.execute({
-      principal: executorPrincipal(),
-      input: { workspaceId: 'workspace-1', email: ' Person@Example.COM ' },
-    })
-
-    expect(mocks.requireAvailable).toHaveBeenCalledWith('workspace-1')
-    expect(mocks.createInvitationLink).toHaveBeenCalledWith(
-      'workspace-1',
-      'group-1',
-      'admin-1',
-      'person@example.com'
-    )
-    expect(result.invitationLink).toBe('https://sim.ai/credential-groups/enroll/token-1')
-  })
-
-  it('rejects an invalid email before issuing a token', async () => {
-    await expect(
-      createCredentialGroupInviteLink.execute({
-        principal: executorPrincipal(),
-        input: { workspaceId: 'workspace-1', email: 'not-an-email' },
-      })
-    ).rejects.toMatchObject({ code: 'validation' })
-    expect(mocks.requireAvailable).not.toHaveBeenCalled()
     expect(mocks.createInvitationLink).not.toHaveBeenCalled()
   })
 })

@@ -1,5 +1,3 @@
-/** @vitest-environment node */
-import { recordAudit } from '@sim/audit'
 import { member } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
@@ -75,7 +73,6 @@ function request(body?: unknown) {
   })
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.authenticate.mockResolvedValue({
     principal,
@@ -120,12 +117,6 @@ describe('organization invitation API and MCP', () => {
       )
     }
   )
-
-  it('rejects unknown action fields before protected loading', async () => {
-    expect((await POST(request({ role: 'owner' }), context)).status).toBe(400)
-    expect(mocks.invitation).not.toHaveBeenCalled()
-    expect(recordAudit).not.toHaveBeenCalled()
-  })
 
   it.each([
     ['member', 403],

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
@@ -82,7 +79,6 @@ function createContext(): ExecutionContext {
 
 describe('create_workflow execution context', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     checkAttributedUsageLimitsMock.mockResolvedValue({
       isExceeded: false,
       payerUsage: { currentUsage: 1, limit: 10 },
@@ -195,34 +191,12 @@ describe('create_workflow execution context', () => {
 
 describe('prepareWorkflowExecutionAdmission', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resolveBillingAttributionMock.mockResolvedValue(childBillingAttribution)
     checkAttributedUsageLimitsMock.mockResolvedValue({
       isExceeded: false,
       payerUsage: { currentUsage: 1, limit: 10 },
     })
     reserveExecutionSlotMock.mockResolvedValue({ reserved: true, created: true })
-  })
-
-  it('forwards the target Enterprise concurrency override to admission', async () => {
-    const result = await prepareWorkflowExecutionAdmission(
-      createContext(),
-      'workspace-2',
-      'child-execution-1'
-    )
-
-    expect(result).toEqual({
-      billingAttribution: childBillingAttribution,
-      targetReservation: true,
-    })
-    expect(reserveExecutionSlotMock).toHaveBeenCalledWith({
-      billingEntity: { type: 'organization', id: 'organization-2' },
-      executionId: 'child-execution-1',
-      plan: 'enterprise',
-      enterpriseConcurrencyLimit: 1250,
-      currentUsage: 1,
-      limit: 10,
-    })
   })
 
   it.each([

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { databaseMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MutationProof } from '@/lib/table/mutation-locks'
@@ -30,7 +27,6 @@ type DeleteRunner = (onDeleted: DeletedRowsHandler) => Promise<unknown>
 
 describe('ordered row delete trigger handoff', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetDeleteSnapshotBatchSize.mockReturnValue(1)
   })
 

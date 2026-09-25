@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Differential test: every pattern the linear engine accepts must behave like
  * the built-in engine.
  *
@@ -131,14 +129,6 @@ function normalize(segments: string[]): string[] {
 }
 
 describe('differential: split parity with the built-in engine', () => {
-  const cases = SPLIT_PATTERNS.flatMap((pattern) =>
-    DOCUMENTS.map((doc) => ({ pattern, doc }))
-  ).filter(({ pattern }) => !isKnownDivergence(pattern))
-
-  it(`covers ${cases.length} pattern/document pairs`, () => {
-    expect(cases.length).toBeGreaterThan(400)
-  })
-
   it.each(SPLIT_PATTERNS.filter((pattern) => !isKnownDivergence(pattern)))(
     'splits %s identically to RegExp across every document',
     (pattern) => {

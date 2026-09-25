@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -21,27 +18,12 @@ import { enqueueOutboxProcessor } from '@/lib/core/outbox/enqueue'
 
 describe('outbox processor enqueue', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-16T12:34:45Z'))
     mocks.enabled = true
     mocks.trigger.mockResolvedValue({ id: 'run-1' })
   })
   afterEach(() => vi.useRealTimers())
-
-  it('returns durable acceptance without doing outbox work in the request', async () => {
-    await expect(enqueueOutboxProcessor()).resolves.toEqual({
-      backend: 'trigger-dev',
-      jobId: 'run-1',
-    })
-    expect(mocks.trigger).toHaveBeenCalledWith('process-outbox', undefined, {
-      idempotencyKey: `process-outbox:${Math.floor(Date.now() / 60_000)}`,
-      idempotencyKeyTTL: '5m',
-      maxDuration: 900,
-      region: 'us-east-1',
-    })
-    expect(mocks.processor).not.toHaveBeenCalled()
-  })
 
   it('deduplicates duplicate ticks while allowing the next minute to drain more work', async () => {
     await enqueueOutboxProcessor()

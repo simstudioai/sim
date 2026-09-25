@@ -76,22 +76,23 @@ timeout.
 
 ## Continuous integration and PostgreSQL regressions
 
-The `OAuth and SCIM PostgreSQL` job in `.github/workflows/test-build.yml` runs
+The `PostgreSQL integration` job in `.github/workflows/test-build.yml` runs
 against both supported database provisioning paths, `db:push` and `db:migrate`.
-After the OAuth and SCIM PostgreSQL tests, it starts a local Next.js app with
+After the integration layer (every `*.integration.ts`), it starts a local Next.js app with
 hosted Enterprise configuration and runs the HTTP suite above. Startup is
 bounded to 120 seconds; the server is stopped when the step exits. A failure
 uploads the credential-free scenario report and an allowlist of HTTP status log
 lines. Raw application logs are not uploaded.
 
-The focused PostgreSQL suite uses the same database variable as the OAuth tests:
+The focused PostgreSQL suite is part of the integration layer and reads the same
+`TEST_DATABASE_URL` as every other integration suite. From `apps/sim`:
 
 ```sh
-OAUTH_TOKEN_FAMILY_TEST_DATABASE_URL="$SCIM_E2E_DATABASE_URL" \
-  bunx vitest run ee/scim/lib/managed-membership.postgres.test.ts
+TEST_DATABASE_URL="$SCIM_E2E_DATABASE_URL" \
+  bunx vitest run --mode integration ee/scim/lib/managed-membership.integration.ts
 ```
 
-Without that variable, the PostgreSQL tests are skipped. With it, they execute
+Integration mode refuses to start without that variable. The suites execute
 real Drizzle queries against the provisioned schema, covering the invitation
 lookup, aliases (including quoted identifiers), unmanaged and foreign-tenant
 accounts, disabled and unlocked connections, and the permission guard inside a
@@ -99,7 +100,7 @@ transaction. Hosted billing flags are configured for the test; subscription
 and entitlement reads use real PostgreSQL with the transaction tripwire enabled.
 The suite checks an active Enterprise subscription, an ended one, and a real
 billing query failure that must propagate instead of releasing directory locks.
-The same CI job runs `lib/auth/sso/application/admit-sso-user.postgres.test.ts`,
+The same CI job runs `lib/auth/sso/application/admit-sso-user.integration.ts`,
 which verifies that SCIM's `disableJit` setting blocks fresh SSO membership,
 preserves existing membership, and permits JIT when disabled. These checks run
 the admission operation and Enterprise entitlement reads through PostgreSQL.

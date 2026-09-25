@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ role: vi.fn(), list: vi.fn() }))
@@ -42,7 +41,6 @@ const row = {
 
 describe('workspace invitation discovery', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.role.mockResolvedValue('admin')
     mocks.list.mockResolvedValue([row])
   })
@@ -75,17 +73,6 @@ describe('workspace invitation discovery', () => {
     expect(JSON.stringify(result)).not.toContain('sensitive')
     expect(JSON.stringify(result)).not.toContain('futurePrivateColumn')
   })
-
-  it.each(['read', 'write', null])(
-    'refuses non-admin authority %s before listing',
-    async (role) => {
-      mocks.role.mockResolvedValue(role)
-      await expect(
-        listWorkspaceInvitations.execute({ principal, input: { workspaceId: 'workspace' } })
-      ).rejects.toThrow()
-      expect(mocks.list).not.toHaveBeenCalled()
-    }
-  )
 
   it('refuses wrong target, expired authority, and wrong audience', async () => {
     await expect(

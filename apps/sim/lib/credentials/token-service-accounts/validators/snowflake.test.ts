@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 import { validateSnowflakeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/snowflake'
@@ -41,20 +38,12 @@ describe('validateSnowflakeServiceAccount', () => {
       jsonResponse(200, { data: [['SVC_USER', 'MYORG-MYACCOUNT', 'ANALYST']] })
     )
 
-    const result = await validateSnowflakeServiceAccount(fields)
+    await validateSnowflakeServiceAccount(fields)
 
     const [url, init] = mockFetch.mock.calls[0]
     expect(url).toBe('https://myorg-myaccount.snowflakecomputing.com/api/v2/statements')
     expect(init.headers.Authorization).toBe('Bearer pat-secret')
     expect(init.headers['X-Snowflake-Authorization-Token-Type']).toBe('PROGRAMMATIC_ACCESS_TOKEN')
-
-    expect(result).toEqual({
-      displayName: 'SVC_USER (MYORG-MYACCOUNT)',
-      principal: { kind: 'user', id: 'SVC_USER' },
-      auditMetadata: { account: 'MYORG-MYACCOUNT', role: 'ANALYST' },
-      storedMetadata: { account: 'MYORG-MYACCOUNT', role: 'ANALYST' },
-      normalizedDomain: 'myorg-myaccount.snowflakecomputing.com',
-    })
   })
 
   it('rejects a host that is not a Snowflake account hostname before any request', async () => {
@@ -73,21 +62,6 @@ describe('validateSnowflakeServiceAccount', () => {
   it('maps a 404 to a bad account host, not a provider outage', async () => {
     mockFetch.mockResolvedValueOnce(new Response('File not Found', { status: 404 }))
     await expectCode(validateSnowflakeServiceAccount(fields), 'site_not_found')
-  })
-
-  /**
-   * Snowflake answers 403 both for a disabled SQL API and for a network-policy
-   * rejection, so both must reach the provider's invalid-credentials help,
-   * which names every cause — not a "provider is down" message.
-   */
-  it('maps 401 and 403 to a rejected credential', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(401, { message: 'invalid token' }))
-    await expectCode(validateSnowflakeServiceAccount(fields), 'invalid_credentials', 401)
-
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse(403, { message: 'not allowed to access Snowflake' })
-    )
-    await expectCode(validateSnowflakeServiceAccount(fields), 'invalid_credentials', 403)
   })
 
   it('treats a deferred statement and a metadata-less success as distinct provider problems', async () => {

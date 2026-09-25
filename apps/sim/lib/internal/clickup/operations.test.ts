@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -30,7 +27,6 @@ const userFile = { ...rawFile, type: 'text/plain' }
 
 describe('executeClickUpUploadAttachment', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.processFilesToUserFiles.mockReturnValue([userFile])
     mocks.assertToolFileAccess.mockResolvedValue(null)
     mocks.downloadServableFileFromStorage.mockResolvedValue({

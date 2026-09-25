@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { createBlock } from '@sim/testing/factories'
 import { describe, expect, it } from 'vitest'
 import { resolveMcpBlockConfig } from '@/lib/mcp/workflow-config'

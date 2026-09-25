@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { gitLabCsvSubjects, parseGitLabCsv } from '@/connectors/gitlab/permission-config/parser'
 import { GITLAB_CSV_MAX_BYTES } from '@/connectors/gitlab/permission-config/types'

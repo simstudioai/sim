@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDownloadFile, mockUploadFile } = vi.hoisted(() => ({
@@ -23,7 +20,6 @@ import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 describe('compiled document publication', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockDownloadFile.mockReset()
     mockDownloadFile.mockRejectedValue(
       Object.assign(new Error('Missing object'), { code: 'NoSuchKey' })

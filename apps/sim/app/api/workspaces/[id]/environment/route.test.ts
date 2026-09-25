@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns, createMockRequest, environmentUtilsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -48,7 +45,6 @@ async function callGet() {
 
 describe('GET /api/workspaces/[id]/environment', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'u-1' } })
     mockGetWorkspaceById.mockResolvedValue({ id: WORKSPACE_ID })
     mockGetPersonalAndWorkspaceEnv.mockResolvedValue({
@@ -62,16 +58,6 @@ describe('GET /api/workspaces/[id]/environment', () => {
       ownedKeys: new Set(['PERSONAL']),
       adminKeys: new Set<string>(),
     })
-  })
-
-  it('returns 401 when the caller has no workspace permission', async () => {
-    mockGetUserEntityPermissions.mockResolvedValue(null)
-
-    const { status, body } = await callGet()
-
-    expect(status).toBe(401)
-    expect(body.error).toBe('Unauthorized')
-    expect(mockGetPersonalAndWorkspaceEnv).not.toHaveBeenCalled()
   })
 
   it('masks workspace secret values for a read-only member', async () => {
@@ -158,24 +144,5 @@ describe('GET /api/workspaces/[id]/environment', () => {
     const { body } = await callGet()
 
     expect(body.data.personal).toEqual({ PERSONAL: 'personal-secret', SHARED_PERSONAL: '' })
-  })
-
-  it('reveals shared personal values to an active credential admin', async () => {
-    mockGetUserEntityPermissions.mockResolvedValue('write')
-    mockGetWorkspaceEnvKeyAdminAccess.mockResolvedValue({
-      adminKeys: new Set<string>(),
-      knownKeys: new Set(['OPENAI_API_KEY', 'DATABASE_URL']),
-    })
-    mockGetPersonalEnvKeyRawAccess.mockResolvedValue({
-      ownedKeys: new Set(['PERSONAL']),
-      adminKeys: new Set(['SHARED_PERSONAL']),
-    })
-
-    const { body } = await callGet()
-
-    expect(body.data.personal).toEqual({
-      PERSONAL: 'personal-secret',
-      SHARED_PERSONAL: 'shared-secret',
-    })
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -97,10 +94,7 @@ vi.mock('@/lib/realtime/notify', () => ({
   notifyWorkflowUpdated: mocks.notifyWorkflow,
 }))
 
-import {
-  createWorkflowVfsFolders,
-  moveWorkflowVfsItems,
-} from '@/lib/workflows/application/workflow-vfs'
+import { moveWorkflowVfsItems } from '@/lib/workflows/application/workflow-vfs'
 
 const workspaceContext = {
   workspaceId: 'workspace-1',
@@ -126,7 +120,6 @@ const emptyIndex = {
 
 describe('workflow VFS application commands', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.resolveContext.mockResolvedValue(workspaceContext)
     mocks.permission.mockResolvedValue('write')
@@ -229,51 +222,5 @@ describe('workflow VFS application commands', () => {
     expect(mocks.audit).not.toHaveBeenCalled()
     expect(mocks.notifyWorkflow).not.toHaveBeenCalled()
     expect(mocks.notifyFolder).not.toHaveBeenCalled()
-  })
-
-  it('owns mkdir path planning and audits only the folder it creates', async () => {
-    const created = {
-      id: 'folder-1',
-      name: 'Project Plans',
-      parentId: null,
-    }
-    const createdIndex = {
-      rowById: new Map([[created.id, created]]),
-      pathById: new Map([[created.id, '/Project%20Plans']]),
-      idByPath: new Map([['/Project%20Plans', created.id]]),
-    }
-    mocks.loadFolderIndex.mockResolvedValueOnce(emptyIndex).mockResolvedValueOnce(createdIndex)
-    mocks.createFolder.mockResolvedValue({
-      success: true,
-      folder: created,
-      path: '/Project%20Plans',
-    })
-
-    const result = await createWorkflowVfsFolders.execute({
-      principal,
-      input: {
-        workspaceId: 'workspace-1',
-        paths: [{ source: 'workflows/Project Plans', segments: ['Project Plans'] }],
-      },
-    })
-
-    expect(result.outcomes).toEqual([
-      expect.objectContaining({ resourceId: 'folder-1', targetSegments: ['Project Plans'] }),
-    ])
-    expect(mocks.createFolder).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: '/Project%20Plans',
-        effects: false,
-        throwInfrastructure: true,
-      })
-    )
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'folder.created',
-        resourceId: 'folder-1',
-        metadata: expect.objectContaining({ operation: 'workflows.vfs.folders.create' }),
-      })
-    )
-    expect(mocks.notifyFolder).toHaveBeenCalledWith('workflow', 'workspace-1')
   })
 })

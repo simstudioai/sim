@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
 
@@ -30,7 +29,6 @@ const file = {
   size: 4,
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.context.mockResolvedValue({ organizationId: 'org', chatId: 'chat', userId: 'user' })
   mocks.authorize.mockResolvedValue({ organizationId: 'org', userId: 'user', role: 'member' })
   mocks.messages.mockResolvedValue([{ fileAttachments: [file] }])

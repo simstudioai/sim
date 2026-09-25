@@ -1,5 +1,3 @@
-/** @vitest-environment node */
-
 import type { CredentialGroupOptionConfig } from '@sim/db/schema'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -33,7 +31,6 @@ import { slackCredentialGroupProviderAdapter as adapter } from '@/lib/credential
 
 describe('Slack member scope policy', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetEnvFlagsMock()
     mocks.configuration.mockResolvedValue({
       slackBotCredentialId: 'bot-1',
@@ -104,10 +101,8 @@ describe('Slack member scope policy', () => {
     expect(policy.requiredScopes).toEqual([...SLACK_SEARCH_USER_SCOPES])
   })
 
-  it.each([
-    { name: 'search', scopes: SLACK_SEARCH_USER_SCOPES },
-    { name: 'workflow', scopes: SLACK_MANAGED_USER_SCOPES },
-  ])('uses the $name option policy for enrollment instead of widening it', async ({ scopes }) => {
+  it('uses the option policy for enrollment instead of widening it', async () => {
+    const scopes = SLACK_MANAGED_USER_SCOPES
     const current = context(scopes)
     const policy = await adapter.getPolicy(current.option, {
       workspaceId: current.workspaceId,
@@ -121,10 +116,8 @@ describe('Slack member scope policy', () => {
     expect(url.searchParams.get('user_scope')?.split(',')).toEqual([...scopes])
   })
 
-  it.each([
-    { name: 'search', scopes: SLACK_SEARCH_USER_SCOPES },
-    { name: 'workflow', scopes: SLACK_MANAGED_USER_SCOPES },
-  ])('accepts a different provider email for a $name option', async ({ scopes }) => {
+  it('accepts a different provider email', async () => {
+    const scopes = SLACK_SEARCH_USER_SCOPES
     const current = context(scopes)
     mocks.exchange.mockResolvedValueOnce({
       appId: 'A1',

@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { fetchWorkspaceFileBufferMock, getWorkspaceFileMock } = vi.hoisted(() => ({
   fetchWorkspaceFileBufferMock: vi.fn(),
@@ -40,10 +37,6 @@ function workspaceFileRecord(version: number) {
 }
 
 describe('workspaceFileBroker', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('resolves and verifies the current file version on every broker call', async () => {
     const first = workspaceFileRecord(1)
     const second = workspaceFileRecord(2)

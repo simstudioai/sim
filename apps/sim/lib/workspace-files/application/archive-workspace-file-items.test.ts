@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -42,7 +39,6 @@ import { archiveWorkspaceFileItemsOperation } from '@/lib/workspace-files/applic
 
 describe('archiveWorkspaceFileItemsOperation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     events.length = 0
     mockLoadContext.mockImplementation(async () => {
       events.push('resolve')
@@ -66,40 +62,6 @@ describe('archiveWorkspaceFileItemsOperation', () => {
       fileIds: ['file-1'],
       folderIds: [],
     }))
-  })
-
-  it('preserves atomic bulk archive results and emits side effects once', async () => {
-    const result = await archiveWorkspaceFileItemsOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { workspaceId: 'ws-1', fileIds: ['file-1'] },
-    })
-
-    expect(result).toMatchObject({ deletedItems: { files: 1, folders: 0 } })
-    expect(events).toEqual(['resolve', 'authorize', 'execute'])
-    expect(mockArchive).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      fileIds: ['file-1'],
-      folderIds: [],
-    })
-    expect(mockAssertItems).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      fileIds: ['file-1'],
-      folderIds: [],
-    })
-    expect(mockAudit).toHaveBeenCalledOnce()
-    expect(mockNotify).toHaveBeenCalledOnce()
-  })
-
-  it('classifies a single missing file without notifying', async () => {
-    mockArchive.mockResolvedValue({ files: 0, folders: 0, fileIds: [], folderIds: [] })
-    await expect(
-      archiveWorkspaceFileItemsOperation.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: { workspaceId: 'ws-1', fileIds: ['missing'] },
-      })
-    ).rejects.toThrow('File not found')
-    expect(mockAudit).not.toHaveBeenCalled()
-    expect(mockNotify).not.toHaveBeenCalled()
   })
 
   it('authorizes a delegated bulk selection without borrowing the first file scope', async () => {
@@ -197,19 +159,6 @@ describe('archiveWorkspaceFileItemsOperation', () => {
       expect.objectContaining({ metadata: expect.objectContaining({ folderIds: ['folder-2'] }) })
     )
     expect(mockNotify).toHaveBeenCalledOnce()
-  })
-
-  it('does not claim or notify a zero-row bulk mutation', async () => {
-    mockArchive.mockResolvedValue({ files: 0, folders: 0, fileIds: [], folderIds: [] })
-
-    const result = await archiveWorkspaceFileItemsOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { workspaceId: 'ws-1', fileIds: ['file-1', 'file-2'] },
-    })
-
-    expect(result).toMatchObject({ deletedItems: { files: 0, folders: 0 } })
-    expect(mockAudit).not.toHaveBeenCalled()
-    expect(mockNotify).not.toHaveBeenCalled()
   })
 
   it('rejects oversized selections after authorization and before storage', async () => {

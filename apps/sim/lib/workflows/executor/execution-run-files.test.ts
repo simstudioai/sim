@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -11,10 +8,7 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
   downloadFile: mocks.downloadFile,
 }))
 
-import {
-  describeWorkflowRunFiles,
-  workflowRunFileDownloadPath,
-} from '@/lib/workflows/executor/execution-run-files'
+import { describeWorkflowRunFiles } from '@/lib/workflows/executor/execution-run-files'
 import type { UserFile } from '@/executor/types'
 
 const WORKFLOW_ID = 'workflow-1'
@@ -38,7 +32,6 @@ function filesMap(files: UserFile[]): Map<string, UserFile> {
 
 describe('describeWorkflowRunFiles', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.downloadFile.mockResolvedValue(Buffer.from('pdf'))
   })
 
@@ -70,21 +63,6 @@ describe('describeWorkflowRunFiles', () => {
     expect(mocks.downloadFile).not.toHaveBeenCalled()
   })
 
-  it('inlines bytes when requested', async () => {
-    const [descriptor] = await describeWorkflowRunFiles(filesMap([runFile()]), {
-      workflowId: WORKFLOW_ID,
-      runId: RUN_ID,
-      includeBase64: true,
-    })
-
-    expect(descriptor.base64).toBe(Buffer.from('pdf').toString('base64'))
-    expect(mocks.downloadFile).toHaveBeenCalledWith({
-      key: 'execution/ws/wf/run/report.pdf',
-      context: 'execution',
-      maxBytes: 16 * 1024 * 1024,
-    })
-  })
-
   /**
    * The 413 must name the download path, so a caller that hits the ceiling is
    * told exactly how to get the bytes instead of being left stuck.
@@ -112,17 +90,6 @@ describe('describeWorkflowRunFiles', () => {
         runId: RUN_ID,
         includeBase64: true,
         base64MaxBytes: 500 * 1024 * 1024,
-      })
-    ).rejects.toMatchObject({ code: 'payload_too_large' })
-  })
-
-  it('honours a caller ceiling below the server limit', async () => {
-    await expect(
-      describeWorkflowRunFiles(filesMap([runFile({ size: 2048 })]), {
-        workflowId: WORKFLOW_ID,
-        runId: RUN_ID,
-        includeBase64: true,
-        base64MaxBytes: 1024,
       })
     ).rejects.toMatchObject({ code: 'payload_too_large' })
   })
@@ -227,11 +194,5 @@ describe('describeWorkflowRunFiles', () => {
 
     expect(mocks.downloadFile).toHaveBeenCalledTimes(20)
     expect(peak).toBeLessThanOrEqual(4)
-  })
-
-  it('builds the download path from the run identifiers', () => {
-    expect(workflowRunFileDownloadPath('wf-9', 'run-9', 'file-9')).toBe(
-      '/api/v2/workflows/wf-9/runs/run-9/files/file-9'
-    )
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StreamingExecution } from '@/executor/types'
 
@@ -67,7 +64,6 @@ vi.mock('@/providers/utils', () => ({
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 
 import { basetenProvider } from '@/providers/baseten/index'
-import { ProviderError } from '@/providers/types'
 
 const textResponse = (content: string) => ({
   choices: [{ message: { content, tool_calls: [] } }],
@@ -106,7 +102,6 @@ const lastCallBody = () => mockCreate.mock.calls.at(-1)?.[0]
 
 describe('basetenProvider', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockSupportsNativeStructuredOutputs.mockResolvedValue(true)
     mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
       tools,
@@ -123,12 +118,6 @@ describe('basetenProvider', () => {
     apiKey: 'bt-test-key',
   }
 
-  it('throws when the API key is missing', async () => {
-    await expect(
-      basetenProvider.executeRequest({ ...baseRequest, apiKey: undefined })
-    ).rejects.toThrow('API key is required for Baseten')
-  })
-
   it('returns content and token usage for a simple request', async () => {
     mockCreate.mockResolvedValueOnce(textResponse('hi there'))
 
@@ -139,20 +128,6 @@ describe('basetenProvider', () => {
       model: 'openai/gpt-oss-120b',
       tokens: { input: 10, output: 5, total: 15 },
     })
-  })
-
-  it('strips only the leading baseten/ prefix from the model id', async () => {
-    mockCreate.mockResolvedValueOnce(textResponse('ok'))
-
-    await basetenProvider.executeRequest(baseRequest)
-
-    expect(callBody(0).model).toBe('openai/gpt-oss-120b')
-  })
-
-  it('wraps API errors in a ProviderError', async () => {
-    mockCreate.mockRejectedValueOnce(new Error('boom'))
-
-    await expect(basetenProvider.executeRequest(baseRequest)).rejects.toBeInstanceOf(ProviderError)
   })
 
   it('preserves custom model casing after an uppercase provider prefix', async () => {

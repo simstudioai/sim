@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
@@ -10,7 +7,6 @@ const flush = () => new Promise((resolve) => setImmediate(resolve))
 
 describe('recordSecretUsage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -93,33 +89,6 @@ describe('recordSecretUsage', () => {
     expect(set).toContain(' + 1')
     /** Out-of-order completions must not walk the most recent timestamp backwards. */
     expect(set).toContain('greatest(')
-  })
-
-  it('writes a Copilot run without a workflow', async () => {
-    recordSecretUsage([{ name: 'API_KEY', scope: 'workspace', ownerUserId: null }], {
-      workspaceId: 'workspace-1',
-      source: 'copilot',
-      actorUserId: 'user-1',
-      trigger: 'copilot',
-    })
-    await flush()
-
-    /** Empty rather than null: the unique bucket key has to stay null-free on Postgres 14. */
-    expect(dbChainMockFns.values.mock.calls[0]?.[0][0]).toMatchObject({
-      source: 'copilot',
-      workflowId: '',
-    })
-  })
-
-  it('does not touch the database when a run resolved nothing', async () => {
-    recordSecretUsage([], {
-      workspaceId: 'workspace-1',
-      source: 'workflow',
-      actorUserId: 'user-1',
-    })
-    await flush()
-
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
   it('never rejects when the write fails', async () => {

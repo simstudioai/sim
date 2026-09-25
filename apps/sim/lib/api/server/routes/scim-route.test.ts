@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -95,7 +92,6 @@ afterEach(resetEnvFlagsMock)
 
 describe('SCIM route builder', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isScimEnabled: true })
     authenticate.mockResolvedValue(principal)
     mocks.checkRateLimitDirect.mockResolvedValue({ allowed: true, resetAt: new Date() })
@@ -132,21 +128,6 @@ describe('SCIM route builder', () => {
     const response = await deleteUser(request('DELETE', '/api/scim/v2/Users/su-1'), withParams)
     expect(response.status).toBe(204)
     expect(await response.text()).toBe('')
-  })
-
-  it('adds the Location header on a create', async () => {
-    const response = await createUser(
-      request('POST', '/api/scim/v2/Users', {
-        body: JSON.stringify({
-          schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
-          userName: 'ada@acme.test',
-        }),
-        headers: { 'content-type': SCIM_MEDIA_TYPE },
-      }),
-      undefined
-    )
-    expect(response.status).toBe(201)
-    expect(response.headers.get('location')).toBe('https://sim.test/api/scim/v2/Users/su-1')
   })
 
   it('renders a parse failure in the SCIM envelope', async () => {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { sha256Hex } from '@sim/security/hash'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -56,7 +53,6 @@ describe('private embedding checkpoints', () => {
   const objects = new Map<string, Buffer>()
   const rows = new Map<string, CleanupRow>()
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     vi.setSystemTime(1000000)
     objects.clear()

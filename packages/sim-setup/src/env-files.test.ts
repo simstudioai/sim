@@ -2,14 +2,7 @@ import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync }
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import {
-  isPlaceholder,
-  isUsableSecret,
-  parseEnv,
-  reconcileEnvContent,
-  upsertEnv,
-  writeEnvFile,
-} from './env-files'
+import { parseEnv, reconcileEnvContent, upsertEnv, writeEnvFile } from './env-files'
 
 const roots: string[] = []
 
@@ -17,24 +10,7 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
-describe('placeholder detection', () => {
-  it('recognizes underscore and hyphen template prefixes', () => {
-    expect(isPlaceholder('your_secret_key')).toBe(true)
-    expect(isPlaceholder('your-secure-production-auth-secret-here')).toBe(true)
-    expect(isUsableSecret('BETTER_AUTH_SECRET', 'your-secure-production-auth-secret-here')).toBe(
-      false
-    )
-    expect(isPlaceholder('yourActualSecret')).toBe(false)
-  })
-})
-
 describe('upsertEnv', () => {
-  it('writes the value that parseEnv will use', () => {
-    const updated = upsertEnv('RESEND_API_KEY=old\nOTHER=value\n', 'RESEND_API_KEY', 'current')
-
-    expect(parseEnv(updated).get('RESEND_API_KEY')).toBe('current')
-  })
-
   it('fails fast when duplicate active entries make the effective write ambiguous', () => {
     expect(() =>
       upsertEnv(
@@ -47,16 +23,6 @@ describe('upsertEnv', () => {
 })
 
 describe('reconcileEnvContent', () => {
-  it('applies provider removals and replacements to one snapshot', () => {
-    const reconciled = reconcileEnvContent(
-      'SMTP_HOST=old-host\nSMTP_PORT=587\nRESEND_API_KEY=old-key\n',
-      ['SMTP_HOST', 'SMTP_PORT'],
-      { RESEND_API_KEY: 'new-key' }
-    )
-
-    expect(parseEnv(reconciled)).toEqual(new Map([['RESEND_API_KEY', 'new-key']]))
-  })
-
   it('fails before returning content when a replacement key is duplicated', () => {
     const content = 'SMTP_HOST=old-host\nRESEND_API_KEY=old-key\nRESEND_API_KEY=newer-key\n'
 

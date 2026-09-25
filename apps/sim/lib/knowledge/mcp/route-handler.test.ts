@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
@@ -106,7 +105,6 @@ function post(req = request()) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.authenticate.mockResolvedValue(auth)
   mocks.config.mockResolvedValue(null)

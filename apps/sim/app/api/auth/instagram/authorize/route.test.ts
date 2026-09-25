@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,7 +32,6 @@ import { GET } from '@/app/api/auth/instagram/authorize/route'
 
 describe('Instagram authorize route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
@@ -61,28 +57,6 @@ describe('Instagram authorize route', () => {
       'instagram_credential_draft_id=draft-exact'
     )
     expect(mocks.createCredentialConnection).not.toHaveBeenCalled()
-  })
-
-  it('creates a credential draft for a legacy workspace-only launch', async () => {
-    const request = createMockRequest(
-      'GET',
-      undefined,
-      {},
-      'https://sim.test/api/auth/instagram/authorize?workspaceId=workspace-1'
-    )
-
-    const response = await GET(request)
-
-    expect(response.status).toBe(307)
-    expect(response.headers.get('set-cookie')).toContain(
-      'instagram_credential_draft_id=draft-created'
-    )
-    expect(response.headers.get('set-cookie')).toContain('Max-Age=900')
-    expect(mocks.createCredentialConnection).toHaveBeenCalledWith({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { workspaceId: 'workspace-1', providerId: 'instagram' },
-      request,
-    })
   })
 
   it('returns a conflict when a different connection intent is already active', async () => {

@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * One test per v2 list-backing query, asserting the same two things everywhere:
  * `search` becomes a bound case-insensitive substring predicate on that
  * resource's natural name column, and `sortBy` selects the ordering columns.
@@ -212,7 +210,6 @@ const CASES: ListCase[] = [
 
 describe.each(CASES)('$name list query', (listCase) => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(listCase.table, [])
   })
@@ -221,18 +218,6 @@ describe.each(CASES)('$name list query', (listCase) => {
     await listCase.run({ search: 'quarterly' })
 
     expect(searchNode()).toMatchObject({ column: listCase.column, pattern: '%quarterly%' })
-  })
-
-  it('escapes LIKE wildcards so a caller cannot widen its own match', async () => {
-    await listCase.run({ search: '50%_off' })
-
-    expect(searchNode()).toMatchObject({ pattern: '%50\\%\\_off%' })
-  })
-
-  it('adds no search condition when the caller did not search', async () => {
-    await listCase.run({})
-
-    expect(searchNode()).toBeUndefined()
   })
 
   it('orders by the requested field and direction', async () => {

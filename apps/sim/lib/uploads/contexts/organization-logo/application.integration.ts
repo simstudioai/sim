@@ -20,7 +20,7 @@ vi.mock('@sim/db', async () => {
   const { generateId } = await import('@sim/utils/id')
   fixture.schema = `logo_test_${generateId().replaceAll('-', '')}`
   fixture.connection = postgres(
-    process.env.KNOWLEDGE_ACL_TEST_DATABASE_URL!,
+    process.env.TEST_DATABASE_URL!,
     withUtcTimestamps({
       max: 4,
       prepare: false,
@@ -91,7 +91,6 @@ describe('organization logo concurrency and retention', () => {
   })
 
   beforeEach(async () => {
-    vi.clearAllMocks()
     await db.delete(uploadSession)
     await db.update(organization).set({ logo: null }).where(eq(organization.id, organizationId))
   })

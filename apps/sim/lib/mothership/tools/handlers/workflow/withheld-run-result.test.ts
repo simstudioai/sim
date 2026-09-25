@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * What a caller can learn about a workflow run whose result the secret-egress boundary
  * withholds.
  *
@@ -172,7 +170,6 @@ async function withhold(): Promise<ToolExecutionResult> {
 
 describe('a withheld run_workflow result', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.executeWorkflowUseCase.mockReset()
   })
 

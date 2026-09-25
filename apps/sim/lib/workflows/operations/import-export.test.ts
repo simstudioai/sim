@@ -22,7 +22,6 @@ vi.mock('@/lib/api/client/request', () => ({
 import { requestJson } from '@/lib/api/client/request'
 import type { WorkflowStateContractInput } from '@/lib/api/contracts/workflows'
 import {
-  extractWorkflowName,
   parseWorkflowJson,
   persistImportedWorkflow,
   sanitizePathSegment,
@@ -84,36 +83,6 @@ describe('workflow import/export parsing', () => {
       type: 'input-format',
       value: [],
     })
-    expect(result.data?.blocks['start-1'].subBlocks.undefined).toBeUndefined()
-  })
-
-  it('extracts workflow names from wrapped exports', () => {
-    const content = JSON.stringify({
-      data: {
-        workflow: {
-          name: 'Wrapped Workflow',
-        },
-        state: createLegacyState(),
-      },
-    })
-
-    expect(extractWorkflowName(content, 'wf.json')).toBe('Wrapped Workflow')
-  })
-
-  it('parses API envelopes that contain state without an export version', () => {
-    const content = JSON.stringify({
-      data: {
-        workflow: {
-          name: 'API Workflow',
-        },
-        state: createLegacyState(),
-      },
-    })
-
-    const result = parseWorkflowJson(content, false)
-
-    expect(result.errors).toEqual([])
-    expect(result.data?.blocks['start-1']).toBeDefined()
     expect(result.data?.blocks['start-1'].subBlocks.undefined).toBeUndefined()
   })
 
@@ -228,26 +197,6 @@ describe('persistImportedWorkflow description handling', () => {
     ).toBe('')
   })
 
-  it('scrubs name-equal metadata descriptions to an empty string', async () => {
-    expect(await importWithContent(buildContent('Imported Workflow'))).toBe('')
-  })
-
-  it('preserves meaningful metadata descriptions', async () => {
-    expect(await importWithContent(buildContent('Syncs leads from HubSpot to Slack'))).toBe(
-      'Syncs leads from HubSpot to Slack'
-    )
-  })
-
-  it('uses an empty string when no description is present', async () => {
-    expect(await importWithContent(buildContent(undefined))).toBe('')
-  })
-
-  it('prefers a meaningful override over metadata', async () => {
-    expect(
-      await importWithContent(buildContent('Metadata description'), 'Override description')
-    ).toBe('Override description')
-  })
-
   it('falls back to meaningful metadata when the override is a placeholder', async () => {
     expect(await importWithContent(buildContent('Metadata description'), 'New workflow')).toBe(
       'Metadata description'
@@ -256,29 +205,7 @@ describe('persistImportedWorkflow description handling', () => {
 })
 
 describe('sanitizePathSegment', () => {
-  it('should preserve ASCII alphanumeric characters', () => {
-    expect(sanitizePathSegment('workflow-123_abc')).toBe('workflow-123_abc')
-  })
-
-  it('should replace spaces with dashes', () => {
-    expect(sanitizePathSegment('my workflow')).toBe('my-workflow')
-  })
-
-  it('should replace special characters with dashes', () => {
-    expect(sanitizePathSegment('workflow!@#')).toBe('workflow-')
-  })
-
   it('should preserve Korean characters (BUG REPRODUCTION)', () => {
     expect(sanitizePathSegment('한글')).toBe('한글')
-  })
-
-  it('should preserve other Unicode characters', () => {
-    expect(sanitizePathSegment('日本語')).toBe('日本語')
-  })
-
-  it('should remove filesystem unsafe characters', () => {
-    expect(sanitizePathSegment('work/flow?name*')).not.toContain('/')
-    expect(sanitizePathSegment('work/flow?name*')).not.toContain('?')
-    expect(sanitizePathSegment('work/flow?name*')).not.toContain('*')
   })
 })

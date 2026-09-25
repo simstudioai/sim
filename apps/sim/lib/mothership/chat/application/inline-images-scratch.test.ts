@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { copilotChats } from '@sim/db/schema'
 import { databaseMock, queueTableRows, resetDbChainMock } from '@sim/testing'
 import sharp from 'sharp'
@@ -43,7 +42,6 @@ import { materializeStreamImage } from '@/lib/mothership/chat/application/inline
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file-utils'
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
 })
 it('runs the real nested scratch authorization, limit validation, snapshot read and image publication', async () => {

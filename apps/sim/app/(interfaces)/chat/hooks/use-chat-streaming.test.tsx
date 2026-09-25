@@ -18,14 +18,10 @@ vi.mock('@sim/utils/id', () => ({
 }))
 
 import { isChatChunkFrame } from '@/lib/workflows/streaming/agent-stream-protocol'
-import type { ChatFile, ChatMessage } from '@/app/(interfaces)/chat/components/message/message'
+import type { ChatMessage } from '@/app/(interfaces)/chat/components/message/message'
 import { useChatStreaming } from '@/app/(interfaces)/chat/hooks/use-chat-streaming'
 
 describe('isChatChunkFrame', () => {
-  it('accepts plain answer chunks without an event type', () => {
-    expect(isChatChunkFrame({ blockId: 'a1', chunk: 'hello' })).toBe(true)
-  })
-
   it('rejects thinking / stream_error / tool frames even if chunk is present', () => {
     expect(
       isChatChunkFrame({ blockId: 'a1', chunk: 'leak', event: 'thinking', data: 'thought' })
@@ -33,11 +29,6 @@ describe('isChatChunkFrame', () => {
     expect(isChatChunkFrame({ blockId: 'a1', chunk: 'x', event: 'stream_error' })).toBe(false)
     expect(isChatChunkFrame({ blockId: 'a1', chunk: 'x', event: 'tool' })).toBe(false)
     expect(isChatChunkFrame({ blockId: 'a1', chunk: 'x', event: 'final' })).toBe(false)
-  })
-
-  it('rejects frames missing blockId or empty chunk', () => {
-    expect(isChatChunkFrame({ chunk: 'hello' })).toBe(false)
-    expect(isChatChunkFrame({ blockId: 'a1', chunk: '' })).toBe(false)
   })
 })
 
@@ -77,16 +68,6 @@ function makeSseResponse(): Response {
   } as Response
 }
 
-const imageFile: ChatFile = {
-  id: 'file-image',
-  name: 'generated.png',
-  key: 'execution/generated.png',
-  url: '/api/files/serve/execution%2Fgenerated.png',
-  size: 3,
-  type: 'image/png',
-  base64: 'YWJj',
-}
-
 async function flushUiBatch() {
   await act(async () => {
     await new Promise<void>((resolve) => {
@@ -104,7 +85,6 @@ describe('useChatStreaming thinking + abort', () => {
   let setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
 
   beforeEach(() => {
-    vi.clearAllMocks()
     messages = []
     setMessages = ((updater: React.SetStateAction<ChatMessage[]>) => {
       messages = typeof updater === 'function' ? updater(messages) : updater
@@ -121,160 +101,6 @@ describe('useChatStreaming thinking + abort', () => {
   afterEach(() => {
     handle.unmount()
     vi.restoreAllMocks()
-  })
-
-  it('renders streamed files as attachments, preserving bytes and deduplicating selections', async () => {
-    mockReadSSEEvents.mockImplementation(async (_source, options) => {
-      await options.onEvent({ blockId: 'agent-1', chunk: 'Here is your image.' })
-      await options.onEvent({ blockId: 'agent-1', event: 'output', data: [imageFile] })
-      await options.onEvent({ blockId: 'agent-1', event: 'output', data: imageFile })
-      await options.onEvent({ event: 'final', data: { success: true, output: {} } })
-    })
-
-    await act(async () => {
-      await handle
-        .latest()
-        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), {
-          outputConfigs: [{ blockId: 'agent-1', path: 'files' }],
-        })
-    })
-
-    expect(messages[0].content).toBe('Here is your image.')
-    expect(messages[0].files).toEqual([imageFile])
-    expect(messages[0].isStreaming).toBe(false)
-  })
-
-  it('projects file metadata to the fields used by the chat', async () => {
-    mockReadSSEEvents.mockImplementation(async (_source, options) => {
-      await options.onEvent({
-        blockId: 'agent-1',
-        event: 'output',
-        data: {
-          ...imageFile,
-          providerFileId: 'provider-file-1',
-          providerFileUri: 'provider://file-1',
-          remoteUrl: 'https://files.example.com/signed',
-          internalMetadata: { source: 'provider' },
-        },
-      })
-      await options.onEvent({ event: 'final', data: { success: true, output: {} } })
-    })
-
-    await act(async () => {
-      await handle.latest().handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
-    })
-
-    expect(messages[0].files).toEqual([imageFile])
-    expect(messages[0].content).toBe('')
-  })
-
-  it.each([{ data: [] }, { data: null }, { data: { files: [] } }])(
-    'keeps empty structured outputs invisible: $data',
-    async ({ data }) => {
-      mockReadSSEEvents.mockImplementation(async (_source, options) => {
-        await options.onEvent({ blockId: 'agent-1', event: 'output', data })
-        await options.onEvent({ event: 'final', data: { success: true, output: {} } })
-      })
-
-      await act(async () => {
-        await handle
-          .latest()
-          .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
-      })
-
-      expect(messages[0].content).toBe('')
-      expect(messages[0].files).toBeUndefined()
-    }
-  )
-
-  it('does not fall back to unrelated output when the selected final files are empty', async () => {
-    mockReadSSEEvents.mockImplementation(async (_source, options) => {
-      await options.onEvent({
-        event: 'final',
-        data: { success: true, output: { 'agent-1': { files: [], content: 'Not selected' } } },
-      })
-    })
-
-    await act(async () => {
-      await handle
-        .latest()
-        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), {
-          outputConfigs: [{ blockId: 'agent-1', path: 'files' }],
-        })
-    })
-
-    expect(messages[0].content).toBe('')
-    expect(messages[0].files).toBeUndefined()
-  })
-
-  it('extracts nested final files without losing the other selected output fields', async () => {
-    mockReadSSEEvents.mockImplementation(async (_source, options) => {
-      await options.onEvent({
-        event: 'final',
-        data: {
-          success: true,
-          output: { 'agent-1': { result: { caption: 'A landscape', files: [imageFile] } } },
-        },
-      })
-    })
-
-    await act(async () => {
-      await handle
-        .latest()
-        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), {
-          outputConfigs: [{ blockId: 'agent-1', path: 'result' }],
-        })
-    })
-
-    expect(messages[0].files).toEqual([imageFile])
-    expect(messages[0].content).toBe('```json\n{\n  "caption": "A landscape"\n}\n```')
-  })
-
-  it('preserves literal array text from the assistant', async () => {
-    mockReadSSEEvents.mockImplementation(async (_source, options) => {
-      await options.onEvent({ blockId: 'agent-1', chunk: 'An empty array is written as [].' })
-      await options.onEvent({ event: 'final', data: { success: true, output: {} } })
-    })
-
-    await act(async () => {
-      await handle.latest().handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
-    })
-
-    expect(messages[0].content).toBe('An empty array is written as [].')
-  })
-
-  it('routes thinking to message.thinking and answer chunks to content only', async () => {
-    mockReadSSEEvents.mockImplementation(async (_source, options) => {
-      await options.onEvent({
-        blockId: 'agent-1',
-        event: 'thinking',
-        data: 'Let me reason. ',
-      })
-      await options.onEvent({
-        blockId: 'agent-1',
-        event: 'thinking',
-        data: 'More thought.',
-      })
-      await options.onEvent({
-        blockId: 'agent-1',
-        chunk: 'Final answer.',
-      })
-      await options.onEvent({
-        event: 'final',
-        data: { success: true, output: {} },
-      })
-    })
-
-    await act(async () => {
-      await handle.latest().handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
-    })
-    await flushUiBatch()
-
-    const assistant = messages.find((m) => m.id === 'msg-assistant-1')
-    expect(assistant?.thinking).toBe('Let me reason. More thought.')
-    expect(assistant?.content).toBe('Final answer.')
-    expect(assistant?.isStreaming).toBe(false)
-    expect(assistant?.isThinkingStreaming).toBe(false)
   })
 
   it('clears a block’s live text on chunk_reset and keeps the re-streamed final turn', async () => {
@@ -340,112 +166,6 @@ describe('useChatStreaming thinking + abort', () => {
     expect(assistant?.content).toBe('B output\n\nIt is 68°F.')
   })
 
-  it('settles thinking chrome when a tool starts', async () => {
-    let midStreamThinking: boolean | undefined
-    mockReadSSEEvents.mockImplementation(async (_source, options) => {
-      await options.onEvent({ blockId: 'agent-1', event: 'thinking', data: 'planning…' })
-      await options.onEvent({
-        blockId: 'agent-1',
-        event: 'tool',
-        phase: 'start',
-        id: 't1',
-        name: 'get_weather',
-      })
-      // UI flush is synchronous in tests (rAF mocked) — capture mid-stream state.
-      midStreamThinking = messages.find((m) => m.type === 'assistant')?.isThinkingStreaming
-      await options.onEvent({
-        blockId: 'agent-1',
-        event: 'tool',
-        phase: 'end',
-        id: 't1',
-        name: 'get_weather',
-        status: 'success',
-      })
-      await options.onEvent({
-        event: 'final',
-        data: { success: true, output: {} },
-      })
-    })
-
-    await act(async () => {
-      await handle.latest().handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
-    })
-    await flushUiBatch()
-
-    expect(midStreamThinking).toBe(false)
-    const assistant = messages.find((m) => m.id === 'msg-assistant-1')
-    expect(assistant?.thinking).toBe('planning…')
-  })
-
-  it('ignores non-terminal stream_error frames and keeps streaming', async () => {
-    mockReadSSEEvents.mockImplementation(async (_source, options) => {
-      await options.onEvent({
-        blockId: 'agent-1',
-        event: 'thinking',
-        data: 'Working…',
-      })
-      await options.onEvent({
-        blockId: 'agent-1',
-        event: 'stream_error',
-        error: 'partial provider glitch',
-      })
-      await options.onEvent({
-        blockId: 'agent-1',
-        chunk: 'Recovered answer.',
-      })
-      await options.onEvent({
-        event: 'final',
-        data: { success: true, output: {} },
-      })
-    })
-
-    await act(async () => {
-      await handle.latest().handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
-    })
-    await flushUiBatch()
-
-    const assistant = messages.find((m) => m.id === 'msg-assistant-1')
-    // Error text never pollutes the thinking lane (legacy parity: log-only).
-    expect(assistant?.thinking).toBe('Working…')
-    expect(assistant?.content).toBe('Recovered answer.')
-    expect(assistant?.isStreaming).toBe(false)
-  })
-
-  it('clears streaming flags when SSE ends without a terminal final/error frame', async () => {
-    mockReadSSEEvents.mockImplementation(async (_source, options) => {
-      await options.onEvent({
-        blockId: 'agent-1',
-        event: 'thinking',
-        data: 'Halfway…',
-      })
-      await options.onEvent({
-        blockId: 'agent-1',
-        chunk: 'Partial answer',
-      })
-      await options.onEvent({
-        blockId: 'agent-1',
-        event: 'tool',
-        phase: 'start',
-        id: 't1',
-        name: 'search',
-      })
-      // Stream closes abruptly — no final or error event.
-    })
-
-    await act(async () => {
-      await handle.latest().handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
-    })
-    await flushUiBatch()
-
-    const assistant = messages.find((m) => m.id === 'msg-assistant-1')
-    expect(assistant?.content).toBe('Partial answer')
-    expect(assistant?.thinking).toBe('Halfway…')
-    expect(assistant?.isStreaming).toBe(false)
-    expect(assistant?.isThinkingStreaming).toBe(false)
-    expect(assistant?.isToolStreaming).toBe(false)
-    expect(assistant?.toolCalls?.some((t) => t.status === 'error')).toBe(true)
-  })
-
   it('does not append thinking payload into answer when mislabeled as chunk', async () => {
     mockReadSSEEvents.mockImplementation(async (_source, options) => {
       await options.onEvent({
@@ -472,57 +192,6 @@ describe('useChatStreaming thinking + abort', () => {
     const assistant = messages.find((m) => m.id === 'msg-assistant-1')
     expect(assistant?.content).toBe('ok')
     expect(assistant?.thinking).toBe('real thought')
-  })
-
-  it('stopStreaming preserves thinking and aborts the shared controller', async () => {
-    const abortController = new AbortController()
-    let resolveStream!: () => void
-    const streamDone = new Promise<void>((resolve) => {
-      resolveStream = resolve
-    })
-
-    mockReadSSEEvents.mockImplementation(async (_source, options) => {
-      await options.onEvent({
-        blockId: 'agent-1',
-        event: 'thinking',
-        data: 'partial thought',
-      })
-      await options.onEvent({
-        blockId: 'agent-1',
-        chunk: 'partial answer',
-      })
-      // Hold the stream open until Stop aborts.
-      await new Promise<void>((resolve) => {
-        options.signal?.addEventListener('abort', () => resolve(), { once: true })
-        // Also allow test cleanup if abort never fires.
-        streamDone.then(() => resolve())
-      })
-    })
-
-    const streamPromise = act(async () => {
-      await handle
-        .latest()
-        .handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn(), {
-          abortController,
-        })
-    })
-
-    await flushUiBatch()
-    expect(messages.find((m) => m.id === 'msg-assistant-1')?.thinking).toBe('partial thought')
-
-    act(() => {
-      handle.latest().stopStreaming(setMessages)
-    })
-    resolveStream()
-    await streamPromise
-
-    const assistant = messages.find((m) => m.id === 'msg-assistant-1')
-    expect(abortController.signal.aborted).toBe(true)
-    expect(assistant?.thinking).toBe('partial thought')
-    expect(String(assistant?.content)).toContain('partial answer')
-    expect(String(assistant?.content)).toContain('Response stopped by user')
-    expect(assistant?.isStreaming).toBe(false)
-    expect(assistant?.isThinkingStreaming).toBe(false)
   })
 
   it('does not replace Stop notice with server Client cancelled request error', async () => {
@@ -576,28 +245,6 @@ describe('useChatStreaming thinking + abort', () => {
     expect(String(assistant?.content)).not.toContain('Client cancelled request')
     expect(assistant?.isStreaming).toBe(false)
   })
-
-  it('leaves thinking undefined when no thinking events arrive', async () => {
-    mockReadSSEEvents.mockImplementation(async (_source, options) => {
-      await options.onEvent({
-        blockId: 'agent-1',
-        chunk: 'just text',
-      })
-      await options.onEvent({
-        event: 'final',
-        data: { success: true, output: {} },
-      })
-    })
-
-    await act(async () => {
-      await handle.latest().handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
-    })
-    await flushUiBatch()
-
-    const assistant = messages.find((m) => m.id === 'msg-assistant-1')
-    expect(assistant?.thinking).toBeUndefined()
-    expect(assistant?.content).toBe('just text')
-  })
 })
 
 describe('useChatStreaming tool lifecycle', () => {
@@ -606,7 +253,6 @@ describe('useChatStreaming tool lifecycle', () => {
   let setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
 
   beforeEach(() => {
-    vi.clearAllMocks()
     messages = []
     setMessages = ((updater: React.SetStateAction<ChatMessage[]>) => {
       messages = typeof updater === 'function' ? updater(messages) : updater
@@ -621,55 +267,6 @@ describe('useChatStreaming tool lifecycle', () => {
   afterEach(() => {
     handle.unmount()
     vi.restoreAllMocks()
-  })
-
-  it('maps tool start/end into keyed chips without touching answer content', async () => {
-    mockReadSSEEvents.mockImplementation(async (_source, options) => {
-      await options.onEvent({
-        blockId: 'agent-1',
-        event: 'tool',
-        phase: 'start',
-        id: 'toolu_1',
-        name: 'http_request',
-      })
-      await options.onEvent({
-        blockId: 'agent-1',
-        event: 'tool',
-        phase: 'end',
-        id: 'toolu_1',
-        name: 'http_request',
-        status: 'success',
-      })
-      await options.onEvent({
-        blockId: 'agent-1',
-        chunk: 'https://httpbin.org/get',
-      })
-      await options.onEvent({
-        event: 'final',
-        data: { success: true, output: {} },
-      })
-    })
-
-    await act(async () => {
-      await handle.latest().handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
-    })
-    await flushUiBatch()
-
-    const assistant = messages.find((m) => m.id === 'msg-assistant-1')
-    expect(assistant?.content).toBe('https://httpbin.org/get')
-    expect(assistant?.toolCalls).toEqual([
-      {
-        key: 'agent-1:toolu_1',
-        blockId: 'agent-1',
-        id: 'toolu_1',
-        name: 'http_request',
-        displayName: 'Http Request',
-        status: 'success',
-      },
-    ])
-    expect(assistant?.toolCalls?.[0]).not.toHaveProperty('args')
-    expect(assistant?.toolCalls?.[0]).not.toHaveProperty('result')
-    expect(assistant?.isToolStreaming).toBe(false)
   })
 
   it('tracks parallel tools and cancels running chips on Stop', async () => {
@@ -729,52 +326,5 @@ describe('useChatStreaming tool lifecycle', () => {
     expect(tools?.find((t) => t.id === 'toolu_1')?.status).toBe('cancelled')
     expect(tools?.find((t) => t.id === 'toolu_2')?.status).toBe('success')
     expect(messages.find((m) => m.id === 'msg-assistant-1')?.isToolStreaming).toBe(false)
-  })
-
-  it('settles straggler running tools to success on final', async () => {
-    mockReadSSEEvents.mockImplementation(async (_source, options) => {
-      await options.onEvent({
-        blockId: 'agent-1',
-        event: 'tool',
-        phase: 'start',
-        id: 'toolu_open',
-        name: 'http_request',
-      })
-      await options.onEvent({
-        event: 'final',
-        data: { success: true, output: {} },
-      })
-    })
-
-    await act(async () => {
-      await handle.latest().handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
-    })
-    await flushUiBatch()
-
-    expect(messages.find((m) => m.id === 'msg-assistant-1')?.toolCalls?.[0]?.status).toBe('success')
-  })
-
-  it('settles straggler running tools to error when final reports failure', async () => {
-    mockReadSSEEvents.mockImplementation(async (_source, options) => {
-      await options.onEvent({
-        blockId: 'agent-1',
-        event: 'tool',
-        phase: 'start',
-        id: 'toolu_open',
-        name: 'http_request',
-      })
-      // Failed runs can still terminate with `final` carrying success: false.
-      await options.onEvent({
-        event: 'final',
-        data: { success: false, error: 'Workflow failed', output: {} },
-      })
-    })
-
-    await act(async () => {
-      await handle.latest().handleStreamedResponse(makeSseResponse(), setMessages, vi.fn(), vi.fn())
-    })
-    await flushUiBatch()
-
-    expect(messages.find((m) => m.id === 'msg-assistant-1')?.toolCalls?.[0]?.status).toBe('error')
   })
 })

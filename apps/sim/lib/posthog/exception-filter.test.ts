@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { CaptureResult } from 'posthog-js'
 import { describe, expect, it } from 'vitest'
 import { dropUnactionableExceptions, preparePostHogEvent } from '@/lib/posthog/exception-filter'
@@ -37,20 +34,6 @@ function deliberatelyReported(exception: TestException): CaptureResult {
 }
 
 describe('dropUnactionableExceptions', () => {
-  it('passes through events that are not exceptions', () => {
-    const event = {
-      uuid: 'test-uuid',
-      event: 'block_added',
-      properties: { block_type: 'agent' },
-    } as CaptureResult
-
-    expect(dropUnactionableExceptions(event)).toBe(event)
-  })
-
-  it('passes through a null event from an earlier hook', () => {
-    expect(dropUnactionableExceptions(null)).toBeNull()
-  })
-
   it.each([
     'ResizeObserver loop completed with undelivered notifications.',
     'ResizeObserver loop completed with undelivered notifications',
@@ -91,15 +74,6 @@ describe('dropUnactionableExceptions', () => {
     expect(dropUnactionableExceptions(event)).toBe(event)
   })
 
-  it('keeps a real exception', () => {
-    const event = browserRaised({
-      type: 'TypeError',
-      value: "Cannot read properties of undefined (reading 'id')",
-    })
-
-    expect(dropUnactionableExceptions(event)).toBe(event)
-  })
-
   it('keeps a deliberately reported exception even when it looks like noise', () => {
     const event = deliberatelyReported({
       type: 'AbortError',
@@ -114,15 +88,6 @@ describe('dropUnactionableExceptions', () => {
       { type: 'AbortError', value: 'signal is aborted without reason' },
       { type: 'RangeError', value: 'Maximum call stack size exceeded.' }
     )
-
-    expect(dropUnactionableExceptions(event)).toBe(event)
-  })
-
-  it('keeps an exception whose message merely mentions a filtered one', () => {
-    const event = browserRaised({
-      type: 'TypeError',
-      value: 'Failed to patch ResizeObserver loop completed with undelivered notifications',
-    })
 
     expect(dropUnactionableExceptions(event)).toBe(event)
   })

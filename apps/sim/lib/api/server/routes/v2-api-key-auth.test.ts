@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,7 +30,6 @@ import {
 
 describe('v2 API key authentication', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.envFlags.isAuthDisabled = false
     resetDbChainMock()
     mocks.updateLastUsed.mockResolvedValue(undefined)
@@ -196,7 +192,6 @@ describe('v2 API key authentication', () => {
 
 describe('v2 bearer token authentication', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.envFlags.isAuthDisabled = false
     resetDbChainMock()
     mocks.getHighestPrioritySubscription.mockResolvedValue({

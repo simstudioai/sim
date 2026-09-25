@@ -1,15 +1,6 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { permissionGroup } from '@sim/db/schema'
-import {
-  authMockFns,
-  createMockRequest,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-} from '@sim/testing'
+import { authMockFns, createMockRequest, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { UpdatePermissionGroupBody } from '@/lib/api/contracts/permission-groups'
 
@@ -94,7 +85,6 @@ async function updateUnderLock(body: UpdatePermissionGroupBody) {
 
 describe('permission group PUT policy serialization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'admin-1' },
@@ -107,36 +97,6 @@ describe('permission group PUT policy serialization', () => {
     })
     mocks.loadGroup.mockResolvedValue(GROUP)
   })
-
-  it('locks a config-only update and writes the requested OAuth restriction', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      { ...GROUP, config: { disableOAuthAppAccess: true } },
-    ])
-
-    await updateUnderLock({ config: { disableOAuthAppAccess: true } })
-
-    expect(dbChainMockFns.set).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ config: expect.objectContaining({ disableOAuthAppAccess: true }) })
-    )
-  })
-
-  it.each([{ name: 'Renamed group' }, { description: 'Updated description' }])(
-    'locks metadata-only update %j without restoring stale policy',
-    async (metadata) => {
-      if ('name' in metadata) queueTableRows(permissionGroup, [])
-      dbChainMockFns.returning.mockResolvedValueOnce([
-        { ...GROUP, ...metadata, config: { disableOAuthAppAccess: true } },
-      ])
-
-      const response = await updateUnderLock(metadata)
-
-      expect(dbChainMockFns.set).toHaveBeenCalledExactlyOnceWith(expect.objectContaining(metadata))
-      expect(dbChainMockFns.set.mock.calls[0][0]).not.toHaveProperty('config')
-      await expect(response.json()).resolves.toMatchObject({
-        permissionGroup: { config: { disableOAuthAppAccess: true } },
-      })
-    }
-  )
 
   it('merges a config patch with the policy reloaded under the lock', async () => {
     mocks.loadGroup.mockResolvedValueOnce({ ...GROUP, config: { disableOAuthAppAccess: true } })

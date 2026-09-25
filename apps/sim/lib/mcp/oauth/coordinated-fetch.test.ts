@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.js'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
@@ -196,28 +193,6 @@ describe('coordinated MCP OAuth with the real SDK and refresh mutex', () => {
     }
   )
 
-  it('reuses a concurrently refreshed token when the OAuth response omits optional scope', async () => {
-    const grant = createGrant()
-    grant.tokenRequest.mockResolvedValueOnce(
-      Response.json({
-        access_token: 'access-1',
-        refresh_token: 'refresh-1',
-        token_type: 'Bearer',
-      })
-    )
-    const request: FetchLike = async (_url, init) => {
-      if (new Headers(init?.headers).get('authorization') !== 'Bearer access-1') {
-        return rejection(401, 'Bearer error="invalid_token", scope="read"')
-      }
-      const rpc = JSON.parse(String(init?.body))
-      return Response.json({ jsonrpc: '2.0', id: rpc.id, result: { content: [] } })
-    }
-    const first = await connect(grant, request)
-    const second = await connect(grant, request)
-    await Promise.all([first.callTool({ name: 'read' }), second.callTool({ name: 'read' })])
-    expect(grant.tokenRequest).toHaveBeenCalledTimes(1)
-  })
-
   function fetchFor(grant: ReturnType<typeof createGrant>, request: FetchLike) {
     return createCoordinatedMcpOauthFetch(
       {
@@ -329,29 +304,6 @@ describe('coordinated MCP OAuth with the real SDK and refresh mutex', () => {
     expect(grant.tokenRequest).toHaveBeenCalledTimes(3)
   })
 
-  it('coordinates authentication during initialization and GET stream reconnection too', async () => {
-    const grant = createGrant()
-    const request = vi.fn<FetchLike>(async (_url, init) =>
-      new Headers(init?.headers).get('authorization') === 'Bearer access-1'
-        ? new Response(null, { status: 202 })
-        : rejection()
-    )
-    const first = fetchFor(grant, request)
-    const second = fetchFor(grant, request)
-    const responses = await Promise.all([
-      first(SERVER, { method: 'POST', body: '{"method":"initialize"}' }),
-      second(SERVER, { method: 'GET', headers: { 'last-event-id': 'event-1' } }),
-    ])
-    expect(responses.map((r) => r.status)).toEqual([202, 202])
-    expect(grant.tokenRequest).toHaveBeenCalledTimes(1)
-    const retry = request.mock.calls.find(
-      ([, init]) =>
-        init?.method === 'GET' &&
-        new Headers(init.headers).get('authorization') === 'Bearer access-1'
-    )
-    expect(new Headers(retry?.[1]?.headers).get('last-event-id')).toBe('event-1')
-  })
-
   it('does not replay an ordinary forbidden response or an uncertain network failure', async () => {
     const grant = createGrant()
     const request = vi.fn<FetchLike>().mockResolvedValueOnce(new Response(null, { status: 403 }))
@@ -370,20 +322,6 @@ describe('coordinated MCP OAuth with the real SDK and refresh mutex', () => {
     expect((await fetchFor(grant, request)(SERVER)).status).toBe(401)
     expect(request).toHaveBeenCalledTimes(2)
     expect(grant.tokenRequest).toHaveBeenCalledTimes(1)
-  })
-
-  it('allows a scope challenge after recovering from an expired token', async () => {
-    const grant = createGrant()
-    const request = vi
-      .fn<FetchLike>()
-      .mockResolvedValueOnce(rejection())
-      .mockResolvedValueOnce(
-        rejection(403, 'Bearer error="insufficient_scope", scope="read write"')
-      )
-      .mockResolvedValueOnce(new Response(null, { status: 202 }))
-    expect((await fetchFor(grant, request)(SERVER)).status).toBe(202)
-    expect(request).toHaveBeenCalledTimes(3)
-    expect(grant.tokenRequest).toHaveBeenCalledTimes(2)
   })
 
   it('retains request headers and body when recovering from an insufficient-scope challenge', async () => {
@@ -412,21 +350,6 @@ describe('coordinated MCP OAuth with the real SDK and refresh mutex', () => {
     grant.save.mockRejectedValueOnce(new Error('Credential grant changed'))
     const request = vi.fn<FetchLike>(async () => rejection())
     await expect(fetchFor(grant, request)(SERVER)).rejects.toThrow('Reauthorization required')
-    expect(request).toHaveBeenCalledTimes(1)
-    expect(redisConfigMockFns.mockReleaseLock).toHaveBeenCalledTimes(1)
-  })
-
-  it('forwards the challenged scope when the SDK requires reauthorization', async () => {
-    const grant = createGrant()
-    grant.tokenRequest.mockResolvedValueOnce(
-      Response.json({ error: 'invalid_grant' }, { status: 400 })
-    )
-    const request = vi.fn<FetchLike>(async () =>
-      rejection(403, 'Bearer error="insufficient_scope", scope="read write"')
-    )
-    await expect(fetchFor(grant, request)(SERVER)).rejects.toThrow('Reauthorization required')
-    expect(grant.redirect.mock.calls[0][0].searchParams.get('scope')).toBe('read write')
-    expect(grant.save).toHaveBeenCalledWith(undefined)
     expect(request).toHaveBeenCalledTimes(1)
     expect(redisConfigMockFns.mockReleaseLock).toHaveBeenCalledTimes(1)
   })

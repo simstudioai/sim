@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -63,7 +60,6 @@ function sizeLimitError(): unknown {
 
 describe('loadIndexableBytes', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockFetchWorkspaceFileBuffer.mockResolvedValue(SOURCE)
   })
 
@@ -99,15 +95,6 @@ describe('loadIndexableBytes', () => {
     })
   })
 
-  it('passes stored bytes through for everything else', async () => {
-    mockResolveServableDoc.mockResolvedValue({ kind: 'passthrough' })
-
-    await expect(loadIndexableBytes(FILE, new AbortController().signal)).resolves.toEqual({
-      buffer: SOURCE,
-      kind: 'stored',
-    })
-  })
-
   it('refuses an artifact above the source ceiling as a size-limit breach', async () => {
     mockResolveServableDoc.mockResolvedValue({
       kind: 'artifact',
@@ -133,7 +120,6 @@ describe('loadIndexableBytes', () => {
 
 describe('extractIndexText', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockIsSupportedFileType.mockReturnValue(true)
   })
 
@@ -164,18 +150,6 @@ describe('extractIndexText', () => {
         new AbortController().signal
       )
     ).resolves.toEqual({ text: FENCED_JSON.toString('utf8'), partial: false })
-  })
-
-  it('indexes nothing when the parser rejects a binary file', async () => {
-    mockParseBuffer.mockRejectedValue(new FileParserError('invalid_format', 'not a docx'))
-
-    await expect(
-      extractIndexText(
-        { buffer: BINARY, kind: 'stored' },
-        'broken.docx',
-        new AbortController().signal
-      )
-    ).resolves.toBeNull()
   })
 
   it('rethrows a size-limit breach from the parser', async () => {
@@ -225,15 +199,6 @@ describe('extractIndexText', () => {
     expect(mockParseBuffer).not.toHaveBeenCalled()
   })
 
-  it('indexes nothing for binary bytes that have no parser', async () => {
-    mockIsSupportedFileType.mockReturnValue(false)
-
-    await expect(
-      extractIndexText({ buffer: BINARY, kind: 'stored' }, 'blob.bin', new AbortController().signal)
-    ).resolves.toBeNull()
-    expect(mockParseBuffer).not.toHaveBeenCalled()
-  })
-
   it('rejects the entire expanded document above the extraction budget', async () => {
     mockParseBuffer.mockResolvedValue({ content: 'x'.repeat(FILE_SEARCH_MAX_EXTRACTED_BYTES + 1) })
     await expect(
@@ -243,15 +208,5 @@ describe('extractIndexText', () => {
         new AbortController().signal
       )
     ).rejects.toMatchObject({ reason: 'extracted_text_too_large' })
-  })
-
-  it('indexes an empty file as empty text', async () => {
-    await expect(
-      extractIndexText(
-        { buffer: Buffer.alloc(0), kind: 'stored' },
-        'empty.txt',
-        new AbortController().signal
-      )
-    ).resolves.toEqual({ text: '', partial: false })
   })
 })

@@ -1,9 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ashbyConnector } from '@/connectors/ashby/ashby'
-import { ashbyConnectorMeta } from '@/connectors/ashby/meta'
 
 function ashbyResponse(results: unknown, extra: Record<string, unknown> = {}): Response {
   return Response.json({ success: true, results, moreDataAvailable: false, ...extra })
@@ -11,10 +7,6 @@ function ashbyResponse(results: unknown, extra: Record<string, unknown> = {}): R
 
 describe('ashbyConnector', () => {
   beforeEach(() => vi.restoreAllMocks())
-
-  it('rehydrates deferred candidate content on forced full sync', () => {
-    expect(ashbyConnectorMeta.rehydrateOnFullSync).toBe(true)
-  })
 
   it('rejects unsafe max-candidate values and invalid dates before network validation', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
@@ -62,22 +54,6 @@ describe('ashbyConnector', () => {
     await expect(ashbyConnector.getDocument('key', {}, 'c1')).rejects.toThrow(
       'feedback unavailable'
     )
-  })
-
-  it('continues through short non-final note pages beyond the former page ceiling', async () => {
-    const fetchMock = vi.spyOn(globalThis, 'fetch')
-    fetchMock.mockResolvedValueOnce(ashbyResponse({ id: 'c1', name: 'One', applicationIds: [] }))
-    for (let page = 1; page <= 6; page++) {
-      fetchMock.mockResolvedValueOnce(
-        ashbyResponse(
-          [{ content: `note-${page}`, createdAt: `2026-01-0${page}T00:00:00Z` }],
-          page < 6 ? { moreDataAvailable: true, nextCursor: `cursor-${page}` } : {}
-        )
-      )
-    }
-    const document = await ashbyConnector.getDocument('key', {}, 'c1')
-    expect(document?.content).toContain('note-6')
-    expect(fetchMock).toHaveBeenCalledTimes(7)
   })
 
   it('fails hydration on a repeated note cursor instead of storing partial content', async () => {

@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -86,7 +82,6 @@ async function forgeInsideBinding(workflowId: string, payload: unknown): Promise
 
 describe('GET /api/v2/workflows/[workflowId]/versions', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -104,35 +99,6 @@ describe('GET /api/v2/workflows/[workflowId]/versions', () => {
         },
       ],
       hasMore: false,
-    })
-  })
-
-  it('lists versions through canonical workflow authorization', async () => {
-    const request = new NextRequest(
-      'http://localhost/api/v2/workflows/workflow-1/versions?limit=10'
-    )
-    const response = await GET(request, context)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: [
-        {
-          id: 'version-2',
-          version: 2,
-          name: 'Production',
-          description: null,
-          isActive: true,
-          createdAt: '2026-08-01T00:00:00.000Z',
-          deployedBy: 'Ada',
-          latestOperationStatus: 'active',
-        },
-      ],
-      nextCursor: null,
-    })
-    expect(mocks.listVersions).toHaveBeenCalledWith({
-      principal: auth.principal,
-      input: { workflowId: 'workflow-1', limit: 10, afterVersion: undefined },
-      request,
     })
   })
 
@@ -205,21 +171,5 @@ describe('GET /api/v2/workflows/[workflowId]/versions', () => {
     expect(response.status).toBe(400)
     expect((await response.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
     expect(mocks.listVersions).not.toHaveBeenCalled()
-  })
-
-  it('mints a cursor bound to the workflow that answered', async () => {
-    expect(await mintCursor('workflow-1')).not.toBe(await mintCursor('workflow-2'))
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await GET(
-      new NextRequest('http://localhost/api/v2/workflows/workflow-1/versions?limit=10'),
-      context
-    )
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 })

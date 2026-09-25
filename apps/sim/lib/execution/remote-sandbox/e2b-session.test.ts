@@ -1,5 +1,3 @@
-/** @vitest-environment node */
-
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -68,7 +66,6 @@ function sessionSandbox(source: 'created' | 'reconnected') {
 
 describe('E2B session recovery', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     lockState.active = false
     sessionLock.mockImplementation(
       async (

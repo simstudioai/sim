@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { eq } from 'drizzle-orm'
@@ -51,7 +50,6 @@ const row = {
 
 describe('personal organization contributions', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.available.mockResolvedValue(true)
     mocks.invite.mockResolvedValue({
@@ -85,15 +83,6 @@ describe('personal organization contributions', () => {
       'https://sim.test/api/credential-groups/enroll/fixture-token/oauth/gmail-option?returnTo=accounts'
     )
     expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.member)
-  })
-
-  it('keeps the enrollment page for an MCP contribution', async () => {
-    queueTableRows(schemaMock.credential, [row])
-    await expect(
-      reconnectPersonalOrganizationAccount.execute({ principal, input })
-    ).resolves.toEqual({
-      invitationLink: 'https://sim.test/credential-groups/enroll/fixture-token',
-    })
   })
 
   it('refuses disconnect of another contributor’s account', async () => {

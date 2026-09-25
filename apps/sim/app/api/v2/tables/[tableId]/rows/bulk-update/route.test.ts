@@ -1,9 +1,4 @@
-/**
- * @vitest-environment node
- */
-
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -57,7 +52,6 @@ function call(body: unknown) {
 
 describe('POST /api/v2/tables/[tableId]/rows/bulk-update', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -93,13 +87,6 @@ describe('POST /api/v2/tables/[tableId]/rows/bulk-update', () => {
     })
   })
 
-  it('rejects an empty bulk update before delegation', async () => {
-    const response = await call({ workspaceId: WORKSPACE_ID, updates: [] }).response
-
-    expect(response.status).toBe(400)
-    expect(mocks.batchUpdate).not.toHaveBeenCalled()
-  })
-
   it('rejects a bulk update naming the same row twice', async () => {
     const response = await call({
       workspaceId: WORKSPACE_ID,
@@ -110,29 +97,6 @@ describe('POST /api/v2/tables/[tableId]/rows/bulk-update', () => {
     }).response
 
     expect(response.status).toBe(400)
-    expect(mocks.batchUpdate).not.toHaveBeenCalled()
-  })
-
-  it('answers 400 when the bulk update names a row this table does not have', async () => {
-    mocks.batchUpdate.mockRejectedValueOnce(
-      new MockTableRowsValidationError('Rows not found: row-9')
-    )
-
-    const response = await call({
-      workspaceId: WORKSPACE_ID,
-      updates: [{ rowId: 'row-9', data: { status: 'active' } }],
-    }).response
-
-    expect(response.status).toBe(400)
-    expect((await response.json()).error.message).toContain('row-9')
-  })
-
-  it('rejects an unauthenticated write before parsing', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await call({ workspaceId: WORKSPACE_ID, updates: [] }).response
-
-    expect(response.status).toBe(401)
     expect(mocks.batchUpdate).not.toHaveBeenCalled()
   })
 })

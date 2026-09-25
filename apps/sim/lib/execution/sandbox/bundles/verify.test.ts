@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { evaluateSandboxBundle } from '@/lib/execution/sandbox/bundles/verify'

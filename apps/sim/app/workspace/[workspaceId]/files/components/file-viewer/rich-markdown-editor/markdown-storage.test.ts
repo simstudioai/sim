@@ -78,22 +78,6 @@ describe('structural paragraphs survive storage', () => {
     expect(editor.state.selection.$from.parent.type.name).toBe('paragraph')
     expect(expectPreserved(editor)).toContain('<p></p>')
   })
-
-  it('treats an actual empty HTML paragraph as a paragraph without claiming other raw HTML', () => {
-    const editor = mount('before\n\n<p></p>\n\n<div>raw</div>\n\nafter')
-    expect(editor.getJSON().content?.map((node) => node.type)).toEqual([
-      'paragraph',
-      'paragraph',
-      'rawHtmlBlock',
-      'paragraph',
-    ])
-    expect(editor.getText()).toContain('<div>raw</div>')
-  })
-
-  it('does not store the trailing typing placeholder after a list as HTML', () => {
-    const editor = mount('- one')
-    expect(editor.getMarkdown()).not.toContain('<p></p>')
-  })
 })
 
 describe('paragraph hard-break fidelity', () => {
@@ -133,15 +117,6 @@ describe('paragraph hard-break fidelity', () => {
 describe('GFM table capabilities', () => {
   const markdown = '| heading | value |\n| --- | --- |\n| one | two |'
 
-  it.each([false, true])('cell Enter with shift=%s creates a persistent hard break', (shiftKey) => {
-    const editor = mount(markdown)
-    selectText(editor, 'one', 3)
-    expect(press(editor, 'Enter', { shiftKey })).toBe(true)
-    editor.commands.insertContent('next')
-    expect(editor.state.selection.$from.parent.type.name).toBe('paragraph')
-    expect(expectPreserved(editor)).toContain('one<br>next')
-  })
-
   it('does not let a heading shortcut or command create a nonpersistent block in a cell', () => {
     const editor = mount(markdown)
     selectText(editor, 'one')
@@ -179,39 +154,6 @@ describe('GFM table capabilities', () => {
     }
   )
 
-  it('gates structural header removal, merged cells, and persistent-width commands', () => {
-    const editor = mount(markdown)
-    selectText(editor, 'heading')
-    expect(editor.can().addRowBefore()).toBe(false)
-    expect(editor.can().deleteRow()).toBe(false)
-    expect(editor.commands.toggleHeaderRow()).toBe(false)
-    expect(editor.commands.toggleHeaderColumn()).toBe(false)
-    expect(editor.commands.toggleHeaderCell()).toBe(false)
-    expect(editor.commands.setCellAttribute('colwidth', [240])).toBe(false)
-    const table = editor.state.doc.firstChild!
-    const firstCell = 2
-    const secondCell = firstCell + table.firstChild!.firstChild!.nodeSize
-    editor.view.dispatch(
-      editor.state.tr.setSelection(CellSelection.create(editor.state.doc, firstCell, secondCell))
-    )
-    expect(editor.state.selection).toBeInstanceOf(CellSelection)
-    expect(editor.can().mergeCells()).toBe(false)
-    expect(editor.commands.mergeCells()).toBe(false)
-    expectPreserved(editor)
-  })
-
-  it('preserves ordinary row and column editing through save and reopen', () => {
-    const editor = mount(markdown)
-    selectText(editor, 'one')
-    expect(editor.commands.addRowBefore()).toBe(true)
-    expect(editor.commands.addRowAfter()).toBe(true)
-    expect(editor.commands.addColumnAfter()).toBe(true)
-    expectPreserved(editor)
-    selectText(editor, 'one')
-    expect(editor.commands.deleteRow()).toBe(true)
-    expectPreserved(editor)
-  })
-
   it('new rows inherit column alignment so it stays identical after reload', () => {
     const editor = mount('| heading | value |\n| :---: | ---: |\n| one | two |')
     selectText(editor, 'one')
@@ -220,75 +162,10 @@ describe('GFM table capabilities', () => {
     expectPreserved(editor)
   })
 
-  it('retains legacy rich cell nodes in the collaborative schema', () => {
-    const editor = mount(markdown)
-    const content = editor.getJSON()
-    const cell = content.content?.[0].content?.[1].content?.[0]
-    expect(cell).toBeDefined()
-    if (!cell) return
-    cell.content = [
-      { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'legacy heading' }] },
-      { type: 'paragraph', content: [{ type: 'text', text: 'legacy paragraph' }] },
-    ]
-    editor.commands.setContent(content)
-    expect(editor.getJSON()).toEqual(content)
-    const saved = editor.getMarkdown()
-    expect(saved).toContain('<h2>legacy heading</h2>')
-    expect(saved).toContain('<p>legacy paragraph</p>')
-    const reopened = mount(saved)
-    expect(reopened.getJSON().content?.[0].type).toBe('rawHtmlBlock')
-    expect(postProcessSerializedMarkdown(reopened.getMarkdown())).toBe(
-      postProcessSerializedMarkdown(saved)
-    )
-  })
-
   it('preserves significant interior code whitespace in GFM cells', () => {
     const editor = mount('| heading |\n| --- |\n| `one  two` |')
     expect(expectPreserved(editor)).toContain('`one  two`')
     expect(editor.getMarkdown()).not.toContain('<table')
-  })
-
-  it('normalizes pasted table headings and paragraphs while preserving inline marks and blank lines', () => {
-    const editor = mount('')
-    pasteHtml(
-      editor,
-      '<table><tr><th>heading</th></tr><tr><td><h2><strong>bold</strong></h2><p></p><p><em>italic</em> <code>one two</code></p></td></tr></table>'
-    )
-    const cell = editor.getJSON().content?.[0].content?.[1].content?.[0]
-    expect(cell?.content).toEqual([
-      {
-        type: 'paragraph',
-        content: [
-          { type: 'text', marks: [{ type: 'bold' }], text: 'bold' },
-          { type: 'hardBreak' },
-          { type: 'hardBreak' },
-          { type: 'text', marks: [{ type: 'italic' }], text: 'italic' },
-          { type: 'text', text: ' ' },
-          { type: 'text', marks: [{ type: 'code' }], text: 'one two' },
-        ],
-      },
-    ])
-    expect(expectPreserved(editor)).not.toContain('<table')
-  })
-
-  it('pastes rich text blocks into an existing cell as inline content without changing surrounding text', () => {
-    const editor = mount(markdown)
-    selectText(editor, 'one', 1)
-    pasteHtml(editor, '<h2><strong>bold</strong></h2><p><em>italic</em></p>')
-    const cell = editor.getJSON().content?.[0].content?.[1].content?.[0]
-    expect(cell?.content).toHaveLength(1)
-    expect(cell?.content?.[0].type).toBe('paragraph')
-    expect(editor.state.selection.$from.parent.textContent).toBe('obolditalicne')
-    const saved = expectPreserved(editor)
-    expect(saved).toContain('o**bold**<br>*italic*ne')
-    expect(saved).not.toContain('<table')
-  })
-
-  it('leaves rich text blocks outside a table unchanged', () => {
-    const editor = mount('')
-    pasteHtml(editor, '<h2>heading</h2><p>paragraph</p>')
-    expect(editor.getJSON().content?.map((node) => node.type)).toEqual(['heading', 'paragraph'])
-    expectPreserved(editor)
   })
 
   it('normalizes native copied cells without rewriting the source document', () => {

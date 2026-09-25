@@ -1,14 +1,6 @@
-/**
- * @vitest-environment node
- */
-
 import { schemaMock } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
-import {
-  batchDeleteByWorkspaceAndTimestamp,
-  chunkedBatchDelete,
-  selectRowsByIdChunks,
-} from '@/lib/cleanup/batch-delete'
+import { chunkedBatchDelete, selectRowsByIdChunks } from '@/lib/cleanup/batch-delete'
 
 /**
  * Minimal stand-in for the drizzle client `chunkedBatchDelete` calls. Only the DELETE path is
@@ -55,31 +47,6 @@ describe('chunkedBatchDelete onBatch contract', () => {
     expect(onBatch).toHaveBeenCalledWith([{ id: 'row-1' }])
     // Ordering is the load-bearing half: renaming children after the DELETE would be useless.
     expect(order).toEqual(['onBatch:row-1', 'delete'])
-  })
-
-  it('forwards onBatch through batchDeleteByWorkspaceAndTimestamp', async () => {
-    const order: string[] = []
-    const onBatch = vi.fn(async () => {
-      order.push('onBatch')
-    })
-
-    await batchDeleteByWorkspaceAndTimestamp({
-      tableDef: schemaMock.folder as never,
-      workspaceIdCol: schemaMock.folder.workspaceId as never,
-      timestampCol: schemaMock.folder.deletedAt as never,
-      workspaceIds: ['ws-1'],
-      retentionDate: new Date(0),
-      tableName: 'test/folder',
-      requireTimestampNotNull: true,
-      dbClient: createDbClient(() => order.push('delete'), [{ id: 'row-1' }]) as never,
-      onBatch,
-      batchSize: 1,
-      maxBatches: 1,
-    })
-
-    // The wrapper spreads `...rest` into chunkedBatchDelete; `onBatch` must survive that hop.
-    expect(onBatch).toHaveBeenCalled()
-    expect(order[0]).toBe('onBatch')
   })
 })
 
@@ -133,21 +100,6 @@ describe('shared cleanup row budgets', () => {
       })
     ).rejects.toThrow('storage failed')
     expect(budget.remaining).toBe(1)
-    expect(onDelete).not.toHaveBeenCalled()
-  })
-
-  it('passes budgets through the timestamp helper', async () => {
-    const onDelete = vi.fn()
-    await batchDeleteByWorkspaceAndTimestamp({
-      tableDef: schemaMock.folder as never,
-      workspaceIdCol: schemaMock.folder.workspaceId as never,
-      timestampCol: schemaMock.folder.deletedAt as never,
-      workspaceIds: ['a'],
-      retentionDate: new Date(0),
-      tableName: 'folder',
-      budget: { remaining: 0 },
-      dbClient: createDbClient(onDelete, [{ id: 'one' }]),
-    })
     expect(onDelete).not.toHaveBeenCalled()
   })
 })

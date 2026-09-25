@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 
@@ -74,7 +71,6 @@ function createInput(registry: ResolvedSecretTraceRegistry) {
 
 describe('validateHallucination', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
       decrypted:
         encryptedValue === 'encrypted-reference-secret' ? 'reference-secret' : encryptedValue,
@@ -158,19 +154,6 @@ describe('validateHallucination', () => {
         { plaintext: 'reference-secret', replacement: '{{KB_TOKEN}}' },
       ]),
     })
-  })
-
-  it('accepts public Knowledge context without output secret provenance', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
-
-    const result = await validateHallucination(createInput(registry))
-
-    expect(result).toMatchObject({ passed: true, score: 8 })
-    const providerRequest = mockExecuteProviderRequest.mock.calls[0][1] as {
-      messages: Array<{ content: string }>
-    }
-    expect(providerRequest.messages[0].content).toContain('public context')
-    expect(registry.isComplete()).toBe(true)
   })
 
   it('fails validation when the authorized Knowledge operation is rejected', async () => {

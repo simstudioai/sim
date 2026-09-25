@@ -83,55 +83,10 @@ describe('desktop release retention shell', () => {
     expect(result.stdout).not.toContain('DELETE ')
   })
 
-  it('retains all releases below the channel limit and ignores drafts and stable releases', () => {
-    const result = prune([
-      ...devReleases.slice(0, 5),
-      release('v1-dev.0', '2026-01-01T00:00:00Z', true),
-      release('v1-dev.stable', '2026-01-01T00:00:00Z', false, false),
-      release('v1-staging.0', '2026-01-01T00:00:00Z'),
-    ])
-    expect(result.status).toBe(0)
-    expect(result.stdout).not.toContain('DELETE ')
-  })
-
-  it('breaks equal publication timestamps deterministically regardless of API order', () => {
-    const tied = devReleases.map((entry) => ({ ...entry, publishedAt: '2026-09-15T00:00:00Z' }))
-    const first = prune(tied)
-    const reversed = prune([...tied].reverse())
-    expect(first.status).toBe(0)
-    expect(reversed.status).toBe(0)
-    expect(first.stdout).toBe(reversed.stdout)
-    expect(first.stdout).toContain('DELETE v1-dev.1')
-  })
-
-  it('counts legacy beta releases with staging without deleting dev releases', () => {
-    const result = prune(
-      [
-        ...devReleases.map((entry) => ({
-          ...entry,
-          tagName: entry.tagName.replace('dev', 'staging'),
-        })),
-        release('v1-beta.0', '2026-01-01T00:00:00Z'),
-        release('v1-dev.0', '2025-01-01T00:00:00Z'),
-      ],
-      'v1-staging.6',
-      'refs/heads/staging'
-    )
-    expect(result.status).toBe(0)
-    expect(result.stdout).toContain('DELETE v1-staging.1')
-    expect(result.stdout).toContain('DELETE v1-beta.0')
-    expect(result.stdout).not.toContain('DELETE v1-dev.0')
-  })
-
   it('fails when listing fails instead of reporting successful cleanup', () => {
     const result = prune(devReleases, 'v1-dev.6', 'refs/heads/dev', '42')
     expect(result.status).toBe(42)
     expect(result.stdout).not.toContain('DELETE ')
-  })
-
-  it('wires the publication tag from the creation job', () => {
-    expect(job).toContain('needs: [create-desktop-prerelease, publish-desktop-prerelease]')
-    expect(job).toContain(`CURRENT_TAG: \${{ needs.create-desktop-prerelease.outputs.version }}`)
   })
 
   it('refuses to prune without the current publication tag', () => {

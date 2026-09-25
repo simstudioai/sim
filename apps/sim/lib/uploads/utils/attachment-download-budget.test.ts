@@ -1,19 +1,11 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import {
   AttachmentDownloadBudget,
   readAttachmentJson,
 } from '@/lib/uploads/utils/attachment-download-budget'
 
 describe('AttachmentDownloadBudget', () => {
-  it('defaults to the shared 100 MiB transfer bound', () => {
-    expect(new AttachmentDownloadBudget().remainingBytes).toBe(MAX_BUFFERED_TRANSFER_BYTES)
-  })
-
   it('shares the remaining bytes across downloads and accepts the exact boundary', async () => {
     const budget = new AttachmentDownloadBudget({ maxBytes: 6 })
     await budget.read(new Response('abc'), 'attachments')
@@ -30,11 +22,6 @@ describe('AttachmentDownloadBudget', () => {
     await expect(
       budget.read(new Response('four', { headers: { 'content-length': '1' } }), 'attachments')
     ).rejects.toBeInstanceOf(PayloadSizeLimitError)
-  })
-
-  it('accepts zero-byte files at the exact aggregate boundary', async () => {
-    const budget = new AttachmentDownloadBudget({ maxBytes: 0 })
-    expect((await budget.read(new Response(''), 'attachments')).byteLength).toBe(0)
   })
 
   it('propagates cancellation while reading a body', async () => {

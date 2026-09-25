@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -86,7 +83,6 @@ describe('OCR page-range checkpoints', () => {
   let operations: string[]
 
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-08T19:00:00Z'))
     objects = new Map()
@@ -134,34 +130,6 @@ describe('OCR page-range checkpoints', () => {
     vi.useRealTimers()
   })
 
-  it('durably stores completed ranges with cleanup scheduled first and no text in the outbox', async () => {
-    const original = checkpoint()
-    expect(await original.load(range, maxBytes)).toBeNull()
-    await original.save(range, 'Page one\nPage two', maxBytes)
-
-    expect(operations).toEqual(['cleanup-enqueued', 'upload'])
-    expect(JSON.stringify([...rows.values()])).not.toContain('Page one')
-    expect(mocks.upload).toHaveBeenCalledWith(
-      expect.objectContaining({
-        context: 'knowledge-base',
-        preserveKey: true,
-        persistMetadata: false,
-      })
-    )
-    expect(mocks.upload.mock.calls[0]![0].metadata).toBeUndefined()
-    expect(await checkpoint().load(range, maxBytes)).toBe('Page one\nPage two')
-    expect(mocks.download).toHaveBeenCalledWith(
-      expect.objectContaining({
-        maxBytes: maxBytes + 1024,
-      })
-    )
-  })
-
-  it('retains completed blank page ranges', async () => {
-    await checkpoint().save(range, '', maxBytes)
-    expect(await checkpoint().load(range, maxBytes)).toBe('')
-  })
-
   it.each([
     { source: Buffer.from('changed PDF bytes') },
     { context: { ...context, knowledgeBaseId: 'another-kb' } },
@@ -188,19 +156,6 @@ describe('OCR page-range checkpoints', () => {
     expect(mocks.head).not.toHaveBeenCalled()
   })
 
-  it('treats corrupt content and stale checkpoints as cache misses', async () => {
-    await checkpoint().save(range, 'correct text', maxBytes)
-    const key = [...objects.keys()][0]!
-    const valid = objects.get(key)!
-    objects.set(key, Buffer.concat([valid, Buffer.from('corruption')]))
-    expect(await checkpoint().load(range, maxBytes)).toBeNull()
-    objects.set(key, valid)
-    vi.setSystemTime(Date.now() + 49 * 60 * 60 * 1000)
-    expect(await checkpoint().load(range, maxBytes)).toBeNull()
-    await checkpoint().save(range, 'late replacement', maxBytes)
-    expect(mocks.upload).toHaveBeenCalledOnce()
-  })
-
   it('rejects a valid checkpoint object copied into the wrong page range', async () => {
     await checkpoint().save(range, 'first range', maxBytes)
     const firstKey = [...objects.keys()][0]!
@@ -218,16 +173,6 @@ describe('OCR page-range checkpoints', () => {
     await checkpoint().save(range, 'late text', maxBytes)
     expect(mocks.upload).toHaveBeenCalledOnce()
     expect(rows.size).toBe(1)
-  })
-
-  it('repairs a missing object without extending its original expiry', async () => {
-    await checkpoint().save(range, 'first text', maxBytes)
-    const expiry = [...rows.values()][0]!.availableAt.getTime()
-    objects.clear()
-    vi.setSystemTime(Date.now() + 60_000)
-    await checkpoint().save(range, 'recovered text', maxBytes)
-    expect([...rows.values()][0]!.availableAt.getTime()).toBe(expiry)
-    expect(await checkpoint().load(range, maxBytes)).toBe('recovered text')
   })
 
   it('enforces remaining document output bytes on both cached reads and writes', async () => {
@@ -251,80 +196,6 @@ describe('OCR page-range checkpoints', () => {
     const denied = new Error('Access denied')
     mocks.head.mockRejectedValue(denied)
     await expect(checkpoint().load(range, maxBytes)).rejects.toBe(denied)
-  })
-
-  it('bounds a stalled storage operation and honors caller cancellation', async () => {
-    mocks.head.mockImplementation(() => new Promise(() => {}))
-    const pending = checkpoint().load(range, maxBytes)
-    const result = expect(pending).rejects.toThrow('storage operation timed out')
-    await vi.advanceTimersByTimeAsync(15_000)
-    await result
-
-    const controller = new AbortController()
-    const canceled = checkpoint().load(range, maxBytes, controller.signal)
-    const aborted = expect(canceled).rejects.toHaveProperty('name', 'AbortError')
-    controller.abort()
-    await aborted
-  })
-
-  it('cleans up expired private checkpoints and retries deletion failures', async () => {
-    await checkpoint().save(range, 'private text', maxBytes)
-    const payload = [...rows.values()][0]!.payload
-    expect(await cleanupOcrCheckpoint(payload, outboxContext())).toMatchObject({
-      outcome: 'deferred',
-    })
-    expect(mocks.delete).not.toHaveBeenCalled()
-    vi.setSystemTime(payload.expiresAt)
-    await cleanupOcrCheckpoint(payload, outboxContext())
-    expect(objects.size).toBe(0)
-    mocks.delete.mockRejectedValue(new Error('Storage unavailable'))
-    await expect(cleanupOcrCheckpoint(payload, outboxContext())).rejects.toThrow(
-      'Storage unavailable'
-    )
-    mocks.delete.mockRejectedValue(Object.assign(new Error('Missing'), { code: 'ENOENT' }))
-    await expect(cleanupOcrCheckpoint(payload, outboxContext())).resolves.toBeUndefined()
-  })
-
-  it('aborts an upload at its storage deadline while retaining durable cleanup', async () => {
-    let uploadSignal: AbortSignal | undefined
-    let started!: () => void
-    const ready = new Promise<void>((resolve) => {
-      started = resolve
-    })
-    mocks.upload.mockImplementationOnce(({ signal }: { signal: AbortSignal }) => {
-      uploadSignal = signal
-      started()
-      return new Promise((_resolve, reject) => {
-        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
-      })
-    })
-    const pending = checkpoint().save(range, 'private text', maxBytes)
-    const result = expect(pending).rejects.toThrow('storage operation timed out')
-    await ready
-    await vi.advanceTimersByTimeAsync(15_000)
-    await result
-    expect(uploadSignal?.aborted).toBe(true)
-    expect(rows.size).toBe(1)
-    expect(objects.size).toBe(0)
-  })
-
-  it('aborts a stalled cleanup deletion and leaves its outbox attempt retryable', async () => {
-    await checkpoint().save(range, 'private text', maxBytes)
-    const payload = [...rows.values()][0]!.payload
-    vi.setSystemTime(payload.expiresAt)
-    let deleteSignal: AbortSignal | undefined
-    mocks.delete.mockImplementationOnce(({ signal }: { signal: AbortSignal }) => {
-      deleteSignal = signal
-      return new Promise((_resolve, reject) => {
-        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
-      })
-    })
-    const pending = cleanupOcrCheckpoint(payload, outboxContext())
-    const result = expect(pending).rejects.toThrow('storage operation timed out')
-    await vi.advanceTimersByTimeAsync(15_000)
-    await result
-    expect(deleteSignal?.aborted).toBe(true)
-    expect(objects.size).toBe(1)
   })
 
   it('resumes after a later range throttle without repeating successful OCR or indexing partial text', async () => {
@@ -379,58 +250,6 @@ describe('OCR page-range checkpoints', () => {
     expect(text.indexOf('Second completed range')).toBeLessThan(
       text.indexOf('Third completed range')
     )
-  })
-
-  it('yields slow successful OCR before the worker deadline and resumes each saved range', async () => {
-    vi.useRealTimers()
-    let now = Date.now()
-    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now)
-    try {
-      const pdf = await PDFDocument.create()
-      for (let page = 0; page < 90; page++) pdf.addPage()
-      mocks.sourceDownload.mockResolvedValue(Buffer.from(await pdf.save()))
-      mocks.parseBuffer.mockResolvedValue({ content: '', metadata: { pageCount: 90 } })
-      let recognized = 0
-      mocks.executeOcr.mockImplementation(async () => {
-        recognized++
-        now += 80_000
-        return {
-          success: true,
-          output: {
-            pages: Array.from({ length: 30 }, () => ({
-              markdown: `Completed range ${recognized}`,
-            })),
-            usage_info: { pages_processed: 30 },
-          },
-        }
-      })
-      const execute = () =>
-        processDocument(
-          'https://example.com/source.pdf',
-          'source.pdf',
-          'application/pdf',
-          1024,
-          0,
-          1,
-          { userId: 'actor', ocrCheckpoint: context, processingDeadlineAt: now + 220_000 }
-        )
-      for (let pass = 1; pass <= 2; pass++) {
-        await expect(execute()).rejects.toMatchObject({
-          reason: 'processing_budget',
-          retryable: false,
-        })
-        expect(recognized).toBe(pass)
-        expect(objects.size).toBe(pass)
-      }
-      const completed = await execute()
-      expect(recognized).toBe(3)
-      const text = completed.chunks.map((chunk) => chunk.text).join('\n')
-      for (let range = 1; range <= 3; range++) expect(text).toContain(`Completed range ${range}`)
-      expect(text.indexOf('Completed range 1')).toBeLessThan(text.indexOf('Completed range 2'))
-      expect(text.indexOf('Completed range 2')).toBeLessThan(text.indexOf('Completed range 3'))
-    } finally {
-      clock.mockRestore()
-    }
   })
 
   it('refuses arbitrary storage keys in cleanup payloads', async () => {

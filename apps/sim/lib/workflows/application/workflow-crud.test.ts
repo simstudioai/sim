@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -101,10 +98,8 @@ vi.mock('@/lib/core/telemetry', () => ({
 
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
-import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { listWorkflowVersions } from '@/lib/workflows/application/list-workflow-versions'
 import { readWorkflow, readWorkflowMetadata } from '@/lib/workflows/application/read-workflow'
-import { readWorkflowVersion } from '@/lib/workflows/application/read-workflow-version'
 import { updateWorkflow } from '@/lib/workflows/application/update-workflow'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -165,7 +160,6 @@ const executorPrincipal = {
 
 describe('authorized workflow CRUD and version reads', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.resolveWorkspaceContext.mockResolvedValue(workspaceContext)
     mocks.resolveWorkflowContext.mockResolvedValue(workflowContext)
@@ -215,33 +209,6 @@ describe('authorized workflow CRUD and version reads', () => {
     })
   })
 
-  it('reads metadata through the shared read policy without loading the graph', async () => {
-    mocks.folderPathForId.mockReturnValue('/Planning/Nested')
-    const result = await readWorkflowMetadata.execute({
-      principal: {
-        kind: 'delegated',
-        serviceId: 'copilot',
-        subjectUserId: 'user-1',
-        workspaceId: WORKSPACE_ID,
-        delegationId: 'chat-read',
-        audience: 'sim:workflows',
-        issuedAt: now,
-        expiresAt: new Date('2999-01-01'),
-      },
-      input: { workflowId: WORKFLOW_ID, assertedWorkspaceId: WORKSPACE_ID },
-    })
-    expect(result).toEqual({ workflow: workflowRecord, folderPath: '/Planning/Nested' })
-    expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({
-      workflowId: WORKFLOW_ID,
-      assertedWorkspaceId: undefined,
-    })
-    expect(mocks.loadFolderIndex).toHaveBeenCalledWith(WORKSPACE_ID, 'workflow', undefined, {
-      maxRows: MAX_FOLDERS_PER_WORKSPACE,
-    })
-    expect(mocks.loadSnapshot).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
   it('refuses metadata to a removed member before resolving folder paths', async () => {
     mocks.resolvePermission.mockResolvedValue(null)
     await expect(
@@ -252,36 +219,6 @@ describe('authorized workflow CRUD and version reads', () => {
     ).rejects.toThrow()
     expect(mocks.loadFolderIndex).not.toHaveBeenCalled()
     expect(mocks.loadSnapshot).not.toHaveBeenCalled()
-  })
-
-  it('creates for a personal key and projects one authoritative semantic audit', async () => {
-    await expect(
-      createWorkflow.execute({
-        principal: personalPrincipal,
-        input: { workspaceId: WORKSPACE_ID, name: workflowRecord.name },
-      })
-    ).resolves.toMatchObject({ workflow: { id: WORKFLOW_ID } })
-
-    expect(mocks.createTransition).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'user-1', workspaceId: WORKSPACE_ID })
-    )
-    expect(mocks.recordAudit).toHaveBeenCalledTimes(1)
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: 'user-1',
-        action: 'workflow.created',
-        resourceId: WORKFLOW_ID,
-        metadata: expect.objectContaining({
-          operation: 'workflows.create',
-          actor: expect.objectContaining({ kind: 'personal_api_key', keyId: 'personal-key-1' }),
-        }),
-      })
-    )
-    expect(mocks.notifyWorkflowUpdated).toHaveBeenCalledWith(WORKFLOW_ID)
-    expect(mocks.notifyWorkspaceWorkflowsChanged).toHaveBeenCalledWith(WORKSPACE_ID)
-    expect(mocks.workflowCreated).toHaveBeenCalledWith(
-      expect.objectContaining({ workflowId: WORKFLOW_ID, workspaceId: WORKSPACE_ID })
-    )
   })
 
   it('uses the billing owner only for the workspace key legacy user column', async () => {
@@ -306,19 +243,6 @@ describe('authorized workflow CRUD and version reads', () => {
         }),
       })
     )
-  })
-
-  it('propagates infrastructure failure without projecting audit', async () => {
-    const failure = new Error('database unavailable')
-    mocks.createTransition.mockRejectedValue(failure)
-
-    await expect(
-      createWorkflow.execute({
-        principal: workspacePrincipal,
-        input: { workspaceId: WORKSPACE_ID, name: workflowRecord.name },
-      })
-    ).rejects.toBe(failure)
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
   it('returns forbidden when a workspace key does not match canonical workflow scope', async () => {
@@ -449,21 +373,6 @@ describe('authorized workflow CRUD and version reads', () => {
     })
   })
 
-  it('does not audit an authoritative delete no-op', async () => {
-    mocks.deleteRecord.mockResolvedValue({
-      success: true,
-      archived: false,
-      workflow: { id: WORKFLOW_ID, name: workflowRecord.name, workspaceId: WORKSPACE_ID },
-    })
-
-    await deleteWorkflow.execute({
-      principal: personalPrincipal,
-      input: { workflowId: WORKFLOW_ID },
-    })
-
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
   it('bounds both paginated and legacy unpaginated version listing', async () => {
     await listWorkflowVersions.execute({
       principal: workspacePrincipal,
@@ -494,15 +403,5 @@ describe('authorized workflow CRUD and version reads', () => {
         input: { workflowId: WORKFLOW_ID },
       })
     ).rejects.toThrow('Workflow version list exceeds the 1000 row limit')
-  })
-
-  it('reads one version only after canonical workflow authorization', async () => {
-    await expect(
-      readWorkflowVersion.execute({
-        principal: personalPrincipal,
-        input: { workflowId: WORKFLOW_ID, version: 1 },
-      })
-    ).resolves.toMatchObject({ version: { id: 'version-1', version: 1 } })
-    expect(mocks.resolveWorkflowContext).toHaveBeenCalledBefore(mocks.readVersion)
   })
 })

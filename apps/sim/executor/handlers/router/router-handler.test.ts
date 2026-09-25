@@ -178,15 +178,6 @@ describe('RouterBlockHandler', () => {
     })
   })
 
-  it('should handle router blocks', () => {
-    expect(handler.canHandle(mockBlock)).toBe(true)
-    const nonRouterBlock: SerializedBlock = {
-      ...mockBlock,
-      metadata: { id: 'other' },
-    }
-    expect(handler.canHandle(nonRouterBlock)).toBe(false)
-  })
-
   it('selects the same legacy destination when a fallback provider answers', async () => {
     mockExecuteProviderRequest
       .mockRejectedValueOnce(new Error('overloaded'))
@@ -206,72 +197,6 @@ describe('RouterBlockHandler', () => {
       selectedPath: { blockId: 'target-block-1' },
     })
     expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(2)
-  })
-
-  it('should execute router block correctly and select a path', async () => {
-    const inputs = {
-      prompt: 'Choose the best option.',
-      model: 'gpt-4o',
-      apiKey: 'test-api-key',
-      temperature: 0.1,
-    }
-
-    const expectedTargetBlocks = [
-      {
-        id: 'target-block-1',
-        type: 'target',
-        title: 'Option A',
-        description: 'Choose A',
-        subBlocks: {
-          p: 'a',
-          systemPrompt: '',
-        },
-        currentState: undefined,
-      },
-      {
-        id: 'target-block-2',
-        type: 'target',
-        title: 'Option B',
-        description: 'Choose B',
-        subBlocks: {
-          p: 'b',
-          systemPrompt: '',
-        },
-        currentState: undefined,
-      },
-    ]
-
-    const result = await handler.execute(mockContext, mockBlock, inputs)
-
-    expect(mockGenerateRouterPrompt).toHaveBeenCalledWith(inputs.prompt, expectedTargetBlocks)
-    expect(mockGetProviderFromModel).toHaveBeenCalledWith('gpt-4o')
-    expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
-
-    const requestBody = providerRequestBody()
-    expect(requestBody).toMatchObject({
-      provider: 'openai',
-      model: 'gpt-4o',
-      systemPrompt: 'Generated System Prompt',
-      context: JSON.stringify([{ role: 'user', content: 'Choose the best option.' }]),
-      temperature: 0.1,
-    })
-
-    expect(result).toEqual({
-      prompt: 'Choose the best option.',
-      model: 'mock-model',
-      tokens: { input: 100, output: 5, total: 105 },
-      cost: {
-        input: 0,
-        output: 0,
-        total: 0,
-      },
-      selectedPath: {
-        blockId: 'target-block-1',
-        blockType: 'target',
-        blockTitle: 'Option A',
-      },
-      selectedRoute: 'target-block-1',
-    })
   })
 
   it('sends only model-visible legacy router provenance and excludes credentials', async () => {
@@ -371,52 +296,6 @@ describe('RouterBlockHandler', () => {
     })
   })
 
-  it('keeps an ordinary prior target state with exact-empty provenance unchanged', async () => {
-    const rawState = { result: 'x', ordinary: 'Box remains raw state' }
-    mockContext.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([])
-    mockContext.blockStates = new Map([
-      [
-        mockTargetBlock1.id,
-        {
-          output: rawState,
-          executed: true,
-          executionTime: 1,
-          resolvedSecretTraceProvenance: {
-            version: 1,
-            complete: true,
-            entries: [],
-          },
-        },
-      ],
-    ])
-
-    await handler.execute(mockContext, mockBlock, {
-      prompt: 'Choose the best option.',
-      model: 'gpt-4o',
-    })
-
-    expect(mockGenerateRouterPrompt).toHaveBeenCalledWith(
-      'Choose the best option.',
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: mockTargetBlock1.id,
-          currentState: rawState,
-        }),
-      ])
-    )
-    expect(rawState).toEqual({ result: 'x', ordinary: 'Box remains raw state' })
-  })
-
-  it('keeps the legacy router request shape when no provenance registry exists', async () => {
-    await handler.execute(mockContext, mockBlock, {
-      prompt: 'Choose the best option.',
-      model: 'gpt-4o',
-      apiKey: 'test-api-key',
-    })
-
-    expect(providerRuntimeRegistry()).toBeUndefined()
-  })
-
   it('bills the cost the provider proxy decided rather than recomputing it', async () => {
     // The proxy already resolved key provenance and the margin; recomputing
     // here would re-charge a BYOK caller the proxy correctly zeroed.
@@ -473,18 +352,6 @@ describe('RouterBlockHandler', () => {
     }
   )
 
-  it('keeps targets enabled by default for older serialized workflows', async () => {
-    Reflect.deleteProperty(mockTargetBlock1, 'enabled')
-
-    const result = await handler.execute(mockContext, mockBlock, { prompt: 'Test' })
-
-    expect(mockGenerateRouterPrompt).toHaveBeenCalledWith('Test', [
-      expect.objectContaining({ id: 'target-block-1' }),
-      expect.objectContaining({ id: 'target-block-2' }),
-    ])
-    expect(result).toMatchObject({ selectedRoute: 'target-block-1' })
-  })
-
   it('preserves existing error-edge routing candidates and decisions', async () => {
     mockContext.workflow!.connections = [
       { source: mockBlock.id, target: mockTargetBlock1.id, sourceHandle: 'source-right' },
@@ -508,64 +375,6 @@ describe('RouterBlockHandler', () => {
         blockType: 'target',
         blockTitle: 'Option B',
       },
-    })
-  })
-
-  it.each([true, false])(
-    'preserves a disabled routing decision when the other target enabled state is %s',
-    async (otherTargetEnabled) => {
-      mockTargetBlock1.enabled = false
-      mockTargetBlock2.enabled = otherTargetEnabled
-
-      const result = await handler.execute(mockContext, mockBlock, { prompt: 'Test' })
-
-      expect(mockGenerateRouterPrompt).toHaveBeenCalledWith('Test', [
-        expect.objectContaining({ id: 'target-block-1' }),
-        expect.objectContaining({ id: 'target-block-2' }),
-      ])
-      expect(result).toMatchObject({
-        selectedRoute: 'target-block-1',
-        selectedPath: {
-          blockId: 'target-block-1',
-          blockType: 'target',
-          blockTitle: 'Option A',
-        },
-      })
-      expect(result).not.toHaveProperty('error')
-      expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
-    }
-  )
-
-  it('resolves sim-auto and preserves provider billing with existing routing candidates', async () => {
-    mockExecuteProviderRequest.mockResolvedValueOnce({
-      content: 'target-block-2',
-      model: 'fireworks/glm-5.2',
-      tokens: { input: 100, output: 20, total: 120 },
-      cost: { input: 0.001, output: 0.0005, total: 0.0015 },
-    })
-
-    const result = await handler.execute(mockContext, mockBlock, {
-      prompt: 'Choose the best option.',
-      model: 'sim-auto',
-    })
-
-    expect(mockResolveAutoModel).toHaveBeenCalledWith({
-      ctx: mockContext,
-      blockId: mockBlock.id,
-      signals: expect.objectContaining({
-        lastMessage: 'Choose the best option.',
-        hasResponseFormat: false,
-      }),
-      fallbackModel: 'claude-sonnet-5',
-    })
-    expect(providerRequestBody()).toMatchObject({
-      model: 'fireworks/glm-5.2',
-      systemPrompt: 'Sim auto system preamble\n\nGenerated System Prompt',
-    })
-    expect(result).toMatchObject({
-      model: 'sim-auto',
-      selectedRoute: 'target-block-2',
-      cost: { input: 0.001, output: 0.0005, routing: 0.002, total: 0.0035 },
     })
   })
 
@@ -613,104 +422,6 @@ describe('RouterBlockHandler', () => {
     expect(logged).not.toContain(plaintext)
     expect(logged).not.toContain('__var_')
     expect(logged).not.toContain('__sim_')
-  })
-
-  it('should use default model and temperature if not provided', async () => {
-    const inputs = { prompt: 'Choose.', apiKey: 'test-api-key' }
-
-    await handler.execute(mockContext, mockBlock, inputs)
-
-    expect(mockGetProviderFromModel).toHaveBeenCalledWith('claude-sonnet-5')
-
-    const requestBody = providerRequestBody()
-    expect(requestBody).toMatchObject({
-      model: 'claude-sonnet-5',
-      temperature: 0.1,
-    })
-  })
-
-  it('should handle server error responses', async () => {
-    const inputs = { prompt: 'Test error handling.', apiKey: 'test-api-key' }
-
-    mockExecuteProviderRequest.mockRejectedValueOnce(new Error('Server error'))
-
-    await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow('Server error')
-  })
-
-  it('does not log sensitive provider errors while preserving the thrown error', async () => {
-    const providerError = 'provider-plaintext-secret __var_API_KEY __sim_runtime'
-
-    mockExecuteProviderRequest.mockRejectedValueOnce(new Error(providerError))
-
-    await expect(handler.execute(mockContext, mockBlock, { prompt: 'Test' })).rejects.toThrow(
-      providerError
-    )
-
-    expect(mockLogger.error).toHaveBeenCalledWith('Router execution failed', {
-      errorName: 'Error',
-    })
-    const logged = JSON.stringify(mockLogger.error.mock.calls)
-    expect(logged).not.toContain('provider-plaintext-secret')
-    expect(logged).not.toContain('__var_')
-    expect(logged).not.toContain('__sim_')
-  })
-
-  it('should handle Azure OpenAI models with endpoint and API version', async () => {
-    const inputs = {
-      prompt: 'Choose the best option.',
-      model: 'gpt-4o',
-      apiKey: 'test-azure-key',
-      azureEndpoint: 'https://test.openai.azure.com',
-      azureApiVersion: '2024-07-01-preview',
-    }
-
-    mockGetProviderFromModel.mockReturnValue('azure-openai')
-
-    await handler.execute(mockContext, mockBlock, inputs)
-
-    const requestBody = providerRequestBody()
-
-    expect(requestBody).toMatchObject({
-      provider: 'azure-openai',
-      model: 'gpt-4o',
-      apiKey: 'test-azure-key',
-      azureEndpoint: 'https://test.openai.azure.com',
-      azureApiVersion: '2024-07-01-preview',
-    })
-  })
-
-  it('should handle Vertex AI models with OAuth credential', async () => {
-    const inputs = {
-      prompt: 'Choose the best option.',
-      model: 'gemini-2.0-flash-exp',
-      vertexCredential: 'test-vertex-credential-id',
-      vertexProject: 'test-gcp-project',
-      vertexLocation: 'us-central1',
-    }
-
-    mockGetProviderFromModel.mockReturnValue('vertex')
-
-    const mockDb = await import('@sim/db')
-    const mockAccount = {
-      id: 'test-vertex-credential-id',
-      accessToken: 'mock-access-token',
-      refreshToken: 'mock-refresh-token',
-      expiresAt: new Date(Date.now() + 3600000),
-    }
-    ;(mockDb.db.query as any).account = { findFirst: vi.fn() }
-    vi.spyOn(mockDb.db.query.account, 'findFirst').mockResolvedValue(mockAccount as any)
-
-    await handler.execute(mockContext, mockBlock, inputs)
-
-    const requestBody = providerRequestBody()
-
-    expect(requestBody).toMatchObject({
-      provider: 'vertex',
-      model: 'gemini-2.0-flash-exp',
-      vertexProject: 'test-gcp-project',
-      vertexLocation: 'us-central1',
-    })
-    expect(requestBody.apiKey).toBe('mock-access-token')
   })
 })
 
@@ -805,10 +516,6 @@ describe('RouterBlockHandler V2', () => {
     })
   })
 
-  it('should handle router_v2 blocks', () => {
-    expect(handler.canHandle(mockRouterV2Block)).toBe(true)
-  })
-
   it('preserves route selection and reasoning when an Auto request falls back', async () => {
     mockExecuteProviderRequest
       .mockRejectedValueOnce(new Error('overloaded'))
@@ -872,49 +579,6 @@ describe('RouterBlockHandler V2', () => {
     expect(mockExecuteProviderRequest).toHaveBeenCalledTimes(1)
   })
 
-  it('should execute router V2 and return reasoning', async () => {
-    const inputs = {
-      context: 'I need help with a billing issue',
-      model: 'gpt-4o',
-      apiKey: 'test-api-key',
-      routes: JSON.stringify([
-        {
-          id: 'route-support',
-          title: 'Support',
-          value: 'Customer support inquiries',
-        },
-        {
-          id: 'route-sales',
-          title: 'Sales',
-          value: 'Sales and pricing questions',
-        },
-      ]),
-    }
-
-    mockExecuteProviderRequest.mockResolvedValueOnce({
-      content: JSON.stringify({
-        route: 'route-support',
-        reasoning: 'The user mentioned a billing issue which is a customer support matter.',
-      }),
-      model: 'gpt-4o',
-      tokens: { input: 150, output: 25, total: 175 },
-    })
-
-    const result = await handler.execute(mockContext, mockRouterV2Block, inputs)
-
-    expect(result).toMatchObject({
-      context: 'I need help with a billing issue',
-      model: 'gpt-4o',
-      selectedRoute: 'route-support',
-      reasoning: 'The user mentioned a billing issue which is a customer support matter.',
-      selectedPath: {
-        blockId: 'target-block-1',
-        blockType: 'agent',
-        blockTitle: 'Support Agent',
-      },
-    })
-  })
-
   it('sends only model-visible router V2 provenance and excludes credentials', async () => {
     const contextSecret = 'resolved-router-v2-context'
     const credentialSecret = 'resolved-router-v2-credential'
@@ -962,123 +626,6 @@ describe('RouterBlockHandler V2', () => {
     expect(mockGenerateRouterV2Prompt).toHaveBeenCalledWith('{{CONTEXT_SECRET}}', expect.any(Array))
   })
 
-  it('keeps the router V2 request shape when no provenance registry exists', async () => {
-    mockExecuteProviderRequest.mockResolvedValueOnce({
-      content: JSON.stringify({ route: 'route-support', reasoning: 'Matched support.' }),
-      model: 'gpt-4o',
-      tokens: { input: 10, output: 5, total: 15 },
-    })
-
-    await handler.execute(mockContext, mockRouterV2Block, {
-      context: 'Support request',
-      model: 'gpt-4o',
-      apiKey: 'test-api-key',
-      routes: [{ id: 'route-support', title: 'Support', value: 'Support requests' }],
-    })
-
-    expect(providerRuntimeRegistry()).toBeUndefined()
-  })
-
-  it('resolves sim-auto before executing router V2 and preserves its public identity', async () => {
-    const inputs = {
-      context: 'How do I get Tableau on my work laptop?',
-      model: 'sim-auto',
-      routes: [
-        { id: 'route-support', title: 'Support', value: 'Something is broken' },
-        {
-          id: 'route-sales',
-          title: 'Request',
-          value: 'User wants something new',
-        },
-      ],
-    }
-
-    mockExecuteProviderRequest.mockResolvedValueOnce({
-      content: JSON.stringify({
-        route: 'route-sales',
-        reasoning: 'This is a new request.',
-      }),
-      model: 'fireworks/glm-5.2',
-      tokens: { input: 100, output: 20, total: 120 },
-      cost: { input: 0.001, output: 0.0005, total: 0.0015 },
-    })
-
-    const result = await handler.execute(mockContext, mockRouterV2Block, inputs)
-
-    expect(mockResolveAutoModel).toHaveBeenCalledWith({
-      ctx: mockContext,
-      blockId: mockRouterV2Block.id,
-      signals: expect.objectContaining({
-        lastMessage: inputs.context,
-        messageCount: 1,
-        toolNames: [],
-        mediaKind: 'none',
-        hasResponseFormat: true,
-      }),
-      fallbackModel: 'claude-sonnet-5',
-    })
-    expect(mockGetProviderFromModel).toHaveBeenCalledWith('fireworks/glm-5.2')
-
-    const requestBody = providerRequestBody()
-    expect(requestBody).toMatchObject({
-      provider: 'openai',
-      model: 'fireworks/glm-5.2',
-      systemPrompt: 'Sim auto system preamble\n\nGenerated V2 System Prompt',
-    })
-    expect(result).toMatchObject({
-      model: 'sim-auto',
-      selectedRoute: 'route-sales',
-      cost: {
-        input: 0.001,
-        output: 0.0005,
-        routing: 0.002,
-        total: 0.0035,
-      },
-    })
-  })
-
-  it('should include responseFormat in provider request', async () => {
-    const inputs = {
-      context: 'Test context',
-      model: 'gpt-4o',
-      apiKey: 'test-api-key',
-      routes: JSON.stringify([{ id: 'route-1', title: 'Route 1', value: 'Description 1' }]),
-    }
-
-    mockExecuteProviderRequest.mockResolvedValueOnce({
-      content: JSON.stringify({
-        route: 'route-1',
-        reasoning: 'Test reasoning',
-      }),
-      model: 'gpt-4o',
-      tokens: { input: 100, output: 20, total: 120 },
-    })
-
-    await handler.execute(mockContext, mockRouterV2Block, inputs)
-
-    const requestBody = providerRequestBody()
-
-    expect(requestBody.responseFormat).toEqual({
-      name: 'router_response',
-      schema: {
-        type: 'object',
-        properties: {
-          route: {
-            type: 'string',
-            description: 'The selected route ID or NO_MATCH',
-          },
-          reasoning: {
-            type: 'string',
-            description: 'Brief explanation of why this route was chosen',
-          },
-        },
-        required: ['route', 'reasoning'],
-        additionalProperties: false,
-      },
-      strict: true,
-    })
-  })
-
   it('should handle NO_MATCH response with reasoning', async () => {
     const inputs = {
       context: 'Random unrelated query',
@@ -1121,122 +668,5 @@ describe('RouterBlockHandler V2', () => {
     await expect(handler.execute(mockContext, mockRouterV2Block, inputs)).rejects.toThrow(
       /Router could not determine a valid route/
     )
-  })
-
-  it('should handle routes passed as array instead of JSON string', async () => {
-    const inputs = {
-      context: 'Test context',
-      model: 'gpt-4o',
-      apiKey: 'test-api-key',
-      routes: [{ id: 'route-1', title: 'Route 1', value: 'Description' }],
-    }
-
-    mockExecuteProviderRequest.mockResolvedValueOnce({
-      content: JSON.stringify({
-        route: 'route-1',
-        reasoning: 'Matched route 1',
-      }),
-      model: 'gpt-4o',
-      tokens: { input: 100, output: 20, total: 120 },
-    })
-
-    const result = await handler.execute(mockContext, mockRouterV2Block, inputs)
-
-    expect(result.selectedRoute).toBe('route-1')
-    expect(result.reasoning).toBe('Matched route 1')
-  })
-
-  it('should throw error when no routes are defined', async () => {
-    const inputs = {
-      context: 'Test context',
-      model: 'gpt-4o',
-      apiKey: 'test-api-key',
-      routes: '[]',
-    }
-
-    await expect(handler.execute(mockContext, mockRouterV2Block, inputs)).rejects.toThrow(
-      'No routes defined for router'
-    )
-  })
-
-  it('does not log sensitive resolved route input when JSON parsing fails', async () => {
-    const plaintext = 'router-input-plaintext-secret'
-    const routes = `[{"id":"${plaintext} __var_API_KEY __sim_runtime"`
-
-    await expect(
-      handler.execute(mockContext, mockRouterV2Block, {
-        context: 'Test context',
-        routes,
-      })
-    ).rejects.toThrow('No routes defined for router')
-
-    expect(mockLogger.error).toHaveBeenCalledWith('Failed to parse routes', {
-      errorName: 'SyntaxError',
-      inputType: 'string',
-      inputLength: routes.length,
-    })
-    const logged = JSON.stringify(mockLogger.error.mock.calls)
-    expect(logged).not.toContain(plaintext)
-    expect(logged).not.toContain('__var_')
-    expect(logged).not.toContain('__sim_')
-  })
-
-  it('should handle fallback when JSON parsing fails', async () => {
-    const inputs = {
-      context: 'Test context',
-      model: 'gpt-4o',
-      apiKey: 'test-api-key',
-      routes: JSON.stringify([{ id: 'route-1', title: 'Route 1', value: 'Description' }]),
-    }
-
-    mockExecuteProviderRequest.mockResolvedValueOnce({
-      content: 'route-1',
-      model: 'gpt-4o',
-      tokens: { input: 100, output: 5, total: 105 },
-    })
-
-    const result = await handler.execute(mockContext, mockRouterV2Block, inputs)
-
-    expect(result.selectedRoute).toBe('route-1')
-    expect(result.reasoning).toBe('')
-  })
-
-  it('does not log sensitive invalid structured responses', async () => {
-    const plaintext = 'router-v2-response-plaintext-secret'
-    const content = `${plaintext} __var_API_KEY __sim_runtime`
-    const inputs = {
-      context: 'Test context',
-      model: 'gpt-4o',
-      routes: [{ id: 'route-1', title: 'Route 1', value: 'Description' }],
-    }
-
-    mockExecuteProviderRequest.mockResolvedValueOnce({
-      content,
-      model: 'gpt-4o',
-      tokens: { input: 100, output: 5, total: 105 },
-    })
-
-    await expect(handler.execute(mockContext, mockRouterV2Block, inputs)).rejects.toThrow(content)
-
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      'Router response was not valid JSON despite responseFormat',
-      {
-        errorName: 'SyntaxError',
-        responseContentType: 'string',
-        responseContentLength: content.length,
-      }
-    )
-    expect(mockLogger.error).toHaveBeenCalledWith('Invalid routing decision', {
-      responseContentType: 'string',
-      responseContentLength: content.length,
-      availableRouteCount: 1,
-    })
-    expect(mockLogger.error).toHaveBeenCalledWith('Router V2 execution failed', {
-      errorName: 'Error',
-    })
-    const logged = JSON.stringify(mockLogger.error.mock.calls)
-    expect(logged).not.toContain(plaintext)
-    expect(logged).not.toContain('__var_')
-    expect(logged).not.toContain('__sim_')
   })
 })

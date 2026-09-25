@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   processDocumentsWithQueue: vi.fn(),
@@ -36,10 +33,6 @@ const DOCUMENTS = [
 ]
 
 describe('dispatchDocumentProcessing', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('records only documents whose returned dispatch outcome failed', async () => {
     mocks.processDocumentsWithQueue.mockResolvedValueOnce({
       requested: 2,

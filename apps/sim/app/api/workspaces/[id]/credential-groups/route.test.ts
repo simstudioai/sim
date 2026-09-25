@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -31,25 +27,11 @@ function createRequest(): NextRequest {
 
 describe('credential groups collection route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
     })
     mocks.list.mockResolvedValue({ credentialGroup: null, availableProviders: ['gmail'] })
-  })
-
-  it('enters the application use case with the authenticated session principal', async () => {
-    const request = createRequest()
-    const response = await GET(request, context)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ credentialGroup: null, availableProviders: ['gmail'] })
-    expect(mocks.list).toHaveBeenCalledWith({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { workspaceId: WORKSPACE_ID },
-      request,
-    })
   })
 
   it('preserves concealed entitlement failures from the application boundary', async () => {

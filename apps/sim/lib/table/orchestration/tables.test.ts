@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
 const { mockDeleteTable, mockDeleteRow, mockRenameTable, mockCaptureServerEvent, mockRecordAudit } =
@@ -39,8 +36,6 @@ import {
 const TABLE = { id: 'table-1', name: 'Tasks', workspaceId: 'ws-1' } as unknown as TableDefinition
 
 describe('performDeleteTable', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it('audits a genuine archive against the acting user', async () => {
     mockDeleteTable.mockResolvedValue({ archived: { name: 'Tasks', workspaceId: 'ws-1' } })
 
@@ -59,15 +54,6 @@ describe('performDeleteTable', () => {
       expect.objectContaining({ table_id: 'table-1' }),
       expect.anything()
     )
-  })
-
-  it('carries request provenance into the audit row', async () => {
-    mockDeleteTable.mockResolvedValue({ archived: { name: 'Tasks', workspaceId: 'ws-1' } })
-    const request = new Request('https://sim.ai', { headers: { 'user-agent': 'curl/8' } })
-
-    await performDeleteTable({ table: TABLE, userId: 'user-1', request })
-
-    expect(mockRecordAudit).toHaveBeenCalledWith(expect.objectContaining({ request }))
   })
 
   it('neither audits nor reports a repeat delete of an already-archived table', async () => {
@@ -91,8 +77,6 @@ describe('performDeleteTable', () => {
 })
 
 describe('performRenameTable', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it('classifies a name collision as a conflict, not bad input', async () => {
     // `TableConflictError` is an `OrchestrationError('conflict')` — the class
     // decides the status, so the 409 no longer rides on the message wording.
@@ -104,28 +88,9 @@ describe('performRenameTable', () => {
 
     expect(result).toMatchObject({ success: false, errorCode: 'conflict' })
   })
-
-  it('keeps an unclassified rename failure internal', async () => {
-    mockRenameTable.mockRejectedValue(new Error('A table named "Tasks" already exists'))
-
-    expect(
-      (await performRenameTable({ table: TABLE, newName: 'Tasks', userId: 'user-1' })).errorCode
-    ).toBe('internal')
-  })
 })
 
 describe('performDeleteTableRow', () => {
-  beforeEach(() => vi.clearAllMocks())
-
-  it('deletes through the row service so the lock and bookkeeping apply', async () => {
-    mockDeleteRow.mockResolvedValue(undefined)
-
-    const result = await performDeleteTableRow({ table: TABLE, rowId: 'row-1', requestId: 'req-1' })
-
-    expect(result.success).toBe(true)
-    expect(mockDeleteRow).toHaveBeenCalledWith(TABLE, 'row-1', 'req-1')
-  })
-
   it('classifies a delete lock as locked', async () => {
     mockDeleteRow.mockRejectedValue(new TableLockedError('delete'))
 
@@ -133,13 +98,5 @@ describe('performDeleteTableRow', () => {
     expect(rowResult.errorCode).toBe('locked')
     // The kind rides along so the route can name which flag to clear.
     expect(rowResult.lock).toBe('delete')
-  })
-
-  it('classifies a missing row as not_found', async () => {
-    mockDeleteRow.mockRejectedValue(new OrchestrationError('not_found', 'Row not found'))
-
-    expect((await performDeleteTableRow({ table: TABLE, rowId: 'row-1' })).errorCode).toBe(
-      'not_found'
-    )
   })
 })

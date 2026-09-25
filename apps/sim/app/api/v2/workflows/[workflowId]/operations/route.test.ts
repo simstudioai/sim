@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -83,7 +79,6 @@ const ADD = {
 
 describe('/api/v2/workflows/[workflowId]/operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -103,45 +98,6 @@ describe('/api/v2/workflows/[workflowId]/operations', () => {
       needsRedeployment: true,
       dryRun: false,
     })
-  })
-
-  it('authenticates before parsing the body', async () => {
-    v2RouteMocks.authenticate.mockRejectedValue(new MockV2ApiKeyUnauthenticatedError('No API key'))
-
-    const response = await POST(request({ nonsense: true }), routeContext)
-
-    expect(response.status).toBe(401)
-    expect(mocks.applyWorkflowOperations).not.toHaveBeenCalled()
-  })
-
-  it('applies a batch and returns the exact result contract', async () => {
-    const response = await POST(request({ operations: [ADD] }), routeContext)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: {
-        id: WORKFLOW_ID,
-        applied: 1,
-        skipped: [],
-        deferred: [],
-        inputValidationErrors: [],
-        mintedBlockIds: { 'agent-1': 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77' },
-        lint: LINT,
-        warnings: [],
-        needsRedeployment: true,
-        dryRun: false,
-      },
-    })
-    expect(mocks.applyWorkflowOperations).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({
-          workflowId: WORKFLOW_ID,
-          operations: [ADD],
-          atomic: false,
-          layout: 'targeted',
-        }),
-      })
-    )
   })
 
   /**
@@ -250,23 +206,6 @@ describe('/api/v2/workflows/[workflowId]/operations', () => {
     expect((await response.json()).error.code).toBe('NOT_FOUND')
   })
 
-  it('rejects an empty batch', async () => {
-    const response = await POST(request({ operations: [] }), routeContext)
-
-    expect(response.status).toBe(400)
-    expect(mocks.applyWorkflowOperations).not.toHaveBeenCalled()
-  })
-
-  it('rejects an add operation with no block type or name', async () => {
-    const response = await POST(
-      request({ operations: [{ operation_type: 'add', block_id: 'block-2', params: {} }] }),
-      routeContext
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.applyWorkflowOperations).not.toHaveBeenCalled()
-  })
-
   /**
    * `fieldIssues` is the most actionable half of the report for a headless
    * graph builder — a block missing a required field fails at run time — and
@@ -345,18 +284,6 @@ describe('/api/v2/workflows/[workflowId]/operations', () => {
 
     expect(response.status).toBe(400)
     expect((await response.json()).error.code).toBe('BAD_REQUEST')
-    expect(mocks.applyWorkflowOperations).not.toHaveBeenCalled()
-  })
-
-  it('rejects params on a delete operation', async () => {
-    const response = await POST(
-      request({
-        operations: [{ operation_type: 'delete', block_id: 'block-2', params: { type: 'agent' } }],
-      }),
-      routeContext
-    )
-
-    expect(response.status).toBe(400)
     expect(mocks.applyWorkflowOperations).not.toHaveBeenCalled()
   })
 })

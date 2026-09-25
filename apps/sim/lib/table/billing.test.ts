@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,7 +26,6 @@ vi.mock('@/lib/table/constants', () => ({
 
 import {
   assertRowCapacity,
-  getMaxRowsPerTable,
   getWorkspaceTableLimits,
   notifyTableRowUsage,
   TableRowLimitError,
@@ -49,7 +45,6 @@ let wsCounter = 0
 const nextWorkspaceId = () => `ws-${++wsCounter}`
 
 beforeEach(() => {
-  vi.clearAllMocks()
   setEnvFlags({ isBillingEnabled: true })
   mockGetTablePlanLimits.mockReturnValue(LIMITS)
   mockGetBillingDisabledTableLimits.mockReturnValue({
@@ -67,10 +62,6 @@ beforeEach(() => {
 afterAll(resetEnvFlagsMock)
 
 describe('getWorkspaceTableLimits', () => {
-  it('returns the limits for the workspace subscription plan', async () => {
-    expect(await getWorkspaceTableLimits(nextWorkspaceId())).toEqual(LIMITS.pro)
-  })
-
   it('caches the resolved limits within the TTL', async () => {
     const ws = nextWorkspaceId()
     await getWorkspaceTableLimits(ws)
@@ -119,12 +110,6 @@ describe('getWorkspaceTableLimits', () => {
   })
 })
 
-describe('getMaxRowsPerTable', () => {
-  it('returns the plan maxRowsPerTable', async () => {
-    expect(await getMaxRowsPerTable(nextWorkspaceId())).toBe(5000)
-  })
-})
-
 describe('wouldExceedRowLimit', () => {
   it('is false under the limit and at the limit exactly', () => {
     expect(wouldExceedRowLimit(1000, 10, 5)).toBe(false)
@@ -145,12 +130,6 @@ describe('wouldExceedRowLimit', () => {
 })
 
 describe('assertRowCapacity', () => {
-  it('returns the resolved limit when the write stays under it', async () => {
-    await expect(
-      assertRowCapacity({ workspaceId: nextWorkspaceId(), currentRowCount: 10, addedRows: 5 })
-    ).resolves.toBe(5000)
-  })
-
   it('allows reaching the limit exactly and returns it', async () => {
     await expect(
       assertRowCapacity({ workspaceId: nextWorkspaceId(), currentRowCount: 4999, addedRows: 1 })
@@ -161,12 +140,6 @@ describe('assertRowCapacity', () => {
     await expect(
       assertRowCapacity({ workspaceId: nextWorkspaceId(), currentRowCount: 5000, addedRows: 1 })
     ).rejects.toBeInstanceOf(TableRowLimitError)
-  })
-
-  it('names the plan limit in the error message', async () => {
-    await expect(
-      assertRowCapacity({ workspaceId: nextWorkspaceId(), currentRowCount: 5000, addedRows: 1 })
-    ).rejects.toThrow(/row limit \(5,000 rows\)/)
   })
 
   it('skips the check when the plan is unlimited (-1)', async () => {

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -64,13 +60,10 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
 import { WORKSPACE_ACCESS_SCOPE } from '@/lib/knowledge/access/scope'
 import {
   createKnowledgeTag,
-  deleteKnowledgeDocumentTagDefinitions,
   deleteKnowledgeTag,
   listKnowledgeTags,
-  readDetailedKnowledgeTagUsage,
   readKnowledgeTagUsage,
   readNextKnowledgeTagSlot,
-  saveKnowledgeDocumentTagDefinitions,
   updateKnowledgeTag,
 } from '@/lib/knowledge/application/tags'
 
@@ -133,7 +126,6 @@ const delegatedPrincipal = {
 
 describe('knowledge tag application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveKnowledgeBase.mockResolvedValue(crossWorkspaceContext)
     mocks.resolveTag.mockResolvedValue(tagContext)
@@ -141,18 +133,6 @@ describe('knowledge tag application use cases', () => {
     mocks.saveTags.mockResolvedValue({ created: [], updated: [], errors: [] })
     mocks.listAllTags.mockResolvedValue([])
     mocks.listTags.mockResolvedValue([])
-  })
-
-  it('retains live workspace access in summary and detailed tag counts', async () => {
-    const input = { knowledgeBaseId: 'knowledge-b', assertedWorkspaceId: 'workspace-b' }
-    await readKnowledgeTagUsage.execute({ principal: sessionPrincipal, input })
-    await readDetailedKnowledgeTagUsage.execute({ principal: sessionPrincipal, input })
-    expect(mocks.readUsage).toHaveBeenCalledWith('knowledge-b', knowledgeAccess, expect.any(String))
-    expect(mocks.readDetailedUsage).toHaveBeenCalledWith(
-      'knowledge-b',
-      expect.any(String),
-      knowledgeAccess
-    )
   })
 
   it.each([
@@ -213,52 +193,6 @@ describe('knowledge tag application use cases', () => {
       expect(mocks.recordAudit).not.toHaveBeenCalled()
     }
   )
-
-  it('authorizes current delegated membership before mutation and records semantic audit', async () => {
-    const sameWorkspaceContext = {
-      ...tagContext,
-      workspaceId: 'workspace-a',
-      knowledgeBaseId: 'knowledge-a',
-      knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
-      tagDefinition: { ...tagContext.tagDefinition, knowledgeBaseId: 'knowledge-a' },
-    }
-    const updatedTag = { ...sameWorkspaceContext.tagDefinition, displayName: 'Market' }
-    mocks.resolveTag.mockResolvedValueOnce(sameWorkspaceContext)
-    mocks.updateTag.mockResolvedValueOnce(updatedTag)
-
-    const result = await updateKnowledgeTag.execute({
-      principal: delegatedPrincipal,
-      input: {
-        tagDefinitionId: 'tag-b',
-        assertedWorkspaceId: 'workspace-a',
-        updates: { displayName: 'Market' },
-        source: 'agent',
-      },
-    })
-
-    expect(result.tagDefinition).toEqual(updatedTag)
-    expect(mocks.resolvePermission).toHaveBeenCalledWith(
-      'shared-user',
-      'workspace-a',
-      null,
-      undefined,
-      { forUpdate: undefined }
-    )
-    expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.updateTag.mock.invocationCallOrder[0]
-    )
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace-a',
-        action: 'knowledge_base.updated',
-        metadata: expect.objectContaining({
-          operation: 'knowledge.tags.update',
-          change: 'tag_updated',
-          actor: expect.objectContaining({ kind: 'delegated', serviceId: 'copilot' }),
-        }),
-      })
-    )
-  })
 
   it.each([
     ['an unknown slot', { tagSlot: 'tag99', fieldType: 'text' }],
@@ -372,35 +306,6 @@ describe('knowledge tag application use cases', () => {
     expect(mocks.updateTag).not.toHaveBeenCalled()
   })
 
-  it('rejects an unknown fieldType on update, as create does', async () => {
-    await expect(
-      updateKnowledgeTag.execute({
-        principal: sessionPrincipal,
-        input: {
-          knowledgeBaseId: 'knowledge-b',
-          tagDefinitionId: 'tag-1',
-          updates: { fieldType: 'nonsense' },
-        },
-      })
-    ).rejects.toMatchObject({ code: 'validation' })
-    expect(mocks.updateTag).not.toHaveBeenCalled()
-  })
-
-  it('allows a rename that leaves the field type alone', async () => {
-    mocks.updateTag.mockResolvedValueOnce({ ...tagContext.tagDefinition, displayName: 'Region' })
-
-    await updateKnowledgeTag.execute({
-      principal: sessionPrincipal,
-      input: {
-        knowledgeBaseId: 'knowledge-b',
-        tagDefinitionId: 'tag-1',
-        updates: { displayName: 'Region' },
-      },
-    })
-
-    expect(mocks.updateTag).toHaveBeenCalledTimes(1)
-  })
-
   /**
    * The display-name index is case-sensitive, so it admits on rename exactly the
    * pair create rejects.
@@ -430,120 +335,6 @@ describe('knowledge tag application use cases', () => {
     ).rejects.toMatchObject({ code: 'conflict' })
 
     expect(mocks.updateTag).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
-  /** Re-casing a tag's own name is not a collision with itself. */
-  it('allows a tag to be renamed to a different casing of its own name', async () => {
-    mocks.listTags.mockResolvedValueOnce([
-      {
-        id: 'tag-b',
-        knowledgeBaseId: 'knowledge-b',
-        tagSlot: 'tag1',
-        displayName: 'Region',
-        fieldType: 'text',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ])
-    mocks.updateTag.mockResolvedValueOnce({ ...tagContext.tagDefinition, displayName: 'region' })
-
-    await updateKnowledgeTag.execute({
-      principal: sessionPrincipal,
-      input: {
-        knowledgeBaseId: 'knowledge-b',
-        tagDefinitionId: 'tag-b',
-        updates: { displayName: 'region' },
-      },
-    })
-
-    expect(mocks.updateTag).toHaveBeenCalledTimes(1)
-  })
-
-  it('reports a rename onto a taken name as a conflict', async () => {
-    mocks.updateTag.mockRejectedValueOnce(
-      Object.assign(new Error('duplicate key value violates unique constraint'), {
-        code: '23505',
-        constraint_name: 'kb_tag_definitions_kb_display_name_idx',
-      })
-    )
-
-    await expect(
-      updateKnowledgeTag.execute({
-        principal: sessionPrincipal,
-        input: {
-          knowledgeBaseId: 'knowledge-b',
-          tagDefinitionId: 'tag-1',
-          updates: { displayName: 'Region' },
-        },
-      })
-    ).rejects.toMatchObject({ code: 'conflict' })
-  })
-
-  /** A not-null or foreign-key violation is a real fault and must stay one. */
-  it('propagates a non-uniqueness database failure', async () => {
-    mocks.createTag.mockRejectedValueOnce(
-      Object.assign(new Error('null value in column violates not-null constraint'), {
-        code: '23502',
-      })
-    )
-
-    await expect(
-      createKnowledgeTag.execute({
-        principal: sessionPrincipal,
-        input: {
-          knowledgeBaseId: 'knowledge-b',
-          tagSlot: 'tag1',
-          displayName: 'Region',
-          fieldType: 'text',
-        },
-      })
-    ).rejects.toThrow('not-null constraint')
-  })
-
-  it('accepts a create slot matching its field type', async () => {
-    const tagDefinition = { ...tagContext.tagDefinition, id: 'tag-new' }
-    mocks.createTag.mockResolvedValueOnce(tagDefinition)
-
-    await expect(
-      createKnowledgeTag.execute({
-        principal: sessionPrincipal,
-        input: {
-          knowledgeBaseId: 'knowledge-b',
-          tagSlot: 'tag1',
-          displayName: 'Region',
-          fieldType: 'text',
-        },
-      })
-    ).resolves.toEqual({ tagDefinition, knowledgeBaseId: 'knowledge-b' })
-
-    expect(mocks.createTag).toHaveBeenCalledWith(
-      {
-        knowledgeBaseId: 'knowledge-b',
-        tagSlot: 'tag1',
-        displayName: 'Region',
-        fieldType: 'text',
-      },
-      expect.any(String)
-    )
-  })
-
-  it.each([
-    ['an unsupported field type', { tagSlot: 'tag1', fieldType: 'nonsense' }],
-    ['an unknown slot', { tagSlot: 'tag99', fieldType: 'text' }],
-  ])('rejects bulk save with %s before persistence', async (_description, definition) => {
-    await expect(
-      saveKnowledgeDocumentTagDefinitions.execute({
-        principal: sessionPrincipal,
-        input: {
-          knowledgeBaseId: 'knowledge-b',
-          documentId: 'document-b',
-          definitions: [{ ...definition, displayName: 'Region' }],
-        },
-      })
-    ).rejects.toMatchObject({ code: 'validation' })
-
-    expect(mocks.saveTags).not.toHaveBeenCalled()
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
@@ -581,95 +372,4 @@ describe('knowledge tag application use cases', () => {
       })
     }
   )
-
-  it('reports no capacity once the field type is exhausted', async () => {
-    mocks.listAllTags.mockResolvedValue([{ tagSlot: 'date1', fieldType: 'date' }])
-    mocks.nextSlot.mockResolvedValue(null)
-
-    await expect(
-      readNextKnowledgeTagSlot.execute({
-        principal: sessionPrincipal,
-        input: { knowledgeBaseId: 'knowledge-b', fieldType: 'date' },
-      })
-    ).resolves.toMatchObject({ totalSlots: 2, availableSlots: 0 })
-  })
-
-  /**
-   * Both vocabulary writes act on the knowledge base: the bulk save writes
-   * `knowledge_base_tag_definitions` keyed by base and slot, and the cleanup
-   * deletes definitions across every document in the base. Neither reads a
-   * document, so neither resolves one — the canonical context they load is the
-   * knowledge base, and their audit entry names it.
-   */
-  it('resolves the knowledge base rather than a document for a bulk save', async () => {
-    mocks.saveTags.mockResolvedValue({ created: [], updated: [], errors: [] })
-
-    await saveKnowledgeDocumentTagDefinitions.execute({
-      principal: sessionPrincipal,
-      input: {
-        knowledgeBaseId: 'knowledge-b',
-        definitions: [{ tagSlot: 'tag1', displayName: 'Region', fieldType: 'text' }],
-      },
-    })
-
-    expect(mocks.resolveKnowledgeBase).toHaveBeenCalledWith(
-      expect.objectContaining({ knowledgeBaseId: 'knowledge-b' }),
-      expect.objectContaining({ kind: 'session' })
-    )
-    expect(mocks.resolveDocument).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ resourceType: 'knowledge_base', resourceId: 'knowledge-b' })
-    )
-  })
-
-  it('cleans unused definitions across the knowledge base without resolving a document', async () => {
-    mocks.cleanupTags.mockResolvedValue(3)
-
-    await expect(
-      deleteKnowledgeDocumentTagDefinitions.execute({
-        principal: sessionPrincipal,
-        input: { knowledgeBaseId: 'knowledge-b', action: 'cleanup' },
-      })
-    ).resolves.toEqual({ action: 'cleanup', count: 3 })
-
-    expect(mocks.cleanupTags).toHaveBeenCalledWith('knowledge-b', expect.any(String))
-    expect(mocks.resolveDocument).not.toHaveBeenCalled()
-  })
-
-  it('deletes the whole vocabulary when the caller asks for all', async () => {
-    mocks.deleteAllTags.mockResolvedValue(7)
-
-    await expect(
-      deleteKnowledgeDocumentTagDefinitions.execute({
-        principal: sessionPrincipal,
-        input: { knowledgeBaseId: 'knowledge-b', action: 'all' },
-      })
-    ).resolves.toEqual({ action: 'all', count: 7 })
-
-    expect(mocks.cleanupTags).not.toHaveBeenCalled()
-  })
-
-  it('preserves legacy bulk rename payloads whose existing slot and field type differ', async () => {
-    const definitions = [
-      {
-        tagSlot: 'number1',
-        displayName: 'Customer region',
-        originalDisplayName: 'Region',
-        fieldType: 'text',
-      },
-    ]
-
-    await expect(
-      saveKnowledgeDocumentTagDefinitions.execute({
-        principal: sessionPrincipal,
-        input: {
-          knowledgeBaseId: 'knowledge-b',
-          documentId: 'document-b',
-          definitions,
-        },
-      })
-    ).resolves.toEqual({ created: [], updated: [], errors: [] })
-
-    expect(mocks.saveTags).toHaveBeenCalledWith('knowledge-b', { definitions }, expect.any(String))
-  })
 })

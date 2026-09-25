@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -51,7 +48,6 @@ const falInput = {
 
 describe('image operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mocks.fetch)
     mocks.interruptibleSleep.mockResolvedValue(undefined)
     mocks.uploadCopilotFile.mockResolvedValue({ url: 'https://sim.test/generated.png' })

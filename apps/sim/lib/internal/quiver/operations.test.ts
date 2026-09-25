@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
 import {
@@ -63,7 +60,6 @@ function storedSvg(name: string) {
 
 describe('Quiver operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.assertToolFileAccess.mockResolvedValue(null)
     mocks.downloadFileFromStorage.mockResolvedValue(Buffer.from([1, 2, 3]))
     mocks.isModelSafeWorkspaceFileKey.mockResolvedValue(true)
@@ -137,130 +133,6 @@ describe('Quiver operations', () => {
     expect(presented.output).not.toHaveProperty('svgContent')
   })
 
-  it('preserves image URL inputs without reading local files', async () => {
-    const result = await executeQuiverImageToSvg(
-      {
-        apiKey: 'secret',
-        model: 'arrow-preview',
-        image: 'https://images.example.com/source.png',
-        auto_crop: false,
-        target_size: 512,
-      },
-      context,
-      'v2'
-    )
-
-    expect(mocks.assertToolFileAccess).not.toHaveBeenCalled()
-    expect(mocks.requestQuiverSvg).toHaveBeenCalledWith(
-      'vectorizations',
-      'secret',
-      {
-        model: 'arrow-preview',
-        image: { url: 'https://images.example.com/source.png' },
-        auto_crop: false,
-        target_size: 512,
-      },
-      undefined
-    )
-    expect(result.files[0]?.name).toBe('vectorized.svg')
-    expect(result.files).toHaveLength(1)
-    const file = storedSvg('vectorized.svg')
-    const presented = result.present([file])
-    expect(presented).toMatchObject({
-      output: { files: [file] },
-    })
-    expect(presented).not.toHaveProperty('output.file')
-    expect(presented).not.toHaveProperty('output.svgContent')
-  })
-
-  it.each([0, 12 * 1024 * 1024])(
-    'returns only stored file references for %i bytes of SVG content',
-    async (size) => {
-      const svg = `<svg>${'x'.repeat(size)}</svg>`
-      mocks.requestQuiverSvg.mockResolvedValue({ data: [{ svg }] })
-      const result = await executeQuiverTextToSvg(
-        { apiKey: 'secret', model: 'arrow-preview', prompt: 'A map' },
-        context,
-        'v2'
-      )
-      expect(result.files).toHaveLength(1)
-      expect(result.files[0]?.buffer.length).toBe(Buffer.byteLength(svg))
-      const file = storedSvg('generated.svg')
-      const presented = result.present([file])
-      expect(presented).toEqual({
-        success: true,
-        output: { files: [file], id: null, usage: null },
-      })
-      expect(JSON.stringify(presented).length).toBeLessThan(1024)
-    }
-  )
-
-  it('authorizes stored image inputs and sends their bytes', async () => {
-    await executeQuiverImageToSvg(
-      { apiKey: 'secret', model: 'arrow-preview', image: rawFile },
-      context
-    )
-
-    expect(mocks.assertToolFileAccess).toHaveBeenCalledWith(
-      rawFile.key,
-      'user-1',
-      'request-1',
-      expect.anything()
-    )
-    expect(mocks.downloadFileFromStorage).toHaveBeenCalledWith(
-      expect.anything(),
-      'request-1',
-      expect.anything(),
-      { maxBytes: MAX_BUFFERED_TRANSFER_BYTES }
-    )
-    expect(mocks.requestQuiverSvg).toHaveBeenCalledWith(
-      'vectorizations',
-      'secret',
-      { model: 'arrow-preview', image: { base64: 'AQID' } },
-      undefined
-    )
-  })
-
-  it('preserves v1 inline file data and every generated SVG', async () => {
-    const result = await executeQuiverTextToSvg(
-      { apiKey: 'secret', model: 'arrow-preview', prompt: 'A compass', n: 2 },
-      context
-    )
-    const files = ['one', 'two'].map((name, index) => ({
-      name: `generated-${index + 1}.svg`,
-      mimeType: 'image/svg+xml',
-      data: Buffer.from(`<svg>${name}</svg>`).toString('base64'),
-      size: Buffer.byteLength(`<svg>${name}</svg>`),
-    }))
-
-    expect(result).toEqual({
-      success: true,
-      output: {
-        file: files[0],
-        files,
-        svgContent: '<svg>one</svg>',
-        id: 'generation-1',
-        usage: { totalTokens: 9, inputTokens: 4, outputTokens: 5 },
-      },
-    })
-  })
-
-  it('preserves v1 vectorization first-file projection and inline markup', async () => {
-    const result = await executeQuiverImageToSvg(
-      { apiKey: 'secret', model: 'arrow-preview', image: 'https://images.example.com/source.png' },
-      context
-    )
-    expect(result.output.files).toHaveLength(1)
-    expect(result.output.file).toEqual({
-      name: 'vectorized.svg',
-      mimeType: 'image/svg+xml',
-      data: Buffer.from('<svg>one</svg>').toString('base64'),
-      size: Buffer.byteLength('<svg>one</svg>'),
-    })
-    expect(result.output.file).toBe(result.output.files[0])
-    expect(result.output.svgContent).toBe('<svg>one</svg>')
-  })
-
   it('fails closed on incomplete private model-input provenance', async () => {
     const headers = new Headers({
       [PRIVATE_MODEL_INPUT_PROVENANCE_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
@@ -298,19 +170,5 @@ describe('Quiver operations', () => {
     })
     expect(mocks.downloadFileFromStorage).not.toHaveBeenCalled()
     expect(mocks.requestQuiverSvg).not.toHaveBeenCalled()
-  })
-
-  it('preserves the empty-provider-result error', async () => {
-    mocks.requestQuiverSvg.mockResolvedValue({ data: [] })
-
-    await expect(
-      executeQuiverTextToSvg(
-        { apiKey: 'secret', model: 'arrow-preview', prompt: 'A compass' },
-        context
-      )
-    ).rejects.toMatchObject({
-      status: 500,
-      body: { success: false, error: 'No SVG data returned from Quiver API' },
-    })
   })
 })

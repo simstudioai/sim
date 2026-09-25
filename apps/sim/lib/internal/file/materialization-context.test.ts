@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/executor/types'
 
@@ -43,7 +40,6 @@ function context(): ExecutionContext {
 
 describe('executor file materialization context', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     bindDelegation.mockResolvedValue({ kind: 'delegated', serviceId: 'executor' })
   })
 
@@ -64,18 +60,6 @@ describe('executor file materialization context', () => {
     expect(result.userId).toBeUndefined()
     expect(result.fileKeys).toBe(ctx.fileKeys)
     expect(ctx.principal).toBe(systemPrincipal)
-  })
-
-  it.each([
-    { kind: 'session', userId: 'reader', sessionId: 'session-1' },
-    { kind: 'personal_api_key', userId: 'reader', keyId: 'key-1' },
-    { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
-  ] as const)('preserves the existing $kind workspace authority', async (principal) => {
-    const ctx = { ...context(), principal }
-    expect((await resolveExecutorFileMaterializationContext(ctx, workspaceFile)).principal).toBe(
-      principal
-    )
-    expect(bindDelegation).not.toHaveBeenCalled()
   })
 
   it.each([

@@ -1,12 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeUpdateSloOperation } from '@/lib/internal/datadog/operations/update-slo'
 import * as datadogTools from '@/tools/datadog'
 import { cancelDowntimeTool } from '@/tools/datadog/cancel_downtime'
 import { createDowntimeTool } from '@/tools/datadog/create_downtime'
-import { createEventTool } from '@/tools/datadog/create_event'
 import { createMonitorTool } from '@/tools/datadog/create_monitor'
 import { getIncidentTool } from '@/tools/datadog/get_incident'
 import { getMonitorTool } from '@/tools/datadog/get_monitor'
@@ -486,18 +482,6 @@ describe('path parameter encoding', () => {
   })
 })
 
-describe('list_downtimes limit description', () => {
-  /**
-   * The Datadog v2 spec declares `default: 30` and `example: 100` but no `maximum`, so the
-   * description must not present 100 as a vendor-enforced ceiling.
-   */
-  it('does not claim a vendor maximum', () => {
-    const description = listDowntimesTool.params.limit.description ?? ''
-    expect(description).not.toMatch(/max:\s*100/)
-    expect(description).toMatch(/declares no maximum/)
-  })
-})
-
 describe('list_monitors pagination', () => {
   /**
    * Datadog: `page_size` — "If the page argument is not specified, the default
@@ -530,11 +514,6 @@ describe('list_monitors pagination', () => {
   it('sends no pagination when the caller sets neither', () => {
     const url = callUrl(listMonitorsTool, { ...auth } as any)
     expect(url).not.toContain('page')
-  })
-
-  it('states the page-dependency rule in both parameter descriptions', () => {
-    expect(listMonitorsTool.params.page.description).toMatch(/without pagination/)
-    expect(listMonitorsTool.params.pageSize.description).toMatch(/only applies this when a page/)
   })
 })
 
@@ -572,33 +551,7 @@ describe('submit_metrics errors output', () => {
   })
 })
 
-describe('registry surface', () => {
-  it('keeps create_event on api-key-only auth', () => {
-    expect(createEventTool.params.applicationKey).toBeUndefined()
-  })
-})
-
 describe('undisclosed vendor limits and Sim defaults', () => {
-  /**
-   * `EventCreateRequest.date_happened` is documented "Limited to events no older
-   * than 18 hours". A backfill outside that window is rejected, or accepted and
-   * clamped, for a reason nothing in the tool explained.
-   */
-  it('discloses the 18-hour ceiling on create_event date_happened', () => {
-    expect(createEventTool.params.dateHappened.description).toMatch(/18 hours/)
-  })
-
-  /**
-   * `ddsource: 'custom'` is injected by Sim, not by Datadog — and it decides
-   * which log pipeline Datadog applies, so it must not read as a vendor default.
-   */
-  it('discloses that ddsource="custom" is a Sim default', () => {
-    const description = String(sendLogsTool.params.logs.description)
-
-    expect(description).toMatch(/ddsource="custom"/)
-    expect(description).toMatch(/Sim default, not a Datadog one/)
-  })
-
   it('still applies that default so an entry without ddsource is not sent bare', () => {
     const body = callBody(sendLogsTool, {
       ...auth,

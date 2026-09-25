@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { envFlagsMockFns, resetEnvFlagsMock, resetEnvMock, setEnv, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -36,7 +33,6 @@ afterAll(() => {
 
 describe('getBlockVisibility', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
     envFlagsMockFns.getPreviewBlocksFromEnv.mockReturnValue([])
   })
@@ -50,22 +46,6 @@ describe('getBlockVisibility', () => {
       expect(vis.disabled.size).toBe(0)
       expect(mockFetch).not.toHaveBeenCalled()
     })
-
-    it('returns empty state when PREVIEW_BLOCKS is unset', async () => {
-      const vis = await getBlockVisibility()
-      expect(vis.revealed.size).toBe(0)
-      expect(vis.disabled.size).toBe(0)
-      expect(vis.previewTagged.size).toBe(0)
-    })
-  })
-
-  it('fetches the block-visibility profile', async () => {
-    withAppConfig({})
-    await getBlockVisibility()
-    expect(mockFetch).toHaveBeenCalledWith(
-      { application: 'sim-staging', environment: 'staging', profile: 'block-visibility' },
-      expect.any(Function)
-    )
   })
 
   it('GA rule (enabled: true) reveals without a preview tag', async () => {

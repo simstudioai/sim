@@ -35,7 +35,6 @@ vi.mock('@/lib/core/config/env', () => ({
 
 describe('getMothershipBaseURL', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     clearSuperUserGate()
     envMock.COPILOT_SOURCE_ENV = undefined

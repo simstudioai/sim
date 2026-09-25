@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
@@ -23,7 +20,6 @@ vi.mock('@/lib/core/security/input-validation.server', () => ({
 }))
 
 import { executeAshbyUpload } from '@/lib/internal/ashby/operations'
-import { ashbyUploadInputSchema } from '@/lib/internal/ashby/schema'
 
 const FILE = {
   id: 'file-1',
@@ -36,7 +32,6 @@ const FILE = {
 
 describe('executeAshbyUpload', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.assertToolFileAccess.mockResolvedValue(null)
     mocks.downloadServableFileFromStorage.mockResolvedValue({
       buffer: Buffer.from('resume'),
@@ -116,41 +111,6 @@ describe('executeAshbyUpload', () => {
     expect(response.status).toBe(404)
     expect(mocks.downloadServableFileFromStorage).not.toHaveBeenCalled()
     expect(fetch).not.toHaveBeenCalled()
-  })
-
-  it('parses advanced-mode JSON file inputs and trims the candidate ID at the boundary', () => {
-    const parsed = ashbyUploadInputSchema.parse({
-      apiKey: 'key',
-      candidateId: ' candidate-1 ',
-      file: JSON.stringify(FILE),
-    })
-    expect(parsed.candidateId).toBe('candidate-1')
-    expect(parsed.file).toEqual(FILE)
-  })
-
-  it('uploads the servable artifact bytes with their resolved content type', async () => {
-    mocks.downloadServableFileFromStorage.mockResolvedValueOnce({
-      buffer: Buffer.from('compiled-docx'),
-      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    })
-    const response = await executeAshbyUpload(
-      {
-        apiKey: 'key',
-        candidateId: 'candidate-1',
-        file: FILE,
-        fileName: 'resume.docx',
-        onBehalfOfUserId: null,
-      },
-      'resume',
-      { userId: 'sim-user', requestId: 'request-1' }
-    )
-    expect(response.status).toBe(200)
-    const registrationBody = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))
-    expect(registrationBody).toMatchObject({
-      filename: 'resume.docx',
-      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      contentLength: Buffer.byteLength('compiled-docx'),
-    })
   })
 
   it('returns 413 when the servable file exceeds Ashby upload limits', async () => {

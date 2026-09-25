@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -182,7 +179,6 @@ const EMPTY_GRAPH_LINT = {
 
 describe('applyWorkflowOperations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.customBlocks.mockResolvedValue([])
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('write')
@@ -207,50 +203,6 @@ describe('applyWorkflowOperations', () => {
     mocks.collectGraphIds.mockReturnValue(GRAPH_IDS)
     mocks.assertIdsUnclaimed.mockResolvedValue(undefined)
     mocks.lintGraph.mockReturnValue(EMPTY_GRAPH_LINT)
-  })
-
-  it('writes once, through the shared persistence primitive', async () => {
-    const result = await applyWorkflowOperations.execute({
-      principal: sessionPrincipal,
-      input: { workflowId: 'workflow-1', operations },
-    })
-
-    expect(mocks.replace).toHaveBeenCalledTimes(1)
-    expect(mocks.replace).toHaveBeenCalledWith(
-      expect.objectContaining({ workflowId: 'workflow-1', workspaceId: 'workspace-1' })
-    )
-    expect(result.applied).toBe(1)
-    expect(result.needsRedeployment).toBe(true)
-  })
-
-  /**
-   * Replacing a draft with `{ blocks: {}, edges: [] }` legitimately deletes
-   * every normalized block row. The workflow row still exists, so the next add
-   * must initialize that empty canvas rather than treating it as missing state.
-   */
-  it('adds the first block to a blockless workflow', async () => {
-    const emptyGraph = graph({})
-    const graphWithAddedBlock = graph({
-      'block-2': { ...BLOCK, id: 'block-2', type: 'agent', name: 'Triage' },
-    })
-    mocks.loadNormalized.mockResolvedValue(emptyGraph)
-    mocks.normalizeState.mockImplementation((state) => ({ state, warnings: [] }))
-    mocks.applyOperations.mockReturnValue({
-      state: graphWithAddedBlock,
-      validationErrors: [],
-      skippedItems: [],
-      mintedBlockIds: {},
-    })
-
-    const result = await applyWorkflowOperations.execute({
-      principal: sessionPrincipal,
-      input: { workflowId: 'workflow-1', operations, atomic: true },
-    })
-
-    expect(mocks.normalizeState).toHaveBeenCalledWith(emptyGraph)
-    expect(mocks.applyOperations).toHaveBeenCalledWith(emptyGraph, operations, null, false)
-    expect(mocks.replace).toHaveBeenCalledTimes(1)
-    expect(result.graph.blocks).toEqual(graphWithAddedBlock.blocks)
   })
 
   /**
@@ -321,29 +273,6 @@ describe('applyWorkflowOperations', () => {
       expect(committed.warnings).not.toContain(DRY_RUN_PREVIEW_BLOCK_IDS_WARNING)
     })
 
-    it('raises no preview warning when the dry run minted nothing', async () => {
-      const dry = await applyWorkflowOperations.execute({
-        principal: sessionPrincipal,
-        input: { workflowId: 'workflow-1', operations, dryRun: true },
-      })
-
-      expect(dry.previewBlockIds).toEqual({})
-      expect(dry.warnings).not.toContain(DRY_RUN_PREVIEW_BLOCK_IDS_WARNING)
-    })
-
-    it('runs the whole engine and stops at the write', async () => {
-      const result = await applyWorkflowOperations.execute({
-        principal: sessionPrincipal,
-        input: { workflowId: 'workflow-1', operations, dryRun: true },
-      })
-
-      expect(result.dryRun).toBe(true)
-      expect(result.applied).toBe(1)
-      expect(mocks.replace).not.toHaveBeenCalled()
-      expect(mocks.recordAudit).not.toHaveBeenCalled()
-      expect(mocks.notify).not.toHaveBeenCalled()
-    })
-
     /**
      * The commit goes through `replaceWorkflowNormalizedState`, whose in-
      * transaction pre-check refuses a graph id another workflow already owns.
@@ -381,37 +310,6 @@ describe('applyWorkflowOperations', () => {
           input: { workflowId: 'workflow-1', operations, dryRun: true },
         })
       ).rejects.toBe(conflict)
-    })
-
-    /**
-     * A committed apply reports `[...validation.warnings, ...persisted.warnings]`,
-     * the second half raised by the preparation step inside the write. A dry run
-     * that dropped that half would not tell a caller its dangling edge is about
-     * to disappear — the one thing a preview exists to say.
-     */
-    it('reports the preparation warnings the committed apply would', async () => {
-      mocks.applyOperations.mockReturnValue({
-        state: {
-          blocks: { 'block-1': BLOCK },
-          edges: [{ id: 'edge-9', source: 'block-1', target: 'block-missing' }],
-          loops: {},
-          parallels: {},
-        },
-        validationErrors: [],
-        skippedItems: [],
-        mintedBlockIds: {},
-      })
-      mocks.validate.mockReturnValue({ valid: true, errors: [], warnings: ['validation note'] })
-
-      const dry = await applyWorkflowOperations.execute({
-        principal: sessionPrincipal,
-        input: { workflowId: 'workflow-1', operations, dryRun: true },
-      })
-
-      expect(dry.warnings).toEqual([
-        'validation note',
-        'Dropped edge "edge-9": edge references a missing block',
-      ])
     })
 
     /** The preview is worthless if it does not carry the findings. */

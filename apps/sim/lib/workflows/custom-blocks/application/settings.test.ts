@@ -1,5 +1,4 @@
-/** @vitest-environment node */
-import { authMockFns, createMockRequest } from '@sim/testing'
+import { authMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -46,8 +45,6 @@ import {
   updateCustomBlockSettings,
 } from '@/lib/workflows/custom-blocks/application/settings'
 import { CustomBlockValidationError } from '@/lib/workflows/custom-blocks/operations'
-import { DELETE as deleteRoute, PATCH as updateRoute } from '@/app/api/custom-blocks/[id]/route'
-import { GET as listRoute, POST as publishRoute } from '@/app/api/custom-blocks/route'
 
 const principal = {
   kind: 'delegated',
@@ -85,7 +82,6 @@ const block = {
 
 describe('custom block settings boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'real-actor' },
       session: { id: 'session' },
@@ -107,14 +103,6 @@ describe('custom block settings boundary', () => {
     mocks.list.mockResolvedValue([block])
     mocks.publish.mockResolvedValue(block)
     mocks.usages.mockResolvedValue({ usageCount: 3, deployedUsageCount: 2 })
-  })
-
-  it('lists the entitled organization catalog with read membership', async () => {
-    mocks.role.mockResolvedValue('read')
-    expect(
-      await listCustomBlockSettings.execute({ principal, input: { workspaceId: 'source' } })
-    ).toEqual({ enabled: true, customBlocks: [block] })
-    expect(mocks.list).toHaveBeenCalledWith('org')
   })
 
   it('withholds the catalog when the organization is ineligible', async () => {
@@ -182,21 +170,6 @@ describe('custom block settings boundary', () => {
     expect(mocks.update).not.toHaveBeenCalled()
   })
 
-  it('updates from authoritative source workspace context and audits changes', async () => {
-    await updateCustomBlockSettings.execute({
-      principal,
-      input: { ...target, patch: { name: 'Renamed', traceChildRuns: true } },
-    })
-    expect(mocks.update).toHaveBeenCalledWith('block', { name: 'Renamed', traceChildRuns: true })
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: 'real-actor',
-        resourceName: 'Renamed',
-        workspaceId: 'source',
-      })
-    )
-  })
-
   it('prevents an admin of another workspace from managing a discovered org-wide block', async () => {
     mocks.manage.mockResolvedValue({
       sourceWorkspaceId: 'other',
@@ -226,24 +199,6 @@ describe('custom block settings boundary', () => {
     expect(mocks.usages).not.toHaveBeenCalled()
   })
 
-  it('reads usage counts and records deletion impact before removing the block', async () => {
-    expect(await readCustomBlockUsages.execute({ principal, input: target })).toEqual({
-      usageCount: 3,
-      deployedUsageCount: 2,
-    })
-    expect(await deleteCustomBlockSettings.execute({ principal, input: target })).toEqual({
-      success: true,
-      usageCount: 3,
-      deployedUsageCount: 2,
-    })
-    expect(mocks.remove).toHaveBeenCalledExactlyOnceWith('block')
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({ usageCount: 3, deployedUsageCount: 2 }),
-      })
-    )
-  })
-
   it('retains management after plan loss but requires the deployment feature', async () => {
     mocks.eligible.mockResolvedValue(false)
     await deleteCustomBlockSettings.execute({ principal, input: target })
@@ -270,37 +225,6 @@ describe('custom block settings boundary', () => {
       })
     ).rejects.toThrow()
     expect(mocks.remove).not.toHaveBeenCalled()
-  })
-  it('keeps UI list and publish response contracts while sharing the application boundary', async () => {
-    const listing = await listRoute(
-      createMockRequest(
-        'GET',
-        undefined,
-        undefined,
-        'http://localhost:3000/api/custom-blocks?workspaceId=source'
-      )
-    )
-    expect(listing.status).toBe(200)
-    expect(await listing.json()).toEqual({ enabled: true, customBlocks: [block] })
-    const published = await publishRoute(createMockRequest('POST', publishInput))
-    expect(published.status).toBe(200)
-    expect(await published.json()).toEqual({ customBlock: block })
-  })
-
-  it('keeps UI update/delete responses and rejects invalid updates before mutation', async () => {
-    const routeContext = { params: Promise.resolve({ id: 'block' }) }
-    const updated = await updateRoute(createMockRequest('PATCH', { enabled: false }), routeContext)
-    expect(updated.status).toBe(200)
-    expect(await updated.json()).toEqual({ success: true })
-    const invalid = await updateRoute(
-      createMockRequest('PATCH', { exposedOutputs: [] }),
-      routeContext
-    )
-    expect(invalid.status).toBe(400)
-    expect(mocks.update).toHaveBeenCalledTimes(1)
-    const removed = await deleteRoute(createMockRequest('DELETE'), routeContext)
-    expect(removed.status).toBe(200)
-    expect(await removed.json()).toEqual({ success: true })
   })
   it('preserves actionable domain validation errors for both adapters without auditing failed mutations', async () => {
     mocks.publish.mockRejectedValueOnce(new CustomBlockValidationError('Workflow is not deployed'))

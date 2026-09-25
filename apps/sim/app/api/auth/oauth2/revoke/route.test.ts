@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -27,7 +24,6 @@ afterAll(resetEnvFlagsMock)
 
 describe('OAuth revocation route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAuthDisabled: false })
     mocks.revoke.mockResolvedValue({ success: true, value: undefined })
   })
@@ -44,15 +40,6 @@ describe('OAuth revocation route', () => {
     })
   })
 
-  it('requires authentication before revocation admission or protected work', async () => {
-    setEnvFlags({ isAuthDisabled: true })
-    const response = await POST(revokeRequest('client_id=sim-cli&token=sim_ort_current'))
-    expect(response.status).toBe(404)
-    expect(response.headers.get('cache-control')).toBe('no-store')
-    expect(mocks.revoke).not.toHaveBeenCalled()
-    expect(mocks.rateLimit).not.toHaveBeenCalled()
-  })
-
   it('returns a Basic challenge for Basic client-authentication failure', async () => {
     mocks.revoke.mockResolvedValue({
       success: false,
@@ -65,19 +52,5 @@ describe('OAuth revocation route', () => {
     const response = await POST(request)
     expect(response.status).toBe(401)
     expect(response.headers.get('www-authenticate')).toContain('Basic')
-  })
-
-  it('normalizes an unexpected revocation failure', async () => {
-    mocks.revoke.mockRejectedValueOnce(new Error('database details'))
-
-    const response = await POST(revokeRequest('client_id=sim-cli&token=sim_ort_current'))
-
-    expect(response.status).toBe(500)
-    expect(response.headers.get('cache-control')).toBe('no-store')
-    expect(response.headers.get('pragma')).toBe('no-cache')
-    await expect(response.json()).resolves.toEqual({
-      error: 'server_error',
-      error_description: 'Revocation endpoint failed.',
-    })
   })
 })

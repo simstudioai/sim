@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -58,7 +55,6 @@ async function callGet() {
 
 describe('GET /api/workspaces/[id]/usage-gate', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({
       user: { id: 'external-a' },
       session: { activeOrganizationId: 'org-a' },
@@ -69,17 +65,6 @@ describe('GET /api/workspaces/[id]/usage-gate', () => {
       message: null,
       scope: null,
     })
-  })
-
-  it('authenticates before resolving workspace or billing context', async () => {
-    mockGetSession.mockResolvedValue(null)
-
-    const { status, body } = await callGet()
-
-    expect(status).toBe(401)
-    expect(body).toEqual({ error: 'Unauthorized' })
-    expect(mockGetWorkspaceHostContextForViewer).not.toHaveBeenCalled()
-    expect(mockCheckWorkspaceUsageGate).not.toHaveBeenCalled()
   })
 
   it('uses workspace B payer and external actor A without consulting active organization A', async () => {

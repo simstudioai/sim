@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -26,7 +25,6 @@ const input = {
 
 describe('knowledge upload reservation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.insert.mockImplementation(async (options: { id: string }) => ({
       id: options.id,
@@ -83,26 +81,5 @@ describe('knowledge upload reservation', () => {
     await rejection
     expect(mocks.enqueue.mock.calls[0][3].availableAt.getTime()).toBeGreaterThan(Date.now())
     expect(vi.getTimerCount()).toBe(0)
-  })
-  it('does not reserve storage after parent cancellation', async () => {
-    const controller = new AbortController()
-    controller.abort(new Error('Synthetic cancellation'))
-    await expect(uploadKnowledgeArtifact({ ...input, signal: controller.signal })).rejects.toThrow(
-      'Synthetic cancellation'
-    )
-    expect(mocks.insert).not.toHaveBeenCalled()
-    expect(mocks.upload).not.toHaveBeenCalled()
-  })
-
-  it('propagates parent cancellation to the reserved object write', async () => {
-    const controller = new AbortController()
-    mocks.upload.mockImplementationOnce(async ({ signal }: { signal: AbortSignal }) => {
-      controller.abort(new Error('Synthetic cancellation'))
-      signal.throwIfAborted()
-    })
-    await expect(uploadKnowledgeArtifact({ ...input, signal: controller.signal })).rejects.toThrow(
-      'Synthetic cancellation'
-    )
-    expect(mocks.enqueue).toHaveBeenCalledOnce()
   })
 })

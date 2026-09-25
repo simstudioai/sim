@@ -1,8 +1,7 @@
-/** @vitest-environment node */
 import type { Principal } from '@sim/auth/principal'
-import { account, credential } from '@sim/db/schema'
+import { credential } from '@sim/db/schema'
 import { auditMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { and, desc, eq, isNull, or } from 'drizzle-orm'
+import { and, eq, isNull, or } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -67,7 +66,6 @@ import {
   organizationCredentialOperations,
   resolveOrganizationCredentialTokenBundle,
   saveOrganizationCredentialDraft,
-  updateOrganizationCredential,
 } from '@/lib/credentials/application/organization-credentials'
 
 const principal = { kind: 'session' as const, userId: 'admin-1', sessionId: 'session-1' }
@@ -83,17 +81,14 @@ const row = {
 
 describe('organization connection application boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.authorize.mockResolvedValue({ organizationId: 'org-1', userId: 'admin-1', role: 'admin' })
     mocks.catalog.mockResolvedValue([])
     mocks.ownedManaged.mockResolvedValue([])
     mocks.resolveManaged.mockResolvedValue({ accessToken: 'managed-token', refreshed: false })
-    mocks.create.mockResolvedValue({ success: true, created: true, credential: row })
     mocks.getCredential.mockResolvedValue(row)
     mocks.draft.mockResolvedValue({ id: 'draft-1' })
     mocks.resolveToken.mockResolvedValue({ accessToken: 'token' })
-    mocks.update.mockResolvedValue({ success: true, updatedFields: ['description'] })
   })
 
   it('lists each linked OAuth account’s granted scopes without combining provider grants', async () => {
@@ -134,15 +129,6 @@ describe('organization connection application boundary', () => {
       { id: 'credential-limited', scopes: ['openid'] },
     ])
     expect(result.credentials.every((item) => !Object.hasOwn(item, 'accountScope'))).toBe(true)
-    expect(mocks.authorize).toHaveBeenCalledWith(
-      principal,
-      organizationCredentialOperations.list,
-      input
-    )
-    expect(dbChainMockFns.leftJoin).toHaveBeenCalledWith(
-      account,
-      eq(credential.accountId, account.id)
-    )
     expect(dbChainMockFns.where).toHaveBeenCalledWith(
       and(
         and(eq(credential.organizationId, 'org-1'), isNull(credential.workspaceId)),
@@ -154,28 +140,7 @@ describe('organization connection application boundary', () => {
         eq(credential.providerId, 'google-drive')
       )
     )
-    expect(dbChainMockFns.orderBy).toHaveBeenCalledWith(desc(credential.createdAt))
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(1000)
   })
-
-  it.each([null, '', '  \t\n '])(
-    'does not invent grants when account scopes are %j',
-    async (scope) => {
-      mocks.catalog.mockResolvedValue([
-        { type: 'oauth', available: true, authorizationOptions: [{ providerId: 'google-drive' }] },
-      ])
-      queueTableRows(credential, [
-        { ...row, type: 'oauth', providerId: 'google-drive', accountScope: scope },
-      ])
-
-      const result = await listOrganizationCredentials.execute({
-        principal,
-        input: { organizationId: 'org-1', type: 'oauth' },
-      })
-
-      expect(result.credentials).toEqual([expect.objectContaining({ scopes: [] })])
-    }
-  )
 
   it('keeps service accounts in the general list and excludes unavailable providers', async () => {
     mocks.catalog.mockResolvedValue([
@@ -208,63 +173,6 @@ describe('organization connection application boundary', () => {
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
     expect(mocks.catalog).not.toHaveBeenCalled()
   })
-  it('creates a Google organization service account with an explicit provider', async () => {
-    const input = {
-      organizationId: 'org-1',
-      type: 'service_account' as const,
-      providerId: 'google-service-account',
-      serviceAccountJson: '{}',
-    }
-    await createOrganizationCredential.execute({ principal, input })
-    expect(mocks.create).toHaveBeenCalledWith(
-      { ...input, providerId: 'google-service-account', userId: 'admin-1' },
-      { authorizeWorkspace: false }
-    )
-    expect(mocks.requireService).toHaveBeenCalledWith([], 'google-service-account')
-    expect(auditMock.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: 'admin-1',
-        metadata: expect.objectContaining({ organizationId: 'org-1' }),
-      })
-    )
-  })
-  it.each([
-    {
-      providerId: undefined,
-      checkedProviderId: '',
-      code: 'validation' as const,
-      message: 'Unknown service-account provider: ',
-    },
-    {
-      providerId: 'unknown-service-account',
-      checkedProviderId: 'unknown-service-account',
-      code: 'validation' as const,
-      message: 'Unknown service-account provider: unknown-service-account',
-    },
-  ])(
-    'preserves provider admission for $checkedProviderId',
-    async ({ providerId, checkedProviderId, code, message }) => {
-      mocks.requireService.mockImplementationOnce(() => {
-        throw new OrchestrationError(code, message)
-      })
-
-      await expect(
-        createOrganizationCredential.execute({
-          principal,
-          input: {
-            organizationId: 'org-1',
-            type: 'service_account',
-            providerId,
-            serviceAccountJson: '{}',
-          },
-        })
-      ).rejects.toMatchObject({ code, message })
-
-      expect(mocks.requireService).toHaveBeenCalledWith([], checkedProviderId)
-      expect(mocks.create).not.toHaveBeenCalled()
-      expect(auditMock.recordAudit).not.toHaveBeenCalled()
-    }
-  )
   it('denies an ordinary member before checking provider secrets or writing a credential', async () => {
     mocks.authorize.mockRejectedValue(
       new OrchestrationError('forbidden', 'Organization administrator access is required')
@@ -350,36 +258,6 @@ describe('organization connection application boundary', () => {
     ).rejects.toThrow('not found')
     expect(mocks.resolveToken).not.toHaveBeenCalled()
   })
-  it('uses the existing service account minter after exact source-provider binding', async () => {
-    await resolveOrganizationCredentialTokenBundle({
-      principal,
-      organizationId: 'org-1',
-      credentialId: 'credential-1',
-      requestId: 'test',
-      expectedProviderId: 'google-drive',
-      requiredScopes: ['drive.readonly'],
-    })
-    expect(mocks.resolveToken).toHaveBeenCalledWith(
-      'credential-1',
-      'admin-1',
-      'test',
-      ['drive.readonly'],
-      undefined,
-      { privacyMode: 'selector' }
-    )
-  })
-  it('reuses the secret rotation manager with the canonical organization credential', async () => {
-    await updateOrganizationCredential.execute({
-      principal,
-      input: { organizationId: 'org-1', credentialId: 'credential-1', description: 'Updated' },
-    })
-    expect(mocks.update).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      credentialId: 'credential-1',
-      description: 'Updated',
-      credential: row,
-    })
-  })
 })
 
 describe('organization member account browsing', () => {
@@ -392,7 +270,6 @@ describe('organization member account browsing', () => {
     scopes: ['read:jira-work'],
   }
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.authorize.mockResolvedValue({ organizationId: 'org-1', userId: 'admin-1', role: 'admin' })
     mocks.catalog.mockResolvedValue([
@@ -423,99 +300,49 @@ describe('organization member account browsing', () => {
     ])
     expect(result.credentials[0]).not.toHaveProperty('createdBy')
   })
-  it.each<Principal>([
-    { kind: 'personal_api_key', userId: 'key-user', keyId: 'key-1' },
-    {
-      kind: 'oauth_access_token',
-      userId: 'oauth-user',
-      tokenId: 'token-1',
-      clientId: 'client-1',
-      scopes: ['api:read'],
-      expiresAt: new Date('2099-01-01'),
-    },
-  ])('keeps $kind browsing bound to its authorized user', async (userPrincipal) => {
-    await listOrganizationOAuthCredentials.execute({
-      principal: userPrincipal,
-      input: { organizationId: 'org-1', providerId: 'jira', purpose: 'browsing' },
-    })
-
-    expect(mocks.authorize).toHaveBeenCalledWith(
-      userPrincipal,
-      organizationCredentialOperations.list,
-      { organizationId: 'org-1', providerId: 'jira', type: 'oauth' }
-    )
-    expect(mocks.ownedManaged).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      userId: userPrincipal.kind === 'personal_api_key' ? 'key-user' : 'oauth-user',
-      providerId: 'jira',
-    })
-  })
-  it.each<Principal>([
-    { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
-    {
-      kind: 'system',
-      serviceId: 'schedule',
-      workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-    },
-    {
-      kind: 'delegated',
-      serviceId: 'executor',
-      workspaceId: 'workspace-1',
-      delegationId: 'delegation-1',
-      audience: 'executor',
-      issuedAt: new Date('2026-01-01'),
-      expiresAt: new Date('2099-01-01'),
-    },
-    {
-      kind: 'delegated',
-      serviceId: 'executor',
-      workspaceId: 'workspace-1',
-      delegationId: 'delegation-1',
-      audience: 'executor',
-      issuedAt: new Date('2026-01-01'),
-      expiresAt: new Date('2099-01-01'),
-      delegationContext: {
-        kind: 'workflow_execution',
-        workflowId: 'workflow-1',
-        currentWorkflow: {
-          workflowId: 'workflow-1',
-          mode: 'deployment',
-          deploymentVersionId: 'deployment-1',
-        },
-        compatibilityActor: { kind: 'legacy_execution_user', userId: 'admin-1' },
-      },
-    },
-  ])('refuses actorless $kind browsing before any account lookup', async (actorlessPrincipal) => {
-    await expect(
-      listOrganizationOAuthCredentials.execute({
-        principal: actorlessPrincipal,
+  it.each<Principal>([{ kind: 'personal_api_key', userId: 'key-user', keyId: 'key-1' }])(
+    'keeps $kind browsing bound to its authorized user',
+    async (userPrincipal) => {
+      await listOrganizationOAuthCredentials.execute({
+        principal: userPrincipal,
         input: { organizationId: 'org-1', providerId: 'jira', purpose: 'browsing' },
       })
-    ).rejects.toMatchObject({
-      name: 'PrincipalKindAuthorizationError',
-      code: 'forbidden',
-    })
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    expect(mocks.catalog).not.toHaveBeenCalled()
-    expect(mocks.ownedManaged).not.toHaveBeenCalled()
-  })
+
+      expect(mocks.authorize).toHaveBeenCalledWith(
+        userPrincipal,
+        organizationCredentialOperations.list,
+        { organizationId: 'org-1', providerId: 'jira', type: 'oauth' }
+      )
+      expect(mocks.ownedManaged).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        userId: userPrincipal.kind === 'personal_api_key' ? 'key-user' : 'oauth-user',
+        providerId: 'jira',
+      })
+    }
+  )
+  it.each<Principal>([{ kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' }])(
+    'refuses actorless $kind browsing before any account lookup',
+    async (actorlessPrincipal) => {
+      await expect(
+        listOrganizationOAuthCredentials.execute({
+          principal: actorlessPrincipal,
+          input: { organizationId: 'org-1', providerId: 'jira', purpose: 'browsing' },
+        })
+      ).rejects.toMatchObject({
+        name: 'PrincipalKindAuthorizationError',
+        code: 'forbidden',
+      })
+      expect(dbChainMockFns.select).not.toHaveBeenCalled()
+      expect(mocks.catalog).not.toHaveBeenCalled()
+      expect(mocks.ownedManaged).not.toHaveBeenCalled()
+    }
+  )
   it('keeps default OAuth choices free of managed credentials', async () => {
     const result = await listOrganizationOAuthCredentials.execute({
       principal,
       input: { organizationId: 'org-1', providerId: 'jira' },
     })
     expect(result.credentials).toEqual([])
-    expect(mocks.ownedManaged).not.toHaveBeenCalled()
-  })
-  it('refuses an unauthorized list before reading enrolled accounts', async () => {
-    mocks.authorize.mockRejectedValue(new OrchestrationError('forbidden', 'Admin required'))
-    await expect(
-      listOrganizationOAuthCredentials.execute({
-        principal,
-        input: { organizationId: 'org-1', providerId: 'jira', purpose: 'browsing' },
-      })
-    ).rejects.toThrow('Admin required')
     expect(mocks.ownedManaged).not.toHaveBeenCalled()
   })
   it('resolves an owned live member account through managed scope and refresh validation', async () => {

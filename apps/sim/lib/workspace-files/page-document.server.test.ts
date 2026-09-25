@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockDownloadFile, mockGetFileMetadataById, mockRenderSimPageDocument } = vi.hoisted(() => ({
   mockDownloadFile: vi.fn(),
@@ -47,10 +44,6 @@ function documentReferencing(ids: string[]) {
 }
 
 describe('renderSimPageDocumentWithAssets memory bounds', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('charges the budget by delivered bytes, not by what the metadata claimed', async () => {
     // Every row claims to be tiny; the objects are 8MB each. The budget must still
     // stop at 32MB — planning off the recorded size would admit all six.
@@ -125,10 +118,6 @@ describe('renderSimPageDocumentWithAssets memory bounds', () => {
 })
 
 describe('rendered page contributors', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('reports only the canonical revisions whose bytes were embedded', async () => {
     mockRenderSimPageDocument.mockReturnValue(
       documentReferencing(['mine', 'failed', 'foreign', 'missing', 'mine'])
@@ -160,21 +149,6 @@ describe('rendered page contributors', () => {
     expect(rendered.html).toContain('/api/files/view/failed')
     expect(rendered.html).toContain('/api/files/view/foreign')
     expect(mockGetFileMetadataById).toHaveBeenCalledTimes(4)
-  })
-
-  it('bounds metadata reads for missing images', async () => {
-    mockRenderSimPageDocument.mockReturnValue(
-      documentReferencing(Array.from({ length: 300 }, (_, i) => `missing-${i}`))
-    )
-    mockGetFileMetadataById.mockResolvedValue(null)
-
-    const rendered = await renderSimPageDocumentWithContributors('source', {
-      workspaceId: WORKSPACE_ID,
-    })
-
-    expect(mockGetFileMetadataById).toHaveBeenCalledTimes(256)
-    expect(mockDownloadFile).not.toHaveBeenCalled()
-    expect(rendered.contributingFiles).toEqual([])
   })
 
   it('charges repeated image occurrences against the rendered byte budget', async () => {

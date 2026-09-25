@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { replyReviewThreadTool } from '@/tools/github/reply_review_thread'
 import type { ReplyReviewThreadParams } from '@/tools/github/types'

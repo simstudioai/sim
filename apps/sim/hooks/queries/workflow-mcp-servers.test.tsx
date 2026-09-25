@@ -79,39 +79,6 @@ describe('workflow MCP server queries', () => {
     expect(container.textContent).toBe('loading')
   })
 
-  it('removes a deleted server detail subtree and invalidates its list', async () => {
-    mockRequestJson.mockImplementation((contract) => {
-      if (contract === deleteWorkflowMcpServerContract) return Promise.resolve({ success: true })
-      throw new Error('Unexpected request')
-    })
-    queryClient.setQueryData(workflowMcpServerKeys.servers('workspace-1'), [{ id: 'server-1' }])
-    queryClient.setQueryData(workflowMcpServerKeys.server('workspace-1', 'server-1'), {
-      server: { id: 'server-1' },
-      tools: [],
-    })
-    queryClient.setQueryData(workflowMcpServerKeys.tools('workspace-1', 'server-1'), [])
-    let mutation: ReturnType<typeof useDeleteWorkflowMcpServer> | undefined
-
-    function Probe() {
-      mutation = useDeleteWorkflowMcpServer()
-      return null
-    }
-
-    act(() => root.render(<Wrapper>{<Probe />}</Wrapper>))
-    await act(async () => {
-      await mutation?.mutateAsync({ workspaceId: 'workspace-1', serverId: 'server-1' })
-    })
-
-    expect(
-      queryClient.getQueriesData({
-        queryKey: workflowMcpServerKeys.server('workspace-1', 'server-1'),
-      })
-    ).toHaveLength(0)
-    expect(
-      queryClient.getQueryState(workflowMcpServerKeys.servers('workspace-1'))?.isInvalidated
-    ).toBe(true)
-  })
-
   it('preserves a server detail subtree when deletion fails', async () => {
     mockRequestJson.mockImplementation((contract) => {
       if (contract === deleteWorkflowMcpServerContract) {

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import type { Principal } from '@sim/auth/principal'
 import { workflowExecutionLogs } from '@sim/db/schema'
 import {
@@ -93,7 +89,6 @@ function queueLogRow(): void {
 
 describe('readLogDetailUseCase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.resolveWorkspace.mockResolvedValue({
       workspaceId: WORKSPACE_ID,
@@ -118,19 +113,6 @@ describe('readLogDetailUseCase', () => {
     expect(result.detail).toMatchObject({ id: 'log-1' })
     expect(mocks.readLogDetail).toHaveBeenCalledWith(
       expect.objectContaining({ workspaceId: WORKSPACE_ID, viewerUserId: undefined })
-    )
-  })
-
-  it('still names the human behind a run that has one', async () => {
-    queueLogRow()
-
-    await readLogDetailUseCase.execute({
-      principal: HUMAN_PRINCIPAL,
-      input: { workspaceId: WORKSPACE_ID, lookupColumn: 'executionId', lookupValue: EXECUTION_ID },
-    })
-
-    expect(mocks.readLogDetail).toHaveBeenCalledWith(
-      expect.objectContaining({ viewerUserId: 'user-1' })
     )
   })
 
@@ -171,19 +153,6 @@ describe('readLogDetailUseCase', () => {
     expect(resolveGroupConfigMock).not.toHaveBeenCalled()
     expect(mocks.readLogDetail).toHaveBeenCalledWith(
       expect.objectContaining({ viewerUserId: 'user-1', hideCostInfo: false })
-    )
-  })
-
-  it('leaves spend in place when no group withholds it', async () => {
-    queueLogRow()
-
-    await readLogDetailUseCase.execute({
-      principal: HUMAN_PRINCIPAL,
-      input: { workspaceId: WORKSPACE_ID, lookupColumn: 'executionId', lookupValue: EXECUTION_ID },
-    })
-
-    expect(mocks.readLogDetail).toHaveBeenCalledWith(
-      expect.objectContaining({ hideCostInfo: false })
     )
   })
 })

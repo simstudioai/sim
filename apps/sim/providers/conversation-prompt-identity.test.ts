@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it, vi } from 'vitest'
 import type { ConversationProtocol } from '@/lib/memory/conversation-types'
 import type { UserFile } from '@/executor/types'

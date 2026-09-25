@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ResolvedOutboundRoute } from '@/lib/core/network/config.server'
 
@@ -26,7 +25,6 @@ const route = (
 })
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resolveRoute.mockResolvedValue(route())
   createGateway.mockImplementation(() => ({
     close: vi.fn(async () => {}),

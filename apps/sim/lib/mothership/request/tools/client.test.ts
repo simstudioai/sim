@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -100,7 +96,6 @@ function trustedExecution(executionId: string) {
 
 describe('workflow client tool completion', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     decryptSecret.mockImplementation(async (encrypted: string) => ({
       decrypted:
         encrypted === 'encrypted-parent-secret'
@@ -663,7 +658,6 @@ describe('workflow client tool completion', () => {
 
 describe('generic client tool completion', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     encryptSecret.mockImplementation(async (plaintext: string) => ({
       encrypted: plaintext,
       iv: 'iv',

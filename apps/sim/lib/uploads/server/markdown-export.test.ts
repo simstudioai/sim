@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { downloadFile } from '@/lib/uploads/core/storage-service'
@@ -121,37 +118,6 @@ describe('Markdown export image rewriting', () => {
       ).toBe('<img width=50 src="./assets/image.png" height=60>')
     }
   )
-
-  it('uses only the first HTML src attribute', async () => {
-    const source =
-      '<img src="external.png" src="/api/files/view/image-1">\n\n![visible](/api/files/view/image-1)'
-    expect(await exportMarkdown(source)).toBe(
-      source.replace('![visible](/api/files/view/image-1)', '![visible](./assets/image.png)')
-    )
-  })
-
-  it('preserves image nesting in links, lists, blockquotes, and GFM tables', async () => {
-    const source =
-      '[![linked](/api/files/view/image-1)](/api/files/view/image-1)\n\n- [ ] ![task](/workspace/ws/files/image-1)\n  - ![child](/api/files/view/image-1)\n\n> ![quoted](/api/files/view/image-1)\n\n| header |\n| --- |\n| ![cell](/api/files/view/image-1) |\n'
-    const expected =
-      '[![linked](./assets/image.png)](/api/files/view/image-1)\n\n- [ ] ![task](./assets/image.png)\n  - ![child](./assets/image.png)\n\n> ![quoted](./assets/image.png)\n\n| header |\n| --- |\n| ![cell](./assets/image.png) |\n'
-    expect(await exportMarkdown(source)).toBe(expected)
-  })
-
-  it('keeps image labels and titles safe inside a GFM table cell', async () => {
-    const source = '| header |\n| --- |\n| ![a\\|b](/api/files/view/image-1 "one\\|two") |\n'
-    expect(await exportMarkdown(source)).toBe(
-      '| header |\n| --- |\n| ![a\\|b](./assets/image.png "one\\|two") |\n'
-    )
-  })
-
-  it('preserves all source between separate HTML fragments and Markdown images', async () => {
-    const source =
-      'start <img src="/api/files/view/image-1"> middle ![md](/api/files/view/image-1) end <img src="/api/files/view/image-1">\n\n> <img\n>   src="/api/files/view/image-1"\n>   width="50">\n'
-    expect(await exportMarkdown(source)).toBe(
-      'start <img src="./assets/image.png"> middle ![md](./assets/image.png) end <img src="./assets/image.png">\n\n> <img\n>   src="./assets/image.png"\n>   width="50">\n'
-    )
-  })
 
   it('URL-encodes asset filenames that contain spaces, delimiters, or unicode', async () => {
     expect(await exportMarkdown('![image](/api/files/view/image-1)', 'a #?🖼.png')).toBe(

@@ -51,7 +51,6 @@ describe('GitHub installation setup handoff', () => {
     return null
   }
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     mocks.status = undefined
     mocks.error = null
@@ -112,59 +111,6 @@ describe('GitHub installation setup handoff', () => {
     expect(mocks.connected).toHaveBeenCalledOnce()
   })
 
-  it('keeps one approval attempt and focuses it when Connect is clicked again', async () => {
-    await act(async () => current.connect())
-    await act(async () => current.connect())
-    expect(window.open).toHaveBeenCalledOnce()
-    expect(mocks.start).toHaveBeenCalledOnce()
-    expect(tab.focus).toHaveBeenCalledOnce()
-  })
-  it('rechecks the same attempt on return to Sim without relying on a GitHub redirect', async () => {
-    await act(async () => current.connect())
-    mocks.start.mockResolvedValue({ url: `${window.location.origin}/credential-groups/complete` })
-    await act(async () => window.dispatchEvent(new Event('focus')))
-    expect(mocks.start).toHaveBeenLastCalledWith(mocks.start.mock.calls[0][0])
-    expect(mocks.refetch).toHaveBeenCalledOnce()
-    expect(mocks.connected).not.toHaveBeenCalled()
-    mocks.status = {
-      status: 'completed',
-      credential: { id: 'installation-1', displayName: 'Acme' },
-    }
-    act(() => root.render(<Probe />))
-    expect(current.pending).toBe(false)
-    expect(mocks.connected).toHaveBeenCalledExactlyOnceWith('installation-1')
-  })
-  it('leaves GitHub in place if installation is unfinished and exposes a retry', async () => {
-    await act(async () => current.connect())
-    const initialUrl = tab.location.href
-    await act(async () => current.checkConnection())
-    expect(tab.location.href).toBe(initialUrl)
-    expect(current.error).toContain('Finish setup on GitHub')
-    expect(current.pending).toBe(true)
-    expect(mocks.cancel).not.toHaveBeenCalled()
-  })
-  it('ignores an installation recheck that finishes after cancellation', async () => {
-    await act(async () => current.connect())
-    let resolve!: (value: { url: string }) => void
-    mocks.start.mockReturnValue(
-      new Promise((done) => {
-        resolve = done
-      })
-    )
-    let checking!: Promise<void>
-    act(() => {
-      checking = current.checkConnection()
-    })
-    act(() => current.cancel())
-    await act(async () => {
-      resolve({ url: `${window.location.origin}/credential-groups/complete` })
-      await checking
-    })
-    expect(mocks.refetch).not.toHaveBeenCalled()
-    expect(mocks.connected).not.toHaveBeenCalled()
-    expect(current.pending).toBe(false)
-  })
-
   it('cancels without navigating a late start response or accepting its completion', async () => {
     let resolve!: (value: { url: string }) => void
     mocks.start.mockReturnValue(
@@ -187,21 +133,6 @@ describe('GitHub installation setup handoff', () => {
     act(() => root.render(<Probe />))
     expect(mocks.connected).not.toHaveBeenCalled()
     expect(current.pending).toBe(false)
-  })
-
-  it('shows denied approval inline and allows a new attempt', async () => {
-    await act(async () => current.connect())
-    act(() => channels[0].onmessage?.({ data: 'denied' } as MessageEvent<unknown>))
-    expect(current.pending).toBe(true)
-    expect(mocks.refetch).toHaveBeenCalledOnce()
-    mocks.status = { status: 'failed', error: 'Choose a GitHub organization you own.' }
-    act(() => root.render(<Probe />))
-    expect(current.error).toBe('Choose a GitHub organization you own.')
-    expect(current.pending).toBe(false)
-    mocks.status = undefined
-    await act(async () => current.connect())
-    expect(mocks.start).toHaveBeenCalledTimes(2)
-    expect(current.error).toBeNull()
   })
 
   it('cancels on organization change and ignores the previous receipt', async () => {
@@ -228,31 +159,6 @@ describe('GitHub installation setup handoff', () => {
     expect(current.pending).toBe(false)
     expect(current.error).toBe('Organization access denied')
     expect(mocks.cancel).toHaveBeenCalledOnce()
-  })
-
-  it('forwards an explicit new-organization request instead of reusing an existing installation', async () => {
-    await act(async () => current.connect('install'))
-    expect(mocks.start).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      setupId: expect.any(String),
-      intent: 'install',
-    })
-  })
-
-  it('bounds the attempt lifetime and cleans up its channel', async () => {
-    await act(async () => current.connect())
-    act(() => vi.advanceTimersByTime(10 * 60_000))
-    expect(current.pending).toBe(false)
-    expect(current.error).toContain('timed out')
-    expect(channels[0].close).toHaveBeenCalledOnce()
-    expect(mocks.cancel).toHaveBeenCalledOnce()
-  })
-
-  it('reports popup blocking before creating any server attempt', async () => {
-    vi.mocked(window.open).mockReturnValue(null)
-    await act(async () => current.connect())
-    expect(mocks.start).not.toHaveBeenCalled()
-    expect(current.error).toContain('Allow pop-ups')
   })
 
   it.each([

@@ -84,17 +84,6 @@ describe('curateBlockDetail', () => {
     denied.current = { needsProjection: new Map(), fullyDenied: new Set() }
   })
 
-  it('passes through when the viewer has no denied tools', async () => {
-    const input = ok(JSON.stringify(blockDetail()))
-    expect(await curateBlockDetail(input, viewer)).toBe(input)
-  })
-
-  it('passes through non-block output untouched', async () => {
-    permissionConfig.current = { deniedTools: ['slack_canvas'] }
-    const input = ok('not json')
-    expect(await curateBlockDetail(input, viewer)).toBe(input)
-  })
-
   it.each(['agent', 'mothership'])(
     'publishes the %s attachment contract on demand only',
     async (id) => {

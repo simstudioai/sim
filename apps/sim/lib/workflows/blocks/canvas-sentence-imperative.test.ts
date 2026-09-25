@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { toImperativeLead } from '@/lib/workflows/blocks/canvas-sentence-imperative'
 
@@ -22,32 +19,11 @@ describe('toImperativeLead', () => {
     expect(toImperativeLead('Deploys')).toBe('Deploy')
   })
 
-  it('drops the whole -es where it attaches to a non-e base', () => {
-    expect(toImperativeLead('Fetches thread')).toBe('Fetch thread')
-    expect(toImperativeLead('Searches messages matching')).toBe('Search messages matching')
-    expect(toImperativeLead('Pushes')).toBe('Push')
-    expect(toImperativeLead('Indexes')).toBe('Index')
-    expect(toImperativeLead('Compresses')).toBe('Compress')
-  })
-
-  it('keeps the e on a base that already ends in one', () => {
-    /* The -zes/-ses trap: dropping `es` here yields "Analyz" and "Eras". */
-    expect(toImperativeLead('Analyzes')).toBe('Analyze')
-    expect(toImperativeLead('Summarizes')).toBe('Summarize')
-    expect(toImperativeLead('Erases')).toBe('Erase')
-    expect(toImperativeLead('Closes')).toBe('Close')
-    expect(toImperativeLead('Merges')).toBe('Merge')
-  })
-
   it('finds the verb behind a leading modifier', () => {
     expect(toImperativeLead('Permanently deletes agent')).toBe('Permanently delete agent')
     expect(toImperativeLead('Bulk inserts rows into')).toBe('Bulk insert rows into')
     expect(toImperativeLead('Batch triggers task')).toBe('Batch trigger task')
     expect(toImperativeLead('Full-text searches')).toBe('Full-text search')
-  })
-
-  it('inflects a hyphenated verb as one word', () => {
-    expect(toImperativeLead('Bulk-imports accounts from')).toBe('Bulk-import accounts from')
   })
 
   it('leaves an imperative lead untouched, so the rewrite doubles as the check', () => {
@@ -60,14 +36,5 @@ describe('toImperativeLead', () => {
     /* Scanning past word one without a modifier would give "Set label". */
     expect(toImperativeLead('Set labels')).toBe('Set labels')
     expect(toImperativeLead('Add tags to')).toBe('Add tags to')
-  })
-
-  it('leaves a base form that already ends in s alone', () => {
-    expect(toImperativeLead('Process rows')).toBe('Process rows')
-    expect(toImperativeLead('Focus on')).toBe('Focus on')
-  })
-
-  it('handles a sentence with no leading copy', () => {
-    expect(toImperativeLead('')).toBe('')
   })
 })

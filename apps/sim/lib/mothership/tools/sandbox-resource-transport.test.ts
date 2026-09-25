@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isCopilotRequest } from '@/lib/api/server/routes/copilot-request'
 import { assertWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
@@ -52,7 +51,6 @@ function request(path: string, init?: RequestInit) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   readScope.mockResolvedValue(scope)
   mint.mockResolvedValue('server-only-identity')
   target.mockResolvedValue({ workspaceId: scope.workspaceId })

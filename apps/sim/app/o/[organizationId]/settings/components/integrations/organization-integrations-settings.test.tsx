@@ -53,7 +53,6 @@ describe('organization integration invitations', () => {
   let container: HTMLDivElement
 
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.spyOn(toast, 'success').mockReturnValue('toast-id')
     vi.spyOn(toast, 'error').mockReturnValue('toast-id')
     mocks.updatePending = false

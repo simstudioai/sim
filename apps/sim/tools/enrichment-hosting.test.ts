@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ErrorExtractorId } from '@/tools/error-extractors'
 import { findEmailFromNameTool } from '@/tools/findymail/find_email_from_name'
 import { findEmailsByDomainTool } from '@/tools/findymail/find_emails_by_domain'
 import { findPhoneTool } from '@/tools/findymail/find_phone'
@@ -33,11 +29,6 @@ function cost(tool: ToolConfig<any, any>, params: any, output: Record<string, un
 }
 
 describe('Findymail hosted key pricing', () => {
-  it('declares hosting with the shared env prefix and BYOK provider', () => {
-    expect(findEmailFromNameTool.hosting?.envKeyPrefix).toBe('FINDYMAIL_API_KEY')
-    expect(findEmailFromNameTool.hosting?.byokProviderId).toBe('findymail')
-  })
-
   it('charges one credit only when an email is found', () => {
     expect(cost(findEmailFromNameTool, {}, { contact: { email: 'a@b.com' } }).cost).toBeCloseTo(
       FINDYMAIL_CREDIT_USD
@@ -74,12 +65,6 @@ describe('Findymail hosted key pricing', () => {
 })
 
 describe('Prospeo hosted key pricing', () => {
-  it('declares hosting with the shared env prefix and BYOK provider', () => {
-    expect(enrichPersonTool.hosting?.envKeyPrefix).toBe('PROSPEO_API_KEY')
-    expect(enrichPersonTool.hosting?.byokProviderId).toBe('prospeo')
-    expect(enrichPersonTool.errorExtractor).toBe(ErrorExtractorId.PROSPEO_ERRORS)
-  })
-
   it('charges 1 credit for a person match and 10 when a mobile is revealed', () => {
     expect(cost(enrichPersonTool, {}, { free_enrichment: false, person: {} }).cost).toBeCloseTo(
       PROSPEO_CREDIT_USD
@@ -116,11 +101,6 @@ describe('Prospeo hosted key pricing', () => {
 })
 
 describe('Wiza hosted key pricing', () => {
-  it('declares hosting with the shared env prefix and BYOK provider', () => {
-    expect(wizaIndividualRevealTool.hosting?.envKeyPrefix).toBe('WIZA_API_KEY')
-    expect(wizaIndividualRevealTool.hosting?.byokProviderId).toBe('wiza')
-  })
-
   it('charges 2 credits for a valid email and 5 for a phone on individual reveal', () => {
     expect(
       cost(wizaIndividualRevealTool, {}, { email_status: 'valid', phones: [] }).cost

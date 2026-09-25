@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -28,7 +27,6 @@ const principal = {
 } as const
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.authorize.mockResolvedValue({ secret: { botToken: 'test-token' } })
   mocks.openDm.mockResolvedValue('D1')

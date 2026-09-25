@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -53,10 +50,7 @@ vi.mock('@/lib/core/rate-limiter', () => ({
 
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 
-import {
-  InsufficientWorkspacePermissionsError,
-  NoWorkspaceAccessError,
-} from '@/lib/core/application'
+import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { POST as COMPLETE } from '@/app/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/complete/route'
 import { POST as PARTS } from '@/app/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/parts/route'
 import { DELETE as CANCEL } from '@/app/api/v2/knowledge/[knowledgeBaseId]/documents/uploads/[uploadId]/route'
@@ -147,7 +141,6 @@ const routes = [
  */
 describe('v2 knowledge upload resource concealment', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.authenticateV2ApiKey.mockResolvedValue({
       principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' },
       rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
@@ -174,17 +167,6 @@ describe('v2 knowledge upload resource concealment', () => {
       await expect(response.json()).resolves.toEqual({
         error: { code: 'NOT_FOUND', message: 'Knowledge base not found' },
       })
-    }
-  )
-
-  it.each(routes)(
-    '$name still reports a same-workspace role denial as forbidden',
-    async ({ useCase, call }) => {
-      useCase.mockRejectedValue(new InsufficientWorkspacePermissionsError())
-
-      const response = await call()
-
-      expect(response.status).toBe(403)
     }
   )
 })

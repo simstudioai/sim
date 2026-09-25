@@ -1,5 +1,3 @@
-/** @vitest-environment node */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SettingsContext } from '@/lib/mothership/application/settings-context'
 

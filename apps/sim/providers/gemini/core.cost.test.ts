@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeGeminiRequest } from '@/providers/gemini/core'
 import type { ProviderResponse } from '@/providers/types'
@@ -73,7 +70,6 @@ async function run(generateContent: ReturnType<typeof vi.fn>, withTools = false)
 
 describe('Gemini block cost with implicit prompt caching', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockExecuteTool.mockResolvedValue({ success: true, output: { value: 'tool result' } })
   })
 

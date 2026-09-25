@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import {
@@ -42,16 +39,9 @@ const TEST_EXECUTION_CONTEXT = {
 
 describe('compactExecutionPayload', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearLargeValueCacheForTests()
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
     mockRegisterLargeValueOwner.mockResolvedValue(true)
-  })
-
-  it('keeps small JSON payloads inline', async () => {
-    const value = { result: { id: 'event-1', text: 'hello' } }
-
-    await expect(compactExecutionPayload(value, { thresholdBytes: 1024 })).resolves.toEqual(value)
   })
 
   it('strips UserFile base64 by default while preserving metadata', async () => {

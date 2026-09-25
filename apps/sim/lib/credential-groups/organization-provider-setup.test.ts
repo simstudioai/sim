@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { db } from '@sim/db'
 import {
   type CredentialGroupOptionConfig,
@@ -62,7 +61,6 @@ const coda = {
 const jira = { provider: 'jira', label: 'Jira' } as const
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.organizationSetup.mockResolvedValue(undefined)
   mocks.policy.mockResolvedValue({

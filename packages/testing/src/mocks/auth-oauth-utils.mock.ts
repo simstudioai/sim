@@ -5,7 +5,7 @@ import { vi } from 'vitest'
  * `@/app/api/auth/oauth/utils`. Declared as a real class so consumer code
  * using `instanceof ServiceAccountTokenError` keeps working under mock.
  */
-export class ServiceAccountTokenErrorMock extends Error {
+class ServiceAccountTokenErrorMock extends Error {
   constructor(
     public readonly statusCode: number,
     public readonly errorDescription: string

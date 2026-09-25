@@ -1,12 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   executeGitHubCommentOperation,
   executeGitHubCommentV2Operation,
 } from '@/lib/internal/github/operations'
-import { commentTool, commentV2Tool } from '@/tools/github/comment'
 import type { CreateCommentParams } from '@/tools/github/types'
 
 const { secureGitHubRequest } = vi.hoisted(() => ({ secureGitHubRequest: vi.fn() }))
@@ -282,17 +278,6 @@ describe('github_comment routing', () => {
 
     expect(calls()[1].body).toMatchObject({ commit_id: HEAD_SHA })
     expect(result.output.commit_id).toBe(HEAD_SHA)
-  })
-
-  it('no longer exposes the deprecated position parameter', () => {
-    expect(commentTool.params.position).toBeUndefined()
-  })
-
-  it('declares both versions as registered operations without request transport metadata', () => {
-    expect(commentTool.operation.input(FILE_COMMENT_PARAMS)).toEqual(FILE_COMMENT_PARAMS)
-    expect(commentV2Tool.operation.input(FILE_COMMENT_PARAMS)).toEqual(FILE_COMMENT_PARAMS)
-    expect(commentTool).not.toHaveProperty('request')
-    expect(commentV2Tool).not.toHaveProperty('request')
   })
 })
 

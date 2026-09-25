@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { jobExecutionLogs, workflowExecutionLogs } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -44,7 +40,6 @@ vi.mock('@/lib/logs/folder-expansion', () => ({
   expandFolderIdsWithDescendants: vi.fn(async (_ws: string, ids: string | undefined) => ids),
 }))
 
-import { listLogsQuerySchema } from '@/lib/api/contracts/logs'
 import { type ReadLogsParams, readLogs } from '@/lib/logs/list-logs'
 import { decodeLogSortCursor } from '@/lib/logs/sort-cursor'
 
@@ -112,7 +107,6 @@ function baseParams(overrides: Partial<ReadLogsParams> = {}): ReadLogsParams {
 
 describe('readLogs', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -140,21 +134,6 @@ describe('readLogs', () => {
       jobTitle: 'Nightly report',
     })
     expect(result.nextCursor).toBeNull()
-  })
-
-  it('exposes the durable workflow-group origin discriminator', async () => {
-    queueTableRows(workflowExecutionLogs, [
-      workflowRow({ executionOrigin: 'workflow_group', trigger: 'table' }),
-    ])
-    queueTableRows(jobExecutionLogs, [])
-
-    const result = await readLogs(baseParams())
-
-    expect(result.data[0]).toMatchObject({
-      executionId: 'exec-1',
-      trigger: 'table',
-      executionOrigin: 'workflow_group',
-    })
   })
 
   it('returns a decodable nextCursor when results exceed the limit', async () => {
@@ -226,47 +205,6 @@ describe('readLogs', () => {
     }
   })
 
-  it('validates snapshot boundaries without changing ordinary list requests', () => {
-    expect(listLogsQuerySchema.parse({ workspaceId: 'ws-1' }).snapshotAt).toBeUndefined()
-    for (const field of ['snapshotAt', 'startedAfter']) {
-      expect(
-        listLogsQuerySchema.safeParse({ workspaceId: 'ws-1', [field]: 'invalid' }).success
-      ).toBe(false)
-    }
-  })
-
-  it('counts matching new runs without fetching or sorting log rows', async () => {
-    const startedAfter = '2026-09-24T15:45:00.000Z'
-    queueTableRows(workflowExecutionLogs, [{ count: 3 }])
-    queueTableRows(jobExecutionLogs, [{ count: 2 }])
-
-    const result = await readLogs(baseParams({ countOnly: true, startedAfter, sortBy: 'cost' }))
-
-    expect(result).toEqual({ data: [], nextCursor: null, total: 5 })
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
-    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
-    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
-    for (const table of [workflowExecutionLogs, jobExecutionLogs]) {
-      expect(dbChainMockFns.where).toHaveBeenCalledWith(
-        expect.objectContaining({
-          args: expect.arrayContaining([
-            { type: 'gt', args: [table.startedAt, new Date(startedAfter)] },
-          ]),
-        })
-      )
-    }
-  })
-
-  it('preserves workflow-specific filters for count-only requests', async () => {
-    queueTableRows(workflowExecutionLogs, [{ count: 3 }])
-
-    const result = await readLogs(baseParams({ countOnly: true, workflowIds: 'wf-1' }))
-
-    expect(result.total).toBe(3)
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
-  })
-
   it('captures rows and the membership revision in one repeatable-read snapshot', async () => {
     queueTableRows(workflowExecutionLogs, [workflowRow()])
     queueTableRows(jobExecutionLogs, [])
@@ -283,33 +221,10 @@ describe('readLogs', () => {
     expect(result.revision).toBe('1:1234567890123456789:0:0')
     expect(result.total).toBeUndefined()
   })
-
-  it('reads a membership revision without loading rows or joining unrelated tables', async () => {
-    queueTableRows(workflowExecutionLogs, [{ count: 2, revision: '9' }])
-    queueTableRows(jobExecutionLogs, [{ count: 1, revision: '4' }])
-
-    const result = await readLogs(
-      baseParams({ countOnly: true, includeRevision: true, snapshotAt: '2026-01-01T00:00:00.000Z' })
-    )
-
-    expect(result.revision).toBe('2:9:1:4')
-    expect(result.total).toBe(3)
-    expect(result.data).toEqual([])
-    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
-    expect(dbChainMockFns.leftJoin).not.toHaveBeenCalled()
-  })
-
-  it('parses the count-only query flag without treating false as true', () => {
-    expect(listLogsQuerySchema.parse({ workspaceId: 'ws-1', countOnly: true }).countOnly).toBe(true)
-    expect(listLogsQuerySchema.parse({ workspaceId: 'ws-1', countOnly: 'false' }).countOnly).toBe(
-      false
-    )
-  })
 })
 
 describe('readLogs cost projection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { authMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -23,7 +22,6 @@ const props = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'viewer' } })
   mocks.context.mockResolvedValue({ searchAccess: { memberScoped: true } })
   mocks.redirect.mockImplementation(() => {

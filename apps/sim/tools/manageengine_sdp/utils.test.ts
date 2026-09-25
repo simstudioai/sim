@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { resolveSdpBase, SDP_DATA_CENTER_BASES } from '@/tools/manageengine_sdp/data-centers'
 import {

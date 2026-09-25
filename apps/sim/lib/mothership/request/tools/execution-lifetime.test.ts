@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   prepareSandboxSessionAccess,
@@ -44,7 +43,6 @@ function pending() {
 
 describe('durable tool execution lifetime', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     claim.mockResolvedValue({ outcome: 'claimed' })
     renew.mockResolvedValue(true)
     complete.mockResolvedValue(undefined)

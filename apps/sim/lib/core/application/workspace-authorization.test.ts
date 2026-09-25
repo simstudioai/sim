@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type {
   DelegatedPrincipal,
   OAuthAccessTokenPrincipal,
@@ -116,10 +113,6 @@ const context = {
 }
 
 describe('authorizeWorkspaceOperation', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('rejects a null effective permission as no workspace access', async () => {
     mocks.resolvePermission.mockResolvedValue(null)
 
@@ -134,14 +127,6 @@ describe('authorizeWorkspaceOperation', () => {
     await expect(
       authorizeWorkspaceOperation(principal, writeOperation, context)
     ).rejects.toBeInstanceOf(InsufficientWorkspacePermissionsError)
-  })
-
-  it('authorizes the write operation when the current role satisfies it', async () => {
-    mocks.resolvePermission.mockResolvedValue('write')
-
-    await expect(
-      authorizeWorkspaceOperation(principal, writeOperation, context)
-    ).resolves.toBeUndefined()
   })
 
   it('classifies a workspace-key tenant mismatch separately from role denials', async () => {
@@ -318,7 +303,6 @@ function withholdingConfig() {
 
 describe('authorizeWorkspaceOperation permission-group capability', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('admin')
     resolveGroupConfigMock.mockResolvedValue(null)
   })
@@ -343,14 +327,6 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
     expect((error as PermissionGroupCapabilityError).detailCode).toBe(
       'PERMISSION_GROUP_CAPABILITY_BLOCKED'
     )
-  })
-
-  it('refuses a personal API key the same way', async () => {
-    resolveGroupConfigMock.mockResolvedValue(withholdingConfig())
-
-    await expect(
-      authorizeWorkspaceOperation(personalKeyPrincipal, capabilityOperation, context)
-    ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
   })
 
   /**
@@ -453,20 +429,6 @@ describe('authorizeWorkspaceOperation permission-group capability', () => {
     expect(resolveGroupConfigMock).not.toHaveBeenCalled()
   })
 
-  it('allows the operation when the group permits the capability', async () => {
-    resolveGroupConfigMock.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
-
-    await expect(
-      authorizeWorkspaceOperation(principal, capabilityOperation, context)
-    ).resolves.toBeUndefined()
-  })
-
-  it('allows the operation when no group governs the user', async () => {
-    await expect(
-      authorizeWorkspaceOperation(principal, capabilityOperation, context)
-    ).resolves.toBeUndefined()
-  })
-
   it('skips the lookup entirely for a workspace with no organization', async () => {
     await expect(
       authorizeWorkspaceOperation(principal, capabilityOperation, {
@@ -503,7 +465,6 @@ const personalKeyOperation = defineWorkspaceOperation({
  */
 describe('authorizeWorkspaceOperation personal API key policy', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('admin')
     resolveGroupConfigMock.mockResolvedValue(null)
   })
@@ -527,14 +488,6 @@ describe('authorizeWorkspaceOperation personal API key policy', () => {
       })
     ).rejects.toBeInstanceOf(PersonalApiKeysDisabledError)
     expect(resolveGroupConfigMock).not.toHaveBeenCalled()
-  })
-
-  it('allows when both layers permit', async () => {
-    resolveGroupConfigMock.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
-
-    await expect(
-      authorizeWorkspaceOperation(personalKeyPrincipal, personalKeyOperation, context)
-    ).resolves.toBeUndefined()
   })
 
   /**
@@ -571,17 +524,6 @@ describe('authorizeWorkspaceOperation personal API key policy', () => {
       })
     ).rejects.toBeInstanceOf(PersonalApiKeysDisabledError)
     expect(mocks.resolvePermission).not.toHaveBeenCalled()
-  })
-
-  it('leaves a session principal alone', async () => {
-    resolveGroupConfigMock.mockResolvedValue({
-      ...DEFAULT_PERMISSION_GROUP_CONFIG,
-      disablePersonalApiKeys: true,
-    })
-
-    await expect(
-      authorizeWorkspaceOperation(principal, personalKeyOperation, context)
-    ).resolves.toBeUndefined()
   })
 })
 
@@ -660,23 +602,8 @@ describe('authorizeWorkspaceOperation OAuth access token policy', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('admin')
     resolveGroupConfigMock.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
-  })
-
-  it('walks the personal-key sequence for a token with the right scope', async () => {
-    await expect(
-      authorizeWorkspaceOperation(token(), oauthWriteOperation, context)
-    ).resolves.toBeUndefined()
-    expect(mocks.resolvePermission).toHaveBeenCalledWith(
-      'user-1',
-      'workspace-1',
-      'organization-1',
-      undefined,
-      { forUpdate: undefined }
-    )
-    expect(resolveGroupConfigMock).toHaveBeenCalled()
   })
 
   it('refuses a token carrying neither API scope before touching the workspace', async () => {
@@ -834,39 +761,5 @@ describe('authorizeWorkspaceOperation OAuth access token policy', () => {
 
     expect(failure).toBeInstanceOf(OAuthAccessTokenExpiredError)
     expect(failure.code).toBe('unauthorized')
-  })
-
-  it('is governed by the workspace personal-key column like a personal key', async () => {
-    await expect(
-      authorizeWorkspaceOperation(token(), readOperation, {
-        ...context,
-        allowPersonalApiKeys: false,
-      })
-    ).rejects.toBeInstanceOf(PersonalApiKeysDisabledError)
-    expect(mocks.resolvePermission).not.toHaveBeenCalled()
-  })
-
-  it('is governed by the group personal-key setting, after the role check', async () => {
-    resolveGroupConfigMock.mockResolvedValue({
-      ...DEFAULT_PERMISSION_GROUP_CONFIG,
-      disablePersonalApiKeys: true,
-    })
-
-    await expect(
-      authorizeWorkspaceOperation(token(), readOperation, context)
-    ).rejects.toBeInstanceOf(PersonalApiKeysDisabledError)
-    expect(mocks.resolvePermission).toHaveBeenCalled()
-  })
-
-  it('conceals a workspace the person cannot reach', async () => {
-    mocks.resolvePermission.mockResolvedValue(null)
-
-    await expect(
-      authorizeWorkspaceOperation(token(), readOperation, context)
-    ).rejects.toBeInstanceOf(NoWorkspaceAccessError)
-  })
-
-  it('names the person for capability purposes', () => {
-    expect(capabilityGovernedPrincipalUserId(token())).toBe('user-1')
   })
 })

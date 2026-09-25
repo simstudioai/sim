@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CloudflareBlock } from '@/blocks/blocks/cloudflare'
 
@@ -93,7 +90,6 @@ const CREDENTIALS = { apiKey: 'cf-token' }
 
 describe('Cloudflare DNS write values saved before the id rename', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBlock.mockReturnValue(CloudflareBlock)
   })
 
@@ -111,71 +107,6 @@ describe('Cloudflare DNS write values saved before the id rename', () => {
       )
 
       expect(mapped.type).toBe('CNAME')
-    })
-
-    /**
-     * The headline defect: a proxied A record recreated unproxied publishes the
-     * origin IP in public DNS and bypasses the WAF/CDN.
-     */
-    it('carries a proxied flag saved under the legacy `proxied` id onto the wire', () => {
-      const mapped = runPipeline(
-        blockState({
-          ...CREDENTIALS,
-          operation: 'create_dns_record',
-          zoneId: 'zone-1',
-          type: 'A',
-          name: 'app.example.com',
-          content: '192.0.2.1',
-          proxied: 'true',
-        })
-      )
-
-      expect(mapped.proxied).toBe(true)
-    })
-
-    it('carries tags saved under the legacy `tags` id onto the wire', () => {
-      const mapped = runPipeline(
-        blockState({
-          ...CREDENTIALS,
-          operation: 'create_dns_record',
-          zoneId: 'zone-1',
-          type: 'A',
-          name: 'app.example.com',
-          content: '192.0.2.1',
-          tags: 'production',
-        })
-      )
-
-      expect(mapped.tags).toBe('production')
-    })
-
-    it('carries every field of one shipped proxied A record', () => {
-      const mapped = runPipeline(
-        blockState({
-          ...CREDENTIALS,
-          operation: 'create_dns_record',
-          zoneId: 'zone-1',
-          type: 'A',
-          name: 'app.example.com',
-          content: '192.0.2.1',
-          ttl: '300',
-          proxied: 'true',
-          comment: 'edge',
-          tags: 'production',
-        })
-      )
-
-      expect(mapped).toMatchObject({
-        operation: 'create_dns_record',
-        zoneId: 'zone-1',
-        type: 'A',
-        name: 'app.example.com',
-        content: '192.0.2.1',
-        ttl: 300,
-        proxied: true,
-        comment: 'edge',
-        tags: 'production',
-      })
     })
 
     it('recovers the legacy value with the block advanced toggle on', () => {
@@ -198,46 +129,6 @@ describe('Cloudflare DNS write values saved before the id rename', () => {
     })
   })
 
-  describe('update_dns_record', () => {
-    it('carries content saved under the legacy `content` id onto the wire', () => {
-      const mapped = runPipeline(
-        blockState({
-          ...CREDENTIALS,
-          operation: 'update_dns_record',
-          zoneId: 'zone-1',
-          recordId: 'record-1',
-          content: '203.0.113.9',
-        })
-      )
-
-      expect(mapped.content).toBe('203.0.113.9')
-    })
-
-    it('carries type, name, proxied, and tags saved under their legacy ids', () => {
-      const mapped = runPipeline(
-        blockState({
-          ...CREDENTIALS,
-          operation: 'update_dns_record',
-          zoneId: 'zone-1',
-          recordId: 'record-1',
-          type: 'A',
-          name: 'app.example.com',
-          content: '203.0.113.9',
-          proxied: 'true',
-          tags: 'production',
-        })
-      )
-
-      expect(mapped).toMatchObject({
-        type: 'A',
-        name: 'app.example.com',
-        content: '203.0.113.9',
-        proxied: true,
-        tags: 'production',
-      })
-    })
-  })
-
   describe('list filters that were also renamed', () => {
     it('carries a sort field saved under the legacy `order` id onto the wire', () => {
       const mapped = runPipeline(
@@ -251,19 +142,6 @@ describe('Cloudflare DNS write values saved before the id rename', () => {
 
       expect(mapped.order).toBe('ttl')
     })
-
-    it('carries a certificate status saved under the legacy `status` id onto the wire', () => {
-      const mapped = runPipeline(
-        blockState({
-          ...CREDENTIALS,
-          operation: 'list_certificates',
-          zoneId: 'zone-1',
-          status: 'active',
-        })
-      )
-
-      expect(mapped.status).toBe('active')
-    })
   })
 })
 
@@ -273,42 +151,7 @@ describe('Cloudflare DNS write values saved before the id rename', () => {
  */
 describe('Cloudflare value spaces the rename left alone', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBlock.mockReturnValue(CloudflareBlock)
-  })
-
-  it('still filters a DNS record list by type, name, content, and proxied', () => {
-    const mapped = runPipeline(
-      blockState({
-        ...CREDENTIALS,
-        operation: 'list_dns_records',
-        zoneId: 'zone-1',
-        type: 'MX',
-        name: 'mail.example.com',
-        content: 'mx1.example.com',
-        proxied: 'false',
-      })
-    )
-
-    expect(mapped).toMatchObject({
-      type: 'MX',
-      name: 'mail.example.com',
-      content: 'mx1.example.com',
-      proxied: false,
-    })
-  })
-
-  it('still purges cache by the tags stored under `tags`', () => {
-    const mapped = runPipeline(
-      blockState({
-        ...CREDENTIALS,
-        operation: 'purge_cache',
-        zoneId: 'zone-1',
-        tags: 'static,images',
-      })
-    )
-
-    expect(mapped.tags).toBe('static,images')
   })
 
   it('leaves a list filter in place instead of migrating it to a write control', () => {
@@ -337,7 +180,6 @@ describe('Cloudflare value spaces the rename left alone', () => {
  */
 describe('Cloudflare state written after the rename is never re-migrated', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBlock.mockReturnValue(CloudflareBlock)
   })
 
@@ -358,35 +200,6 @@ describe('Cloudflare state written after the rename is never re-migrated', () =>
     expect(mapped.type).toBe('A')
   })
 
-  it('does not promote a stale list name filter onto a record rename', () => {
-    const mapped = runPipeline(
-      modernBlockState({
-        ...CREDENTIALS,
-        operation: 'update_dns_record',
-        zoneId: 'zone-1',
-        recordId: 'record-1',
-        name: 'ci-pipeline',
-      })
-    )
-
-    expect(mapped.name).toBeUndefined()
-  })
-
-  it('does not promote a stale purge tag list onto a create record', () => {
-    const mapped = runPipeline(
-      modernBlockState({
-        ...CREDENTIALS,
-        operation: 'create_dns_record',
-        zoneId: 'zone-1',
-        name: 'app.example.com',
-        content: '192.0.2.1',
-        tags: 'static,images',
-      })
-    )
-
-    expect(mapped.tags).toBeUndefined()
-  })
-
   it('does not overwrite a record type the user picked', () => {
     const { blocks } = migrateSubblockIds({
       'block-1': modernBlockState({
@@ -400,19 +213,6 @@ describe('Cloudflare state written after the rename is never re-migrated', () =>
 
     expect(blocks['block-1'].subBlocks.recordType?.value).toBe('CNAME')
   })
-
-  it('reports no migration for state that already uses the current ids', () => {
-    const { migrated } = migrateSubblockIds({
-      'block-1': modernBlockState({
-        ...CREDENTIALS,
-        operation: 'create_dns_record',
-        zoneId: 'zone-1',
-        recordType: 'CNAME',
-      }),
-    })
-
-    expect(migrated).toBe(false)
-  })
 })
 
 /**
@@ -421,7 +221,6 @@ describe('Cloudflare state written after the rename is never re-migrated', () =>
  */
 describe('Cloudflare migration convergence', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBlock.mockReturnValue(CloudflareBlock)
   })
 

@@ -1,10 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { memory } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { eq, isNull } from 'drizzle-orm'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { hashDurableSecretProvenanceValue } from '@/lib/execution/durable-secret-provenance'
 import {
   MAX_MEMORY_RETRIEVAL_PREFIX_BYTES,
@@ -16,7 +13,6 @@ const data = [{ role: 'user', content: 'frozen history' }]
 
 describe('byte-admitted legacy memory retrieval', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

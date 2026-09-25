@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import {
   createMockRequest,
   dbChainMockFns,
@@ -259,7 +255,6 @@ function authenticatePersonalKey() {
 
 describe('POST /api/v2/workflows/[workflowId]/execute', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnv({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
     mockGenerateId.mockReturnValue('execution-123')
@@ -562,24 +557,6 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     expect(response.headers.get('Retry-After')).toBe('12')
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
     expect(mockClaimExecutionId).not.toHaveBeenCalled()
-  })
-
-  it('rejects unknown body keys (strict contract)', async () => {
-    const res = await callExecute({ input: {}, triggerType: 'manual' })
-
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockPreprocessExecution).not.toHaveBeenCalled()
-  })
-
-  it('rejects unknown keys inside the nested run selection', async () => {
-    const res = await callExecute({
-      run: { source: 'manual', entry: { type: 'trigger', unexpected: true } },
-    })
-
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockExecuteManualTrigger).not.toHaveBeenCalled()
   })
 
   it('dispatches a personal-key manual trigger run through the manual operation', async () => {

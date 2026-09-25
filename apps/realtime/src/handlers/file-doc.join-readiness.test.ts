@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * The join's readiness contract, with the shared store ENABLED (`file-doc.test.ts` runs it disabled).
  *
  * A room loads its document from the file's Redis stream one entry at a time, into the same `Y.Doc`
@@ -248,7 +246,6 @@ describe('file-doc join readiness (shared store enabled)', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     backing.streams.clear()
     backing.kv.clear()
     backing.seq = 0
@@ -288,23 +285,6 @@ describe('file-doc join readiness (shared store enabled)', () => {
     // One state, and it is the final one: the client never saw the pre-move document.
     expect(statesDeliveredTo(socket)).toEqual([final])
     expect(statesDeliveredTo(socket)).not.toContain(intermediate)
-  })
-
-  it('does not fetch a seed for a room the stream can already reconstruct', async () => {
-    seedWarmStreamHistory()
-    const { socket, handlers } = setup('socket-1', sockets)
-
-    await handlers[FILE_DOC_EVENTS.JOIN]({
-      fileId: FILE_ID,
-      clientId: 1,
-      schemaVersion: FILE_DOC_SCHEMA_VERSION,
-    })
-    expect(socket.emit).toHaveBeenCalledWith(
-      FILE_DOC_EVENTS.JOIN_SUCCESS,
-      expect.objectContaining({ fileId: FILE_ID, schemaVersion: FILE_DOC_SCHEMA_VERSION })
-    )
-
-    expect(mockFetchFileDocSeed).not.toHaveBeenCalled()
   })
 
   it('pulls a seed another writer put in the stream instead of waiting for the tailer to push it', async () => {

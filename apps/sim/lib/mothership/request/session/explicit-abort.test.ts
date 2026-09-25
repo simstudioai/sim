@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -30,7 +27,6 @@ import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/exp
 describe('requestExplicitStreamAbort', () => {
   afterEach(() => vi.useRealTimers())
   beforeEach(() => {
-    vi.clearAllMocks()
     mockFetchGo.mockImplementation(async (_url, request) => {
       AbortRequest.parse(JSON.parse(request.body))
       return new Response(null, { status: 200 })

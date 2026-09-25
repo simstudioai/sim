@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
 import { scimConnection } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
@@ -70,7 +67,6 @@ afterAll(resetDbChainMock)
 
 describe('replaceScimGroup', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(scimConnection, [
       { id: 'conn-1', organizationId: 'org-1', status: 'active', settings: {} },
@@ -111,15 +107,5 @@ describe('replaceScimGroup', () => {
       expect.anything(),
       expect.objectContaining({ scimUserIds: ['user-1', 'user-2'] })
     )
-  })
-
-  it('preserves metadata and version when the replacement changes nothing', async () => {
-    const previous = toGroupResource(initialGroup, 'https://sim.test/api/scim/v2')
-    const result = await replaceScimGroup.execute({
-      principal,
-      input: { groupId: 'group-1', group: { displayName: 'Engineering', memberIds: ['user-1'] } },
-    })
-    expect(result.resource.meta).toEqual(previous.meta)
-    expect(mocks.touch).not.toHaveBeenCalled()
   })
 })

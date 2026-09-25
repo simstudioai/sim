@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { recordAudit } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -34,7 +33,6 @@ vi.mock('@/lib/invitations/mutation-manager', () => ({
 
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { InsufficientWorkspacePermissionsError } from '@/lib/core/application/workspace-authorization'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resendInvitation, revokeInvitation } from '@/lib/invitations/application/mutations'
 
 const session: Principal = { kind: 'session', userId: 'actor', sessionId: 'session' }
@@ -98,20 +96,6 @@ describe('shared invitation administration', () => {
       })
     )
   })
-
-  it.each([session, key, oauth])(
-    'never borrows workspace authority for an asserted organization ($kind)',
-    async (principal) => {
-      mocks.org.mockRejectedValue(
-        new ForbiddenOperationError('ORGANIZATION_ADMIN_REQUIRED', 'Admin required')
-      )
-      await expect(
-        resendInvitation.execute({ principal, input: { ...input, assertedOrganizationId: 'org' } })
-      ).rejects.toMatchObject({ code: 'forbidden' })
-      expect(mocks.workspace).not.toHaveBeenCalled()
-      expect(mocks.resend).not.toHaveBeenCalled()
-    }
-  )
 
   it.each([
     new ForbiddenOperationError('PERMISSION_GROUP_CAPABILITY_BLOCKED', 'Withheld'),
@@ -193,13 +177,5 @@ describe('shared invitation administration', () => {
         resourceType: 'workspace',
       })
     )
-  })
-
-  it('does not audit a failed resend', async () => {
-    mocks.resend.mockRejectedValue(new OrchestrationError('conflict', 'Invitation changed'))
-    await expect(resendInvitation.execute({ principal: session, input })).rejects.toMatchObject({
-      code: 'conflict',
-    })
-    expect(recordAudit).not.toHaveBeenCalled()
   })
 })

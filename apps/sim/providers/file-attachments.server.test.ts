@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -98,7 +95,6 @@ function makeRequest(size: number): ProviderRequest {
 
 describe('OpenAI large-file attachment lifecycle', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockHasCloudStorage.mockReturnValue(true)
     mockVerifyFileAccess.mockResolvedValue(true)
     mockCreateExecutorPrincipal.mockResolvedValue({

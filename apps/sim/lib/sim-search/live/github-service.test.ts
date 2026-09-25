@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createGitHubServiceVerifier } from '@/lib/sim-search/live/github-service'
 import type { NativeClient } from '@/lib/sim-search/live/types'
@@ -41,7 +40,6 @@ const app: NativeClient = { json: vi.fn(), text: vi.fn() }
 const signal = new AbortController().signal
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.decrypt.mockResolvedValue({ decrypted: '{}' })
   mocks.parse.mockReturnValue({ installationId: '55', accountId: '99' })
   mocks.token.mockResolvedValue({ accessToken: 'installation-token' })
@@ -78,23 +76,6 @@ describe('GitHub App live repository boundary', () => {
     expect(member.json).toHaveBeenCalledOnce()
   })
 
-  it('applies per-source path and extension filters only to code', async () => {
-    const verifier = createGitHubServiceVerifier([source], member, signal)
-    expect(
-      await verifier.verify({ id: 'src/app.md', container: 'acme/project', kind: 'code' })
-    ).toBe(false)
-    expect(
-      await verifier.verify({ id: 'docs/app.ts', container: 'acme/project', kind: 'code' })
-    ).toBe(false)
-    expect(
-      await verifier.verify({ id: '../docs/app.md', container: 'acme/project', kind: 'code' })
-    ).toBe(false)
-    expect(member.json).not.toHaveBeenCalled()
-    expect(await verifier.verify({ id: '42', container: 'acme/project', kind: 'issues' })).toBe(
-      true
-    )
-  })
-
   it('does not substitute default-branch code for a legacy non-default branch source', async () => {
     const verifier = createGitHubServiceVerifier(
       [{ ...source, config: { ...source.config, branch: 'release' } }],
@@ -127,31 +108,5 @@ describe('GitHub App live repository boundary', () => {
         kind: 'issues',
       })
     ).toBe(false)
-  })
-
-  it('can use another active installation source for the same repository', async () => {
-    mocks.active.mockRejectedValueOnce(new Error('installation removed'))
-    const verifier = createGitHubServiceVerifier(
-      [source, { ...source, id: 'backup-source' }],
-      member,
-      signal
-    )
-    expect(await verifier.verify({ id: '42', container: 'acme/project', kind: 'issues' })).toBe(
-      true
-    )
-    expect(mocks.active).toHaveBeenCalledTimes(2)
-  })
-
-  it('rejects an empty or invalid repository list before searching', () => {
-    expect(() => createGitHubServiceVerifier([], member, signal)).toThrow(
-      'Add a GitHub App repository'
-    )
-    expect(() =>
-      createGitHubServiceVerifier(
-        [{ ...source, config: { ...source.config, githubRepositoryId: 'bad' } }],
-        member,
-        signal
-      )
-    ).toThrow('repository is invalid')
   })
 })

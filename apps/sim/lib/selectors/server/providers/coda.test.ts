@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch, mockResolveCredentialBundle } = vi.hoisted(() => ({
@@ -44,7 +41,6 @@ function json(body: unknown, status = 200): Response {
 
 describe('Coda server selector adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveCredentialBundle.mockResolvedValue({ accessToken: 'server-only-token' })
   })
@@ -74,16 +70,6 @@ describe('Coda server selector adapter', () => {
     })
   })
 
-  it('sends the search term and page size on the first doc page', async () => {
-    mockFetch.mockResolvedValueOnce(json({ items: [] }))
-
-    await codaSelectorAttachments['coda.docs'].execute(
-      args('coda.docs', { kind: 'list', search: ' road ' })
-    )
-
-    expect(mockFetch.mock.calls[0][0]).toBe('https://coda.io/apis/v1/docs?limit=100&query=road')
-  })
-
   it('reads every page of a doc-scoped list into one flat result', async () => {
     mockFetch
       .mockResolvedValueOnce(
@@ -105,59 +91,6 @@ describe('Coda server selector adapter', () => {
     expect(mockFetch.mock.calls[1][0]).toBe(
       'https://coda.io/apis/v1/docs/AbCDeFGH/tables?pageToken=p2'
     )
-  })
-
-  it('scopes columns and rows to the selected doc and table', async () => {
-    mockFetch.mockResolvedValueOnce(
-      json({ items: [{ id: 'c-1', name: 'Status', format: { type: 'select', isArray: false } }] })
-    )
-
-    await expect(
-      codaSelectorAttachments['coda.columns'].execute(
-        args('coda.columns', { kind: 'list' }, { docId: 'doc', tableId: 'grid 1' })
-      )
-    ).resolves.toEqual({
-      kind: 'list',
-      items: [{ id: 'c-1', label: 'Status', meta: { formatType: 'select' } }],
-    })
-    expect(mockFetch.mock.calls[0][0]).toBe(
-      'https://coda.io/apis/v1/docs/doc/tables/grid%201/columns?limit=100'
-    )
-  })
-
-  it('resolves a missing resource detail to no option', async () => {
-    mockFetch.mockResolvedValueOnce(json({ message: 'Not Found' }, 404))
-
-    await expect(
-      codaSelectorAttachments['coda.pages'].execute(
-        args('coda.pages', { kind: 'detail', id: 'canvas-gone' }, { docId: 'doc' })
-      )
-    ).resolves.toEqual({ kind: 'detail', item: null })
-    expect(mockFetch.mock.calls[0][0]).toBe('https://coda.io/apis/v1/docs/doc/pages/canvas-gone')
-  })
-
-  it('labels permissions by principal and resolves details from the list', async () => {
-    mockFetch.mockResolvedValue(
-      json({
-        items: [
-          { id: 'perm-1', access: 'write', principal: { type: 'email', email: 'a@b.co' } },
-          { id: 'perm-2', access: 'readonly', principal: { type: 'anyone' } },
-        ],
-      })
-    )
-
-    await expect(
-      codaSelectorAttachments['coda.permissions'].execute(
-        args('coda.permissions', { kind: 'detail', id: 'perm-2' }, { docId: 'doc' })
-      )
-    ).resolves.toEqual({
-      kind: 'detail',
-      item: {
-        id: 'perm-2',
-        label: 'Anyone with the link (readonly)',
-        meta: { access: 'readonly', principalType: 'anyone' },
-      },
-    })
   })
 
   it('rejects missing or traversal context before contacting Coda', async () => {

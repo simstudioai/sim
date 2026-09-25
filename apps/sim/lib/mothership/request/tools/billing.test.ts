@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type {
   ExecutionContext,
   OrchestratorOptions,
@@ -31,10 +28,6 @@ function createExecutionContext(
 }
 
 describe('handleBillingLimitResponse', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('uses the workspace payer plan instead of the actor highest-priority plan', async () => {
     mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'enterprise' })
     const onEvent = vi.fn()

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { PDFDocument } from 'pdf-lib'
 import { describe, expect, it } from 'vitest'
 import { countMistralPdfPages } from '@/lib/internal/mistral/page-count'

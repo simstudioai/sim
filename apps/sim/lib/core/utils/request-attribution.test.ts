@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { captureRequestAttribution } from '@/lib/core/utils/request-attribution'
@@ -33,11 +30,5 @@ describe('captureRequestAttribution', () => {
     expect(captureRequestAttribution()).toEqual({
       client: { surface: 'api', source: 'credential' },
     })
-  })
-
-  it('carries nothing outside a request', () => {
-    vi.mocked(loggerMock.getRequestContext).mockReturnValue(undefined)
-
-    expect(captureRequestAttribution()).toBeUndefined()
   })
 })

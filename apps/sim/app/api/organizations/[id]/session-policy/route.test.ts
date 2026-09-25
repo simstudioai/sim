@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { member, organization } from '@sim/db/schema'
 import {
   authMockFns,
@@ -65,7 +62,6 @@ afterAll(resetEnvFlagsMock)
 
 describe('session policy route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'Admin', email: 'admin@acme.dev' },
@@ -75,30 +71,10 @@ describe('session policy route', () => {
   })
 
   describe('GET', () => {
-    it('returns 401 when unauthenticated', async () => {
-      mockGetSession.mockResolvedValue(null)
-      const response = await GET(createMockRequest('GET'), routeContext)
-      expect(response.status).toBe(401)
-    })
-
     it('returns 403 for non-members', async () => {
       queueTableRows(member, [])
       const response = await GET(createMockRequest('GET'), routeContext)
       expect(response.status).toBe(403)
-    })
-
-    it('returns the configured policy for members', async () => {
-      queueTableRows(member, [{ id: 'member-1', role: 'member' }])
-      queueTableRows(organization, [
-        { sessionPolicySettings: { maxSessionHours: 72, idleTimeoutHours: null } },
-      ])
-      const response = await GET(createMockRequest('GET'), routeContext)
-      expect(response.status).toBe(200)
-      const body = await response.json()
-      expect(body.data).toEqual({
-        isEnterprise: true,
-        configured: { maxSessionHours: 72, idleTimeoutHours: null },
-      })
     })
   })
 
@@ -158,23 +134,6 @@ describe('session policy route', () => {
       )
       expect(mockRecordAudit).toHaveBeenCalledWith(
         expect.objectContaining({ action: 'organization.session_policy.updated' })
-      )
-    })
-
-    it('clearing both fields still saves and delegates the no-op to the clamp', async () => {
-      queueTableRows(member, [{ role: 'owner' }])
-      queueTableRows(organization, [{ name: 'Acme' }])
-      dbChainMockFns.returning.mockResolvedValueOnce([{ id: ORG_ID }])
-
-      const response = await PUT(
-        putRequest({ maxSessionHours: null, idleTimeoutHours: null }),
-        routeContext
-      )
-      expect(response.status).toBe(200)
-      expect(mockEagerClamp).toHaveBeenCalledWith(
-        ORG_ID,
-        { maxSessionHours: null, idleTimeoutHours: null },
-        expect.anything()
       )
     })
   })

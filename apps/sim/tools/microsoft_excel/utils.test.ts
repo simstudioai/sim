@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { parseGraphErrorMessage } from '@/tools/microsoft_excel/utils'
 

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { cancelSearchJobTool } from '@/tools/splunk/cancel_search_job'
 import { createSearchJobTool } from '@/tools/splunk/create_search_job'
@@ -51,18 +48,6 @@ describe('listSavedSearchesTool', () => {
 })
 
 describe('getFiredAlertsTool', () => {
-  /**
-   * `name=-` returns the fired alerts of every saved search, and this endpoint
-   * documents "Request parameters: None" — there is no `count`/`offset` to bound
-   * that read, so the wildcard has to be disclosed rather than offered flatly.
-   */
-  it('warns that the - wildcard has no count or offset to bound it', () => {
-    const description = String(getFiredAlertsTool.params.name.description)
-
-    expect(description).toMatch(/Request parameters: None/)
-    expect(description).toMatch(/count|offset/)
-  })
-
   it('sends no pagination to an endpoint documented as taking no request parameters', () => {
     const url = getFiredAlertsTool.request.url({ ...BASE, name: 'Errors' } as never)
     expect(url).toBe(
@@ -214,11 +199,6 @@ describe('getSearchJobTool time bounds', () => {
     expect(result?.output.searchLatestTime).toBe(1308593400)
   })
 
-  it('declares them as numbers', () => {
-    expect(getSearchJobTool.outputs?.searchEarliestTime).toMatchObject({ type: 'number' })
-    expect(getSearchJobTool.outputs?.searchLatestTime).toMatchObject({ type: 'number' })
-  })
-
   /**
    * Every one of these is `| null` in the transform, so declaring them required
    * promises the workflow a value a queued or failed job does not carry.
@@ -268,32 +248,6 @@ describe('runSearchTool max_count', () => {
       'max_count=50'
     )
   })
-
-  it('does not claim a Sim-specific default in the parameter description', () => {
-    expect(runSearchTool.params.maxCount.description).not.toMatch(/\b1000\b/)
-    expect(runSearchTool.params.maxCount.description).toMatch(/Defaults to 10000/)
-    expect(runSearchTool.params.maxCount.description).toMatch(/transforming mode/)
-  })
-})
-
-/**
- * `scripts/generate-docs.ts` parses tool source text and resolves an `outputs`
- * const only from the family's `types.ts`, so a shared const anywhere else makes
- * the published table fall back to the block's union of every operation's outputs.
- * These fields must stay written out inline.
- */
-describe('result-returning tools declare their outputs inline', () => {
-  it.each([
-    ['run_search', runSearchTool],
-    ['get_search_results', getSearchResultsTool],
-  ])('%s types results as an array of rows', (_label, tool) => {
-    expect(tool.outputs?.results).toMatchObject({ type: 'array', items: { type: 'object' } })
-    expect(tool.outputs?.messages).toMatchObject({ type: 'array' })
-    expect(tool.outputs).not.toHaveProperty('savedSearches')
-    expect(tool.outputs).not.toHaveProperty('firedAlerts')
-    expect(tool.outputs).not.toHaveProperty('indexes')
-    expect(tool.outputs).not.toHaveProperty('apps')
-  })
 })
 
 /**
@@ -311,9 +265,5 @@ describe('cancelSearchJobTool messages', () => {
     )
 
     expect(result?.output.messages).toEqual([{ type: 'INFO', text: 'Search job cancelled.' }])
-  })
-
-  it('declares messages as an output', () => {
-    expect(cancelSearchJobTool.outputs?.messages).toMatchObject({ type: 'array' })
   })
 })

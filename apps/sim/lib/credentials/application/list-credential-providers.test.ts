@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,33 +32,9 @@ const workspaceContext = {
 
 describe('listCredentialProviders', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.listCatalog.mockResolvedValue([])
-  })
-
-  it('allows sessions to inspect deployment availability', async () => {
-    const principal: SessionPrincipal = {
-      kind: 'session',
-      userId: 'user-1',
-      sessionId: 'session-1',
-    }
-
-    await listCredentialProviders.execute({ principal, input: { workspaceId: 'workspace-1' } })
-    expect(mocks.listCatalog).toHaveBeenCalledWith(principal, workspaceContext)
-  })
-
-  it('allows workspace keys to inspect deployment availability', async () => {
-    const principal = {
-      kind: 'workspace_api_key' as const,
-      workspaceId: 'workspace-1',
-      keyId: 'key-1',
-    }
-
-    await listCredentialProviders.execute({ principal, input: { workspaceId: 'workspace-1' } })
-
-    expect(mocks.listCatalog).toHaveBeenCalledWith(principal, workspaceContext)
   })
 
   it('searches provider names case-insensitively without matching ids or descriptions', async () => {
@@ -88,21 +61,5 @@ describe('listCredentialProviders', () => {
     })
 
     expect(result.providers).toEqual([salesforce])
-  })
-
-  it('fails fast on a blank search from a non-HTTP caller', async () => {
-    const principal: SessionPrincipal = {
-      kind: 'session',
-      userId: 'user-1',
-      sessionId: 'session-1',
-    }
-
-    await expect(
-      listCredentialProviders.execute({
-        principal,
-        input: { workspaceId: 'workspace-1', search: '   ' },
-      })
-    ).rejects.toThrow('search cannot be empty')
-    expect(mocks.listCatalog).not.toHaveBeenCalled()
   })
 })

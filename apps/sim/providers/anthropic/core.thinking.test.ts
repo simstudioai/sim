@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Anthropic thinking config: the summarized-display opt-in is requested only
  * on agent-events runs and only for models whose registry marks summarized
  * streaming (the omitted-display Claude generations). Legacy runs keep the

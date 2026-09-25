@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch, mockResolveJsmAuth, mockResolveCloudId } = vi.hoisted(() => ({
@@ -45,7 +42,6 @@ function providerResponse(body: unknown): Response {
 
 describe('JSM server selector adapters', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveJsmAuth.mockResolvedValue({
       accessToken: 'server-only-token',

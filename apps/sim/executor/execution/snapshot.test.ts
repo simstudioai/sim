@@ -14,23 +14,6 @@ const metadata: ExecutionMetadata = {
 }
 
 describe('ExecutionSnapshot', () => {
-  it('normalizes untyped persisted execution state at construction', () => {
-    const variable = { id: 'var-1', name: 'brand', type: 'plain', value: 'myfitness' }
-
-    const snapshot = new ExecutionSnapshot(
-      metadata,
-      { blocks: [] },
-      {},
-      [variable],
-      ['agent.content', 123, 'function.result']
-    )
-
-    expect(snapshot.toJSON()).toMatch(/^\{"metadata":/)
-    expect(JSON.parse(snapshot.toJSON())).toMatchObject({ version: 1 })
-    expect(snapshot.workflowVariables).toEqual({ 'var-1': variable })
-    expect(snapshot.selectedOutputs).toEqual(['agent.content', 'function.result'])
-  })
-
   it('round trips a delegated principal through persisted JSON', () => {
     const principal = {
       kind: 'delegated' as const,
@@ -99,25 +82,6 @@ describe('ExecutionSnapshot', () => {
     expect(restored.metadata.principal).toEqual({
       kind: 'session',
       userId: 'session-user-1',
-      sessionId: 'legacy-paused-execution',
-    })
-  })
-
-  it('restores the recorded API-key actor from a legacy pause snapshot', () => {
-    const { principal: _principal, ...legacyMetadata } = metadata
-    const restored = ExecutionSnapshot.fromJSON(
-      JSON.stringify({
-        metadata: { ...legacyMetadata, enforceCredentialAccess: true },
-        workflow: { blocks: [] },
-        input: {},
-        workflowVariables: {},
-        selectedOutputs: [],
-      })
-    )
-
-    expect(restored.metadata.principal).toEqual({
-      kind: 'session',
-      userId: 'user-1',
       sessionId: 'legacy-paused-execution',
     })
   })

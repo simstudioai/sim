@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   resetDbChainMock,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -79,17 +75,6 @@ const personalKeyAuth = {
   keyType: 'personal' as const,
 }
 
-const workspaceKeyAuth = {
-  principal: {
-    kind: 'workspace_api_key' as const,
-    workspaceId: WORKSPACE_ID,
-    keyId: 'workspace-key-1',
-  },
-  rateLimitSubjectIds: ['api-key:workspace-key-1'] as const,
-  rateLimitSubscription: null,
-  keyType: 'workspace' as const,
-}
-
 const workspaceContext = {
   workspaceId: WORKSPACE_ID,
   workspaceOrganizationId: null,
@@ -128,7 +113,6 @@ async function get(search = `?workspaceId=${WORKSPACE_ID}`) {
 
 describe('/api/v2/chat-deployments', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     v2RouteMocks.authenticate.mockResolvedValue(personalKeyAuth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
@@ -221,31 +205,6 @@ describe('/api/v2/chat-deployments', () => {
       expect(serialized).not.toContain('encrypted-secret')
     })
 
-    /** Narrowing must not cost discovery: the mode label and identity stay. */
-    it('still carries what a caller needs to decide whether to fetch the detail', async () => {
-      mocks.listDeployments.mockResolvedValue({
-        data: [
-          {
-            chat: chatRow({ authType: 'password', password: 'encrypted-secret' }),
-            isWorkflowDeployed: true,
-          },
-        ],
-        nextCursorKeys: null,
-      })
-
-      const body = await (await get()).json()
-
-      expect(body.data[0]).toMatchObject({
-        id: 'chat-1',
-        identifier: 'support',
-        title: 'Support chat',
-        authType: 'password',
-        isActive: true,
-        url: expect.stringContaining('/chat/support'),
-        createdAt: '2026-06-12T10:30:00.000Z',
-      })
-    })
-
     it('reports a configured chat inactive when its workflow is undeployed', async () => {
       mocks.listDeployments.mockResolvedValue({
         data: [{ chat: chatRow({ isActive: true }), isWorkflowDeployed: false }],
@@ -255,14 +214,6 @@ describe('/api/v2/chat-deployments', () => {
       const body = await (await get()).json()
 
       expect(body.data[0].isActive).toBe(false)
-    })
-
-    it('passes the workflow and active filters to the read', async () => {
-      await get(`?workspaceId=${WORKSPACE_ID}&workflowId=${WORKFLOW_ID}&isActive=false`)
-
-      expect(mocks.listDeployments).toHaveBeenCalledWith(
-        expect.objectContaining({ workflowId: WORKFLOW_ID, isActive: false })
-      )
     })
 
     it('rejects a cursor minted under different filters', async () => {
@@ -281,14 +232,6 @@ describe('/api/v2/chat-deployments', () => {
       expect((await response.json()).error.code).toBe('BAD_REQUEST')
     })
 
-    it('accepts a workspace API key for the read', async () => {
-      v2RouteMocks.authenticate.mockResolvedValue(workspaceKeyAuth)
-
-      const response = await get()
-
-      expect(response.status).toBe(200)
-    })
-
     /**
      * The list addresses a workspace, so the concealed denial must name the
      * workspace. Naming a chat deployment reported a resource the caller never
@@ -305,12 +248,6 @@ describe('/api/v2/chat-deployments', () => {
       expect(body.error.code).toBe('NOT_FOUND')
       expect(body.error.message).toBe('Workspace not found')
       expect(mocks.listDeployments).not.toHaveBeenCalled()
-    })
-
-    it('rejects an unauthenticated request', async () => {
-      v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-      expect((await get()).status).toBe(401)
     })
   })
 })

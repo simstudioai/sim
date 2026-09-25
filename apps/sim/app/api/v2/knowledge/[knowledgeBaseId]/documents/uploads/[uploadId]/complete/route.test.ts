@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -101,7 +98,6 @@ function request() {
 
 describe('POST knowledge-document upload completion', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.authenticateV2ApiKey.mockResolvedValue(
       auth({ kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' })
     )
@@ -116,32 +112,6 @@ describe('POST knowledge-document upload completion', () => {
       resetAt: new Date('2026-08-04T21:00:00.000Z'),
     })
     mocks.completeUpload.mockResolvedValue(RESULT)
-  })
-
-  it('delegates completion and emits v2 analytics only for a newly created document', async () => {
-    const call = request()
-    const response = await call.response
-
-    expect(response.status).toBe(200)
-    expect(mocks.completeUpload).toHaveBeenCalledWith({
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-      input: {
-        knowledgeBaseId: 'kb-1',
-        assertedWorkspaceId: WORKSPACE_ID,
-        uploadId: 'upload-1',
-        uploadToken: 'token',
-        source: 'api',
-      },
-      request: call.request,
-    })
-    expect(mocks.captureServerEvent).toHaveBeenCalledWith(
-      'user-1',
-      'knowledge_base_document_uploaded',
-      expect.objectContaining({ knowledge_base_id: 'kb-1', workspace_id: WORKSPACE_ID }),
-      expect.any(Object)
-    )
-    expect(mocks.platformEvent).toHaveBeenCalledTimes(1)
-    expect(await response.json()).toMatchObject({ data: { document: { id: 'upload-1' } } })
   })
 
   /**

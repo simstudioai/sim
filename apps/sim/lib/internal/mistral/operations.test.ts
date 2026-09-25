@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -61,7 +58,6 @@ describe('Mistral ingestion authorization', () => {
   let context: MistralOperationContext
 
   beforeEach(() => {
-    vi.clearAllMocks()
     submit.mockResolvedValue({ pages: [{ markdown: 'Synthetic OCR fixture' }] })
     authorizeFile.mockResolvedValue(new Response(null, { status: 404 }))
     modelSafeFile.mockResolvedValue(true)

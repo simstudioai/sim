@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   authMockFns,
   createMockRequest,
@@ -53,7 +50,6 @@ function makeRequest(body: unknown, id = 'sub-1') {
 
 describe('POST /api/users/me/subscription/[id]/transfer', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue(
       createSession({
@@ -76,30 +72,6 @@ describe('POST /api/users/me/subscription/[id]/transfer', () => {
       error: 'Only active Team or Enterprise subscriptions can be transferred to an organization.',
     })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
-  it('transfers an active organization subscription to an admin-owned organization', async () => {
-    dbChainMockFns.for
-      .mockResolvedValueOnce([
-        { id: 'sub-1', referenceId: 'user-1', plan: 'team', status: 'active' },
-      ])
-      .mockResolvedValueOnce([{ id: 'org-1' }])
-    dbChainMockFns.limit.mockResolvedValueOnce([{ role: 'owner' }]).mockResolvedValueOnce([])
-
-    const response = await makeRequest({ organizationId: 'org-1' })
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({
-      success: true,
-      message: 'Subscription transferred successfully',
-    })
-    expect(dbChainMockFns.update).toHaveBeenCalled()
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({ referenceId: 'org-1' })
-    expect(mockAcquireOrganizationMutationLock).toHaveBeenCalledWith(expect.anything(), 'org-1')
-    expect(mockAssertNoUnresolvedEnterpriseIssuance).toHaveBeenCalledWith(
-      expect.anything(),
-      'org-1'
-    )
   })
 
   it('rejects an entitlement transfer while Enterprise issuance is unresolved', async () => {

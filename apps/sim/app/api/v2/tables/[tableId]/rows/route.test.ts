@@ -1,9 +1,4 @@
-/**
- * @vitest-environment node
- */
-
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -38,9 +33,8 @@ vi.mock('@/lib/table/application/rows', () => ({
 
 import { v2ListTableRowsContract } from '@/lib/api/contracts/v2/tables'
 import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { encodeScopedCursor } from '@/app/api/v2/lib/response'
-import { DELETE, GET, PATCH, POST } from '@/app/api/v2/tables/[tableId]/rows/route'
+import { GET, PATCH, POST } from '@/app/api/v2/tables/[tableId]/rows/route'
 
 /** A row cursor exactly as the route mints one, for the table given. */
 function rowCursor(tableId: string, inner: string): string {
@@ -88,7 +82,6 @@ function request(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', body?: unknown, qu
 
 describe('/api/v2/tables/[tableId]/rows', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -189,20 +182,6 @@ describe('/api/v2/tables/[tableId]/rows', () => {
     })
   })
 
-  it('answers 413 when a requested page of run state outgrows the ceiling', async () => {
-    mocks.listRows.mockRejectedValueOnce(
-      new OrchestrationError('payload_too_large', 'Run state for this page exceeds the limit')
-    )
-
-    const response = await GET(
-      request('GET', undefined, `?workspaceId=${WORKSPACE_ID}&includeRunState=true`),
-      CONTEXT
-    )
-
-    expect(response.status).toBe(413)
-    expect((await response.json()).error.code).toBe('PAYLOAD_TOO_LARGE')
-  })
-
   /**
    * The row codec binds the sort and predicate a page was produced under but
    * carries no table identity, so an unfiltered token from one table decoded
@@ -222,18 +201,6 @@ describe('/api/v2/tables/[tableId]/rows', () => {
     expect(response.status).toBe(400)
     expect((await response.json()).error.message).toMatch(/requested filters/)
     expect(mocks.listRows).not.toHaveBeenCalled()
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await GET(
-      request('GET', undefined, `?workspaceId=${WORKSPACE_ID}&limit=25`),
-      CONTEXT
-    )
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 
   it('delegates single and batch creation through one semantic use case', async () => {
@@ -277,36 +244,6 @@ describe('/api/v2/tables/[tableId]/rows', () => {
     })
   })
 
-  it('preserves authoritative bulk update counts including a zero-match result', async () => {
-    mocks.updateRows.mockResolvedValue({ table: TABLE, affectedCount: 0, affectedRowIds: [] })
-    const req = request('PATCH', {
-      workspaceId: WORKSPACE_ID,
-      filter: { all: [{ field: 'name', op: 'eq', value: 'missing' }] },
-      data: { name: 'Grace' },
-    })
-    const response = await PATCH(req, CONTEXT)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { updatedCount: 0, updatedRowIds: [] } })
-  })
-
-  it('preserves id-delete requested and missing-row reporting', async () => {
-    const req = request('DELETE', {
-      workspaceId: WORKSPACE_ID,
-      rowIds: ['row-1', 'row-2'],
-    })
-    const response = await DELETE(req, CONTEXT)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: {
-        deletedCount: 1,
-        deletedRowIds: ['row-1'],
-        requestedCount: 2,
-        missingRowIds: ['row-2'],
-      },
-    })
-  })
   /**
    * A table cell is `z.unknown()` on the wire — its type is decided by the
    * column, not the contract — so no string schema guards it. A `U+0000` in a

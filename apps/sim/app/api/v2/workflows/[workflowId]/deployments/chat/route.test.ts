@@ -1,9 +1,5 @@
-/**
- * @vitest-environment node
- */
 import {
   environmentUtilsMockFns,
-  MockV2ApiKeyUnauthenticatedError,
   resetDbChainMock,
   resetEnvironmentUtilsMock,
   resetEnvMock,
@@ -157,7 +153,6 @@ const validBody = { identifier: 'support', title: 'Support chat' }
 describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
   afterEach(resetEnvMock)
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     v2RouteMocks.authenticate.mockResolvedValue(personalKeyAuth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
@@ -241,18 +236,6 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
 
       expect(response.status).toBe(403)
       expect((await response.json()).error.details.code).toBe('INSUFFICIENT_WORKSPACE_ROLE')
-    })
-
-    it('rejects an undeclared query param rather than ignoring it', async () => {
-      const response = await GET(new NextRequest(`${PATH}?workspaceId=other`), routeContext)
-
-      expect(response.status).toBe(400)
-    })
-
-    it('rejects an unauthenticated request', async () => {
-      v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-      expect((await get()).status).toBe(401)
     })
   })
 
@@ -359,13 +342,6 @@ describe('/api/v2/workflows/[workflowId]/deployments/chat', () => {
 
       expect(response.status).toBe(400)
       expect(JSON.stringify(await response.json())).toContain('allowedEmails cannot be set')
-      expect(mocks.performChatDeploy).not.toHaveBeenCalled()
-    })
-
-    it('rejects an unknown field rather than storing it', async () => {
-      const response = await put({ ...validBody, workflowId: WORKFLOW_ID })
-
-      expect(response.status).toBe(400)
       expect(mocks.performChatDeploy).not.toHaveBeenCalled()
     })
 

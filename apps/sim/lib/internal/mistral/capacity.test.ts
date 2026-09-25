@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { sha256Hex } from '@sim/security/hash'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

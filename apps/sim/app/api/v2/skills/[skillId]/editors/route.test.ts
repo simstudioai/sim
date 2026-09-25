@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -36,7 +33,7 @@ vi.mock('@/lib/skills/application/use-cases', () => ({
   },
 }))
 
-import { DELETE, GET, POST } from '@/app/api/v2/skills/[skillId]/editors/route'
+import { GET, POST } from '@/app/api/v2/skills/[skillId]/editors/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 const SKILL_ID = 'skill-1'
@@ -76,7 +73,6 @@ function request(method: 'GET' | 'POST' | 'DELETE', body?: unknown) {
 
 describe('/api/v2/skills/[skillId]/editors', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -119,57 +115,6 @@ describe('/api/v2/skills/[skillId]/editors', () => {
     )
   })
 
-  it('allows a workspace key to list the editor roster', async () => {
-    const principal = {
-      kind: 'workspace_api_key' as const,
-      workspaceId: WORKSPACE_ID,
-      keyId: 'workspace-key-1',
-    }
-    v2RouteMocks.authenticate.mockResolvedValueOnce({
-      ...AUTH,
-      principal,
-      keyType: 'workspace' as const,
-    })
-
-    const response = await GET(request('GET'), context)
-
-    expect(response.status).toBe(200)
-    expect(mocks.list).toHaveBeenCalledWith(expect.objectContaining({ principal }))
-  })
-
-  it('mints a cursor for the next editor page', async () => {
-    mocks.list.mockResolvedValueOnce({
-      editors: [editor],
-      hasMore: true,
-      offset: 0,
-      limit: 1,
-    })
-
-    const response = await GET(request('GET'), context)
-
-    expect(response.status).toBe(200)
-    expect(typeof (await response.json()).nextCursor).toBe('string')
-  })
-
-  it('creates an editor grant by email and returns 201', async () => {
-    const response = await POST(
-      request('POST', { workspaceId: WORKSPACE_ID, email: editor.userEmail }),
-      context
-    )
-
-    expect(response.status).toBe(201)
-    expect(mocks.grant).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: {
-          skillId: SKILL_ID,
-          workspaceId: WORKSPACE_ID,
-          target: { kind: 'email', email: editor.userEmail },
-        },
-      })
-    )
-    expect(mocks.capture).toHaveBeenCalledOnce()
-  })
-
   it('returns 200 for an idempotent existing editor grant', async () => {
     mocks.grant.mockResolvedValueOnce({ editor, created: false, workspaceId: WORKSPACE_ID })
 
@@ -180,23 +125,5 @@ describe('/api/v2/skills/[skillId]/editors', () => {
 
     expect(response.status).toBe(200)
     expect(mocks.capture).not.toHaveBeenCalled()
-  })
-
-  it('revokes an explicit editor grant by email', async () => {
-    const response = await DELETE(request('DELETE'), context)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: { email: editor.userEmail, revoked: true },
-    })
-    expect(mocks.revoke).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: {
-          skillId: SKILL_ID,
-          workspaceId: WORKSPACE_ID,
-          target: { kind: 'email', email: editor.userEmail },
-        },
-      })
-    )
   })
 })

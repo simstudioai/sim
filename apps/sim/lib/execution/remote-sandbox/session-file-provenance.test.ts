@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto'
-/** @vitest-environment node */
 import { generateShortId } from '@sim/utils/id'
 import Redis from 'ioredis'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'

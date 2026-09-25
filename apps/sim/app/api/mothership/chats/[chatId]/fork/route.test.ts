@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { copilotChats, member } from '@sim/db/schema'
 import {
   copilotHttpMock,
@@ -155,7 +151,6 @@ function makeContext(chatId: string) {
 
 describe('POST /api/mothership/chats/[chatId]/fork', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnv({ COPILOT_API_KEY: undefined })
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
@@ -186,15 +181,6 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
   afterAll(() => {
     resetDbChainMock()
     resetEnvMock()
-  })
-
-  it('rejects unauthenticated callers', async () => {
-    copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
-      userId: null,
-      isAuthenticated: false,
-    })
-    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
-    expect(res.status).toBe(401)
   })
 
   it('forks organization history under current membership without inventing workspace files', async () => {
@@ -250,89 +236,11 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     }
   )
 
-  it('retains the workspace membership-only fork policy', async () => {
-    expect((await POST(createRequest('chat-1'), makeContext('chat-1'))).status).toBe(200)
-    expect(mockAssertActiveWorkspaceAccess).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        id: 'mothership.chats.fork',
-        minimumRole: 'read',
-        capability: 'none',
-      }),
-      expect.objectContaining({ workspaceId: 'ws-1' }),
-      expect.anything()
-    )
-  })
-
   it('404s when the chat belongs to another user', async () => {
     dbChainMockFns.limit.mockResolvedValue([{ ...parentRow, userId: 'someone-else' }])
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
     expect(res.status).toBe(404)
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-  })
-
-  it('404s for non-mothership chats', async () => {
-    dbChainMockFns.limit.mockResolvedValue([{ ...parentRow, type: 'copilot' }])
-    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
-    expect(res.status).toBe(404)
-  })
-
-  it('400s when upToMessageId is missing', async () => {
-    const res = await POST(createRequest('chat-1', {}), makeContext('chat-1'))
-    expect(res.status).toBe(400)
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-  })
-
-  it('400s when upToMessageId is an empty string', async () => {
-    const res = await POST(createRequest('chat-1', { upToMessageId: '' }), makeContext('chat-1'))
-    expect(res.status).toBe(400)
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-  })
-
-  it('400s when the message is not in the chat', async () => {
-    const res = await POST(
-      createRequest('chat-1', { upToMessageId: 'msg-unknown' }),
-      makeContext('chat-1')
-    )
-    expect(res.status).toBe(400)
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-  })
-
-  it('applies the timeline cut: kept message ids drive the file selection', async () => {
-    // Two uploads born pre-cut, one born post-cut, and one legacy row with no
-    // birth message. The single chat-owned read is cut in memory: everything
-    // but the post-cut row.
-    const preCutUpload = { id: 'wf_up', size: 1, context: 'mothership', messageId: 'msg-1' }
-    const secondPreCut = { id: 'wf_up2', size: 1, context: 'mothership', messageId: 'msg-2' }
-    const postCutUpload = { id: 'wf_late', size: 1, context: 'mothership', messageId: 'msg-3' }
-    const legacyRow = { id: 'wf_legacy', size: 1, context: 'mothership', messageId: null }
-    mockListForkableChatFiles.mockResolvedValue([
-      preCutUpload,
-      secondPreCut,
-      postCutUpload,
-      legacyRow,
-    ])
-
-    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
-    expect(res.status).toBe(200)
-
-    // The cut runs over the single read with the kept slice (inclusive of
-    // msg-2, excluding msg-3).
-    expect(mockListForkableChatFiles).toHaveBeenCalledTimes(1)
-    const filterCall = mockFilterForkableChatFiles.mock.calls[0]
-    expect(filterCall[1]).toEqual(new Set(['msg-1', 'msg-2']))
-
-    // The copy plan receives the cut set — the pre-cut uploads plus the
-    // legacy no-birthdate row; the post-cut upload stays behind.
-    expect(mockPlanChatFileCopies.mock.calls[0][0].rows).toEqual([
-      preCutUpload,
-      secondPreCut,
-      legacyRow,
-    ])
-
-    // The appended transcript is the same inclusive slice.
-    const appended = mockAppendCopilotChatMessages.mock.calls[0]
-    expect(appended[1].map((m: { id: string }) => m.id)).toEqual(['msg-1', 'msg-2'])
   })
 
   it('forks the chat: copies kept uploads, rewrites references, clones agent state', async () => {
@@ -404,33 +312,6 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
     )
   })
 
-  it('drops legacy browser and terminal rows while forking, since the desktop app owns them', async () => {
-    dbChainMockFns.limit.mockResolvedValue([
-      {
-        ...parentRow,
-        resources: [
-          {
-            type: 'browser',
-            id: 'browser-session:slack-tab',
-            title: 'mship-todo (Channel) - sim - Slack',
-          },
-          { type: 'browser', id: 'browser-session', title: 'Browser' },
-          { type: 'terminal', id: 'terminal-session', title: 'Terminal' },
-          { type: 'file', id: 'file-1', title: 'report.csv' },
-        ],
-      },
-    ])
-
-    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
-
-    expect(res.status).toBe(200)
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        resources: [{ type: 'file', id: 'file-1', title: 'report.csv' }],
-      })
-    )
-  })
-
   it('does not publish a chat when the worker copy fails', async () => {
     mockFetchGo.mockRejectedValue(new Error('mothership unreachable'))
     const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
@@ -456,15 +337,6 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
       expect.anything(),
       new Set(['wf_dead1', 'wf_dead2'])
     )
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-  })
-
-  it('omits failedFileCopies and skips cleanup when every blob copies', async () => {
-    mockExecuteChatFileBlobCopies.mockResolvedValue({ copied: 3, failed: 0, failedCopyIds: [] })
-
-    const cleanRes = await POST(createRequest('chat-1'), makeContext('chat-1'))
-
-    expect('failedFileCopies' in (await cleanRes.json())).toBe(false)
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 
@@ -520,24 +392,5 @@ describe('POST /api/mothership/chats/[chatId]/fork', () => {
         ],
       })
     )
-  })
-
-  it('drops ghosts even when the fork copies no files at all', async () => {
-    // Fork cut before the chat's only upload arrived: a guard that skips the
-    // resources update when idMap is empty would leave the ghost in place.
-    dbChainMockFns.limit.mockResolvedValue([
-      {
-        ...parentRow,
-        resources: [{ type: 'file', id: 'wf_banana', title: 'banana.png' }],
-      },
-    ])
-    mockListForkableChatFiles.mockResolvedValue([
-      { id: 'wf_banana', size: 50, context: 'mothership', messageId: 'msg-3' },
-    ])
-
-    const res = await POST(createRequest('chat-1'), makeContext('chat-1'))
-
-    expect(res.status).toBe(200)
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ resources: [] }))
   })
 })

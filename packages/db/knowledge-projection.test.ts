@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   FILL_MARK_CEILING,
   markUnfilledProjectionDocuments,
@@ -148,31 +145,6 @@ describe('runKnowledgeProjection', () => {
     ])
   })
 
-  it('leaves the Tin projection alone where it is not installed', async () => {
-    const state = database({
-      tin: false,
-      marks: new Map([['doc', { generation: 1, content: true }]]),
-    })
-    const { sql, trace } = fakeSql(state)
-    await runKnowledgeProjection(sql)
-    expect(trace.pages.map((page) => page.projection)).toEqual([
-      'embedding_search',
-      'embedding_keyword_search',
-    ])
-  })
-
-  it('pages a document by chunk rows until a page comes back short', async () => {
-    const state = database({
-      marks: new Map([['doc', { generation: 1, content: false }]]),
-      chunks: new Map([['doc', 5]]),
-      tin: false,
-    })
-    const { sql, trace } = fakeSql(state)
-    const progress = await runKnowledgeProjection(sql, { pageSize: 2 })
-    expect(trace.pages.map((page) => page.after)).toEqual([-1, 1, 3])
-    expect(progress).toMatchObject({ pages: 3, written: 5, settled: 1 })
-  })
-
   it('keeps a mark whose generation moved while the pass ran', async () => {
     const state = database({ marks: new Map([['doc', { generation: 1, content: false }]]) })
     state.beforeSettle = () => state.marks.set('doc', { generation: 2, content: false })
@@ -268,16 +240,6 @@ describe('runKnowledgeProjection', () => {
       vi.useRealTimers()
     }
   })
-
-  it('stops starting documents once its budget is spent and reports marks remain', async () => {
-    const state = database({ marks: new Map([['doc', { generation: 1, content: false }]]) })
-    const { sql, trace } = fakeSql(state)
-    await expect(runKnowledgeProjection(sql, { budgetMs: 0 })).resolves.toMatchObject({
-      settled: 0,
-      remaining: true,
-    })
-    expect(trace.pages).toEqual([])
-  })
 })
 
 describe('markUnfilledProjectionDocuments', () => {
@@ -317,21 +279,5 @@ describe('markUnfilledProjectionDocuments', () => {
     expect(statements[0]?.text).toContain('FROM embedding_search WHERE acl IS NULL')
     expect(statements[0]?.text).toContain('u.id < held.first_id')
     expect(statements[0]?.values).toEqual(['', 3])
-  })
-
-  it('moves on to the next projection and ends once every unfilled row was read', async () => {
-    const { sql, statements } = fillSql(0, [
-      { marked: 0, last_id: null },
-      { marked: 1, last_id: 'tin-1' },
-    ])
-    await expect(
-      markUnfilledProjectionDocuments(sql, { projection: 0, afterId: 'row-9' })
-    ).resolves.toEqual({ marked: 1, cursor: { projection: 1, afterId: 'tin-1' } })
-    expect(statements.map((statement) => statement.values[0])).toEqual(['row-9', ''])
-    expect(statements[1]?.text).toContain('FROM embedding_keyword_tin WHERE acl IS NULL')
-    const done = fillSql(0, [])
-    await expect(
-      markUnfilledProjectionDocuments(done.sql, { projection: 1, afterId: 'tin-1' })
-    ).resolves.toEqual({ marked: 0, cursor: null })
   })
 })

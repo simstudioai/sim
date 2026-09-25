@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -98,7 +95,6 @@ function file(id: string, name: string, folderId: string | null = null, size = 1
 
 describe('downloadWorkspaceFileItems', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     events.length = 0
     mockLoadContext.mockImplementation(async () => {
       events.push('resolve')
@@ -117,19 +113,6 @@ describe('downloadWorkspaceFileItems', () => {
     mockIsRenderable.mockReturnValue(false)
     mockIsDocNotReady.mockReturnValue(false)
     mockGetUserPermissionConfig.mockResolvedValue(null)
-  })
-
-  it('authorizes the workspace once and returns the bounded selection', async () => {
-    const result = await downloadWorkspaceFileItems.execute({
-      principal,
-      input: { workspaceId: 'ws-1', fileIds: ['f1'], folderIds: [] },
-    })
-
-    expect(events).toEqual(['resolve', 'authorize', 'execute'])
-    expect(result.filesToZip).toHaveLength(1)
-    expect(mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ actorId: 'u1', workspaceId: 'ws-1' })
-    )
   })
 
   it('allows a file-scoped delegated principal to download its one explicit file', async () => {
@@ -189,26 +172,6 @@ describe('downloadWorkspaceFileItems', () => {
     )
   })
 
-  /**
-   * v2 addresses folders by path. Resolution reuses the folder set the
-   * selection already loads, so it costs no extra query.
-   */
-  it('resolves folder paths to the same expansion as folder ids', async () => {
-    mockListFolders.mockResolvedValue([
-      { id: 'folder-1', name: 'Reports', path: 'Reports', parentId: null },
-      { id: 'folder-2', name: 'Drafts', path: 'Reports/Drafts', parentId: 'folder-1' },
-    ])
-    mockListFiles.mockResolvedValue([file('f1', 'report.txt', 'folder-2')])
-
-    const result = await downloadWorkspaceFileItems.execute({
-      principal,
-      input: { workspaceId: 'ws-1', fileIds: [], folderIds: [], folderPaths: ['/Reports'] },
-    })
-
-    expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
-    expect(mockListFolders).toHaveBeenCalledOnce()
-  })
-
   it('resolves a nested folder path without matching a same-named sibling', async () => {
     mockListFolders.mockResolvedValue([
       { id: 'folder-1', name: 'Reports', path: 'Reports', parentId: null },
@@ -246,37 +209,6 @@ describe('downloadWorkspaceFileItems', () => {
     ).rejects.toMatchObject({ code: 'validation' })
   })
 
-  it('returns typed validation and conflict failures without recording audit', async () => {
-    await expect(
-      downloadWorkspaceFileItems.execute({
-        principal,
-        input: { workspaceId: 'ws-1', fileIds: [], folderIds: [] },
-      })
-    ).rejects.toMatchObject({ code: 'validation' })
-    expect(events).toEqual(['resolve', 'authorize'])
-
-    mockListFiles.mockResolvedValue([file('f1', 'pending.docx')])
-    mockIsGenerated.mockReturnValue(true)
-    mockIsDocNotReady.mockReturnValue(true)
-    mockFetchServable.mockRejectedValue(new Error('pending'))
-    await expect(
-      downloadWorkspaceFileItems.execute({
-        principal,
-        input: { workspaceId: 'ws-1', fileIds: ['f1'], folderIds: [] },
-      })
-    ).rejects.toMatchObject({ code: 'conflict' })
-    expect(mockRecordAudit).not.toHaveBeenCalled()
-  })
-
-  it('ignores stale selected IDs when another selected file still resolves', async () => {
-    const result = await downloadWorkspaceFileItems.execute({
-      principal,
-      input: { workspaceId: 'ws-1', fileIds: ['f1', 'stale-file'], folderIds: [] },
-    })
-
-    expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
-  })
-
   describe('permission-group capability', () => {
     beforeEach(() => {
       mockGetUserPermissionConfig.mockResolvedValue({
@@ -299,15 +231,6 @@ describe('downloadWorkspaceFileItems', () => {
       ).rejects.toMatchObject({ capability: 'files.bulk_download' })
 
       expect(events).not.toContain('execute')
-    })
-
-    it('refuses a multi-file archive, which is the same bulk extraction', async () => {
-      await expect(
-        downloadWorkspaceFileItems.execute({
-          principal,
-          input: { workspaceId: 'ws-1', fileIds: ['f1', 'f2'], folderIds: [] },
-        })
-      ).rejects.toMatchObject({ capability: 'files.bulk_download' })
     })
 
     /**

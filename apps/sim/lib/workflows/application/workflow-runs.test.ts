@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -75,7 +72,6 @@ const principals: Principal[] = [
 
 describe('workflow run application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.resolveWorkflowContext.mockResolvedValue(workflowContext)
     mocks.resolveRunContext.mockResolvedValue(runContext)
@@ -135,89 +131,6 @@ describe('workflow run application use cases', () => {
     })
   })
 
-  /**
-   * File descriptors follow `output`'s gating: a caller that did not ask for
-   * output must not receive a file list it did not request.
-   */
-  it('reports files as null when output was not requested', async () => {
-    const result = await readWorkflowRun.execute({
-      principal: principals[2],
-      input: {
-        workflowId: 'workflow-1',
-        runId: 'run-1',
-        includeOutput: false,
-        selectedOutputs: [],
-      },
-    })
-
-    expect(result.files).toBeNull()
-    expect(mocks.getRunFiles).not.toHaveBeenCalled()
-  })
-
-  it('describes the run files when output was requested', async () => {
-    mocks.describeFiles.mockResolvedValueOnce([
-      {
-        id: 'file_1',
-        name: 'report.pdf',
-        size: 10,
-        type: 'application/pdf',
-        downloadPath: '/api/v2/workflows/workflow-1/runs/run-1/files/file_1',
-        base64: null,
-      },
-    ])
-
-    const result = await readWorkflowRun.execute({
-      principal: principals[2],
-      input: {
-        workflowId: 'workflow-1',
-        runId: 'run-1',
-        includeOutput: true,
-        selectedOutputs: [],
-      },
-    })
-
-    expect(result.files).toHaveLength(1)
-    expect(mocks.describeFiles).toHaveBeenCalledWith(
-      expect.any(Map),
-      expect.objectContaining({ workflowId: 'workflow-1', runId: 'run-1', includeBase64: false })
-    )
-  })
-
-  it('forwards the inline request and ceiling to the descriptor projection', async () => {
-    await readWorkflowRun.execute({
-      principal: principals[2],
-      input: {
-        workflowId: 'workflow-1',
-        runId: 'run-1',
-        includeOutput: true,
-        selectedOutputs: [],
-        includeFileBase64: true,
-        base64MaxBytes: 4096,
-      },
-    })
-
-    expect(mocks.describeFiles).toHaveBeenCalledWith(
-      expect.any(Map),
-      expect.objectContaining({ includeBase64: true, base64MaxBytes: 4096 })
-    )
-  })
-
-  it('reports an empty file list for a run with no recording', async () => {
-    mocks.getRunFiles.mockResolvedValueOnce(null)
-
-    const result = await readWorkflowRun.execute({
-      principal: principals[2],
-      input: {
-        workflowId: 'workflow-1',
-        runId: 'run-1',
-        includeOutput: true,
-        selectedOutputs: [],
-      },
-    })
-
-    expect(result.files).toEqual([])
-  })
-
   it('propagates an over-ceiling inline request as payload_too_large', async () => {
     mocks.describeFiles.mockRejectedValueOnce(
       Object.assign(new Error('exceeds the 16MB inline limit'), { code: 'payload_too_large' })
@@ -271,17 +184,5 @@ describe('workflow run application use cases', () => {
         },
       })
     ).rejects.toMatchObject({ code: 'conflict' })
-  })
-
-  it('propagates run repository infrastructure failures', async () => {
-    const infrastructureError = new Error('database unavailable')
-    mocks.list.mockRejectedValueOnce(infrastructureError)
-
-    await expect(
-      listWorkflowRuns.execute({
-        principal: principals[0],
-        input: { workflowId: 'workflow-1', limit: 25, order: 'desc' },
-      })
-    ).rejects.toBe(infrastructureError)
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { errorLog } = vi.hoisted(() => ({ errorLog: vi.fn() }))
@@ -30,7 +27,6 @@ import { submitMistralOcr } from '@/lib/internal/mistral/client'
 
 describe('Mistral provider transport', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     admit.mockResolvedValue({ settle })
     settle.mockResolvedValue(0)
     validate.mockResolvedValue({ isValid: true, resolvedIP: '1.1.1.1' })

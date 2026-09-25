@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import type { DelegatedPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
@@ -136,7 +132,6 @@ function requireAccess(principal: DelegatedPrincipal, accessContext = context): 
 
 describe('requireCredentialGroupCredentialAccess', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.isAvailable.mockResolvedValue(true)
     mocks.requirePolicy.mockResolvedValue(storedPolicy())
     mocks.loadEnrollmentAccess.mockResolvedValue({

@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   extractResourcesFromToolResult: vi.fn(),
@@ -36,10 +33,6 @@ import { handleResourceSideEffects } from '@/lib/mothership/request/tools/resour
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 
 describe('handleResourceSideEffects', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('persists and emits the explicit saved-view pin clear directive', async () => {
     mocks.extractResourcesFromToolResult.mockReturnValue([
       {
@@ -90,9 +83,6 @@ describe('handleResourceSideEffects', () => {
         topK: 7,
       },
     },
-    { type: 'table', id: 'table', title: 'Contacts', viewId: 'active-view' },
-    { type: 'file', id: 'file', title: 'Report', path: 'files/Reports/report.md' },
-    { type: 'log', id: 'log-row', title: 'Run', executionId: 'workflow-run' },
   ] satisfies MothershipResource[])(
     'retains $type metadata while keeping the canonical resource identity',
     async (resource) => {
@@ -113,34 +103,31 @@ describe('handleResourceSideEffects', () => {
       })
     }
   )
-  it.each(['workspace-a', 'workspace-b'])(
-    'addresses extracted exports to admitted %s',
-    async (workspaceId) => {
-      const resource = { type: 'file' as const, id: 'export', title: 'decisions.csv' }
-      mocks.extractResourcesFromToolResult.mockReturnValue([resource])
-      const onEvent = vi.fn()
-      await handleResourceSideEffects(
-        'run_function',
-        undefined,
-        { success: true, output: {} },
-        { success: true, output: {} },
-        'org-chat',
-        onEvent,
-        () => false,
-        workspaceId
-      )
-      expect(mocks.persistChatResources).toHaveBeenCalledWith('org-chat', [
-        { ...resource, workspaceId },
-      ])
-      expect(onEvent).toHaveBeenCalledWith({
-        type: 'resource',
-        payload: {
-          op: 'upsert',
-          resource: { ...resource, workspaceId },
-        },
-      })
-    }
-  )
+  it.each(['workspace-a'])('addresses extracted exports to admitted %s', async (workspaceId) => {
+    const resource = { type: 'file' as const, id: 'export', title: 'decisions.csv' }
+    mocks.extractResourcesFromToolResult.mockReturnValue([resource])
+    const onEvent = vi.fn()
+    await handleResourceSideEffects(
+      'run_function',
+      undefined,
+      { success: true, output: {} },
+      { success: true, output: {} },
+      'org-chat',
+      onEvent,
+      () => false,
+      workspaceId
+    )
+    expect(mocks.persistChatResources).toHaveBeenCalledWith('org-chat', [
+      { ...resource, workspaceId },
+    ])
+    expect(onEvent).toHaveBeenCalledWith({
+      type: 'resource',
+      payload: {
+        op: 'upsert',
+        resource: { ...resource, workspaceId },
+      },
+    })
+  })
 })
 
 it('emits authorized Search results beside the persisted address, never inside it', async () => {

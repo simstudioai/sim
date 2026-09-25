@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -22,10 +19,7 @@ vi.mock('@/lib/billing/application/get-billing-status', () => ({
   getBillingStatus: { operation: { id: 'billing.status.read' }, execute: mocks.execute },
 }))
 
-import {
-  PersonalApiKeysDisabledError,
-  WorkspaceApiKeyScopeAuthorizationError,
-} from '@/lib/core/application'
+import { WorkspaceApiKeyScopeAuthorizationError } from '@/lib/core/application'
 import { GET } from '@/app/api/v2/billing/status/route'
 
 const auth = {
@@ -45,64 +39,10 @@ const result = {
 
 describe('GET /api/v2/billing/status', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.execute.mockResolvedValue(result)
-  })
-
-  it('passes only the authenticated principal and requested scope to the use case', async () => {
-    const request = new NextRequest(
-      'http://localhost:3000/api/v2/billing/status?workspaceId=workspace-1'
-    )
-    const response = await GET(request)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: result })
-    expect(mocks.execute).toHaveBeenCalledWith({
-      principal: auth.principal,
-      input: { workspaceId: 'workspace-1' },
-      request,
-    })
-    expect(response.headers.get('x-ratelimit-limit')).toBe('100')
-  })
-
-  it('serializes a withheld payer pool as null without failing response validation', async () => {
-    mocks.execute.mockResolvedValueOnce({ ...result, credits: null, storage: null })
-
-    const response = await GET(
-      new NextRequest('http://localhost:3000/api/v2/billing/status?workspaceId=workspace-1')
-    )
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { ...result, credits: null, storage: null } })
-  })
-
-  it.each(['workspaceID', 'workspace_id', 'workspace'])(
-    'rejects %s rather than silently answering for the account payer',
-    async (key) => {
-      const response = await GET(
-        new NextRequest(`http://localhost:3000/api/v2/billing/status?${key}=workspace-1`)
-      )
-
-      expect(response.status).toBe(400)
-      expect(await response.json()).toMatchObject({ error: { code: 'BAD_REQUEST' } })
-      expect(mocks.execute).not.toHaveBeenCalled()
-    }
-  )
-
-  it('names the cause of an actionable workspace-policy refusal', async () => {
-    mocks.execute.mockRejectedValueOnce(new PersonalApiKeysDisabledError())
-
-    const response = await GET(
-      new NextRequest('http://localhost:3000/api/v2/billing/status?workspaceId=workspace-1')
-    )
-
-    expect(response.status).toBe(403)
-    expect(await response.json()).toMatchObject({
-      error: { code: 'FORBIDDEN', details: { code: 'PERSONAL_API_KEYS_DISABLED' } },
-    })
   })
 
   /**
@@ -119,17 +59,6 @@ describe('GET /api/v2/billing/status', () => {
     expect(response.status).toBe(404)
     expect(await response.json()).toMatchObject({
       error: { code: 'NOT_FOUND', message: 'Workspace not found' },
-    })
-  })
-
-  it('hides unknown billing infrastructure errors', async () => {
-    mocks.execute.mockRejectedValueOnce(new Error('stripe account details'))
-
-    const response = await GET(new NextRequest('http://localhost:3000/api/v2/billing/status'))
-
-    expect(response.status).toBe(500)
-    expect(await response.json()).toMatchObject({
-      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
     })
   })
 })

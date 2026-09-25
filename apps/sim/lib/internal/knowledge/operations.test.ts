@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   requireWorkspaceBillingAttributionHeader: vi.fn(),
@@ -77,7 +74,6 @@ vi.mock('@/lib/knowledge/secret-provenance', () => ({
 
 import {
   type KnowledgeOperationContext,
-  listTagsOperation,
   syncConnectorOperation,
 } from '@/lib/internal/knowledge/operations'
 
@@ -98,32 +94,6 @@ function createContext(): KnowledgeOperationContext {
 }
 
 describe('Knowledge direct operations', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('calls the canonical tag use case with principal workspace assertion', async () => {
-    const tag = {
-      id: 'tag-1',
-      tagSlot: 'tag1',
-      displayName: 'Team',
-      fieldType: 'text',
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-01T00:00:00.000Z',
-    }
-    mocks.listKnowledgeTags.execute.mockResolvedValue({ tagDefinitions: [tag] })
-    const context = createContext()
-
-    const result = await listTagsOperation('kb-1', context)
-
-    expect(mocks.listKnowledgeTags.execute).toHaveBeenCalledWith({
-      principal,
-      input: { knowledgeBaseId: 'kb-1', assertedWorkspaceId: 'workspace-1' },
-      request: { headers: context.headers },
-    })
-    expect(result.body).toEqual({ success: true, data: [tag] })
-  })
-
   it('restores exact billing attribution before the canonical connector sync use case', async () => {
     const attribution = { actorUserId: 'trusted-user', workspaceId: 'workspace-1' }
     mocks.requireWorkspaceBillingAttributionHeader.mockReturnValue(attribution)

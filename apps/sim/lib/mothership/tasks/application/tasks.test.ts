@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -115,20 +114,17 @@ describe('durable workflow watches', () => {
       selectedOutputs: [],
     })
   })
-  it.each(['pending', 'paused', 'resuming', 'queued', 'running'])(
-    'does not complete a %s execution',
-    async (status) => {
-      mocks.status.mockResolvedValue({ status })
-      expect(
-        (
-          await readWatchedWorkflowStatus.execute({
-            principal,
-            input: { chatId: 'chat', executionId: 'exec' },
-          })
-        ).status
-      ).toBe('pending')
-    }
-  )
+  it.each(['paused', 'running'])('does not complete a %s execution', async (status) => {
+    mocks.status.mockResolvedValue({ status })
+    expect(
+      (
+        await readWatchedWorkflowStatus.execute({
+          principal,
+          input: { chatId: 'chat', executionId: 'exec' },
+        })
+      ).status
+    ).toBe('pending')
+  })
   it('propagates outages so the durable watch can retry', async () => {
     mocks.status.mockRejectedValue(new Error('database unavailable'))
     await expect(

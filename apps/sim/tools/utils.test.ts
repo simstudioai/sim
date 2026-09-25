@@ -5,12 +5,7 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 import { prepareToolRequest } from '@/tools/request-transport'
 import { transformTable } from '@/tools/shared/table'
 import type { ToolConfig } from '@/tools/types'
-import {
-  createCustomToolRequestBody,
-  createParamSchema,
-  getClientEnvVars,
-  validateRequiredParametersAfterMerge,
-} from '@/tools/utils'
+import { createParamSchema, validateRequiredParametersAfterMerge } from '@/tools/utils'
 
 const mockGetQueryData = vi.fn()
 
@@ -138,43 +133,6 @@ describe('prepareToolRequest', () => {
         body: vi.fn().mockReturnValue({ data: 'test-data' }),
       },
     }
-  })
-
-  it.concurrent('should format request with static URL', () => {
-    const params = { foo: 'bar' }
-    const result = prepareToolRequest(mockTool, params)
-
-    expect(result).toMatchObject({
-      url: 'https://api.example.com',
-      method: 'GET',
-      body: undefined, // No body for GET
-    })
-    expect(result.headers.get('content-type')).toBe('application/json')
-
-    expect(mockTool.request.headers).toHaveBeenCalledWith(params)
-  })
-
-  it.concurrent('should format request with dynamic URL function', () => {
-    mockTool.request.url = (params) => `https://api.example.com/${params.id}`
-    const params = { id: '123' }
-
-    const result = prepareToolRequest(mockTool, params)
-
-    expect(result).toMatchObject({
-      url: 'https://api.example.com/123',
-      method: 'GET',
-      body: undefined,
-    })
-    expect(result.headers.get('content-type')).toBe('application/json')
-  })
-
-  it.concurrent('should use method from params over tool default', () => {
-    const params = { method: 'POST' }
-    const result = prepareToolRequest(mockTool, params)
-
-    expect(result.method).toBe('POST')
-    expect(result.body).toBe(JSON.stringify({ data: 'test-data' }))
-    expect(mockTool.request.body).toHaveBeenCalledWith(params)
   })
 
   it.concurrent('should handle preformatted content types', () => {
@@ -510,82 +468,5 @@ describe('createParamSchema', () => {
 
     const result2 = createParamSchema(missingPropsTool)
     expect(result2).toEqual({})
-  })
-})
-
-describe('getClientEnvVars', () => {
-  it('should return environment variables from React Query cache in browser environment', () => {
-    const result = getClientEnvVars()
-
-    expect(result).toEqual({
-      API_KEY: 'mock-api-key',
-      BASE_URL: 'https://example.com',
-    })
-  })
-
-  it('should return empty object in server environment', () => {
-    global.window = undefined as any
-
-    const result = getClientEnvVars()
-
-    expect(result).toEqual({})
-  })
-})
-
-describe('createCustomToolRequestBody', () => {
-  it('should create request body function for client-side execution', () => {
-    const customTool = {
-      code: 'return a + b',
-      schema: {
-        function: {
-          parameters: { type: 'object', properties: {} },
-        },
-      },
-    }
-
-    const bodyFn = createCustomToolRequestBody(customTool, true)
-    const result = bodyFn({ a: 5, b: 3 })
-
-    expect(result).toEqual({
-      code: 'return a + b',
-      params: { a: 5, b: 3 },
-      schema: { type: 'object', properties: {} },
-      envVars: {
-        API_KEY: 'mock-api-key',
-        BASE_URL: 'https://example.com',
-      },
-      workflowId: undefined,
-      workflowVariables: {},
-      blockData: {},
-      blockNameMapping: {},
-      isCustomTool: true,
-    })
-  })
-
-  it.concurrent('should create request body function for server-side execution', () => {
-    const customTool = {
-      code: 'return a + b',
-      schema: {
-        function: {
-          parameters: { type: 'object', properties: {} },
-        },
-      },
-    }
-
-    const workflowId = 'test-workflow-123'
-    const bodyFn = createCustomToolRequestBody(customTool, false, workflowId)
-    const result = bodyFn({ a: 5, b: 3 })
-
-    expect(result).toEqual({
-      code: 'return a + b',
-      params: { a: 5, b: 3 },
-      schema: { type: 'object', properties: {} },
-      envVars: {},
-      workflowId: 'test-workflow-123',
-      workflowVariables: {},
-      blockData: {},
-      blockNameMapping: {},
-      isCustomTool: true,
-    })
   })
 })

@@ -6,22 +6,14 @@ import { vi } from 'vitest'
  *
  * @example
  * ```ts
- * import { stripeClientMock, stripeClientMockFns } from '@sim/testing'
  * vi.mock('@/lib/billing/stripe-client', () => stripeClientMock)
- *
- * stripeClientMockFns.mockRequireStripeClient.mockReturnValue(fakeStripe)
+ * stripeClientMock.requireStripeClient.mockReturnValue(fakeStripe)
  * ```
  */
-export const stripeClientMockFns = {
-  mockRequireStripeClient: vi.fn(),
-  mockGetStripeClient: vi.fn(),
-  mockHasValidStripeCredentials: vi.fn(() => true),
-}
-
 export const stripeClientMock = {
-  requireStripeClient: stripeClientMockFns.mockRequireStripeClient,
-  getStripeClient: stripeClientMockFns.mockGetStripeClient,
-  hasValidStripeCredentials: stripeClientMockFns.mockHasValidStripeCredentials,
+  requireStripeClient: vi.fn(),
+  getStripeClient: vi.fn(),
+  hasValidStripeCredentials: vi.fn(() => true),
 }
 
 /**
@@ -29,21 +21,15 @@ export const stripeClientMock = {
  *
  * @example
  * ```ts
- * import { stripePaymentMethodMock, stripePaymentMethodMockFns } from '@sim/testing'
  * vi.mock('@/lib/billing/stripe-payment-method', () => stripePaymentMethodMock)
  * ```
  */
-export const stripePaymentMethodMockFns = {
-  mockResolveDefaultPaymentMethod: vi.fn(async () => ({
+export const stripePaymentMethodMock = {
+  resolveDefaultPaymentMethod: vi.fn(async () => ({
     paymentMethodId: undefined as string | undefined,
     collectionMethod: 'charge_automatically' as 'charge_automatically' | 'send_invoice' | null,
   })),
-  mockGetCustomerId: vi.fn(),
-}
-
-export const stripePaymentMethodMock = {
-  resolveDefaultPaymentMethod: stripePaymentMethodMockFns.mockResolveDefaultPaymentMethod,
-  getCustomerId: stripePaymentMethodMockFns.mockGetCustomerId,
+  getCustomerId: vi.fn(),
 }
 
 /**

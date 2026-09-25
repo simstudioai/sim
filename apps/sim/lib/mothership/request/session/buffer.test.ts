@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { redisConfigMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getRedisBudgetLimits } from '@/lib/core/redis/byte-budget.server'

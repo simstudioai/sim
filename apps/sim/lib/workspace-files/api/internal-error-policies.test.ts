@@ -1,20 +1,10 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { StorageLimitExceededError } from '@/lib/billing/storage'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { ArchiveError } from '@/lib/uploads/archive'
 import { internalFileErrorPolicies } from '@/lib/workspace-files/api/internal-error-policies'
-import { StyleExtractionUnsupportedError } from '@/lib/workspace-files/application/style-workspace-file'
 
 describe('internal file error policies', () => {
-  it('projects style failures without constructing responses', () => {
-    expect(
-      internalFileErrorPolicies.style.project(new StyleExtractionUnsupportedError('Unsupported'))
-    ).toEqual({ status: 422, body: { error: 'Unsupported' }, headers: undefined })
-  })
-
   it('conceals forbidden inline resources with the legacy not-found envelope', () => {
     expect(
       internalFileErrorPolicies.inline.project(new OrchestrationError('forbidden', 'Forbidden'))

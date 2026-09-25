@@ -39,7 +39,6 @@ describe('organization Slack setup continuation', () => {
   let container: HTMLDivElement
 
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     mocks.context.mockReturnValue({ organization: { id: 'org-a' }, viewer: { isAdmin: true } })
     mocks.accounts.mockReturnValue({

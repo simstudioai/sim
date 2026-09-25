@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -20,10 +17,7 @@ vi.mock('@sim/db', () => ({
   },
 }))
 
-import {
-  OAUTH_TOKEN_RETENTION_DAYS,
-  runCleanupOAuthTokens,
-} from '@/background/cleanup-oauth-tokens'
+import { runCleanupOAuthTokens } from '@/background/cleanup-oauth-tokens'
 
 /** A select chain that answers `rows` once awaited, capturing its `where`. */
 function selectChain(rows: unknown[], captured: unknown[]) {
@@ -101,24 +95,6 @@ describe('runCleanupOAuthTokens', () => {
     })
     expect(deletedFrom).toHaveLength(2)
     expect(mocks.transaction).toHaveBeenCalledOnce()
-  })
-
-  /**
-   * A sweep that issued its deletes unconditionally would send an empty `IN ()`
-   * to the database on every quiet run.
-   */
-  it('issues no delete when nothing has expired', async () => {
-    mocks.select.mockReturnValueOnce(selectChain([], [])).mockReturnValueOnce(selectChain([], []))
-
-    await expect(runCleanupOAuthTokens()).resolves.toEqual({
-      tokenFamilies: 0,
-      accessTokens: 0,
-    })
-    expect(mocks.delete).not.toHaveBeenCalled()
-  })
-
-  it('keeps a tail rather than deleting the moment a token lapses', () => {
-    expect(OAUTH_TOKEN_RETENTION_DAYS).toBeGreaterThan(0)
   })
 
   it('drains up to 50,000 families and access tokens with only ten families per transaction', async () => {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMock,
   dbChainMockFns,
@@ -31,7 +28,6 @@ const run = () => setPrimarySsoProvider.execute({ principal, input: { providerId
 
 describe('setPrimarySsoProvider', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockAuthorize.mockResolvedValue({ organizationId: 'org1', userId: 'u1', role: 'owner' })
     dbChainMockFns.returning.mockResolvedValue([{ id: 'domain-1' }])

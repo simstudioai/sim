@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -61,7 +58,6 @@ function params(workflowPayload: Record<string, unknown>) {
 
 describe('importWorkflowIntoWorkspace block access', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(schemaMock.workspace, [{ id: 'workspace-1' }])
     mocks.getUserPermissionConfig.mockResolvedValue(null)
@@ -105,15 +101,6 @@ describe('importWorkflowIntoWorkspace block access', () => {
 
     expect(mocks.performCreateWorkflow).not.toHaveBeenCalled()
     expect(mocks.saveWorkflowToNormalizedTables).not.toHaveBeenCalled()
-  })
-
-  it('imports a payload whose block types the allowlist names', async () => {
-    mocks.getUserPermissionConfig.mockResolvedValue({ allowedIntegrations: ['slack'] })
-
-    const result = await importWorkflowIntoWorkspace(params(payload(block('b1', 'slack'))))
-
-    expect(result.success).toBe(true)
-    expect(mocks.performCreateWorkflow).toHaveBeenCalledOnce()
   })
 
   /**

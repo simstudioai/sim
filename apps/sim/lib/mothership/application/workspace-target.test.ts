@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ target: vi.fn(), context: vi.fn(), authorize: vi.fn() }))
@@ -17,7 +16,6 @@ vi.mock('@/lib/core/application', async (original) => ({
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.target.mockResolvedValue({ workspaceId: 'target', permission: 'write' })
 })
 describe('explicit invocation workspace', () => {

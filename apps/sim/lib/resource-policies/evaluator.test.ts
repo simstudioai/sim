@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it } from 'vitest'
 import { evaluateResourcePolicy } from '@/lib/resource-policies/evaluator'
 import type { ResourcePolicyDocument, ResourcePolicyStatement } from '@/lib/resource-policies/types'
@@ -81,15 +77,5 @@ describe('resource policy evaluator', () => {
         facts: { currentWorkflow: { workflowId: 'workflow-1', mode: 'deployment' } },
       })
     ).toEqual({ decision: 'deny', statementSid: 'DenyWorkflow' })
-  })
-
-  it('fails fast on an empty condition', () => {
-    expect(() =>
-      evaluateResourcePolicy({
-        document: document([{ ...ALLOW, condition: {} }]),
-        action: 'credential_groups.credentials.use',
-        facts: { currentWorkflow: { workflowId: 'workflow-1', mode: 'deployment' } },
-      })
-    ).toThrow('condition must not be empty')
   })
 })

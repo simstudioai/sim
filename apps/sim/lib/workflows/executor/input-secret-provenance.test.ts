@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { encryptionMock, encryptionMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -44,7 +40,6 @@ function createPayload(provenance = SECRET_PROVENANCE, key = 'input'): Record<st
 
 describe('resolveWorkflowInputSecretProvenance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
       decrypted: encryptedValue === 'encrypted-token' ? 'secret-value' : 'other-secret',
     }))

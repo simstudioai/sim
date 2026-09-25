@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockIsFeatureEnabled } = vi.hoisted(() => ({
   mockIsFeatureEnabled: vi.fn(),
@@ -18,10 +15,6 @@ import {
 } from '@/lib/core/async-jobs/region'
 
 describe('resolveTriggerRegion', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('returns eu-central-1 when the flag is enabled', async () => {
     mockIsFeatureEnabled.mockResolvedValue(true)
     expect(await resolveTriggerRegion()).toBe(TRIGGER_REGION_EU_CENTRAL)

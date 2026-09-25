@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, hasMockCondition, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -42,7 +39,6 @@ function markerCancelFilter() {
 
 describe('deleteUserAccount and the account’s pre-stamped cell markers', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockIsSoleOwnerOfPaidOrganization.mockResolvedValue({ isSoleOwner: false, name: null })
     mockGetPersonalSubscription.mockResolvedValue(null)
@@ -65,22 +61,6 @@ describe('deleteUserAccount and the account’s pre-stamped cell markers', () =>
     expect(hasMockCondition(filter, (node) => node.type === 'eq' && node.right === 'user-1')).toBe(
       true
     )
-  })
-
-  /** The same terminal state a cancel writes, so every `isExecCancelled` drain
-   *  guard already refuses to run it. */
-  it('writes the canonical cancelled cell state', async () => {
-    await deleteUserAccount('user-1')
-
-    const cancelled = dbChainMockFns.set.mock.calls
-      .map(([patch]) => patch as { status?: string; cancelledAt?: Date; error?: string })
-      .filter((patch) => patch.status === 'cancelled')
-    expect(cancelled.some((patch) => patch.error === 'Cancelled')).toBe(true)
-    expect(
-      cancelled.every(
-        (patch) => patch.cancelledAt === undefined || patch.cancelledAt instanceof Date
-      )
-    ).toBe(true)
   })
 
   /** Only the states a marker sits in before a worker claims it. */

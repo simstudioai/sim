@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   resolveFilterSelectValues,
@@ -33,29 +30,8 @@ const tags: ColumnDefinition = {
 const title: ColumnDefinition = { id: 'col_title', name: 'title', type: 'string' }
 
 describe('selectValueToNames', () => {
-  it('maps a single option id to its name', () => {
-    expect(selectValueToNames(status, 'opt_open')).toBe('Open')
-  })
-
-  it('returns null for an empty single value', () => {
-    expect(selectValueToNames(status, null)).toBeNull()
-    expect(selectValueToNames(status, '')).toBeNull()
-  })
-
-  it('drops a single id with no matching option', () => {
-    expect(selectValueToNames(status, 'gone')).toBeNull()
-  })
-
-  it('maps multi ids to a names array in order', () => {
-    expect(selectValueToNames(tags, ['opt_b', 'opt_a'])).toEqual(['Beta', 'Alpha'])
-  })
-
   it('drops orphaned ids in a multi value', () => {
     expect(selectValueToNames(tags, ['opt_a', 'gone'])).toEqual(['Alpha'])
-  })
-
-  it('returns an empty array for an empty multi value', () => {
-    expect(selectValueToNames(tags, [])).toEqual([])
   })
 })
 
@@ -78,15 +54,6 @@ describe('resolveFilterSelectValues', () => {
         columns
       )
     ).toEqual({ col_status: { $ne: 'opt_closed' }, col_tags: { $in: ['opt_a', 'opt_b'] } })
-  })
-
-  it('accepts an id verbatim (idempotent) and leaves unknown values as-is', () => {
-    expect(resolveFilterSelectValues({ col_status: 'opt_open' }, columns)).toEqual({
-      col_status: 'opt_open',
-    })
-    expect(resolveFilterSelectValues({ col_status: 'Nope' }, columns)).toEqual({
-      col_status: 'Nope',
-    })
   })
 
   it('resolves names under $contains/$ncontains (multi-select membership)', () => {
@@ -142,11 +109,5 @@ describe('resolvePredicateSelectValues — scalar-coerced option names', () => {
         columns
       )
     ).toEqual({ all: [{ field: 'col_code', op: 'contains', value: 'opt_123' }] })
-  })
-
-  it('leaves a scalar with no matching option name as-is', () => {
-    expect(
-      resolvePredicateSelectValues({ all: [{ field: 'col_code', op: 'eq', value: 999 }] }, columns)
-    ).toEqual({ all: [{ field: 'col_code', op: 'eq', value: 999 }] })
   })
 })

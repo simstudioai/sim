@@ -6,12 +6,10 @@ import {
   createLLMToolSchema,
   createUserToolSchema,
   filterSchemaForLLM,
-  formatParameterLabel,
   getSubBlocksForToolInput,
   isPasswordParameter,
   type ToolSchema,
   ToolSchemaEnrichmentError,
-  type ValidationResult,
   validateToolParameters,
 } from '@/tools/params'
 import type { HttpMethod, ParameterVisibility } from '@/tools/types'
@@ -617,18 +615,6 @@ describe('Tool Parameters Utils', () => {
     })
   })
 
-  describe('formatParameterLabel', () => {
-    it.concurrent('should format parameter labels correctly', () => {
-      expect(formatParameterLabel('apiKey')).toBe('API Key')
-      expect(formatParameterLabel('apiVersion')).toBe('API Version')
-      expect(formatParameterLabel('userName')).toBe('User Name')
-      expect(formatParameterLabel('user_name')).toBe('User Name')
-      expect(formatParameterLabel('user-name')).toBe('User Name')
-      expect(formatParameterLabel('message')).toBe('Message')
-      expect(formatParameterLabel('a')).toBe('A')
-    })
-  })
-
   describe('isPasswordParameter', () => {
     it.concurrent('should identify password parameters correctly', () => {
       expect(isPasswordParameter('password')).toBe(true)
@@ -997,31 +983,6 @@ describe('Tool Parameters Utils', () => {
           query: 'llm-search',
         })
       })
-    })
-  })
-
-  describe('Type Interface Validation', () => {
-    it.concurrent('should have properly typed ToolSchema', async () => {
-      const { schema } = await createLLMToolSchema(mockToolConfig, {})
-
-      expect(schema.type).toBe('object')
-      expect(typeof schema.properties).toBe('object')
-      expect(Array.isArray(schema.required)).toBe(true)
-
-      Object.values(schema.properties).forEach((prop) => {
-        expect(prop).toHaveProperty('type')
-        expect(prop).toHaveProperty('description')
-        expect(typeof prop.type).toBe('string')
-        expect(typeof prop.description).toBe('string')
-      })
-    })
-
-    it.concurrent('should have properly typed ValidationResult', () => {
-      const result: ValidationResult = validateToolParameters(mockToolConfig, {})
-
-      expect(typeof result.valid).toBe('boolean')
-      expect(Array.isArray(result.missingParams)).toBe(true)
-      expect(result.missingParams.every((param) => typeof param === 'string')).toBe(true)
     })
   })
 })

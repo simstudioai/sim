@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -67,7 +64,6 @@ const WAKE = {
 
 describe('copilot task wake', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockBuildIntegrationToolSchemas.mockResolvedValue([
       { name: 'gmail_search_v2', input_schema: { type: 'object' } },
     ])

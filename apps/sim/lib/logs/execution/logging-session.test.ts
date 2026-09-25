@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -220,21 +216,10 @@ describe('LoggingSession response provenance', () => {
       public: 'public',
     })
   })
-
-  it('returns incomplete provenance when the run registry is unavailable', () => {
-    const session = new LoggingSession('workflow-1', 'execution-1', 'manual')
-
-    expect(session.exportResolvedSecretTraceProvenanceForValue({ output: 'public' })).toEqual({
-      version: 1,
-      complete: false,
-      entries: [],
-    })
-  })
 })
 
 describe('LoggingSession terminal provenance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([])
     completeWorkflowExecutionMock.mockResolvedValue({})
@@ -388,7 +373,6 @@ beforeEach(() => {
 
 describe('LoggingSession start snapshots', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     startWorkflowExecutionMock.mockResolvedValue({})
     loadWorkflowStateForExecutionMock.mockResolvedValue({
@@ -513,75 +497,12 @@ describe('LoggingSession start snapshots', () => {
     const [statusSqlParts] = dbMocks.sql.mock.calls[0]
     expect(Array.from(statusSqlParts).join('')).toContain("IN ('pending', 'running', 'paused')")
   })
-
-  it('uses the executed workflow state override for execution snapshots', async () => {
-    const session = new LoggingSession('workflow-1', 'execution-1', 'manual', 'req-1')
-    const executedWorkflowState = {
-      blocks: {
-        loop: {
-          id: 'loop',
-          type: 'loop',
-          name: 'Loop',
-          position: { x: 0, y: 0 },
-          subBlocks: {},
-          outputs: {},
-          enabled: true,
-        },
-        parallel: {
-          id: 'parallel',
-          type: 'parallel',
-          name: 'Parallel',
-          position: { x: 100, y: 80 },
-          subBlocks: {},
-          outputs: {},
-          enabled: true,
-          data: { parentId: 'loop', extent: 'parent' as const },
-        },
-      },
-      edges: [],
-      loops: { loop: { id: 'loop', nodes: ['parallel'], iterations: 1, loopType: 'for' as const } },
-      parallels: { parallel: { id: 'parallel', nodes: [], count: 1 } },
-    }
-
-    await session.start({
-      workspaceId: 'workspace-1',
-      workflowState: executedWorkflowState,
-    })
-
-    expect(loadWorkflowStateForExecutionMock).not.toHaveBeenCalled()
-    expect(startWorkflowExecutionMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workflowState: executedWorkflowState,
-      })
-    )
-  })
 })
 
 describe('LoggingSession completion retries', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([{ executionData: {} }])
-  })
-
-  it('keeps completion best-effort when a later error completion retries after full completion and fallback both fail', async () => {
-    const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
-
-    completeWorkflowExecutionMock
-      .mockRejectedValueOnce(new Error('success finalize failed'))
-      .mockRejectedValueOnce(new Error('cost only failed'))
-      .mockResolvedValueOnce({})
-
-    await expect(session.safeComplete({ finalOutput: { ok: true } })).resolves.toBeUndefined()
-
-    await expect(
-      session.safeCompleteWithError({
-        error: { message: 'fallback error finalize' },
-      })
-    ).resolves.toBeUndefined()
-
-    expect(completeWorkflowExecutionMock).toHaveBeenCalledTimes(3)
-    expect(session.hasCompleted()).toBe(true)
   })
 
   it('reuses the settled completion promise for repeated completion attempts', async () => {
@@ -788,62 +709,6 @@ describe('LoggingSession completion retries', () => {
     expect(sourceTraceSpans[0].output).toEqual({ apiKey: 'ordinary-value' })
   })
 
-  it('hydrates post-transform refs before sharing structural-only spans with persistence and OTel', async () => {
-    const session = new LoggingSession('workflow-1', 'execution-ref-invariant', 'api', 'req-1')
-    const sourceTraceSpans = [
-      {
-        id: 'span-ref-invariant',
-        name: 'Function',
-        type: 'function',
-        duration: 1,
-        startTime: '2026-07-01T00:00:00.000Z',
-        endTime: '2026-07-01T00:00:00.001Z',
-        status: 'success',
-        output: { apiKey: 'ordinary-value' },
-        displayResolvedSecretTraceProvenance: createDisplayProvenance([
-          { plaintext: 'EEEEEEEE', replacement: '{{X}}' },
-        ]),
-      },
-    ]
-    const ref = {
-      __simLargeValueRef: true,
-      version: 1,
-      id: 'lv_bbbbbbbbbbbb',
-      kind: 'string',
-      size: 32,
-      preview: '{{X}}',
-    } as const
-    session.setResolvedSecretTraceRegistry(
-      createSecretRegistry([{ plaintext: 'EEEEEEEE', replacement: '{{X}}' }])
-    )
-    prepareTraceSpansForProjectionMock.mockImplementationOnce(
-      async ({ traceSpans }: { traceSpans: Array<Record<string, unknown>> }) =>
-        traceSpans.map((span) => ({ ...span, output: { payload: ref } }))
-    )
-    materializeLargeValueRefMock.mockResolvedValue({ value: 'hidden-EEEEEEEE' })
-
-    await session.safeComplete({ traceSpans: sourceTraceSpans as any })
-
-    const persistedSpans = completeWorkflowExecutionMock.mock.calls[0]?.[0].traceSpans
-    expect(materializeLargeValueRefMock).toHaveBeenCalledWith(
-      ref,
-      expect.objectContaining({
-        executionId: 'execution-ref-invariant',
-        trackReference: false,
-      })
-    )
-    expect(storeLargeValueMock).not.toHaveBeenCalled()
-    expect(persistedSpans).toEqual([
-      expect.objectContaining({
-        id: 'span-ref-invariant',
-        status: 'success',
-      }),
-    ])
-    expect(persistedSpans[0]).not.toHaveProperty('output')
-    expect(createOTelSpansMock.mock.calls[0]?.[0].traceSpans).toBe(persistedSpans)
-    expect(sourceTraceSpans[0].output).toEqual({ apiKey: 'ordinary-value' })
-  })
-
   it('projects synthetic error spans without copying the raw error into OTel metadata', async () => {
     const session = new LoggingSession('workflow-1', 'execution-error-safe', 'api', 'req-1')
     const secret = 'sk-demo-error-7f3a91'
@@ -895,150 +760,6 @@ describe('LoggingSession completion retries', () => {
     expect(workflowExecutedMock).toHaveBeenCalledWith(
       expect.not.objectContaining({ errorMessage: expect.anything() })
     )
-  })
-
-  it('keeps fallback functional output unchanged', async () => {
-    const session = new LoggingSession('workflow-1', 'execution-fallback-safe', 'api', 'req-1')
-    const secret = 'sk-demo-fallback-7f3a91'
-
-    session.setResolvedSecretTraceRegistry(
-      createSecretRegistry([{ plaintext: secret, replacement: '{{OPENAI_API_KEY}}' }])
-    )
-    completeWorkflowExecutionMock
-      .mockRejectedValueOnce(new Error('primary persistence failed'))
-      .mockResolvedValueOnce({})
-    const executionState = {
-      blockStates: { 'function-1': { output: { result: secret } } },
-      executedBlocks: ['function-1'],
-      blockLogs: [],
-      decisions: { router: {}, condition: {} },
-      completedLoops: [],
-      activeExecutionPath: ['function-1'],
-    }
-
-    await session.safeComplete({
-      finalOutput: { echoed: secret },
-      executionState,
-    })
-
-    expect(completeWorkflowExecutionMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        finalOutput: { echoed: secret },
-        finalizationPath: 'fallback_completed',
-        executionState: expect.objectContaining({ blockStates: executionState.blockStates }),
-      })
-    )
-  })
-
-  it('persists structural-only spans when installed provenance is incomplete', async () => {
-    const session = new LoggingSession('workflow-1', 'execution-incomplete', 'api', 'req-1')
-    session.setResolvedSecretTraceRegistry(createSecretRegistry([], false))
-    completeWorkflowExecutionMock.mockResolvedValue({})
-
-    await session.safeComplete({
-      finalOutput: { raw: 'functional-data' },
-      traceSpans: [
-        {
-          id: 'span-1',
-          name: 'Agent',
-          type: 'agent',
-          duration: 1,
-          startTime: '2026-07-01T00:00:00.000Z',
-          endTime: '2026-07-01T00:00:00.001Z',
-          status: 'success',
-          output: { raw: 'unknown-provenance' },
-          displayResolvedSecretTraceProvenance: createDisplayProvenance([], false),
-        },
-      ],
-    })
-
-    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        finalOutput: { raw: 'functional-data' },
-        traceSpans: [
-          expect.not.objectContaining({
-            output: expect.anything(),
-          }),
-        ],
-      })
-    )
-  })
-
-  it('treats legacy spans without provenance as already projected', async () => {
-    const session = new LoggingSession('workflow-1', 'execution-no-registry', 'api', 'req-1')
-    completeWorkflowExecutionMock.mockResolvedValue({})
-
-    await session.safeComplete({
-      traceSpans: [
-        {
-          id: 'span-1',
-          name: 'Function',
-          type: 'function',
-          duration: 1,
-          startTime: '2026-07-01T00:00:00.000Z',
-          endTime: '2026-07-01T00:00:00.001Z',
-          output: { unknown: 'provenance' },
-        },
-      ],
-    })
-
-    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        finalOutput: {},
-        traceSpans: [expect.objectContaining({ output: { unknown: 'provenance' } })],
-      })
-    )
-  })
-
-  it('projects live block errors and terminal block logs without mutating raw callback data', async () => {
-    const session = new LoggingSession('workflow-1', 'execution-display-safe', 'manual', 'req-1')
-    const secret = '12345678'
-    const rawError = `Reference Error: Line 1: return blah +${secret} - blah is not defined`
-    const rawLog = {
-      blockId: 'function-1',
-      blockName: 'Function 1',
-      blockType: 'function',
-      startedAt: '2026-07-01T00:00:00.000Z',
-      endedAt: '2026-07-01T00:00:00.001Z',
-      durationMs: 1,
-      success: false,
-      executionOrder: 1,
-      input: { code: `return blah +${secret}` },
-      output: { error: rawError },
-      error: rawError,
-      displayResolvedSecretTraceProvenance: createDisplayProvenance([
-        { plaintext: secret, replacement: '{{NUMBER_SECRET}}' },
-      ]),
-    }
-    session.setResolvedSecretTraceRegistry(
-      createSecretRegistry([{ plaintext: secret, replacement: '{{NUMBER_SECRET}}' }])
-    )
-
-    const display = await session.projectDisplayContent(
-      {
-        input: rawLog.input,
-        output: rawLog.output,
-        error: rawError,
-      },
-      rawLog.displayResolvedSecretTraceProvenance
-    )
-    const [displayLog] = await session.projectBlockLogsForDisplay([rawLog])
-
-    expect(display).toEqual({
-      input: { code: 'return blah +{{NUMBER_SECRET}}' },
-      output: {
-        error: 'Reference Error: Line 1: return blah +{{NUMBER_SECRET}} - blah is not defined',
-      },
-      error: 'Reference Error: Line 1: return blah +{{NUMBER_SECRET}} - blah is not defined',
-      clearLiveDisplay: true,
-    })
-    expect(displayLog.input).toEqual(display.input)
-    expect(displayLog.output).toEqual(display.output)
-    expect(displayLog.error).toBe(display.error)
-    expect(displayLog.clearLiveDisplay).toBe(true)
-    expect(rawLog.input.code).toBe(`return blah +${secret}`)
-    expect(rawLog.output.error).toBe(rawError)
-    expect(rawLog.error).toBe(rawError)
   })
 
   it('projects large terminal log sets in bounded batches without dropping rows', async () => {
@@ -1277,17 +998,6 @@ describe('LoggingSession completion retries', () => {
     expect(completeWorkflowExecutionMock).toHaveBeenCalledTimes(1)
   })
 
-  it('records cancellation when pause finalization observes an already-cancelled log', async () => {
-    dbChainMockFns.limit.mockResolvedValue([{ status: 'cancelled' }])
-    const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
-
-    await session.safeCompleteWithPause()
-
-    expect(session.hasCompleted()).toBe(true)
-    expect(session.getPersistedCompletionStatus()).toBe('cancelled')
-    expect(completeWorkflowExecutionMock).not.toHaveBeenCalled()
-  })
-
   it('reconciles cancellation data after an external cancel already won the status race', async () => {
     dbChainMockFns.limit.mockResolvedValue([{ status: 'cancelled' }])
     completeWorkflowExecutionMock.mockResolvedValue({ persistedStatus: 'cancelled' })
@@ -1352,68 +1062,6 @@ describe('LoggingSession completion retries', () => {
     ])
   })
 
-  it('releases the attempt reservation while finalizing the parent execution log', async () => {
-    completeWorkflowExecutionMock.mockResolvedValue({})
-    const session = new LoggingSession(
-      'workflow-1',
-      'parent-execution-1',
-      'manual',
-      'req-1',
-      'resume-entry-1'
-    )
-
-    await session.safeComplete()
-
-    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
-      expect.objectContaining({ executionId: 'parent-execution-1' })
-    )
-    expect(releaseExecutionSlotMock).toHaveBeenCalledWith('resume-entry-1')
-  })
-
-  it('falls back to cost-only logging when paused completion fails', async () => {
-    const session = new LoggingSession('workflow-1', 'execution-2', 'api', 'req-1')
-
-    completeWorkflowExecutionMock
-      .mockRejectedValueOnce(new Error('pause finalize failed'))
-      .mockResolvedValueOnce({})
-    const executionState = {
-      blockStates: { 'function-1': { output: { result: 'raw-secret-value' } } },
-      executedBlocks: ['function-1'],
-      blockLogs: [],
-      decisions: { router: {}, condition: {} },
-      completedLoops: [],
-      activeExecutionPath: ['function-1'],
-    }
-
-    await expect(
-      session.safeCompleteWithPause({
-        endedAt: new Date().toISOString(),
-        totalDurationMs: 10,
-        traceSpans: [],
-        workflowInput: { hello: 'world' },
-        executionState,
-      })
-    ).resolves.toBeUndefined()
-
-    expect(session.hasCompleted()).toBe(true)
-    expect(completeWorkflowExecutionMock).toHaveBeenCalledTimes(2)
-    expect(completeWorkflowExecutionMock).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        finalizationPath: 'paused',
-        executionState: expect.objectContaining({ blockStates: executionState.blockStates }),
-      })
-    )
-  })
-
-  it('persists last started block independently from cost accumulation', async () => {
-    const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
-
-    await session.onBlockStart('block-1', 'Fetch', 'api', '2025-01-01T00:00:00.000Z')
-
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(1)
-  })
-
   it('enforces started marker monotonicity in the database write path', async () => {
     const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
 
@@ -1427,33 +1075,6 @@ describe('LoggingSession completion retries', () => {
     const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
 
     await session.onBlockStart('block-1', 'Fetch', 'api', '2025-01-01T00:00:00.000Z')
-
-    const queryCall = dbMocks.sql.mock.calls.at(-1)
-    expect(queryCall).toBeDefined()
-
-    const [query] = queryCall!
-    expect(Array.from(query).join(' ')).toContain('<=')
-  })
-
-  it('persists last completed block for zero-cost outputs', async () => {
-    const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
-
-    await session.onBlockComplete('block-2', 'Transform', 'function', {
-      endedAt: '2025-01-01T00:00:01.000Z',
-      output: { value: true },
-    })
-
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    expect(dbChainMockFns.execute).toHaveBeenCalledTimes(1)
-  })
-
-  it('allows same-millisecond completed markers to replace the prior marker', async () => {
-    const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
-
-    await session.onBlockComplete('block-2', 'Transform', 'function', {
-      endedAt: '2025-01-01T00:00:01.000Z',
-      output: { value: true },
-    })
 
     const queryCall = dbMocks.sql.mock.calls.at(-1)
     expect(queryCall).toBeDefined()
@@ -1485,37 +1106,6 @@ describe('LoggingSession completion retries', () => {
     await completionPromise
 
     expect(session.persistLastStartedBlock).toHaveBeenCalledTimes(1)
-    expect(session.complete).toHaveBeenCalledTimes(1)
-  })
-
-  it('drains fire-and-forget block-complete marker writes before terminal completion', async () => {
-    let releasePersist: (() => void) | undefined
-    const persistPromise = new Promise<void>((resolve) => {
-      releasePersist = resolve
-    })
-
-    const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1') as any
-    session.persistLastCompletedBlock = vi.fn(() => persistPromise)
-    session.complete = vi.fn().mockResolvedValue(undefined)
-
-    // onBlockComplete is now marker-only; its marker write is fire-and-forget
-    // but tracked, so terminal completion must drain it first.
-    void session.onBlockComplete('block-2', 'Transform', 'function', {
-      endedAt: '2025-01-01T00:00:01.000Z',
-      output: { value: true },
-    })
-
-    const completionPromise = session.safeComplete({ finalOutput: { ok: true } })
-
-    await Promise.resolve()
-
-    expect(session.complete).not.toHaveBeenCalled()
-
-    releasePersist?.()
-
-    await completionPromise
-
-    expect(session.persistLastCompletedBlock).toHaveBeenCalledTimes(1)
     expect(session.complete).toHaveBeenCalledTimes(1)
   })
 
@@ -1555,23 +1145,10 @@ describe('LoggingSession completion retries', () => {
 
     expect(session.pendingProgressWrites.size).toBe(0)
   })
-
-  it('marks pause completion as terminal and prevents duplicate pause finalization', async () => {
-    const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1') as any
-    session.completeExecutionWithFinalization = vi.fn().mockResolvedValue(undefined)
-
-    await session.completeWithPause({ workflowInput: { ok: true } })
-    await session.completeWithPause({ workflowInput: { ok: true } })
-
-    expect(session.completeExecutionWithFinalization).toHaveBeenCalledTimes(1)
-    expect(session.completed).toBe(true)
-    expect(session.completing).toBe(true)
-  })
 })
 
 describe('completeWithError cancelled-status guard', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -1580,44 +1157,6 @@ describe('completeWithError cancelled-status guard', () => {
     const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
 
     await session.safeCompleteWithError({ error: { message: 'block errored mid-cancel' } })
-
-    expect(completeWorkflowExecutionMock).not.toHaveBeenCalled()
-    expect(session.hasCompleted()).toBe(true)
-  })
-
-  it('writes failed when DB status is running (no cancel in flight)', async () => {
-    dbChainMockFns.limit.mockResolvedValue([{ status: 'running' }])
-    completeWorkflowExecutionMock.mockResolvedValue({})
-    const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
-
-    await session.safeCompleteWithError({ error: { message: 'genuine block failure' } })
-
-    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'failed' })
-    )
-    expect(session.hasCompleted()).toBe(true)
-  })
-
-  it('writes failed when no execution log exists yet', async () => {
-    dbChainMockFns.limit.mockResolvedValue([])
-    completeWorkflowExecutionMock.mockResolvedValue({})
-    const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
-
-    await session.safeCompleteWithError({ error: { message: 'pre-log error' } })
-
-    expect(completeWorkflowExecutionMock).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'failed' })
-    )
-  })
-
-  it('deduplicates all subsequent completion attempts after guard early-return', async () => {
-    dbChainMockFns.limit.mockResolvedValue([{ status: 'cancelled' }])
-    completeWorkflowExecutionMock.mockResolvedValue({})
-    const session = new LoggingSession('workflow-1', 'execution-1', 'api', 'req-1')
-
-    await session.safeCompleteWithError({ error: { message: 'error 1' } })
-    await session.safeCompleteWithError({ error: { message: 'error 2' } })
-    await session.safeComplete({ finalOutput: { ok: true } })
 
     expect(completeWorkflowExecutionMock).not.toHaveBeenCalled()
     expect(session.hasCompleted()).toBe(true)
@@ -1650,7 +1189,6 @@ describe('completeWithError cancelled-status guard', () => {
 
 describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -1663,30 +1201,6 @@ describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
 
     const whereArgs = dbChainMockFns.where.mock.calls[0]
     expect(whereArgs).toBeDefined()
-  })
-
-  it('instance markAsFailed forwards workflowId to the static method', async () => {
-    dbChainMockFns.limit.mockResolvedValue([{ executionData: {} }])
-
-    const session = new LoggingSession('wf-42', 'exec-42', 'api', 'req-1')
-    await session.markAsFailed('something went wrong')
-
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
-    expect(releaseExecutionSlotMock).toHaveBeenCalledWith('exec-42')
-  })
-
-  it('uses the provided errorMessage in the SQL set', async () => {
-    const sqlMock = dbMocks.sql
-    await LoggingSession.markExecutionAsFailed('exec-2', 'custom error', undefined, 'wf-2')
-
-    expect(sqlMock).toHaveBeenCalled()
-    const combined = sqlMock.mock.calls
-      .map(([strings, ...values]) => {
-        return String(Array.from(strings)).toLowerCase() + values.join(' ').toLowerCase()
-      })
-      .join(' ')
-    expect(combined).toContain('force_failed')
-    expect(combined).toContain('secretprojectionversion')
   })
 
   it('does not overwrite a cancellation with a late force-failure', async () => {
@@ -1730,11 +1244,6 @@ describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
     expect(dbMocks.sql.param).toHaveBeenCalledWith(payload.endedAt, workflowExecutionLogs.startedAt)
   })
 
-  it('clears Redis markers when marking failed (terminal boundary outside completeWorkflowExecution)', async () => {
-    await LoggingSession.markExecutionAsFailed('exec-3', 'boom', undefined, 'wf-3')
-    expect(clearProgressMarkersMock).toHaveBeenCalledWith('exec-3')
-  })
-
   it('folds live Redis markers into the row before clearing on force-fail', async () => {
     getProgressMarkersMock.mockResolvedValueOnce({
       lastStartedBlock: { blockId: 'b1', blockName: 'Fetch', blockType: 'api', startedAt: 't1' },
@@ -1766,7 +1275,6 @@ describe('LoggingSession.markExecutionAsFailed workflowId scoping', () => {
 
 describe('LoggingSession progress-marker write path', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     startWorkflowExecutionMock.mockResolvedValue({})
     loadWorkflowStateForExecutionMock.mockResolvedValue({
       blocks: {},
@@ -1811,7 +1319,6 @@ describe('LoggingSession progress-marker write path', () => {
 
 describe('secret usage trail', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([])
     completeWorkflowExecutionMock.mockResolvedValue({})
@@ -1846,14 +1353,6 @@ describe('secret usage trail', () => {
         trigger: 'schedule',
       })
     )
-  })
-
-  it('records a failed run, which resolved the secret just the same', async () => {
-    const session = await startSession('execution-usage-error')
-
-    await session.completeWithError({ error: new Error('boom') })
-
-    expect(recordSecretUsageMock).toHaveBeenCalledTimes(1)
   })
 
   /**

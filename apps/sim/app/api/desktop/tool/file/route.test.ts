@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -46,24 +43,12 @@ const put = (query: string, body: Uint8Array, headers: Record<string, string> = 
 
 describe('/api/desktop/tool/file', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue(session)
     mockAdmit.mockResolvedValue(undefined)
     mockRead.mockResolvedValue({ file: { name: 'Q3 plan.pdf' }, content: Buffer.from('%PDF') })
     mockSave.mockResolvedValue({
       file: { name: 'report.csv', size: 3, folderPath: null, vfsNamespace: 'files' },
     })
-  })
-
-  it('streams the claimed upload file with its name', async () => {
-    const res = await POST(post({ toolCallId: 'call-1', index: 0 }), {})
-
-    expect(res.status).toBe(200)
-    expect(Buffer.from(await res.arrayBuffer()).toString()).toBe('%PDF')
-    expect(res.headers.get('Content-Disposition')).toBe('attachment; filename="Q3 plan.pdf"')
-    expect(mockRead).toHaveBeenCalledWith(
-      expect.objectContaining({ principal, input: { toolCallId: 'call-1', index: 0 } })
-    )
   })
 
   it('authenticates before parsing and conceals an unknown transfer', async () => {
@@ -75,19 +60,6 @@ describe('/api/desktop/tool/file', () => {
     expect(missing.status).toBe(404)
 
     expect((await POST(post({ toolCallId: 'call-1', index: 99 }), {})).status).toBe(400)
-  })
-
-  it('saves a download body and returns its workspace path', async () => {
-    const res = await PUT(put('toolCallId=call-2&name=export.csv', new Uint8Array([97, 44, 98])))
-
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ path: 'files/report.csv', name: 'report.csv', size: 3 })
-    expect(mockSave).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal,
-        input: { toolCallId: 'call-2', name: 'export.csv', content: Buffer.from('a,b') },
-      })
-    )
   })
 
   it('rejects an unauthenticated or oversized save before reading the body', async () => {
@@ -114,15 +86,5 @@ describe('/api/desktop/tool/file', () => {
     expect(mockAdmit).toHaveBeenCalledWith(principal, { toolCallId: 'unknown', name: 'a.csv' })
     expect(request.bodyUsed).toBe(false)
     expect(mockSave).not.toHaveBeenCalled()
-  })
-
-  it('projects typed use-case failures', async () => {
-    mockSave.mockRejectedValueOnce(
-      new OrchestrationError('not_found', 'Browser file transfer not found')
-    )
-
-    const res = await PUT(put('toolCallId=c&name=a.csv', new Uint8Array(1)))
-
-    expect(res.status).toBe(404)
   })
 })

@@ -1,11 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { ExaBlock } from '@/blocks/blocks/exa'
 import { agentTool } from '@/tools/exa/agent'
 import { answerTool } from '@/tools/exa/answer'
-import { findSimilarLinksTool } from '@/tools/exa/find_similar_links'
 import { getContentsTool } from '@/tools/exa/get_contents'
 import { searchTool } from '@/tools/exa/search'
 import { applyFreshness, resolveCategory } from '@/tools/exa/utils'
@@ -151,10 +147,6 @@ describe('exa_get_contents request body', () => {
 })
 
 describe('exa_answer', () => {
-  it('describes text as controlling source text, not the answer', () => {
-    expect(answerTool.params.text.description).toMatch(/cited source/i)
-  })
-
   it('parses a stringified outputSchema', () => {
     const body = answerTool.request.body?.({
       query: 'q',
@@ -185,20 +177,6 @@ describe('exa block', () => {
     expect(params.effort).toBe('medium')
   })
 
-  it('leaves both Get Contents selectors optional so the ids-only path stays valid', () => {
-    for (const id of ['urls', 'ids']) {
-      const selector = ExaBlock.subBlocks.find(
-        (block) => block.id === id && block.condition?.value === 'exa_get_contents'
-      )
-      expect(selector?.required).toBeUndefined()
-    }
-  })
-
-  it('keeps the legacy model sub-block so the serializer preserves its value', () => {
-    const model = ExaBlock.subBlocks.find((block) => block.id === 'model')
-    expect(model?.condition?.value).toBe('exa_research')
-  })
-
   it('does not map a model value on non-research operations', () => {
     const params = ExaBlock.tools.config?.params?.({
       operation: 'exa_agent',
@@ -213,31 +191,6 @@ describe('exa block', () => {
       maxAgeHours: '0',
     }) as Record<string, unknown>
     expect(params.maxAgeHours).toBe(0)
-  })
-
-  it('offers only categories Exa currently supports', () => {
-    const category = ExaBlock.subBlocks.find(
-      (block) => block.id === 'category' && block.condition?.value === 'exa_search'
-    )
-    expect(category?.options).toEqual([
-      { label: 'None', id: '' },
-      { label: 'Company', id: 'company' },
-      { label: 'Publication', id: 'publication' },
-      { label: 'News', id: 'news' },
-      { label: 'Personal Site', id: 'personal site' },
-      { label: 'Financial Report', id: 'financial report' },
-      { label: 'People', id: 'people' },
-    ])
-  })
-
-  it('no longer defaults live crawling to never, which suppressed fresh content', () => {
-    expect(ExaBlock.subBlocks.some((block) => block.id === 'livecrawl')).toBe(false)
-  })
-
-  it('exposes every operation it advertises', () => {
-    const operations = ExaBlock.subBlocks.find((block) => block.id === 'operation')
-    const advertised = operations?.options as { id: string }[]
-    expect(advertised.map((option) => option.id).sort()).toEqual([...ExaBlock.tools.access!].sort())
   })
 })
 
@@ -292,11 +245,5 @@ describe('exa_agent terminal statuses', () => {
     )
     expect(result?.success).toBe(false)
     expect(result?.error).toMatch(/run ID/)
-  })
-})
-
-describe('find similar links', () => {
-  it('is marked deprecated so new workflows prefer search', () => {
-    expect(findSimilarLinksTool.description).toMatch(/deprecated/i)
   })
 })

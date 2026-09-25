@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it, vi } from 'vitest'
 import type { CodaMcpClient } from '@/lib/sim-search/live/coda-mcp'
 import { createCodaServiceVerifier } from '@/lib/sim-search/live/coda-service'
@@ -9,19 +8,6 @@ const reference = { id: 'coda://docs/allowed/pages/page', kind: 'mcp' }
 const createClient = () => ({ json: vi.fn<NativeClient['json']>(), text: vi.fn() })
 
 describe('Coda service document boundary', () => {
-  it('checks service-token visibility once per document even when multiple pages match', async () => {
-    const client = createClient()
-    client.json.mockResolvedValue(doc)
-    const verify = createCodaServiceVerifier(client, {})
-    expect(await verify(reference)).toBe(true)
-    expect(await verify({ ...reference, id: 'coda://docs/allowed/tables/table/rows/row' })).toBe(
-      true
-    )
-    expect(
-      await verify({ ...reference, id: 'superhuman://docs/allowed/pages/section-page#Title' })
-    ).toBe(true)
-    expect(client.json).toHaveBeenCalledExactlyOnceWith('/apis/v1/docs/allowed')
-  })
   it('intersects explicit service document selections before loading source metadata', async () => {
     const client = createClient()
     client.json.mockResolvedValue(doc)

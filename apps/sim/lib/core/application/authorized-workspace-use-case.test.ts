@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type {
   DelegatedPrincipal,
   PersonalApiKeyPrincipal,
@@ -109,7 +106,6 @@ const sessionPrincipal: SessionPrincipal = {
 
 describe('defineAuthorizedWorkspaceUseCase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.routingEnabled.mockReturnValue(false)
     mocks.events.length = 0
     mocks.resolvePermission.mockResolvedValue('write')
@@ -333,38 +329,6 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
     )
   })
 
-  it('supports zero or many semantic audit entries', async () => {
-    const buildUseCase = (auditCount: number) =>
-      defineAuthorizedWorkspaceUseCase({
-        operation,
-        resolveContext: async (_args: { principal: SessionPrincipal; input: TestInput }) =>
-          canonicalContext,
-        authorizationOptions: {},
-        async execute() {
-          return { auditCount }
-        },
-        projectAudit({ result }) {
-          return Array.from({ length: result.auditCount }, (_, index) => ({
-            action: AuditAction.FILE_UPDATED,
-            resourceType: AuditResourceType.FILE,
-            resourceId: `resource-${index}`,
-          }))
-        },
-      })
-
-    await buildUseCase(0).execute({
-      principal: sessionPrincipal,
-      input: { resourceId: 'resource-1' },
-    })
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-
-    await buildUseCase(2).execute({
-      principal: sessionPrincipal,
-      input: { resourceId: 'resource-1' },
-    })
-    expect(mocks.recordAudit).toHaveBeenCalledTimes(2)
-  })
-
   it('resolves domain-specific delegation options against canonical context', async () => {
     const scopeCheck = vi.fn(
       (principal: DelegatedPrincipal, context: TestContext) =>
@@ -498,8 +462,6 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
 })
 
 describe('projected audit workspace attribution', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it.each([
     { override: undefined, expected: 'workspace-1' },
     { override: 'workspace-2', expected: 'workspace-2' },

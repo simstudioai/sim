@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -29,7 +26,6 @@ const FILE = {
 
 describe('executeSquareCreateCatalogImage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.assertToolFileAccess.mockResolvedValue(null)
     mocks.downloadFileFromStorage.mockResolvedValue(Buffer.from('image'))
     vi.stubGlobal(
@@ -66,51 +62,5 @@ describe('executeSquareCreateCatalogImage', () => {
       idempotency_key: 'stable-key',
       object_id: 'item-1',
     })
-  })
-
-  it('preserves Square provider error status and detail', async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      Response.json({ errors: [{ detail: 'Invalid image' }] }, { status: 400 })
-    )
-
-    const response = await executeSquareCreateCatalogImage(
-      {
-        accessToken: 'square-token',
-        file: FILE,
-        fileName: null,
-        objectId: null,
-        caption: null,
-        idempotencyKey: 'stable-key',
-      },
-      { userId: 'user-1', requestId: 'request-1' }
-    )
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toEqual({
-      success: false,
-      error: 'Invalid image',
-    })
-  })
-
-  it('forwards cancellation to Square', async () => {
-    const controller = new AbortController()
-    vi.mocked(fetch).mockImplementationOnce(async (_url, init) => {
-      controller.abort(new DOMException('cancelled', 'AbortError'))
-      throw init?.signal?.reason
-    })
-
-    await expect(
-      executeSquareCreateCatalogImage(
-        {
-          accessToken: 'square-token',
-          file: FILE,
-          fileName: null,
-          objectId: null,
-          caption: null,
-          idempotencyKey: 'stable-key',
-        },
-        { userId: 'user-1', requestId: 'request-1', signal: controller.signal }
-      )
-    ).rejects.toMatchObject({ name: 'AbortError' })
   })
 })

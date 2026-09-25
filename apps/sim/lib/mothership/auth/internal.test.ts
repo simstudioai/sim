@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { internalCopilotAuth } from '@/lib/mothership/auth/internal'

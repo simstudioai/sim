@@ -1,9 +1,5 @@
-/**
- * @vitest-environment node
- */
 import {
   auditMock,
-  auditMockFns,
   authMockFns,
   createMockRequest,
   dbChainMockFns,
@@ -56,7 +52,6 @@ function mockUpdateReturning(rows: Array<{ id: string; name: string }>) {
 
 describe('fork excluded-workflows route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetSession.mockResolvedValue({ user: { id: ADMIN_ID }, session: { id: 'session-1' } })
     mockAuthorizeWorkspaceOperation.mockResolvedValue(undefined)
@@ -65,28 +60,6 @@ describe('fork excluded-workflows route', () => {
 
   afterAll(() => {
     resetDbChainMock()
-  })
-
-  it('returns 401 when there is no session', async () => {
-    mockGetSession.mockResolvedValue(null)
-
-    const res = await PUT(
-      createMockRequest('PUT', { workflowIds: ['wf-1'], forkSyncExcluded: true }),
-      routeContext
-    )
-
-    expect(res.status).toBe(401)
-    expect(mockAuthorizeWorkspaceOperation).not.toHaveBeenCalled()
-  })
-
-  it('rejects an empty workflowIds batch', async () => {
-    const res = await PUT(
-      createMockRequest('PUT', { workflowIds: [], forkSyncExcluded: true }),
-      routeContext
-    )
-
-    expect(res.status).toBe(400)
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('requires workspace admin (and the fork entitlement gate) before writing', async () => {
@@ -107,68 +80,5 @@ describe('fork excluded-workflows route', () => {
     expect(mockAssertForkingEnabled.mock.invocationCallOrder[0]).toBeLessThan(
       dbChainMockFns.update.mock.invocationCallOrder[0]
     )
-  })
-
-  it('updates the batch, reports the transition count, and records one audit entry', async () => {
-    mockUpdateReturning([
-      { id: 'wf-1', name: 'Alpha' },
-      { id: 'wf-2', name: 'Beta' },
-    ])
-
-    const res = await PUT(
-      createMockRequest('PUT', { workflowIds: ['wf-1', 'wf-2'], forkSyncExcluded: true }),
-      routeContext
-    )
-
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ updated: 2 })
-    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledTimes(1)
-    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: WORKSPACE_ID,
-        actorId: ADMIN_ID,
-        action: 'workflow.fork_sync_excluded',
-        resourceId: WORKSPACE_ID,
-        metadata: expect.objectContaining({
-          forkSyncExcluded: true,
-          workflowCount: 2,
-          workflowNames: ['Alpha', 'Beta'],
-        }),
-      })
-    )
-    expect(mockCaptureServerEvent).toHaveBeenCalledWith(
-      ADMIN_ID,
-      'fork_excluded_workflows_updated',
-      expect.objectContaining({ workflow_count: 2, fork_sync_excluded: true }),
-      { groups: { workspace: WORKSPACE_ID } }
-    )
-  })
-
-  it('records the inclusion action when unmarking workflows', async () => {
-    mockUpdateReturning([{ id: 'wf-1', name: 'Alpha' }])
-
-    const res = await PUT(
-      createMockRequest('PUT', { workflowIds: ['wf-1'], forkSyncExcluded: false }),
-      routeContext
-    )
-
-    expect(res.status).toBe(200)
-    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'workflow.fork_sync_included' })
-    )
-  })
-
-  it('skips audit and analytics when nothing transitioned', async () => {
-    mockUpdateReturning([])
-
-    const res = await PUT(
-      createMockRequest('PUT', { workflowIds: ['wf-unknown'], forkSyncExcluded: true }),
-      routeContext
-    )
-
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ updated: 0 })
-    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
-    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 })

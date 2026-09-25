@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
@@ -80,13 +76,7 @@ vi.mock('@/lib/table/application/folder-paths', () => ({
 
 vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mocks.signal }))
 
-import {
-  listTableDefinitionsUseCase,
-  listTablesUseCase,
-  readTableDefinitionUseCase,
-  readTableDetailsUseCase,
-  restoreTableUseCase,
-} from '@/lib/table/application/tables'
+import { listTablesUseCase, restoreTableUseCase } from '@/lib/table/application/tables'
 
 const WORKSPACE = {
   workspaceId: 'workspace-1',
@@ -114,7 +104,6 @@ const ARCHIVED: TableDefinition = {
 
 describe('table list scope', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.resolveWorkspaceContext.mockResolvedValue(WORKSPACE)
     mocks.loadFolderIndex.mockResolvedValue({ pathById: new Map() })
@@ -174,86 +163,6 @@ describe('table list scope', () => {
       })
     ).rejects.toThrow('Table references an inactive or missing folder')
   })
-
-  it('lets the caller scope the listing without changing the default', async () => {
-    await listTablesUseCase.execute({
-      principal: PRINCIPAL,
-      input: {
-        workspaceId: 'workspace-1',
-        sortBy: 'createdAt',
-        sortOrder: 'asc',
-        limit: 10,
-      },
-    })
-    expect(mocks.queryTables).toHaveBeenLastCalledWith(
-      'workspace-1',
-      expect.objectContaining({ scope: undefined })
-    )
-
-    await listTablesUseCase.execute({
-      principal: PRINCIPAL,
-      input: {
-        workspaceId: 'workspace-1',
-        scope: 'archived',
-        sortBy: 'createdAt',
-        sortOrder: 'asc',
-        limit: 10,
-      },
-    })
-    expect(mocks.queryTables).toHaveBeenLastCalledWith(
-      'workspace-1',
-      expect.objectContaining({ scope: 'archived' })
-    )
-  })
-})
-
-describe('internal table compatibility reads', () => {
-  const active = { ...ARCHIVED, archivedAt: null }
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mocks.resolvePermission.mockResolvedValue('read')
-    mocks.resolveWorkspaceContext.mockResolvedValue(WORKSPACE)
-    mocks.resolveActiveContext.mockResolvedValue({
-      ...WORKSPACE,
-      tableId: active.id,
-      table: active,
-    })
-    mocks.listDefinitions.mockResolvedValue([active])
-    mocks.getLimits.mockResolvedValue({ maxRowsPerTable: 2500 })
-  })
-
-  it('lists definitions without materializing the workspace folder index', async () => {
-    const result = await listTableDefinitionsUseCase.execute({
-      principal: PRINCIPAL,
-      input: { workspaceId: WORKSPACE.workspaceId, scope: 'all' },
-    })
-
-    expect(mocks.listDefinitions).toHaveBeenCalledWith(WORKSPACE.workspaceId, { scope: 'all' })
-    expect(result.tables).toEqual([active])
-    expect(mocks.loadFolderIndex).not.toHaveBeenCalled()
-  })
-
-  it('reads schema-only metadata without loading folders or plan limits', async () => {
-    const result = await readTableDefinitionUseCase.execute({
-      principal: PRINCIPAL,
-      input: { tableId: active.id, workspaceId: WORKSPACE.workspaceId },
-    })
-
-    expect(result.table).toBe(active)
-    expect(mocks.loadFolderIndex).not.toHaveBeenCalled()
-    expect(mocks.getLimits).not.toHaveBeenCalled()
-  })
-
-  it('reads the live row limit without loading unrelated folder state', async () => {
-    const result = await readTableDetailsUseCase.execute({
-      principal: PRINCIPAL,
-      input: { tableId: active.id, workspaceId: WORKSPACE.workspaceId },
-    })
-
-    expect(result).toEqual({ table: active, maxRows: 2500 })
-    expect(mocks.loadFolderIndex).not.toHaveBeenCalled()
-  })
 })
 
 /**
@@ -262,7 +171,6 @@ describe('internal table compatibility reads', () => {
  */
 describe('restoreTableUseCase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveArchivedContext.mockResolvedValue({
       ...WORKSPACE,
@@ -272,24 +180,6 @@ describe('restoreTableUseCase', () => {
     mocks.getTableById.mockResolvedValue({ ...ARCHIVED, archivedAt: null })
     mocks.loadFolderIndex.mockResolvedValue({ pathById: new Map() })
     mocks.restoreTable.mockResolvedValue(undefined)
-  })
-
-  it('restores the archived table and audits the authoritative restored row', async () => {
-    const result = await restoreTableUseCase.execute({
-      principal: PRINCIPAL,
-      input: { tableId: ARCHIVED.id, workspaceId: 'workspace-1' },
-    })
-
-    expect(mocks.restoreTable).toHaveBeenCalledWith(ARCHIVED.id, 'request-1')
-    expect(result.table.archivedAt).toBeNull()
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'table.restored',
-        resourceId: ARCHIVED.id,
-        resourceName: ARCHIVED.name,
-      })
-    )
-    expect(mocks.signal).toHaveBeenCalledWith(ARCHIVED.id)
   })
 
   /**

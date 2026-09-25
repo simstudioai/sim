@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockListKnowledgeTagsAsExecutor, mockReadTableSchemaAsExecutor } = vi.hoisted(() => ({
@@ -48,7 +45,6 @@ const EXECUTOR_ORIGIN = {
 
 describe('enrichTableToolSchema', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockReadTableSchemaAsExecutor.mockResolvedValue({
       name: 'Customers',
       columns: [
@@ -151,7 +147,6 @@ describe('enrichTableToolSchema', () => {
 
 describe('enrichKBTagsSchema', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockListKnowledgeTagsAsExecutor.mockResolvedValue([
       { id: 'td-1', tagSlot: 'tag1', displayName: 'Client', fieldType: 'text' },
     ])

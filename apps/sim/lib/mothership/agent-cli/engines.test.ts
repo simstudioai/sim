@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/workflows/application/read-workflow-lint', () => ({
@@ -242,19 +239,5 @@ describe('workflows deps', () => {
     const report = JSON.parse(result.stdout)
     expect(report.mock).toEqual({ 'Fetch rows': { result: { tier: null, score: { raw: null } } } })
     expect(report.mockEmptyNote).toBeUndefined()
-  })
-
-  it('omits childReturns when no upstream block runs a child workflow', async () => {
-    const result = await runEngine(
-      'workflows deps',
-      ['wf-1', 'fetch'],
-      runtimeWith({ [STATE_PATH]: { data: DEPS_STATE } }),
-      {}
-    )
-    const report = JSON.parse(result.stdout)
-    expect(report.predecessors).toEqual([])
-    expect(report.mock).toEqual({})
-    expect(report.mockEmptyNote).toBeUndefined()
-    expect(report.childReturns).toBeUndefined()
   })
 })

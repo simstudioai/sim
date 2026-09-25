@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { type StoredWorkspaceFileSecretProvenanceEntry, workspaceFiles } from '@sim/db/schema'
 import {
   auditMock,
@@ -253,7 +250,6 @@ function joinedRow(status: string, entries: unknown[] = [], contentUpdatedAt = C
  */
 describe('appended file provenance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.returning.mockResolvedValue([{ id: 'file-1' }])
     mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
@@ -405,7 +401,6 @@ describe('execution-file content provenance', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

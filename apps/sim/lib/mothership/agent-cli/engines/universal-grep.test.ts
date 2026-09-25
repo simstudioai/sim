@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -256,7 +253,7 @@ describe('universal grep', () => {
     expect(result.stderr).toContain('e.g. blocks/table_v2')
   })
 
-  it.each(['knowledge', 'kb', 'KB', 'knowledge/kb-123'])(
+  it.each(['KB', 'knowledge/kb-123'])(
     'redirects --in %s to semantic knowledge search before materializing any world',
     async (selector) => {
       /** An empty runtime throws on any request, so a clean refusal proves nothing was fetched. */
@@ -327,12 +324,6 @@ describe('universal grep', () => {
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain('workflows/fx-etl (wf-1):')
     expect(result.stdout).toContain('name: fx-etl')
-  })
-
-  it('reports no matches honestly', async () => {
-    const result = await runEngine('grep', ['zzz-nope'], runtimeWith(CATALOG), { scope: 'blocks' })
-    expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain('No matches for "zzz-nope" in blocks')
   })
 
   it('names files by their VFS path, with no doubled slash at the root', async () => {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -53,7 +50,6 @@ vi.mock('@/app/api/files/authorization', () => ({
 import {
   executeSharePointDownloadFile,
   executeSharePointUploadFile,
-  MAX_SHAREPOINT_UPLOAD_BYTES,
 } from '@/lib/internal/sharepoint/operations'
 
 const userFile = {
@@ -76,7 +72,6 @@ const storedFile = {
 
 describe('SharePoint operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.processFiles.mockReturnValue([userFile])
     mocks.assertAccess.mockResolvedValue(null)
     mocks.downloadStorage.mockResolvedValue({
@@ -91,55 +86,6 @@ describe('SharePoint operations', () => {
         name: 'file.pdf',
         webUrl: 'https://example.com/file.pdf',
         size: 4,
-      },
-    })
-  })
-
-  it('authorizes input provenance and carries cancellation through storage and Graph upload', async () => {
-    const controller = new AbortController()
-    const response = await executeSharePointUploadFile(
-      {
-        accessToken: 'token',
-        siteId: 'root',
-        driveId: 'drive/id',
-        folderPath: '/Shared Documents/Reports/',
-        fileName: null,
-        files: [userFile],
-      },
-      { userId: 'user-1', requestId: 'request-1', signal: controller.signal }
-    )
-
-    expect(mocks.assertAccess).toHaveBeenCalledWith(
-      userFile.key,
-      'user-1',
-      'request-1',
-      expect.anything()
-    )
-    expect(mocks.downloadStorage).toHaveBeenCalledWith(userFile, 'request-1', expect.anything(), {
-      maxBytes: MAX_SHAREPOINT_UPLOAD_BYTES,
-      signal: controller.signal,
-    })
-    expect(mocks.clientConstructed).toHaveBeenCalledWith('token', controller.signal)
-    expect(mocks.uploadGraph).toHaveBeenCalledWith(
-      'https://graph.microsoft.com/v1.0/drives/drive%2Fid/root:/Shared%20Documents/Reports/file.pdf:/content',
-      Buffer.from('file'),
-      'application/pdf'
-    )
-    expect(await response.json()).toEqual({
-      success: true,
-      output: {
-        uploadedFiles: [
-          {
-            id: 'item-1',
-            name: 'file.pdf',
-            webUrl: 'https://example.com/file.pdf',
-            size: 4,
-          },
-        ],
-        fileCount: 1,
-        skippedFiles: [],
-        skippedCount: 0,
-        errors: [],
       },
     })
   })

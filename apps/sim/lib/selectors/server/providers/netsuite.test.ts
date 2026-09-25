@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   executeListRecordTypes: vi.fn(),
@@ -33,8 +30,6 @@ const args: ExecuteServerSelectorArgs = {
 }
 
 describe('NetSuite server selector adapter', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it('preserves a safe provider authentication status without forwarding its body', async () => {
     mocks.executeListRecordTypes.mockResolvedValue({
       success: false,

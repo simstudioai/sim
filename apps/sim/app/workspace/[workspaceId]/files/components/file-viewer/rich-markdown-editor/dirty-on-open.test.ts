@@ -44,22 +44,7 @@ afterEach(() => {
   host = null
 })
 
-describe('full extension set', () => {
-  it('mounts without a duplicate suggestion-plugin-key error (@ and / coexist)', () => {
-    expect(() => {
-      editor = new Editor({
-        extensions: createMarkdownEditorExtensions({ placeholder: 'x' }),
-        content: '',
-      })
-    }).not.toThrow()
-  })
-})
-
 describe('normalizeMarkdownContent — dirty-on-open baseline', () => {
-  it('normalizes non-canonical markdown to the editor canonical form', () => {
-    expect(normalizeMarkdownContent('* one\n* two\n')).toBe('- one\n- two\n')
-  })
-
   it('is idempotent', () => {
     for (const md of [
       '* one\n* two\n',

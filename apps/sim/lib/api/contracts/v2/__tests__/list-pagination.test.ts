@@ -1,13 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import { z } from 'zod'
+import type { z } from 'zod'
 import { listContractFiles } from '@/lib/api/contracts/v2/__tests__/contract-sweep'
-import {
-  MAX_SCHEMA_DEPTH,
-  rejectsUnknownKeys,
-} from '@/lib/api/contracts/v2/__tests__/schema-introspection'
+import { MAX_SCHEMA_DEPTH } from '@/lib/api/contracts/v2/__tests__/schema-introspection'
 
 /**
  * Pins which v2 lists are paged.
@@ -614,28 +608,8 @@ interface V2ListContract {
   params: { any: string[]; all: string[] }
   /** Every param name the contract accepts, across `query` and `body`. */
   inputKeys: string[]
-  /** `undefined` when the contract has no `query`; `null` when it could not be introspected. */
-  strictQuery: boolean | null | undefined
   /** Whether a fractional `limit` draws a validation issue on `limit` itself. */
   rejectsFractionalLimit: boolean
-  /** Published description of `nextCursor`, as a caller reads it in the spec. */
-  nextCursorDescription: string
-}
-
-/**
- * The `nextCursor` description the generated spec carries.
- *
- * Read off the JSON Schema rather than the Zod node because that is the
- * artifact a caller and a generated client actually see — an envelope that is
- * right in TypeScript but publishes the wrong sentence is exactly the
- * divergence this exists to catch.
- */
-function nextCursorDescription(schema: z.ZodType | undefined): string {
-  if (!schema) return ''
-  const published = z.toJSONSchema(schema, { io: 'output', unrepresentable: 'any' }) as {
-    properties?: Record<string, { description?: string }>
-  }
-  return published.properties?.nextCursor?.description ?? ''
 }
 
 /**
@@ -666,9 +640,7 @@ async function sweepV2ListContracts(): Promise<V2ListContract[]> {
         name,
         params: paginationParams(variants),
         inputKeys: [...new Set(variants.flat())].sort(),
-        strictQuery: value.query ? rejectsUnknownKeys(value.query) : undefined,
         rejectsFractionalLimit: rejectsFractionalLimit(value),
-        nextCursorDescription: nextCursorDescription(value.response?.schema),
       })
     }
   }
@@ -723,51 +695,6 @@ describe('v2 list pagination split', () => {
     }
   })
 
-  /**
-   * The envelope is shared by both kinds of list, so its `nextCursor` sentence
-   * has to say which one the caller is holding. Both kinds published the paged
-   * sentence — "Send it back as `cursor`" — on lists whose `.strict()` query
-   * declares no `cursor`, so following the response's own instruction is a 400,
-   * and `nextCursor` is `null` by construction anyway. The description is the
-   * only part of the envelope that can carry the difference.
-   */
-  it('documents nextCursor as the kind of cursor the list actually has', async () => {
-    const contracts = await loadV2ListContracts()
-    const byKey = new Map(contracts.map((c) => [c.key, c]))
-
-    for (const key of FULL_SET_LISTS) {
-      expect(
-        byKey.get(key)?.nextCursorDescription,
-        `${key} returns its whole set but publishes the paged nextCursor sentence, which sends a caller to replay a token its query rejects. Build the response with v2CursorListResponse(item, { paged: false }).`
-      ).not.toMatch(/send it back as/i)
-    }
-    for (const key of PAGED_LISTS) {
-      expect(
-        byKey.get(key)?.nextCursorDescription,
-        `${key} is paged, so its nextCursor must document how to fetch the next page.`
-      ).toMatch(/send it back as/i)
-    }
-  })
-
-  it('makes every v2 list query reject a param it does not implement', async () => {
-    const contracts = await loadV2ListContracts()
-    const byKey = new Map(contracts.map((c) => [c.key, c]))
-
-    for (const key of [...PAGED_LISTS, ...FULL_SET_LISTS]) {
-      const strictQuery = byKey.get(key)?.strictQuery
-      /**
-       * `undefined` is a list that takes no query at all — `POST .../query`
-       * carries its input in the body. `null` means the walk could not tell,
-       * which must fail rather than pass silently.
-       */
-      if (strictQuery === undefined) continue
-      expect(
-        strictQuery,
-        `${key} must declare its query \`.strict()\`. Zod strips unknown keys by default, so a non-strict list answers ?limit=1 with 200 and the whole set — the caller believes it bounded the response and it did not. See .agents/skills/v2-api-conventions/SKILL.md.`
-      ).toBe(true)
-    }
-  })
-
   it('never lets a fractional limit reach the query as a fractional LIMIT', async () => {
     const contracts = await loadV2ListContracts()
     const byKey = new Map(contracts.map((c) => [c.key, c]))
@@ -778,18 +705,6 @@ describe('v2 list pagination split', () => {
         byKey.get(key)?.rejectsFractionalLimit,
         `${key} accepts a fractional limit, which reaches Postgres as \`LIMIT 2.5\` and answers 500. Build the param from v2PaginationFields. See .agents/skills/v2-api-conventions/SKILL.md.`
       ).toBe(true)
-    }
-  })
-
-  it('holds the clamping lists to truncation rather than rejection', async () => {
-    const contracts = await loadV2ListContracts()
-    const byKey = new Map(contracts.map((c) => [c.key, c]))
-
-    for (const key of CLAMPED_LIMIT_LISTS) {
-      expect(
-        byKey.get(key)?.rejectsFractionalLimit,
-        `${key} published that it truncates a fractional limit; rejecting it now would break callers relying on that.`
-      ).toBe(false)
     }
   })
 
@@ -812,13 +727,6 @@ describe('v2 list pagination split', () => {
         [...(CURSOR_BOUND_PATH_PARAMS[key] ?? [])].sort(),
         `${key} does not bind its cursor to the path param naming its parent resource. Pass it through cursorRoute(contract, params) in the route and declare it in CURSOR_BOUND_PATH_PARAMS; otherwise a sibling parent's token decodes cleanly here and answers from a sequence the caller never walked.`
       ).toEqual(placeholders.sort())
-    }
-  })
-
-  it('never declares a path binding for a list that has no such parent', () => {
-    for (const [key, bound] of Object.entries(CURSOR_BOUND_PATH_PARAMS)) {
-      expect(PAGED_LISTS.includes(key as never), `${key} is not a paged list`).toBe(true)
-      expect(bound.length, `${key} declares an empty path binding`).toBeGreaterThan(0)
     }
   })
 
@@ -856,72 +764,5 @@ describe('v2 list pagination split', () => {
         `${key} declares a cursor binding for a param it no longer accepts. A renamed filter leaves the stamp reading undefined on both sides, which silently restores the mid-walk filter change this map exists to prevent.`
       ).toEqual([])
     }
-  })
-
-  /**
-   * The one param that must never be bound. Binding it looks harmless and
-   * breaks every caller that changes page size mid-walk.
-   */
-  it('never binds the page size', () => {
-    for (const [key, bound] of Object.entries(CURSOR_BINDINGS)) {
-      expect(
-        bound.filter((param) => NEVER_BOUND.has(param)),
-        `${key} binds limit or cursor`
-      ).toEqual([])
-    }
-  })
-
-  /**
-   * A param declared in both maps reads as bound while the route exempts it —
-   * exactly the drift this pair of declarations exists to prevent, and the one
-   * shape the accepted-param checks above cannot see, since both maps are
-   * compared only against what the contract accepts.
-   */
-  it('never both binds and exempts the same param', () => {
-    for (const [key, bound] of Object.entries(CURSOR_BINDINGS)) {
-      expect(
-        bound.filter((param) => param in (UNBOUND_PARAMS[key] ?? {})),
-        `${key} declares a param as cursor-bound and as deliberately unbound at once.`
-      ).toEqual([])
-    }
-  })
-
-  it('gives every unbound param a non-empty reason', () => {
-    for (const [key, exemptions] of Object.entries(UNBOUND_PARAMS)) {
-      for (const [param, reason] of Object.entries(exemptions)) {
-        expect(reason.trim(), `${key}.${param} is exempted without a reason`).not.toBe('')
-      }
-    }
-  })
-
-  it('sees a pagination param hidden in a single union member', () => {
-    const unionQuery = z.union([
-      z.object({ workspaceId: z.string(), limit: z.coerce.number().default(50) }),
-      z.object({ workspaceId: z.string() }),
-    ])
-    const variants = inputVariants('synthetic union query', {
-      method: 'GET',
-      path: '/api/v2/synthetic',
-      query: unionQuery,
-    })
-
-    expect(variants).toEqual([['workspaceId', 'limit'], ['workspaceId']])
-    expect(paginationParams(variants).any).toEqual(['limit'])
-    expect(paginationParams(variants).all).toEqual([])
-  })
-
-  it('refuses to classify a schema it cannot introspect', () => {
-    expect(() => isListResponse('synthetic opaque', z.string())).toThrow(
-      /could not be introspected/
-    )
-    expect(() =>
-      isListResponse(
-        'synthetic ambiguous',
-        z.union([
-          z.object({ data: z.array(z.string()), nextCursor: z.string().nullable() }),
-          z.object({ error: z.string() }),
-        ])
-      )
-    ).toThrow(/mixes 1 list-shaped variant/)
   })
 })

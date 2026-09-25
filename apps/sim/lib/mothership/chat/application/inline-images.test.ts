@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { Principal } from '@sim/auth/principal'
 import { copilotChats, member } from '@sim/db/schema'
 import { authMockFns, databaseMock, queueTableRows, resetDbChainMock } from '@sim/testing'
@@ -77,7 +76,6 @@ async function raster() {
     .toBuffer()
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.permission.mockResolvedValue('read')
   mocks.upload.mockResolvedValue({})

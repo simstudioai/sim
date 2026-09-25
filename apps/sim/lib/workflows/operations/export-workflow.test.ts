@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -84,7 +81,6 @@ vi.unmock('@/tools/metadata-outputs')
 
 describe('buildWorkflowExportPayload', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadNormalized.mockResolvedValue({
       blocks: {
         agent: {
@@ -365,7 +361,6 @@ describe('buildWorkflowExportPayload with includeWorkspaceBindings', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadNormalized.mockResolvedValue({
       blocks: {
         lookup: {

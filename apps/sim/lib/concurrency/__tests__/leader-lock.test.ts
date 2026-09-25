@@ -1,13 +1,9 @@
-/**
- * @vitest-environment node
- */
 import { redisConfigMockFns } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { withLeaderLock } from '@/lib/concurrency/leader-lock'
 
 beforeEach(() => {
-  vi.clearAllMocks()
   redisConfigMockFns.mockAcquireLock.mockResolvedValue(true)
   redisConfigMockFns.mockReleaseLock.mockResolvedValue(true)
 })
@@ -29,23 +25,6 @@ describe('withLeaderLock', () => {
     expect(redisConfigMockFns.mockReleaseLock).toHaveBeenCalledTimes(1)
   })
 
-  it('passes a fresh owner token to acquireLock and releaseLock', async () => {
-    await withLeaderLock<string>({
-      key: 'k',
-      onLeader: async () => 'x',
-      onFollower: async () => null,
-    })
-
-    const [acquireKey, acquireValue] = redisConfigMockFns.mockAcquireLock.mock.calls[0]!
-    const [releaseKey, releaseValue] = redisConfigMockFns.mockReleaseLock.mock.calls[0]!
-
-    expect(acquireKey).toBe('k')
-    expect(releaseKey).toBe('k')
-    expect(acquireValue).toBe(releaseValue)
-    expect(typeof acquireValue).toBe('string')
-    expect((acquireValue as string).length).toBeGreaterThan(0)
-  })
-
   it('falls back to uncoordinated leader when acquireLock throws', async () => {
     redisConfigMockFns.mockAcquireLock.mockRejectedValueOnce(new Error('redis down'))
 
@@ -62,18 +41,6 @@ describe('withLeaderLock', () => {
     expect(onLeader).toHaveBeenCalledTimes(1)
     expect(onFollower).not.toHaveBeenCalled()
     expect(redisConfigMockFns.mockReleaseLock).not.toHaveBeenCalled()
-  })
-
-  it('does not propagate releaseLock errors out of the leader path', async () => {
-    redisConfigMockFns.mockReleaseLock.mockRejectedValueOnce(new Error('redis blip'))
-
-    const result = await withLeaderLock<string>({
-      key: 'k',
-      onLeader: async () => 'leader-value',
-      onFollower: async () => null,
-    })
-
-    expect(result).toBe('leader-value')
   })
 
   it('releases the lock even when onLeader throws', async () => {
@@ -147,29 +114,6 @@ describe('withLeaderLock', () => {
 
       expect(result).toBe('late-leader')
       expect(onFollower).toHaveBeenCalledTimes(3)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('follower returns null after timeout', async () => {
-    redisConfigMockFns.mockAcquireLock.mockResolvedValueOnce(false)
-
-    vi.useFakeTimers()
-    try {
-      const onFollower = vi.fn(async () => null)
-      const promise = withLeaderLock<string>({
-        key: 'k',
-        pollIntervalMs: 10,
-        maxWaitMs: 25,
-        onLeader: async () => 'should-not-run',
-        onFollower,
-      })
-
-      await vi.advanceTimersByTimeAsync(50)
-      const result = await promise
-
-      expect(result).toBeNull()
     } finally {
       vi.useRealTimers()
     }

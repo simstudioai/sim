@@ -37,11 +37,11 @@ PostgreSQL 17+ uses `transaction_timeout`; older supported servers use
 `idle_in_transaction_session_timeout` alongside the statement timeout. Both release
 a stalled idle holder; the older fallback limits each idle interval and statement,
 not the total elapsed transaction time.
-`apps/sim/lib/billing/core/usage-log.postgres.test.ts` tests real ESM/CommonJS driver
+`apps/sim/lib/billing/core/usage-log.integration.ts` tests real ESM/CommonJS driver
 closure and reconnection, rollback after billing INSERT/UPDATE, and exact retry
-accounting. CI runs it against PostgreSQL 17 and 16. Set
-`BILLING_USAGE_TEST_DATABASE_URL` to a disposable local PostgreSQL 15+ database to
-run it manually.
+accounting. CI runs it against PostgreSQL 17 and 16. Set `TEST_DATABASE_URL` to a
+disposable local PostgreSQL 15+ database and run it from `apps/sim` with
+`bunx vitest run --mode integration lib/billing/core/usage-log.integration.ts`.
 
 Remove this patch when the pinned driver includes equivalent transaction-scope
 closure handling. Keep the reconnect regression tests when upgrading.
@@ -61,11 +61,12 @@ prompts. Data-loss confirmations, table filters, introspection, and generated SQ
 remain owned by Drizzle; `--force` still controls data-loss approval.
 
 `packages/db/scripts/push.test.ts` covers argument forwarding and stopping before
-reconciliation on failure. `packages/db/scripts/push.postgres.test.ts` exercises
+reconciliation on failure. `packages/db/scripts/push.integration.ts` exercises
 the installed CLI against PostgreSQL, including multiple column changes, table
 and enum replacement, schema replacement, preservation of the excluded script
-ledger, and database errors. Set `DB_PUSH_TEST_DATABASE_URL` to a disposable local
-PostgreSQL database and run these tests from `packages/db` with `bun run test`.
+ledger, and database errors. Set `TEST_DATABASE_URL` to a disposable local
+PostgreSQL database and run these tests from `packages/db` with
+`bunx vitest run --mode integration`.
 
 Remove the patch when Drizzle provides an explicit noninteractive create/drop
 policy and propagates push failures. Keep Drizzle pinned until the replacement

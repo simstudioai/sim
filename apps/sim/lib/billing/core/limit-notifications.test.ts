@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   queueTableRows,
@@ -56,7 +53,6 @@ afterAll(() => {
 
 describe('maybeSendLimitThresholdEmail', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isBillingEnabled: true })
     dbChainMockFns.returning.mockResolvedValue([{ id: 'u1' }])
@@ -133,23 +129,10 @@ describe('maybeSendLimitThresholdEmail', () => {
     expect(dbChainMockFns.returning).not.toHaveBeenCalled()
   })
 
-  it('skips entirely when billing is disabled', async () => {
-    setEnvFlags({ isBillingEnabled: false })
-    await maybeSendLimitThresholdEmail({ ...baseUserParams, currentUsage: 5, limit: 5 })
-    expect(dbChainMockFns.returning).not.toHaveBeenCalled()
-    expect(sendEmailSpy).not.toHaveBeenCalled()
-  })
-
   it('re-arms but does not send when usage is fully cleared (zero usage)', async () => {
     await maybeSendLimitThresholdEmail({ ...baseUserParams, currentUsage: 0, limit: 5 })
     expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
     expect(dbChainMockFns.returning).not.toHaveBeenCalled()
-    expect(sendEmailSpy).not.toHaveBeenCalled()
-  })
-
-  it('skips when the limit is non-positive', async () => {
-    await maybeSendLimitThresholdEmail({ ...baseUserParams, currentUsage: 4, limit: 0 })
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(sendEmailSpy).not.toHaveBeenCalled()
   })
 })

@@ -1,5 +1,4 @@
-/** @vitest-environment node */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { discover, discoverManaged } = vi.hoisted(() => ({
   discover: vi.fn(),
@@ -36,7 +35,6 @@ async function execute(input: ExecuteServerSelectorArgs) {
   return attachment.execute(input, await attachment.destination.prepare(input))
 }
 describe('MCP tools selector', () => {
-  beforeEach(() => vi.clearAllMocks())
   it('uses authorized discovery, projects names only, and pages the complete inventory', async () => {
     discover.mockResolvedValue({
       tools: Array.from({ length: 101 }, (_, i) => ({

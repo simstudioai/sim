@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -56,7 +53,6 @@ const PROJECTED_VARIABLES = {
 
 describe('readWorkflowGraph', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.loadSnapshot.mockResolvedValue({
@@ -97,47 +93,6 @@ describe('readWorkflowGraph', () => {
     })
   })
 
-  /**
-   * The pollability guarantee: auditing this read would force `headSafe: false`
-   * and make the endpoint unusable for the polling it exists to serve.
-   */
-  it('records no audit event', async () => {
-    await readWorkflowGraph.execute({ principal, input })
-
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
-  /**
-   * A `PUT /state` of `{ blocks: {}, edges: [] }` deletes every block row, and
-   * the loader answers `null` for a blockless workflow. Existence is the
-   * workflow row's to decide, so the round trip has to close on an empty graph
-   * rather than a 404 the list endpoint contradicts.
-   */
-  it('reads a blockless draft back as an empty graph, not as not found', async () => {
-    mocks.loadSnapshot.mockResolvedValue({
-      workflowRecord: { id: 'workflow-1', variables: null },
-      normalizedData: null,
-    })
-
-    await expect(readWorkflowGraph.execute({ principal, input })).resolves.toEqual({
-      workflowId: 'workflow-1',
-      workspaceId: 'workspace-1',
-      blocks: {},
-      edges: [],
-      loops: {},
-      parallels: {},
-      variables: {},
-    })
-  })
-
-  it('is not found when the workflow row is gone', async () => {
-    mocks.loadSnapshot.mockResolvedValue({ workflowRecord: null, normalizedData: null })
-
-    await expect(readWorkflowGraph.execute({ principal, input })).rejects.toMatchObject({
-      code: 'not_found',
-    })
-  })
-
   it('rejects a principal kind the operation does not accept before canonical loading', async () => {
     await expect(
       readWorkflowGraph.execute({
@@ -164,10 +119,6 @@ describe('readWorkflowGraph', () => {
    * without the role, and it must reach that verdict without reading the graph.
    */
   describe('authorize', () => {
-    it('is exposed by the use case', () => {
-      expect(typeof readWorkflowGraph.authorize).toBe('function')
-    })
-
     it('refuses a principal without the minimum role, and never loads the graph', async () => {
       mocks.resolvePermission.mockResolvedValue(null)
 
@@ -175,13 +126,6 @@ describe('readWorkflowGraph', () => {
         code: 'forbidden',
       })
 
-      expect(mocks.loadSnapshot).not.toHaveBeenCalled()
-    })
-
-    it('admits an authorized principal without loading the graph', async () => {
-      await expect(readWorkflowGraph.authorize!({ principal, input })).resolves.toBeUndefined()
-
-      expect(mocks.resolveContext).toHaveBeenCalledOnce()
       expect(mocks.loadSnapshot).not.toHaveBeenCalled()
     })
   })

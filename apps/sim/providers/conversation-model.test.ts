@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it, vi } from 'vitest'
 import { getConversationModelLimits } from '@/providers/conversation-model'
 

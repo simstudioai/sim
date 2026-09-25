@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * These helpers read the generated successor map rather than the block
  * registry, so every id below is a real one and the assertions are about the
  * repository's actual lifecycle facts: `slack` was replaced by `slack_v2`,

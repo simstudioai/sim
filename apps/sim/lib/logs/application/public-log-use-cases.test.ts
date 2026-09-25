@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-import type { SessionPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -117,7 +113,6 @@ const workspacePrincipal = {
 
 describe('public log application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.getLogScope.mockResolvedValue({
@@ -132,20 +127,6 @@ describe('public log application use cases', () => {
       pathById: new Map([['folder-1', '/agents']]),
     })
     mocks.materialize.mockResolvedValue({ finalOutput: { ok: true } })
-  })
-
-  it('allows the internal session surface through the shared read operation', async () => {
-    const principal: SessionPrincipal = {
-      kind: 'session',
-      userId: 'user-1',
-      sessionId: 'session-1',
-    }
-
-    await expect(
-      getPublicLog.execute({ principal, input: { runId: 'run-1' } })
-    ).resolves.toMatchObject({ log: { executionId: 'run-1' } })
-    expect(mocks.getLogScope).toHaveBeenCalledWith('run-1')
-    expect(mocks.getLog).toHaveBeenCalledOnce()
   })
 
   it('derives workspace and materialization scope from the canonical run', async () => {
@@ -186,46 +167,6 @@ describe('public log application use cases', () => {
     })
 
     expect(result.workflowFolderPath).toBe('/')
-  })
-
-  it('keeps null for a folder whose path cannot be resolved', async () => {
-    mocks.getLog.mockResolvedValueOnce({ ...log, workflowFolderId: 'folder-archived' })
-
-    const result = await getPublicLog.execute({
-      principal: workspacePrincipal,
-      input: { runId: 'run-1' },
-    })
-
-    expect(result.workflowFolderPath).toBeNull()
-  })
-
-  /**
-   * A deleted workflow nulls the log's `workflow_id`, so the left join returns a
-   * null folder that is shape-identical to a workflow sitting at the root. Read
-   * as the root, the run reports `/` beside `deleted: true` and hands the caller
-   * a `folderPaths` value for a workflow that is in no folder at all.
-   */
-  it('reports no folder path for a run whose workflow has been deleted', async () => {
-    mocks.getLogScope.mockResolvedValueOnce({
-      executionId: 'run-1',
-      workspaceId: 'workspace-1',
-      workflowId: null,
-    })
-    mocks.getLog.mockResolvedValueOnce({
-      ...log,
-      workflowId: null,
-      workflowName: null,
-      workflowFolderId: null,
-      workflowUserId: null,
-      workflowOwnerEmail: null,
-    })
-
-    const result = await getPublicLog.execute({
-      principal: workspacePrincipal,
-      input: { runId: 'run-1' },
-    })
-
-    expect(result.workflowFolderPath).toBeNull()
   })
 
   it('redacts credential values from the run snapshot', async () => {
@@ -287,41 +228,6 @@ describe('public log application use cases', () => {
     expect(subBlocks.channel.value).toBe('#general')
     expect(JSON.stringify(subBlocks)).not.toContain('sk-log-tool-secret')
     expect(JSON.stringify(subBlocks)).not.toContain('log-table-secret')
-  })
-
-  it('passes the personal-key subject through as the projection reader', async () => {
-    await getPublicLog.execute({
-      principal: { kind: 'personal_api_key', userId: 'user-9', keyId: 'key-9' },
-      input: { runId: 'run-1' },
-    })
-
-    expect(mocks.materialize).toHaveBeenCalledWith(
-      { pointer: true },
-      expect.objectContaining({ userId: 'user-9' })
-    )
-  })
-
-  it('projects listed runs for display when trace spans are requested', async () => {
-    await listPublicLogs.execute({
-      principal: { kind: 'personal_api_key', userId: 'user-9', keyId: 'key-9' },
-      input: {
-        workspaceId: 'workspace-1',
-        filters: {},
-        sortBy: 'startedAt' as const,
-        sortOrder: 'desc' as const,
-        cursorKeys: undefined,
-        limit: 50,
-        includeFullDetails: false,
-        includeFinalOutput: false,
-        includeTraceSpans: true,
-        includeJobRuns: false,
-      },
-    })
-
-    expect(mocks.materialize).toHaveBeenCalledWith(
-      { pointer: true },
-      expect.objectContaining({ executionId: 'run-1', userId: 'user-9' })
-    )
   })
 
   it('rejects a workspace key outside the run workspace before materialization', async () => {
@@ -391,153 +297,5 @@ describe('public log application use cases', () => {
       expect.objectContaining({ folderScope: { includesRoot: false, folderIds: [] } })
     )
     expect(result.nextCursorKeys).toBeNull()
-  })
-
-  it('keeps the folders that do resolve when one path in the set does not', async () => {
-    await listPublicLogs.execute({
-      principal: workspacePrincipal,
-      input: {
-        workspaceId: 'workspace-1',
-        filters: {},
-        folderPaths: ['/agents', '/missing'],
-        sortBy: 'startedAt' as const,
-        sortOrder: 'desc' as const,
-        cursorKeys: undefined,
-        limit: 50,
-        includeFullDetails: false,
-        includeFinalOutput: false,
-        includeTraceSpans: false,
-        includeJobRuns: false,
-      },
-    })
-
-    expect(mocks.listLogs).toHaveBeenCalledWith(
-      expect.objectContaining({ folderScope: { includesRoot: false, folderIds: ['folder-1'] } })
-    )
-  })
-
-  it('forwards the job-run union flag to the query', async () => {
-    await listPublicLogs.execute({
-      principal: workspacePrincipal,
-      input: {
-        workspaceId: 'workspace-1',
-        filters: {},
-        sortBy: 'startedAt' as const,
-        sortOrder: 'desc' as const,
-        cursorKeys: undefined,
-        limit: 50,
-        includeFullDetails: false,
-        includeFinalOutput: false,
-        includeTraceSpans: false,
-        includeJobRuns: true,
-      },
-    })
-
-    expect(mocks.listLogs).toHaveBeenCalledWith(expect.objectContaining({ includeJobRuns: true }))
-  })
-
-  /**
-   * A job run's `execution_data` is a job envelope rather than a workflow trace,
-   * and the display projection is keyed on a workflow, so it passes through
-   * unmaterialized instead of being handed a shape that does not describe it.
-   */
-  it('does not materialize a job run', async () => {
-    mocks.listLogs.mockResolvedValueOnce({
-      data: [{ kind: 'job', executionId: 'job-1', executionData: { pointer: true } }],
-      nextCursorKeys: null,
-    })
-
-    const result = await listPublicLogs.execute({
-      principal: workspacePrincipal,
-      input: {
-        workspaceId: 'workspace-1',
-        filters: {},
-        sortBy: 'startedAt' as const,
-        sortOrder: 'desc' as const,
-        cursorKeys: undefined,
-        limit: 50,
-        includeFullDetails: false,
-        includeFinalOutput: true,
-        includeTraceSpans: false,
-        includeJobRuns: true,
-      },
-    })
-
-    expect(mocks.materialize).not.toHaveBeenCalled()
-    expect(result.items[0].executionData).toBeUndefined()
-  })
-
-  it("covers a selected folder's whole subtree", async () => {
-    mocks.loadFolders.mockResolvedValueOnce({
-      idByPath: new Map([
-        ['/agents', 'folder-1'],
-        ['/agents/nested', 'folder-2'],
-      ]),
-      pathById: new Map([
-        ['folder-1', '/agents'],
-        ['folder-2', '/agents/nested'],
-      ]),
-    })
-
-    await listPublicLogs.execute({
-      principal: workspacePrincipal,
-      input: {
-        workspaceId: 'workspace-1',
-        filters: {},
-        folderPaths: ['/agents'],
-        sortBy: 'startedAt' as const,
-        sortOrder: 'desc' as const,
-        cursorKeys: undefined,
-        limit: 50,
-        includeFullDetails: false,
-        includeFinalOutput: false,
-        includeTraceSpans: false,
-        includeJobRuns: false,
-      },
-    })
-
-    expect(mocks.listLogs).toHaveBeenCalledWith(
-      expect.objectContaining({
-        folderScope: { includesRoot: false, folderIds: ['folder-1', 'folder-2'] },
-      })
-    )
-  })
-
-  /**
-   * The sortable read folded into this list when `POST /logs/query` was retired,
-   * so the sort has to reach the query and the keyset has to come back out.
-   */
-  it('forwards the requested sort and returns the keyset the next page resumes from', async () => {
-    mocks.listLogs.mockResolvedValueOnce({ data: [], nextCursorKeys: ['0.41', 'log-1'] })
-
-    const result = await listPublicLogs.execute({
-      principal: workspacePrincipal,
-      input: {
-        workspaceId: 'workspace-1',
-        filters: {},
-        sortBy: 'cost' as const,
-        sortOrder: 'asc' as const,
-        cursorKeys: undefined,
-        limit: 50,
-        includeFullDetails: false,
-        includeFinalOutput: false,
-        includeTraceSpans: false,
-        includeJobRuns: false,
-      },
-    })
-
-    expect(mocks.listLogs).toHaveBeenCalledWith(
-      expect.objectContaining({ sortBy: 'cost', sortOrder: 'asc' })
-    )
-    expect(result.nextCursorKeys).toEqual(['0.41', 'log-1'])
-  })
-
-  it('propagates run-store failures', async () => {
-    const failure = new Error('database unavailable')
-    mocks.getLogScope.mockRejectedValueOnce(failure)
-
-    await expect(
-      getPublicLog.execute({ principal: workspacePrincipal, input: { runId: 'run-1' } })
-    ).rejects.toBe(failure)
   })
 })

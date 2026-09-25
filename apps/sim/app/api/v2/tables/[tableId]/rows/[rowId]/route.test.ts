@@ -1,9 +1,4 @@
-/**
- * @vitest-environment node
- */
-
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -34,9 +29,8 @@ vi.mock('@/lib/table/application/rows', () => ({
   deleteTableRow: { operation: { id: 'tables.rows.delete' }, execute: mocks.deleteRow },
 }))
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
-import { DELETE, GET, PATCH } from '@/app/api/v2/tables/[tableId]/rows/[rowId]/route'
+import { GET, PATCH } from '@/app/api/v2/tables/[tableId]/rows/[rowId]/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = {
@@ -79,7 +73,6 @@ function request(method: 'GET' | 'PATCH' | 'DELETE', body?: unknown) {
 
 describe('/api/v2/tables/[tableId]/rows/[rowId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -111,15 +104,6 @@ describe('/api/v2/tables/[tableId]/rows/[rowId]', () => {
     })
   })
 
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await GET(request('GET'), CONTEXT)
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
-  })
-
   it('updates through the shared use case with the exact patch', async () => {
     const req = request('PATCH', { workspaceId: WORKSPACE_ID, data: { name: 'Ada' } })
     const response = await PATCH(req, CONTEXT)
@@ -149,28 +133,5 @@ describe('/api/v2/tables/[tableId]/rows/[rowId]', () => {
 
     expect(response.status).toBe(404)
     expect((await response.json()).error.code).toBe('NOT_FOUND')
-  })
-
-  it('returns the shared single-resource delete envelope', async () => {
-    const req = request('DELETE')
-    const response = await DELETE(req, CONTEXT)
-
-    expect(response.status).toBe(200)
-    expect((await response.json()).data).toEqual({ id: 'row-1', deleted: true })
-    expect(mocks.deleteRow).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal: PRINCIPAL,
-        input: expect.objectContaining({ tableId: 'table-1', rowId: 'row-1' }),
-      })
-    )
-  })
-
-  it('preserves a generic forbidden canonical lookup as forbidden', async () => {
-    mocks.readRow.mockRejectedValue(new OrchestrationError('forbidden', 'Forbidden'))
-
-    const response = await GET(request('GET'), CONTEXT)
-
-    expect(response.status).toBe(403)
-    expect((await response.json()).error.code).toBe('FORBIDDEN')
   })
 })

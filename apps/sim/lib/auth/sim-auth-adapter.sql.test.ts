@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { BetterAuthOptions } from 'better-auth'
 import { organization } from 'better-auth/plugins'
 import { drizzle } from 'drizzle-orm/pg-proxy'

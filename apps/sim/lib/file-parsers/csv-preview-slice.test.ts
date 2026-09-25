@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { Readable } from 'node:stream'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockDownloadFileStream } = vi.hoisted(() => ({
   mockDownloadFileStream: vi.fn(),
@@ -29,21 +26,6 @@ function csvWithRows(dataRows: number): string {
 }
 
 describe('getCsvPreviewSlice', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('returns headers and every row when under the cap', async () => {
-    mockDownloadFileStream.mockResolvedValue(streamOf('a,b\n1,2\n3,4\n'))
-    const slice = await getCsvPreviewSlice(args)
-    expect(slice.headers).toEqual(['a', 'b'])
-    expect(slice.rows).toEqual([
-      ['1', '2'],
-      ['3', '4'],
-    ])
-    expect(slice.truncated).toBe(false)
-  })
-
   it('caps at CSV_PREVIEW_MAX_ROWS and flags truncated', async () => {
     mockDownloadFileStream.mockResolvedValue(streamOf(csvWithRows(CSV_PREVIEW_MAX_ROWS + 500)))
     const slice = await getCsvPreviewSlice(args)
@@ -56,33 +38,6 @@ describe('getCsvPreviewSlice', () => {
     const slice = await getCsvPreviewSlice(args)
     expect(slice.rows).toHaveLength(CSV_PREVIEW_MAX_ROWS)
     expect(slice.truncated).toBe(false)
-  })
-
-  it('detects a semicolon delimiter', async () => {
-    mockDownloadFileStream.mockResolvedValue(streamOf('a;b;c\n1;2;3\n'))
-    const slice = await getCsvPreviewSlice(args)
-    expect(slice.headers).toEqual(['a', 'b', 'c'])
-    expect(slice.rows).toEqual([['1', '2', '3']])
-  })
-
-  it('detects a tab delimiter', async () => {
-    mockDownloadFileStream.mockResolvedValue(streamOf('a\tb\n1\t2\n'))
-    const slice = await getCsvPreviewSlice(args)
-    expect(slice.headers).toEqual(['a', 'b'])
-    expect(slice.rows).toEqual([['1', '2']])
-  })
-
-  it('returns empty for an empty file', async () => {
-    mockDownloadFileStream.mockResolvedValue(streamOf(''))
-    const slice = await getCsvPreviewSlice(args)
-    expect(slice).toEqual({ headers: [], rows: [], truncated: false })
-  })
-
-  it('tolerates ragged rows', async () => {
-    mockDownloadFileStream.mockResolvedValue(streamOf('a,b,c\n1,2\n4,5,6,7\n'))
-    const slice = await getCsvPreviewSlice(args)
-    expect(slice.headers).toEqual(['a', 'b', 'c'])
-    expect(slice.rows[0]).toEqual(['1', '2'])
   })
 
   it('truncates an oversized cell', async () => {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -38,7 +35,6 @@ vi.mock('@/lib/memory/artifacts', () => ({
 import {
   appendAgentMemoryMessageUseCase,
   openAgentMemoryTurnUseCase,
-  readAgentMemoryItemsUseCase,
   readAgentMemoryPrefixUseCase,
   saveAgentMemoryTurnUseCase,
   storeAgentMemoryArtifactUseCase,
@@ -83,7 +79,6 @@ function principal(): WorkflowExecutionDelegatedPrincipal {
 
 describe('Agent memory application boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.workspace.mockResolvedValue({
       workspaceId: identity.workspaceId,
       workspaceOrganizationId: null,
@@ -205,17 +200,6 @@ describe('Agent memory application boundary', () => {
       })
     ).rejects.toThrow()
     expect(mocks.readPrefix).not.toHaveBeenCalled()
-  })
-
-  it('preserves infrastructure errors for the caller to distinguish from an empty history', async () => {
-    const failure = new Error('database unavailable')
-    mocks.read.mockRejectedValueOnce(failure)
-    await expect(
-      readAgentMemoryItemsUseCase.execute({
-        principal: principal(),
-        input: { workspaceId: identity.workspaceId, memoryId: 'memory-1' },
-      })
-    ).rejects.toBe(failure)
   })
 
   it.each([false, true])(

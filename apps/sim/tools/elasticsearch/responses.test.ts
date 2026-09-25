@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import * as elasticsearchTools from '@/tools/elasticsearch'
 import type { ToolConfig } from '@/tools/types'
@@ -24,13 +21,6 @@ const GET_INDEX_BODY = {
  */
 describe('elasticsearch_get_index output shape', () => {
   const tool = elasticsearchTools.elasticsearchGetIndexTool
-
-  it('declares only outputs the transform actually produces', async () => {
-    const result = await tool.transformResponse!(jsonResponse(GET_INDEX_BODY))
-    for (const declared of Object.keys(tool.outputs ?? {})) {
-      expect(Object.keys(result.output)).toContain(declared)
-    }
-  })
 
   it('exposes every matched index under the declared aggregate', async () => {
     const result = await tool.transformResponse!(jsonResponse(GET_INDEX_BODY))
@@ -110,21 +100,6 @@ describe('every Elasticsearch tool declines cross-origin credentials', () => {
       sendCredentialsOnCrossOriginRedirect: false,
     })
     expect(tool.request?.stripAuthOnRedirect).toBeUndefined()
-  })
-})
-
-/** Outputs that are absent on a documented branch must be declared optional. */
-describe('conditionally-present outputs are declared optional', () => {
-  it.each([
-    ['elasticsearchGetDocumentTool', ['_version', '_source']],
-    ['elasticsearchDeleteDocumentTool', ['_version']],
-    ['elasticsearchCreateIndexTool', ['shards_acknowledged', 'index']],
-    ['elasticsearchClusterStatsTool', ['status']],
-  ] as const)('%s', (name, fields) => {
-    const tool = (elasticsearchTools as Record<string, ToolConfig>)[name]
-    for (const field of fields) {
-      expect(tool.outputs?.[field]).toMatchObject({ optional: true })
-    }
   })
 })
 

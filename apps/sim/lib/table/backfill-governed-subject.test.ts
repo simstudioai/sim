@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { tableRowExecutions, userTableRows, workflowExecutionLogs } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -53,7 +49,6 @@ function queueOnePage(): void {
 
 describe('backfill cascade governance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockMaterializeExecutionData.mockResolvedValue({})
     mockGetFunctionalBlockOutput.mockReturnValue({ value: 'filled' })

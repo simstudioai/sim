@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FeatureFlagContext, FeatureFlagName } from '@/lib/core/config/feature-flags'
@@ -77,7 +74,6 @@ afterAll(resetEnvFlagsMock)
 
 describe('getFeatureFlags', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.AGENT_MEMORY_HISTORY = undefined
   })
@@ -147,7 +143,6 @@ describe('getFeatureFlags', () => {
 
 describe('isFeatureEnabled', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.CREDENTIAL_GROUPS = undefined
     envRef.KNOWLEDGE_MEMBER_ACCESS = undefined
@@ -360,7 +355,6 @@ describe('isFeatureEnabled', () => {
 
 describe('tables-v2-api flag', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.TABLES_V2_API = undefined
   })
@@ -386,7 +380,6 @@ describe('tables-v2-api flag', () => {
 
 describe('table-row-ttl flag', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.TABLE_ROW_TTL = undefined
   })
@@ -406,7 +399,6 @@ describe('table-row-ttl flag', () => {
 
 describe('Mothership model and Plan flags', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.MSHIP_MODEL_SELECTOR = undefined
     envRef.MSHIP_PLAN_MODE = undefined

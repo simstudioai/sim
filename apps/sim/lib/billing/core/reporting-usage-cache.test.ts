@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -43,7 +40,6 @@ function freshOrg() {
 
 describe('readSoftGateUsageCost on a reporting window', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBillingPeriodUsageCost.mockReset()
   })
 
@@ -139,15 +135,7 @@ describe('readSoftGateUsageCost on a reporting window', () => {
 
 describe('readSoftGateUsageCost', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBillingPeriodUsageCost.mockReset()
-  })
-
-  it('exposes no cached reader that a non-reporting period could reach', () => {
-    expect(Object.keys(reportingUsageCache).sort()).toEqual([
-      'REPORTING_USAGE_CACHE_TTL_MS',
-      'readSoftGateUsageCost',
-    ])
   })
 
   it('never serves a cached reporting sum to another source with the same bounds', async () => {

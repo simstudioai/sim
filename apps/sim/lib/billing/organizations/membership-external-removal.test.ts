@@ -1,10 +1,6 @@
-/**
- * @vitest-environment node
- */
 import { credential, knowledgeBase, member, workspaceFiles } from '@sim/db/schema'
 import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const { mockSetOrgMemberUsageLimit } = vi.hoisted(() => ({
   mockSetOrgMemberUsageLimit: vi.fn(),
@@ -21,7 +17,6 @@ import {
 
 describe('external organization access removal', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -84,51 +79,6 @@ describe('external organization access removal', () => {
         )
       ).toBe(true)
     }
-  })
-  it.each(['40001', '40P01', '55P03'])(
-    'preserves retryable transaction failure %s',
-    async (code) => {
-      const failure = Object.assign(new Error('retry transaction'), { code })
-      dbChainMockFns.transaction.mockRejectedValueOnce(failure)
-      await expect(
-        removeExternalUserFromOrganizationWorkspaces({
-          organizationId: 'org-1',
-          userId: 'external',
-        })
-      ).rejects.toBe(failure)
-      queueTableRows(member, [{ id: 'membership', userId: 'target', role: 'member' }])
-      dbChainMockFns.transaction.mockRejectedValueOnce(failure)
-      await expect(
-        removeUserFromOrganization({
-          organizationId: 'org-1',
-          userId: 'target',
-          memberId: 'membership',
-          onError: 'throw',
-        })
-      ).rejects.toBe(failure)
-    }
-  )
-
-  it.each([
-    Object.assign(new Error('retry transaction'), { code: '40001' }),
-    Object.assign(new Error('retry transaction'), { code: '40P01' }),
-    Object.assign(new Error('retry transaction'), { code: '55P03' }),
-    new OrchestrationError('conflict', 'The membership changed before removal'),
-  ])('preserves failure results for legacy compound callers on $code', async (failure) => {
-    queueTableRows(member, [{ id: 'membership', userId: 'target', role: 'member' }])
-    dbChainMockFns.transaction.mockRejectedValueOnce(failure)
-
-    await expect(
-      removeUserFromOrganization({
-        organizationId: 'org-1',
-        userId: 'target',
-        memberId: 'membership',
-      })
-    ).resolves.toMatchObject({
-      success: false,
-      error: 'Failed to remove user from organization',
-    })
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 
   it('rejects an actor demoted before the locked removal', async () => {

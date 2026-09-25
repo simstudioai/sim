@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { NextResponse } from 'next/server'
@@ -126,29 +123,6 @@ describe('deployment auth tokens', () => {
     ).resolves.toBe(false)
   })
 
-  it('keeps an email token valid while its exact or domain grant remains current', async () => {
-    const resource = {
-      id: 'share-1',
-      authType: 'email',
-      password: null,
-      allowedEmails: ['viewer@example.test'],
-    }
-    const token = await mintToken(resource, 'viewer@example.test')
-
-    await expect(
-      validateAuthToken({
-        token,
-        resource: { ...resource, allowedEmails: ['new@example.test', 'viewer@example.test'] },
-      })
-    ).resolves.toBe(true)
-    await expect(
-      validateAuthToken({
-        token,
-        resource: { ...resource, allowedEmails: ['@example.test'] },
-      })
-    ).resolves.toBe(true)
-  })
-
   it('revokes a domain-granted token when the domain is removed', async () => {
     const resource = {
       id: 'share-1',
@@ -206,16 +180,9 @@ describe('deployment auth tokens', () => {
 })
 
 describe('isEmailAllowed', () => {
-  it('matches an exact email regardless of casing on either side', () => {
-    expect(isEmailAllowed('user@acme.com', ['user@acme.com'])).toBe(true)
-    expect(isEmailAllowed('User@Acme.com', ['user@acme.com'])).toBe(true)
-    expect(isEmailAllowed('user@acme.com', ['USER@ACME.COM'])).toBe(true)
-    expect(isEmailAllowed('  User@Acme.com  ', ['user@acme.com'])).toBe(true)
-  })
-
-  it('matches a domain pattern regardless of casing', () => {
-    expect(isEmailAllowed('User@Acme.com', ['@acme.com'])).toBe(true)
-    expect(isEmailAllowed('user@acme.com', ['@Acme.com'])).toBe(true)
+  it('matches exact and domain entries regardless of casing or padding', () => {
+    expect(isEmailAllowed('  User@Acme.com  ', ['USER@ACME.COM'])).toBe(true)
+    expect(isEmailAllowed('User@Acme.com', ['@Acme.com'])).toBe(true)
   })
 
   it('rejects invalid input and non-string persisted entries', () => {

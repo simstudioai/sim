@@ -2,8 +2,6 @@
  * Covers the Granola tool logic that is not a straight field copy: the tri-mode list parser that
  * block inputs, LLM arguments, and trigger fields all feed into, and the PATCH body builder whose
  * "omit means leave unchanged" semantics differ per field.
- *
- * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
 import { updateWebhookEndpointTool } from '@/tools/granola/update_webhook_endpoint'

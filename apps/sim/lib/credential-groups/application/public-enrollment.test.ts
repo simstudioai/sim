@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { CredentialGroupEnrollmentPrincipal, SessionPrincipal } from '@sim/auth/principal'
 import { sha256Hex } from '@sim/security/hash'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -100,7 +97,6 @@ const oauthAttempt = {
 
 describe('public Credential Group enrollment application operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.bind.mockResolvedValue(undefined)
     mocks.memberAccess.mockResolvedValue({ isMember: false })
     mocks.searchAvailable.mockResolvedValue(true)

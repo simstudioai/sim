@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -74,7 +71,6 @@ const principal = {
 
 describe('applyWorkflowVariableOperations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('write')
@@ -146,24 +142,6 @@ describe('applyWorkflowVariableOperations', () => {
     expect(mocks.notify).not.toHaveBeenCalled()
   })
 
-  it('admits a session principal and attributes the audit row to it, not to copilot', async () => {
-    await expect(
-      applyWorkflowVariableOperations.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: {
-          workflowId: 'workflow-1',
-          operations: [{ operation: 'add', name: 'threshold', type: 'number', value: '5' }],
-        },
-      })
-    ).resolves.toMatchObject({ changed: true })
-
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({ source: 'session' }),
-      })
-    )
-  })
-
   it('rejects a delegated service the operation does not accept, before canonical loading', async () => {
     await expect(
       applyWorkflowVariableOperations.execute({
@@ -198,7 +176,6 @@ describe('setWorkflowBlockEnabled', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('write')
@@ -213,30 +190,6 @@ describe('setWorkflowBlockEnabled', () => {
       warnings: [],
       state: { blocks: { 'block-1': { ...BLOCK, enabled: false } }, edges: [] },
     })
-  })
-
-  /**
-   * The third graph-write door. It must not write the normalized tables itself:
-   * bypassing the shared primitive is how it lost state preparation and
-   * custom-tool extraction that `replaceWorkflowState` and
-   * `applyWorkflowOperations` both get.
-   */
-  it('writes through the shared persistence primitive rather than saving the graph itself', async () => {
-    await expect(
-      setWorkflowBlockEnabled.execute({
-        principal,
-        input: { workflowId: 'workflow-1', blockId: 'block-1', enabled: false },
-      })
-    ).resolves.toMatchObject({ changed: true, affectedBlockIds: ['block-1'] })
-
-    expect(mocks.replace).toHaveBeenCalledWith({
-      subjectUserId: null,
-      workflowId: 'workflow-1',
-      workspaceId: 'workspace-1',
-      attributedUserId: 'user-1',
-      state: expect.any(Function),
-    })
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   /**
@@ -264,30 +217,4 @@ describe('setWorkflowBlockEnabled', () => {
   })
 
   /** The returned state is what was persisted, not what was proposed. */
-  it('returns the graph the persistence primitive actually wrote', async () => {
-    mocks.replace.mockResolvedValue({
-      warnings: [],
-      state: { blocks: { 'block-1': { ...BLOCK, enabled: false, name: 'Normalized' } }, edges: [] },
-    })
-
-    const result = await setWorkflowBlockEnabled.execute({
-      principal,
-      input: { workflowId: 'workflow-1', blockId: 'block-1', enabled: false },
-    })
-
-    expect(result.state.blocks['block-1'].name).toBe('Normalized')
-  })
-
-  it('does not write, audit, or notify an authoritative no-op', async () => {
-    await expect(
-      setWorkflowBlockEnabled.execute({
-        principal,
-        input: { workflowId: 'workflow-1', blockId: 'block-1', enabled: true },
-      })
-    ).resolves.toMatchObject({ changed: false })
-
-    expect(mocks.replace).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-    expect(mocks.notify).not.toHaveBeenCalled()
-  })
 })

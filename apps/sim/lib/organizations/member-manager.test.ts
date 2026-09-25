@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { member, user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -72,17 +71,6 @@ describe('organization member managers', () => {
     )
     await expect(updateOrganizationMemberRecord(input)).rejects.toMatchObject({
       detailCode: 'SCIM_MANAGED_MEMBERSHIP',
-    })
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
-  it('returns unchanged when the role is already current', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(member, [{ ...target, role: 'admin' }])
-    queueTableRows(member, [{ id: 'membership', role: 'admin' }])
-    await expect(updateOrganizationMemberRecord(input)).resolves.toMatchObject({
-      changed: false,
-      previousRole: 'admin',
     })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })

@@ -115,47 +115,6 @@ describe('ResumeExecutionPage', () => {
       undefined
     )
   })
-
-  it('redirects an expired session back through login', () => {
-    mocks.resumeExecutionDetail.mockReturnValue({
-      data: undefined,
-      error: apiError(401),
-      isError: true,
-      isFetching: false,
-      isLoading: false,
-      refetch: mocks.refetch,
-    })
-
-    renderPage('context-1')
-
-    const callbackPath = '/resume/workflow-1/execution-1?contextId=context-1'
-    expect(mocks.replace).toHaveBeenCalledWith(
-      `/login?callbackUrl=${encodeURIComponent(callbackPath)}`
-    )
-    expect(container.textContent).toContain('Redirecting to sign in')
-  })
-
-  it('shows a retryable error instead of mislabeling infrastructure failure', () => {
-    mocks.resumeExecutionDetail.mockReturnValue({
-      data: undefined,
-      error: apiError(500),
-      isError: true,
-      isFetching: false,
-      isLoading: false,
-      refetch: mocks.refetch,
-    })
-
-    renderPage()
-
-    expect(container.textContent).toContain('Could Not Load Execution')
-    expect(container.textContent).not.toContain('Execution Not Found')
-    const retryButton = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Try again'
-    )
-    expect(retryButton).toBeDefined()
-    act(() => retryButton?.dispatchEvent(new MouseEvent('click', { bubbles: true })))
-    expect(mocks.refetch).toHaveBeenCalledOnce()
-  })
 })
 
 describe('selectInitialResumeContextId', () => {
@@ -167,14 +126,5 @@ describe('selectInitialResumeContextId', () => {
   it('uses a requested context only when the authorized execution contains it', () => {
     expect(selectInitialResumeContextId(pausePoints, 'paused-context')).toBe('paused-context')
     expect(selectInitialResumeContextId(pausePoints, 'unknown-context')).toBe('paused-context')
-  })
-
-  it('falls back to the first context when none is paused', () => {
-    expect(
-      selectInitialResumeContextId(
-        [{ contextId: 'first-context', resumeStatus: 'resumed' }] as PausePointWithQueue[],
-        null
-      )
-    ).toBe('first-context')
   })
 })

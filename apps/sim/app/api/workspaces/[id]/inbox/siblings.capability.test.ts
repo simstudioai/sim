@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   authMockFns,
   createMockRequest,
@@ -52,7 +49,6 @@ const BASE_URL = 'http://localhost:3000/api/workspaces/workspace-1/inbox'
  */
 describe('inbox.use refusals converge across the sibling routes', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'admin-1' } })
     mockGetUserEntityPermissions.mockResolvedValue('admin')

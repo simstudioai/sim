@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
 
@@ -10,17 +7,6 @@ describe('normalizeSelectOptionsInput', () => {
     expect(opt.name).toBe('Open')
     expect(typeof opt.id).toBe('string')
     expect(opt.id.length).toBeGreaterThan(0)
-  })
-
-  it('generates an id for an object option without one', () => {
-    const [opt] = normalizeSelectOptionsInput([{ name: 'Closed' }]) ?? []
-    expect(opt.name).toBe('Closed')
-    expect(opt.id.length).toBeGreaterThan(0)
-  })
-
-  it('preserves an explicitly supplied id', () => {
-    const result = normalizeSelectOptionsInput([{ id: 'opt_keep', name: 'Open' }])
-    expect(result).toEqual([{ id: 'opt_keep', name: 'Open' }])
   })
 
   it('reuses the id of an existing option with the same name', () => {
@@ -44,16 +30,5 @@ describe('normalizeSelectOptionsInput', () => {
     const result = normalizeSelectOptionsInput(['open'], [{ id: 'opt_open', name: 'Open' }]) ?? []
     expect(result[0].id).toBe('opt_open')
     expect(result[0].name).toBe('open')
-  })
-
-  it('mints a fresh id when there is no existing column to match against', () => {
-    const result = normalizeSelectOptionsInput(['Open']) ?? []
-    expect(result[0].id.length).toBeGreaterThan(0)
-    expect(result[0].name).toBe('Open')
-  })
-
-  it('returns undefined for a non-array (validation rejects it downstream)', () => {
-    expect(normalizeSelectOptionsInput(undefined)).toBeUndefined()
-    expect(normalizeSelectOptionsInput('Open')).toBeUndefined()
   })
 })

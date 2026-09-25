@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { copilotChats, member } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -66,7 +65,6 @@ function queueChat(mode = 'assistant', role = 'member') {
   queueTableRows(member, role ? [{ role }] : [])
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.banned.mockResolvedValue([])
   mocks.config.mockResolvedValue(null)

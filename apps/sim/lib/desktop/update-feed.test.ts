@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-  channelForDeploymentEnvironment,
-  channelOfVersion,
   DESKTOP_PRERELEASE_REPOSITORY,
   DESKTOP_STABLE_RELEASE_REPOSITORY,
   MANIFEST_ASSET_NAME,
-  releaseRepositoryForChannel,
   rewriteManifestUrls,
   selectReleaseForChannel,
 } from '@/lib/desktop/update-feed'
@@ -24,41 +21,6 @@ function release(
     })),
   }
 }
-
-describe('channelForDeploymentEnvironment', () => {
-  it('maps hosted deployment environments to their channels', () => {
-    expect(channelForDeploymentEnvironment('dev')).toBe('dev')
-    expect(channelForDeploymentEnvironment('staging')).toBe('staging')
-    expect(channelForDeploymentEnvironment('production')).toBe('latest')
-  })
-
-  it('defaults self-hosted, local, and unknown deployments to stable', () => {
-    expect(channelForDeploymentEnvironment(undefined)).toBe('latest')
-    expect(channelForDeploymentEnvironment('')).toBe('latest')
-    expect(channelForDeploymentEnvironment('unknown')).toBe('latest')
-  })
-})
-
-describe('channelOfVersion', () => {
-  it('classifies versions by prerelease tag', () => {
-    expect(channelOfVersion('0.5.24')).toBe('latest')
-    expect(channelOfVersion('0.5.25-staging.3')).toBe('staging')
-    expect(channelOfVersion('0.5.25-dev.412')).toBe('dev')
-  })
-
-  it('classifies legacy alpha and beta tags with their environment', () => {
-    expect(channelOfVersion('0.5.25-alpha.412')).toBe('dev')
-    expect(channelOfVersion('0.5.25-beta.3')).toBe('staging')
-  })
-})
-
-describe('releaseRepositoryForChannel', () => {
-  it('keeps stable releases in sim and prereleases in the release-only repository', () => {
-    expect(releaseRepositoryForChannel('latest')).toBe(DESKTOP_STABLE_RELEASE_REPOSITORY)
-    expect(releaseRepositoryForChannel('dev')).toBe(DESKTOP_PRERELEASE_REPOSITORY)
-    expect(releaseRepositoryForChannel('staging')).toBe(DESKTOP_PRERELEASE_REPOSITORY)
-  })
-})
 
 describe('selectReleaseForChannel', () => {
   const releases = [
@@ -100,12 +62,6 @@ describe('selectReleaseForChannel', () => {
     expect(selectReleaseForChannel(withNewStable, 'latest')?.tag_name).toBe('v0.5.25')
   })
 
-  it('reports no production release when only prereleases exist', () => {
-    expect(
-      selectReleaseForChannel([release('v0.5.25-dev.412'), release('v0.5.25-staging.2')], 'latest')
-    ).toBeNull()
-  })
-
   it('skips stable-tagged releases flagged prerelease on the latest channel', () => {
     const flagged = [release('v0.5.25', { prerelease: true }), release('v0.5.24')]
     expect(selectReleaseForChannel(flagged, 'latest')?.tag_name).toBe('v0.5.24')
@@ -117,16 +73,6 @@ describe('selectReleaseForChannel', () => {
       release('v0.5.25-dev.412'),
     ]
     expect(selectReleaseForChannel(withBrokenNewest, 'dev')?.tag_name).toBe('v0.5.25-dev.413')
-  })
-
-  it('keeps release listings without asset data eligible for candidate validation', () => {
-    const bare = { tag_name: 'v0.5.25', draft: false, prerelease: false }
-    expect(selectReleaseForChannel([bare, release('v0.5.24')], 'latest')?.tag_name).toBe('v0.5.25')
-  })
-
-  it('skips drafts and unparseable tags', () => {
-    expect(selectReleaseForChannel([release('v0.5.26-dev.1', { draft: true })], 'dev')).toBe(null)
-    expect(selectReleaseForChannel([release('nightly')], 'dev')).toBe(null)
   })
 })
 

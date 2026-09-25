@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { envFlagsMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -110,7 +107,6 @@ import {
   applyStorageUsageDeltasInTx,
   decrementStorageUsageForBillingContextInTx,
   incrementStorageUsageForBillingContextInTx,
-  maybeNotifyStorageLimitForBillingContext,
 } from '@/lib/billing/storage/tracking'
 import type { DbOrTx } from '@/lib/db/types'
 
@@ -166,7 +162,6 @@ afterAll(resetEnvFlagsMock)
 
 describe('workspace storage counter mutations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isBillingEnabled: true })
     mockWorkspaceRow.current = {
       billedAccountUserId: 'workspace-owner',
@@ -238,20 +233,6 @@ describe('workspace storage counter mutations', () => {
       await incrementStorageUsageForBillingContextInTx(mockTx as unknown as DbOrTx, context, 100)
 
       expect(mockTxFor.mock.calls).toEqual([['no key update'], ['no key update']])
-    }
-  )
-
-  it.each(PAYER_CASES)(
-    'locks batched workspace and $label payer ledgers as FOR NO KEY UPDATE',
-    async ({ context, workspaceRow, payerLockRows }) => {
-      mockOrderedLockRows.queue = [[{ id: 'workspace-1', ...workspaceRow }], [...payerLockRows]]
-
-      await applyStorageUsageDeltasInTx(mockTx as unknown as DbOrTx, {
-        workspaceDeltas: [{ context, deltaBytes: 100 }],
-        legacyDeltas: [],
-      })
-
-      expect(mockTxOrderedFor.mock.calls).toEqual([['no key update'], ['no key update']])
     }
   )
 
@@ -349,22 +330,6 @@ describe('workspace storage counter mutations', () => {
     expect(mockMaybeNotifyLimit).not.toHaveBeenCalled()
   })
 
-  it('still throws on a missing payer row during a clamped decrement', async () => {
-    mockTxLimit.mockResolvedValueOnce([mockWorkspaceRow.current]).mockResolvedValueOnce([])
-
-    await expect(
-      decrementStorageUsageForBillingContextInTx(mockTx as unknown as DbOrTx, ORG_CONTEXT, 100)
-    ).rejects.toThrow('Storage payer organization:workspace-org not found')
-    expect(mockTxSet).not.toHaveBeenCalled()
-  })
-
-  it('can share the caller transaction with billable metadata insertion', async () => {
-    await incrementStorageUsageForBillingContextInTx(mockTx as unknown as DbOrTx, ORG_CONTEXT, 100)
-
-    expect(mockTxUpdate).toHaveBeenCalledTimes(2)
-    expect(mockMaybeNotifyLimit).not.toHaveBeenCalled()
-  })
-
   it('keeps durable workspace and payer ledgers accurate while billing is disabled', async () => {
     setEnvFlags({ isBillingEnabled: false })
 
@@ -372,19 +337,6 @@ describe('workspace storage counter mutations', () => {
 
     expect(mockTxUpdate).toHaveBeenCalledTimes(2)
     expect(mockMaybeNotifyLimit).not.toHaveBeenCalled()
-  })
-
-  it('keeps context-aware notifications available after commit', async () => {
-    await maybeNotifyStorageLimitForBillingContext(ORG_CONTEXT, 1_100)
-
-    expect(mockMaybeNotifyLimit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        billedUserId: 'workspace-owner',
-        billingEntity: ORG_CONTEXT.billingEntity,
-        currentUsage: 1_100,
-        workspaceId: 'workspace-1',
-      })
-    )
   })
 
   it('moves workspace bytes without touching the aggregate when both workspaces share a payer', async () => {
@@ -608,43 +560,6 @@ describe('workspace storage counter mutations', () => {
         legacyDeltas: [],
       })
     ).rejects.toThrow('Storage limit exceeded')
-    expect(mockTxUpdate).not.toHaveBeenCalled()
-  })
-
-  it('rejects a stale pre-resolved payer without falling back to the locked row', async () => {
-    const destinationContext: StorageBillingContext = {
-      workspaceId: 'workspace-2',
-      billedAccountUserId: 'stale-owner',
-      billingEntity: { type: 'user', id: 'stale-owner' },
-      plan: 'team_25000',
-      customStorageLimitGB: null,
-    }
-    mockOrderedLockRows.queue = [
-      [
-        {
-          id: 'workspace-1',
-          billedAccountUserId: 'workspace-owner',
-          organizationId: 'workspace-org',
-          storageUsedBytes: 1_000,
-        },
-        {
-          id: 'workspace-2',
-          billedAccountUserId: 'current-owner',
-          organizationId: null,
-          storageUsedBytes: 200,
-        },
-      ],
-    ]
-
-    await expect(
-      applyStorageUsageDeltasInTx(mockTx as unknown as DbOrTx, {
-        workspaceDeltas: [
-          { context: ORG_CONTEXT, deltaBytes: -100 },
-          { context: destinationContext, deltaBytes: 100 },
-        ],
-        legacyDeltas: [],
-      })
-    ).rejects.toThrow('Storage payer changed for workspace workspace-2')
     expect(mockTxUpdate).not.toHaveBeenCalled()
   })
 

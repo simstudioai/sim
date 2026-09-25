@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { INTEGRATION_METADATA } from '@sim/deployment-config/integration-metadata'
 import { stripVersionSuffix } from '@sim/utils/string'
 import { describe, expect, it, vi } from 'vitest'

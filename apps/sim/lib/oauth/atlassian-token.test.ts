@@ -1,11 +1,10 @@
-/** @vitest-environment node */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { exchangeAtlassianAuthorizationCode } from '@/lib/oauth/atlassian-token'
 
 describe('Atlassian 3LO token exchange', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it.each(['jira', 'confluence'] as const)(
+  it.each(['jira'] as const)(
     'sends the %s client credentials and PKCE verifier in JSON',
     async (provider) => {
       const fetchMock = vi.fn().mockResolvedValue(

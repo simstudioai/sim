@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, expect, it, vi } from 'vitest'
 import { FUNCTION_EXECUTION_DELEGATION_AUDIENCE } from '@/lib/function-execution/application/authorization'
 import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
@@ -32,7 +31,6 @@ const input = {
   },
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.context.mockResolvedValue({
     organizationId: 'org',
     chatId: 'chat',

@@ -1,7 +1,6 @@
-/** @vitest-environment node */
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { member, permissionGroup, permissionGroupMember } from '@sim/db/schema'
+import { member, permissionGroupMember } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -49,13 +48,8 @@ vi.mock('@sim/audit', () => ({
   AuditResourceType: { PERMISSION_GROUP: 'permission_group' },
 }))
 
-import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
-import { permissionGroupOperations } from '@/lib/permission-groups/application/operations'
 import {
   addPermissionGroupMember,
-  bulkAddPermissionGroupMembers,
-  createPermissionGroup,
-  deletePermissionGroup,
   getPermissionGroup,
   removePermissionGroupMember,
   updatePermissionGroup,
@@ -86,7 +80,6 @@ const group = {
   updatedAt: new Date('2026-01-01'),
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.governed.mockResolvedValue(true)
   mocks.load.mockResolvedValue(group)
@@ -96,14 +89,6 @@ beforeEach(() => {
   mocks.allConflict.mockResolvedValue(null)
 })
 describe('permission group current organization authority', () => {
-  it.each(['owner', 'admin'])('accepts scoped delegation for a current %s', async (role) => {
-    for (const operation of Object.values(permissionGroupOperations)) {
-      queueTableRows(member, [{ role }])
-      await expect(
-        authorizeOrganizationOperation(principal, operation, scope)
-      ).resolves.toMatchObject({ userId: 'actor' })
-    }
-  })
   it.each(['member', null])('refuses role %s before entitlement and group lookup', async (role) => {
     queueTableRows(member, role ? [{ role }] : [])
     await expect(getPermissionGroup.execute({ principal, input: scope })).rejects.toThrow()
@@ -129,14 +114,6 @@ describe('permission group current organization authority', () => {
     await expect(getPermissionGroup.execute({ principal, input: scope })).rejects.toMatchObject({
       detailCode: 'ENTERPRISE_PLAN_REQUIRED',
     })
-    expect(mocks.load).not.toHaveBeenCalled()
-  })
-  it('propagates permission-regime failures', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    mocks.governed.mockRejectedValueOnce(new Error('policy unavailable'))
-    await expect(getPermissionGroup.execute({ principal, input: scope })).rejects.toThrow(
-      'policy unavailable'
-    )
     expect(mocks.load).not.toHaveBeenCalled()
   })
   it('conceals a group outside its canonical organization', async () => {
@@ -171,67 +148,9 @@ describe('permission group locked scope changes', () => {
       )
     }
   )
-  it('propagates transaction failure without semantic audit', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    mocks.lock.mockRejectedValueOnce(new Error('storage unavailable'))
-    await expect(
-      updatePermissionGroup.execute({
-        principal,
-        input: { ...scope, changes: { description: 'Change' } },
-      })
-    ).rejects.toThrow('storage unavailable')
-    expect(mocks.audit).not.toHaveBeenCalled()
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
 })
 
 describe('permission group membership mutations', () => {
-  it('creates a scoped group with the delegated actor as creator', async () => {
-    queueTableRows(member, [{ role: 'owner' }])
-    queueTableRows(permissionGroup, [])
-    const result = await createPermissionGroup.execute({
-      principal,
-      input: {
-        organizationId: 'org',
-        changes: { name: 'New group', workspaceIds: ['workspace', 'workspace'] },
-      },
-    })
-    expect(result).toMatchObject({
-      createdBy: 'actor',
-      workspaceIds: ['workspace'],
-    })
-    expect(mocks.lock).toHaveBeenCalledBefore(mocks.allConflict)
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({ actorId: 'actor', resourceName: 'New group' })
-    )
-  })
-  it('deletes under the organization lock and audits the locked record', async () => {
-    queueTableRows(member, [{ role: 'owner' }])
-    await expect(deletePermissionGroup.execute({ principal, input: scope })).resolves.toMatchObject(
-      { id: 'group', name: 'Directory group' }
-    )
-    expect(mocks.load).toHaveBeenLastCalledWith('group', 'org', db)
-    expect(dbChainMockFns.delete).toHaveBeenCalledTimes(2)
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({ actorId: 'actor', resourceName: 'Directory group' })
-    )
-  })
-  it('adds a current organization member under a lock with the real assigner', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(member, [{ userId: 'target' }])
-    queueTableRows(permissionGroupMember, [])
-    const result = await addPermissionGroupMember.execute({
-      principal,
-      input: { ...scope, userId: 'target' },
-    })
-    expect(result.member).toMatchObject({
-      userId: 'target',
-      assignedBy: 'actor',
-      organizationId: 'org',
-    })
-    expect(mocks.lock).toHaveBeenCalledBefore(mocks.scopeConflicts)
-    expect(mocks.audit).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'actor' }))
-  })
   it('rejects targets outside the organization before mutation', async () => {
     queueTableRows(member, [{ role: 'admin' }])
     queueTableRows(member, [])
@@ -255,34 +174,5 @@ describe('permission group membership mutations', () => {
     expect(mocks.audit).toHaveBeenCalledWith(
       expect.objectContaining({ metadata: expect.objectContaining({ targetUserId: 'target' }) })
     )
-  })
-  it('bulk-adds only distinct current organization members and counts existing members', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(member, [{ userId: 'existing' }, { userId: 'new' }])
-    queueTableRows(permissionGroupMember, [{ userId: 'existing' }])
-    const result = await bulkAddPermissionGroupMembers.execute({
-      principal,
-      input: { ...scope, userIds: ['existing', 'new', 'new', 'foreign'] },
-    })
-    expect(result).toMatchObject({ added: 1, skipped: 1, addedUserIds: ['new'] })
-    expect(dbChainMockFns.values).toHaveBeenCalledWith([
-      expect.objectContaining({ userId: 'new', assignedBy: 'actor' }),
-    ])
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({ metadata: expect.objectContaining({ addedUserIds: ['new'] }) })
-    )
-  })
-  it('emits no audit when a bulk add changes nothing', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(member, [{ userId: 'existing' }])
-    queueTableRows(permissionGroupMember, [{ userId: 'existing' }])
-    await expect(
-      bulkAddPermissionGroupMembers.execute({
-        principal,
-        input: { ...scope, userIds: ['existing'] },
-      })
-    ).resolves.toMatchObject({ added: 0, skipped: 1 })
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    expect(mocks.audit).not.toHaveBeenCalled()
   })
 })

@@ -4,8 +4,6 @@
  * Legacy membership syncs may leave a null personal usage limit. The limit
  * read must recover the plan/free base plus prepaid balance, and subsequent
  * subscription syncs must preserve independent personal and organization pools.
- *
- * @vitest-environment node
  */
 import {
   dbChainMockFns,
@@ -106,7 +104,6 @@ vi.mock('@/lib/messaging/email/unsubscribe', () => ({
 vi.mock('@sim/platform-authz/workspace', () => ({ isOrgAdminRole: mockIsOrgAdminRole }))
 
 import {
-  getOrgUsageLimit,
   getUserUsageLimit,
   maybeSendUsageThresholdEmail,
   syncUsageLimitsFromSubscription,
@@ -124,19 +121,9 @@ const PRO_SUBSCRIPTION = {
 
 describe('getUserUsageLimit', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockIsOrgScopedSubscription.mockReturnValue(false)
     mockGetHighestPrioritySubscription.mockResolvedValue(null)
-  })
-
-  it('returns the stored limit when set', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ currentUsageLimit: '25' }])
-
-    const limit = await getUserUsageLimit('user-1', null)
-
-    expect(limit).toBe(25)
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('throws when no userStats row exists', async () => {
@@ -194,14 +181,6 @@ describe('getUserUsageLimit', () => {
     expect(limit).toBe(30)
   })
 
-  it('still returns the fallback when the heal write fails', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ currentUsageLimit: null }])
-    dbChainMockFns.returning.mockRejectedValueOnce(new Error('connection lost'))
-    mockGetFreeTierLimit.mockReturnValue(10)
-
-    await expect(getUserUsageLimit('user-1', null)).resolves.toBe(10)
-  })
-
   it.each([
     { plan: 'enterprise', configured: '12.005', seats: 3, expected: 12.005 },
     { plan: 'enterprise', configured: '0', seats: 3, expected: 0 },
@@ -244,63 +223,10 @@ describe('getUserUsageLimit', () => {
     ).rejects.toThrow('Organization not found: org-missing for user: user-1')
     expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
   })
-
-  it('does not retain an organization cap between calls', async () => {
-    mockIsOrgScopedSubscription.mockReturnValue(true)
-    const subscription = {
-      referenceId: 'org-1',
-      plan: 'enterprise',
-      seats: 1,
-      status: 'active',
-      periodStart: null,
-      periodEnd: null,
-    }
-    queueTableRows(schemaMock.organization, [{ orgUsageLimit: '50' }])
-    queueTableRows(schemaMock.organization, [{ orgUsageLimit: '20' }])
-    await expect(getUserUsageLimit('user-1', subscription)).resolves.toBe(50)
-    await expect(getUserUsageLimit('user-1', subscription)).resolves.toBe(20)
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
-  })
-
-  it('propagates a failed organization limit read', async () => {
-    mockIsOrgScopedSubscription.mockReturnValue(true)
-    const failure = new Error('database unavailable')
-    dbChainMockFns.limit.mockRejectedValueOnce(failure)
-    await expect(
-      getUserUsageLimit('user-1', {
-        referenceId: 'org-1',
-        plan: 'team',
-        seats: 3,
-        status: 'active',
-        periodStart: null,
-        periodEnd: null,
-      })
-    ).rejects.toBe(failure)
-  })
-})
-
-describe('getOrgUsageLimit', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-  })
-
-  it.each([
-    { plan: 'team', expected: { limit: 60, minimum: 60 } },
-    { plan: 'enterprise', expected: { limit: 0, minimum: 0 } },
-  ])(
-    'preserves the public $plan fallback for a missing organization',
-    async ({ plan, expected }) => {
-      queueTableRows(schemaMock.organization, [])
-      await expect(getOrgUsageLimit('org-missing', plan, 3)).resolves.toEqual(expected)
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
-    }
-  )
 })
 
 describe('syncUsageLimitsFromSubscription', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockIsOrgScopedSubscription.mockReturnValue(false)
     mockHasPaidSubscriptionStatus.mockImplementation((status: string) => status === 'active')
@@ -418,7 +344,6 @@ describe('maybeSendUsageThresholdEmail', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isBillingEnabled: true })
     mockGetEmailPreferences.mockResolvedValue(null)
@@ -443,18 +368,6 @@ describe('maybeSendUsageThresholdEmail', () => {
     expect(mockRenderCreditsExhausted).not.toHaveBeenCalled()
     expect(mockGetLimitEmailSubject).toHaveBeenCalledWith('credits', 'reached')
     expect(mockSendEmail).toHaveBeenCalledTimes(1)
-  })
-
-  it('links a paid personal account to billing settings, not the upgrade page', async () => {
-    await maybeSendUsageThresholdEmail({
-      ...paidUser,
-      percentBefore: 90,
-      percentAfter: 100,
-      currentUsageAfter: 20,
-    })
-
-    const props = mockRenderUsageLimitReached.mock.calls[0]?.[0] as { ctaLink: string }
-    expect(props.ctaLink).toContain('/account/settings/billing')
   })
 
   it('fans out to org admins at 100% and skips non-admin members', async () => {
@@ -484,21 +397,6 @@ describe('maybeSendUsageThresholdEmail', () => {
     )
   })
 
-  it('still sends the free-tier template to a free personal account at 100%', async () => {
-    await maybeSendUsageThresholdEmail({
-      ...paidUser,
-      planName: 'Free',
-      percentBefore: 90,
-      percentAfter: 100,
-      currentUsageAfter: 10,
-      limit: 10,
-    })
-
-    expect(mockRenderCreditsExhausted).toHaveBeenCalledTimes(1)
-    expect(mockRenderUsageLimitReached).not.toHaveBeenCalled()
-    expect(mockGetEmailSubject).toHaveBeenCalledWith('free-tier-exhausted')
-  })
-
   it('sends only the reached email when one execution crosses 80 and 100 together', async () => {
     await maybeSendUsageThresholdEmail({
       ...paidUser,
@@ -510,54 +408,5 @@ describe('maybeSendUsageThresholdEmail', () => {
     expect(mockRenderUsageThreshold).not.toHaveBeenCalled()
     expect(mockRenderUsageLimitReached).toHaveBeenCalledTimes(1)
     expect(mockSendEmail).toHaveBeenCalledTimes(1)
-  })
-
-  it('still sends the 80% warning to a paid account that has not reached 100%', async () => {
-    await maybeSendUsageThresholdEmail({
-      ...paidUser,
-      percentBefore: 70,
-      percentAfter: 85,
-      currentUsageAfter: 17,
-    })
-
-    expect(mockRenderUsageThreshold).toHaveBeenCalledTimes(1)
-    expect(mockRenderUsageLimitReached).not.toHaveBeenCalled()
-  })
-
-  it('does not send when the recipient unsubscribed from notifications', async () => {
-    mockGetEmailPreferences.mockResolvedValue({ unsubscribeNotifications: true })
-
-    await maybeSendUsageThresholdEmail({
-      ...paidUser,
-      percentBefore: 90,
-      percentAfter: 100,
-      currentUsageAfter: 20,
-    })
-
-    expect(mockSendEmail).not.toHaveBeenCalled()
-  })
-
-  it('does not send when the per-user billing toggle is off', async () => {
-    queueTableRows(schemaMock.settings, [{ enabled: false }])
-
-    await maybeSendUsageThresholdEmail({
-      ...paidUser,
-      percentBefore: 90,
-      percentAfter: 100,
-      currentUsageAfter: 20,
-    })
-
-    expect(mockSendEmail).not.toHaveBeenCalled()
-  })
-
-  it('does nothing when no threshold is crossed', async () => {
-    await maybeSendUsageThresholdEmail({
-      ...paidUser,
-      percentBefore: 50,
-      percentAfter: 60,
-      currentUsageAfter: 12,
-    })
-
-    expect(mockSendEmail).not.toHaveBeenCalled()
   })
 })

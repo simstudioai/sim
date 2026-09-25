@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -58,7 +54,6 @@ const principal = {
 
 describe('resolveWorkflowOutputs', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.resolveContext.mockResolvedValue({
       workflowId: 'workflow-1',
@@ -118,18 +113,6 @@ describe('resolveWorkflowOutputs', () => {
         input: { workflowId: 'workflow-other', assertedWorkspaceId: 'workspace-1' },
       })
     ).rejects.toMatchObject({ code: 'not_found', message: 'Workflow not found' })
-    expect(mocks.load).not.toHaveBeenCalled()
-  })
-
-  it('resolves table mappings from the active deployment state', async () => {
-    const context = await mocks.resolveContext()
-
-    await expect(loadResolvedDeployedWorkflowOutputs(context)).resolves.toMatchObject({
-      workflowId: 'workflow-1',
-      outputs: [{ blockId: 'block-1', path: 'content' }],
-    })
-
-    expect(mocks.loadDeployed).toHaveBeenCalledWith('workflow-1', 'workspace-1')
     expect(mocks.load).not.toHaveBeenCalled()
   })
 

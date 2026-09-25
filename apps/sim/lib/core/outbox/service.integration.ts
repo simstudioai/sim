@@ -39,7 +39,7 @@ function planNodes(plan: QueryPlan): QueryPlan[] {
 describe('outbox scheduling in PostgreSQL', () => {
   const eventTypes = new Set<string>()
   const schemaName = `outbox_test_${generateId().replaceAll('-', '')}`
-  const databaseUrl = process.env.KNOWLEDGE_ACL_TEST_DATABASE_URL
+  const databaseUrl = process.env.TEST_DATABASE_URL
   if (!databaseUrl) throw new Error('Outbox tests require a disposable local database')
   const connection = postgres(
     databaseUrl,

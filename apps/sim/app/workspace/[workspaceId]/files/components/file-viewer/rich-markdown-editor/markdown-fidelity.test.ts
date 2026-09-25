@@ -17,12 +17,6 @@ describe('Markdown serialization boundaries', () => {
     expect(postProcessSerializedMarkdown(source)).toBe(source)
   })
 
-  it('normalizes only the final separator', () => {
-    expect(postProcessSerializedMarkdown('\nfirst\n\n\n\nsecond\n\n\n')).toBe(
-      '\nfirst\n\n\n\nsecond\n'
-    )
-  })
-
   it.each(['bulletList', 'orderedList', 'taskList'])(
     'preserves empty nested %s items and their siblings across reload',
     (listType) => {

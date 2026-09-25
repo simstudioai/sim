@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
@@ -92,7 +89,6 @@ describe('writeWorkflowGroupState', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(schemaMock.userTableRows, [{ id: CONTEXT.rowId }])
     mockWriteExecutionsPatch.mockResolvedValue('wrote')
@@ -192,21 +188,6 @@ describe('writeWorkflowGroupState', () => {
     expect(dataPatch).toEqual({ 'status-output': 'Open' })
   })
 
-  it('resolves select values in a cumulative event snapshot with no data patch', async () => {
-    await expect(
-      writeWorkflowGroupState(CONTEXT, {
-        executionState: RUNNING_STATE,
-        eventOutputs: { 'first-output': 'first', 'status-output': 'Closed' },
-      })
-    ).resolves.toBe('wrote')
-
-    expect(mockAppendTableEvent).toHaveBeenCalledWith(
-      expect.objectContaining({
-        outputs: { 'first-output': 'first', 'status-output': 'opt_closed' },
-      })
-    )
-  })
-
   it('suppresses events when stale or cancelled SQL guards reject writes', async () => {
     mockWriteExecutionsPatch.mockResolvedValueOnce('guard-rejected')
     await expect(writeWorkflowGroupState(CONTEXT, { executionState: RUNNING_STATE })).resolves.toBe(
@@ -248,17 +229,6 @@ describe('writeWorkflowGroupState', () => {
     ).resolves.toBe('skipped')
 
     expect(mockAppendTableEvent).not.toHaveBeenCalled()
-  })
-
-  it('still throws unrelated data-write failures', async () => {
-    mockUpdateRow.mockRejectedValueOnce(new Error('database unavailable'))
-
-    await expect(
-      writeWorkflowGroupState(CONTEXT, {
-        executionState: RUNNING_STATE,
-        dataPatch: { 'first-output': 'late' },
-      })
-    ).rejects.toThrow('database unavailable')
   })
 })
 

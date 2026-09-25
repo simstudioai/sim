@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { copilotChats } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { and, eq } from 'drizzle-orm'
@@ -18,7 +15,6 @@ import { reconcileChatStreamMarkers } from '@/lib/mothership/chat/stream-livenes
 
 describe('reconcileChatStreamMarkers', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetChatStreamLockOwners.mockResolvedValue({
       status: 'verified',

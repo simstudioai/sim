@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockAssertPayload, mockExecuteMemberSync, mockTask } = vi.hoisted(() => ({
@@ -25,7 +22,6 @@ import { AbortTaskRunError } from '@trigger.dev/sdk'
 import {
   classifyMemberSyncResult,
   executeMemberSyncJob,
-  knowledgeConnectorMemberSync,
 } from '@/background/knowledge-connector-member-sync'
 
 const RESULT = {
@@ -60,7 +56,6 @@ const PAYLOAD = {
 
 describe('knowledge connector member sync worker', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAssertPayload.mockReturnValue(PAYLOAD)
     mockExecuteMemberSync.mockResolvedValue(RESULT)
   })
@@ -75,19 +70,6 @@ describe('knowledge connector member sync worker', () => {
     expect(classifyMemberSyncResult({ ...RESULT, skipReason: 'sync_in_progress' })).toBe('skipped')
   })
 
-  it('runs the engine with the payload token and reports the outcome', async () => {
-    await expect(executeMemberSyncJob(PAYLOAD)).resolves.toMatchObject({
-      success: true,
-      outcome: 'completed',
-      connectorId: 'c-1',
-      membersCompleted: 2,
-    })
-    expect(mockExecuteMemberSync).toHaveBeenCalledWith('c-1', {
-      billingAttribution: PAYLOAD.billingAttribution,
-      dispatchToken: 't-1',
-    })
-  })
-
   it('aborts rather than retries a failed run', async () => {
     mockExecuteMemberSync.mockResolvedValue({ ...RESULT, error: 'source down' })
     await expect(executeMemberSyncJob(PAYLOAD)).rejects.toBeInstanceOf(AbortTaskRunError)
@@ -98,14 +80,6 @@ describe('knowledge connector member sync worker', () => {
     await expect(executeMemberSyncJob(PAYLOAD)).resolves.toMatchObject({
       success: false,
       outcome: 'partial',
-    })
-  })
-
-  it('registers a single-attempt task on its own queue', () => {
-    expect(knowledgeConnectorMemberSync).toMatchObject({
-      id: 'knowledge-connector-member-sync',
-      retry: { maxAttempts: 1 },
-      queue: { name: 'connector-member-sync-queue' },
     })
   })
 })

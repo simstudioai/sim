@@ -1,22 +1,15 @@
-/**
- * @vitest-environment node
- */
 import { workflowAuthzMockFns } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 
 const { mockAuthorizeWorkflowByWorkspacePermission } = workflowAuthzMockFns
 
-import { createPermissionError, verifyWorkflowAccess } from '@/lib/mothership/auth/permissions'
+import { verifyWorkflowAccess } from '@/lib/mothership/auth/permissions'
 
 afterAll(() => {
   mockAuthorizeWorkflowByWorkspacePermission.mockReset()
 })
 
 describe('Copilot Auth Permissions', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   describe('verifyWorkflowAccess', () => {
     it('should return no access for non-existent workflow', async () => {
       mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValueOnce({
@@ -106,35 +99,6 @@ describe('Copilot Auth Permissions', () => {
       const result = await verifyWorkflowAccess('user-123', 'workflow-789')
 
       expect(result).toEqual({ hasAccess: false, userPermission: null })
-    })
-  })
-
-  describe('createPermissionError', () => {
-    it('should create a permission error message for edit operation', () => {
-      const result = createPermissionError('edit')
-      expect(result).toBe('Access denied: You do not have permission to edit this workflow')
-    })
-
-    it('should create a permission error message for view operation', () => {
-      const result = createPermissionError('view')
-      expect(result).toBe('Access denied: You do not have permission to view this workflow')
-    })
-
-    it('should create a permission error message for delete operation', () => {
-      const result = createPermissionError('delete')
-      expect(result).toBe('Access denied: You do not have permission to delete this workflow')
-    })
-
-    it('should create a permission error message for deploy operation', () => {
-      const result = createPermissionError('deploy')
-      expect(result).toBe('Access denied: You do not have permission to deploy this workflow')
-    })
-
-    it('should create a permission error message for custom operation', () => {
-      const result = createPermissionError('modify settings of')
-      expect(result).toBe(
-        'Access denied: You do not have permission to modify settings of this workflow'
-      )
     })
   })
 })

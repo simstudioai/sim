@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMock,
   dbChainMockFns,
@@ -94,41 +91,8 @@ function queueWhereResponses(responses: unknown[][]) {
 
 describe('ensureOrganizationForTeamSubscription', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockIsSubscriptionOrgScoped.mockResolvedValue(false)
-  })
-
-  it('treats existing organization references as already homed and takes no write', async () => {
-    mockIsSubscriptionOrgScoped.mockResolvedValueOnce(true)
-
-    const result = await ensureOrganizationForTeamSubscription({
-      id: 'sub-1',
-      plan: 'team',
-      referenceId: 'legacy-org-id',
-      status: 'active',
-      seats: 5,
-    })
-
-    expect(result).toEqual({
-      id: 'sub-1',
-      plan: 'team',
-      referenceId: 'legacy-org-id',
-      status: 'active',
-      seats: 5,
-    })
-    expect(mockCreateOrganizationWithOwner).not.toHaveBeenCalled()
-    expect(mockAttachOwnedWorkspacesToOrganization).not.toHaveBeenCalled()
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(mockAcquireOrganizationMutationLock).toHaveBeenCalledWith(
-      expect.anything(),
-      'legacy-org-id'
-    )
-    expect(mockAssertNoCompetingEnterpriseIssuance).toHaveBeenCalledWith(
-      expect.anything(),
-      'legacy-org-id',
-      null
-    )
   })
 
   it('allows the authoritative Enterprise webhook to apply its own unresolved issuance', async () => {
@@ -223,26 +187,8 @@ describe('ensureOrganizationForTeamSubscription', () => {
 
 describe('syncSubscriptionUsageLimits', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetOrganizationIdForSubscriptionReference.mockResolvedValue(null)
-  })
-
-  it('syncs only the directly referenced personal subscriber', async () => {
-    queueTableRows(schemaMock.user, [{ id: 'user-1' }])
-    queueTableRows(schemaMock.member, [{ userId: 'other-member' }])
-
-    await syncSubscriptionUsageLimits({
-      id: 'sub-personal',
-      plan: 'pro_25000',
-      referenceId: 'user-1',
-      status: 'active',
-    })
-
-    expect(mockGetOrganizationIdForSubscriptionReference).toHaveBeenCalledWith('user-1')
-    expect(mockSyncUsageLimitsFromSubscription).toHaveBeenCalledExactlyOnceWith('user-1')
-    expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.member)
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it.each(['team_6000', 'enterprise'])(

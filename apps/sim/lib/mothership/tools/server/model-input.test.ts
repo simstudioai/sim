@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockIsOpaqueWorkspaceFileEgressSafe } = vi.hoisted(() => ({
@@ -31,7 +28,6 @@ const file = {
 
 describe('server tool model-input boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(true)
   })
 

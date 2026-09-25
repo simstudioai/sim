@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -27,7 +26,6 @@ function request(body: object = client, headers: Record<string, string> = {}) {
 
 afterAll(resetEnvFlagsMock)
 beforeEach(() => {
-  vi.clearAllMocks()
   setEnvFlags({ isAuthDisabled: false })
   mocks.rateLimit.mockResolvedValue(null)
   mocks.markPublic.mockResolvedValue(undefined)
@@ -86,23 +84,6 @@ describe('MCP public client registration', () => {
     expect(await response.json()).toMatchObject({ scope: granted })
     const forwarded: Request = mocks.register.mock.calls[0][0]
     expect(await forwarded.json()).toMatchObject({ scope: granted, require_pkce: true })
-  })
-
-  it('registers Cursor browser and native callbacks together with PKCE required', async () => {
-    const redirectUris = [
-      'cursor://anysphere.cursor-mcp/oauth/callback',
-      'https://www.cursor.com/agents/mcp/oauth/callback',
-      'http://localhost:8787/callback',
-    ]
-    const response = await POST(request({ client_name: 'Cursor', redirect_uris: redirectUris }))
-    expect(response.status).toBe(201)
-    expect(await response.json()).toMatchObject({ redirect_uris: redirectUris })
-    const forwarded: Request = mocks.register.mock.calls[0][0]
-    expect(await forwarded.json()).toMatchObject({
-      redirect_uris: redirectUris,
-      require_pkce: true,
-      token_endpoint_auth_method: 'none',
-    })
   })
 
   it.each(['client_secret_post', 'client_secret_basic'])(

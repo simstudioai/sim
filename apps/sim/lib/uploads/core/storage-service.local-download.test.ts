@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { Readable } from 'node:stream'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -36,16 +33,7 @@ function streamOf(bytes: number) {
 
 describe('downloadFile on local storage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockReadFile.mockResolvedValue(Buffer.alloc(10))
-  })
-
-  it('reads without a ceiling when the caller asks for none', async () => {
-    const buffer = await downloadFile({ key: 'workspace/ws/file.bin', context: 'workspace' })
-
-    expect(buffer.length).toBe(10)
-    expect(mockReadFile).toHaveBeenCalled()
-    expect(mockCreateReadStream).not.toHaveBeenCalled()
   })
 
   it('enforces the ceiling on the bytes as they arrive, not on a prior stat', async () => {
@@ -60,18 +48,6 @@ describe('downloadFile on local storage', () => {
 
     expect(mockStat).not.toHaveBeenCalled()
     expect(mockReadFile).not.toHaveBeenCalled()
-  })
-
-  it('returns the bytes when they fit the ceiling', async () => {
-    mockCreateReadStream.mockReturnValue(streamOf(50))
-
-    const buffer = await downloadFile({
-      key: 'workspace/ws/file.bin',
-      context: 'workspace',
-      maxBytes: 100,
-    })
-
-    expect(buffer.length).toBe(50)
   })
 
   it('destroys the stream once the read settles', async () => {

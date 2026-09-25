@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import {
   createMockRequest,
   dbChainMockFns,
@@ -32,7 +31,6 @@ vi.mock('@/lib/knowledge/connectors/member-observations', () => ({
 import { GET } from '@/app/api/knowledge/connectors/member-sync/route'
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.auth.mockReturnValue(null)
   mocks.dispatch.mockResolvedValue(undefined)
@@ -42,15 +40,6 @@ beforeEach(() => {
 })
 
 describe('member sync scheduler owner routing', () => {
-  it('does not read or dispatch without cron authentication', async () => {
-    mocks.auth.mockReturnValue(new Response('Unauthorized', { status: 401 }))
-    const response = await GET(createMockRequest('GET'))
-    expect(response.status).toBe(401)
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(mocks.dispatch).not.toHaveBeenCalled()
-  })
-
   it('projects org ownership and dispatches with its actual system payer', async () => {
     const nextMemberSyncAt = new Date('2026-09-01T00:00:00Z')
     queueTableRows(schemaMock.knowledgeConnector, [

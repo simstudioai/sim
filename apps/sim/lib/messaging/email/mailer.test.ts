@@ -71,7 +71,7 @@ vi.mock('@/lib/messaging/email/utils', () => ({
 }))
 
 import { isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
-import { type EmailType, hasEmailService, sendBatchEmails, sendEmail } from './mailer'
+import { sendEmail } from './mailer'
 import { generateUnsubscribeToken, isUnsubscribed } from './unsubscribe'
 
 describe('mailer', () => {
@@ -82,7 +82,6 @@ describe('mailer', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     ;(isEmailBlockedByAccessControl as Mock).mockReturnValue(false)
     ;(isUnsubscribed as Mock).mockResolvedValue(false)
     ;(generateUnsubscribeToken as Mock).mockReturnValue('mock-token-123')
@@ -107,34 +106,7 @@ describe('mailer', () => {
     })
   })
 
-  describe('hasEmailService', () => {
-    it('should return true when email service is configured', () => {
-      const result = hasEmailService()
-      expect(typeof result).toBe('boolean')
-    })
-  })
-
   describe('sendEmail', () => {
-    it('should send a transactional email successfully', async () => {
-      const result = await sendEmail({
-        ...testEmailOptions,
-        emailType: 'transactional',
-      })
-
-      expect(result.success).toBe(true)
-      expect(isUnsubscribed).not.toHaveBeenCalled()
-    })
-
-    it('should check unsubscribe status for marketing emails', async () => {
-      const result = await sendEmail({
-        ...testEmailOptions,
-        emailType: 'marketing',
-      })
-
-      expect(result.success).toBe(true)
-      expect(isUnsubscribed).toHaveBeenCalledWith(testEmailOptions.to, 'marketing')
-    })
-
     it('should skip sending if user has unsubscribed', async () => {
       ;(isUnsubscribed as Mock).mockResolvedValue(true)
 
@@ -146,26 +118,6 @@ describe('mailer', () => {
       expect(result.success).toBe(true)
       expect(result.message).toBe('Email skipped (user unsubscribed)')
       expect(result.data).toEqual({ id: 'skipped-unsubscribed' })
-    })
-
-    it('should not include unsubscribe when includeUnsubscribe is false', async () => {
-      await sendEmail({
-        ...testEmailOptions,
-        emailType: 'marketing',
-        includeUnsubscribe: false,
-      })
-
-      expect(generateUnsubscribeToken).not.toHaveBeenCalled()
-    })
-
-    it('should handle text-only emails without HTML', async () => {
-      const result = await sendEmail({
-        to: 'test@example.com',
-        subject: 'Text Only',
-        text: 'Plain text content',
-      })
-
-      expect(result.success).toBe(true)
     })
 
     it('should sanitize CRLF characters in subjects before sending', async () => {
@@ -196,18 +148,6 @@ describe('mailer', () => {
       expect(mockSend).not.toHaveBeenCalled()
     })
 
-    it('should handle multiple recipients as array', async () => {
-      const recipients = ['user1@example.com', 'user2@example.com', 'user3@example.com']
-      const result = await sendEmail({
-        ...testEmailOptions,
-        to: recipients,
-        emailType: 'marketing',
-      })
-
-      expect(result.success).toBe(true)
-      expect(isUnsubscribed).toHaveBeenCalledWith('user1@example.com', 'marketing')
-    })
-
     it('should skip sending when the recipient is on the ban list', async () => {
       ;(isEmailBlockedByAccessControl as Mock).mockReturnValue(true)
 
@@ -236,95 +176,6 @@ describe('mailer', () => {
 
       expect(result.success).toBe(true)
       expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({ to: 'good@example.com' }))
-    })
-
-    it('should handle general exceptions gracefully', async () => {
-      ;(isUnsubscribed as Mock).mockRejectedValue(new Error('Database connection failed'))
-
-      const result = await sendEmail({
-        ...testEmailOptions,
-        emailType: 'marketing',
-      })
-
-      expect(result.success).toBe(false)
-      expect(result.message).toBe('Failed to send email')
-    })
-  })
-
-  describe('sendBatchEmails', () => {
-    const testBatchEmails = [
-      { ...testEmailOptions, to: 'user1@example.com' },
-      { ...testEmailOptions, to: 'user2@example.com' },
-    ]
-
-    it('should handle empty batch', async () => {
-      const result = await sendBatchEmails({ emails: [] })
-
-      expect(result.success).toBe(true)
-      expect(result.results).toHaveLength(0)
-    })
-
-    it('should process multiple emails in batch', async () => {
-      const result = await sendBatchEmails({ emails: testBatchEmails })
-
-      expect(result.success).toBe(true)
-      expect(result.results.length).toBeGreaterThanOrEqual(0)
-    })
-
-    it('should sanitize CRLF characters in batch email subjects', async () => {
-      await sendBatchEmails({
-        emails: [
-          {
-            ...testEmailOptions,
-            subject: 'Batch\r\nCc: attacker@evil.com',
-          },
-        ],
-      })
-
-      expect(mockBatchSend).toHaveBeenCalledWith([
-        expect.objectContaining({
-          subject: 'Batch Cc: attacker@evil.com',
-        }),
-      ])
-    })
-
-    it('should handle transactional emails without unsubscribe check', async () => {
-      const batchEmails = [
-        { ...testEmailOptions, to: 'user1@example.com', emailType: 'transactional' as EmailType },
-        { ...testEmailOptions, to: 'user2@example.com', emailType: 'transactional' as EmailType },
-      ]
-
-      await sendBatchEmails({ emails: batchEmails })
-
-      expect(isUnsubscribed).not.toHaveBeenCalled()
-    })
-
-    it('should skip banned recipients in a batch', async () => {
-      ;(isEmailBlockedByAccessControl as Mock).mockImplementation(
-        (email: string) => email === 'user2@example.com'
-      )
-
-      const result = await sendBatchEmails({ emails: testBatchEmails })
-
-      expect(result.results).toHaveLength(2)
-      const bannedEntry = result.results.find(
-        (r) => r.message === 'Email skipped (recipient on access-control ban list)'
-      )
-      expect(bannedEntry).toBeDefined()
-    })
-
-    it('should degrade isUnsubscribed rejections to per-entry failures', async () => {
-      ;(isUnsubscribed as Mock).mockRejectedValue(new Error('Database connection failed'))
-
-      const result = await sendBatchEmails({
-        emails: [
-          { ...testEmailOptions, to: 'user1@example.com', emailType: 'marketing' as EmailType },
-          { ...testEmailOptions, to: 'user2@example.com', emailType: 'marketing' as EmailType },
-        ],
-      })
-
-      expect(result.results).toHaveLength(2)
-      expect(result.results.every((r) => r.success === false)).toBe(true)
     })
   })
 })

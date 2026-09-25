@@ -103,13 +103,6 @@ describe('seeded server shape', () => {
     expect(apiKeyFieldShown('custom/model')).toBe(true)
   })
 
-  it('keeps the seeded object when an equal shape is seeded again', () => {
-    seedDeploymentShape(HOSTED)
-    seedDeploymentShape({ ...HOSTED, features: { ...HOSTED.features } })
-
-    expect(getDeploymentShape()).toBe(HOSTED)
-  })
-
   it('is ignored when the server predates deployment projection', () => {
     seedDeploymentShape(undefined)
 

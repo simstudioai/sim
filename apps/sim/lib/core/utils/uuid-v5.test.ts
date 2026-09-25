@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { isValidUuid } from '@sim/utils/id'
 import { describe, expect, it } from 'vitest'
 import { uuidV5 } from '@/lib/core/utils/uuid-v5'

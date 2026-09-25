@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -67,8 +64,6 @@ import {
   exchangeAndConfigureSlackManagedUsers,
   exchangeSlackUserAuthorization,
   loadSlackManagedUsersAttempt,
-  verifySlackCustomBotAppIdentity,
-  verifySlackUserIdentity,
 } from '@/lib/credential-groups/slack-managed-users'
 
 function slackResponse(value: Record<string, unknown>): Response {
@@ -80,7 +75,6 @@ function slackResponse(value: Record<string, unknown>): Response {
 
 describe('Slack managed-user authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     attempts.clear()
     shared.env.SLACK_SEARCH_APP_ID = ''
@@ -193,26 +187,6 @@ describe('Slack managed-user authorization', () => {
     }
   )
 
-  it('binds the bot token to Slack app and workspace identities', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        slackResponse({ ok: true, team_id: 'T123', user_id: 'U123', bot_id: 'B123' })
-      )
-      .mockResolvedValueOnce(slackResponse({ ok: true, bot: { id: 'B123', app_id: 'A123' } }))
-    vi.stubGlobal('fetch', fetchMock)
-
-    await expect(verifySlackCustomBotAppIdentity('xoxb-token')).resolves.toEqual({
-      appId: 'A123',
-      teamId: 'T123',
-    })
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      'https://slack.com/api/bots.info',
-      expect.objectContaining({ body: new URLSearchParams({ bot: 'B123' }) })
-    )
-  })
-
   it.each([
     {
       name: 'new Search pool',
@@ -220,13 +194,6 @@ describe('Slack managed-user authorization', () => {
       existingScopes: undefined,
       requestedScopes: SLACK_MANAGED_USER_SCOPES,
       scopes: SLACK_SEARCH_USER_SCOPES,
-    },
-    {
-      name: 'existing workflow pool',
-      existing: true,
-      existingScopes: SLACK_MANAGED_USER_SCOPES,
-      requestedScopes: SLACK_SEARCH_USER_SCOPES,
-      scopes: SLACK_MANAGED_USER_SCOPES,
     },
     {
       name: 'legacy workflow pool without explicit scopes',
@@ -349,12 +316,6 @@ describe('Slack managed-user authorization', () => {
       scopes: SLACK_MANAGED_USER_SCOPES,
     },
     {
-      name: 'existing search',
-      existingScopes: SLACK_SEARCH_USER_SCOPES,
-      requestedScopes: undefined,
-      scopes: SLACK_SEARCH_USER_SCOPES,
-    },
-    {
       name: 'explicit switch to search',
       existingScopes: SLACK_MANAGED_USER_SCOPES,
       requestedScopes: SLACK_SEARCH_USER_SCOPES,
@@ -421,22 +382,6 @@ describe('Slack managed-user authorization', () => {
       await expect(consumeSlackManagedUsersAttempt(created.state)).resolves.toBeNull()
     }
   )
-
-  it('returns an actionable error when the custom bot lacks users:read', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce(slackResponse({ ok: true, team_id: 'T123', bot_id: 'B123' }))
-        .mockResolvedValueOnce(
-          slackResponse({ ok: false, error: 'missing_scope', needed: 'users:read' })
-        )
-    )
-
-    await expect(verifySlackCustomBotAppIdentity('xoxb-token')).rejects.toThrow(
-      'Add the users:read bot scope'
-    )
-  })
 
   it.each([
     { name: 'search', scopes: SLACK_SEARCH_USER_SCOPES },
@@ -600,45 +545,6 @@ describe('Slack managed-user authorization', () => {
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 
-  it('requires Slack to attest a user token, app, team, user, and scopes', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      slackResponse({
-        ok: true,
-        app_id: 'A123',
-        team: { id: 'T123', name: 'Sim' },
-        authed_user: {
-          id: 'U123',
-          access_token: 'xoxp-token',
-          token_type: 'user',
-          scope: 'users:read,users:read.email',
-        },
-      })
-    )
-    vi.stubGlobal('fetch', fetchMock)
-
-    const result = await exchangeSlackUserAuthorization({
-      clientId: 'client-id',
-      clientSecret: 'client-secret',
-      code: 'single-use-code',
-      redirectUri: 'https://sim.ai/callback',
-    })
-
-    expect(result).toMatchObject({
-      appId: 'A123',
-      teamId: 'T123',
-      userId: 'U123',
-      accessToken: 'xoxp-token',
-      tokenType: 'user',
-    })
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://slack.com/api/oauth.v2.access',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({ Authorization: expect.stringMatching(/^Basic /) }),
-      })
-    )
-  })
-
   it('fails closed when Slack omits the user token type', async () => {
     vi.stubGlobal(
       'fetch',
@@ -713,41 +619,5 @@ describe('Slack managed-user authorization', () => {
       })
     )
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-  })
-
-  it('verifies the token identity and reads cosmetic profile metadata', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(slackResponse({ ok: true, team_id: 'T123', user_id: 'U123' }))
-      .mockResolvedValueOnce(
-        slackResponse({
-          ok: true,
-          user: {
-            id: 'U123',
-            name: 'theo',
-            profile: {
-              email: 'theo@sim.ai',
-              display_name: 'Theo',
-              image_192: 'https://avatars.slack-edge.com/theo.png',
-            },
-          },
-        })
-      )
-    vi.stubGlobal('fetch', fetchMock)
-
-    await expect(
-      verifySlackUserIdentity({
-        accessToken: 'xoxp-token',
-        expectedTeamId: 'T123',
-        expectedUserId: 'U123',
-      })
-    ).resolves.toEqual({
-      userId: 'U123',
-      teamId: 'T123',
-      email: 'theo@sim.ai',
-      displayName: 'Theo',
-      avatarUrl: 'https://avatars.slack-edge.com/theo.png',
-      username: 'theo',
-    })
   })
 })

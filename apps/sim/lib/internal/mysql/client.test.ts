@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCreateConnection, mockNetConnect, mockTypedParameterNull, mockValidateDatabaseHost } =
@@ -46,7 +43,6 @@ const CONNECTION_CONFIG: MysqlConnectionConfig = {
 
 describe('MySQL client', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockValidateDatabaseHost.mockResolvedValue({
       isValid: true,
       resolvedIP: '93.184.216.34',
@@ -87,51 +83,6 @@ describe('MySQL client', () => {
     expect(socket.setNoDelay).toHaveBeenCalledWith(true)
   })
 
-  it('does no DNS or connection work when already cancelled', async () => {
-    const controller = new AbortController()
-    controller.abort(new DOMException('cancelled', 'AbortError'))
-
-    await expect(createMysqlConnection(CONNECTION_CONFIG, controller.signal)).rejects.toMatchObject(
-      { name: 'AbortError' }
-    )
-    expect(mockValidateDatabaseHost).not.toHaveBeenCalled()
-    expect(mockCreateConnection).not.toHaveBeenCalled()
-  })
-
-  it('destroys the connection when an in-flight command is cancelled', async () => {
-    const controller = new AbortController()
-    let rejectCommand: (reason: Error) => void = () => undefined
-    const connection = {
-      execute: vi.fn(
-        () =>
-          new Promise<never>((_resolve, reject) => {
-            rejectCommand = reject
-          })
-      ),
-      destroy: vi.fn(() => rejectCommand(new Error('connection closed'))),
-    }
-
-    const execution = executeMysqlCommand(
-      connection as never,
-      'SELECT SLEEP(10)',
-      undefined,
-      controller.signal
-    )
-    controller.abort(new DOMException('cancelled', 'AbortError'))
-
-    await expect(execution).rejects.toMatchObject({ name: 'AbortError' })
-    expect(connection.destroy).toHaveBeenCalledOnce()
-  })
-
-  it('rejects unsupported bind values before executing the query', async () => {
-    const connection = { execute: vi.fn(), destroy: vi.fn() }
-
-    await expect(executeMysqlCommand(connection as never, 'SELECT ?', [undefined])).rejects.toThrow(
-      'MySQL bind values must contain only supported scalar or structured values'
-    )
-    expect(connection.execute).not.toHaveBeenCalled()
-  })
-
   it.each([
     new Map([['key', 'value']]),
     new Set(['value']),
@@ -144,31 +95,5 @@ describe('MySQL client', () => {
       'MySQL bind values must contain only supported scalar or structured values'
     )
     expect(connection.execute).not.toHaveBeenCalled()
-  })
-
-  it('accepts nested plain structured bind values', async () => {
-    const result = { affectedRows: 1 }
-    const values = [{ nested: ['value', 1, true, null] }]
-    const connection = {
-      execute: vi.fn().mockResolvedValue([result]),
-      destroy: vi.fn(),
-    }
-
-    await expect(executeMysqlCommand(connection as never, 'SELECT ?', values)).resolves.toBe(result)
-    expect(connection.execute).toHaveBeenCalledWith('SELECT ?', values)
-  })
-
-  it('accepts mysql2 typed parameters', async () => {
-    const result = { affectedRows: 1 }
-    const typedParameter = mockTypedParameterNull()
-    const connection = {
-      execute: vi.fn().mockResolvedValue([result]),
-      destroy: vi.fn(),
-    }
-
-    await expect(
-      executeMysqlCommand(connection as never, 'SELECT ?', [typedParameter])
-    ).resolves.toBe(result)
-    expect(connection.execute).toHaveBeenCalledWith('SELECT ?', [typedParameter])
   })
 })

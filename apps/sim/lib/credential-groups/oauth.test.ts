@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMock,
   dbChainMockFns,
@@ -91,7 +88,6 @@ const GROUP = {
 
 describe('credential group OAuth persistence', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     adapter.getPolicy.mockResolvedValue(POLICY)
     adapter.exchangeAndVerify.mockResolvedValue({

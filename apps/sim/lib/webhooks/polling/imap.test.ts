@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -48,7 +45,6 @@ import { imapPollingHandler } from '@/lib/webhooks/polling/imap'
 
 describe('IMAP runtime polling policy', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockHasImapEnvironmentReferences.mockReturnValue(true)
     mockMarkWebhookFailed.mockResolvedValue(undefined)
   })

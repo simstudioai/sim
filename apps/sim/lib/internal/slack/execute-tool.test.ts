@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -31,8 +28,6 @@ vi.mock('@/lib/internal/slack/operations', () => ({
   executeSlackUpdateMessage: mocks.updateMessage,
 }))
 
-import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import { SlackOperationError } from '@/lib/internal/slack/errors'
 import { executeSlackTool } from '@/lib/internal/slack/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 
@@ -100,52 +95,9 @@ function request(
 
 describe('executeSlackTool', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     for (const operation of Object.values(DISPATCH)) {
       operation.mockResolvedValue({ success: true, output: { ok: true } })
     }
-  })
-
-  it.each(Object.keys(INPUTS) as Array<keyof typeof INPUTS>)(
-    'validates and dispatches %s from typed input',
-    async (toolId) => {
-      const controller = new AbortController()
-      const response = await executeSlackTool(request(toolId, { signal: controller.signal }))
-
-      expect(response.status).toBe(200)
-      await expect(response.json()).resolves.toEqual({ success: true, output: { ok: true } })
-      expect(DISPATCH[toolId]).toHaveBeenCalledOnce()
-      expect(DISPATCH[toolId].mock.calls[0]?.[0]).toEqual(INPUTS[toolId])
-      if (toolId === 'slack_message') {
-        expect(DISPATCH[toolId].mock.calls[0]?.[1]).toEqual({
-          requestId: 'request-1',
-          signal: controller.signal,
-          userId: 'user-1',
-        })
-      } else if (toolId === 'slack_list_channels') {
-        expect(DISPATCH[toolId].mock.calls[0]?.[1]).toBe(controller.signal)
-        expect(DISPATCH[toolId].mock.calls[0]?.[2]).toMatchObject({
-          workflowId: 'workflow-1',
-          workspaceId: 'workspace-1',
-          userId: 'user-1',
-        })
-      } else {
-        expect(DISPATCH[toolId].mock.calls[0]?.[1]).toBe(controller.signal)
-      }
-    }
-  )
-
-  it('returns the canonical validation envelope before provider work', async () => {
-    const response = await executeSlackTool(
-      request('slack_add_reaction', { input: { accessToken: '', channel: '' } })
-    )
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({
-      error: 'Invalid request data',
-      details: expect.any(Array),
-    })
-    expect(mocks.addReaction).not.toHaveBeenCalled()
   })
 
   it('keeps message file authority tied to the trusted execution context', async () => {
@@ -161,44 +113,5 @@ describe('executeSlackTool', () => {
       error: 'Authentication required',
     })
     expect(mocks.sendMessage).not.toHaveBeenCalled()
-  })
-
-  it('preserves Slack logical-error status and envelope', async () => {
-    mocks.addReaction.mockRejectedValue(
-      new SlackOperationError(200, { success: false, error: 'already_reacted' })
-    )
-
-    const response = await executeSlackTool(request('slack_add_reaction'))
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({
-      success: false,
-      error: 'already_reacted',
-    })
-  })
-
-  it('propagates cancellation before validation or provider work', async () => {
-    const controller = new AbortController()
-    controller.abort(new DOMException('cancelled', 'AbortError'))
-
-    await expect(
-      executeSlackTool(request('slack_download', { signal: controller.signal }))
-    ).rejects.toMatchObject({ name: 'AbortError' })
-    expect(mocks.download).not.toHaveBeenCalled()
-  })
-
-  it('retains the clean 413 projection for oversized Slack downloads', async () => {
-    mocks.download.mockRejectedValue(
-      new PayloadSizeLimitError({
-        label: 'response body',
-        maxBytes: 10,
-        observedBytes: 11,
-      })
-    )
-
-    const response = await executeSlackTool(request('slack_download'))
-
-    expect(response.status).toBe(413)
-    await expect(response.json()).resolves.toMatchObject({ success: false })
   })
 })

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -37,7 +33,6 @@ async function expectForbidden(principal: Principal) {
 
 describe('table operation authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resolvePermission.mockResolvedValue('write')
   })
 

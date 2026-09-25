@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,7 +32,6 @@ const createdAt = '2025-01-01T00:00:00Z'
 const newInbox = { inbox_id: 'new@example.com', created_at: createdAt }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.createInbox.mockResolvedValue(newInbox)
   mocks.createWebhook.mockResolvedValue({ webhook_id: 'new-hook', secret: 'test-secret' })

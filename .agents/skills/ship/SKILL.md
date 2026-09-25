@@ -30,8 +30,9 @@ When the user runs `/ship`:
   - Types: `fix`, `feat`, `improvement`, `chore`
   - Scope: short identifier (e.g., `undo-redo`, `api`, `ui`)
   - Keep it concise
-4. **Run the cleanup pass** — only if the diff modifies UI code (any `.tsx` file, or anything under `apps/sim/components/`, `apps/sim/hooks/`, or `apps/sim/stores/`): `/cleanup`
-  - `/cleanup` fans out the React/UI passes (effects, memo, callbacks, state, React Query, emcn, url-state) plus the comment pass; skip it when no UI was touched. When it runs, it applies fixes so they land in this commit.
+4. **Run the cleanup and test gates**
+  - If the diff modifies UI code (any non-test `.tsx` file, or anything under `apps/sim/components/`, `apps/sim/hooks/`, or `apps/sim/stores/`), run `/cleanup`. It fans out the React/UI passes (effects, memo, callbacks, state, React Query, emcn, url-state), the comment pass, and the test-audit pass, and applies fixes so they land in this commit.
+  - Otherwise, if the diff adds or changes tests (`*.test.ts(x)`, `*.integration.ts`, `e2e/**`), run `/test-audit audit <changed test files>` on its own. Every new or changed test must pass the authoring gate; delete the ones that don't rather than shipping them.
 5. **Run migration safety** — only if the diff touches `packages/db/migrations/**` or `packages/db/schema.ts`:
   - Run `/db-migrate` to review the migration for zero-downtime safety (expand/contract phasing, backward-compatibility with the deployed app version).
   - `bun run check:migrations origin/staging` must pass (staging is the PR base). Do not silence a flagged statement with a `-- migration-safe:` annotation unless `/db-migrate` confirmed the old code no longer depends on it; otherwise split the destructive change into a later deploy.
@@ -143,7 +144,7 @@ Tested manually (or describe testing)
 ## Checklist
 - [x] Code follows project style guidelines
 - [x] Self-reviewed my changes
-- [ ] Tests added/updated and passing
+- [ ] Tests added/updated and passing (new tests pass the `test-audit` authoring gate)
 - [x] No new warnings introduced
 - [x] I confirm that I have read and agree to the terms outlined in the [Contributor License Agreement (CLA)](./CONTRIBUTING.md#contributor-license-agreement-cla)
 ```

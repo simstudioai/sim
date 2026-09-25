@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest } from '@sim/testing'
 import { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -58,7 +55,6 @@ import { POST } from '@/app/api/v1/tables/route'
 
 describe('POST /api/v1/tables', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.checkRateLimit.mockResolvedValue({ allowed: true, userId: 'user-1' })
     mocks.validateWorkspaceAccess.mockResolvedValue(null)
     mocks.getWorkspaceTableLimits.mockResolvedValue({ maxTables: 10 })

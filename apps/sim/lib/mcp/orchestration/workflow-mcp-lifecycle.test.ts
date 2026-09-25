@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { auditMock, dbChainMock, dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -48,7 +45,6 @@ import { hasValidStartBlock } from '@/lib/workflows/triggers/trigger-utils.serve
 
 describe('workflow MCP lifecycle orchestration', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

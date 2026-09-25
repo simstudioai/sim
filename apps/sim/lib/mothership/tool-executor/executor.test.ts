@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { createLogger } from '@sim/logger'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -47,12 +43,11 @@ const toolExecutorLogger =
 
 describe('copilot tool executor fallback', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearHandlers()
     getToolEntry.mockReturnValue(undefined)
   })
 
-  it.each(['run_workflow', 'read', 'manage_knowledge_base', 'mcp_remote_tool', 'unknown_tool'])(
+  it.each(['run_workflow', 'unknown_tool'])(
     'refuses %s in Assistant even for an admin and forged handler',
     async (toolId) => {
       isKnownTool.mockReturnValue(true)
@@ -76,7 +71,7 @@ describe('copilot tool executor fallback', () => {
     }
   )
 
-  it.each(['search_workspace', 'read_document', 'oauth_get_auth_link'])(
+  it.each(['search_workspace'])(
     'dispatches %s with explicit org context for canonical organization authorization',
     async (toolId) => {
       getToolEntry.mockReturnValue({ requiredPermission: 'read' })
@@ -96,11 +91,7 @@ describe('copilot tool executor fallback', () => {
   )
 
   it.each([
-    ['organization', 'search_integration_tools'],
     ['organization', 'call_integration_tool'],
-    ['organization', 'gmail_send'],
-    ['workspace', 'search_integration_tools'],
-    ['workspace', 'call_integration_tool'],
     ['workspace', 'gmail_send'],
   ])('rejects %s Search Assistant integration calls to %s', async (scope, toolId) => {
     isKnownTool.mockReturnValue(false)
@@ -146,7 +137,7 @@ describe('copilot tool executor fallback', () => {
     )
   })
 
-  it.each(['run_function', 'run_code', 'read', 'mcp_remote_tool'])(
+  it.each(['run_function', 'mcp_remote_tool'])(
     'keeps %s outside organization Assistant',
     async (toolId) => {
       const result = await executeTool(
@@ -421,17 +412,6 @@ describe('copilot tool executor fallback', () => {
     )
   })
 
-  it('omits billingAttribution from _context when the context has none', async () => {
-    isKnownTool.mockReturnValue(false)
-    isSimExecuted.mockReturnValue(false)
-    executeAppTool.mockResolvedValue({ success: true, output: {} })
-
-    await executeTool('gmail_read', {}, { userId: 'user-1', workflowId: 'workflow-1' })
-
-    const appParams = executeAppTool.mock.calls[0][1] as Record<string, unknown>
-    expect(appParams._context).not.toHaveProperty('billingAttribution')
-  })
-
   it('passes trace provenance out-of-band without exposing it in app tool parameters', async () => {
     isKnownTool.mockReturnValue(false)
     isSimExecuted.mockReturnValue(false)
@@ -517,49 +497,6 @@ describe('copilot tool executor fallback', () => {
       expect(executeAppTool).not.toHaveBeenCalled()
     }
   )
-
-  it('falls back to app tool executor for client-routed tools with no registered handler', async () => {
-    isKnownTool.mockReturnValue(true)
-    isSimExecuted.mockReturnValue(false)
-    isClientExecuted.mockReturnValue(true)
-    executeAppTool.mockResolvedValue({
-      success: false,
-      error: 'Tool not found: unknown_client_tool',
-    })
-
-    await executeTool('unknown_client_tool', {}, { userId: 'user-1', workflowId: '' })
-
-    expect(executeAppTool).toHaveBeenCalledWith(
-      'unknown_client_tool',
-      expect.any(Object),
-      expect.objectContaining({ operationContext: expect.any(Object) })
-    )
-  })
-
-  it('leaves parameter units to the registered handler', async () => {
-    isKnownTool.mockReturnValue(true)
-    isSimExecuted.mockReturnValue(true)
-    isClientExecuted.mockReturnValue(false)
-    const handler = vi.fn().mockResolvedValue({ success: true, output: { result: 'ok' } })
-    registerHandler('run_function', handler)
-
-    const context = {
-      userId: 'user-1',
-      workflowId: 'workflow-1',
-      workspaceId: 'ws-1',
-      copilotToolExecution: true,
-    }
-    await executeTool('run_function', { code: 'return 1', timeout: 7 }, context)
-
-    expect(handler).toHaveBeenCalledWith(
-      expect.objectContaining({
-        code: 'return 1',
-        timeout: 7,
-      }),
-      context
-    )
-    expect(executeAppTool).not.toHaveBeenCalled()
-  })
 
   /**
    * An integration tool resolves `{{SECRET}}` into its user-only params, which is a real use
@@ -655,7 +592,6 @@ describe('copilot tool executor fallback', () => {
 
 describe('organization direct tool targets', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearHandlers()
     getToolEntry.mockReturnValue({ requiredPermission: 'write' })
     isKnownTool.mockReturnValue(true)

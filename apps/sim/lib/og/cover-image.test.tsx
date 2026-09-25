@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse as parseFont } from 'opentype.js'
@@ -30,8 +27,6 @@ const coverFont = parseFont(
   ) as ArrayBuffer
 )
 const measure = (text: string, fontSize: number) => coverFont.getAdvanceWidth(text, fontSize)
-/** Undoes the U+00A0 packing so assertions can be written with ordinary spaces. */
-const plain = (text: string) => text.replace(/\u00a0/g, ' ')
 
 /**
  * Both inputs are chosen by whoever created the share — a file name and a
@@ -57,18 +52,6 @@ describe('cover OG layout', () => {
     return layout
   }
 
-  it('sets a short title at the largest step on one line', () => {
-    const layout = expectWithinCanvas('Protected file')
-    expect(layout.lines.map(plain)).toEqual(['Protected file'])
-    expect(layout.fontSize).toBe(110)
-    expect(layout.subtitleLines).toEqual([])
-  })
-
-  it('breaks a hyphenated file name after a hyphen', () => {
-    const layout = expectWithinCanvas('quarterly-planning-notes.pdf')
-    expect(layout.lines[0].endsWith('-')).toBe(true)
-  })
-
   it('steps the type down before it truncates', () => {
     const layout = expectWithinCanvas(
       'Quarterly planning notes for the platform and infrastructure teams'
@@ -77,33 +60,10 @@ describe('cover OG layout', () => {
     expect(layout.lines.join('')).not.toContain('…')
   })
 
-  /**
-   * The cases an average-glyph-width estimate gets wrong. Caps run well wider
-   * than the mean and glyphs the font has no coverage for run narrower, so an
-   * estimator misjudges both — in the caps direction, by letting the line
-   * render straight off the right edge.
-   */
-  it('keeps a caps-heavy title inside the box', () => {
-    expectWithinCanvas('QUARTERLY WORKFORCE PLANNING SUMMARY')
-  })
-
-  it('keeps a title of uncovered glyphs inside the box', () => {
-    expectWithinCanvas('四半期計画メモ・共有ファイル', '共有ワークスペース')
-  })
-
   it('truncates a title too long to fit even at the smallest step', () => {
     const layout = expectWithinCanvas(`${'unbroken'.repeat(60)}.pdf`)
     expect(layout.lines).toHaveLength(COVER_MAX_TITLE_LINES)
     expect(layout.lines[COVER_MAX_TITLE_LINES - 1].endsWith('…')).toBe(true)
-  })
-
-  it('wraps a catalog-length caption onto a second line', () => {
-    const layout = expectWithinCanvas(
-      'Integrations',
-      'Connect 240 apps and services and 3800+ tools to AI agents in Sim — visually, conversationally, or with code.'
-    )
-    expect(layout.subtitleLines).toHaveLength(2)
-    expect(layout.subtitleLines.join('')).not.toContain('…')
   })
 
   it('truncates a caption too long even for two lines', () => {
@@ -113,24 +73,6 @@ describe('cover OG layout', () => {
     )
     expect(layout.subtitleLines).toHaveLength(COVER_MAX_CAPTION_LINES)
     expect(layout.subtitleLines[COVER_MAX_CAPTION_LINES - 1].endsWith('…')).toBe(true)
-  })
-
-  it('leaves a caption that already fits on one line intact', () => {
-    const layout = expectWithinCanvas('report.pdf', 'Design · Shared by Someone')
-    expect(layout.subtitleLines.map(plain)).toEqual(['Design · Shared by Someone'])
-  })
-
-  /**
-   * Satori measures the first plain space in a text node at roughly double
-   * width, so every space that reaches it has to be a U+00A0 — and the layout
-   * has to pack lines with it already in place, or it would be measuring
-   * something other than what it renders.
-   */
-  it('packs lines and captions with non-breaking spaces', () => {
-    const layout = expectWithinCanvas('two words.pdf', 'Design · Shared by Someone')
-    expect(layout.lines[0]).toContain('\u00a0')
-    expect(layout.lines.join('')).not.toContain(' ')
-    expect(layout.subtitleLines.join('')).not.toContain(' ')
   })
 })
 

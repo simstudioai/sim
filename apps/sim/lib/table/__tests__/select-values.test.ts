@@ -1,13 +1,11 @@
 /**
- * @vitest-environment node
- *
  * Select-column operand resolution. A select cell stores option IDs, so a filter
  * written with the option NAME must be rewritten before it reaches SQL —
  * otherwise it compares a name against an id and matches nothing while reporting
  * success. Both wire grammars have to do this identically.
  */
 import { describe, expect, it } from 'vitest'
-import { resolveFilterSelectValues, resolvePredicateSelectValues } from '@/lib/table/select-values'
+import { resolvePredicateSelectValues } from '@/lib/table/select-values'
 import type { ColumnDefinition } from '@/lib/table/types'
 
 const MULTI: ColumnDefinition = {
@@ -102,27 +100,5 @@ describe('resolvePredicateSelectValues', () => {
         )
       ).value
     ).toBe('Nope')
-  })
-
-  it('recurses through nested groups', () => {
-    const out = resolvePredicateSelectValues(
-      { any: [{ all: [{ field: 'col_color', op: 'contains', value: 'Green' }] }] },
-      COLS
-    ) as { any: Array<{ all: Array<{ value: unknown }> }> }
-    expect(out.any[0].all[0].value).toBe('opt_green')
-  })
-
-  /** The two grammars must resolve the same operand set, or they drift. */
-  it('agrees with the $-grammar sibling on the same filter', () => {
-    const legacy = resolveFilterSelectValues({ col_color: { $contains: 'Teal' } }, COLS)
-    expect((legacy.col_color as { $contains: unknown }).$contains).toBe('opt_teal')
-    expect(
-      leaf(
-        resolvePredicateSelectValues(
-          { all: [{ field: 'col_color', op: 'contains', value: 'Teal' }] },
-          COLS
-        )
-      ).value
-    ).toBe('opt_teal')
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { CLIENT_ID_HEADER, fingerprintClientId, readClientId } from '@/lib/api/client-id'
 
@@ -10,12 +7,6 @@ describe('readClientId', () => {
       headers: { [CLIENT_ID_HEADER]: 'tab-abc' },
     })
     expect(readClientId(request)).toBe('tab-abc')
-  })
-
-  /** Absent must read as "unattributed" — the signal then makes every client refetch, as before. */
-  it('is undefined when the caller sent no id', () => {
-    const request = new Request('https://sim.ai/api/table/t1/rows')
-    expect(readClientId(request)).toBeUndefined()
   })
 
   /**

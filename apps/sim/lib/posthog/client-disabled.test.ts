@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { captureClientEvent, captureClientException, setPostHogClient } from '@/lib/posthog/client'
 

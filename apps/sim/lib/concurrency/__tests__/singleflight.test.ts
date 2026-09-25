@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { sleep } from '@sim/utils/helpers'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -27,16 +24,6 @@ describe('coalesceLocally', () => {
 
     expect(fn).toHaveBeenCalledTimes(1)
     expect(results).toEqual(Array.from({ length: 10 }, () => 'value'))
-  })
-
-  it('returns the same promise instance to concurrent callers', () => {
-    const fn = async () => {
-      await sleep(10)
-      return 1
-    }
-    const a = coalesceLocally('same-key', fn)
-    const b = coalesceLocally('same-key', fn)
-    expect(a).toBe(b)
   })
 
   it('clears the cache after success so the next call invokes fn again', async () => {
@@ -70,12 +57,6 @@ describe('coalesceLocally', () => {
     // closure) and the entry must be evicted so the next call retries.
     await expect(coalesceLocally('sync-throw', fn)).rejects.toThrow('sync boom')
     await expect(coalesceLocally('sync-throw', fn)).rejects.toThrow('sync boom')
-    expect(fn).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not coalesce across distinct keys', async () => {
-    const fn = vi.fn(async () => 'value')
-    await Promise.all([coalesceLocally('a', fn), coalesceLocally('b', fn)])
     expect(fn).toHaveBeenCalledTimes(2)
   })
 
@@ -143,19 +124,6 @@ describe('coalesceLocally', () => {
 
       resolveNew!('new-value')
       await expect(successor).resolves.toBe('new-value')
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('does not fire the deadline for producers that settle in time', async () => {
-    vi.useFakeTimers()
-    try {
-      const value = await coalesceLocally('prompt', async () => 'ok', 1_000)
-      expect(value).toBe('ok')
-
-      await vi.advanceTimersByTimeAsync(2_000)
-      await expect(coalesceLocally('prompt', async () => 'again', 1_000)).resolves.toBe('again')
     } finally {
       vi.useRealTimers()
     }

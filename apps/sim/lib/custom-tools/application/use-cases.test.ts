@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { DelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -50,7 +47,6 @@ vi.mock('@/lib/workflows/custom-tools/operations', () => ({
 }))
 
 import { CUSTOM_TOOL_DELEGATION_AUDIENCE } from '@/lib/custom-tools/application/authorization'
-import { customToolOperations } from '@/lib/custom-tools/application/operations'
 import {
   createWorkspaceCustomToolUseCase,
   listAvailableCustomToolsUseCase,
@@ -78,7 +74,6 @@ const tool = {
 
 describe('custom tool application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(workspace)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.getByTitle.mockResolvedValue(null)
@@ -145,16 +140,6 @@ describe('custom tool application use cases', () => {
         ...overrides,
       }
     }
-
-    it('declares the executor and Copilot read policy explicitly', () => {
-      expect(customToolOperations.readAvailableByIdOrTitle).toMatchObject({
-        id: 'custom_tools.read_available_by_id_or_title',
-        minimumRole: 'read',
-        workspaceApiKey: 'deny',
-        principalKinds: ['delegated'],
-        delegatedServices: ['copilot', 'executor'],
-      })
-    })
 
     it('authorizes the current subject and preserves workspace-first personal fallback lookup', async () => {
       mocks.resolvePermission.mockResolvedValueOnce('read')

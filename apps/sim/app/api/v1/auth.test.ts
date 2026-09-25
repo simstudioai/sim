@@ -1,9 +1,5 @@
-/**
- * @vitest-environment node
- */
-
 import { NextRequest } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   authenticateApiKey: vi.fn(),
@@ -19,10 +15,6 @@ vi.mock('@/lib/api-key/service', () => ({
 import { authenticateV1Request } from '@/app/api/v1/auth'
 
 describe('v1 API key authentication', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('constructs a personal API-key Principal from canonical key identity', async () => {
     mocks.authenticateApiKey.mockResolvedValue({
       success: true,

@@ -1,258 +1,125 @@
 ---
-description: "Testing patterns with Vitest and @sim/testing"
-globs: ["apps/sim/**/*.test.ts","apps/sim/**/*.test.tsx"]
+description: "Test layers, naming, and Vitest mechanics for Sim"
+globs: ["**/*.test.ts","**/*.test.tsx","**/*.integration.ts","**/e2e/**"]
 ---
 
 <!-- Generated from .claude/rules/sim-testing.md by `bun run skills:sync`. Edit the source, not this file. -->
 
-# Testing Patterns
+# Testing
 
-Use Vitest. Test files: `feature.ts` → `feature.test.ts`
+Before writing or changing any test, run the `test-audit` skill's authoring gate. The short
+version: never write unit tests after the code; prefer E2E tests at the real boundary and end
+them with a verifiable artifact; if you must test in isolation, write the failure modes down
+first. A test that cannot name the bug it catches does not get written.
 
-## Global Mocks (vitest.setup.ts)
+## Layers
 
-These modules are mocked globally — do NOT re-mock them in test files unless you need to override behavior:
+What already catches bugs, in the order to reach for it:
 
-- `@sim/db` → `databaseMock`
-- `@sim/db/schema` → `schemaMock`
-- `drizzle-orm` → `drizzleOrmMock`
-- `@sim/logger` → `loggerMock`
-- `@/lib/auth` → `authMock`
-- `@/lib/auth/hybrid` → `hybridAuthMock` (with default session-delegating behavior)
-- `@/lib/core/utils/request` → `requestUtilsMock`
-- `@/stores/console/store`, `@/stores/terminal`, `@/stores/execution/store`
-- `@/blocks/registry`
-- `@trigger.dev/sdk`
-- `@sim/platform-authz/workflow` → `workflowAuthzMock`
-
-## Structure
-
-```typescript
-/**
- * @vitest-environment node
- */
-import { createMockRequest } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetSession } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
-}))
-
-import { GET, POST } from '@/app/api/my-route/route'
-
-describe('my route', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-  })
-
-  it('returns data', async () => {
-    const req = createMockRequest('GET')
-    const res = await GET(req)
-    expect(res.status).toBe(200)
-  })
-})
-```
-
-## Performance Rules (Critical)
-
-### NEVER use `vi.resetModules()` + `vi.doMock()` + `await import()`
-
-This is the #1 cause of slow tests. It forces complete module re-evaluation per test.
-
-```typescript
-// BAD — forces module re-evaluation every test (~50-100ms each)
-beforeEach(() => {
-  vi.resetModules()
-  vi.doMock('@/lib/auth', () => ({ getSession: vi.fn() }))
-})
-it('test', async () => {
-  const { GET } = await import('./route')  // slow dynamic import
-})
-
-// GOOD — module loaded once, mocks reconfigured per test (~1ms each)
-const { mockGetSession } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-}))
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
-import { GET } from '@/app/api/my-route/route'
-
-beforeEach(() => { vi.clearAllMocks() })
-it('test', () => {
-  mockGetSession.mockResolvedValue({ user: { id: '1' } })
-})
-```
-
-**Only exception:** Singleton modules that cache state at module scope (e.g., Redis clients, connection pools). These genuinely need `vi.resetModules()` + dynamic import to get a fresh instance per test.
-
-### NEVER use `vi.importActual()`
-
-This defeats the purpose of mocking by loading the real module and all its dependencies.
-
-```typescript
-// BAD — loads real module + all transitive deps
-vi.mock('@/lib/workspaces/utils', async () => {
-  const actual = await vi.importActual('@/lib/workspaces/utils')
-  return { ...actual, myFn: vi.fn() }
-})
-
-// GOOD — mock everything, only implement what tests need
-vi.mock('@/lib/workspaces/utils', () => ({
-  myFn: vi.fn(),
-  otherFn: vi.fn(),
-}))
-```
-
-### Mock heavy transitive dependencies
-
-If a module under test imports `@/blocks` (200+ files), `@/tools/registry`, or other heavy modules, mock them:
-
-```typescript
-vi.mock('@/blocks', () => ({
-  getBlock: () => null,
-  getAllBlocks: () => ({}),
-  getAllBlockTypes: () => [],
-  registry: {},
-}))
-```
-
-### Use `@vitest-environment node` unless DOM is needed
-
-Only use `@vitest-environment jsdom` if the test uses `window`, `document`, `FormData`, or other browser APIs. Node environment is significantly faster.
-
-### Avoid real timers in tests
-
-```typescript
-// BAD
-await new Promise(r => setTimeout(r, 500))
-
-// GOOD — use minimal delays or fake timers
-await new Promise(r => setTimeout(r, 1))
-// or
-vi.useFakeTimers()
-```
-
-## Centralized Mocks (prefer over local declarations)
-
-`@sim/testing` exports ready-to-use mock modules for common dependencies. Import and pass directly to `vi.mock()` — no `vi.hoisted()` boilerplate needed. Each paired `*MockFns` object exposes the underlying `vi.fn()`s for per-test overrides.
-
-| Module mocked | Import | Factory form |
+| Layer | What it proves | Where |
 |---|---|---|
-| `@/app/api/auth/oauth/utils` | `authOAuthUtilsMock`, `authOAuthUtilsMockFns` | `vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)` |
-| `@/app/api/knowledge/utils` | `knowledgeApiUtilsMock`, `knowledgeApiUtilsMockFns` | `vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)` |
-| `@/app/api/workflows/utils` | `workflowsApiUtilsMock`, `workflowsApiUtilsMockFns` | `vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)` |
-| `@sim/audit` | `auditMock`, `auditMockFns` | `vi.mock('@sim/audit', () => auditMock)` |
-| `@/lib/auth` | `authMock`, `authMockFns` | `vi.mock('@/lib/auth', () => authMock)` |
-| `@/lib/auth/hybrid` | `hybridAuthMock`, `hybridAuthMockFns` | `vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)` |
-| `@/lib/copilot/request/http` | `copilotHttpMock`, `copilotHttpMockFns` | `vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)` |
-| `@/lib/core/config/env` | `envMock`, `createEnvMock(overrides)` | `vi.mock('@/lib/core/config/env', () => envMock)` |
-| `@/lib/core/config/env-flags` | `featureFlagsMock` | `vi.mock('@/lib/core/config/env-flags', () => featureFlagsMock)` |
-| `@/lib/core/config/redis` | `redisConfigMock`, `redisConfigMockFns` | `vi.mock('@/lib/core/config/redis', () => redisConfigMock)` |
-| `@/lib/core/security/encryption` | `encryptionMock`, `encryptionMockFns` | `vi.mock('@/lib/core/security/encryption', () => encryptionMock)` |
-| `@/lib/core/security/input-validation.server` | `inputValidationMock`, `inputValidationMockFns` | `vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)` |
-| `@/lib/core/utils/request` | `requestUtilsMock`, `requestUtilsMockFns` | `vi.mock('@/lib/core/utils/request', () => requestUtilsMock)` |
-| `@/lib/core/utils/urls` | `urlsMock`, `urlsMockFns` | `vi.mock('@/lib/core/utils/urls', () => urlsMock)` |
-| `@/lib/execution/preprocessing` | `executionPreprocessingMock`, `executionPreprocessingMockFns` | `vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)` |
-| `@/lib/logs/execution/logging-session` | `loggingSessionMock`, `loggingSessionMockFns`, `LoggingSessionMock` | `vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)` |
-| `@/lib/workflows/orchestration` | `workflowsOrchestrationMock`, `workflowsOrchestrationMockFns` | `vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)` |
-| `@/lib/workflows/persistence/utils` | `workflowsPersistenceUtilsMock`, `workflowsPersistenceUtilsMockFns` | `vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)` |
-| `@/lib/workflows/utils` | `workflowsUtilsMock`, `workflowsUtilsMockFns` | `vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)` |
-| `@/lib/workspaces/permissions/utils` | `permissionsMock`, `permissionsMockFns` | `vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)` |
-| `@sim/db/schema` | `schemaMock` | `vi.mock('@sim/db/schema', () => schemaMock)` |
+| Type-check, `next build` | shapes, imports, wiring | `bunx turbo run type-check`, CI build |
+| Repo audits | registry consistency, API contract boundaries, tool/block/icon invariants, migrations | `bun run check:audits` |
+| E2E / integration | real Postgres/Redis, real HTTP, packaged desktop app | `*.integration.ts`, `apps/sim/scripts/test-*-e2e.ts`, `apps/desktop/e2e/*.spec.ts` |
+| Unit | one isolated unit's listed failure modes | `*.test.ts(x)` |
 
-### Auth mocking (API routes)
+A unit test is justified only for a failure the layers above cannot see: security boundaries,
+billing math, executor semantics, parsers and algorithms with edge cases, cross-process wire
+contracts, and demonstrated regressions. Never restate declarations (block/tool/provider config,
+registries, constants, schemas accepting valid input), assert that mocks were called, check
+rendered text or class names, or test mocks and factories themselves.
+
+## Naming
+
+| Suffix | Needs | Run with | In CI |
+|--------|-------|----------|-------|
+| `*.test.ts(x)` | nothing; global mocks from `vitest.setup.ts` | `vitest run` | Lint and Test job |
+| `*.integration.ts` | real PostgreSQL (`TEST_DATABASE_URL`), optionally Redis (`TEST_REDIS_URL`) | `vitest run --mode integration` | `PostgreSQL integration` job, by glob |
+| `*.live.test.ts` | provider APIs, hosted sandboxes, local runtimes, or sibling checkouts | `vitest run --mode live <file>` (apps/sim) | never |
+| `apps/desktop/e2e/*.spec.ts` | the packaged Electron app | Playwright | desktop E2E workflow |
+| `apps/sim/scripts/test-*-e2e.ts` | a running app over HTTP | `bun run test:<suite>:e2e` | PostgreSQL integration job |
+
+- A unit test lives next to its source: `feature.ts` → `feature.test.ts`. No network, no database,
+  no real timers.
+- Integration mode installs **no** global mocks: `vitest.integration.setup.ts` validates the env
+  contract, scrubs application env, and sets fixture env. Declare every fixture the suite needs with
+  `vi.mock` in the file.
+- `TEST_DATABASE_URL` must be loopback and its database name must contain a `test` segment
+  (`sim_test`); `TEST_REDIS_URL` must be loopback. `packages/db/testing/test-infrastructure.ts` owns
+  those checks. Isolate with a unique schema or generated IDs, and clean up in `afterAll`.
+- Integration files run one at a time against one shared database. A new `*.integration.ts` is
+  picked up by CI with no workflow change, and the run writes `test-results/integration.json`, which
+  CI uploads. Never add a passing suite to the quarantine list in `apps/sim/vitest.config.ts`.
+- `bun run test:integration` starts disposable Postgres and Redis containers, provisions the schema,
+  and runs both workspaces; pass filenames to narrow the `apps/sim` run.
+
+Name the `describe`/`it` for the behavior and the condition (`it('rejects a token issued for
+another workspace')`), never the implementation (`it('calls verifyToken')`).
+
+## E2E artifacts
+
+Every E2E or integration run ends with an artifact a reviewer can inspect and re-run: a JSON
+report of each check (name, status, duration, error), an HTTP status log, a Playwright trace, or a
+screenshot. Write it to a caller-supplied path (`<SUITE>_REPORT_PATH`) and have CI upload it.
+`apps/sim/scripts/test-scim-e2e.ts` is the reference: it asserts its environment is loopback and
+disposable, seeds with SQL, exercises the real HTTP boundary, cleans up its fixtures, and writes
+the report.
+
+## Unit test mechanics
+
+### Global mocks (`apps/sim/vitest.setup.ts`)
+
+Mocked for every unit test file — do not re-mock unless you override behavior: `@sim/db`,
+`@sim/db/schema`, `drizzle-orm`, `@sim/logger`, `@sim/platform-authz/workflow`, `@/lib/auth`,
+`@/lib/auth/hybrid`, `@/lib/core/utils/request`, `@/lib/core/config/env`,
+`@/lib/core/config/env-flags`, `@/lib/core/utils/urls`, `@/lib/core/config/redis`,
+`@/lib/environment/utils`, the console/terminal/execution stores, `@/blocks/registry`, and
+`@trigger.dev/sdk`.
+
+### Structure
 
 ```typescript
-import { authMock, authMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/lib/auth', () => authMock)
-
+import { authMockFns, createMockRequest } from '@sim/testing'
+import { describe, expect, it } from 'vitest'
 import { GET } from '@/app/api/my-route/route'
 
-beforeEach(() => {
-  vi.clearAllMocks()
-  authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
+describe('GET /api/my-route', () => {
+  it('returns 401 without a session', async () => {
+    authMockFns.mockGetSession.mockResolvedValue(null)
+    const res = await GET(createMockRequest('GET'))
+    expect(res.status).toBe(401)
+  })
 })
 ```
 
-Only define a local `vi.mock('@/lib/auth', ...)` if the module under test consumes exports outside the centralized shape (e.g., `auth.api.verifyOneTimeToken`, `auth.api.resetPassword`).
+Prefer the centralized mocks in `@sim/testing` (`authMock`/`authMockFns`, `hybridAuthMock`,
+`dbChainMock`/`dbChainMockFns`, `envMock`, `redisConfigMock`, `encryptionMock`, …) over local
+`vi.hoisted()` + `vi.mock()` boilerplate; import the mock file directly
+(`@sim/testing/mocks/<name>.mock`) when you only need one. Mocks with per-test knobs export a paired
+`*MockFns` object for overrides; the rest expose their `vi.fn()`s directly on the mock.
 
-### Hybrid auth mocking
+### Performance rules
 
-```typescript
-import { hybridAuthMock, hybridAuthMockFns } from '@sim/testing'
+The suite's wall time is bound by the single Vite server thread that serves every module fetch
+and `vi.mock` resolve, so the lever is fewer modules and fewer mocks per file, not more workers.
 
-vi.mock('@/lib/auth/hybrid', () => hybridAuthMock)
+1. `vi.hoisted()` + `vi.mock()` + static imports. Never `vi.resetModules()` + `vi.doMock()` +
+   dynamic `import()` — it re-evaluates the module graph per test. The only exception is a module
+   that caches a singleton at module scope.
+2. Never `vi.importActual()` — it loads the real module and its whole graph. Mock explicitly.
+3. Mock heavy graphs you do not need: `@/blocks`, `@/tools/registry`, `@/triggers/registry`,
+   `@/tools/generated/*`.
+4. Node environment is the default — never write `@vitest-environment node`. Add
+   `/** @vitest-environment jsdom */` only when the test needs
+   `window`, `document`, or other DOM APIs.
+5. No real timers: `vi.useFakeTimers()` or a 1ms delay.
+6. Vitest clears mock call history before every test (`clearMocks` is on by default), so never
+   add `vi.clearAllMocks()` to a `beforeEach`. Reset implementations explicitly only where a test
+   installs a permanent one (`mockReturnValue`, not `mockReturnValueOnce`).
+7. Absolute imports only.
 
-// In tests:
-hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
-  success: true, userId: 'user-1', authType: 'session',
-})
-```
+### Running
 
-### Database chain mocking
-
-Use the centralized `dbChainMock` + `dbChainMockFns` helpers — no `vi.hoisted()` or chain-wiring boilerplate needed.
-
-```typescript
-import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
-
-vi.mock('@sim/db', () => dbChainMock)
-// Spread for custom exports: vi.mock('@sim/db', () => ({ ...dbChainMock, myTable: {...} }))
-
-beforeEach(() => {
-  vi.clearAllMocks()
-  resetDbChainMock() // only needed if tests use permanent (non-`Once`) overrides
-})
-
-it('reads a row', async () => {
-  dbChainMockFns.limit.mockResolvedValueOnce([{ id: '1', name: 'test' }])
-  // exercise code that hits db.select().from().where().limit()
-  expect(dbChainMockFns.where).toHaveBeenCalled()
-})
-```
-
-**Default chains supported:**
-- `select()/selectDistinct()/selectDistinctOn() → from() → where()/innerJoin()/leftJoin() → where() → limit()/orderBy()/returning()/groupBy()/for()`
-- `insert() → values() → returning()/onConflictDoUpdate()/onConflictDoNothing()`
-- `update() → set() → where() → limit()/orderBy()/returning()/for()`
-- `delete() → where() → limit()/orderBy()/returning()/for()`
-- `db.execute()` resolves `[]`
-- `db.transaction(cb)` calls cb with `dbChainMock.db`
-
-`.for('update')` (Postgres row-level locking) is supported on `where` builders. It returns a thenable with `.limit` / `.orderBy` / `.returning` / `.groupBy` attached, so both `await .where().for('update')` (terminal) and `await .where().for('update').limit(1)` (chained) work. Override the terminal result with `dbChainMockFns.for.mockResolvedValueOnce([...])`; for the chained form, mock the downstream terminal (e.g. `dbChainMockFns.limit.mockResolvedValueOnce([...])`).
-
-All terminals default to `Promise.resolve([])`. Override per-test with `dbChainMockFns.<terminal>.mockResolvedValueOnce(...)`. Use `resetDbChainMock()` in `beforeEach` only when tests replace wiring with `.mockReturnValue` / `.mockResolvedValue` (permanent); tests using only `...Once` variants don't need it.
-
-## @sim/testing Package
-
-Always prefer over local test data.
-
-| Category | Utilities |
-|----------|-----------|
-| **Module mocks** | See "Centralized Mocks" table above |
-| **Logger helpers** | `loggerMock`, `createMockLogger()`, `getLoggerCalls()`, `clearLoggerMocks()` |
-| **Database helpers** | `databaseMock`, `drizzleOrmMock`, `createMockDb()`, `createMockSql()`, `createMockSqlOperators()` |
-| **Fetch helpers** | `setupGlobalFetchMock()`, `createMockFetch()`, `createMockResponse()`, `mockFetchError()` |
-| **Factories** | `createSession()`, `createWorkflowRecord()`, `createBlock()`, `createExecutionContext()` |
-| **Builders** | `WorkflowBuilder`, `ExecutionContextBuilder` |
-| **Assertions** | `expectWorkflowAccessGranted()`, `expectBlockExecuted()` |
-| **Requests** | `createMockRequest()`, `createMockFormDataRequest()` |
-
-## Rules Summary
-
-1. `@vitest-environment node` unless DOM is required
-2. Prefer centralized mocks from `@sim/testing` (see table above) over local `vi.hoisted()` + `vi.mock()` boilerplate
-3. `vi.hoisted()` + `vi.mock()` + static imports — never `vi.resetModules()` + `vi.doMock()` + dynamic imports
-4. `vi.mock()` calls before importing mocked modules
-5. `beforeEach(() => vi.clearAllMocks())` to reset state — no redundant `afterEach`
-6. No `vi.importActual()` — mock everything explicitly
-7. Mock heavy deps (`@/blocks`, `@/tools/registry`, `@/triggers`) in tests that don't need them
-8. Use absolute imports in test files
-9. Avoid real timers — use 1ms delays or `vi.useFakeTimers()`
+From `apps/sim`: `../../node_modules/.bin/vitest run <paths>`. Other workspaces: run from the
+workspace directory. `bunx vitest` fetches a different Vitest and fails to load the config.
+Never pipe the runner through `grep`/`tail` in a script where the pipe hides its exit code.

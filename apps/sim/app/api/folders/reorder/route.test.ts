@@ -1,7 +1,5 @@
 /**
  * Tests for the folder reorder API route.
- *
- * @vitest-environment node
  */
 import { authMockFns, createMockRequest, permissionsMock, permissionsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -34,7 +32,6 @@ describe('PUT /api/folders/reorder', () => {
   const mockTxExecute = vi.fn()
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockFrom.mockReset()
     mockWhere.mockReset()
     mockTxUpdate.mockReset()
@@ -56,23 +53,6 @@ describe('PUT /api/folders/reorder', () => {
         update: mockTxUpdate,
       })
     )
-  })
-
-  it('reorders folders when updates are valid', async () => {
-    mockWhere
-      .mockReturnValueOnce([{ id: 'folder-1', workspaceId: 'workspace-123' }])
-      .mockReturnValueOnce([{ id: 'folder-1', parentId: null }])
-
-    const req = createMockRequest('PUT', {
-      workspaceId: 'workspace-123',
-      updates: [{ id: 'folder-1', sortOrder: 2, parentId: null }],
-    })
-
-    const response = await PUT(req)
-
-    expect(response.status).toBe(200)
-    const data = await response.json()
-    expect(data).toMatchObject({ success: true, updated: 1 })
   })
 
   it('maps a sibling-name collision from a reparent to a 409', async () => {

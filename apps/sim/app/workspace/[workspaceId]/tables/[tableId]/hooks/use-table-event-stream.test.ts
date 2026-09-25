@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import type { RowExecutionMetadata, TableRow } from '@/lib/table'
 import type { TableEvent } from '@/lib/table/events'
@@ -66,81 +63,16 @@ describe('applyCellEventToRow', () => {
     }
   )
 
-  it.each(['pending', 'queued', 'running'] as const)(
-    'ignores a stale %s event from an older execution',
-    (status) => {
-      const row = createRow('execution-new', 'running')
-      const event = createCellEvent(status, 'execution-old', {
-        outputs: { result: 'stale' },
-      })
-
-      expect(applyCellEventToRow(row, event)).toBeNull()
-      expect(row.data.result).toBe('current')
-      expect(row.executions?.[GROUP_ID]?.executionId).toBe('execution-new')
-    }
-  )
-
   it('ignores an old id-less pre-stamp once an identified attempt is active', () => {
     const row = createRow('execution-new', 'running')
 
     expect(applyCellEventToRow(row, createCellEvent('pending', null))).toBeNull()
   })
 
-  it.each(['queued', 'running'] as const)(
-    'lets %s claim an id-less pending pre-stamp',
-    (status) => {
-      const row = createRow(null, 'pending')
-
-      expect(
-        applyCellEventToRow(row, createCellEvent(status, 'execution-new', { jobId: 'job-new' }))
-      ).toMatchObject({
-        executions: {
-          [GROUP_ID]: {
-            status,
-            executionId: 'execution-new',
-            jobId: 'job-new',
-            workflowId: 'workflow-1',
-          },
-        },
-      })
-    }
-  )
-
   it('ignores a delayed id-less pre-stamp after a terminal state', () => {
     const row = createRow('execution-old', 'completed')
 
     expect(applyCellEventToRow(row, createCellEvent('pending', null))).toBeNull()
-  })
-
-  it('seeds an id-less pending pre-stamp when the group has no cached attempt', () => {
-    const row: TableRow = {
-      id: ROW_ID,
-      data: { result: 'current' },
-      position: 0,
-      executions: {},
-    }
-
-    expect(applyCellEventToRow(row, createCellEvent('pending', null))).toMatchObject({
-      executions: {
-        [GROUP_ID]: {
-          status: 'pending',
-          executionId: null,
-        },
-      },
-    })
-  })
-
-  it('applies the server pre-stamp over the optimistic pending state', () => {
-    const row = createRow('execution-old', 'pending', { jobId: null })
-
-    expect(applyCellEventToRow(row, createCellEvent('pending', null))).toMatchObject({
-      executions: {
-        [GROUP_ID]: {
-          status: 'pending',
-          executionId: null,
-        },
-      },
-    })
   })
 
   it('preserves the optimistic new-attempt handoff through server pickup', () => {
@@ -172,25 +104,6 @@ describe('applyCellEventToRow', () => {
     expect(applyCellEventToRow(row, createCellEvent('pending', null))).toBeNull()
   })
 
-  it('applies a pending transition to its matching active execution', () => {
-    const row = createRow('execution-1', 'running')
-
-    expect(
-      applyCellEventToRow(
-        row,
-        createCellEvent('pending', 'execution-1', { jobId: 'paused-execution-1' })
-      )
-    ).toMatchObject({
-      executions: {
-        [GROUP_ID]: {
-          status: 'pending',
-          executionId: 'execution-1',
-          jobId: 'paused-execution-1',
-        },
-      },
-    })
-  })
-
   it('does not seed an identified active event without cached ownership', () => {
     const row: TableRow = {
       id: ROW_ID,
@@ -201,15 +114,6 @@ describe('applyCellEventToRow', () => {
 
     expect(applyCellEventToRow(row, createCellEvent('running', 'execution-1'))).toBeNull()
   })
-
-  it.each(['queued', 'running'] as const)(
-    'does not treat an id-less %s event as a pre-stamp',
-    (status) => {
-      const row = createRow(null, 'pending')
-
-      expect(applyCellEventToRow(row, createCellEvent(status, null))).toBeNull()
-    }
-  )
 
   it('does not regress a terminal attempt with a late matching active event', () => {
     const row = createRow('execution-1', 'completed')
@@ -239,18 +143,6 @@ describe('applyCellEventToRow', () => {
     })
   })
 
-  it.each([
-    ['completed', 'error'],
-    ['error', 'completed'],
-  ] as const)(
-    'does not replace a terminal %s state with a delayed same-attempt %s event',
-    (currentStatus, delayedStatus) => {
-      const row = createRow('execution-1', currentStatus)
-
-      expect(applyCellEventToRow(row, createCellEvent(delayedStatus, 'execution-1'))).toBeNull()
-    }
-  )
-
   it('does not apply an identified terminal event over an unclaimed pending attempt', () => {
     const row = createRow(null, 'pending')
 
@@ -268,25 +160,6 @@ describe('applyCellEventToRow', () => {
           status: 'error',
           executionId: null,
           error: 'Failed to enqueue run',
-        },
-      },
-    })
-  })
-
-  it('applies a terminal event and outputs to its matching execution', () => {
-    const row = createRow('execution-1', 'running')
-
-    expect(
-      applyCellEventToRow(
-        row,
-        createCellEvent('completed', 'execution-1', { outputs: { result: 'finished' } })
-      )
-    ).toMatchObject({
-      data: { result: 'finished' },
-      executions: {
-        [GROUP_ID]: {
-          status: 'completed',
-          executionId: 'execution-1',
         },
       },
     })

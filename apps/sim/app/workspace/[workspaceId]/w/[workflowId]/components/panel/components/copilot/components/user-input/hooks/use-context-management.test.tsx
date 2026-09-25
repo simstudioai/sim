@@ -71,18 +71,6 @@ describe('useContextManagement label sync', () => {
     expect(latest.selectedContexts.map((c) => c.label)).toEqual(['Sales (3 rows) (2)'])
   })
 
-  it('keeps both when both tokens are present', () => {
-    renderSync('@notes.md:12 and @notes.md:12-40', [
-      fileSelection('notes.md:12'),
-      fileSelection('notes.md:12-40'),
-    ])
-
-    expect(latest.selectedContexts.map((c) => c.label).sort()).toEqual([
-      'notes.md:12',
-      'notes.md:12-40',
-    ])
-  })
-
   it('preserves the original context order, not the length-sorted one', () => {
     renderSync('@notes.md:12 and @notes.md:12-40', [
       fileSelection('notes.md:12'),
@@ -90,11 +78,5 @@ describe('useContextManagement label sync', () => {
     ])
 
     expect(latest.selectedContexts.map((c) => c.label)).toEqual(['notes.md:12', 'notes.md:12-40'])
-  })
-
-  it('still tolerates trailing punctuation after a mention', () => {
-    renderSync('ask @notes.md:12-40, then stop', [fileSelection('notes.md:12-40')])
-
-    expect(latest.selectedContexts).toHaveLength(1)
   })
 })

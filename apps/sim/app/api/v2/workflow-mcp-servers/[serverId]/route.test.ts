@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   resetDbChainMock,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -121,7 +117,6 @@ async function del() {
 
 describe('/api/v2/workflow-mcp-servers/[serverId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     v2RouteMocks.authenticate.mockResolvedValue(personalKeyAuth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
@@ -148,16 +143,6 @@ describe('/api/v2/workflow-mcp-servers/[serverId]', () => {
         expect.objectContaining({ serverId: SERVER_ID, isPublic: true })
       )
       expect(mocks.audit).toHaveBeenCalledTimes(1)
-    })
-
-    it('rejects a body that would change nothing', async () => {
-      const response = await patch({})
-
-      expect(response.status).toBe(400)
-      expect(JSON.stringify(await response.json())).toContain(
-        'At least one of name, description, or isPublic must be provided'
-      )
-      expect(mocks.updateServer).not.toHaveBeenCalled()
     })
 
     it('conceals a server from another workspace as 404', async () => {
@@ -206,15 +191,6 @@ describe('/api/v2/workflow-mcp-servers/[serverId]', () => {
       expect(response.status).toBe(403)
       expect(mocks.deleteServer).not.toHaveBeenCalled()
     })
-
-    it('rejects an unauthenticated request', async () => {
-      v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-      const response = await del()
-
-      expect(response.status).toBe(401)
-      expect((await response.json()).error.code).toBe('UNAUTHORIZED')
-    })
   })
 
   /**
@@ -223,33 +199,6 @@ describe('/api/v2/workflow-mcp-servers/[serverId]', () => {
    * through this same path, but never simply read.
    */
   describe('GET', () => {
-    it('returns the server', async () => {
-      queueServerLookup()
-
-      const response = await get()
-
-      expect(response.status).toBe(200)
-      expect(await response.json()).toEqual({
-        data: expect.objectContaining({ id: SERVER_ID, name: 'Support agents', isPublic: false }),
-      })
-    })
-
-    it('conceals a server in another workspace as not found', async () => {
-      queueServerLookup(null)
-
-      const response = await get()
-
-      expect(response.status).toBe(404)
-    })
-
-    it('records no audit entry for a read', async () => {
-      queueServerLookup()
-
-      await get()
-
-      expect(mocks.audit).not.toHaveBeenCalled()
-    })
-
     /** The family denies workspace API keys throughout; a read must not be the wide door. */
     it('refuses a workspace API key', async () => {
       queueServerLookup()

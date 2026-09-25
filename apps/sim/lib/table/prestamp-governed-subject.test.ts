@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -65,7 +62,6 @@ describe('the dispatcher pre-stamp', () => {
   }, 60_000)
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.getTableById.mockResolvedValue({
       id: 'table-1',

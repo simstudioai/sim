@@ -12,9 +12,7 @@ describe('Confluence space audience access in PostgreSQL', () => {
   const token = (id: string) => `g:confluence:cloud:${id}`
 
   beforeAll(async () => {
-    fixture = await createEnterpriseSearchMigrationFixture(
-      process.env.KNOWLEDGE_ACL_TEST_DATABASE_URL!
-    )
+    fixture = await createEnterpriseSearchMigrationFixture(process.env.TEST_DATABASE_URL!)
     client = fixture.client
     await fixture.migrate()
     await client`INSERT INTO organization(id) VALUES ('org'), ('other')`

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -52,7 +48,6 @@ const rows = [
 
 describe('bounded log cleanup file failures', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValueOnce(rows)
     dbChainMockFns.returning.mockResolvedValueOnce(rows.map(({ id }) => ({ id })))

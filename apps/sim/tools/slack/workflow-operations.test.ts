@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { SLACK_WORKFLOW_OPERATIONS } from '@/blocks/blocks/slack-workflow-operations'
 import { slackAddBookmarkTool } from '@/tools/slack/add_bookmark'

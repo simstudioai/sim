@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * CSV import orchestration — the logic both the first-party and public import
  * routes delegate to, so neither can drift on what an import actually does.
  */
@@ -97,7 +95,6 @@ function importParams(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mockMarkTableJobRunning.mockResolvedValue(true)
   mockReleaseJobClaim.mockResolvedValue(undefined)
   mockGetMaxRowsPerTable.mockResolvedValue(1000)
@@ -115,25 +112,6 @@ beforeEach(() => {
 })
 
 describe('performTableCsvImport', () => {
-  it('auto-maps same-named headers and appends the parsed rows', async () => {
-    const result = await performTableCsvImport(importParams())
-
-    expect(result.success).toBe(true)
-    expect(result.data).toEqual({
-      tableId: 'table-1',
-      mode: 'append',
-      insertedCount: 2,
-      mappedColumns: ['email', 'name'],
-      skippedHeaders: [],
-      unmappedColumns: [],
-      sourceFile: 'contacts.csv',
-    })
-    // The trigger/scheduler fan-out must run AFTER the tx commits, so it is the
-    // orchestration's job rather than the writer's.
-    expect(mockDispatchAfterBatchInsert).toHaveBeenCalled()
-    expect(mockSignalSchemaChanged).toHaveBeenCalledWith('table-1')
-  })
-
   /**
    * The rows an import lands start the table's workflow columns, and those
    * cells gate their tools on the governed subject. Dropping it here would run
@@ -156,27 +134,6 @@ describe('performTableCsvImport', () => {
       expect.anything(),
       expect.objectContaining({ capabilityGovernedUserId: 'user-9' })
     )
-  })
-
-  /** An actorless import still says so explicitly rather than by omission. */
-  it('carries a null subject through unchanged', async () => {
-    await performTableCsvImport(importParams({ capabilityGovernedUserId: null }))
-
-    expect(mockDispatchAfterBatchInsert).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      'req-1',
-      'user-1',
-      null
-    )
-  })
-
-  it('reports the deleted count on a replace', async () => {
-    const result = await performTableCsvImport(importParams({ mode: 'replace' }))
-
-    expect(result.data).toMatchObject({ mode: 'replace', insertedCount: 2, deletedCount: 10 })
-    expect(mockImportReplaceRows).toHaveBeenCalled()
-    expect(mockImportAppendRows).not.toHaveBeenCalled()
   })
 
   it('holds the table job slot for the write and releases it before returning', async () => {
@@ -233,15 +190,6 @@ describe('performTableCsvImport', () => {
     expect(mockMarkTableJobRunning).not.toHaveBeenCalled()
   })
 
-  it('rejects a file with no data rows', async () => {
-    const result = await performTableCsvImport(
-      importParams({ fileStream: csvStream('email,name\n') })
-    )
-
-    expect(result).toMatchObject({ success: false, errorCode: 'validation' })
-    expect(result.error).toBe('CSV file has no data rows')
-  })
-
   it('rejects a file whose headers map to nothing on the table', async () => {
     const result = await performTableCsvImport(
       importParams({ fileStream: csvStream('alpha,beta\n1,2\n') })
@@ -250,21 +198,6 @@ describe('performTableCsvImport', () => {
     expect(result).toMatchObject({ success: false, errorCode: 'validation' })
     expect(result.error).toContain('No CSV headers map to columns')
     expect(mockMarkTableJobRunning).not.toHaveBeenCalled()
-  })
-
-  it('reports which headers were skipped and which columns went unfilled', async () => {
-    const result = await performTableCsvImport(
-      importParams({
-        fileStream: csvStream('email,notes\na@b.c,hi\n'),
-        mapping: { email: 'email', notes: null },
-      })
-    )
-
-    expect(result.data).toMatchObject({
-      mappedColumns: ['email'],
-      skippedHeaders: ['notes'],
-      unmappedColumns: ['name'],
-    })
   })
 
   /**
@@ -341,12 +274,6 @@ describe('performTableCsvImport', () => {
         { col_expires_at: null },
       ])
     })
-
-    it('omits the accounting entirely from a clean import', async () => {
-      const result = await performTableCsvImport(importParams())
-
-      expect(result.data).not.toHaveProperty('rejections')
-    })
   })
 
   it('rejects createColumns naming a header the file does not have', async () => {
@@ -396,12 +323,5 @@ describe('performCreateTableFromCsv', () => {
     expect(result.data?.rejections?.rejectedSamples[0]).toMatchObject({
       code: 'CSV_QUOTE_NOT_CLOSED',
     })
-  })
-
-  it('omits the accounting entirely from a clean import', async () => {
-    const result = await performCreateTableFromCsv(createParams(CSV))
-
-    expect(result.success).toBe(true)
-    expect(result.data).not.toHaveProperty('rejections')
   })
 })

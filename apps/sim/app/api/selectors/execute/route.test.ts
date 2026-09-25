@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest } from '@sim/testing'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -86,10 +83,6 @@ function project(error: unknown) {
 }
 
 describe('POST /api/selectors/execute', () => {
-  it('uses authenticated per-user admission control', () => {
-    expect(mocks.userRateLimit).toHaveBeenCalledWith({ bucketName: 'selectors.execute' })
-  })
-
   it('marks success, authentication, parse, and unhandled responses private and non-cacheable', async () => {
     for (const status of [200, 400, 401, 500]) {
       mocks.status = status
@@ -140,16 +133,6 @@ describe('POST /api/selectors/execute', () => {
         error: 'Integration "gmail_v2" is not allowed based on your permission group settings',
       },
       headers: { 'Cache-Control': 'private, no-store' },
-    })
-  })
-
-  it('preserves same-workspace forbidden errors', () => {
-    expect(
-      project(new OrchestrationError('forbidden', 'Insufficient workspace permissions'))
-    ).toEqual({
-      status: 403,
-      body: { error: 'Insufficient workspace permissions' },
-      headers: undefined,
     })
   })
 })

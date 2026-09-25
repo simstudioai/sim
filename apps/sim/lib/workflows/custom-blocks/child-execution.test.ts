@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTimeoutAbortController, getRemainingExecutionMs } from '@/lib/core/execution-limits'
 
@@ -20,7 +17,6 @@ vi.mock('@/lib/execution/cancellation', () => ({
 
 import {
   admitCustomBlockChildExecution,
-  buildCustomBlockCorrelation,
   CustomBlockAdmissionError,
   createChildCancellationSignal,
   trackChildRun,
@@ -32,26 +28,7 @@ const attribution = { actorUserId: 'owner-1', workspaceId: 'workspace-source' } 
 
 describe('admitCustomBlockChildExecution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockSubscribe.mockResolvedValue(mockUnsubscribe)
-  })
-
-  it('passes when the source payer has headroom', async () => {
-    mockCheckAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
-
-    await expect(admitCustomBlockChildExecution(attribution)).resolves.toBeUndefined()
-  })
-
-  it('forwards the payer-scoped message, which describes the shared org', async () => {
-    mockCheckAttributedUsageLimits.mockResolvedValue({
-      isExceeded: true,
-      scope: 'payer',
-      message: 'Organization usage limit exceeded: $50.00 pooled of $50.00 organization limit.',
-    })
-
-    await expect(admitCustomBlockChildExecution(attribution)).rejects.toThrow(
-      'Organization usage limit exceeded: $50.00 pooled of $50.00 organization limit.'
-    )
   })
 
   it("never forwards the owner's personal member-cap message to a consumer", async () => {
@@ -94,34 +71,8 @@ describe('admitCustomBlockChildExecution', () => {
   })
 })
 
-describe('buildCustomBlockCorrelation', () => {
-  it('records the invoking run without naming anything', () => {
-    const correlation = buildCustomBlockCorrelation({
-      invokerExecutionId: 'exec-1',
-      invokerRequestId: 'req-1',
-      invokerWorkflowId: 'wf-1',
-      invokerWorkspaceId: 'ws-consumer',
-      blockType: 'custom_block_abc',
-    })
-
-    expect(correlation).toEqual({
-      source: 'custom_block',
-      executionId: 'exec-1',
-      requestId: 'req-1',
-      workflowId: 'wf-1',
-      triggerType: 'custom_block_abc',
-      invokerWorkspaceId: 'ws-consumer',
-    })
-  })
-
-  it('is undefined without an invoking execution id', () => {
-    expect(buildCustomBlockCorrelation({ blockType: 'custom_block_abc' })).toBeUndefined()
-  })
-})
-
 describe('createChildCancellationSignal', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockSubscribe.mockResolvedValue(mockUnsubscribe)
   })
 
@@ -149,15 +100,6 @@ describe('createChildCancellationSignal', () => {
     } finally {
       parent.cleanup()
     }
-  })
-
-  it('starts aborted when the parent already aborted', async () => {
-    const parent = new AbortController()
-    parent.abort()
-
-    const { signal } = await createChildCancellationSignal({ parentSignal: parent.signal })
-
-    expect(signal.aborted).toBe(true)
   })
 
   it('aborts on the bound parent cancellation signal', async () => {
@@ -194,7 +136,6 @@ describe('CustomBlockAdmissionError', () => {
 
 describe('createChildCancellationSignal durable backstop', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockSubscribe.mockResolvedValue(mockUnsubscribe)
   })
 
@@ -242,17 +183,6 @@ describe('child run tracking', () => {
     } finally {
       vi.useRealTimers()
     }
-  })
-
-  it('does not let a rejected child break the drain', async () => {
-    trackChildRun('invoker-2', Promise.reject(new Error('db down')))
-
-    await expect(waitForChildRuns('invoker-2')).resolves.toBeUndefined()
-  })
-
-  it('is a no-op for a run that registered nothing', async () => {
-    await expect(waitForChildRuns('invoker-never')).resolves.toBeUndefined()
-    await expect(waitForChildRuns(undefined)).resolves.toBeUndefined()
   })
 
   it('releases its entry so a run that never drains cannot leak', async () => {

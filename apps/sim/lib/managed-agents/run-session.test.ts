@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AnthropicSessionEvent } from '@/lib/managed-agents/session-client'
 
@@ -67,7 +64,6 @@ const idle = (id: string, stop: string): AnthropicSessionEvent => ({
 })
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.createSession.mockResolvedValue({ id: 'sess_1' })
   mocks.sendUserMessage.mockResolvedValue(undefined)
   mocks.sendSessionEvents.mockResolvedValue(undefined)

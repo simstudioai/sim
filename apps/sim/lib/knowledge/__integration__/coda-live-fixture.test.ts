@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { assertCodaLiveFixture } from '@/lib/knowledge/__integration__/coda-live-fixture'
 

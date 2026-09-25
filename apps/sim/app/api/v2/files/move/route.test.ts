@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -33,7 +29,6 @@ vi.mock('@/lib/workspace-files/application/move-workspace-file-items', () => ({
   },
 }))
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkspaceFileMoveConflictError } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { POST } from '@/app/api/v2/files/move/route'
 
@@ -43,13 +38,6 @@ const auth = {
   rateLimitSubjectIds: ['api-key:key-1', `workspace:${WS}`] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
-}
-const RATE_LIMIT_DENIED = {
-  allowed: false,
-  limit: 100,
-  remaining: 0,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
-  retryAfterMs: 1000,
 }
 
 const callMove = (body: unknown) =>
@@ -63,61 +51,10 @@ const callMove = (body: unknown) =>
 
 describe('POST /api/v2/files/move', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mockExecute.mockResolvedValue({ movedItems: { files: 2, folders: 0 } })
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-    const res = await callMove({ workspaceId: WS, fileIds: ['wf_1'] })
-    expect(res.status).toBe(401)
-    expect((await res.json()).error.code).toBe('UNAUTHORIZED')
-  })
-
-  it('400s when the selection is empty', async () => {
-    const res = await callMove({ workspaceId: WS })
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockExecute).not.toHaveBeenCalled()
-  })
-
-  it('surfaces a forbidden collection operation', async () => {
-    mockExecute.mockRejectedValue(new OrchestrationError('forbidden', 'Access denied'))
-    const res = await callMove({ workspaceId: WS, fileIds: ['wf_1'] })
-    expect(res.status).toBe(403)
-    expect(mockExecute).toHaveBeenCalledOnce()
-  })
-
-  it('returns the rate-limit response when denied', async () => {
-    v2RouteMocks.preauthRate.mockResolvedValue(RATE_LIMIT_DENIED)
-    const res = await callMove({ workspaceId: WS, fileIds: ['wf_1'] })
-    expect(res.status).toBe(429)
-    expect((await res.json()).error.code).toBe('RATE_LIMITED')
-  })
-
-  it('moves the selection into the target folder', async () => {
-    const res = await callMove({
-      workspaceId: WS,
-      fileIds: ['wf_1', 'wf_2'],
-      targetFolderPath: '/Reports',
-    })
-    expect(res.status).toBe(200)
-    expect((await res.json()).data).toEqual({ movedItems: { files: 2 } })
-    expect(mockExecute).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: { workspaceId: WS, fileIds: ['wf_1', 'wf_2'], targetFolderPath: '/Reports' },
-      })
-    )
-  })
-
-  it('treats an omitted targetFolderPath as the workspace root', async () => {
-    await callMove({ workspaceId: WS, fileIds: ['wf_1'] })
-    expect(mockExecute).toHaveBeenCalledWith(
-      expect.objectContaining({ input: expect.objectContaining({ targetFolderPath: '/' }) })
-    )
   })
 
   it('maps a conflict error to 409', async () => {

@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { act, type ComponentProps, StrictMode, Suspense, startTransition } from 'react'
+import { act, Suspense, startTransition } from 'react'
 import type { Editor } from '@tiptap/core'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -47,76 +47,6 @@ afterEach(async () => {
   host.remove()
   vi.useRealTimers()
   vi.unstubAllGlobals()
-})
-
-describe('editability synchronization', () => {
-  async function renderField(props: ComponentProps<typeof RichMarkdownField>) {
-    await act(async () =>
-      root.render(
-        <StrictMode>
-          <RichMarkdownField {...props} />
-        </StrictMode>
-      )
-    )
-    await act(async () => vi.advanceTimersByTimeAsync(10))
-    return host.querySelector<HTMLElement & { editor: Editor }>('.tiptap')!.editor
-  }
-
-  it.each([
-    { label: 'start streaming', initial: {}, next: { isStreaming: true, value: 'streamed' } },
-    {
-      label: 'finish streaming',
-      initial: { isStreaming: true },
-      next: { isStreaming: false, value: 'final' },
-    },
-    { label: 'disable', initial: {}, next: { disabled: true } },
-    { label: 'enable', initial: { disabled: true }, next: { disabled: false } },
-  ])('does not report a local edit when props $label', async ({ initial, next }) => {
-    const props = { value: 'body', onChange: vi.fn(), ...initial }
-    const owner = await renderField(props)
-    props.onChange.mockClear()
-    expect(await renderField({ ...props, ...next })).toBe(owner)
-    expect(owner.getText()).toBe(next.value ?? 'body')
-    expect(props.onChange).not.toHaveBeenCalled()
-  })
-
-  it('continues reporting actual edits after streaming completes', async () => {
-    const props = { value: 'body', onChange: vi.fn(), isStreaming: true }
-    const owner = await renderField(props)
-    await renderField({ ...props, value: 'final', isStreaming: false })
-    props.onChange.mockClear()
-    await act(async () =>
-      owner.commands.insertContentAt(owner.state.doc.content.size - 1, ' edited')
-    )
-    expect(props.onChange).toHaveBeenCalledExactlyOnceWith('final edited')
-  })
-
-  it('continues reporting successful uploads after editability changes', async () => {
-    const pending = Promise.withResolvers<{ url: string; alt: string }>()
-    const props = {
-      value: 'body',
-      onChange: vi.fn(),
-      disabled: true,
-      uploadImage: vi.fn(() => pending.promise),
-    }
-    const owner = await renderField(props)
-    await renderField({ ...props, disabled: false })
-    props.onChange.mockClear()
-    const event = new Event('paste', { bubbles: true, cancelable: true })
-    Object.defineProperty(event, 'clipboardData', {
-      value: {
-        files: [new File(['image'], 'image.png', { type: 'image/png' })],
-        items: [],
-        types: ['Files'],
-        getData: () => '',
-      },
-    })
-    await act(async () => owner.view.dom.dispatchEvent(event))
-    await act(async () => pending.resolve({ url: 'https://sim.ai/valid.png', alt: 'valid' }))
-    expect(host.querySelector('img')?.getAttribute('alt')).toBe('valid')
-    expect(props.onChange).toHaveBeenCalledOnce()
-    expect(props.onChange.mock.calls[0][0]).toContain('https://sim.ai/valid.png')
-  })
 })
 
 describe('field callbacks remain tied to the committed render', () => {

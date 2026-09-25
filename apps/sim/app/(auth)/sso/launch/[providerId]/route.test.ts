@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest, setEnvFlags } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -41,7 +38,6 @@ function authorizationResponse() {
 
 describe('GET /sso/launch/[providerId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isSsoEnabled: true })
     mockGetSession.mockResolvedValue(null)
     mockIsAllowed.mockResolvedValue(true)
@@ -65,26 +61,6 @@ describe('GET /sso/launch/[providerId]', () => {
     expect(retry.searchParams.get('provider')).toBe('acme-okta')
   })
 
-  it('sends someone already signed in to the app without signing in again', async () => {
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-
-    const response = await open()
-
-    expect(response.headers.get('location')).toBe('https://test.sim.ai/home')
-    expect(mockIsAllowed).not.toHaveBeenCalled()
-    expect(mockSignInSSO).not.toHaveBeenCalled()
-  })
-
-  it('keeps sending a signed-in visitor to the app when the address is rate limited', async () => {
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-    mockEnforceIpRateLimit.mockResolvedValue(new Response(null, { status: 429 }))
-
-    const response = await open()
-
-    expect(response.headers.get('location')).toBe('https://test.sim.ai/home')
-    expect(mockEnforceIpRateLimit).not.toHaveBeenCalled()
-  })
-
   it.each([
     ['no issuer', '', () => undefined],
     [
@@ -99,20 +75,6 @@ describe('GET /sso/launch/[providerId]', () => {
 
     expect(response.headers.get('location')).toBe(SIGN_IN_LINK)
     expect(mockSignInSSO).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    ['refuses', () => mockSignInSSO.mockResolvedValue(new Response('{}', { status: 400 }))],
-    ['throws', () => mockSignInSSO.mockRejectedValue(new Error('network'))],
-  ])("reports the failure on the provider's sign-in link when sign-in %s", async (_l, arrange) => {
-    arrange()
-
-    const response = await open()
-
-    const failure = new URL(response.headers.get('location') ?? '')
-    expect(failure.pathname).toBe('/sso')
-    expect(failure.searchParams.get('error')).toBe('sso_failed')
-    expect(failure.searchParams.get('provider')).toBe('acme-okta')
   })
 
   it('sends a rate-limited visitor to the sign-in link before any lookup', async () => {

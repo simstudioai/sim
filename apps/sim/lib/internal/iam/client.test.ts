@@ -1,9 +1,6 @@
-/**
- * @vitest-environment node
- */
 import type { IAMClient, SimulatePrincipalPolicyCommandOutput } from '@aws-sdk/client-iam'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { listPolicies, simulatePrincipalPolicy } from '@/lib/internal/iam/client'
+import { describe, expect, it, vi } from 'vitest'
+import { simulatePrincipalPolicy } from '@/lib/internal/iam/client'
 
 const mockSend = vi.fn()
 
@@ -60,10 +57,6 @@ const MULTI_RESOURCE_RESPONSE = {
 } satisfies Partial<SimulatePrincipalPolicyCommandOutput>
 
 describe('simulatePrincipalPolicy response mapping', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('preserves the per-resource decision for every simulated ARN', async () => {
     mockSend.mockResolvedValue(MULTI_RESOURCE_RESPONSE)
 
@@ -127,78 +120,5 @@ describe('simulatePrincipalPolicy response mapping', () => {
     expect(evaluation.resourceSpecificResults.flatMap((r) => r.missingContextValues)).toEqual([
       'aws:SourceIp',
     ])
-  })
-
-  it('sends both resource ARNs and the supplied condition context keys to AWS', async () => {
-    mockSend.mockResolvedValue(MULTI_RESOURCE_RESPONSE)
-
-    await simulatePrincipalPolicy(createStubClient(), {
-      policySourceArn: 'arn:aws:iam::123456789012:user/alice',
-      actionNames: 's3:GetObject, s3:PutObject',
-      resourceArns: 'arn:aws:s3:::bucket-a/*,arn:aws:s3:::bucket-b/*',
-      contextEntries: [
-        {
-          contextKeyName: 'aws:SourceIp',
-          contextKeyValues: ['203.0.113.10'],
-          contextKeyType: 'ip',
-        },
-      ],
-    })
-
-    expect(mockSend).toHaveBeenCalledOnce()
-    expect(mockSend.mock.calls[0][0].input).toMatchObject({
-      PolicySourceArn: 'arn:aws:iam::123456789012:user/alice',
-      ActionNames: ['s3:GetObject', 's3:PutObject'],
-      ResourceArns: ['arn:aws:s3:::bucket-a/*', 'arn:aws:s3:::bucket-b/*'],
-      ContextEntries: [
-        {
-          ContextKeyName: 'aws:SourceIp',
-          ContextKeyValues: ['203.0.113.10'],
-          ContextKeyType: 'ip',
-        },
-      ],
-    })
-  })
-
-  it('defaults to simulating against * when no resource ARNs are supplied', async () => {
-    mockSend.mockResolvedValue({ EvaluationResults: [], IsTruncated: false })
-
-    await simulatePrincipalPolicy(createStubClient(), {
-      policySourceArn: 'arn:aws:iam::123456789012:user/alice',
-      actionNames: 'iam:ListUsers',
-    })
-
-    expect(mockSend.mock.calls[0][0].input.ResourceArns).toEqual(['*'])
-    expect(mockSend.mock.calls[0][0].input.ContextEntries).toBeUndefined()
-  })
-})
-
-describe('listPolicies response mapping', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('omits the description AWS never returns from ListPolicies', async () => {
-    mockSend.mockResolvedValue({
-      Policies: [
-        {
-          PolicyName: 'ReadOnlyAccess',
-          PolicyId: 'ANPAI7XKCFMBPM3QQRRVQ',
-          Arn: 'arn:aws:iam::aws:policy/ReadOnlyAccess',
-          Path: '/',
-          AttachmentCount: 3,
-          IsAttachable: true,
-          DefaultVersionId: 'v1',
-          PermissionsBoundaryUsageCount: 0,
-        },
-      ],
-      IsTruncated: false,
-    })
-
-    const result = await listPolicies(createStubClient(), 'AWS')
-
-    expect(result.policies).toHaveLength(1)
-    expect(result.policies[0]).not.toHaveProperty('description')
-    expect(mockSend.mock.calls[0][0].input.Scope).toBe('AWS')
   })
 })

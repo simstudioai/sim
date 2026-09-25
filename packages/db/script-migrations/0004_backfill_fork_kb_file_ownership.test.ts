@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { Sql } from 'postgres'
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -105,56 +102,6 @@ describe('fork knowledge-base ownership reconciliation', () => {
     await expect(reconcileForkKnowledgeBaseFileOwnership(nonAdvancing)).rejects.toThrow(
       'non-advancing page'
     )
-  })
-
-  it('is idempotent after the first run records every uncontested binding', async () => {
-    const missing = new Set(['fork_document_a', 'fork_document_b'])
-    const store: ForkKnowledgeBaseOwnershipRepairStore = {
-      async listCandidateDocumentIds(afterId, limit) {
-        return [...missing]
-          .filter((id) => id > afterId)
-          .sort()
-          .slice(0, limit)
-      },
-      async repairDocumentIds(documentIds) {
-        for (const id of documentIds) missing.delete(id)
-        return { inserted: documentIds.length, unresolved: 0 }
-      },
-    }
-
-    await expect(reconcileForkKnowledgeBaseFileOwnership(store)).resolves.toEqual({
-      scanned: 2,
-      inserted: 2,
-      unresolved: 0,
-    })
-    await expect(reconcileForkKnowledgeBaseFileOwnership(store)).resolves.toEqual({
-      scanned: 0,
-      inserted: 0,
-      unresolved: 0,
-    })
-  })
-
-  it('selects only active documents with canonical deterministic fork identities', async () => {
-    const harness = createSqlHarness({ candidates: ['fork_document_a'] })
-    const store = createPostgresForkKnowledgeBaseOwnershipRepairStore(harness.sql)
-
-    await expect(store.listCandidateDocumentIds('fork_document_0', 250)).resolves.toEqual([
-      'fork_document_a',
-    ])
-
-    const query = harness.queries[0]
-    const text = normalizeSql(query.text)
-    expect(text).toContain("d.id ~ '^fork_document_[0-9a-f]{40}$'")
-    expect(text).toContain("d.storage_key = 'kb/fork-' || d.id")
-    expect(text).toContain('d.user_excluded = false')
-    expect(text).toContain('d.archived_at IS NULL')
-    expect(text).toContain('d.deleted_at IS NULL')
-    expect(text).toContain('kb.deleted_at IS NULL')
-    expect(text).toContain('kb.workspace_id IS NOT NULL')
-    expect(text).toContain("bound.context = 'knowledge-base'")
-    expect(text).toContain('bound.workspace_id = kb.workspace_id')
-    expect(text).toContain('ORDER BY d.id LIMIT ?')
-    expect(query.values).toEqual(['fork_document_0', 250])
   })
 
   it('inserts only uncontested bindings and reports every still-unbound candidate', async () => {

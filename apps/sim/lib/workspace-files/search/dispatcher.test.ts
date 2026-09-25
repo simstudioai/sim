@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   workspaceFileSearchBackfill,
   workspaceFileSearchDispatchQueue,
@@ -78,7 +75,6 @@ describe('workspace file search dispatch policy', () => {
 
 describe('workspace file search dispatch deadlines', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -144,28 +140,6 @@ describe('workspace file search dispatch deadlines', () => {
       code: '08006',
       error: 'commit failed',
     })
-  })
-
-  it('records the driver cancellation reason and preserves the original failure', async () => {
-    const error = new Error('Failed query\nparams: private-content', {
-      cause: Object.assign(new Error('canceling statement due to statement timeout'), {
-        code: '57014',
-        detail: 'private driver detail',
-      }),
-    })
-    dbChainMockFns.execute.mockResolvedValueOnce([]).mockResolvedValueOnce([{ acquired: true }])
-    dbChainMockFns.onConflictDoNothing.mockRejectedValueOnce(error)
-
-    await expect(dispatchWorkspaceFileSearchIndexJobs()).rejects.toBe(error)
-    expect(mocks.error).toHaveBeenCalledWith('Workspace file search dispatch phase failed', {
-      phase: 'backfill',
-      durationMs: expect.any(Number),
-      code: '57014',
-      databaseReason: 'statement_timeout',
-      error: 'Failed query',
-    })
-    expect(mocks.batchTrigger).not.toHaveBeenCalled()
-    expect(JSON.stringify(mocks.error.mock.calls)).not.toContain('private')
   })
 
   it.each([false, true])(

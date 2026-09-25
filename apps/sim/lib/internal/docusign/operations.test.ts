@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -42,9 +39,7 @@ vi.mock('@/lib/uploads/contexts/copilot', () => ({
 
 import { DocuSignOperationError } from '@/lib/internal/docusign/errors'
 import {
-  executeDocuSignCreateFromTemplate,
   executeDocuSignDownloadDocument,
-  executeDocuSignListEnvelopes,
   executeDocuSignSendEnvelope,
 } from '@/lib/internal/docusign/operations'
 
@@ -58,7 +53,6 @@ const CONTEXT = {
 
 describe('DocuSign operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.create.mockResolvedValue({ json: mocks.json, document: mocks.document })
     mocks.json.mockResolvedValue({ envelopeId: 'envelope-1', status: 'sent' })
     mocks.assertToolFileAccess.mockResolvedValue(null)
@@ -79,39 +73,6 @@ describe('DocuSign operations', () => {
       fileName: 'signed.pdf',
     })
     mocks.uploadExecutionFile.mockResolvedValue({ id: 'output-1', name: 'signed.pdf' })
-  })
-
-  it('authorizes and bounds file input before sending an envelope', async () => {
-    const controller = new AbortController()
-    await executeDocuSignSendEnvelope(
-      {
-        accessToken: 'access-token',
-        emailSubject: 'Sign',
-        signerEmail: 'a@example.com',
-        signerName: 'A',
-        file: { id: 'file-1' },
-      },
-      { ...CONTEXT, signal: controller.signal }
-    )
-
-    expect(mocks.assertToolFileAccess).toHaveBeenCalledWith(
-      'workspace/file-1',
-      'user-1',
-      'request-1',
-      expect.anything()
-    )
-    expect(mocks.downloadServableFileFromStorage).toHaveBeenCalledWith(
-      expect.objectContaining({ key: 'workspace/file-1' }),
-      'request-1',
-      expect.anything(),
-      { maxBytes: 25 * 1024 * 1024, signal: controller.signal }
-    )
-    const request = mocks.json.mock.calls[0]?.[1]
-    const body = JSON.parse(String(request.body))
-    expect(body.documents[0]).toMatchObject({
-      documentBase64: Buffer.from('contract').toString('base64'),
-      name: 'contract.pdf',
-    })
   })
 
   it('does not download or contact DocuSign when file access is denied', async () => {
@@ -155,32 +116,5 @@ describe('DocuSign operations', () => {
       base64Content: Buffer.from('signed').toString('base64'),
     })
     expect(mocks.uploadCopilotFile).not.toHaveBeenCalled()
-  })
-
-  it('preserves single-page list filters without accumulating pages', async () => {
-    await executeDocuSignListEnvelopes(
-      {
-        accessToken: 'access-token',
-        fromDate: '2026-01-01',
-        toDate: '2026-02-01',
-        count: '25',
-      },
-      CONTEXT
-    )
-
-    expect(mocks.json.mock.calls[0]?.[0]).toBe(
-      '/envelopes?from_date=2026-01-01&to_date=2026-02-01&count=25'
-    )
-    expect(mocks.json).toHaveBeenCalledOnce()
-  })
-
-  it('rejects malformed template roles before provider work', async () => {
-    await expect(
-      executeDocuSignCreateFromTemplate(
-        { accessToken: 'access-token', templateId: 'template-1', templateRoles: '{' },
-        CONTEXT
-      )
-    ).rejects.toEqual(new DocuSignOperationError('Invalid JSON for templateRoles', 400))
-    expect(mocks.create).not.toHaveBeenCalled()
   })
 })

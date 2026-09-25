@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { openPdf, destroy } = vi.hoisted(() => ({ openPdf: vi.fn(), destroy: vi.fn() }))
@@ -11,7 +8,6 @@ import { countMistralPdfPages } from '@/lib/internal/mistral/page-count'
 describe('Mistral PDF page measurement', () => {
   const bytes = Buffer.from('%PDF-1.7 page-count fixture')
   beforeEach(() => {
-    vi.clearAllMocks()
     destroy.mockResolvedValue(undefined)
     openPdf.mockResolvedValue({ numPages: 3, destroy })
   })

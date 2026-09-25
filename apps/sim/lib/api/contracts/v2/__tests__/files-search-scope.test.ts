@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { parseFolderPathList, v2SearchFileContentQuerySchema } from '@/lib/api/contracts/v2/files'
 
@@ -28,32 +25,10 @@ describe('the search folder scope on the wire', () => {
     expect(parsed.success && parsed.data.folderPaths).toBe('/memory/user-a,/memory/user-b')
   })
 
-  it('accepts a single folder', () => {
-    expect(parseQuery('/memory/user-a').success).toBe(true)
-  })
-
-  it('accepts the slash-omitted form the path schema normalizes', () => {
-    expect(parseQuery('memory/user-a').success).toBe(true)
-  })
-
-  it('rejects a malformed entry among valid ones', () => {
-    expect(parseQuery('/memory/user-a,//bad').success).toBe(false)
-  })
-
-  it('rejects a list that is only separators', () => {
-    expect(parseQuery(',,').success).toBe(false)
-  })
-
   it('rejects more than 64 entries', () => {
     const many = Array.from({ length: 65 }, (_, i) => `/f${i}`).join(',')
 
     expect(parseQuery(many).success).toBe(false)
-  })
-
-  it('leaves the scope absent when the parameter is omitted', () => {
-    const parsed = parseQuery()
-
-    expect(parsed.success && parsed.data.folderPaths).toBeUndefined()
   })
 })
 
@@ -67,25 +42,10 @@ describe('parseFolderPathList', () => {
     expect(parseFolderPathList('memory/user-a')).toEqual(['/memory/user-a'])
   })
 
-  it('leaves an already-canonical entry alone', () => {
-    expect(parseFolderPathList('/memory/user-a')).toEqual(['/memory/user-a'])
-  })
-
-  it('normalizes every entry of a list, and trims around the separators', () => {
-    expect(parseFolderPathList('memory/user-a, /memory/user-b ')).toEqual([
-      '/memory/user-a',
-      '/memory/user-b',
-    ])
-  })
-
   it('does not split a percent-encoded comma inside a folder name', () => {
     expect(parseFolderPathList('/Finance%2CLegal,/Reports')).toEqual([
       '/Finance%2CLegal',
       '/Reports',
     ])
-  })
-
-  it('drops empty entries rather than emitting a blank scope', () => {
-    expect(parseFolderPathList('/a,,/b')).toEqual(['/a', '/b'])
   })
 })

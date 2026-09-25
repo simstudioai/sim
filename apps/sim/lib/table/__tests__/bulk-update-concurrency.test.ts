@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -72,7 +69,6 @@ function row(id: string, data: RowData = { name: id }): { id: string; data: RowD
 
 describe('bulk update concurrency', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.validateRowSize.mockImplementation((data: RowData) =>
       data.concurrentlyInvalid

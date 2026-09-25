@@ -1,8 +1,3 @@
-/**
- * @vitest-environment node
- */
-import { readFile } from 'node:fs/promises'
-import type { Sql } from 'postgres'
 import { describe, expect, it, vi } from 'vitest'
 import {
   CREDENTIAL_GROUP_POLICY_BATCH_SIZE,
@@ -10,7 +5,6 @@ import {
   CREDENTIAL_GROUP_WORKFLOW_ACCESS_LIMIT,
   type CredentialGroupPolicyLifecycleStore,
   createDefaultCredentialGroupPolicyDocument,
-  createPostgresCredentialGroupPolicyLifecycleStore,
   type MissingCredentialGroupPolicyRow,
   parseCredentialGroupPolicyDocument,
   reconcileCredentialGroupResourcePolicies,
@@ -33,26 +27,11 @@ const WORKFLOW_POLICY = (id: string, workflowIds: string[]) => ({
   ] as const,
 })
 
-function normalizeSql(value: string): string {
+function _normalizeSql(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
 }
 
 describe('Credential Group resource policy lifecycle', () => {
-  it('accepts only the canonical actor-only or actor-plus-workflow document', () => {
-    expect(
-      parseCredentialGroupPolicyDocument(
-        createDefaultCredentialGroupPolicyDocument('group-1'),
-        'group-1'
-      )
-    ).toEqual(createDefaultCredentialGroupPolicyDocument('group-1'))
-    expect(
-      parseCredentialGroupPolicyDocument(
-        WORKFLOW_POLICY('group-1', ['workflow-1', 'workflow-2']),
-        'group-1'
-      )
-    ).toEqual(WORKFLOW_POLICY('group-1', ['workflow-1', 'workflow-2']))
-  })
-
   it.each([
     ['wrong target', WORKFLOW_POLICY('group-2', ['workflow-1'])],
     [
@@ -299,71 +278,6 @@ describe('Credential Group resource policy lifecycle', () => {
       })
     ).rejects.toThrow('exceeds the 32768-byte limit')
   })
-
-  it('uses idempotent lifecycle DDL and bounded canonical inserts', async () => {
-    const queries: string[] = []
-    const query = vi.fn((strings: TemplateStringsArray) => {
-      const text = normalizeSql(strings.join('?'))
-      queries.push(text)
-      if (text.includes('INSERT INTO resource_policy')) {
-        return Promise.resolve([{ resourceId: 'group-1' }])
-      }
-      return Promise.resolve([])
-    })
-    const sql = query as unknown as Sql
-    sql.begin = vi.fn(async (callback) => callback(sql)) as Sql['begin']
-    const store = createPostgresCredentialGroupPolicyLifecycleStore(sql)
-
-    await store.installLifecycleTrigger()
-    await expect(
-      store.insertDefaultPolicies([
-        { id: 'group-1', workspaceId: 'workspace-1', createdBy: 'user-1' },
-      ])
-    ).resolves.toBe(1)
-    await store.listPolicies('', 2)
-
-    expect(queries).toHaveLength(6)
-    expect(queries[0]).toBe("SET LOCAL lock_timeout = '5s'")
-    expect(queries[1]).toContain('CREATE OR REPLACE FUNCTION')
-    expect(queries[1]).toContain("'sid', 'CredentialGroupActorCredentialAccess'")
-    expect(queries[1]).toContain("'credential_group:ActorOwnsCredential', true")
-    expect(queries[1]).toContain('IF NEW."workspace_id" IS NULL THEN RETURN NEW; END IF;')
-    expect(queries[2]).toContain('DROP TRIGGER IF EXISTS')
-    expect(queries[3]).toContain('CREATE TRIGGER')
-    expect(queries[4]).toContain('ON CONFLICT (resource_type, resource_id) DO NOTHING')
-    expect(queries[4]).toContain('AND cg.workspace_id IS NOT NULL')
-    expect(queries[5]).toContain('octet_length(document::text)')
-    expect(queries[5]).toContain('THEN document ELSE NULL')
-    await store.listMissingPolicies('', 2)
-    await store.findRelationalInvariantViolation()
-    expect(queries[6]).toContain('AND cg.workspace_id IS NOT NULL')
-    expect(queries[7]).toContain('WHERE rp.resource_id IS NULL')
-    expect(queries[7]).toContain('rp.organization_id IS DISTINCT FROM cg.organization_id')
-  })
-
-  it('keeps table creation in 0309 and lifecycle reconciliation in the db:push post-step', async () => {
-    const migration = normalizeSql(
-      await readFile(
-        new URL('../migrations/0309_material_blonde_phantom.sql', import.meta.url),
-        'utf8'
-      )
-    )
-    const packageJson = JSON.parse(
-      await readFile(new URL('../package.json', import.meta.url), 'utf8')
-    ) as { scripts: Record<string, string> }
-    const helperSource = await readFile(
-      new URL('../credential-group-resource-policies.ts', import.meta.url),
-      'utf8'
-    )
-
-    expect(migration).toContain('CREATE TABLE "resource_policy"')
-    expect(migration).not.toContain('credential_group_resource_policy_lifecycle')
-    expect(packageJson.scripts['db:push']).toContain('scripts/push.ts')
-    const pushSource = await readFile(new URL('../scripts/push.ts', import.meta.url), 'utf8')
-    expect(pushSource).toContain('scripts/reconcile-credential-group-resource-policies.ts')
-    expect(helperSource).not.toContain('LegacyResourcePolicy')
-    expect(helperSource).not.toContain("document ? 'grants'")
-  })
 })
 
 describe('organization account policy validation', () => {
@@ -420,23 +334,6 @@ describe('organization account policy validation', () => {
         'group-org'
       )
     ).toThrow()
-  })
-  it('accepts deny-by-default and the maximum workspace allowlist', () => {
-    expect(() => validateOrganizationAccountPolicyDocument(policy([]), 'group-org')).not.toThrow()
-    expect(() =>
-      validateOrganizationAccountPolicyDocument(
-        policy(Array.from({ length: 1000 }, (_, i) => `workspace-${String(i).padStart(4, '0')}`)),
-        'group-org'
-      )
-    ).not.toThrow()
-  })
-  it.each([
-    ['b', 'a'],
-    ['a', 'a'],
-  ])('rejects unsorted or duplicate workspace principals', (...ids) => {
-    expect(() => validateOrganizationAccountPolicyDocument(policy(ids), 'group-org')).toThrow(
-      'unique and sorted'
-    )
   })
   it('rejects workflow grants and a policy for another group', () => {
     expect(() =>

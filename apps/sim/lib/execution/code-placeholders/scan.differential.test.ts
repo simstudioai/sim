@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Differential test: the placeholder scan must accept exactly what the regex it
  * replaced accepted.
  *

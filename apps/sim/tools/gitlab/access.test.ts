@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { gitlabAddMemberTool } from '@/tools/gitlab/add_member'
 import { gitlabApproveAccessRequestTool } from '@/tools/gitlab/approve_access_request'

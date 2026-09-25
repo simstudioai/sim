@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetDbChainMock } from '@sim/testing'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -155,7 +152,6 @@ describe('draining another dispatch’s pre-stamped marker', () => {
   }, 60_000)
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.getRowSummaryById.mockImplementation((tableId, rowId, workspaceId) =>
       mocks.getRowById(tableId, rowId, workspaceId)

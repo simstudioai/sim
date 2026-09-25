@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { StreamingExecution } from '@/executor/types'
 import { executeGeminiRequest } from '@/providers/gemini/core'
 
@@ -18,10 +15,6 @@ vi.mock('@/providers', () => ({
 }))
 
 describe('executeGeminiRequest settled stream projection', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('keeps the required Gemini 2 schema extraction but does not regenerate for streaming', async () => {
     mockExecuteTool.mockResolvedValue({ success: true, output: { value: 'tool result' } })
 

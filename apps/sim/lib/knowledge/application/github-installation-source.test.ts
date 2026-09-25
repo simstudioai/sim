@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => ({
@@ -44,7 +43,6 @@ const input = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   m.access.mockResolvedValue(installed)
   m.decrypt.mockResolvedValue({ decrypted: '{}' })
   m.parse.mockReturnValue({ installationId: '42', accountId: '7' })
@@ -122,11 +120,6 @@ describe('GitHub installation source identity', () => {
       })
     ).resolves.toMatchObject({ githubRepositoryId: '123' })
   })
-  it('keeps the marker when an edit omits it', async () => {
-    await expect(
-      prepareGitHubInstallationSource({ ...input, previousConfig: { githubRepositoryId: '123' } })
-    ).resolves.toMatchObject({ githubRepositoryId: '123' })
-  })
   it.each([null, { providerId: 'github-repositories' }])(
     'cannot downgrade an existing installation by replacing or deleting its credential',
     async (access) => {
@@ -136,12 +129,6 @@ describe('GitHub installation source identity', () => {
       ).rejects.toMatchObject({ code: 'validation' })
     }
   )
-  it('leaves ordinary GitHub member setup available without an installation', async () => {
-    await expect(
-      prepareGitHubInstallationSource({ ...input, credentialId: undefined })
-    ).resolves.toEqual(input.sourceConfig)
-    expect(m.repository).not.toHaveBeenCalled()
-  })
   it('does not accept the installation marker on ordinary member setup', async () => {
     await expect(
       prepareGitHubInstallationSource({

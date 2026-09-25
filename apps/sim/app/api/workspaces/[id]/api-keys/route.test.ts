@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   authMockFns,
   createMockRequest,
@@ -51,7 +48,6 @@ const mockGetSession = authMockFns.mockGetSession
 
 describe('GET /api/workspaces/[id]/api-keys', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetSession.mockResolvedValue({ user: { id: 'reader-1' }, session: { id: 'session' } })
     mockGetWorkspaceById.mockResolvedValue({ id: 'workspace-1' })

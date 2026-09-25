@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { resetDbChainMock } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   assertEnterpriseReconciliationLeaseHeld,
   type EnterpriseReconciliationLease,
@@ -13,7 +10,6 @@ import {
 import type { DbOrTx } from '@/lib/db/types'
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
 })
 

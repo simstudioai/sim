@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import {
   createMockRequest,
   dbChainMockFns,
@@ -35,7 +31,6 @@ import {
   registerManualExecutionAborter,
   unregisterManualExecutionAborter,
 } from '@/lib/execution/manual-cancellation'
-import { WORKFLOW_NOT_DEPLOYED_CODE } from '@/lib/execution/preprocessing'
 import {
   PRIVATE_SECRET_PROVENANCE_BUNDLE_V1,
   PRIVATE_SECRET_PROVENANCE_FIELD,
@@ -450,7 +445,6 @@ describe('workflow execute async route', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnv({ NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
     mockGenerateId.mockReset().mockReturnValue('execution-123')
@@ -562,64 +556,6 @@ describe('workflow execute async route', () => {
     expect(executionOptions.snapshot.input).toEqual({ input: { token: 'secret-value' } })
     expect(executionOptions.snapshot.input).not.toHaveProperty(PRIVATE_SECRET_PROVENANCE_FIELD)
   })
-
-  it('preserves headerless legacy internal workflow execution', async () => {
-    const caller = EXECUTION_CALLERS[4]
-    configureExecutionCaller(caller)
-
-    const response = await POST(createCallerExecutionRequest(caller, undefined, 'sync'), {
-      params: Promise.resolve({ id: 'workflow-1' }),
-    })
-
-    expect(response.status).toBe(200)
-    const executionOptions = mockExecuteWorkflowCore.mock.calls[0]?.[0]
-    expect(executionOptions.trustedInitialResolvedSecretTraceProvenance).toBeUndefined()
-    expect(executionOptions.snapshot.input).toEqual({ hello: 'world' })
-  })
-
-  it('runs authenticated incomplete workflow input with incomplete downstream lineage', async () => {
-    configureExecutionCaller(EXECUTION_CALLERS[4])
-
-    const response = await POST(createInternalProvenanceRequest({ bundleComplete: false }), {
-      params: Promise.resolve({ id: 'workflow-1' }),
-    })
-
-    expect(response.status).toBe(200)
-    const executionOptions = mockExecuteWorkflowCore.mock.calls[0]?.[0]
-    expect(executionOptions).toMatchObject({
-      trustedInitialResolvedSecretTraceProvenance: {
-        version: 1,
-        complete: false,
-        entries: [],
-      },
-    })
-    expect(executionOptions.snapshot.input).toEqual({ input: { token: 'secret-value' } })
-    expect(executionOptions.snapshot.input).not.toHaveProperty(PRIVATE_SECRET_PROVENANCE_FIELD)
-  })
-
-  it.each([
-    { name: 'standard stream', useDraftState: false },
-    { name: 'manual event stream', useDraftState: true },
-  ])(
-    'imports authenticated workflow input provenance into $name execution',
-    async ({ useDraftState }) => {
-      configureExecutionCaller(EXECUTION_CALLERS[4])
-
-      const response = await POST(
-        createInternalProvenanceRequest({ stream: true, useDraftState }),
-        { params: Promise.resolve({ id: 'workflow-1' }) }
-      )
-      await response.text()
-
-      expect(response.status).toBe(200)
-      const executionOptions = mockExecuteWorkflowCore.mock.calls[0]?.[0]
-      expect(executionOptions).toMatchObject({
-        trustedInitialResolvedSecretTraceProvenance: WORKFLOW_INPUT_PROVENANCE,
-      })
-      expect(executionOptions.snapshot.input).toEqual({ input: { token: 'secret-value' } })
-      expect(executionOptions.snapshot.input).not.toHaveProperty(PRIVATE_SECRET_PROVENANCE_FIELD)
-    }
-  )
 
   it('queues authenticated workflow input provenance without exposing the private sidecar as input', async () => {
     configureExecutionCaller(EXECUTION_CALLERS[4])
@@ -811,44 +747,6 @@ describe('workflow execute async route', () => {
       releaseCleanup?.()
       unregisterManualExecutionAborter('unrelated-execution')
     }
-  })
-
-  it('executes a selected trigger as a fresh authenticated draft run', async () => {
-    const response = await POST(
-      createMockRequest(
-        'POST',
-        {
-          stream: true,
-          input: { message: 'hello' },
-          startBlockId: 'start',
-          triggerType: 'manual',
-          useDraftState: true,
-          isClientSession: true,
-        },
-        {
-          'Content-Type': 'application/json',
-          Cookie: 'session=value',
-        }
-      ),
-      { params: Promise.resolve({ id: 'workflow-1' }) }
-    )
-    await response.text()
-
-    expect(response.status).toBe(200)
-    expect(mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalledWith({
-      workflowId: 'workflow-1',
-      userId: 'session-user-1',
-      action: 'write',
-    })
-    const executionArgs = mockExecuteWorkflowCore.mock.calls[0][0]
-    expect(executionArgs.runFromBlock).toBeUndefined()
-    expect(executionArgs.snapshot.metadata).toMatchObject({
-      triggerType: 'manual',
-      triggerBlockId: 'start',
-      useDraftState: true,
-      isClientSession: true,
-      sessionUserId: 'session-user-1',
-    })
   })
 
   it('keeps a manual execution alive when its browser SSE observer detaches', async () => {
@@ -1078,45 +976,6 @@ describe('workflow execute async route', () => {
     )
   })
 
-  it('retains a bound Copilot workflow claim when preprocessing created a durable error log', async () => {
-    mockPreprocessExecution.mockResolvedValueOnce({
-      success: false,
-      error: { message: 'Not admitted', statusCode: 402 },
-    })
-    mockHasDurableExecutionOwner.mockResolvedValueOnce(true)
-
-    const response = await POST(createBoundCopilotExecutionRequest(), {
-      params: Promise.resolve({ id: 'workflow-1' }),
-    })
-
-    expect(response.status).toBe(402)
-    expect(mockReleaseWorkflowToolExecutionClaim).not.toHaveBeenCalled()
-    expect(mockReleaseExecutionIdClaim).not.toHaveBeenCalled()
-  })
-
-  it('binds a workflow execution after its page-hide confirmation detached the waiter', async () => {
-    mockGetAsyncToolCall.mockResolvedValueOnce({
-      toolCallId: 'copilot-tool-1',
-      runId: 'copilot-run-1',
-      toolName: 'run_workflow',
-      args: { workflowId: 'workflow-1' },
-      status: 'delivered',
-      claimedBy: null,
-    })
-
-    const response = await POST(createBoundCopilotExecutionRequest(), {
-      params: Promise.resolve({ id: 'workflow-1' }),
-    })
-
-    expect(response.status).toBe(200)
-    await response.text()
-    expect(mockClaimWorkflowToolExecution).toHaveBeenCalledWith(
-      'copilot-tool-1',
-      'execution-123',
-      'client'
-    )
-  })
-
   it('binds an approved pending workflow call created by the previous release', async () => {
     mockGetAsyncToolCall.mockResolvedValueOnce({
       toolCallId: 'copilot-tool-1',
@@ -1297,63 +1156,6 @@ describe('workflow execute async route', () => {
     expect(mockEnqueue).not.toHaveBeenCalled()
   })
 
-  it('rejects a bound async run when the workflow has not been deployed', async () => {
-    mockPreprocessExecution.mockResolvedValueOnce({
-      success: false,
-      error: {
-        message: 'Workflow is not deployed',
-        statusCode: 403,
-        code: WORKFLOW_NOT_DEPLOYED_CODE,
-      },
-    })
-    const request = createBoundCopilotExecutionRequest({ stream: false })
-    request.headers.set('X-Execution-Mode', 'async')
-
-    const response = await POST(request, {
-      params: Promise.resolve({ id: 'workflow-1' }),
-    })
-
-    expect(response.status).toBe(403)
-    await expect(response.json()).resolves.toEqual({
-      error: 'Async execution requires the workflow to be deployed first',
-      code: 'ASYNC_WORKFLOW_DEPLOYMENT_MISSING',
-    })
-    expect(mockReleaseExecutionSlot).toHaveBeenCalledWith('execution-123')
-    expect(mockReleaseWorkflowToolExecutionClaim).toHaveBeenCalledWith(
-      'copilot-tool-1',
-      'execution-123'
-    )
-    expect(mockEnqueue).not.toHaveBeenCalled()
-    expect(mockCheckNeedsRedeployment).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    [
-      'cancelled',
-      {
-        success: false,
-        status: 'cancelled',
-        output: {},
-        logs: [],
-        metadata: { duration: 1 },
-      },
-    ],
-    ['error', new Error('execution failed')],
-  ])('waits for bound post-execution work on %s terminal paths', async (_caseName, outcome) => {
-    if (outcome instanceof Error) {
-      mockExecuteWorkflowCore.mockRejectedValueOnce(outcome)
-    } else {
-      mockExecuteWorkflowCore.mockResolvedValueOnce(outcome)
-    }
-
-    const response = await POST(createBoundCopilotExecutionRequest(), {
-      params: Promise.resolve({ id: 'workflow-1' }),
-    })
-    await response.text()
-
-    expect(loggingSessionMockFns.mockWaitForPostExecution).toHaveBeenCalledTimes(1)
-  })
-
   it('reuses raw workflow input by execution ID without returning it to the client', async () => {
     const sourceInput = { token: 'raw-secret-1234', nested: { value: 42 } }
     queueTableRows(schemaMock.workflowExecutionLogs, [
@@ -1387,69 +1189,6 @@ describe('workflow execute async route', () => {
     )
   })
 
-  it('recovers legacy starter input by execution ID without returning it to the client', async () => {
-    const sourceInput = { token: 'legacy-retry-input', nested: { value: 42 } }
-    queueTableRows(schemaMock.workflowExecutionLogs, [
-      {
-        executionId: 'source-execution',
-        workflowId: 'workflow-1',
-        workspaceId: 'workspace-1',
-        executionData: {
-          executionState: {
-            blockStates: {
-              start: {
-                output: sourceInput,
-                executed: false,
-                executionTime: 0,
-              },
-            },
-          },
-        },
-      },
-    ])
-    const request = createMockRequest(
-      'POST',
-      { inputFromExecutionId: 'source-execution' },
-      {
-        'Content-Type': 'application/json',
-        'X-Execution-Mode': 'async',
-        Cookie: 'session=value',
-      }
-    )
-
-    const response = await POST(request, { params: Promise.resolve({ id: 'workflow-1' }) })
-    const responseBody = await response.json()
-
-    expect(response.status).toBe(202)
-    expect(responseBody).not.toHaveProperty('input')
-    expect(JSON.stringify(responseBody)).not.toContain('legacy-retry-input')
-    expect(mockEnqueue).toHaveBeenCalledWith(
-      'workflow-execution',
-      expect.objectContaining({ input: sourceInput }),
-      expect.any(Object)
-    )
-  })
-
-  it('rejects client input alongside a stored execution input reference', async () => {
-    const response = await POST(
-      createMockRequest(
-        'POST',
-        {
-          input: { replacement: true },
-          inputFromExecutionId: 'source-execution',
-        },
-        { 'Content-Type': 'application/json', Cookie: 'session=value' }
-      ),
-      { params: Promise.resolve({ id: 'workflow-1' }) }
-    )
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toEqual({
-      error: 'Provide either input or inputFromExecutionId, not both',
-    })
-    expect(mockEnqueue).not.toHaveBeenCalled()
-  })
-
   it('rejects stored execution input references from external callers', async () => {
     mockCheckHybridAuth.mockResolvedValue({
       success: true,
@@ -1471,100 +1210,6 @@ describe('workflow execute async route', () => {
     await expect(response.json()).resolves.toEqual({
       error: 'Stored execution input can only be reused by an authenticated session',
     })
-    expect(mockEnqueue).not.toHaveBeenCalled()
-  })
-
-  it('queues async execution with matching correlation metadata', async () => {
-    const req = createMockRequest(
-      'POST',
-      { input: { hello: 'world' } },
-      {
-        'Content-Type': 'application/json',
-        'X-Execution-Mode': 'async',
-      }
-    )
-    const params = Promise.resolve({ id: 'workflow-1' })
-
-    const response = await POST(req, { params })
-    const body = await response.json()
-
-    expect(response.status).toBe(202)
-    expect(body.executionId).toBe('execution-123')
-    expect(body.jobId).toBe('job-123')
-    expect(body.statusUrl).toBe('http://localhost:3000/api/jobs/job-123')
-    expect(mockClaimExecutionId).toHaveBeenCalledWith('execution-123')
-    expect(mockEnqueue).toHaveBeenCalledWith(
-      'workflow-execution',
-      expect.objectContaining({
-        workflowId: 'workflow-1',
-        userId: 'actor-1',
-        workspaceId: 'workspace-1',
-        executionId: 'execution-123',
-        executionMode: 'async',
-        admissionCompleted: true,
-        billingAttribution,
-      }),
-      expect.objectContaining({
-        jobId: 'workflow-execution:execution-123',
-        metadata: expect.objectContaining({
-          workflowId: 'workflow-1',
-          userId: 'actor-1',
-          workspaceId: 'workspace-1',
-          correlation: expect.objectContaining({
-            executionId: 'execution-123',
-            requestId: 'req-12345678',
-            source: 'workflow',
-            workflowId: 'workflow-1',
-            triggerType: 'manual',
-          }),
-        }),
-      })
-    )
-  })
-
-  it('runs database-inline workflow jobs through the queue cancellation signal', async () => {
-    mockShouldExecuteInline.mockReturnValue(true)
-    const response = await POST(
-      createMockRequest(
-        'POST',
-        { input: { hello: 'world' } },
-        { 'Content-Type': 'application/json', 'X-Execution-Mode': 'async' }
-      ),
-      { params: Promise.resolve({ id: 'workflow-1' }) }
-    )
-    const options = mockEnqueue.mock.calls[0]?.[2] as {
-      runner?: (payload: unknown, signal: AbortSignal) => Promise<unknown>
-    }
-    const controller = new AbortController()
-
-    expect(response.status).toBe(202)
-    expect(options.runner).toBeTypeOf('function')
-    await options.runner?.({}, controller.signal)
-    expect(mockExecuteWorkflowJob).toHaveBeenCalledWith(
-      expect.objectContaining({ executionId: 'execution-123', workflowId: 'workflow-1' }),
-      controller.signal
-    )
-  })
-
-  it('rejects the execution timeout header for a synchronous run', async () => {
-    const response = await POST(
-      createMockRequest(
-        'POST',
-        { input: { hello: 'world' } },
-        {
-          'Content-Type': 'application/json',
-          'X-Execution-Timeout-Seconds': '60',
-          Cookie: 'session=value',
-        }
-      ),
-      { params: Promise.resolve({ id: 'workflow-1' }) }
-    )
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({
-      error: 'X-Execution-Timeout-Seconds is supported only for async runs',
-    })
-    expect(mockPreprocessExecution).not.toHaveBeenCalled()
     expect(mockEnqueue).not.toHaveBeenCalled()
   })
 
@@ -1729,70 +1374,6 @@ describe('workflow execute async route', () => {
     expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
   })
 
-  it('rejects an execution timeout above seven days', async () => {
-    const response = await POST(
-      createMockRequest(
-        'POST',
-        { input: { hello: 'world' } },
-        {
-          'Content-Type': 'application/json',
-          'X-Execution-Mode': 'async',
-          'X-Execution-Timeout-Seconds': '604801',
-          Cookie: 'session=value',
-        }
-      ),
-      { params: Promise.resolve({ id: 'workflow-1' }) }
-    )
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({
-      error: 'Invalid execution timeout header',
-    })
-    expect(mockPreprocessExecution).not.toHaveBeenCalled()
-    expect(mockEnqueue).not.toHaveBeenCalled()
-  })
-
-  it('queues the smaller request timeout resolved against account policy', async () => {
-    mockPreprocessExecution.mockImplementationOnce(async (options) => ({
-      success: true,
-      actorUserId: 'actor-1',
-      workflowRecord: {
-        id: 'workflow-1',
-        userId: 'owner-1',
-        workspaceId: 'workspace-1',
-      },
-      billingAttribution,
-      executionTimeout: {
-        sync: 300_000,
-        async: Math.min(5_400_000, (options.requestedTimeoutSeconds ?? 5_400) * 1000),
-      },
-    }))
-
-    const response = await POST(
-      createMockRequest(
-        'POST',
-        { input: { hello: 'world' } },
-        {
-          'Content-Type': 'application/json',
-          'X-Execution-Mode': 'async',
-          'X-Execution-Timeout-Seconds': '60',
-          Cookie: 'session=value',
-        }
-      ),
-      { params: Promise.resolve({ id: 'workflow-1' }) }
-    )
-
-    expect(response.status).toBe(202)
-    expect(mockPreprocessExecution).toHaveBeenCalledWith(
-      expect.objectContaining({ executionType: 'async', requestedTimeoutSeconds: 60 })
-    )
-    expect(mockEnqueue).toHaveBeenCalledWith(
-      'workflow-execution',
-      expect.objectContaining({ executionTimeoutMs: 60_000 }),
-      expect.objectContaining({ maxDurationSeconds: 360 })
-    )
-  })
-
   it('never lets a request timeout extend the account policy', async () => {
     const response = await POST(
       createMockRequest(
@@ -1819,30 +1400,6 @@ describe('workflow execute async route', () => {
     )
   })
 
-  it('preserves a first-use execution ID supplied by an authenticated session', async () => {
-    const requestedExecutionId = '11111111-1111-4111-8111-111111111111'
-    const response = await POST(createSessionReplayRequest(requestedExecutionId), {
-      params: Promise.resolve({ id: 'workflow-1' }),
-    })
-
-    expect(response.status).toBe(202)
-    await expect(response.json()).resolves.toMatchObject({ executionId: requestedExecutionId })
-    expect(mockClaimExecutionId).toHaveBeenCalledWith(requestedExecutionId)
-    expect(mockPreprocessExecution).toHaveBeenCalledWith(
-      expect.objectContaining({ executionId: requestedExecutionId })
-    )
-    expect(mockEnqueue).toHaveBeenCalledWith(
-      'workflow-execution',
-      expect.objectContaining({
-        executionId: requestedExecutionId,
-        input: { hello: 'world' },
-      }),
-      expect.objectContaining({
-        jobId: `workflow-execution:${requestedExecutionId}`,
-      })
-    )
-  })
-
   it('rejects sequential replay of a claimed session execution ID before preprocessing', async () => {
     const requestedExecutionId = '22222222-2222-4222-8222-222222222222'
     mockClaimExecutionId
@@ -1865,29 +1422,6 @@ describe('workflow execute async route', () => {
       code: 'EXECUTION_ID_CONFLICT',
       executionId: requestedExecutionId,
     })
-    expect(mockPreprocessExecution).toHaveBeenCalledTimes(1)
-    expect(mockEnqueue).toHaveBeenCalledTimes(1)
-  })
-
-  it('allows only one concurrent request to use the same session execution ID', async () => {
-    const requestedExecutionId = '33333333-3333-4333-8333-333333333333'
-    mockClaimExecutionId
-      .mockResolvedValueOnce({
-        key: `workflow-execution-id:${requestedExecutionId}`,
-        token: 'claim-token',
-      })
-      .mockResolvedValueOnce(null)
-
-    const responses = await Promise.all([
-      POST(createSessionReplayRequest(requestedExecutionId), {
-        params: Promise.resolve({ id: 'workflow-1' }),
-      }),
-      POST(createSessionReplayRequest(requestedExecutionId), {
-        params: Promise.resolve({ id: 'workflow-1' }),
-      }),
-    ])
-
-    expect(responses.map((response) => response.status).sort()).toEqual([202, 409])
     expect(mockPreprocessExecution).toHaveBeenCalledTimes(1)
     expect(mockEnqueue).toHaveBeenCalledTimes(1)
   })
@@ -1927,63 +1461,6 @@ describe('workflow execute async route', () => {
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
     expect(mockEnqueue).not.toHaveBeenCalled()
   })
-
-  it.each(EXECUTION_CALLERS)(
-    'honors a first-use execution ID supplied by a $caseName caller',
-    async (caller) => {
-      const requestedExecutionId = '66666666-6666-4666-8666-666666666666'
-      configureExecutionCaller(caller)
-
-      const response = await POST(createCallerExecutionRequest(caller, requestedExecutionId), {
-        params: Promise.resolve({ id: 'workflow-1' }),
-      })
-
-      expect(response.status).toBe(202)
-      await expect(response.json()).resolves.toMatchObject({ executionId: requestedExecutionId })
-      expect(mockClaimExecutionId).toHaveBeenCalledWith(requestedExecutionId)
-      expect(mockPreprocessExecution).toHaveBeenCalledWith(
-        expect.objectContaining({ executionId: requestedExecutionId })
-      )
-      expect(mockEnqueue).toHaveBeenCalledWith(
-        'workflow-execution',
-        expect.objectContaining({ executionId: requestedExecutionId }),
-        expect.any(Object)
-      )
-    }
-  )
-
-  it.each(EXECUTION_CALLERS)(
-    'returns 409 for a duplicate execution ID from a $caseName caller',
-    async (caller) => {
-      const requestedExecutionId = '77777777-7777-4777-8777-777777777777'
-      configureExecutionCaller(caller, 2)
-      mockClaimExecutionId
-        .mockResolvedValueOnce({
-          key: `workflow-execution-id:${requestedExecutionId}`,
-          token: 'claim-token',
-        })
-        .mockResolvedValueOnce(null)
-
-      const firstResponse = await POST(createCallerExecutionRequest(caller, requestedExecutionId), {
-        params: Promise.resolve({ id: 'workflow-1' }),
-      })
-      const duplicateResponse = await POST(
-        createCallerExecutionRequest(caller, requestedExecutionId),
-        {
-          params: Promise.resolve({ id: 'workflow-1' }),
-        }
-      )
-
-      expect(firstResponse.status).toBe(202)
-      expect(duplicateResponse.status).toBe(409)
-      await expect(duplicateResponse.json()).resolves.toMatchObject({
-        code: 'EXECUTION_ID_CONFLICT',
-        executionId: requestedExecutionId,
-      })
-      expect(mockPreprocessExecution).toHaveBeenCalledTimes(1)
-      expect(mockEnqueue).toHaveBeenCalledTimes(1)
-    }
-  )
 
   it.each(EXTERNAL_EXECUTION_CALLERS)(
     'preserves a legacy body executionId in $caseName flat workflow input',
@@ -2035,57 +1512,6 @@ describe('workflow execute async route', () => {
       )
     }
   )
-
-  it('keeps legacy body execution ID validation when no header is present', async () => {
-    const caller = EXECUTION_CALLERS[1]
-    configureExecutionCaller(caller)
-
-    const response = await POST(createCallerExecutionRequest(caller, 'invalid execution id'), {
-      params: Promise.resolve({ id: 'workflow-1' }),
-    })
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({
-      error: 'Invalid request body',
-    })
-    expect(mockClaimExecutionId).not.toHaveBeenCalled()
-  })
-
-  it('rejects an invalid execution identity header before claiming an ID', async () => {
-    const caller = EXECUTION_CALLERS[1]
-    configureExecutionCaller(caller)
-    const request = createCallerExecutionRequest(caller)
-    request.headers.set('X-Execution-Id', 'invalid execution id')
-
-    const response = await POST(request, {
-      params: Promise.resolve({ id: 'workflow-1' }),
-    })
-
-    expect(response.status).toBe(400)
-    await expect(response.json()).resolves.toMatchObject({
-      error: 'Invalid execution ID header',
-    })
-    expect(mockClaimExecutionId).not.toHaveBeenCalled()
-    expect(mockEnqueue).not.toHaveBeenCalled()
-  })
-
-  it('keeps session input nested when executionId is supplied in the body', async () => {
-    const requestedExecutionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-
-    const response = await POST(createSessionReplayRequest(requestedExecutionId), {
-      params: Promise.resolve({ id: 'workflow-1' }),
-    })
-
-    expect(response.status).toBe(202)
-    expect(mockEnqueue).toHaveBeenCalledWith(
-      'workflow-execution',
-      expect.objectContaining({
-        executionId: requestedExecutionId,
-        input: { hello: 'world' },
-      }),
-      expect.any(Object)
-    )
-  })
 
   it('retries a generated execution ID collision with a fresh server ID', async () => {
     mockGenerateId
@@ -2366,37 +1792,6 @@ describe('workflow execute async route', () => {
     )
   })
 
-  it('includes a thrown execution error in the exact response-provenance boundary', async () => {
-    const caller = EXECUTION_CALLERS[4]
-    configureExecutionCaller(caller)
-    const responseProvenance = {
-      version: 1,
-      complete: true,
-      entries: [{ name: 'ERROR_SECRET', encryptedValue: 'encrypted-error-secret' }],
-    }
-    loggingSessionMockFns.mockExportResolvedSecretTraceProvenanceForValue.mockReturnValueOnce(
-      responseProvenance
-    )
-    mockExecuteWorkflowCore.mockRejectedValueOnce(new Error('resolved error value'))
-    const request = createCallerExecutionRequest(caller, undefined, 'sync')
-    request.headers.set('x-sim-request-private-tool-metadata', 'resolved-secret-provenance-v1')
-
-    const response = await POST(request, { params: Promise.resolve({ id: 'workflow-1' }) })
-    const body = await response.json()
-
-    expect(response.status).toBe(500)
-    expect(body).toMatchObject({
-      success: false,
-      error: 'resolved error value',
-      __resolvedSecretTraceProvenance: responseProvenance,
-    })
-    expect(
-      loggingSessionMockFns.mockExportResolvedSecretTraceProvenanceForValue
-    ).toHaveBeenCalledWith(
-      expect.objectContaining({ success: false, error: 'resolved error value' })
-    )
-  })
-
   it('does not expose private provenance metadata to non-internal callers', async () => {
     const caller = EXECUTION_CALLERS[1]
     configureExecutionCaller(caller)
@@ -2514,38 +1909,6 @@ describe('workflow execute async route', () => {
     expect(mockReleaseExecutionIdClaim).not.toHaveBeenCalled()
   })
 
-  it('retains ownership when a later rejection cannot disprove earlier acceptance', async () => {
-    mockEnqueue
-      .mockRejectedValueOnce(
-        new AsyncJobEnqueueError('enqueue response was lost', {
-          acceptance: 'unknown',
-          retryable: true,
-        })
-      )
-      .mockRejectedValueOnce(
-        new AsyncJobEnqueueError('retry rejected', {
-          acceptance: 'rejected',
-          retryable: false,
-        })
-      )
-
-    const response = await POST(
-      createMockRequest(
-        'POST',
-        { input: { hello: 'world' } },
-        {
-          'Content-Type': 'application/json',
-          'X-Execution-Mode': 'async',
-        }
-      ),
-      { params: Promise.resolve({ id: 'workflow-1' }) }
-    )
-
-    expect(response.status).toBe(503)
-    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
-    expect(mockReleaseExecutionIdClaim).not.toHaveBeenCalled()
-  })
-
   it.each([
     {
       caseName: 'missing actor',
@@ -2629,48 +1992,6 @@ describe('workflow execute async route', () => {
     }
   )
 
-  it('reuses internal child-workflow billing attribution during preprocessing', async () => {
-    const billingAttribution = {
-      actorUserId: 'actor-1',
-      workspaceId: 'workspace-1',
-      organizationId: 'org-1',
-      billedAccountUserId: 'owner-1',
-      billingEntity: { type: 'organization', id: 'org-1' },
-      billingPeriod: {
-        start: '2026-07-01T00:00:00.000Z',
-        end: '2026-08-01T00:00:00.000Z',
-      },
-      payerSubscription: null,
-    }
-    mockCheckHybridAuth.mockResolvedValue({
-      success: true,
-      userId: 'actor-1',
-      authType: 'internal_jwt',
-    })
-    mockRequireBillingAttributionHeader.mockReturnValue(billingAttribution)
-
-    const req = createMockRequest(
-      'POST',
-      { input: { hello: 'world' } },
-      {
-        'Content-Type': 'application/json',
-        'X-Execution-Mode': 'async',
-        'X-Sim-Billing-Attribution': 'snapshot',
-      }
-    )
-
-    const response = await POST(req, { params: Promise.resolve({ id: 'workflow-1' }) })
-
-    expect(response.status).toBe(202)
-    expect(mockRequireBillingAttributionHeader).toHaveBeenCalledWith(req.headers, {
-      actorUserId: 'actor-1',
-      workspaceId: 'workspace-1',
-    })
-    expect(mockPreprocessExecution).toHaveBeenCalledWith(
-      expect.objectContaining({ billingAttribution })
-    )
-  })
-
   it('rejects cross-site session requests before authorization work', async () => {
     const req = createMockRequest(
       'POST',
@@ -2689,24 +2010,6 @@ describe('workflow execute async route', () => {
     expect(body.error).toBe('Access denied')
     expect(mockAuthorizeWorkflowByWorkspacePermission).not.toHaveBeenCalled()
     expect(mockEnqueue).not.toHaveBeenCalled()
-  })
-
-  it('allows same-site session requests (multi-subdomain Run, e.g. www.<domain>)', async () => {
-    const req = createMockRequest(
-      'POST',
-      { input: { hello: 'world' } },
-      {
-        'Content-Type': 'application/json',
-        'X-Execution-Mode': 'async',
-        'Sec-Fetch-Site': 'same-site',
-      }
-    )
-    const params = Promise.resolve({ id: 'workflow-1' })
-
-    const response = await POST(req, { params })
-
-    expect(response.status).toBe(202)
-    expect(mockEnqueue).toHaveBeenCalled()
   })
 
   it('rejects oversized request bodies before authorization work', async () => {
@@ -2864,51 +2167,6 @@ describe('workflow execute async route', () => {
     expect(workflowsUtilsMockFns.mockCreateHttpResponseFromBlock).toHaveBeenCalled()
   })
 
-  it('keeps trusted internal MCP bridge executions on the JSON envelope path', async () => {
-    mockCheckHybridAuth.mockResolvedValueOnce({
-      success: true,
-      userId: 'internal-user-1',
-      authType: 'internal_jwt',
-    })
-    workflowsUtilsMockFns.mockWorkflowHasResponseBlock.mockReturnValueOnce(true)
-    mockExecuteWorkflowCore.mockResolvedValueOnce({
-      success: true,
-      status: 'completed',
-      output: { response: 'plain text body' },
-      metadata: {
-        duration: 100,
-        startTime: '2026-01-01T00:00:00Z',
-        endTime: '2026-01-01T00:00:01Z',
-      },
-    })
-    const req = createMockRequest(
-      'POST',
-      { input: { hello: 'world' } },
-      {
-        'Content-Type': 'application/json',
-        'X-Sim-MCP-Tool-Call': 'true',
-      }
-    )
-    const params = Promise.resolve({ id: 'workflow-1' })
-
-    const response = await POST(req, { params })
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body).toMatchObject({
-      success: true,
-      output: { response: 'plain text body' },
-    })
-    expect(workflowsUtilsMockFns.mockCreateHttpResponseFromBlock).not.toHaveBeenCalled()
-    expect(mockExecuteWorkflowCore).toHaveBeenCalledWith(
-      expect.objectContaining({
-        snapshot: expect.objectContaining({
-          input: { hello: 'world' },
-        }),
-      })
-    )
-  })
-
   it('preserves authenticated-user actor semantics for trusted MCP bridge calls', async () => {
     mockCheckHybridAuth.mockResolvedValueOnce({
       success: true,
@@ -2976,36 +2234,5 @@ describe('workflow execute async route', () => {
         expect(mockPreprocessExecution).not.toHaveBeenCalled()
       }
     )
-
-    it('accepts the redundant explicit "api" triggerType from API-key callers', async () => {
-      const caller = EXECUTION_CALLERS[1]
-      configureExecutionCaller(caller)
-      const req = createMockRequest(
-        'POST',
-        { hello: 'world', triggerType: 'api' },
-        { 'Content-Type': 'application/json', ...caller.headers, 'X-Execution-Mode': 'async' }
-      )
-
-      const response = await POST(req, { params: Promise.resolve({ id: 'workflow-1' }) })
-
-      expect(response.status).toBe(202)
-    })
-
-    it('still allows internal JWT callers to set triggerType', async () => {
-      const caller = EXECUTION_CALLERS[4]
-      configureExecutionCaller(caller)
-      const req = createMockRequest(
-        'POST',
-        { hello: 'world', triggerType: 'workflow' },
-        { 'Content-Type': 'application/json', ...caller.headers, 'X-Execution-Mode': 'async' }
-      )
-
-      const response = await POST(req, { params: Promise.resolve({ id: 'workflow-1' }) })
-
-      expect(response.status).toBe(202)
-      expect(mockPreprocessExecution).toHaveBeenCalledWith(
-        expect.objectContaining({ triggerType: 'workflow' })
-      )
-    })
   })
 })

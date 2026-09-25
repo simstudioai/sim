@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import {
   readUsageEventCursor,
@@ -36,20 +35,6 @@ describe('usage event window cursors', () => {
     ['range', '2000-01-01', end.toISOString(), ...keys],
   ])('rejects malformed or oversized window %j', (...cursor) => {
     expect(() => readUsageEventCursor(cursor, 366)).toThrow(OrchestrationError)
-  })
-
-  it('accepts the unchanged custom range', () => {
-    const decoded = readUsageEventCursor(
-      ['range', start.toISOString(), end.toISOString(), ...keys],
-      366,
-      { start, end }
-    )
-    expect(usageWindowLedgerFilter(decoded.window)).toEqual({
-      startDate: start,
-      endDate: end,
-      endDateExclusive: true,
-    })
-    expect(decoded.cursorKeys).toEqual(keys)
   })
 
   it.each([

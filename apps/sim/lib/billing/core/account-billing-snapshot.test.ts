@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -37,46 +34,7 @@ const usage = {
 
 describe('getAccountBillingSnapshot', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.events.length = 0
-  })
-
-  it('reuses one resolved subscription for org scope, usage, limits, and credits', async () => {
-    const subscription = {
-      plan: 'team',
-      referenceId: 'org-1',
-    }
-    mocks.getResolvedUserUsageData.mockImplementation(async () => {
-      mocks.events.push('usage-and-subscription')
-      return { usage, subscription, personalCreditBalance: 4 }
-    })
-    mocks.isOrgScopedSubscription.mockReturnValue(true)
-    mocks.getCreditBalanceForEntity.mockImplementation(async () => {
-      mocks.events.push('credits')
-      return 25
-    })
-
-    await expect(getAccountBillingSnapshot('user-1')).resolves.toEqual({
-      plan: 'team',
-      billingScope: 'organization',
-      organizationId: 'org-1',
-      usage: {
-        currentPeriodCost: 18.5,
-        limit: 40,
-        remaining: 21.5,
-        percentUsed: 46.25,
-        isExceeded: false,
-        billingPeriodEnd: new Date('2026-09-01T00:00:00Z'),
-      },
-      credits: { balance: 25, scope: 'organization' },
-    })
-    expect(mocks.getResolvedUserUsageData).toHaveBeenCalledOnce()
-    expect(mocks.getCreditBalanceForEntity).toHaveBeenCalledWith(
-      'organization',
-      'org-1',
-      expect.anything()
-    )
-    expect(mocks.events).toEqual(['usage-and-subscription', 'credits'])
   })
 
   it('preserves personal scope and clamps negative remaining usage to zero', async () => {

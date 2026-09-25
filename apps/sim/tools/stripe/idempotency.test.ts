@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockWarn } = vi.hoisted(() => ({ mockWarn: vi.fn() }))

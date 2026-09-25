@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import {
   MockV2ApiKeyUnauthenticatedError,
   v2ApiKeyAuthModuleMock,
@@ -77,7 +76,6 @@ function request(workspaceId = 'target', privateCall = true) {
   return req
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   policy.permission.mockResolvedValue('write')
   v2RouteMocks.authenticate.mockResolvedValue({
     principal: { kind: 'personal_api_key', userId: 'actor', keyId: 'key' },

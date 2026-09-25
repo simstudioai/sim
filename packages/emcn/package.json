@@ -90,6 +90,6 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.0"
+    "vitest": "^5.0.1"
   }
 }

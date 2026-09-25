@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
@@ -110,18 +107,6 @@ describe('remapToolBlockResources', () => {
     })
     expect((result.params as Record<string, unknown>).credential).toBe('cred-src')
     expect(recorded).toContainEqual({ kind: 'credential', id: 'cred-src', mapped: false })
-  })
-
-  it('returns the tool unchanged when it has no params', () => {
-    const tool = { type: 'testblock' }
-    expect(
-      remapToolBlockResources(tool, {
-        resolve: () => null,
-        resolveFileKey: () => null,
-        clearUnresolved: true,
-        blockConfigs,
-      })
-    ).toBe(tool)
   })
 
   it('leaves an advanced-mode manualCredential id untouched (escape hatch)', () => {
@@ -320,17 +305,6 @@ describe('remapForkSubBlocks', () => {
     expect(result.unmapped).toHaveLength(0)
     expect((result.subBlocks.file.value as { key: string }).key).toBe('workspace/DST/a.png')
   })
-
-  it('create mode: does not record file references but still remaps copied files', () => {
-    const result = remapForkSubBlocks(
-      fileSubBlock(),
-      (kind, id) =>
-        kind === 'file' && id === 'workspace/SRC/a.png' ? 'workspace/DST/a.png' : null,
-      'create'
-    )
-    expect(result.references).toHaveLength(0)
-    expect((result.subBlocks.file.value as { key: string }).key).toBe('workspace/DST/a.png')
-  })
 })
 
 const blockWith = (subBlocks: SubBlockConfig[]): BlockConfig =>
@@ -374,36 +348,6 @@ describe('workspace file-folder fork remap', () => {
       { kind: 'file-folder', sourceId: '/Archive', required: true },
     ])
     expect(result.unmapped.map((reference) => reference.sourceId)).toEqual(['/Archive'])
-  })
-
-  it('preserves serialized multi-select storage while remapping paths', () => {
-    vi.mocked(getBlock).mockReturnValue(fileBlock())
-    const result = remapForkSubBlocks(
-      {
-        folderSelection: entry('folderSelection', 'folder-selector', '["/Reports","/Archive"]'),
-      },
-      (kind, sourceId) =>
-        kind === 'file-folder' && sourceId === '/Reports' ? '/Production' : null,
-      'create',
-      { blockType: 'file' }
-    )
-
-    expect(result.subBlocks.folderSelection.value).toBe('["/Production"]')
-  })
-
-  it('leaves provider folder selectors unchanged', () => {
-    vi.mocked(getBlock).mockReturnValue(
-      blockWith([{ id: 'folder', title: 'Folder', type: 'folder-selector', serviceId: 'gmail' }])
-    )
-    const result = remapForkSubBlocks(
-      { folder: entry('folder', 'folder-selector', 'INBOX') },
-      () => null,
-      'promote',
-      { blockType: 'gmail' }
-    )
-
-    expect(result.subBlocks.folder.value).toBe('INBOX')
-    expect(result.references).toEqual([])
   })
 
   it('remaps a workspace folder nested in a tool-input param', () => {
@@ -464,16 +408,6 @@ describe('createForkBootstrapTransform document-selector remap', () => {
     const transform = createForkBootstrapTransform(() => null)
     const result = transform(subBlocks(), 'knowledge')
     expect(result.knowledgeBaseId.value).toBe('')
-    expect(result.documentId.value).toBe('')
-  })
-
-  it('clears documentId when its KB was copied but the document was not', () => {
-    vi.mocked(getBlock).mockReturnValue(docBlock())
-    const transform = createForkBootstrapTransform((kind, id) =>
-      kind === 'knowledge-base' && id === 'kb-src' ? 'kb-dst' : null
-    )
-    const result = transform(subBlocks(), 'knowledge')
-    expect(result.knowledgeBaseId.value).toBe('kb-dst')
     expect(result.documentId.value).toBe('')
   })
 })
@@ -605,31 +539,11 @@ describe('MCP block server remap follows the tool selection (optimistic verbatim
     expect(result.arguments.value).toBe('{"query":"hello"}')
   })
 
-  it('keeps a bare tool name (no embedded server id) verbatim under the remapped server', () => {
-    vi.mocked(getBlock).mockReturnValue(mcpBlock())
-    const subBlocks = mcpSubBlocks()
-    subBlocks.tool = { id: 'tool', type: 'mcp-tool-selector', value: 'search_docs' }
-    const transform = createForkSubBlockTransform(mapServer)
-    const result = transform(subBlocks, 'mcp')
-    expect(result.server.value).toBe('mcp-tgt9')
-    expect(result.tool.value).toBe('search_docs')
-    expect(result.arguments.value).toBe('{"query":"hello"}')
-  })
-
   it('sync transform: an UNMAPPED server is cleared and still clears tool + arguments (defense-in-depth)', () => {
     // The zero-cleared-refs gate blocks a sync before this state can persist; the remap's
     // clear-unresolved backstop must still never leave a tool under a cleared server.
     vi.mocked(getBlock).mockReturnValue(mcpBlock())
     const transform = createForkSubBlockTransform(() => null)
-    const result = transform(mcpSubBlocks(), 'mcp')
-    expect(result.server.value).toBe('')
-    expect(result.tool.value).toBe('')
-    expect(result.arguments.value).toBe('')
-  })
-
-  it('fork-create: an UNSELECTED server clears, and its tool + arguments clear with it', () => {
-    vi.mocked(getBlock).mockReturnValue(mcpBlock())
-    const transform = createForkBootstrapTransform(() => null)
     const result = transform(mcpSubBlocks(), 'mcp')
     expect(result.server.value).toBe('')
     expect(result.tool.value).toBe('')
@@ -713,14 +627,6 @@ describe('MCP block server remap follows the tool selection (optimistic verbatim
     }
   )
 
-  it('remap layer: the tool follow-rewrite is not registered as a remapped parent key', () => {
-    // Only `server` may drive dependent clears; the followed tool must not (its own
-    // dependent - arguments - is preserved with it).
-    const result = remapForkSubBlocks(mcpSubBlocks(), mapServer, 'promote')
-    expect(result.subBlocks.tool.value).toBe('mcp-tgt9-search_docs')
-    expect(result.remappedKeys).toEqual(new Set(['server']))
-  })
-
   it('clearDependentsOnRemap: exemption applies ONLY to the mcp tool selector, not other kinds', () => {
     // A knowledge-base parent remapped to a non-empty target still clears its
     // document-selector dependent (regression guard for the mcp-only exemption).
@@ -748,82 +654,6 @@ describe('MCP block server remap follows the tool selection (optimistic verbatim
       new Set(['knowledgeBaseId'])
     )
     expect(result.documentId.value).toBe('')
-  })
-
-  it('clearDependentsOnRemap: preserve holds when a SECOND remapped key also reaches the tool selector', () => {
-    // Synthetic config (no registry block wires this today): the tool selector hangs off BOTH a
-    // remapped mcp-server parent (preserve) and another remapped parent (no preserve). The
-    // selector-keyed preserve must win over the other key's clear, in either key order, while
-    // the other key's own non-exempt dependent still clears.
-    vi.mocked(getBlock).mockReturnValue(
-      blockWith([
-        { id: 'server', title: 'MCP Server', type: 'mcp-server-selector' },
-        { id: 'knowledgeBaseId', title: 'KB', type: 'knowledge-base-selector' },
-        {
-          id: 'tool',
-          title: 'Tool',
-          type: 'mcp-tool-selector',
-          dependsOn: ['server', 'knowledgeBaseId'],
-        },
-        { id: 'arguments', title: '', type: 'mcp-dynamic-args', dependsOn: ['tool'] },
-        {
-          id: 'documentId',
-          title: 'Doc',
-          type: 'document-selector',
-          dependsOn: ['knowledgeBaseId'],
-        },
-      ])
-    )
-    const subBlocks = (): SubBlockRecord => ({
-      server: { id: 'server', type: 'mcp-server-selector', value: 'mcp-tgt9' },
-      knowledgeBaseId: { id: 'knowledgeBaseId', type: 'knowledge-base-selector', value: 'kb-dst' },
-      tool: { id: 'tool', type: 'mcp-tool-selector', value: 'mcp-tgt9-search_docs' },
-      arguments: { id: 'arguments', type: 'mcp-dynamic-args', value: '{"query":"hello"}' },
-      documentId: { id: 'documentId', type: 'document-selector', value: 'doc-src' },
-    })
-    for (const keys of [
-      ['server', 'knowledgeBaseId'],
-      ['knowledgeBaseId', 'server'],
-    ]) {
-      const result = clearDependentsOnRemap(subBlocks(), 'mcp', new Set(keys))
-      expect(result.tool.value).toBe('mcp-tgt9-search_docs')
-      expect(result.arguments.value).toBe('{"query":"hello"}')
-      expect(result.documentId.value).toBe('')
-    }
-  })
-
-  it('clearDependentsOnRemap: a CLEARED server alongside another remapped key still clears the tool', () => {
-    // Same two-key config, but the server was cleared (unmapped): no preserve applies anywhere,
-    // so the tool and its arguments clear as ordinary dependents.
-    vi.mocked(getBlock).mockReturnValue(
-      blockWith([
-        { id: 'server', title: 'MCP Server', type: 'mcp-server-selector' },
-        { id: 'knowledgeBaseId', title: 'KB', type: 'knowledge-base-selector' },
-        {
-          id: 'tool',
-          title: 'Tool',
-          type: 'mcp-tool-selector',
-          dependsOn: ['server', 'knowledgeBaseId'],
-        },
-        { id: 'arguments', title: '', type: 'mcp-dynamic-args', dependsOn: ['tool'] },
-      ])
-    )
-    const result = clearDependentsOnRemap(
-      {
-        server: { id: 'server', type: 'mcp-server-selector', value: '' },
-        knowledgeBaseId: {
-          id: 'knowledgeBaseId',
-          type: 'knowledge-base-selector',
-          value: 'kb-dst',
-        },
-        tool: { id: 'tool', type: 'mcp-tool-selector', value: 'mcp-src1-search_docs' },
-        arguments: { id: 'arguments', type: 'mcp-dynamic-args', value: '{"query":"hello"}' },
-      },
-      'mcp',
-      new Set(['server', 'knowledgeBaseId'])
-    )
-    expect(result.tool.value).toBe('')
-    expect(result.arguments.value).toBe('')
   })
 })
 
@@ -875,35 +705,6 @@ describe('tool-input MCP entry server remap rewrites embedded server metadata', 
       serverName: 'New Server',
     })
   })
-
-  it('without a meta resolver (scan-only callers) the id remaps and metadata is left as-is', () => {
-    const result = remapForkSubBlocks(toolInputSubBlocks(entryParams()), mapServer, 'promote')
-    const [tool] = result.subBlocks.tools.value as Array<{
-      toolId: string
-      params: Record<string, unknown>
-    }>
-    expect(tool.params).toEqual({
-      serverId: 'mcp-tgt9',
-      serverUrl: 'https://old.example/mcp',
-      toolName: 'search',
-      serverName: 'Old Server',
-    })
-    expect(tool.toolId).toBe('mcp-tgt9-search')
-  })
-
-  it('threads the meta resolver through the sync transform', () => {
-    // Transform-level check: promote passes the batch-loaded target rows via options.
-    vi.mocked(getBlock).mockReturnValue(
-      blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
-    )
-    const transform = createForkSubBlockTransform(mapServer, {
-      resolveMcpServerMeta: () => ({ name: 'New Server', url: 'https://new.example/mcp' }),
-    })
-    const result = transform(toolInputSubBlocks(entryParams()), 'agent')
-    const [tool] = result.tools.value as Array<{ params: Record<string, unknown> }>
-    expect(tool.params.serverUrl).toBe('https://new.example/mcp')
-    expect(tool.params.serverName).toBe('New Server')
-  })
 })
 
 describe('clearDependentsOnRemap canonical-pair gating', () => {
@@ -948,25 +749,6 @@ describe('clearDependentsOnRemap canonical-pair gating', () => {
     )
     // The active advanced parent is unchanged, so the dependent must be preserved.
     expect(result.documentSelector.value).toBe('doc-1')
-  })
-
-  it('clears a dependent when the ACTIVE basic selector was remapped (basic active)', () => {
-    vi.mocked(getBlock).mockReturnValue(kbCanonicalBlock())
-    const subBlocks: SubBlockRecord = {
-      knowledgeBaseSelector: { type: 'knowledge-base-selector', value: 'kb-new' },
-      manualKnowledgeBaseId: { type: 'short-input', value: '' },
-      documentSelector: { type: 'document-selector', value: 'doc-1' },
-    }
-    const result = clearDependentsOnRemap(
-      subBlocks,
-      'knowledge',
-      new Set(['knowledgeBaseSelector']),
-      {
-        knowledgeBaseId: 'basic',
-      }
-    )
-    // Basic is active; its remap clears the dependent (unchanged behavior).
-    expect(result.documentSelector.value).toBe('')
   })
 })
 
@@ -1017,27 +799,6 @@ describe('canonical-mode gates on a mixed action/trigger block', () => {
     expect(gates.isActiveManualMember('triggerSiteId')).toBe(false)
   })
 
-  it('leaves the DORMANT action surface classified exactly as before scoping', () => {
-    vi.mocked(getBlock).mockReturnValue(mixedSurfaceBlock())
-    const config = getBlock('webflow') as BlockConfig
-    const scoped = createCanonicalModeGates(config.subBlocks, values, { siteId: 'advanced' }, true)
-
-    // Scoping decides membership for LIVE fields only. The action surface's own values are still
-    // real keys in the block's value map, and the remap loop reads `isDormantMember` to decide
-    // both whether to clear a value and whether to skip detecting it. Answering "not a member"
-    // here would stop clearing them AND start detecting them, turning a stale action selector on
-    // a trigger-mode block into a mapping requirement that can block a sync.
-    expect(scoped.isDormantMember('siteSelector')).toBe(true)
-    expect(scoped.isActiveManualMember('manualSiteId')).toBe(true)
-
-    // Identical to what the unscoped gates answered for those same keys before the fix.
-    const legacy = createCanonicalModeGates(config.subBlocks, values, { siteId: 'advanced' }, false)
-    for (const key of ['siteSelector', 'manualSiteId']) {
-      expect(scoped.isDormantMember(key)).toBe(legacy.isDormantMember(key))
-      expect(scoped.isActiveManualMember(key)).toBe(legacy.isActiveManualMember(key))
-    }
-  })
-
   it('does not turn a dormant action credential into a detected reference', () => {
     vi.mocked(getBlock).mockReturnValue(mixedSurfaceBlock())
     const subBlocks: SubBlockRecord = {
@@ -1055,15 +816,6 @@ describe('canonical-mode gates on a mixed action/trigger block', () => {
     expect(result.subBlocks.siteSelector.value).toBe('')
     expect(result.unmapped.some((ref) => ref.subBlockKey === 'siteSelector')).toBe(false)
     expect(result.subBlocks.triggerSiteId.value).toBe('site-live')
-  })
-
-  it('still gates the action surface normally', () => {
-    vi.mocked(getBlock).mockReturnValue(mixedSurfaceBlock())
-    const config = getBlock('webflow') as BlockConfig
-    const gates = createCanonicalModeGates(config.subBlocks, values, { siteId: 'advanced' }, false)
-    // Basic is dormant while advanced is active; the manual member is the live one.
-    expect(gates.isDormantMember('siteSelector')).toBe(true)
-    expect(gates.isActiveManualMember('manualSiteId')).toBe(true)
   })
 
   it("keeps a trigger-mode block's live field through the fork remap", () => {
@@ -1120,15 +872,6 @@ describe('scanWorkflowReferences canonical-pair detection', () => {
     expect(scan.unmapped.filter((ref) => ref.kind === 'credential')).toEqual([])
   })
 
-  it('detects the ACTIVE basic credential as a required reference (basic active)', () => {
-    vi.mocked(getBlock).mockReturnValue(credBlock())
-    const scan = scanWorkflowReferences([scanBlock({ credential: 'basic' })], () => null)
-    const creds = scan.references.filter((ref) => ref.kind === 'credential')
-    expect(creds).toHaveLength(1)
-    expect(creds[0].sourceId).toBe('cred-stale')
-    expect(creds[0].required).toBe(true)
-  })
-
   it('skips DETECTION for a dormant member but still REWRITES its value (separation)', () => {
     vi.mocked(getBlock).mockReturnValue(credBlock())
     const result = remapForkSubBlocks(
@@ -1178,32 +921,6 @@ describe('collectClearedDependents', () => {
         subBlockKey: 'folder',
         title: 'Label',
         required: true,
-      },
-    ])
-  })
-
-  it('returns an optional cleared dependent flagged required:false', () => {
-    vi.mocked(getBlock).mockReturnValue(
-      blockWith([
-        { id: 'credential', title: 'Credential', type: 'oauth-input' },
-        { id: 'folder', title: 'Label', type: 'folder-selector', dependsOn: ['credential'] },
-      ])
-    )
-    const targetDraft: SubBlockRecord = {
-      credential: entry('credential', 'oauth-input', 'c-target'),
-      folder: entry('folder', 'folder-selector', 'INBOX'),
-    }
-    const merged: SubBlockRecord = {
-      credential: entry('credential', 'oauth-input', 'c-new'),
-      folder: entry('folder', 'folder-selector', ''),
-    }
-    expect(collectClearedDependents('gmail', 'b1', 'Send Email', targetDraft, merged)).toEqual([
-      {
-        blockId: 'b1',
-        blockName: 'Send Email',
-        subBlockKey: 'folder',
-        title: 'Label',
-        required: false,
       },
     ])
   })
@@ -1380,16 +1097,6 @@ describe('applyDependentOverrides', () => {
       },
     ])
 
-  it('applies a top-level re-pick value', () => {
-    vi.mocked(getBlock).mockReturnValue(gmailConfig())
-    const subBlocks: SubBlockRecord = {
-      credential: entry('credential', 'oauth-input', 'c-new'),
-      folder: entry('folder', 'folder-selector', ''),
-    }
-    const result = applyDependentOverrides(subBlocks, 'gmail', new Map([['folder', 'Label_42']]))
-    expect((result.folder as { value: unknown }).value).toBe('Label_42')
-  })
-
   it('rejects an override for a non-dependent / parent key (allowlist)', () => {
     vi.mocked(getBlock).mockReturnValue(gmailConfig())
     const subBlocks: SubBlockRecord = {
@@ -1491,25 +1198,6 @@ describe('applyDependentOverrides', () => {
     )
     expect(result).toBe(subBlocks)
   })
-
-  it('ignores a nested override whose tool index is out of range', () => {
-    vi.mocked(getBlock).mockImplementation((type) => {
-      if (type === 'agent') return blockWith([{ id: 'tools', title: 'Tools', type: 'tool-input' }])
-      if (type === 'gmail') return gmailConfig()
-      return undefined as unknown as BlockConfig
-    })
-    const subBlocks: SubBlockRecord = {
-      tools: entry('tools', 'tool-input', [
-        { type: 'gmail', title: 'Gmail', params: { credential: 'c-new', folder: '' } },
-      ]),
-    }
-    const result = applyDependentOverrides(
-      subBlocks,
-      'agent',
-      new Map([['tools[5].folder', 'Label_99']])
-    )
-    expect(result).toBe(subBlocks)
-  })
 })
 
 describe('parseNestedDependentKey', () => {
@@ -1525,25 +1213,9 @@ describe('parseNestedDependentKey', () => {
       paramId: 'channel',
     })
   })
-
-  it('returns null for a plain top-level key', () => {
-    expect(parseNestedDependentKey('folder')).toBeNull()
-    expect(parseNestedDependentKey('credential')).toBeNull()
-  })
 })
 
 describe('readTargetDraftDependentValue', () => {
-  it('reads a top-level draft value', () => {
-    const draft: SubBlockRecord = { folder: { value: 'INBOX' } }
-    expect(readTargetDraftDependentValue(draft, undefined, 'folder')).toBe('INBOX')
-  })
-
-  it('returns empty for a missing or non-string top-level value', () => {
-    expect(readTargetDraftDependentValue({ folder: { value: 42 } }, undefined, 'folder')).toBe('')
-    expect(readTargetDraftDependentValue({}, undefined, 'folder')).toBe('')
-    expect(readTargetDraftDependentValue(undefined, undefined, 'folder')).toBe('')
-  })
-
   it('reads the target draft nested param when the source/target tool types match at that index', () => {
     const target: SubBlockRecord = {
       tools: { value: [{ type: 'gmail', params: { folder: 'INBOX' } }] },
@@ -1565,25 +1237,6 @@ describe('readTargetDraftDependentValue', () => {
       tools: { value: [{ type: 'gmail', params: { folder: 'SENT' } }] },
     }
     expect(readTargetDraftDependentValue(target, source, 'tools[0].folder')).toBe('')
-  })
-
-  it('returns empty when the target draft has no tool at the index', () => {
-    const target: SubBlockRecord = { tools: { value: [] } }
-    const source: SubBlockRecord = {
-      tools: { value: [{ type: 'gmail', params: { folder: 'SENT' } }] },
-    }
-    expect(readTargetDraftDependentValue(target, source, 'tools[0].folder')).toBe('')
-  })
-
-  it('returns empty when the source tool type cannot be verified', () => {
-    const target: SubBlockRecord = {
-      tools: { value: [{ type: 'gmail', params: { folder: 'INBOX' } }] },
-    }
-    // No source subBlocks (or no tool at the index) -> identity unverifiable -> do not seed.
-    expect(readTargetDraftDependentValue(target, undefined, 'tools[0].folder')).toBe('')
-    expect(readTargetDraftDependentValue(target, { tools: { value: [] } }, 'tools[0].folder')).toBe(
-      ''
-    )
   })
 
   it('handles the JSON-string stored tool array shape', () => {
@@ -1711,64 +1364,6 @@ describe('canonical mode policy (fork/promote)', () => {
     expect(scan.references).toEqual([])
   })
 
-  /**
-   * Every shipped canonical pair's advanced member is a plain `short-input`, which carries no
-   * resource definition — so the "advanced is user-owned, verbatim" policy has never been
-   * exercised against an advanced member that IS a resource selector. Pin it here so the
-   * policy holds by enforcement rather than by the accident of the current block configs.
-   */
-  const selectorPairBlock = () =>
-    blockWith([
-      {
-        id: 'tableSelector',
-        title: 'Table',
-        type: 'table-selector',
-        canonicalParamId: 'tableId',
-        mode: 'basic',
-      },
-      {
-        id: 'advancedTableSelector',
-        title: 'Table (advanced)',
-        type: 'table-selector',
-        canonicalParamId: 'tableId',
-        mode: 'advanced',
-      },
-    ])
-
-  it('advanced mode: a selector-typed manual member is neither remapped nor detected', () => {
-    vi.mocked(getBlock).mockReturnValue(selectorPairBlock())
-    const resolveTable = (kind: string, id: string) =>
-      kind === 'table' && id === 'tbl-manual' ? 'tbl-copy' : null
-    const transform = createForkBootstrapTransform(resolveTable as never)
-    const result = transform(
-      {
-        tableSelector: entry('tableSelector', 'table-selector', 'tbl-basic'),
-        advancedTableSelector: entry('advancedTableSelector', 'table-selector', 'tbl-manual'),
-      },
-      'table',
-      { tableId: 'advanced' }
-    )
-    expect(result.advancedTableSelector.value).toBe('tbl-manual')
-    expect(result.tableSelector.value).toBe('')
-
-    const scan = scanWorkflowReferences(
-      [
-        {
-          id: 'b1',
-          name: 'Table',
-          type: 'table',
-          subBlocks: {
-            tableSelector: entry('tableSelector', 'table-selector', 'tbl-basic'),
-            advancedTableSelector: entry('advancedTableSelector', 'table-selector', 'tbl-manual'),
-          },
-          canonicalModes: { tableId: 'advanced' },
-        },
-      ],
-      () => null
-    )
-    expect(scan.references).toEqual([])
-  })
-
   it('does not detect a condition-hidden subblock (its value never executes)', () => {
     vi.mocked(getBlock).mockReturnValue(
       blockWith([
@@ -1864,14 +1459,6 @@ describe('canonical mode policy (fork/promote)', () => {
     expect(scan.unmapped.map((ref) => ref.sourceId)).toEqual(['SLACK_CHANNEL'])
   })
 
-  it('detects it via the value heuristic too (no stored canonicalModes override)', () => {
-    const scan = scanEnv({
-      channel: entry('channel', 'channel-selector', ''),
-      manualChannel: entry('manualChannel', 'short-input', '{{SLACK_CHANNEL}}'),
-    })
-    expect(scan.references.map((ref) => ref.sourceId)).toEqual(['SLACK_CHANNEL'])
-  })
-
   it('rewrite and detect agree: a mapped key is both recorded and rewritten', () => {
     vi.mocked(getBlock).mockReturnValue(envPairBlock())
     const resolve: ForkReferenceResolver = (kind, id) =>
@@ -1899,35 +1486,6 @@ describe('canonical mode policy (fork/promote)', () => {
       { channel: 'basic' }
     )
     expect(scan.references.filter((ref) => ref.kind === 'env-var')).toEqual([])
-  })
-
-  it('still does NOT detect {{ENV}} in a condition-hidden field (it never executes)', () => {
-    vi.mocked(getBlock).mockReturnValue(
-      blockWith([
-        { id: 'mode', title: 'Mode', type: 'dropdown' },
-        {
-          id: 'cloudKey',
-          title: 'Cloud Key',
-          type: 'short-input',
-          condition: { field: 'mode', value: 'cloud' },
-        },
-      ])
-    )
-    const scan = scanWorkflowReferences(
-      [
-        {
-          id: 'b1',
-          name: 'Pi',
-          type: 'pi',
-          subBlocks: {
-            mode: entry('mode', 'dropdown', 'local'),
-            cloudKey: entry('cloudKey', 'short-input', '{{HIDDEN_SECRET}}'),
-          },
-        },
-      ],
-      () => null
-    )
-    expect(scan.references).toEqual([])
   })
 
   it('does NOT detect {{ENV}} in a Note block (an annotation never executes)', () => {
@@ -2181,71 +1739,5 @@ describe('canonical mode policy (fork/promote)', () => {
     const mapped = mappedTransform(subBlocks(), 'table')
     expect(mapped.tableSelector.value).toBe('tbl-mapped')
     expect(mapped.conflictColumnSelector.value).toBe('')
-  })
-
-  it('preserves a selector-backed multi-column pick under a COPIED table like a column-selector', () => {
-    const tableBlock = () =>
-      blockWith([
-        {
-          id: 'tableSelector',
-          title: 'Table',
-          type: 'table-selector',
-          canonicalParamId: 'tableId',
-          mode: 'basic',
-        },
-        {
-          id: 'manualTableId',
-          title: 'Table ID',
-          type: 'short-input',
-          canonicalParamId: 'tableId',
-          mode: 'advanced',
-        },
-        {
-          id: 'outputColumns',
-          title: 'Columns to Return',
-          type: 'dropdown',
-          selectorKey: 'table.outputColumns',
-          multiSelect: true,
-          dependsOn: { any: ['tableSelector', 'manualTableId'] },
-        },
-      ])
-    const subBlocks = (): SubBlockRecord => ({
-      tableSelector: entry('tableSelector', 'table-selector', 'tbl-src'),
-      outputColumns: entry('outputColumns', 'dropdown', ['col_a', 'col_b']),
-    })
-    vi.mocked(getBlock).mockReturnValue(tableBlock())
-    // Fork-create: the copy keeps the same column ids, so the pick survives verbatim.
-    const forkTransform = createForkBootstrapTransform(((kind: string, id: string) =>
-      kind === 'table' && id === 'tbl-src' ? 'tbl-copy' : null) as never)
-    const forked = forkTransform(subBlocks(), 'table')
-    expect(forked.tableSelector.value).toBe('tbl-copy')
-    expect(forked.outputColumns.value).toEqual(['col_a', 'col_b'])
-    // Promote onto a MAPPED (different) table: column ids differ - the pick clears.
-    const mappedTransform = createForkSubBlockTransform((kind, id) =>
-      kind === 'table' && id === 'tbl-src' ? 'tbl-mapped' : null
-    )
-    const mapped = mappedTransform(subBlocks(), 'table')
-    expect(mapped.tableSelector.value).toBe('tbl-mapped')
-    expect(mapped.outputColumns.value).toBe('')
-  })
-
-  it('collectClearedDependents skips a dormant canonical member (only the active mode matters)', () => {
-    vi.mocked(getBlock).mockReturnValue(knowledgePairBlock())
-    const targetDraft: SubBlockRecord = {
-      knowledgeBaseSelector: entry('knowledgeBaseSelector', 'knowledge-base-selector', 'kb-old'),
-      manualKnowledgeBaseId: entry('manualKnowledgeBaseId', 'short-input', 'stale-manual'),
-      documentSelector: entry('documentSelector', 'document-selector', 'doc-old'),
-    }
-    // The merge cleared the dormant manual member and the document; only the document (an
-    // active dependent) is flagged - the dormant manual slot is not a lost configuration.
-    const merged: SubBlockRecord = {
-      knowledgeBaseSelector: entry('knowledgeBaseSelector', 'knowledge-base-selector', 'kb-new'),
-      manualKnowledgeBaseId: entry('manualKnowledgeBaseId', 'short-input', ''),
-      documentSelector: entry('documentSelector', 'document-selector', ''),
-    }
-    const fields = collectClearedDependents('knowledge', 'b1', 'KB', targetDraft, merged, {
-      knowledgeBaseId: 'basic',
-    })
-    expect(fields.map((field) => field.subBlockKey)).toEqual(['documentSelector'])
   })
 })

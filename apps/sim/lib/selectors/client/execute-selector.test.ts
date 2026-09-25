@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockRequestJson } = vi.hoisted(() => ({
   mockRequestJson: vi.fn(),
@@ -19,10 +16,6 @@ const input = {
 }
 
 describe('loadAllSelectorOptions', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('distinguishes a complete boundary-sized catalog from a capped page walk', async () => {
     mockRequestJson.mockResolvedValueOnce({
       kind: 'list',

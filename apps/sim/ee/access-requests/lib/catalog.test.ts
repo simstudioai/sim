@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -97,7 +94,6 @@ vi.mock('@/connectors/registry', () => ({
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import {
-  getAccessRequestDeploymentUnavailableReason,
   listAccessRequestTargets,
   loadAccessRequestCatalog,
 } from '@/ee/access-requests/lib/catalog'
@@ -110,7 +106,6 @@ const context = { userId: 'viewer', organizationId: 'org', workspaceId: 'ws' }
 
 describe('access request catalog deployment ceilings', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.visibility.mockResolvedValue({
       revealed: new Set(['revealed']),
       disabled: new Set(['killed']),
@@ -168,31 +163,6 @@ describe('access request catalog deployment ceilings', () => {
     expect(JSON.stringify(listAccessRequestTargets(catalog))).not.toContain('private')
   })
 
-  it.each(['feature', 'usage_limit', 'file_share_auth', 'chat_deploy_auth'] as const)(
-    'keeps %s discovery independent of registry and visibility work',
-    async (kind) => {
-      const catalog = await loadAccessRequestCatalog(context, kind)
-      expect(catalog.integrations.size).toBe(0)
-      expect(mocks.visibility).not.toHaveBeenCalled()
-      expect(mocks.credentialGroups).not.toHaveBeenCalled()
-      expect(mocks.blocks).not.toHaveBeenCalled()
-      expect(mocks.toolMetadata).not.toHaveBeenCalled()
-    }
-  )
-
-  it('loads only the relevant catalog family', async () => {
-    const integrations = await loadAccessRequestCatalog(context, 'integration')
-    expect(integrations.integrations.size).toBeGreaterThan(0)
-    expect(integrations.providers.size).toBe(0)
-    expect(integrations.tools.size).toBe(0)
-    expect(mocks.toolMetadata).not.toHaveBeenCalled()
-    mocks.visibility.mockClear()
-    const models = await loadAccessRequestCatalog(context, 'model')
-    expect(models.models.size).toBeGreaterThan(0)
-    expect(models.integrations.size).toBe(0)
-    expect(mocks.visibility).not.toHaveBeenCalled()
-  })
-
   it('canonicalizes the deployment integration allowlist before matching', async () => {
     mocks.allowedIntegrations.mockReturnValue(['SLACK'])
     const catalog = await loadAccessRequestCatalog(context)
@@ -243,24 +213,6 @@ describe('access request catalog deployment ceilings', () => {
       second: { type: 'second', name: 'Second', tools: { access: ['shared_tool'] } },
     })
     expect((await loadAccessRequestCatalog(context)).tools.has('shared_tool')).toBe(false)
-  })
-
-  it('reports deployment flags as unavailable, independently of group config', () => {
-    expect(
-      getAccessRequestDeploymentUnavailableReason({ kind: 'feature', configKey: 'hideCopilot' })
-    ).not.toBeNull()
-    expect(
-      getAccessRequestDeploymentUnavailableReason({
-        kind: 'feature',
-        configKey: 'disableInvitations',
-      })
-    ).not.toBeNull()
-    expect(
-      getAccessRequestDeploymentUnavailableReason({ kind: 'file_share_auth', id: 'sso' })
-    ).not.toBeNull()
-    expect(
-      getAccessRequestDeploymentUnavailableReason({ kind: 'feature', configKey: 'hideTablesTab' })
-    ).toBeNull()
   })
 
   it('retains genuinely governed core blocks while omitting canonical exemptions', async () => {

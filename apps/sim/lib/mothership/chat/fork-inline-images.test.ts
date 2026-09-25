@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/uploads/core/storage-service', () => ({

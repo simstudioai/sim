@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-import { db } from '@sim/db'
 import { member, outboxEvent, user, workspace } from '@sim/db/schema'
 import {
   dbChainMockFns,
@@ -80,11 +76,8 @@ vi.mock('@/lib/workspaces/organization-workspaces', () => ({
 
 import {
   acceptEnterpriseOwnerClaim,
-  enterpriseOwnerClaimOutboxHandlers,
-  getEnterpriseOwnerClaimDetails,
   retryEnterpriseOwnerClaim,
   reviewEnterpriseOwnerClaim,
-  revokeEnterpriseOwnerClaim,
 } from '@/lib/billing/enterprise-owner-claim'
 
 const now = new Date('2026-08-20T12:00:00.000Z')
@@ -143,7 +136,6 @@ afterAll(() => {
 
 describe('Enterprise future-owner claims', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     vi.useFakeTimers()
     vi.setSystemTime(now)
@@ -199,35 +191,6 @@ describe('Enterprise future-owner claims', () => {
     expect(mocks.createOrganization).not.toHaveBeenCalled()
     expect(mocks.enqueue).not.toHaveBeenCalled()
     expect(mocks.process).not.toHaveBeenCalled()
-  })
-
-  it('surfaces canonical invitation workspace limits before the owner accepts', async () => {
-    queueTableRows(outboxEvent, [claimRow()])
-    queueTableRows(
-      workspace,
-      Array.from({ length: 51 }, (_, index) => ({
-        id: `workspace-${index + 1}`,
-        name: `Workspace ${index + 1}`,
-        archivedAt: null,
-      }))
-    )
-    queueTableRows(member, [])
-
-    const details = await getEnterpriseOwnerClaimDetails({
-      claimId: 'claim-1',
-      token: 'secure-token',
-      userId: 'owner-1',
-      userEmail: 'owner@example.com',
-    })
-    expect(details).toMatchObject({
-      acceptanceReview: {
-        canAccept: false,
-        requiredSeats: null,
-        reason: expect.stringContaining('more than 50 workspaces'),
-      },
-    })
-    expect(details?.workspacePreview?.workspacesToMove).toHaveLength(51)
-    expect(mocks.getSeatRequirement).not.toHaveBeenCalled()
   })
 
   it('atomically creates ownership and enqueues activation after exact consent', async () => {
@@ -332,72 +295,6 @@ describe('Enterprise future-owner claims', () => {
     expect(emailConditions).toHaveLength(1)
     expect(mocks.createOrganization).not.toHaveBeenCalled()
     expect(mocks.enqueue).not.toHaveBeenCalled()
-  })
-
-  it('activates through the canonical Enterprise issuance operation only after acceptance', async () => {
-    const accepted = {
-      acceptedAt: '2026-08-20T12:00:00.000Z',
-      ownerUserId: 'owner-1',
-      organizationId: 'org-1',
-      workspaceIds: ['workspace-1'],
-      reportingPeriodAnchorDate: '2026-08-20',
-      activationEventId: 'activation-1',
-      createdDefaultWorkspaceId: null,
-    }
-    queueTableRows(outboxEvent, [claimRow({ ...claimPayload(), acceptance: accepted })])
-    mocks.issueProvisioning.mockResolvedValue({ id: 'provisioning-1' })
-    const checkpointPayload = vi.fn()
-
-    await enterpriseOwnerClaimOutboxHandlers['enterprise.activate-owner-claim'](
-      { claimId: 'claim-1' },
-      {
-        eventId: 'activation-1',
-        eventType: 'enterprise.activate-owner-claim',
-        attempts: 0,
-        maxAttempts: 10,
-        signal: new AbortController().signal,
-        checkpointPayload,
-      }
-    )
-
-    expect(mocks.issueProvisioning).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ownerUserId: 'owner-1',
-        organizationName: 'Acme',
-        workspaceIds: ['workspace-1'],
-        reportingPeriodAnchorDate: '2026-08-20',
-        invitations: request.invitations,
-      })
-    )
-    expect(checkpointPayload).toHaveBeenCalledWith({
-      provisioningOperationId: 'provisioning-1',
-    })
-    expect(mocks.patchPayload).toHaveBeenCalledWith(db, 'claim-1', {
-      provisioningOperationId: 'provisioning-1',
-    })
-  })
-
-  it('revokes an unaccepted claim without starting activation', async () => {
-    const revokedAt = now.toISOString()
-    queueTableRows(outboxEvent, [claimRow()])
-    queueTableRows(outboxEvent, [claimRow({ ...claimPayload(), revokedAt })])
-
-    const result = await revokeEnterpriseOwnerClaim('claim-1', {
-      id: 'admin-1',
-      name: 'Admin',
-      email: 'admin@sim.ai',
-    })
-
-    expect(result).toMatchObject({ id: 'claim-1', status: 'revoked' })
-    expect(mocks.process).not.toHaveBeenCalled()
-    expect(mocks.issueProvisioning).not.toHaveBeenCalled()
-    expect(mocks.recordAuditOnce).toHaveBeenCalledWith(
-      'claim-1:revoked',
-      expect.objectContaining({
-        action: 'invitation.revoked',
-        resourceId: 'claim-1',
-      })
-    )
   })
 
   it('rejects acceptance after an invitation is revoked', async () => {

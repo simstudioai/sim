@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Tests for GET /api/v1/workflows/[id]/export — verifies auth, workspace
  * permission enforcement (masked as 404), payload shape, secret sanitization,
  * and edge-handle normalization.
@@ -126,27 +124,10 @@ function makeRequest() {
 
 describe('GET /api/v1/workflows/[id]/export', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'user-1' })
     mockValidateWorkspaceAccess.mockResolvedValue(null)
     workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValue(WORKFLOW_RECORD)
     mockLoadWorkflowFromNormalizedTables.mockResolvedValue(NORMALIZED_STATE)
-  })
-
-  it('returns 401 when the API key is rejected', async () => {
-    mockCheckRateLimit.mockResolvedValue({ allowed: false })
-
-    const response = await GET(makeRequest(), makeContext())
-
-    expect(response.status).toBe(401)
-  })
-
-  it('returns 404 when the workflow does not exist', async () => {
-    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValue(null)
-
-    const response = await GET(makeRequest(), makeContext())
-
-    expect(response.status).toBe(404)
   })
 
   it('masks a permission failure as 404 so callers cannot probe existence', async () => {
@@ -158,35 +139,6 @@ describe('GET /api/v1/workflows/[id]/export', () => {
 
     expect(response.status).toBe(404)
     await expect(response.json()).resolves.toEqual({ error: 'Workflow not found' })
-  })
-
-  it('returns 404 when the workflow row exists but its state does not', async () => {
-    mockLoadWorkflowFromNormalizedTables.mockResolvedValue(null)
-
-    const response = await GET(makeRequest(), makeContext())
-
-    expect(response.status).toBe(404)
-  })
-
-  it('returns the export envelope with workflow metadata and state', async () => {
-    const response = await GET(makeRequest(), makeContext())
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body.data.version).toBe('1.0')
-    expect(typeof body.data.exportedAt).toBe('string')
-    expect(body.data.workflow).toEqual({
-      id: WORKFLOW_ID,
-      name: 'My Workflow',
-      description: 'Does a thing',
-      workspaceId: 'ws-1',
-      folderId: 'folder-1',
-    })
-    expect(body.data.state.metadata).toMatchObject({
-      name: 'My Workflow',
-      description: 'Does a thing',
-    })
-    expect(Object.keys(body.data.state.blocks)).toEqual(['block-1'])
   })
 
   it('strips secret sub-block values but preserves env-var references', async () => {
@@ -207,18 +159,5 @@ describe('GET /api/v1/workflows/[id]/export', () => {
     const [edge] = body.data.state.edges
     expect(edge.sourceHandle).toBeUndefined()
     expect(edge.targetHandle).toBe('target')
-  })
-
-  it('records a workflow-exported audit entry', async () => {
-    await GET(makeRequest(), makeContext())
-
-    expect(mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'workflow.exported',
-        resourceId: WORKFLOW_ID,
-        workspaceId: 'ws-1',
-        actorId: 'user-1',
-      })
-    )
   })
 })

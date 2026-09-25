@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { copilotChats, workspace } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -47,7 +43,6 @@ function cli(argv: string[], extra: Partial<AgentCliRequest> = {}): { request: A
 
 describe('sim-cli handler executes the worker-built request', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(copilotChats, [
       {

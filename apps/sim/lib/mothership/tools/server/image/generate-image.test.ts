@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Reference images are declared inputs. A path that does not load must fail the
  * call rather than let the model render from whatever remained: the user who
  * attached a face and got a "v4" without it, and without an error, is the defect
@@ -105,7 +103,6 @@ function generate(paths: string[]) {
 
 describe('generate_image reference images', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockIsOpaqueWorkspaceFileEgressSafe.mockResolvedValue(true)
     mockResolveWorkspaceFileReference.mockResolvedValue(chatUpload)
     mockReadWorkspaceFileContent.mockResolvedValue({

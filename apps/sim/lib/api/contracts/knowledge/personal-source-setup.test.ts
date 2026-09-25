@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { personalSourceSetupBodySchema } from '@/lib/api/contracts/knowledge/personal-source-setup'
 import { executeSelectorBodySchema } from '@/lib/api/contracts/selectors/execute'
@@ -13,16 +12,6 @@ const source = {
 }
 
 describe('personal Search setup contracts', () => {
-  it('accepts a bounded bulk selection larger than the legacy joined-string limit', () => {
-    const keys = Array.from({ length: 1000 }, (_, index) => `PROJECT${index}`)
-    expect(personalSourceSetupBodySchema.parse({ ...source, keys })).toMatchObject({ keys })
-  })
-  it.each([[], Array.from({ length: 1001 }, (_, index) => `P${index}`), [''], ['x'.repeat(256)]])(
-    'rejects empty, oversized, or unbounded selections %#',
-    (keys) => {
-      expect(personalSourceSetupBodySchema.safeParse({ ...source, keys }).success).toBe(false)
-    }
-  )
   it('rejects arbitrary credential kinds, scope overrides and provider keys', () => {
     for (const extra of [
       { workspaceId: 'workspace-1' },

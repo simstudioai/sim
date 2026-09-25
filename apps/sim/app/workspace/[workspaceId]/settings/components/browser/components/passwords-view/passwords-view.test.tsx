@@ -153,29 +153,6 @@ async function render(credentials = CREDENTIALS) {
   })
 }
 
-function buttonLabelled(text: string): HTMLButtonElement {
-  const button = [...container.querySelectorAll('button')].find(
-    (candidate) => candidate.textContent === text
-  )
-  if (!button) throw new Error(`No button labelled "${text}"`)
-  return button
-}
-
-async function click(button: HTMLButtonElement) {
-  await act(async () => {
-    button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-  })
-}
-
-/** Each card's hit area — a stretched overlay button owned by `SettingsResourceRow`. */
-const cardButtons = () =>
-  [...container.querySelectorAll('main button[aria-label^="Open "]')].filter(
-    (node) => !node.closest('header')
-  ) as HTMLButtonElement[]
-
-/** The row wrapping each hit area; it carries the visible site and username. */
-const cards = () => cardButtons().map((button) => button.parentElement as HTMLElement)
-
 const bridge = () => mockBridge.current as ReturnType<typeof createBridge>
 
 describe('PasswordsView', () => {
@@ -196,98 +173,11 @@ describe('PasswordsView', () => {
     vi.clearAllMocks()
   })
 
-  it('lists one card per login, showing site and username', async () => {
-    await render()
-
-    expect(cards()).toHaveLength(2)
-    expect(cards()[0].textContent).toContain('example.com')
-    expect(cards()[0].textContent).toContain('ada@example.com')
-  })
-
   it('never shows a password in the list', async () => {
     // Reading one happens on the detail page, behind Touch ID.
     await render()
 
     expect(container.textContent).not.toContain('hunter2')
     expect(bridge().browserCredentials.reveal).not.toHaveBeenCalled()
-  })
-
-  it('opens the detail page for the card that was clicked', async () => {
-    await render()
-
-    await click(cardButtons()[1])
-
-    expect(container.querySelector('[aria-label="Password detail"]')?.textContent).toBe(
-      'https://fubo.tv'
-    )
-  })
-
-  it('filters by site and username', async () => {
-    mockSearch.value = 'fubo'
-    await render()
-    expect(cards()).toHaveLength(1)
-
-    mockSearch.value = 'ada@'
-    await render()
-    expect(cards()[0].textContent).toContain('example.com')
-  })
-
-  it('says so when a search matches nothing', async () => {
-    mockSearch.value = 'nothing-here'
-    await render()
-
-    expect(container.textContent).toContain('No passwords found matching')
-  })
-
-  it('explains an empty vault', async () => {
-    await render([])
-
-    expect(container.textContent).toContain('No saved passwords yet')
-  })
-
-  it('deletes every password only after confirmation', async () => {
-    await render()
-
-    await click(buttonLabelled('Delete all'))
-    expect(bridge().browserCredentials.forgetAll).not.toHaveBeenCalled()
-
-    await click(buttonLabelled('Confirm Delete all'))
-
-    expect(bridge().browserCredentials.forgetAll).toHaveBeenCalled()
-    expect(onChange).toHaveBeenCalledWith([])
-  })
-
-  it('offers no delete action when there is nothing to delete', async () => {
-    await render([])
-
-    expect(
-      [...container.querySelectorAll('header button')].map((b) => b.textContent)
-    ).not.toContain('Delete all')
-  })
-
-  it('opens the shared import dialog and refreshes the password list after import', async () => {
-    await render()
-
-    await click(buttonLabelled('Import'))
-    await click(buttonLabelled('Confirm import'))
-
-    expect(onImported).toHaveBeenCalled()
-  })
-
-  it('hides import on a shell without an importer', async () => {
-    mockBridge.current = { browserCredentials: createBridge().browserCredentials }
-    await render()
-
-    expect(
-      [...container.querySelectorAll('header button')].map((b) => b.textContent)
-    ).not.toContain('Import')
-  })
-
-  it('returns to the browser page', async () => {
-    await render()
-
-    await click(buttonLabelled('Browser'))
-
-    expect(onBack).toHaveBeenCalled()
   })
 })

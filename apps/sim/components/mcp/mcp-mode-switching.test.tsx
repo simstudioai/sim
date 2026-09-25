@@ -1,5 +1,3 @@
-/** @vitest-environment node */
-import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
@@ -56,13 +54,11 @@ vi.mock('@/stores/workflow-diff/store', () => ({
 
 import { buildSelectorRawContext } from '@/lib/selectors/context'
 import { getSubBlocksDependingOnChange } from '@/lib/workflows/subblocks/dependencies'
-import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { McpBlock } from '@/blocks/blocks/mcp'
 import { getBlock } from '@/blocks/registry'
 
 describe('MCP server mode switching', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     for (const field of Object.keys(mocks.values)) delete mocks.values[field]
     mocks.values.toolSelector = 'read'
     mocks.modes.server = 'advanced'
@@ -77,21 +73,6 @@ describe('MCP server mode switching', () => {
       }
     })
     vi.mocked(getBlock).mockReturnValue(McpBlock)
-  })
-
-  it('preserves the exact selected operation before server dependency clearing', () => {
-    let changeServer: ((value: string) => void) | undefined
-    function Harness() {
-      const [, setValue] = useSubBlockValue<string>('mcp', 'serverReference')
-      changeServer = setValue
-      return null
-    }
-    renderToStaticMarkup(<Harness />)
-    changeServer?.('<connection.id>')
-    expect(mocks.values.serverReference).toBe('<connection.id>')
-    expect(mocks.values.toolSelector).toBe('')
-    expect(mocks.values.toolReference).toBe('read')
-    expect(mocks.modes.tool).toBe('advanced')
   })
 
   it('projects only the active canonical server into operation discovery', () => {

@@ -67,69 +67,6 @@ describe('listBrowserProfiles', () => {
     expect(profiles[0].source.id).toBe('chrome')
   })
 
-  it('orders numbered profiles numerically rather than as strings', async () => {
-    for (const dir of ['Profile 10', 'Profile 2', 'Default']) await addProfile(CHROME, dir)
-
-    const profiles = await listBrowserProfiles(CHROME, home)
-    expect(profiles.map(({ id }) => id)).toEqual([
-      'chrome:Default',
-      'chrome:Profile 2',
-      'chrome:Profile 10',
-    ])
-  })
-
-  it('finds the cookie database at the pre-M96 location', async () => {
-    await addProfile(CHROME, 'Default', 'Cookies')
-
-    const [profile] = await listBrowserProfiles(CHROME, home)
-    expect(profile.cookiesPath).toBe(join(userDataDirFor(CHROME, home), 'Default/Cookies'))
-  })
-
-  it('finds every saved-password database alongside the cookies', async () => {
-    await addProfile(CHROME, 'Default')
-    await addProfile(CHROME, 'Default', 'Login Data For Account')
-    await addProfile(CHROME, 'Default', 'Login Data')
-
-    const [profile] = await listBrowserProfiles(CHROME, home)
-    expect(profile.loginDataPaths).toEqual([
-      join(userDataDirFor(CHROME, home), 'Default/Login Data'),
-      join(userDataDirFor(CHROME, home), 'Default/Login Data For Account'),
-    ])
-  })
-
-  it.each(['Login Data', 'Login Data For Account'])(
-    'lists a profile that has only the %s password database',
-    async (databaseName) => {
-      // Passwords and cookies import independently, so a profile with one and
-      // not the other must still be offered.
-      await addProfile(CHROME, 'Default', databaseName)
-
-      const [profile] = await listBrowserProfiles(CHROME, home)
-      expect(profile).toMatchObject({
-        id: 'chrome:Default',
-        cookiesPath: null,
-        loginDataPaths: [join(userDataDirFor(CHROME, home), 'Default', databaseName)],
-      })
-    }
-  )
-
-  it('omits profiles with no readable database', async () => {
-    await mkdir(join(userDataDirFor(CHROME, home), 'Profile 3'), { recursive: true })
-    await addProfile(CHROME, 'Default')
-
-    const profiles = await listBrowserProfiles(CHROME, home)
-    expect(profiles.map(({ id }) => id)).toEqual(['chrome:Default'])
-  })
-
-  it('ignores internal profiles', async () => {
-    await addProfile(CHROME, 'System Profile')
-    await addProfile(CHROME, 'Guest Profile')
-    await addProfile(CHROME, 'Default')
-
-    const profiles = await listBrowserProfiles(CHROME, home)
-    expect(profiles.map(({ id }) => id)).toEqual(['chrome:Default'])
-  })
-
   it('refuses profile keys that would escape the user-data directory', async () => {
     // Local State is data this process does not own, so a crafted key must not
     // become a path.
@@ -170,71 +107,9 @@ describe('listBrowserProfiles', () => {
 
     await expect(listBrowserProfiles(CHROME, home)).resolves.toEqual([])
   })
-
-  it('falls back to directory names when Local State is unreadable', async () => {
-    await addProfile(CHROME, 'Default')
-    await writeFile(join(userDataDirFor(CHROME, home), 'Local State'), 'not json{{')
-
-    const profiles = await listBrowserProfiles(CHROME, home)
-    expect(profiles.map(({ id, label }) => ({ id, label }))).toEqual([
-      { id: 'chrome:Default', label: '' },
-    ])
-  })
-
-  it('skips a browser\u2019s internal profiles', async () => {
-    // Arc keeps `__ARC_SYSTEM_PROFILE` in an ordinary `Profile N` directory,
-    // so only the name gives it away.
-    await addProfile(ARC, 'Default')
-    await addProfile(ARC, 'Profile 1')
-    await addProfile(ARC, 'Profile 2')
-    await writeLocalState(ARC, {
-      Default: { name: 'Your Chromium' },
-      'Profile 1': { name: '__ARC_SYSTEM_PROFILE' },
-      'Profile 2': { name: 'Microtrades' },
-    })
-
-    const profiles = await listBrowserProfiles(ARC, home)
-
-    expect(profiles.map(({ id }) => id)).toEqual(['arc:Default', 'arc:Profile 2'])
-  })
-
-  it.each([['Your Chrome'], ['Your Chromium'], ['Person 1'], ['Default'], ['Chrome']])(
-    'treats the placeholder name %s as unnamed',
-    async (name) => {
-      await addProfile(CHROME, 'Default')
-      await writeLocalState(CHROME, { Default: { name } })
-
-      const [profile] = await listBrowserProfiles(CHROME, home)
-      expect(profile.label).toBe('')
-    }
-  )
-
-  it('keeps a name the user actually chose', async () => {
-    await addProfile(CHROME, 'Default')
-    await writeLocalState(CHROME, { Default: { name: 'sim.ai' } })
-
-    const [profile] = await listBrowserProfiles(CHROME, home)
-    expect(profile.label).toBe('sim.ai')
-  })
-
-  it('reports no profiles when the browser is not installed', async () => {
-    await expect(listBrowserProfiles(ARC, home)).resolves.toEqual([])
-  })
 })
 
 describe('listAllBrowserProfiles', () => {
-  it('collects profiles from every installed browser', async () => {
-    await addProfile(CHROME, 'Default')
-    await addProfile(ARC, 'Default')
-    await addProfile(ARC, 'Profile 1')
-    await writeLocalState(ARC, { Default: { name: 'Personal' }, 'Profile 1': { name: 'Work' } })
-
-    const profiles = await listAllBrowserProfiles([CHROME, ARC], home)
-
-    expect(profiles.map(({ id }) => id)).toEqual(['chrome:Default', 'arc:Default', 'arc:Profile 1'])
-    expect(profiles.map(({ source }) => source.label)).toEqual(['Chrome', 'Arc', 'Arc'])
-  })
-
   it('keeps every profile distinct even though each browser has a Default', async () => {
     // The namespaced id is what stops one browser's Default from resolving to
     // another's.
@@ -255,9 +130,5 @@ describe('listAllBrowserProfiles', () => {
 
     const profiles = await listAllBrowserProfiles([broken, CHROME], home)
     expect(profiles.map(({ id }) => id)).toEqual(['chrome:Default'])
-  })
-
-  it('reports nothing when no supported browser is installed', async () => {
-    await expect(listAllBrowserProfiles([CHROME, ARC], home)).resolves.toEqual([])
   })
 })

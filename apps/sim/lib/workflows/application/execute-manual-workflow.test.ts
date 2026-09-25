@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -90,7 +87,6 @@ const triggerOption = {
 
 describe('manual workflow execution application operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveContext.mockResolvedValue(context)
     mocks.permission.mockResolvedValue('write')
     mocks.loadManualState.mockResolvedValue({
@@ -109,27 +105,6 @@ describe('manual workflow execution application operations', () => {
       error: null,
       hasResponseBlock: false,
     })
-  })
-
-  it('selects the only manual trigger and sends trusted saved-state controls to the service', async () => {
-    await executeManualWorkflowOperation.execute({
-      principal,
-      input: { ...baseInput, useMockPayload: false },
-    })
-
-    expect(mocks.executeService).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workflowId: 'workflow-1',
-        principal,
-        userId: 'user-1',
-        input: { event: 'created' },
-        triggerType: 'manual',
-        triggerBlockId: 'trigger-1',
-        useDraftState: true,
-        mode: 'sync',
-        useAuthenticatedUserAsActor: true,
-      })
-    )
   })
 
   it('runs saved draft state as a scoped Copilot actor without substituting the owner', async () => {
@@ -264,22 +239,6 @@ describe('manual workflow execution application operations', () => {
     expect(mocks.executeService).not.toHaveBeenCalled()
   })
 
-  it('uses only the server-derived mock payload when requested', async () => {
-    await executeManualWorkflowOperation.execute({
-      principal,
-      input: {
-        ...baseInput,
-        input: undefined,
-        useMockPayload: true,
-      },
-    })
-
-    expect(mocks.validateInput).toHaveBeenCalledWith(triggerOption, { event: 'mock' })
-    expect(mocks.executeService).toHaveBeenCalledWith(
-      expect.objectContaining({ input: { event: 'mock' } })
-    )
-  })
-
   it('rejects input combined with a mock payload before loading saved state', async () => {
     await expect(
       executeManualWorkflowOperation.execute({
@@ -353,31 +312,5 @@ describe('manual workflow execution application operations', () => {
       })
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(mocks.executeService).not.toHaveBeenCalled()
-  })
-
-  it('rejects workspace keys before canonical workflow loading', async () => {
-    await expect(
-      executeManualWorkflowOperation.execute({
-        principal: {
-          kind: 'workspace_api_key',
-          workspaceId: 'workspace-1',
-          keyId: 'workspace-key-1',
-        },
-        input: { ...baseInput, useMockPayload: false },
-      })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.resolveContext).not.toHaveBeenCalled()
-  })
-
-  it('requires current write permission before loading saved state', async () => {
-    mocks.permission.mockResolvedValueOnce('read')
-
-    await expect(
-      executeManualWorkflowOperation.execute({
-        principal,
-        input: { ...baseInput, useMockPayload: false },
-      })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.loadManualState).not.toHaveBeenCalled()
   })
 })

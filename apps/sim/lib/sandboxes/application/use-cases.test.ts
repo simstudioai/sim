@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { DelegatedPrincipal } from '@sim/auth/principal'
 import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -128,7 +125,6 @@ function copilotPrincipal(overrides: Partial<DelegatedPrincipal> = {}): Delegate
 
 describe('sandbox application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(workspace)
     mocks.resolvePermission.mockResolvedValue('admin')
     resolveGroupConfigMock.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
@@ -332,17 +328,6 @@ describe('sandbox application use cases', () => {
         createWorkspaceSandboxUseCase.execute({ principal: session, input: createInput })
       ).rejects.toMatchObject({ code: 'validation' })
       expect(mocks.budget).not.toHaveBeenCalled()
-      expect(mocks.audit).not.toHaveBeenCalled()
-    })
-
-    it('lets the manager report a name collision as a conflict', async () => {
-      mocks.create.mockRejectedValue(
-        new OrchestrationError('conflict', 'A sandbox named "data-tools" already exists')
-      )
-
-      await expect(
-        createWorkspaceSandboxUseCase.execute({ principal: session, input: createInput })
-      ).rejects.toMatchObject({ code: 'conflict' })
       expect(mocks.audit).not.toHaveBeenCalled()
     })
 

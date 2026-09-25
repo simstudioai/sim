@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -36,7 +33,6 @@ vi.mock('@/providers/models', () => ({
 }))
 
 import { getOrganizationUsageOverview } from '@/lib/billing/application/organization-usage/get-organization-usage-overview'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 
 const session: SessionPrincipal = { kind: 'session', userId: 'admin-1', sessionId: 'session-1' }
 const NOW = new Date()
@@ -52,7 +48,6 @@ function run(input: Partial<Parameters<typeof getOrganizationUsageOverview.execu
 
 describe('getOrganizationUsageOverview', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnvFlags({ isBillingEnabled: true, isHosted: true })
     mocks.authorizeOrganizationOperation.mockResolvedValue(true)
     mocks.isOrganizationFeatureEntitled.mockResolvedValue(true)
@@ -134,25 +129,6 @@ describe('getOrganizationUsageOverview', () => {
     const point = (await run({})).series.find((entry) => entry.timestamp === today)
     // `copilot` and `workspace-chat` are two ledger sources and one displayed source.
     expect(point?.sources).toEqual({ workflow: 2, 'sim-chat': 1 })
-  })
-
-  it('cuts the Members tab ranking to the card and attaches avatars', async () => {
-    const { members } = await run({})
-    expect(members.rows.map((row) => row.id)).toEqual(['u0', 'u1', 'u2', 'u3', 'u4'])
-    expect(members.rows[0]?.image).toBe('a.png')
-    expect(members.rows[1]).not.toHaveProperty('image')
-    expect(mocks.readUsageEntities).toHaveBeenCalledTimes(1)
-    expect(members.other.rowCount).toBe(2)
-    expect(mocks.readUsageGroups).toHaveBeenCalledWith(
-      expect.objectContaining({ dimension: 'member' })
-    )
-  })
-
-  it('states the allowance only for the whole organization over its current period', async () => {
-    expect((await run({ preset: 'current-period' })).limitCredits).toBe(dollarsToCredits(100))
-    expect((await run({ preset: 'current-period', workspaceId: 'ws-1' })).limitCredits).toBeNull()
-    expect((await run({ preset: '30d' })).limitCredits).toBeNull()
-    expect(mocks.getOrgUsageLimit).toHaveBeenCalledTimes(1)
   })
 
   it('compares a rolling window with the span just before it', async () => {

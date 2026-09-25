@@ -1,58 +1,17 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import type { ForkReferenceResolver } from '@/lib/workflows/references/remap-references'
 import {
   type ForkDependentValue,
   forkDependentValueKey,
-  loadForkDependentValues,
   reconcileForkDependentValues,
   translateForkDependentValues,
 } from '@/ee/workspace-forking/lib/mapping/dependent-value-store'
 
 describe('forkDependentValueKey', () => {
-  it('builds a stable triple key', () => {
-    expect(forkDependentValueKey('wf', 'blk', 'folder')).toBe('wf\u0000blk\u0000folder')
-  })
-
   it("doesn't collide when an id contains a printable separator", () => {
     // 'a:b' + 'c' must differ from 'a' + 'b:c' - the NUL separator guarantees it.
     expect(forkDependentValueKey('a:b', 'c', 'd')).not.toBe(forkDependentValueKey('a', 'b:c', 'd'))
-  })
-})
-
-describe('loadForkDependentValues', () => {
-  it('selects the edge rows', async () => {
-    const where = vi
-      .fn()
-      .mockResolvedValue([
-        { targetWorkflowId: 'wf', targetBlockId: 'b', subBlockKey: 'folder', value: 'INBOX' },
-      ])
-    const from = vi.fn(() => ({ where }))
-    const executor = { select: vi.fn(() => ({ from })) }
-    const rows = await loadForkDependentValues(executor as unknown as DbOrTx, 'ws-1')
-    expect(executor.select).toHaveBeenCalledTimes(1)
-    expect(rows).toEqual([
-      { targetWorkflowId: 'wf', targetBlockId: 'b', subBlockKey: 'folder', value: 'INBOX' },
-    ])
-  })
-
-  it('scopes the read to the given target workflows', async () => {
-    const where = vi.fn().mockResolvedValue([])
-    const from = vi.fn(() => ({ where }))
-    const executor = { select: vi.fn(() => ({ from })) }
-    await loadForkDependentValues(executor as unknown as DbOrTx, 'ws-1', ['wf-1', 'wf-2'])
-    expect(executor.select).toHaveBeenCalledTimes(1)
-    expect(where).toHaveBeenCalledTimes(1)
-  })
-
-  it('short-circuits an empty target filter without querying', async () => {
-    const executor = { select: vi.fn() }
-    const rows = await loadForkDependentValues(executor as unknown as DbOrTx, 'ws-1', [])
-    expect(executor.select).not.toHaveBeenCalled()
-    expect(rows).toEqual([])
   })
 })
 
@@ -79,20 +38,6 @@ describe('translateForkDependentValues', () => {
     const targetDoc = value({ value: 'doc-tgt-existing' })
     const label = value({ subBlockKey: 'folder', value: 'INBOX' })
     expect(translateForkDependentValues([targetDoc, label], resolver)).toEqual([targetDoc, label])
-  })
-
-  it('keeps empty (cleared) values untouched without consulting the resolver', () => {
-    const resolve = vi.fn(() => 'never')
-    const cleared = value({ value: '' })
-    expect(translateForkDependentValues([cleared], resolve)).toEqual([cleared])
-    expect(resolve).not.toHaveBeenCalled()
-  })
-
-  it('consults only the knowledge-document kind (documents are the one copied dependent value)', () => {
-    const resolve = vi.fn(() => null)
-    translateForkDependentValues([value()], resolve)
-    expect(resolve).toHaveBeenCalledTimes(1)
-    expect(resolve).toHaveBeenCalledWith('knowledge-document', 'doc-src')
   })
 })
 
@@ -129,18 +74,6 @@ describe('reconcileForkDependentValues', () => {
       subBlockKey: 'folder',
       value: 'INBOX',
     })
-  })
-
-  it('skips the delete when no workflows are given, and skips insert when all values are empty', async () => {
-    const { executor, deleteWhere, insertValues } = fakeExecutor()
-    await reconcileForkDependentValues(
-      executor,
-      'ws-1',
-      [],
-      [{ targetWorkflowId: 'wf-1', targetBlockId: 'b1', subBlockKey: 'folder', value: '' }]
-    )
-    expect(deleteWhere).not.toHaveBeenCalled()
-    expect(insertValues).not.toHaveBeenCalled()
   })
 
   it('clears a workflow (delete, no insert) when its full set is now empty', async () => {

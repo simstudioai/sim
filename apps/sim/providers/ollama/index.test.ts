@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 type StreamUsage = { prompt_tokens: number; completion_tokens: number; total_tokens: number }
@@ -143,7 +140,6 @@ const baseRequest: ProviderRequest = {
 
 describe('ollamaProvider.executeRequest', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     streamOnComplete.current = undefined
     mockCreate.mockResolvedValue(completion({ content: 'hello' }))
     mockExecuteTool.mockResolvedValue({ success: true, output: { ok: true } })

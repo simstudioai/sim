@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import {
@@ -48,7 +45,6 @@ const CONTEXT = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   clearLargeValueCacheForTests()
   mockRegisterOwner.mockResolvedValue(true)
   mockUploadFile.mockImplementation(async ({ customKey, file }) => {

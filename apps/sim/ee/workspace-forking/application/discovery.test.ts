@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { workspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
@@ -47,7 +44,6 @@ const child = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
 })
 

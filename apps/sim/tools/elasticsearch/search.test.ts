@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { countTool } from '@/tools/elasticsearch/count'
 import { createIndexTool } from '@/tools/elasticsearch/create_index'

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import type { ReactNode } from 'react'
 import { authMockFns } from '@sim/testing'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -149,7 +145,6 @@ const HOST_CONTEXT = {
 
 describe('WorkspaceLayout host context', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({
       user: { id: 'viewer-1' },
       session: { id: 'session-1', activeOrganizationId: 'org-a' },

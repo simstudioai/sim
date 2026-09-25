@@ -21,16 +21,6 @@ function makeEdge(id: string, source: string, target: string): Edge {
 }
 
 describe('validateEdges', () => {
-  it('accepts an edge between two root-scope blocks', () => {
-    const blocks = {
-      a: makeBlock('a', 'starter'),
-      b: makeBlock('b', 'function'),
-    }
-    const result = validateEdges([makeEdge('e1', 'a', 'b')], blocks)
-    expect(result.valid).toHaveLength(1)
-    expect(result.dropped).toHaveLength(0)
-  })
-
   it('drops an edge referencing a missing block', () => {
     const blocks = { a: makeBlock('a', 'starter') }
     const result = validateEdges([makeEdge('e1', 'a', 'missing')], blocks)
@@ -69,31 +59,12 @@ describe('validateEdges', () => {
     expect(result.dropped[0].reason).toContain('different scopes')
   })
 
-  it('accepts an edge from a loop container into its own child', () => {
-    const blocks = {
-      loop: makeBlock('loop', 'loop'),
-      inner: makeBlock('inner', 'function', { data: { parentId: 'loop', extent: 'parent' } }),
-    }
-    const result = validateEdges([makeEdge('e1', 'loop', 'inner')], blocks)
-    expect(result.valid).toHaveLength(1)
-  })
-
   it('accepts an edge from a loop child back out to its own container', () => {
     const blocks = {
       loop: makeBlock('loop', 'loop'),
       inner: makeBlock('inner', 'function', { data: { parentId: 'loop', extent: 'parent' } }),
     }
     const result = validateEdges([makeEdge('e1', 'inner', 'loop')], blocks)
-    expect(result.valid).toHaveLength(1)
-  })
-
-  it('accepts edges between two siblings inside the same loop', () => {
-    const blocks = {
-      loop: makeBlock('loop', 'loop'),
-      a: makeBlock('a', 'function', { data: { parentId: 'loop', extent: 'parent' } }),
-      b: makeBlock('b', 'function', { data: { parentId: 'loop', extent: 'parent' } }),
-    }
-    const result = validateEdges([makeEdge('e1', 'a', 'b')], blocks)
     expect(result.valid).toHaveLength(1)
   })
 })

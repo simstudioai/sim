@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ConfluenceV2Block } from '@/blocks/blocks/confluence'
 
@@ -51,7 +48,6 @@ function mappedSearchParams(state: BlockState): {
 
 describe('Confluence search-in-space values saved before the selector split', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetBlock.mockReturnValue(ConfluenceV2Block)
   })
 

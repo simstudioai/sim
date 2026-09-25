@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { OrganizationDelegatedPrincipal, Principal } from '@sim/auth/principal'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -43,7 +42,6 @@ const principal: OrganizationDelegatedPrincipal = {
 const session = { kind: 'session', userId: 'actor', sessionId: 'session' } as const
 const input = { chatId: 'archived-chat', assertedOrganizationId: 'org' }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.config.mockResolvedValue(null)
   mocks.workspace.mockResolvedValue({

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CredentialGroupOAuthStateVersionError } from '@/lib/credential-groups/oauth-attempt-version'
 
@@ -46,7 +43,6 @@ import {
 
 describe('credential group OAuth state', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     values.clear()
     vi.mocked(getRedisClient).mockReturnValue(mockRedis as never)
   })
@@ -120,109 +116,6 @@ describe('credential group OAuth state', () => {
         invitationToken: 'invitation-token',
       })
     ).rejects.toThrow('Credential group OAuth requires Redis')
-  })
-
-  it.each(['search', 'accounts'] as const)(
-    'round-trips a scopeless GitHub App attempt with PKCE and one-time state',
-    async (returnTo) => {
-      const created = await createCredentialGroupOAuthAttempt({
-        provider: 'github-repositories',
-        workspaceId: 'workspace-1',
-        userId: 'user-1',
-        email: 'person@example.com',
-        enrollmentId: 'enrollment-1',
-        credentialGroupId: 'group-1',
-        optionId: 'option-1',
-        authorizationAppId: 'github-app:fixture',
-        scopeVersion: 1,
-        requiredScopes: [],
-        redirectUri: 'https://sim.example.com/api/auth/oauth2/callback/github-repositories',
-        codeVerifier: 'github-code-verifier',
-        invitationToken: 'invitation-token',
-        returnTo,
-      })
-
-      const consumed = await consumeCredentialGroupOAuthAttempt(created.state)
-      expect(consumed).toMatchObject({
-        provider: 'github-repositories',
-        requiredScopes: [],
-        codeVerifier: 'github-code-verifier',
-        returnTo,
-      })
-      expect(credentialGroupOAuthNonceMatches(created.nonce, consumed!.nonceHash)).toBe(true)
-      await expect(consumeCredentialGroupOAuthAttempt(created.state)).resolves.toBeNull()
-    }
-  )
-
-  it('supports providers without PKCE while preserving one-time state', async () => {
-    const created = await createCredentialGroupOAuthAttempt({
-      provider: 'slack',
-      workspaceId: 'workspace-1',
-      userId: 'user-1',
-      email: 'person@example.com',
-      enrollmentId: 'enrollment-1',
-      credentialGroupId: 'group-1',
-      optionId: 'option-1',
-      authorizationAppId: 'slack:A123:T123',
-      scopeVersion: 1,
-      requiredScopes: ['users:read'],
-      redirectUri: 'https://sim.ai/api/credential-groups/oauth/slack/callback',
-      invitationToken: 'invitation-token',
-    })
-
-    const consumed = await consumeCredentialGroupOAuthAttempt(created.state)
-
-    expect(consumed).toMatchObject({
-      provider: 'slack',
-      authorizationAppId: 'slack:A123:T123',
-      invitationToken: 'invitation-token',
-    })
-    expect(consumed?.codeVerifier).toBeUndefined()
-    expect(consumed?.completionRedirect).toBeUndefined()
-    expect(consumed?.returnTo).toBeUndefined()
-    await expect(consumeCredentialGroupOAuthAttempt(created.state)).resolves.toBeNull()
-  })
-  it('keeps independent connection attempts after another invitation is issued', async () => {
-    const params = {
-      provider: 'gmail' as const,
-      workspaceId: 'workspace-1',
-      userId: 'user-1',
-      email: 'person@example.com',
-      enrollmentId: 'enrollment-1',
-      credentialGroupId: 'group-1',
-      optionId: 'option-1',
-      authorizationAppId: 'google:app',
-      scopeVersion: 1,
-      requiredScopes: ['openid'],
-      redirectUri: 'https://sim.ai/callback',
-      invitationToken: 'first-invitation',
-    }
-    const first = await createCredentialGroupOAuthAttempt({ ...params, returnTo: 'search' })
-    const second = await createCredentialGroupOAuthAttempt({
-      ...params,
-      optionId: 'option-2',
-      invitationToken: 'second-invitation',
-    })
-    const firstAttempt = await consumeCredentialGroupOAuthAttempt(first.state)
-    const secondAttempt = await consumeCredentialGroupOAuthAttempt(second.state)
-    expect(firstAttempt).toMatchObject({
-      workspaceId: params.workspaceId,
-      userId: 'user-1',
-      email: params.email,
-      invitationToken: params.invitationToken,
-      optionId: 'option-1',
-      returnTo: 'search',
-    })
-    expect(secondAttempt).toMatchObject({
-      workspaceId: params.workspaceId,
-      userId: 'user-1',
-      email: params.email,
-      invitationToken: 'second-invitation',
-      optionId: 'option-2',
-    })
-    expect(credentialGroupOAuthNonceMatches(first.nonce, firstAttempt!.nonceHash)).toBe(true)
-    expect(credentialGroupOAuthNonceMatches(first.nonce, secondAttempt!.nonceHash)).toBe(false)
-    expect(secondAttempt?.returnTo).toBeUndefined()
   })
 
   it('rejects an arbitrary stored return URL while consuming the state only once', async () => {

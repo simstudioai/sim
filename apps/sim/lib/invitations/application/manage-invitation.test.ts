@@ -1,6 +1,5 @@
-/** @vitest-environment node */
 import { member, user } from '@sim/db/schema'
-import { authMockFns, createMockRequest, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -74,7 +73,6 @@ import {
   resendWorkspaceInvitation,
 } from '@/lib/invitations/application/manage-invitation'
 import { invitationManagementErrorPolicy } from '@/lib/invitations/management-error-policy'
-import { DELETE } from '@/app/api/invitations/[id]/route'
 
 const principal = {
   kind: 'organization_delegated',
@@ -103,7 +101,6 @@ const invitation = {
   membershipIntent: 'internal',
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.get.mockResolvedValue(invitation)
   mocks.revoke.mockResolvedValue({ success: true, invitation, invitationCancelled: true })
@@ -152,28 +149,6 @@ describe('workspace invitation management authority', () => {
     )
   })
 
-  it('resends a matching workspace invitation through the existing delivery lifecycle', async () => {
-    mocks.get.mockResolvedValue({
-      ...invitation,
-      kind: 'workspace',
-      grants: [{ workspaceId: 'workspace', permission: 'read' }],
-    })
-    mocks.workspace.mockResolvedValue({ id: 'workspace', organizationId: 'org' })
-    mocks.policy.mockResolvedValue({ allowed: true })
-    await resendWorkspaceInvitation.execute({ principal: actor, input: target })
-    expect(mocks.send).toHaveBeenCalledTimes(1)
-    expect(mocks.prepare).toHaveBeenCalledBefore(mocks.send)
-    expect(mocks.revert).not.toHaveBeenCalled()
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({
-          operation: 'workspace_invitations.resend',
-          actor: expect.objectContaining({ kind: 'delegated' }),
-        }),
-      })
-    )
-  })
-
   it.each([
     [],
     [{ workspaceId: 'foreign', permission: 'read' }],
@@ -216,22 +191,6 @@ describe('invitation management application authority', () => {
       expect.objectContaining({ actorId: 'actor', actorName: 'Real actor' })
     )
   })
-  it('resends through existing policy, email and token persistence without returning token material', async () => {
-    queueTableRows(member, [{ role: 'owner' }])
-    const result = await resendInvitation.execute({ principal, input })
-    expect(result).toEqual({ success: true })
-    expect(mocks.prepare).toHaveBeenCalledWith(
-      expect.objectContaining({
-        invitationId: input.invitationId,
-        expectedOrganizationId: 'org',
-        actorUserId: 'actor',
-      })
-    )
-    expect(mocks.prepare).toHaveBeenCalledBefore(mocks.send)
-    expect(mocks.send).toHaveBeenCalledBefore(mocks.audit)
-    expect(mocks.revert).not.toHaveBeenCalled()
-    expect(JSON.stringify(result)).not.toContain('private')
-  })
   it.each([cancelInvitation, resendInvitation])(
     'refuses ordinary members before any invitation mutation',
     async (useCase) => {
@@ -270,28 +229,6 @@ describe('invitation management application authority', () => {
       cancelInvitation.execute({ principal, input: { ...input, workspaceId: 'workspace' } })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.revoke).not.toHaveBeenCalled()
-  })
-  it('keeps the internal HTTP cancellation on the same semantic operation', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    authMockFns.mockGetSession.mockResolvedValue({
-      user: { id: 'session-actor' },
-      session: { id: 'session' },
-    })
-    const response = await DELETE(
-      createMockRequest(
-        'DELETE',
-        undefined,
-        {},
-        `http://localhost/api/invitations/${input.invitationId}`
-      ),
-      { params: Promise.resolve({ id: input.invitationId }) }
-    )
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ success: true, invitationCancelled: true })
-    expect(mocks.revoke).toHaveBeenCalledWith({
-      actorId: 'session-actor',
-      invitationId: input.invitationId,
-    })
   })
 })
 

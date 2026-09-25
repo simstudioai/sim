@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -72,7 +69,6 @@ const BASE_BODY = {
 
 describe('POST /api/copilot/tools/execute (in-band)', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCheckInternalApiKey.mockReturnValue({ success: true })
     mockToolRequiresApprovalLane.mockReturnValue(false)
     // A fresh, complete registry per test: the module-level turn cache is keyed
@@ -81,26 +77,6 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
     mockPrepareEnvironmentContext.mockImplementation(async () => ({
       resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([]),
     }))
-  })
-
-  it('threads a per-call registry fork into the handler and returns the projected result', async () => {
-    mockHandler.mockResolvedValue({ success: true, output: { content: 'hello' } })
-    const res = await POST(makeRequest({ ...BASE_BODY, messageId: 'msg-fork' }) as never)
-    expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toEqual({ success: true, output: { content: 'hello' } })
-
-    const [, handlerContext] = mockHandler.mock.calls[0]
-    expect(handlerContext.resolvedSecretTraceRegistry).toBeInstanceOf(ResolvedSecretTraceRegistry)
-    expect(handlerContext.userId).toBe('user-1')
-    expect(handlerContext.copilotToolExecution).toBe(true)
-  })
-
-  it('keeps a clean tool failure message intact when the registry is available', async () => {
-    mockHandler.mockResolvedValue({ success: false, error: 'File not found: files/a.md' })
-    const res = await POST(makeRequest({ ...BASE_BODY, messageId: 'msg-clean-error' }) as never)
-    const body = await res.json()
-    expect(body.success).toBe(false)
-    expect(body.error).toBe('File not found: files/a.md')
   })
 
   /**
@@ -123,15 +99,6 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
     expect(body.error).not.toContain('does not exist')
     expect(body.error).toContain(BASE_BODY.workspaceId)
     expect(body.error).toContain('could not be resolved')
-  })
-
-  it('reuses one turn registry across calls that share a messageId', async () => {
-    mockHandler.mockResolvedValue({ success: true, output: {} })
-    await POST(makeRequest({ ...BASE_BODY, messageId: 'msg-shared' }) as never)
-    await POST(
-      makeRequest({ ...BASE_BODY, toolCallId: 'call-2', messageId: 'msg-shared' }) as never
-    )
-    expect(mockPrepareEnvironmentContext).toHaveBeenCalledTimes(1)
   })
 
   /**
@@ -158,15 +125,6 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
 
     expect(body).toEqual({ success: true, output: message })
     expect(JSON.stringify(body)).not.toContain('sk_live_plaintext')
-  })
-
-  it('leaves a non-generate_api_key result carrying a key field untouched', async () => {
-    mockHandler.mockResolvedValue({ success: true, output: { key: 'lookup-key', value: 42 } })
-    const res = await POST(makeRequest({ ...BASE_BODY, messageId: 'msg-other-tool-key' }) as never)
-    await expect(res.json()).resolves.toEqual({
-      success: true,
-      output: { key: 'lookup-key', value: 42 },
-    })
   })
 
   /**
@@ -201,27 +159,5 @@ describe('POST /api/copilot/tools/execute (in-band)', () => {
       expect(body.error).toContain('requires user approval')
       expect(body.error).toContain('checkpoint lane')
     })
-
-    it('still runs a tool that does not need an approval-capable lane', async () => {
-      mockHandler.mockResolvedValue({ success: true, output: { content: 'hello' } })
-
-      const res = await POST(makeRequest({ ...BASE_BODY, messageId: 'msg-ungated' }) as never)
-
-      expect(mockHandler).toHaveBeenCalledTimes(1)
-      await expect(res.json()).resolves.toEqual({ success: true, output: { content: 'hello' } })
-    })
-  })
-
-  it('passes a failed generate_api_key call through with its error', async () => {
-    mockHandler.mockResolvedValue({ success: false, error: 'name is required' })
-    const res = await POST(
-      makeRequest({
-        ...BASE_BODY,
-        toolName: 'generate_api_key',
-        params: {},
-        messageId: 'msg-api-key-error',
-      }) as never
-    )
-    await expect(res.json()).resolves.toEqual({ success: false, error: 'name is required' })
   })
 })

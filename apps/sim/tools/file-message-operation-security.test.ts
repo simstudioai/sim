@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -82,7 +79,6 @@ const FILE = {
 
 describe('file and message operation security', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.assertToolFileAccess.mockResolvedValue(null)
     mocks.processFiles.mockReturnValue([FILE])
     mocks.processSingleFile.mockReturnValue(FILE)

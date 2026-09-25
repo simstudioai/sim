@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { createExecutionContext } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockExecuteTool } = vi.hoisted(() => ({
   mockExecuteTool: vi.fn(async () => ({ success: true, output: {} })),
@@ -37,10 +34,6 @@ async function executeProviderTool(
 }
 
 describe('provider runtime context', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('dispatches the bound memory reader and reauthorizes repeated invocation reads', async () => {
     const execute = vi
       .fn()

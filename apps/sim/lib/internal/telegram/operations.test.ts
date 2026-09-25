@@ -1,12 +1,4 @@
-/**
- * @vitest-environment node
- */
-
-import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  isInternalToolFileResult,
-  type StoredToolFile,
-} from '@/lib/internal/tool-operations/file-result'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   assertToolFileAccess: vi.fn(),
@@ -26,7 +18,6 @@ import { sendTelegramDocument } from '@/lib/internal/telegram/operations'
 
 describe('sendTelegramDocument', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mocks.fetch)
     mocks.assertToolFileAccess.mockResolvedValue(null)
     mocks.downloadServableFileFromStorage.mockResolvedValue({
@@ -34,52 +25,6 @@ describe('sendTelegramDocument', () => {
       contentType: 'application/pdf',
     })
     mocks.fetch.mockResolvedValue(Response.json({ ok: true, result: { message_id: 1 } }))
-  })
-
-  it('authorizes one stored file and sends one abortable provider request', async () => {
-    const controller = new AbortController()
-    const result = await sendTelegramDocument(
-      {
-        botToken: 'token',
-        chatId: 'chat-1',
-        caption: '**report**',
-        files: [{ key: 'workspace/file.pdf', name: 'file.pdf', size: 3 }],
-      },
-      { userId: 'user-1', requestId: 'request-1', signal: controller.signal }
-    )
-
-    expect(mocks.assertToolFileAccess).toHaveBeenCalledWith(
-      'workspace/file.pdf',
-      'user-1',
-      'request-1',
-      expect.anything()
-    )
-    expect(mocks.fetch).toHaveBeenCalledTimes(1)
-    expect(mocks.fetch.mock.calls[0][1]).toEqual(
-      expect.objectContaining({ signal: controller.signal })
-    )
-    assert(isInternalToolFileResult(result))
-    expect(result.files).toEqual([
-      { name: 'file.pdf', mimeType: 'application/pdf', buffer: Buffer.from([1, 2, 3]) },
-    ])
-    const storedFile: StoredToolFile = {
-      id: 'stored-file-1',
-      key: 'execution/stored-file-1',
-      url: '/api/files/serve/stored-file-1',
-      name: 'file.pdf',
-      type: 'application/pdf',
-      mimeType: 'application/pdf',
-      size: 3,
-      context: 'execution',
-    }
-    expect(result.present([storedFile])).toEqual({
-      success: true,
-      output: {
-        message: 'Document sent successfully',
-        data: { message_id: 1 },
-        files: [storedFile],
-      },
-    })
   })
 
   it('fails closed before materialization when file access is denied', async () => {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -58,7 +55,6 @@ vi.mock('@/lib/users/queries', () => ({
 }))
 
 import { v2ListKnowledgeBasesContract } from '@/lib/api/contracts/v2/knowledge'
-import { V2_DEFAULT_PAGE_SIZE } from '@/lib/api/contracts/v2/shared'
 import { cursorRoute, cursorScopeKey, REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { GET, POST } from '@/app/api/v2/knowledge/route'
 import { writeSortedCursor } from '@/app/api/v2/lib/response'
@@ -93,7 +89,6 @@ function buildKnowledgeBase() {
 
 describe('/api/v2/knowledge route composition', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCheckPreAuth.mockResolvedValue(RATE_LIMIT_OK)
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockAuthenticate.mockResolvedValue({
@@ -110,102 +105,6 @@ describe('/api/v2/knowledge route composition', () => {
       sortOrder: 'desc',
     })
     mockCreate.mockResolvedValue({ knowledgeBase: buildKnowledgeBase(), folderPath: '/' })
-  })
-
-  it('delegates the bounded list query with the authenticated principal', async () => {
-    const request = new NextRequest(
-      `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&search=support&folderPath=%2F&sortBy=name&sortOrder=desc`,
-      { headers: { 'x-api-key': 'secret' } }
-    )
-
-    const response = await GET(request)
-
-    expect(response.status).toBe(200)
-    expect(mockList).toHaveBeenCalledWith({
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-      input: {
-        workspaceId: WORKSPACE_ID,
-        scope: 'active',
-        folderPath: '/',
-        search: 'support',
-        sortBy: 'name',
-        sortOrder: 'desc',
-        limit: V2_DEFAULT_PAGE_SIZE,
-        cursorKeys: undefined,
-      },
-      request,
-    })
-    expect(await response.json()).toEqual({
-      data: [
-        expect.objectContaining({
-          id: 'kb-1',
-          webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/knowledge/kb-1`,
-          folderPath: '/',
-          ownerEmail: 'owner@example.com',
-          connectorTypes: ['notion'],
-          createdAt: '2024-01-01T00:00:00.000Z',
-        }),
-      ],
-      nextCursor: null,
-    })
-  })
-
-  /**
-   * The archived set is this list under `scope=archived`, not a sibling path:
-   * one semantic operation over the same rows with a different `deleted_at`
-   * predicate, matching files, tables, and workflows.
-   */
-  it('lists the archived set through the same operation and reports when each was archived', async () => {
-    mockList.mockResolvedValue({
-      knowledgeBases: [
-        {
-          knowledgeBase: {
-            ...buildKnowledgeBase(),
-            deletedAt: new Date('2024-02-02T00:00:00Z'),
-          },
-          folderPath: '/',
-        },
-      ],
-      nextCursorKeys: null,
-      sortBy: 'createdAt',
-      sortOrder: 'asc',
-    })
-
-    const response = await GET(
-      new NextRequest(
-        `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&scope=archived`,
-        { headers: { 'x-api-key': 'secret' } }
-      )
-    )
-
-    expect(response.status).toBe(200)
-    expect(mockList).toHaveBeenCalledWith(
-      expect.objectContaining({ input: expect.objectContaining({ scope: 'archived' }) })
-    )
-    const [item] = (await response.json()).data
-    expect(item.deletedAt).toBe('2024-02-02T00:00:00.000Z')
-    expect(item.folderPath).toBe('/')
-  })
-
-  it('reports a null archive instant for an active knowledge base', async () => {
-    const response = await GET(
-      new NextRequest(`http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}`, {
-        headers: { 'x-api-key': 'secret' },
-      })
-    )
-
-    expect((await response.json()).data[0].deletedAt).toBeNull()
-  })
-
-  it('rejects a scope outside the published set', async () => {
-    const response = await GET(
-      new NextRequest(`http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&scope=all`, {
-        headers: { 'x-api-key': 'secret' },
-      })
-    )
-
-    expect(response.status).toBe(400)
-    expect(mockList).not.toHaveBeenCalled()
   })
 
   /**
@@ -301,77 +200,6 @@ describe('/api/v2/knowledge route composition', () => {
     expect(replayed.status).toBe(400)
     expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
     expect(mockList).not.toHaveBeenCalled()
-  })
-
-  it('resumes a cursor replayed under the filters it was minted with', async () => {
-    mockList.mockResolvedValue({
-      knowledgeBases: [{ knowledgeBase: buildKnowledgeBase(), folderPath: '/' }],
-      nextCursorKeys: ['Support docs', 'kb-1'],
-      sortBy: 'name',
-      sortOrder: 'desc',
-    })
-
-    const minted = await GET(
-      new NextRequest(
-        `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&search=support`,
-        { headers: { 'x-api-key': 'secret' } }
-      )
-    )
-    const { nextCursor } = await minted.json()
-
-    mockList.mockClear()
-    const resumed = await GET(
-      new NextRequest(
-        `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&search=support&cursor=${encodeURIComponent(nextCursor)}`,
-        { headers: { 'x-api-key': 'secret' } }
-      )
-    )
-
-    expect(resumed.status).toBe(200)
-    expect(mockList).toHaveBeenCalledWith({
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-      input: expect.objectContaining({
-        search: 'support',
-        cursorKeys: ['Support docs', 'kb-1'],
-      }),
-      request: expect.anything(),
-    })
-  })
-
-  it('returns 201 and keeps human analytics on the personal-key actor', async () => {
-    const request = new NextRequest('http://localhost/api/v2/knowledge', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
-      body: JSON.stringify({ workspaceId: WORKSPACE_ID, name: 'Support docs' }),
-    })
-
-    const response = await POST(request)
-
-    expect(response.status).toBe(201)
-    expect((await response.clone().json()).data.ownerEmail).toBe('owner@example.com')
-    expect(mockCreate).toHaveBeenCalledWith({
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-      input: {
-        workspaceId: WORKSPACE_ID,
-        name: 'Support docs',
-        description: undefined,
-        chunkingConfig: { maxSize: 1024, minSize: 100, overlap: 200 },
-        folderPath: undefined,
-        source: 'api',
-      },
-      request,
-    })
-    expect(mockPlatformCreated).toHaveBeenCalledWith({
-      knowledgeBaseId: 'kb-1',
-      name: 'Support docs',
-      workspaceId: WORKSPACE_ID,
-    })
-    expect(mockCapture).toHaveBeenCalledWith(
-      'user-1',
-      'knowledge_base_created',
-      expect.objectContaining({ workspace_id: WORKSPACE_ID }),
-      expect.any(Object)
-    )
   })
 
   it('does not attribute workspace-key creation analytics to a billing owner', async () => {

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { type ChildProcess, execFileSync, fork } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer, type ServerResponse } from 'node:http'

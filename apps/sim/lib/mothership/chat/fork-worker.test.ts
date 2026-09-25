@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { generateId } from '@sim/utils/id'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { copyWorkerConversation } from '@/lib/mothership/chat/fork-worker'

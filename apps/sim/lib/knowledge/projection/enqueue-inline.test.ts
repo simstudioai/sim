@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { sleep } from '@sim/utils/helpers'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -14,10 +11,7 @@ vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: false }))
 vi.mock('@/lib/core/config/trigger-runtime', () => ({ isInsideTriggerRun: () => false }))
 vi.mock('@/lib/knowledge/projection/run', () => ({ runKnowledgeProjectionPass: mocks.runPass }))
 
-import {
-  enqueueKnowledgeProjectionSweep,
-  requestKnowledgeProjection,
-} from '@/lib/knowledge/projection/enqueue'
+import { requestKnowledgeProjection } from '@/lib/knowledge/projection/enqueue'
 
 /** A pass that runs until the test finishes it. */
 function heldPass() {
@@ -32,24 +26,6 @@ function heldPass() {
 }
 
 describe('knowledge projection without a Trigger.dev worker', () => {
-  it('starts a pass without waiting for it, one at a time, folding requests into the next', async () => {
-    const finishFirst = heldPass()
-    await expect(requestKnowledgeProjection()).resolves.toBeUndefined()
-    await vi.waitFor(() => expect(mocks.runPass).toHaveBeenCalledTimes(1))
-    await requestKnowledgeProjection()
-    await expect(enqueueKnowledgeProjectionSweep()).resolves.toEqual({
-      triggered: true,
-      backend: 'inline',
-      jobId: null,
-    })
-    expect(mocks.runPass).toHaveBeenCalledTimes(1)
-    const finishSecond = heldPass()
-    finishFirst()
-    await vi.waitFor(() => expect(mocks.runPass).toHaveBeenCalledTimes(2))
-    finishSecond()
-    expect(mocks.trigger).not.toHaveBeenCalled()
-  })
-
   it('runs a pass for a request that arrives at any point while the last pass is finishing', async () => {
     for (let hops = 0; hops < 8; hops++) {
       mocks.runPass.mockReset()

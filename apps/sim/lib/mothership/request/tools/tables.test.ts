@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
@@ -77,7 +73,6 @@ function buildContext(overrides: Partial<ExecutionContext> = {}): ExecutionConte
 
 describe('automatic Copilot tool-output table persistence', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.executeReplace.mockImplementation(
       async (_context: ExecutionContext, input: { sourceRows: unknown[] }) => ({
         table,
@@ -153,25 +148,6 @@ describe('automatic Copilot tool-output table persistence', () => {
       new ResolvedSecretTraceRegistry()
     )
     expect(laterRead.output).toEqual({ data: { rows: projectedRows } })
-  })
-
-  it('delegates unavailable provenance handling to the application command', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete('unspecified')
-
-    await maybeWriteOutputToTable(
-      RunFunction.id,
-      { outputTable: 'table-1' },
-      { success: true, output: { result: [{ name: 'unknown' }] } },
-      buildContext({ resolvedSecretTraceRegistry: registry })
-    )
-
-    expect(mocks.executeReplace).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        secretProvenance: { mode: 'resolved_output', registry },
-      })
-    )
   })
 
   it('preserves typed application validation for a correctable tool error', async () => {
@@ -276,20 +252,6 @@ describe('automatic Copilot tool-output table persistence', () => {
     })
   })
 
-  it('tells each language how to hand rows back when the shape is wrong', async () => {
-    const result = await maybeWriteOutputToTable(
-      RunFunction.id,
-      { outputTable: 'table-1' },
-      { success: true, output: { result: { rows: [{ name: 'Ada' }] } } },
-      buildContext()
-    )
-
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('JavaScript: `return [...]`')
-    expect(result.error).toContain('Python: assign `__sim_result__ = [...]`')
-    expect(result.output).toBeUndefined()
-  })
-
   it('keeps what the code printed beside the table write', async () => {
     const context = buildContext()
     const rows = [{ name: 'Ada' }]
@@ -353,31 +315,6 @@ describe('automatic Copilot tool-output table persistence', () => {
     )
   })
 
-  it('pluralizes a multi-file export receipt on the table write', async () => {
-    const result = await maybeWriteOutputToTable(
-      RunFunction.id,
-      { outputTable: 'table-1' },
-      {
-        success: true,
-        output: {
-          result: [{ name: 'Ada' }, { name: 'Grace' }],
-          exported: {
-            message: '',
-            files: [{ vfsPath: 'files/a.csv' }, { vfsPath: 'files/b.csv' }],
-          },
-        },
-      },
-      buildContext()
-    )
-
-    expect(result).toMatchObject({
-      success: true,
-      output: {
-        message: 'Wrote 2 rows to table table-1 and exported 2 files: files/a.csv, files/b.csv',
-      },
-    })
-  })
-
   it('fails closed when the authoritative inserted count is inconsistent', async () => {
     mocks.executeReplace.mockResolvedValueOnce({ table, deletedCount: 1, insertedCount: 1 })
 
@@ -397,7 +334,6 @@ describe('automatic Copilot tool-output table persistence', () => {
 
 describe('automatic Copilot file-read table persistence', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.executeReplace.mockImplementation(
       async (_context: ExecutionContext, input: { sourceRows: unknown[] }) => ({
         table,

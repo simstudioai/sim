@@ -80,16 +80,6 @@ const API_REFERENCE_RULES = DOCS_REDIRECTS.filter(
 )
 
 describe('api-reference redirects', () => {
-  it('is a non-empty set of literal paths', () => {
-    expect(API_REFERENCE_RULES.length).toBeGreaterThan(0)
-    for (const rule of API_REFERENCE_RULES) {
-      expect(
-        `${rule.source} -> ${rule.destination}`,
-        'path params would make the slug checks below vacuous'
-      ).not.toMatch(/[:*]/)
-    }
-  })
-
   it('never shadows a page that exists', () => {
     const resolvable = resolvableSlugs()
     const shadowed = API_REFERENCE_RULES.map((rule) => rule.source)

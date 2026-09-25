@@ -48,25 +48,6 @@ export function createMockRequest(
 }
 
 /**
- * Creates a mock NextRequest with form data for file upload testing.
- *
- * @param formData - FormData instance
- * @param method - HTTP method (defaults to POST)
- * @param url - Optional custom URL
- * @returns Request instance
- */
-export function createMockFormDataRequest(
-  formData: FormData,
-  method = 'POST',
-  url = 'http://localhost:3000/api/test'
-): Request {
-  return new Request(new URL(url), {
-    method,
-    body: formData,
-  })
-}
-
-/**
  * Controllable mock functions for `@/lib/core/utils/request`.
  *
  * @example

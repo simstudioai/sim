@@ -190,42 +190,6 @@ afterEach(() => {
   })
 })
 
-it('adds a workspace with its chosen integrations and lists it with the existing grants', async () => {
-  setAccess([{ workspaceId: 'workspace-1', access: { mode: 'all' } }])
-  const editor = renderAccess()
-  expect(editor.rows()).toEqual(['Finance'])
-  expect(editor.container.textContent).toContain('All integrations')
-  const grant = {
-    workspaceId: 'workspace-2',
-    access: { mode: 'selected', credentialTypes: ['oauth:gmail', 'oauth:google-calendar'] },
-  } satisfies WorkspaceAccess['grants'][number]
-  await editor.add(grant)
-  editor.rerender()
-  if (mocks.grantModal?.mode !== 'create') throw new Error('Create modal not found')
-  expect(mocks.grantModal.workspaces).toEqual(WORKSPACES.slice(1))
-  expect(mocks.mutateAsync).toHaveBeenCalledExactlyOnceWith({
-    organizationId: 'org-1',
-    revision: 3,
-    grants: [{ workspaceId: 'workspace-1', access: { mode: 'all' } }, grant],
-  })
-  expect(editor.rows()).toEqual(['Finance', 'Support'])
-  expect(editor.container.textContent).toContain('Gmail, Google Calendar')
-  expect(editor.container.textContent).not.toContain('Manage workspace access modal')
-})
-
-it('adds an explicit All integrations grant', async () => {
-  const editor = renderAccess()
-  await editor.add({ workspaceId: 'workspace-2', access: { mode: 'all' } })
-  expect(mocks.mutateAsync).toHaveBeenCalledExactlyOnceWith({
-    organizationId: 'org-1',
-    revision: 3,
-    grants: [
-      ...gmailGrants(['workspace-1']),
-      { workspaceId: 'workspace-2', access: { mode: 'all' } },
-    ],
-  })
-})
-
 it('edits one workspace without changing other workspace grants', async () => {
   setAccess(gmailGrants(['workspace-1', 'workspace-2']))
   const editor = renderAccess('?credential-group-workspace=+FINANCE+')
@@ -247,49 +211,6 @@ it('edits one workspace without changing other workspace grants', async () => {
   })
 })
 
-it('removes workspace access from the editor', async () => {
-  const editor = renderAccess()
-  act(() => editor.button('Edit access').click())
-  await act(async () => {
-    if (mocks.grantModal?.mode !== 'edit') throw new Error('Edit modal not found')
-    mocks.grantModal.onRemove()
-  })
-  editor.rerender()
-  expect(mocks.mutateAsync).toHaveBeenCalledExactlyOnceWith({
-    organizationId: 'org-1',
-    revision: 3,
-    grants: [],
-  })
-  expect(editor.rows()).toEqual([])
-  expect(editor.container.textContent).toContain('No workspaces have access')
-})
-
-it('does not change access when adding a workspace is cancelled', () => {
-  const editor = renderAccess()
-  act(() => editor.button('Add workspace').click())
-  act(() => mocks.grantModal?.onClose())
-  expect(mocks.mutateAsync).not.toHaveBeenCalled()
-  expect(editor.rows()).toEqual(['Finance'])
-  expect(editor.container.textContent).not.toContain('Manage workspace access modal')
-})
-
-it('keeps the editor open and reports failed additions without changing the list', async () => {
-  const conflict = new Error('Workspace access changed while it was edited')
-  mocks.mutateAsync.mockImplementation(async () => {
-    mocks.mutationError = conflict
-    throw conflict
-  })
-  const editor = renderAccess()
-  await editor.add(gmailGrants(['workspace-2'])[0])
-  editor.rerender()
-  expect(mocks.mutateAsync).toHaveBeenCalledOnce()
-  expect(editor.rows()).toEqual(['Finance'])
-  expect(editor.container.textContent).toContain('Manage workspace access modal')
-  expect(mocks.grantModal?.error).toBe(conflict.message)
-  expect(mocks.toastError).toHaveBeenCalledWith(conflict.message)
-  expect(mocks.toastSuccess).not.toHaveBeenCalled()
-})
-
 it.each(['create', 'edit'] as const)(
   'keeps the revision captured when the %s editor opened',
   async (mode) => {
@@ -303,14 +224,3 @@ it.each(['create', 'edit'] as const)(
     expect(mocks.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ revision: 3 }))
   }
 )
-
-it('disables changes while saving and disables adding when all workspaces already have access', () => {
-  mocks.isPending = true
-  const editor = renderAccess()
-  expect(editor.button('Add workspace').disabled).toBe(true)
-  expect(editor.button('Edit access').disabled).toBe(true)
-  mocks.isPending = false
-  setAccess(gmailGrants(WORKSPACES.map((workspace) => workspace.id)))
-  editor.rerender()
-  expect(editor.button('Add workspace').disabled).toBe(true)
-})

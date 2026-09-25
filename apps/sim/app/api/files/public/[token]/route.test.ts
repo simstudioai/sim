@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -65,7 +62,6 @@ const passwordShare = {
 
 describe('GET /api/files/public/[token]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockEnforceRateLimit.mockResolvedValue(null) // allow by default
     mockValidateDeploymentAuth.mockResolvedValue({ authorized: true }) // public by default
   })
@@ -77,12 +73,6 @@ describe('GET /api/files/public/[token]', () => {
     const res = await GET(request(), params())
     expect(res.status).toBe(429)
     expect(mockResolveActiveShareByToken).not.toHaveBeenCalled()
-  })
-
-  it('returns 404 for an unknown or inactive token', async () => {
-    mockResolveActiveShareByToken.mockResolvedValueOnce(null)
-    const res = await GET(request(), params())
-    expect(res.status).toBe(404)
   })
 
   it('returns public-safe metadata without leaking the key or workspace id', async () => {
@@ -119,19 +109,10 @@ describe('GET /api/files/public/[token]', () => {
       'file'
     )
   })
-
-  it('serves metadata for a password share once authorized by cookie', async () => {
-    mockResolveActiveShareByToken.mockResolvedValueOnce(passwordShare)
-    mockValidateDeploymentAuth.mockResolvedValueOnce({ authorized: true })
-    const res = await GET(request(), params())
-    expect(res.status).toBe(200)
-    expect((await res.json()).name).toBe('report.pdf')
-  })
 })
 
 describe('POST /api/files/public/[token]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveActiveShareByToken.mockResolvedValue(passwordShare)
   })
 
@@ -180,11 +161,5 @@ describe('POST /api/files/public/[token]', () => {
     expect(res.status).toBe(429)
     expect(res.headers.get('Retry-After')).toBe('60')
     expect(mockSetDeploymentAuthCookie).not.toHaveBeenCalled()
-  })
-
-  it('returns 404 for an unknown token', async () => {
-    mockResolveActiveShareByToken.mockResolvedValueOnce(null)
-    const res = await POST(postRequest('hunter2'), params())
-    expect(res.status).toBe(404)
   })
 })

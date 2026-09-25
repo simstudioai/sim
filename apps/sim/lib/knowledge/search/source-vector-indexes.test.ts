@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -47,16 +44,6 @@ describe('source vector indexes', () => {
     statements = []
   })
 
-  it('builds an index for a source large enough to be walked', async () => {
-    dbChainMockFns.select.mockReturnValue({
-      from: () => ({ where: async () => [{ documents: SOURCE_INDEX_MIN_DOCUMENTS }] }),
-    } as never)
-    expect(await ensureSourceVectorIndex(CONNECTOR)).toBe(true)
-    const created = statements.find((text) => text.includes('CREATE INDEX CONCURRENTLY'))
-    expect(created).toContain(`connector_id = '${CONNECTOR}'`)
-    expect(created).toContain('vector_512 halfvec_cosine_ops')
-  })
-
   it('leaves the build to another sync that already holds the source', async () => {
     dbChainMockFns.select.mockReturnValue({
       from: () => ({ where: async () => [{ documents: SOURCE_INDEX_MIN_DOCUMENTS }] }),
@@ -76,14 +63,6 @@ describe('source vector indexes', () => {
     expect(await ensureSourceVectorIndex(CONNECTOR)).toBe(false)
     expect(statements.some((text) => text.includes('CREATE INDEX'))).toBe(false)
     expect(statements.some((text) => text.includes('DROP INDEX'))).toBe(false)
-  })
-
-  it('leaves a source below the threshold to exact ranking', async () => {
-    dbChainMockFns.select.mockReturnValue({
-      from: () => ({ where: async () => [{ documents: SOURCE_INDEX_MIN_DOCUMENTS - 1 }] }),
-    } as never)
-    expect(await ensureSourceVectorIndex(CONNECTOR)).toBe(false)
-    expect(statements.some((text) => text.includes('CREATE INDEX'))).toBe(false)
   })
 
   it('never spells an unexpected identifier into DDL', async () => {

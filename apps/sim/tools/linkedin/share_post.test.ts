@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { type createMockLogger, loggerMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { linkedInSharePostTool } from '@/tools/linkedin/share_post'
@@ -25,7 +22,6 @@ const executeTool = vi.fn()
 
 describe('linkedInSharePostTool.postProcess', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
   })
 

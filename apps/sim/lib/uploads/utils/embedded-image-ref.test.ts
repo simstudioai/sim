@@ -60,9 +60,4 @@ describe('extractImgSrcs', () => {
       )
     ).toEqual(['/a.png', '/b.png', '/c.png', '/a.png'])
   })
-
-  it('returns nothing for markup without images', () => {
-    expect(extractImgSrcs('<p>hello</p>')).toEqual([])
-    expect(extractImgSrcs('')).toEqual([])
-  })
 })

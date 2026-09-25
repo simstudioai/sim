@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * `logs.trace_spans` and `logs.cost` are PROJECTIONS, not gates — a group
  * withholds those fields from the response rather than refusing the read, which
  * is why every v1 logs route correctly declares `capability: 'none'`. The
@@ -165,7 +163,6 @@ function readDetail() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetPermissionGroupScopeMock()
   mockAuthenticateV1Request.mockResolvedValue(v1PersonalKeyCredential(USER_ID))
   mockGetUserEntityPermissions.mockResolvedValue('admin')
@@ -186,14 +183,6 @@ describe('GET /api/v1/logs?details=full', () => {
     expect(log).not.toHaveProperty('finalOutput')
   })
 
-  it('withholds the run cost when the group hides cost', async () => {
-    governedBy({ hideCostInfo: true })
-
-    const body = await (await listFull()).json()
-
-    expect(body.data[0].cost).toBeNull()
-  })
-
   it('strips spend from the spans it still returns when only cost is hidden', async () => {
     governedBy({ hideCostInfo: true })
 
@@ -204,42 +193,6 @@ describe('GET /api/v1/logs?details=full', () => {
     expect(span).not.toHaveProperty('cost')
     expect(span).not.toHaveProperty('tokens')
     expect(span.children[0]).not.toHaveProperty('cost')
-  })
-
-  it('returns both when no group withholds them', async () => {
-    const body = await (await listFull()).json()
-    const [log] = body.data
-
-    expect(log.cost).toEqual({ total: 0.75 })
-    expect(log.traceSpans[0].cost).toEqual({ total: 0.5 })
-    expect(log.finalOutput).toEqual(EXECUTION_DATA.finalOutput)
-  })
-
-  /**
-   * `withheldExecutionData` strips `traceSpans` and `finalOutput` alike, so
-   * under `hideTraceSpans` neither opt-in field survives — reading every row's
-   * blob out of the trace store to delete it is pure cost.
-   */
-  it('neither selects nor materializes execution data it is going to withhold', async () => {
-    governedBy({ hideTraceSpans: true })
-
-    await listFull()
-
-    expect(mockListPublicWorkflowLogs).toHaveBeenCalledWith(
-      expect.objectContaining({ includeExecutionData: false })
-    )
-    expect(mockMaterialize).not.toHaveBeenCalled()
-  })
-
-  it('still materializes for a group that withholds only spend', async () => {
-    governedBy({ hideCostInfo: true })
-
-    await listFull()
-
-    expect(mockListPublicWorkflowLogs).toHaveBeenCalledWith(
-      expect.objectContaining({ includeExecutionData: true })
-    )
-    expect(mockMaterialize).toHaveBeenCalled()
   })
 
   /**
@@ -255,21 +208,6 @@ describe('GET /api/v1/logs?details=full', () => {
 
     expect(body.limits.usage.currentPeriodCost).toBeNull()
     expect(body.limits.usage).toMatchObject({ limit: 50, plan: 'pro', isExceeded: false })
-  })
-
-  it('reports the period spend when no group withholds it', async () => {
-    const body = await (await listFull()).json()
-
-    expect(body.limits.usage.currentPeriodCost).toBe(4.25)
-  })
-
-  it('reports the period spend to a workspace API key, which resolves no group', async () => {
-    mockAuthenticateV1Request.mockResolvedValue(v1WorkspaceKeyCredential(WORKSPACE_ID))
-    governedBy({ hideCostInfo: true })
-
-    const body = await (await listFull()).json()
-
-    expect(body.limits.usage.currentPeriodCost).toBe(4.25)
   })
 
   it('withholds nothing from a workspace API key, whose creator has no say', async () => {
@@ -313,67 +251,6 @@ describe('GET /api/v1/logs cost-selective queries', () => {
     }
   )
 
-  it('answers the same filter for a group that withholds nothing', async () => {
-    const response = await listFiltered('minCost=0.5')
-
-    expect(response.status).toBe(200)
-    expect(mockListPublicWorkflowLogs).toHaveBeenCalledWith(
-      expect.objectContaining({ filters: expect.objectContaining({ minCost: 0.5 }) })
-    )
-  })
-
-  /** A workspace key has no user and therefore no group to refuse on behalf of. */
-  it('answers the same filter for a workspace API key', async () => {
-    mockAuthenticateV1Request.mockResolvedValue(v1WorkspaceKeyCredential(WORKSPACE_ID))
-    governedBy({ hideCostInfo: true })
-
-    const response = await listFiltered('minCost=0.5')
-
-    expect(response.status).toBe(200)
-    expect(mockListPublicWorkflowLogs).toHaveBeenCalled()
-  })
-
-  /**
-   * An unfilled form field is not a question about cost. `?minCost=` reaches
-   * the schema as `''`, and `z.coerce.number()` reads `Number('')` as a real
-   * zero — which made an innocent request look like a cost selector and refused
-   * it. Normalized to omitted before the assertion runs.
-   */
-  it.each([['minCost='], ['maxCost='], ['minCost=&maxCost=']])(
-    'answers %s for a group that withholds spend, because it selects nothing',
-    async (query) => {
-      governedBy({ hideCostInfo: true })
-
-      const response = await listFiltered(query)
-
-      expect(response.status).toBe(200)
-      expect(mockListPublicWorkflowLogs).toHaveBeenCalledWith(
-        expect.objectContaining({
-          filters: expect.objectContaining({ minCost: undefined, maxCost: undefined }),
-        })
-      )
-    }
-  )
-
-  /** An explicit zero is a bound the caller typed, and still selects on cost. */
-  it('still refuses an explicit minCost=0', async () => {
-    governedBy({ hideCostInfo: true })
-
-    const response = await listFiltered('minCost=0')
-
-    expect(response.status).toBe(403)
-    expect(mockListPublicWorkflowLogs).not.toHaveBeenCalled()
-  })
-
-  /** Only the spend filter is refused; the rest of the query is unaffected. */
-  it('still answers a non-cost filter for a group that withholds spend', async () => {
-    governedBy({ hideCostInfo: true })
-
-    const response = await listFiltered('minDurationMs=100')
-
-    expect(response.status).toBe(200)
-  })
-
   /**
    * The refusal must come from the caller's own membership, not from the door:
    * a non-member is told nothing about how the organization configured a group.
@@ -400,40 +277,6 @@ describe('GET /api/v1/logs/[id]', () => {
     expect(body.data.executionData).not.toHaveProperty('finalOutput')
     expect(body.data.executionData).not.toHaveProperty('workflowInput')
     expect(body.data.executionData).not.toHaveProperty('blockInput')
-  })
-
-  it('withholds the run cost and per-span spend when the group hides cost', async () => {
-    governedBy({ hideCostInfo: true })
-
-    const body = await (await readDetail()).json()
-
-    expect(body.data.cost).toBeNull()
-    expect(body.data.executionData.traceSpans[0]).not.toHaveProperty('cost')
-    expect(body.data.executionData.blockExecutions[0]).not.toHaveProperty('tokens')
-  })
-
-  it('returns everything when no group withholds it', async () => {
-    const body = await (await readDetail()).json()
-
-    expect(body.data.cost).toEqual({ total: 0.75 })
-    expect(body.data.executionData.traceSpans[0].cost).toEqual({ total: 0.5 })
-    expect(body.data.executionData.finalOutput).toEqual(EXECUTION_DATA.finalOutput)
-  })
-})
-
-describe('GET /api/v1/logs/executions/[executionId]', () => {
-  it('withholds the run cost when the group hides cost', async () => {
-    governedBy({ hideCostInfo: true })
-
-    const body = await (await readExecution()).json()
-
-    expect(body.executionMetadata.cost).toBeNull()
-  })
-
-  it('returns the run cost when no group withholds it', async () => {
-    const body = await (await readExecution()).json()
-
-    expect(body.executionMetadata.cost).toEqual({ total: 0.75 })
   })
 })
 

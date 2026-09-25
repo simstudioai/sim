@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { hmacSha256Hex } from '@sim/security/hmac'
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -52,7 +49,6 @@ function callbackRequest(state: string) {
 
 describe('Shopify OAuth callback', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mockRequireConfiguredOAuthClient.mockReturnValue({
       values: {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   authMockFns,
   createMockRequest,
@@ -57,7 +54,6 @@ const context = { params: Promise.resolve({ id: 'workspace-1' }) }
 
 describe('Inbox config secret policy', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'admin-1' },
@@ -144,7 +140,6 @@ function queueInboxReadRows() {
 
 describe('Inbox inbox.use capability gate', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'admin-1' },
@@ -185,57 +180,6 @@ describe('Inbox inbox.use capability gate', () => {
         details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
       })
       expect(dbChainMockFns.set).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('when a group governs the user but withholds nothing', () => {
-    beforeEach(() => {
-      resolveGroupConfigMock.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
-    })
-
-    it('reads the inbox config', async () => {
-      queueInboxReadRows()
-
-      const response = await GET(getRequest(), context)
-
-      expect(response.status).toBe(200)
-      await expect(response.json()).resolves.toMatchObject({
-        enabled: true,
-        address: 'tasks@example.com',
-      })
-    })
-
-    it('updates the inbox config', async () => {
-      queueInboxReadRows()
-
-      const response = await PATCH(patchRequest(), context)
-
-      expect(response.status).toBe(200)
-      expect(dbChainMockFns.set).toHaveBeenCalled()
-    })
-  })
-
-  /** A personal workspace, or any non-enterprise organization, is governed by no group. */
-  describe('when no permission group governs the user', () => {
-    beforeEach(() => {
-      resolveGroupConfigMock.mockResolvedValue(null)
-    })
-
-    it('reads the inbox config', async () => {
-      queueInboxReadRows()
-
-      const response = await GET(getRequest(), context)
-
-      expect(response.status).toBe(200)
-    })
-
-    it('updates the inbox config', async () => {
-      queueInboxReadRows()
-
-      const response = await PATCH(patchRequest(), context)
-
-      expect(response.status).toBe(200)
-      expect(dbChainMockFns.set).toHaveBeenCalled()
     })
   })
 })

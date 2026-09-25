@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -25,7 +22,6 @@ const mockGetSession = authMockFns.mockGetSession
 
 describe('GET /api/usage organization context', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'member-1' }, session: { id: 'session' } })
   })
 

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { EmbeddedCliIdentity } from 'sim/embed'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -58,7 +57,6 @@ const context = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.target.mockImplementation(async (_context, target) => ({
     workspaceId: target ?? first,
     userId: 'actor',

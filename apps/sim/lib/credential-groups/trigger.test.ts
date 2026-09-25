@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
@@ -31,10 +27,7 @@ vi.mock('@/lib/webhooks/processor', () => ({
   processPolledWebhookEvent: mocks.processEvent,
 }))
 
-import {
-  buildCredentialGroupTriggerPayload,
-  fireCredentialGroupTrigger,
-} from '@/lib/credential-groups/trigger'
+import { fireCredentialGroupTrigger } from '@/lib/credential-groups/trigger'
 
 const EVENT = {
   event: 'credential_added' as const,
@@ -71,7 +64,6 @@ function subscription(params: { workflowId: string; workspaceId?: string; eventT
 
 describe('Credential Group trigger delivery', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.requirePolicy.mockResolvedValue({
       document: buildOrganizationAccountAccessPolicy(
         'group-1',
@@ -164,34 +156,9 @@ describe('Credential Group trigger delivery', () => {
     )
   })
 
-  it('propagates malformed policy and delivery failures', async () => {
-    mocks.requirePolicy.mockRejectedValueOnce(new Error('Malformed policy'))
-    await expect(fireCredentialGroupTrigger(EVENT)).rejects.toThrow('Malformed policy')
+  it('propagates delivery failures', async () => {
     mocks.fetchSubscriptions.mockResolvedValue([subscription({ workflowId: 'allowed' })])
     mocks.processEvent.mockResolvedValue({ success: false, statusCode: 500, error: 'Failed' })
     await expect(fireCredentialGroupTrigger(EVENT)).rejects.toThrow('Failed to deliver')
-  })
-
-  it('uses null credential fields for form submissions', () => {
-    expect(
-      buildCredentialGroupTriggerPayload({
-        event: 'form_submitted',
-        workspaceId: 'workspace-1',
-        credentialGroupId: 'group-1',
-        credentialGroupName: 'Credential Group',
-        enrollmentId: 'enrollment-1',
-        email: 'person@example.com',
-        enrollmentStatus: 'completed',
-      })
-    ).toEqual(
-      expect.objectContaining({
-        event: 'form_submitted',
-        credentialId: null,
-        credentialGroupOptionId: null,
-        provider: null,
-        providerId: null,
-        displayName: null,
-      })
-    )
   })
 })

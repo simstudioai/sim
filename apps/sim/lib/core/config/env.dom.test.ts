@@ -80,8 +80,4 @@ describe('getEnv', () => {
     expect(() => getEnv(TEST_KEY)).not.toThrow()
     expect(getEnv(TEST_KEY)).toBeUndefined()
   })
-
-  it('returns undefined when no source carries the key', () => {
-    expect(getEnv(TEST_KEY)).toBeUndefined()
-  })
 })

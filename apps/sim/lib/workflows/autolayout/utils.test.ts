@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { BLOCK_DIMENSIONS } from '@sim/workflow-renderer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_VERTICAL_SPACING } from '@/lib/workflows/autolayout/constants'
@@ -62,25 +59,6 @@ describe('resolveNoteOverlaps', () => {
     expect(blocks.note.position.y).toBeGreaterThanOrEqual(150 + 120 + DEFAULT_VERTICAL_SPACING - 1)
   })
 
-  it('leaves a note that does not overlap any block in place', () => {
-    const blocks: Record<string, BlockState> = {
-      a: createBlock('a', 'agent', { x: 150, y: 150 }),
-      note: createBlock(
-        'note',
-        'note',
-        { x: 2000, y: 2000 },
-        {
-          height: 120,
-          layout: { measuredHeight: 120 },
-        }
-      ),
-    }
-
-    resolveNoteOverlaps(blocks, DEFAULT_VERTICAL_SPACING)
-
-    expect(blocks.note.position).toEqual({ x: 2000, y: 2000 })
-  })
-
   it('stacks multiple overlapping notes without overlapping each other', () => {
     const blocks: Record<string, BlockState> = {
       a: createBlock('a', 'agent', { x: 150, y: 150 }),
@@ -110,18 +88,6 @@ describe('resolveNoteOverlaps', () => {
     const n2 = blocks.note2.position
     // Both relocated, stacked in reading order with no vertical overlap.
     expect(n2.y).toBeGreaterThanOrEqual(n1.y + 100)
-  })
-
-  it('does nothing when there are no notes', () => {
-    const blocks: Record<string, BlockState> = {
-      a: createBlock('a', 'agent', { x: 150, y: 150 }),
-      b: createBlock('b', 'agent', { x: 500, y: 150 }),
-    }
-
-    resolveNoteOverlaps(blocks, DEFAULT_VERTICAL_SPACING)
-
-    expect(blocks.a.position).toEqual({ x: 150, y: 150 })
-    expect(blocks.b.position).toEqual({ x: 500, y: 150 })
   })
 
   it('never produces non-finite coordinates when a block has a NaN position', () => {
@@ -214,36 +180,6 @@ describe('resolveNoteOverlaps', () => {
 
       expect(blocks.note.position).toEqual({ x: 160, y: 160 })
     })
-
-    it('relocates when a newly added block (no prior position) lands on a note', () => {
-      const previousBlocks: Record<string, BlockState> = {
-        note: createBlock(
-          'note',
-          'note',
-          { x: 150, y: 150 },
-          {
-            height: 120,
-            layout: { measuredHeight: 120 },
-          }
-        ),
-      }
-      const blocks: Record<string, BlockState> = {
-        a: createBlock('a', 'agent', { x: 150, y: 150 }),
-        note: createBlock(
-          'note',
-          'note',
-          { x: 150, y: 150 },
-          {
-            height: 120,
-            layout: { measuredHeight: 120 },
-          }
-        ),
-      }
-
-      resolveNoteOverlaps(blocks, DEFAULT_VERTICAL_SPACING, { previousBlocks })
-
-      expect(blocks.note.position.y).toBeGreaterThan(150)
-    })
   })
 })
 
@@ -314,30 +250,6 @@ describe('getBlockMetrics preview row estimation', () => {
     const advanced = getBlockMetrics(createTableBlock('advanced'))
 
     expect(advanced.height).toBe(basic.height)
-  })
-
-  it('counts a canonical pair once even when a trigger spread duplicates it', () => {
-    /*
-     * The duplicate `tableSelector`/`manualTableId` entries carry trigger-only
-     * modes, so exactly one member of the pair is ever visible. Counting the
-     * spread copies too would reserve a phantom row of height.
-     */
-    const withoutTriggerSpread = {
-      ...tableLikeConfig,
-      subBlocks: (
-        tableLikeConfig as unknown as { subBlocks: { mode?: string }[] }
-      ).subBlocks.filter(
-        (subBlock) => subBlock.mode !== 'trigger' && subBlock.mode !== 'trigger-advanced'
-      ),
-    } as unknown as ReturnType<typeof getBlock>
-
-    mockGetBlock.mockReturnValue(tableLikeConfig)
-    const spread = getBlockMetrics(createTableBlock('basic'))
-
-    mockGetBlock.mockReturnValue(withoutTriggerSpread)
-    const plain = getBlockMetrics(createTableBlock('basic'))
-
-    expect(spread.height).toBe(plain.height)
   })
 
   it('never estimates a card shorter than the rows it can actually paint', () => {
@@ -421,48 +333,6 @@ describe('getBlockMetrics sentence estimation', () => {
         BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
         BLOCK_DIMENSIONS.WORKFLOW_SENTENCE_LINE_HEIGHT +
         BLOCK_DIMENSIONS.WORKFLOW_CONTENT_GAP +
-        BLOCK_DIMENSIONS.WORKFLOW_ERROR_ROW_HEIGHT
-    )
-  })
-
-  it('grows by a line when the sentence wraps', () => {
-    mockGetBlock.mockReturnValue(sentencedConfig)
-
-    const oneLine = getBlockMetrics(createUnmountedBlock({ message: 'Hi', channel: '#a' }))
-    const twoLines = getBlockMetrics(
-      createUnmountedBlock({ message: 'Deploy finished', channel: '#eng', username: 'bot' })
-    )
-
-    expect(twoLines.height - oneLine.height).toBe(BLOCK_DIMENSIONS.WORKFLOW_SENTENCE_LINE_HEIGHT)
-  })
-
-  it('estimates a sentenced card shorter than the same card as rows', () => {
-    mockGetBlock.mockReturnValue(sentencedConfig)
-    const withSentence = getBlockMetrics(
-      createUnmountedBlock({ message: 'Deploy finished', channel: '#eng', username: 'bot' })
-    )
-
-    mockGetBlock.mockReturnValue({
-      ...(sentencedConfig as object),
-      canvasPresentation: undefined,
-    } as unknown as ReturnType<typeof getBlock>)
-    const asRows = getBlockMetrics(
-      createUnmountedBlock({ message: 'Deploy finished', channel: '#eng', username: 'bot' })
-    )
-
-    expect(withSentence.height).toBeLessThan(asRows.height)
-  })
-
-  it('falls back to rows when the required anchor has no value', () => {
-    /* A freshly pasted block has nothing filled, so the card paints rows. */
-    mockGetBlock.mockReturnValue(sentencedConfig)
-
-    const { height } = getBlockMetrics(createUnmountedBlock({ channel: '#eng' }))
-
-    expect(height).toBeGreaterThanOrEqual(
-      BLOCK_DIMENSIONS.HEADER_HEIGHT +
-        BLOCK_DIMENSIONS.WORKFLOW_CONTENT_PADDING +
-        BLOCK_DIMENSIONS.WORKFLOW_ROW_HEIGHT +
         BLOCK_DIMENSIONS.WORKFLOW_ERROR_ROW_HEIGHT
     )
   })

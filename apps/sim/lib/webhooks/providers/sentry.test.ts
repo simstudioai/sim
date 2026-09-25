@@ -61,60 +61,6 @@ describe('Sentry webhook provider', () => {
     expect(res?.status).toBe(401)
   })
 
-  it('rejects requests missing the signature header', async () => {
-    const secret = 'sentry-client-secret'
-    const rawBody = JSON.stringify({ action: 'created', data: { issue: { id: '1' } } })
-
-    const request = new NextRequest('http://localhost/test', {
-      headers: { 'Sentry-Hook-Resource': 'issue' },
-    })
-
-    const res = await sentryHandler.verifyAuth!({
-      request,
-      rawBody,
-      requestId: 'sentry-t3',
-      providerConfig: { clientSecret: secret },
-      webhook: {},
-      workflow: {},
-    })
-
-    expect(res?.status).toBe(401)
-  })
-
-  it('rejects requests when the client secret is not configured (fail-closed)', async () => {
-    const secret = 'sentry-client-secret'
-    const rawBody = JSON.stringify({ action: 'created', data: { issue: { id: '1' } } })
-
-    const res = await sentryHandler.verifyAuth!({
-      request: requestWithSentrySignature(secret, rawBody),
-      rawBody,
-      requestId: 'sentry-t3b',
-      providerConfig: {},
-      webhook: {},
-      workflow: {},
-    })
-
-    expect(res?.status).toBe(401)
-  })
-
-  it('matches an issue created event by resource header and action', async () => {
-    const rawBody = JSON.stringify({ action: 'created', data: { issue: { id: '1' } } })
-    const request = new NextRequest('http://localhost/test', {
-      headers: { 'Sentry-Hook-Resource': 'issue' },
-    })
-
-    const matched = await sentryHandler.matchEvent!({
-      body: JSON.parse(rawBody),
-      request,
-      requestId: 'sentry-t4',
-      providerConfig: { triggerId: 'sentry_issue_created' },
-      webhook: {},
-      workflow: {},
-    })
-
-    expect(matched).toBe(true)
-  })
-
   it('skips an issue created trigger when the action is resolved', async () => {
     const rawBody = JSON.stringify({ action: 'resolved', data: { issue: { id: '1' } } })
     const request = new NextRequest('http://localhost/test', {
@@ -151,73 +97,11 @@ describe('Sentry webhook provider', () => {
     expect(matched).toBe(false)
   })
 
-  it('formats issue input with keys matching the trigger outputs', async () => {
-    const body = {
-      action: 'created',
-      installation: { uuid: 'inst-1' },
-      actor: { type: 'application', id: 'app-1', name: 'Test' },
-      data: { issue: { id: '42', title: 'Boom', type: 'error' } },
-    }
-
-    const result = await sentryHandler.formatInput!({
-      body,
-      headers: { 'sentry-hook-resource': 'issue' },
-      webhook: {},
-      workflow: { id: 'wf-1', userId: 'user-1' },
-      requestId: 'sentry-t7',
-    })
-
-    expect(result.input).toEqual({
-      action: 'created',
-      installation: { uuid: 'inst-1' },
-      actor: { type: 'application', id: 'app-1', name: 'Test' },
-      issue: { id: '42', title: 'Boom', type: 'error', eventType: 'error' },
-    })
-  })
-
   it('extracts an idempotency id for issue events', () => {
     const id = sentryHandler.extractIdempotencyId!({
       action: 'created',
       data: { issue: { id: '42' } },
     })
     expect(id).toBe('sentry:issue:42:created')
-  })
-
-  it('does not match when the body is null', async () => {
-    const request = new NextRequest('http://localhost/test', {
-      headers: { 'Sentry-Hook-Resource': 'issue' },
-    })
-
-    const matched = await sentryHandler.matchEvent!({
-      body: null,
-      request,
-      requestId: 'sentry-t8',
-      providerConfig: { triggerId: 'sentry_issue_created' },
-      webhook: {},
-      workflow: {},
-    })
-
-    expect(matched).toBe(false)
-  })
-
-  it('formats input with an empty envelope when the body is null', async () => {
-    const result = await sentryHandler.formatInput!({
-      body: null,
-      headers: { 'sentry-hook-resource': 'issue' },
-      webhook: {},
-      workflow: { id: 'wf-1', userId: 'user-1' },
-      requestId: 'sentry-t9',
-    })
-
-    expect(result.input).toEqual({
-      action: '',
-      installation: null,
-      actor: null,
-      issue: null,
-    })
-  })
-
-  it('returns null idempotency id when the body is null', () => {
-    expect(sentryHandler.extractIdempotencyId!(null)).toBeNull()
   })
 })

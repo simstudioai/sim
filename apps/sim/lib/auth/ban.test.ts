@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { user } from '@sim/db/schema'
 import {
   dbChainMock,
@@ -48,7 +45,6 @@ describe('isBanActive', () => {
 
 describe('isEmailBlocked', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnv({ BLOCKED_SIGNUP_DOMAINS: 'bad.com' })
     setEnv({ BLOCKED_EMAILS: 'spam@evil.com' })
@@ -79,7 +75,6 @@ describe('isEmailBlocked', () => {
 
 describe('getActivelyBannedUserIds', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnv({ BLOCKED_SIGNUP_DOMAINS: undefined })
     setEnv({ BLOCKED_EMAILS: undefined })

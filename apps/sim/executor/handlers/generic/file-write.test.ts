@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createExecutorContext, createSerializedBlock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fileManageWriteBodySchema } from '@/lib/api/contracts/tools/file'
@@ -36,7 +33,6 @@ async function executeWrite(inputs: Record<string, unknown>) {
 
 describe('File Write executor inputs', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.mocked(getBlock).mockReturnValue(FileV5Block)
     vi.mocked(getTool).mockReturnValue(fileWriteTool)
     vi.mocked(executeTool).mockResolvedValue({ success: true, output: {} })

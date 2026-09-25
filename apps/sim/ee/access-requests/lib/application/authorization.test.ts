@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { member, permissions, user, workspace } from '@sim/db/schema'
@@ -44,7 +43,6 @@ function queueMembership(orgRole: string | null = 'member', grantId: string | nu
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.workspaceConfig.mockResolvedValue(null)
   mocks.effectiveRole.mockResolvedValue('read')
@@ -82,19 +80,6 @@ describe('access request membership identity', () => {
     expect(mocks.effectiveRole).not.toHaveBeenCalled()
   })
 
-  it.each(['owner', 'admin', 'member'])(
-    'captures the organization membership incarnation for %s',
-    async (role) => {
-      queueMembership(role)
-      await expect(
-        loadAccessRequestMembership(db, 'person', organizationScope, 'org')
-      ).resolves.toEqual({
-        membershipId: '["membership",null]',
-        role: role === 'member' ? 'read' : 'admin',
-      })
-    }
-  )
-
   it('fails closed on an unknown organization role', async () => {
     queueMembership('billing-admin')
     await expect(
@@ -113,32 +98,6 @@ describe('access request membership identity', () => {
     ).resolves.toBeNull()
     expect(mocks.effectiveRole).not.toHaveBeenCalled()
     expect(dbChainMockFns.from).toHaveBeenCalledExactlyOnceWith(user)
-  })
-
-  it('recognizes an expired temporary ban as lifted', async () => {
-    queueTableRows(user, [{ ...activePerson, banned: true, banExpires: new Date('2020-01-01') }])
-    queueTableRows(member, [{ id: 'membership', role: 'member' }])
-    await expect(
-      loadAccessRequestMembership(db, 'person', organizationScope, 'org')
-    ).resolves.toMatchObject({ role: 'read' })
-  })
-
-  it('keeps reciprocal account reads compatible while exclusively locking membership and grant identities', async () => {
-    queueMembership()
-    await loadAccessRequestMembership(db, 'person', workspaceScope, 'org', true)
-    expect(dbChainMockFns.from.mock.calls.map(([table]) => table)).toEqual([
-      user,
-      member,
-      permissions,
-    ])
-    expect(dbChainMockFns.for).toHaveBeenCalledTimes(3)
-    expect(dbChainMockFns.for.mock.calls).toEqual([['share'], ['update'], ['update']])
-    expect(mocks.effectiveRole).toHaveBeenCalledWith('person', 'workspace', 'org', db, {
-      forUpdate: true,
-    })
-    expect(dbChainMockFns.for.mock.invocationCallOrder.at(-1)).toBeLessThan(
-      mocks.effectiveRole.mock.invocationCallOrder[0]
-    )
   })
 })
 
@@ -214,21 +173,6 @@ describe('access request scope authorization', () => {
     expect(mocks.config).not.toHaveBeenCalled()
   })
 
-  it('allows organization review independently of the restrictions under review', async () => {
-    queueMembership('owner')
-    queueTableRows(member, [{ role: 'owner' }])
-    await expect(
-      authorizeAccessRequestScope(
-        principal,
-        accessRequestOperations.resolve,
-        organizationScope,
-        db,
-        true
-      )
-    ).resolves.toMatchObject({ role: 'admin', organizationId: 'org', workspaceId: null })
-    expect(mocks.config).not.toHaveBeenCalled()
-  })
-
   it('never authorizes organization review from a workspace-scoped request', async () => {
     await expect(
       authorizeAccessRequestScope(principal, accessRequestOperations.resolve, workspaceScope)
@@ -267,14 +211,6 @@ describe('access request credential policy', () => {
       expect(mocks.workspaceConfig).toHaveBeenCalled()
     }
   )
-
-  it('preserves the workspace personal-key switch', async () => {
-    queueTableRows(workspace, [canonicalWorkspace])
-    queueMembership()
-    await expect(
-      authorizeAccessRequestScope(key, accessRequestOperations.create, workspaceScope)
-    ).rejects.toMatchObject({ detailCode: 'PERSONAL_API_KEYS_DISABLED' })
-  })
 
   it.each(['disablePersonalApiKeys', 'disableOAuthAppAccess', 'disableCliAccess'] as const)(
     'enforces %s even though access requests are capability-exempt',

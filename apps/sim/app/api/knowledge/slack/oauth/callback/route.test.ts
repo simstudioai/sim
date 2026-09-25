@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { authMockFns, dbChainMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,7 +29,6 @@ import { GET, HEAD } from '@/app/api/knowledge/slack/oauth/callback/route'
 const request = (query: string) =>
   new NextRequest(`https://www.sim.ai/api/knowledge/slack/oauth/callback?${query}`)
 beforeEach(() => {
-  vi.clearAllMocks()
   authMockFns.mockGetSession.mockResolvedValue({
     user: { id: 'admin' },
     session: { id: 'session' },

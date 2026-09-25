@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   auditMock,
   createMockRequest,
@@ -54,7 +51,6 @@ describe('Workflows API Route - POST ordering', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
 
     vi.stubGlobal('crypto', {
@@ -109,20 +105,5 @@ describe('Workflows API Route - POST ordering', () => {
     expect(response.status).toBe(200)
     expect(data.sortOrder).toBe(1)
     expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 1 }))
-  })
-
-  it('defaults to sortOrder 0 when there are no siblings', async () => {
-    const req = createMockRequest('POST', {
-      name: 'New Workflow',
-      description: 'desc',
-      workspaceId: 'workspace-123',
-      folderId: null,
-    })
-
-    const response = await POST(req)
-    const data = await response.json()
-    expect(response.status).toBe(200)
-    expect(data.sortOrder).toBe(0)
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 0 }))
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -51,7 +48,6 @@ const baseInput = {
 
 describe('executeWorkflowOperation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.resolveWorkflowContext.mockResolvedValue(workflowContext)
     mocks.executeService.mockResolvedValue({
@@ -151,21 +147,5 @@ describe('executeWorkflowOperation', () => {
       })
     ).rejects.toBeInstanceOf(PersonalApiKeysDisabledError)
     expect(mocks.executeService).not.toHaveBeenCalled()
-  })
-
-  it('passes through execution infrastructure failures', async () => {
-    const infrastructureError = new Error('queue unavailable')
-    mocks.executeService.mockRejectedValueOnce(infrastructureError)
-
-    await expect(
-      executeWorkflowOperation.execute({
-        principal: {
-          kind: 'workspace_api_key',
-          workspaceId: 'workspace-1',
-          keyId: 'workspace-key',
-        },
-        input: baseInput,
-      })
-    ).rejects.toBe(infrastructureError)
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest, loggerMock } from '@sim/testing'
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -107,7 +104,6 @@ function createTestRequest(headers: Record<string, string> = {}) {
 
 describe('MCP server test-connection route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockDetectMcpAuthType.mockResolvedValue('oauth')
     mockValidateMcpServerSsrf.mockResolvedValue('203.0.113.10')
     mockResolveMcpConfigEnvVars.mockImplementation(async (config: unknown) => ({
@@ -174,18 +170,6 @@ describe('MCP server test-connection route', () => {
 
   it('preserves OAuth discovery when no static headers are configured', async () => {
     const response = await POST(createTestRequest())
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body.data).toEqual(
-      expect.objectContaining({ success: false, authRequired: true, authType: 'oauth' })
-    )
-    expect(mockDetectMcpAuthType).toHaveBeenCalledWith('https://example.com/mcp', '203.0.113.10')
-    expect(mockClientOptions).not.toHaveBeenCalled()
-  })
-
-  it('preserves OAuth discovery when only supplemental headers are configured', async () => {
-    const response = await POST(createTestRequest({ 'X-Sim-Via': 'workflow' }))
     const body = await response.json()
 
     expect(response.status).toBe(200)

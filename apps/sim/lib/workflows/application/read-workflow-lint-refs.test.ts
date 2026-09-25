@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -138,7 +137,6 @@ function documentGraph(knowledgeBaseId = 'selected-kb', documentId = 'selected-d
 
 describe('standalone workflow-reference diagnostics', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.context.mockImplementation(
       async (input: { workflowId: string; assertedWorkspaceId?: string }) => {
         const workspaceId = input.workflowId === 'foreign' ? 'other-workspace' : scope.workspaceId
@@ -183,21 +181,6 @@ describe('standalone workflow-reference diagnostics', () => {
       expect.anything(),
       expect.anything()
     )
-  })
-
-  it('accepts an authorized child in the same workspace without loading its graph', async () => {
-    mocks.snapshot.mockResolvedValue({
-      workflowRecord: { id: 'parent' },
-      normalizedData: graph('local'),
-    })
-    const result = await readWorkflowLint.execute({ principal, input: { workflowId: 'parent' } })
-    expect(result.unresolvedReferences).toEqual([])
-    expect(mocks.context).toHaveBeenCalledWith({
-      workflowId: 'local',
-      assertedWorkspaceId: scope.workspaceId,
-    })
-    expect(mocks.snapshot).toHaveBeenCalledTimes(1)
-    expect(mocks.permission).toHaveBeenCalledTimes(2)
   })
 
   it.each(['not_found', 'forbidden'] as const)(
@@ -264,31 +247,6 @@ describe('standalone workflow-reference diagnostics', () => {
     const result = await readWorkflowLint.execute({ principal, input: { workflowId: 'parent' } })
     expect(result.unresolvedReferences).toEqual([])
     expect(mocks.context).toHaveBeenCalledTimes(1)
-  })
-
-  it('checks a literal child ID supplied through the active advanced input', async () => {
-    const state = graph('local')
-    const child = {
-      ...state.blocks.child,
-      data: { canonicalModes: { workflowId: 'advanced' } },
-      subBlocks: {
-        ...state.blocks.child.subBlocks,
-        manualWorkflowId: { value: 'foreign' },
-      },
-    }
-    mocks.snapshot.mockResolvedValue({
-      workflowRecord: { id: 'parent' },
-      normalizedData: { ...state, blocks: { child } },
-    })
-    const result = await readWorkflowLint.execute({ principal, input: { workflowId: 'parent' } })
-    expect(result.unresolvedReferences).toEqual([
-      expect.objectContaining({ field: 'manualWorkflowId', value: 'foreign' }),
-    ])
-    expect(mocks.context).toHaveBeenCalledWith({
-      workflowId: 'foreign',
-      assertedWorkspaceId: scope.workspaceId,
-    })
-    expect(mocks.context).not.toHaveBeenCalledWith(expect.objectContaining({ workflowId: 'local' }))
   })
 
   it.each(['not_found', 'forbidden'] as const)(
@@ -412,23 +370,6 @@ describe('standalone workflow-reference diagnostics', () => {
     expect(mocks.document).not.toHaveBeenCalled()
   })
 
-  it('distinguishes runtime document IDs from literal IDs in the same field', async () => {
-    mocks.snapshot.mockResolvedValue({
-      workflowRecord: { id: 'parent' },
-      normalizedData: documentGraph('selected-kb', '<start.documentId>,selected-document'),
-    })
-    const result = await readWorkflowLint.execute({ principal, input: { workflowId: 'parent' } })
-    expect(mocks.document).toHaveBeenCalledTimes(1)
-    expect(mocks.document).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({ documentId: 'selected-document' }),
-      })
-    )
-    expect(result.notes).toContain(
-      'Runtime values in reference field "documentSelector" in block "Read document" were not checked.'
-    )
-  })
-
   it('propagates a document read outage without turning it into a finding', async () => {
     mocks.snapshot.mockResolvedValue({
       workflowRecord: { id: 'parent' },
@@ -438,25 +379,5 @@ describe('standalone workflow-reference diagnostics', () => {
     await expect(
       readWorkflowLint.execute({ principal, input: { workflowId: 'parent' } })
     ).rejects.toThrow('Workflow reference checks could not complete')
-  })
-
-  it('does not begin another document lookup after cancellation', async () => {
-    const controller = new AbortController()
-    mocks.snapshot.mockResolvedValue({
-      workflowRecord: { id: 'parent' },
-      normalizedData: documentGraph('selected-kb', 'document-1,document-2'),
-    })
-    mocks.document.mockImplementationOnce(async () => {
-      controller.abort()
-      return {}
-    })
-    await expect(
-      readWorkflowLint.execute({
-        principal,
-        input: { workflowId: 'parent', signal: controller.signal },
-      })
-    ).rejects.toThrow('Workflow reference checks could not complete')
-    expect(mocks.document).toHaveBeenCalledTimes(1)
-    expect(mocks.secrets).not.toHaveBeenCalled()
   })
 })

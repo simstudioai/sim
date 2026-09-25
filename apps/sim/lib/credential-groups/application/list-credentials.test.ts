@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { SessionPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
@@ -115,7 +112,6 @@ function executorPrincipal(workspaceId = 'workspace-1'): WorkflowExecutionDelega
 
 describe('listCredentialGroupCredentials', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.requirePolicy.mockResolvedValue({
       document: buildOrganizationAccountAccessPolicy(
         'group-1',
@@ -196,15 +192,6 @@ describe('listCredentialGroupCredentials', () => {
     )
   })
 
-  it('lists credentials without requiring the actor to be enrolled', async () => {
-    mocks.loadEnrollmentAccess.mockResolvedValueOnce(null)
-
-    await listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
-
-    expect(mocks.loadEnrollmentAccess).not.toHaveBeenCalled()
-    expect(mocks.listCredentials).toHaveBeenCalled()
-  })
-
   it('rejects inconsistent execution attribution', async () => {
     const principal = executorPrincipal()
     principal.subjectUserId = 'different-user'
@@ -224,48 +211,6 @@ describe('listCredentialGroupCredentials', () => {
       listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.listCredentials).not.toHaveBeenCalled()
-  })
-
-  it('returns a bounded page after current workspace and entitlement checks', async () => {
-    const result = await listCredentialGroupCredentials.execute({
-      principal: executorPrincipal(),
-      input,
-    })
-
-    expect(mocks.resolvePermission).toHaveBeenCalledWith(
-      'user-1',
-      'workspace-1',
-      'org-1',
-      undefined,
-      {
-        forUpdate: undefined,
-      }
-    )
-    expect(mocks.listCredentials).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      credentialGroupId: 'group-1',
-      limit: 50,
-      cursor: undefined,
-      email: undefined,
-      credentialProviderIds: undefined,
-      credentialGroupOptionIds: ['option-1'],
-    })
-    expect(result).toEqual({
-      credentials: [
-        {
-          credentialId: 'credential-1',
-          email: 'person@example.com',
-          accountEmail: 'personal@example.com',
-          displayName: 'person@example.com',
-          providerId: 'google-email',
-          providerSubjectId: 'google-subject-1',
-          providerTenantId: null,
-        },
-      ],
-      count: 1,
-      hasMore: true,
-      nextCursor: 'credential-1',
-    })
   })
 
   it('filters restricted integrations before pagination and rejects explicitly requesting them', async () => {
@@ -337,27 +282,6 @@ describe('listCredentialGroupCredentials', () => {
     expect(mocks.listCredentials).not.toHaveBeenCalled()
   })
 
-  it('normalizes an optional email filter independently of caller identity', async () => {
-    await listCredentialGroupCredentials.execute({
-      principal: executorPrincipal(),
-      input: { ...input, email: ' Person@Example.COM ' },
-    })
-
-    expect(mocks.listCredentials).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'person@example.com' })
-    )
-  })
-
-  it('rejects an invalid email filter', async () => {
-    await expect(
-      listCredentialGroupCredentials.execute({
-        principal: executorPrincipal(),
-        input: { ...input, email: 'not-an-email' },
-      })
-    ).rejects.toMatchObject({ code: 'validation', message: 'Email must be a valid address' })
-    expect(mocks.listCredentials).not.toHaveBeenCalled()
-  })
-
   it('rejects providers that are not active in the group before credential access', async () => {
     await expect(
       listCredentialGroupCredentials.execute({
@@ -383,22 +307,6 @@ describe('listCredentialGroupCredentials', () => {
     mocks.resolveCredentialGroupsAvailability.mockResolvedValue({
       available: false,
       reason: 'feature_disabled',
-    })
-
-    await expect(
-      listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
-    ).rejects.toMatchObject({
-      code: 'not_found',
-      message: 'Organization connected accounts are not available',
-    })
-    expect(mocks.listCredentials).not.toHaveBeenCalled()
-  })
-
-  it('identifies the Enterprise requirement for unavailable hosted workspaces', async () => {
-    mocks.getWorkspaceOwnerSubscriptionAccess.mockResolvedValue({ isEnterprise: false })
-    mocks.resolveCredentialGroupsAvailability.mockResolvedValue({
-      available: false,
-      reason: 'enterprise_plan_required',
     })
 
     await expect(

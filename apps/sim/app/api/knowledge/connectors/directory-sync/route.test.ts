@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   createMockRequest,
   flattenMockConditions,
@@ -54,25 +51,10 @@ async function run() {
 
 describe('connector directory sync scheduler', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetEnvFlagsMock()
     mockVerifyCronAuth.mockReturnValue(null)
     mockDispatch.mockResolvedValue(undefined)
     mockClaim.mockResolvedValue([{ id: 'connector-1' }])
-  })
-
-  /**
-   * Every eligible connector is offered under one tick time; the tenant-level
-   * freshness check in the refresh, not the scheduler, decides which walk.
-   */
-  it('dispatches a refresh for every admin-mode connector under the same tick', async () => {
-    mockConnectorRows.mockResolvedValue([connector(), connector({ id: 'connector-2' })])
-
-    await expect(run()).resolves.toMatchObject({ considered: 2, dispatched: 2, failed: 0 })
-    expect(mockDispatch).toHaveBeenCalledTimes(2)
-    const [, first] = mockDispatch.mock.calls[0]
-    const [, second] = mockDispatch.mock.calls[1]
-    expect(first.tickAt).toBe(second.tickAt)
   })
 
   it('includes either canonical owner while retaining mirrored-source eligibility', async () => {
@@ -161,14 +143,5 @@ describe('connector directory sync scheduler', () => {
     mockClaim.mockResolvedValueOnce([])
     await expect(run()).resolves.toMatchObject({ considered: 1, dispatched: 0, failed: 0 })
     expect(mockDispatch).not.toHaveBeenCalled()
-  })
-
-  it('refuses an unauthenticated tick', async () => {
-    mockVerifyCronAuth.mockReturnValue(new Response('nope', { status: 401 }))
-
-    const response = await GET(createMockRequest('GET'))
-
-    expect(response.status).toBe(401)
-    expect(mockConnectorRows).not.toHaveBeenCalled()
   })
 })

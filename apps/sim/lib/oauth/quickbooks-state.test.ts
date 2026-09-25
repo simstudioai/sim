@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CREDENTIAL_DRAFT_TTL_MS } from '@/lib/credentials/draft-constants'
 import { createQuickBooksOAuthState, parseQuickBooksOAuthState } from '@/lib/oauth/quickbooks-state'

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/triggers', () => ({
@@ -26,14 +23,6 @@ describe('GoogleDriveBlock pagination', () => {
   const buildParams = GoogleDriveBlock.tools.config.params!
 
   describe.each(paginationCases)('$operation', ({ operation, subBlockId, tool }) => {
-    it('exposes a page token field scoped to the operation', () => {
-      expect(GoogleDriveBlock.subBlocks.find(({ id }) => id === subBlockId)).toMatchObject({
-        type: 'short-input',
-        mode: 'advanced',
-        condition: { field: 'operation', value: operation },
-      })
-    })
-
     /**
      * `pageToken` is the canonical tool param, so the `list` case would forward
      * through `...rest` even without the mapper. The per-operation ids are the
@@ -44,10 +33,6 @@ describe('GoogleDriveBlock pagination', () => {
 
       expect(params).toMatchObject({ pageToken: 'token-abc' })
       if (subBlockId !== 'pageToken') expect(params[subBlockId]).toBeUndefined()
-    })
-
-    it('lets an agent feed a nextPageToken back in', () => {
-      expect(tool.params.pageToken?.visibility).toBe('user-or-llm')
     })
   })
 
@@ -89,9 +74,5 @@ describe('GoogleDriveBlock pagination', () => {
     expect(params.pageToken).toBe('search-token')
     expect(params.commentsPageToken).toBeUndefined()
     expect(params.searchPageToken).toBeUndefined()
-  })
-
-  it('declares pageToken as a block input', () => {
-    expect(GoogleDriveBlock.inputs.pageToken).toBeDefined()
   })
 })

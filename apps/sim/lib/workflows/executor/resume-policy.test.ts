@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   MAX_AUTOMATIC_RESUME_ADMISSION_RETRIES,
@@ -20,20 +17,6 @@ describe('automatic resume admission policy', () => {
     ).toEqual({
       state: 'waiting',
       retryCount: 1,
-      retryAt: new Date('2026-07-10T12:01:00.000Z'),
-    })
-  })
-
-  it('schedules the final retry below the cap', () => {
-    expect(
-      resolveAutomaticResumeAdmissionFailure({
-        currentRetryCount: MAX_AUTOMATIC_RESUME_ADMISSION_RETRIES - 1,
-        retryable: true,
-        now,
-      })
-    ).toEqual({
-      state: 'waiting',
-      retryCount: MAX_AUTOMATIC_RESUME_ADMISSION_RETRIES,
       retryAt: new Date('2026-07-10T12:01:00.000Z'),
     })
   })

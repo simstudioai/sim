@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { idempotencyKey } from '@sim/db/schema'
 import { resetDbChainMock } from '@sim/testing'
 import { like, notLike } from 'drizzle-orm'
@@ -14,7 +11,6 @@ afterAll(resetDbChainMock)
 
 describe('cleanupExpiredIdempotencyKeys', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

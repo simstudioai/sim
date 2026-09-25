@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
 
@@ -55,7 +54,6 @@ const execute = (input: ExecuteServerSelectorArgs) =>
 
 describe('GitHub installation repository selector', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.authorize.mockResolvedValue({ credential: row })
     mocks.decrypt.mockResolvedValue({ decrypted: '{}' })
     mocks.parseBinding.mockReturnValue(binding)

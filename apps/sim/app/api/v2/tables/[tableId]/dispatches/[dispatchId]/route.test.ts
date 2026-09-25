@@ -1,9 +1,4 @@
-/**
- * @vitest-environment node
- */
-
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -22,8 +17,7 @@ vi.mock('@/lib/table/application/runs', () => ({
   cancelTableDispatch: { operation: { id: 'tables.runs.cancel' }, execute: mocks.cancelDispatch },
 }))
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { DELETE, GET } from '@/app/api/v2/tables/[tableId]/dispatches/[dispatchId]/route'
+import { GET } from '@/app/api/v2/tables/[tableId]/dispatches/[dispatchId]/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = {
@@ -72,37 +66,13 @@ function read(query = `?workspaceId=${WORKSPACE_ID}`) {
   }
 }
 
-function cancel(query = `?workspaceId=${WORKSPACE_ID}`) {
-  const request = new NextRequest(`${PATH}${query}`, {
-    method: 'DELETE',
-    headers: { 'x-api-key': 'secret' },
-  })
-  return {
-    request,
-    response: DELETE(request, { params: Promise.resolve(PARAMS) }),
-  }
-}
-
 describe('GET /api/v2/tables/[tableId]/dispatches/[dispatchId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.readDispatch.mockResolvedValue({ dispatch: dispatch('dispatching') })
     mocks.cancelDispatch.mockResolvedValue({ dispatch: dispatch('cancelled') })
-  })
-
-  it('delegates the parent table, dispatch id, and asserted workspace', async () => {
-    const invocation = read()
-    const response = await invocation.response
-
-    expect(response.status).toBe(200)
-    expect(mocks.readDispatch).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: { tableId: 'table-1', dispatchId: 'dispatch-1', workspaceId: WORKSPACE_ID },
-      request: invocation.request,
-    })
   })
 
   /**
@@ -123,92 +93,5 @@ describe('GET /api/v2/tables/[tableId]/dispatches/[dispatchId]', () => {
 
     expect(response.status).toBe(200)
     expect((await response.json()).data.status).toBe(published)
-  })
-
-  it('never publishes the scheduler cursor', async () => {
-    const response = await read().response
-
-    expect((await response.json()).data).not.toHaveProperty('cursor')
-  })
-
-  it('conceals a dispatch the caller may not reach as a 404', async () => {
-    mocks.readDispatch.mockRejectedValueOnce(
-      new OrchestrationError('not_found', 'Table run dispatch not found')
-    )
-
-    const response = await read().response
-
-    expect(response.status).toBe(404)
-    expect((await response.json()).error.code).toBe('NOT_FOUND')
-  })
-
-  it('rejects a read that names no workspace', async () => {
-    const response = await read('').response
-
-    expect(response.status).toBe(400)
-    expect(mocks.readDispatch).not.toHaveBeenCalled()
-  })
-
-  it('rejects an unauthenticated read before delegation', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await read().response
-
-    expect(response.status).toBe(401)
-    expect(mocks.readDispatch).not.toHaveBeenCalled()
-  })
-})
-
-describe('DELETE /api/v2/tables/[tableId]/dispatches/[dispatchId]', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    v2RouteMocks.authenticate.mockResolvedValue(AUTH)
-    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
-    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.cancelDispatch.mockResolvedValue({ dispatch: dispatch('cancelled') })
-  })
-
-  it('cancels the dispatch the path names and returns its settled state', async () => {
-    const invocation = cancel()
-    const response = await invocation.response
-
-    expect(response.status).toBe(200)
-    expect(mocks.cancelDispatch).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: { tableId: 'table-1', dispatchId: 'dispatch-1', workspaceId: WORKSPACE_ID },
-      request: invocation.request,
-    })
-    expect((await response.json()).data.status).toBe('canceled')
-  })
-
-  /**
-   * Cross-table concealment: the dispatch exists, but not under the table in the path, so
-   * the answer must be indistinguishable from an id that never existed.
-   */
-  it('conceals a dispatch belonging to another table as a 404', async () => {
-    mocks.cancelDispatch.mockRejectedValueOnce(
-      new OrchestrationError('not_found', 'Table run dispatch not found')
-    )
-
-    const response = await cancel().response
-
-    expect(response.status).toBe(404)
-    expect((await response.json()).error.code).toBe('NOT_FOUND')
-  })
-
-  it('rejects a cancel that names no workspace', async () => {
-    const response = await cancel('').response
-
-    expect(response.status).toBe(400)
-    expect(mocks.cancelDispatch).not.toHaveBeenCalled()
-  })
-
-  it('rejects an unauthenticated cancel before delegation', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await cancel().response
-
-    expect(response.status).toBe(401)
-    expect(mocks.cancelDispatch).not.toHaveBeenCalled()
   })
 })

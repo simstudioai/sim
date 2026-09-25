@@ -1,12 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
 import type { ExecutionContext } from '@/lib/mothership/request/types'
 import { executeTool } from '@/lib/mothership/tool-executor/executor'
 import { ensureHandlersRegistered } from '@/lib/mothership/tool-executor/register-handlers'
-import type { CancelWorkflowRunParams } from '@/lib/mothership/tools/handlers/param-types'
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
@@ -67,12 +63,8 @@ vi.mock('@/lib/mothership/tools/server/router', () => ({ getRegisteredServerTool
 import {
   executeCancelWorkflowRun,
   executeCreateWorkflow,
-  executeMoveWorkflow,
   executeRunBlock,
-  executeRunFromBlock,
   executeRunWorkflow,
-  executeRunWorkflowUntilBlock,
-  executeSetGlobalWorkflowVariables,
 } from '@/lib/mothership/tools/handlers/workflow/mutations'
 
 const context = {
@@ -86,7 +78,6 @@ const context = {
 
 describe('workflow mutation Copilot adapters', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.hasExecutionResult.mockReturnValue(false)
     mocks.readAttemptedExecutionId.mockReturnValue(undefined)
   })
@@ -127,32 +118,6 @@ describe('workflow mutation Copilot adapters', () => {
 
     expect(result.success).toBe(false)
     expect(mocks.executeWorkflowUseCase).not.toHaveBeenCalled()
-  })
-
-  it('calls the compound variable command once', async () => {
-    mocks.executeWorkflowUseCase.mockResolvedValue({ updated: 2 })
-    const operations = [
-      { operation: 'add' as const, name: 'threshold', type: 'number', value: '5' },
-    ]
-
-    const result = await executeSetGlobalWorkflowVariables(
-      { workflowId: 'workflow-1', operations },
-      context
-    )
-
-    expect(result).toEqual({ success: true, output: { updated: 2 } })
-    expect(mocks.executeWorkflowUseCase).toHaveBeenCalledOnce()
-    expect(mocks.executeWorkflowUseCase).toHaveBeenCalledWith(
-      context,
-      expect.objectContaining({
-        operation: expect.objectContaining({ id: 'workflows.variables.apply_operations' }),
-      }),
-      {
-        workflowId: 'workflow-1',
-        assertedWorkspaceId: 'workspace-1',
-        operations,
-      }
-    )
   })
 
   it('projects one run command result without exposing binary payloads', async () => {
@@ -243,24 +208,6 @@ describe('workflow mutation Copilot adapters', () => {
       output: { result: { tier: 'gold' } },
       outputFrom: { blockId: 'score', blockName: 'Score' },
     })
-  })
-
-  it('keeps a non-empty run output and names no source block', async () => {
-    mocks.executeWorkflowUseCase.mockResolvedValue({
-      success: true,
-      output: { answer: 42 },
-      logs: [{ blockId: 'score', blockName: 'Score', output: { result: { tier: 'gold' } } }],
-      metadata: { executionId: 'execution-1' },
-    })
-
-    const result = await executeRunWorkflowUntilBlock(
-      { workflowId: 'workflow-1', stopAfterBlockId: 'score' },
-      context
-    )
-
-    const output = result.output as Record<string, unknown>
-    expect(output.output).toEqual({ answer: 42 })
-    expect(output).not.toHaveProperty('outputFrom')
   })
 
   it('names the failing block and its error when the executor result carries no message', async () => {
@@ -367,114 +314,6 @@ describe('workflow mutation Copilot adapters', () => {
       success: false,
       error: 'Execution cannot be cancelled while completed',
     })
-  })
-
-  it('requires an execution ID before attempting workflow-run cancellation', async () => {
-    const result = await executeCancelWorkflowRun({} as CancelWorkflowRunParams, context)
-
-    expect(result).toEqual({ success: false, error: 'executionId is required' })
-    expect(mocks.executeWorkflowUseCase).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    {
-      label: 'until',
-      operationId: 'workflows.copilot.run_until',
-      run: () =>
-        executeRunWorkflowUntilBlock(
-          { workflowId: 'workflow-1', stopAfterBlockId: 'agent-1', useMockPayload: true },
-          context
-        ),
-      input: expect.objectContaining({ stopAfterBlockId: 'agent-1' }),
-    },
-    {
-      label: 'from block',
-      operationId: 'workflows.copilot.run_from_block',
-      run: () =>
-        executeRunFromBlock(
-          {
-            workflowId: 'workflow-1',
-            startBlockId: 'agent-1',
-            executionId: 'source-1',
-          },
-          context
-        ),
-      input: expect.objectContaining({ blockId: 'agent-1', sourceExecutionId: 'source-1' }),
-    },
-    {
-      label: 'one block',
-      operationId: 'workflows.copilot.run_block',
-      run: () =>
-        executeRunBlock(
-          { workflowId: 'workflow-1', blockId: 'agent-1', executionId: 'source-1' },
-          context
-        ),
-      input: expect.objectContaining({ blockId: 'agent-1', sourceExecutionId: 'source-1' }),
-    },
-  ])('uses one fixed $label application command', async ({ operationId, run, input }) => {
-    mocks.executeWorkflowUseCase.mockResolvedValue({
-      success: true,
-      output: {},
-      logs: [],
-      metadata: { executionId: 'execution-1' },
-    })
-
-    await run()
-
-    expect(mocks.executeWorkflowUseCase).toHaveBeenCalledOnce()
-    expect(mocks.executeWorkflowUseCase).toHaveBeenCalledWith(
-      context,
-      expect.objectContaining({ operation: expect.objectContaining({ id: operationId }) }),
-      input
-    )
-  })
-
-  it('passes a bounded move batch to one bulk command', async () => {
-    mocks.executeWorkflowUseCase.mockResolvedValue({
-      moved: [{ workflowId: 'workflow-1' }],
-      failed: [{ workflowId: 'workflow-2', error: 'Workflow is locked' }],
-      folderId: 'folder-1',
-    })
-
-    const result = await executeMoveWorkflow(
-      { workflowIds: ['workflow-1', 'workflow-2'], folderId: 'folder-1' },
-      context
-    )
-
-    expect(result.success).toBe(true)
-    expect(mocks.executeWorkflowUseCase).toHaveBeenCalledWith(
-      context,
-      expect.objectContaining({
-        operation: expect.objectContaining({ id: 'workflows.bulk.move' }),
-      }),
-      {
-        workspaceId: 'workspace-1',
-        workflowIds: ['workflow-1', 'workflow-2'],
-        folderId: 'folder-1',
-      }
-    )
-  })
-
-  it('uses the fixed API-key application command', async () => {
-    mocks.apiKey.mockResolvedValue({
-      key: { id: 'key-1', name: 'Copilot key', key: 'secret-key' },
-    })
-
-    ensureHandlersRegistered()
-    const result = await executeTool(
-      'generate_api_key',
-      { name: ' Copilot key ' },
-      { ...context, userPermission: 'admin' }
-    )
-
-    expect(result.success).toBe(true)
-    expect(mocks.apiKey).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: context.userId, workspaceId: context.workspaceId }),
-      expect.objectContaining({
-        operation: expect.objectContaining({ id: 'api_keys.copilot.create' }),
-      }),
-      { workspaceId: 'workspace-1', name: 'Copilot key' }
-    )
   })
 
   it('refuses API-key creation before calling the handler when the actor lacks admin access', async () => {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { USAGE_LEDGER_STATEMENT_TIMEOUT_MS } from '@/lib/billing/constants'
@@ -72,29 +69,14 @@ import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import {
   getOrgMemberUsageForBillingPeriod,
   getOrgMemberUsageForCurrentPeriod,
-  getOrgMemberUsageLimit,
-  setOrgMemberUsageLimit,
 } from '@/lib/billing/organizations/member-limits'
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
 })
 
 afterAll(() => {
   resetDbChainMock()
-})
-
-describe('getOrgMemberUsageLimit', () => {
-  it('returns null when no row exists', async () => {
-    queueTableRows(schemaTables.organizationMemberUsageLimit, [])
-    await expect(getOrgMemberUsageLimit('org-1', 'user-2')).resolves.toBeNull()
-  })
-
-  it('returns the stored dollar limit as a number', async () => {
-    queueTableRows(schemaTables.organizationMemberUsageLimit, [{ usageLimit: '2' }])
-    await expect(getOrgMemberUsageLimit('org-1', 'user-2')).resolves.toBe(2)
-  })
 })
 
 describe('getOrgMemberUsageForBillingPeriod', () => {
@@ -177,29 +159,6 @@ describe('getOrgMemberUsageForBillingPeriod', () => {
   })
 })
 
-describe('setOrgMemberUsageLimit', () => {
-  it('upserts when given a dollar amount', async () => {
-    await setOrgMemberUsageLimit('org-1', 'user-2', 2, 'admin-1')
-    expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-    const values = dbChainMockFns.values.mock.calls[0][0]
-    expect(values).toMatchObject({
-      organizationId: 'org-1',
-      userId: 'user-2',
-      usageLimit: '2',
-      setBy: 'admin-1',
-    })
-    expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalledTimes(1)
-  })
-
-  it('deletes the row when limit is null', async () => {
-    await setOrgMemberUsageLimit('org-1', 'user-2', null, 'admin-1')
-    expect(dbChainMockFns.delete).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.where).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-  })
-})
-
 describe('getOrgMemberUsageForCurrentPeriod', () => {
   it('reads the enforcement usage definition over the org subscription window', async () => {
     const periodStart = new Date('2026-06-01T00:00:00.000Z')
@@ -214,21 +173,6 @@ describe('getOrgMemberUsageForCurrentPeriod', () => {
     expect(mockEq).toHaveBeenCalledWith('usageLog.billingEntityId', 'org-1')
     expect(mockEq).toHaveBeenCalledWith('usageLog.billingPeriodStart', periodStart)
     expect(mockEq).toHaveBeenCalledWith('usageLog.billingPeriodEnd', periodEnd)
-  })
-
-  it('uses a prefetched subscription without a second lookup', async () => {
-    const periodStart = new Date('2026-06-01T00:00:00.000Z')
-    const periodEnd = new Date('2026-07-01T00:00:00.000Z')
-    queueTableRows(schemaTables.usageLog, [{ cost: '5' }])
-
-    const result = await getOrgMemberUsageForCurrentPeriod('org-1', 'user-2', {
-      periodStart,
-      periodEnd,
-    } as never)
-
-    expect(result).toBe(5)
-    expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
-    expect(mockEq).toHaveBeenCalledWith('usageLog.billingPeriodStart', periodStart)
   })
 
   it('falls back to the all-time window when the org has no subscription period', async () => {

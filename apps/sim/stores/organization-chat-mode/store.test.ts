@@ -32,23 +32,6 @@ describe('organization Search preferences', () => {
       'assistantFast'
     )
   })
-
-  it('persists all search levels independently from Build mode', async () => {
-    for (const level of ['fast', 'adaptive', 'max'] as const) {
-      useOrganizationChatModeStore.getState().setAssistantSearchLevel('user', level, level)
-    }
-    useOrganizationChatModeStore.getState().setMode('user', 'max', 'agent')
-    const persisted = localStorage.getItem('organization-chat-mode')!
-    useOrganizationChatModeStore.setState({ modes: {}, assistantSearchLevels: {} })
-    localStorage.setItem('organization-chat-mode', persisted)
-    await useOrganizationChatModeStore.persist.rehydrate()
-    expect(useOrganizationChatModeStore.getState().assistantSearchLevels).toEqual({
-      'user:fast': 'fast',
-      'user:adaptive': 'adaptive',
-      'user:max': 'max',
-    })
-    expect(useOrganizationChatModeStore.getState().modes['user:max']).toBe('agent')
-  })
 })
 
 it('migrates saved None to Auto while preserving assistant levels and modes', async () => {

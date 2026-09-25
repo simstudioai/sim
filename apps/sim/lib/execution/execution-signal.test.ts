@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { EventEmitter } from 'node:events'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -70,7 +67,6 @@ function readyBudgetMs(): number {
 
 describe('ExecutionSignalHub', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     connection.status = 'ready'
     connection.client = undefined
     mockSubscribe.mockResolvedValue(1)

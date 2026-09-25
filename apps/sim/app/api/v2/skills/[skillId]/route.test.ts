@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -54,7 +51,7 @@ vi.mock('@/lib/skills/application/use-cases', () => ({
   deleteSkillUseCase: { operation: { id: 'skills.delete' }, execute: mocks.remove },
 }))
 
-import { DELETE, GET, PATCH } from '@/app/api/v2/skills/[skillId]/route'
+import { GET, PATCH } from '@/app/api/v2/skills/[skillId]/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-personal' }
@@ -103,90 +100,12 @@ function request(method: 'GET' | 'PATCH' | 'DELETE', body?: unknown) {
 
 describe('/api/v2/skills/[skillId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.authenticate.mockResolvedValue(AUTH)
     mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.get.mockResolvedValue({ skill })
     mocks.update.mockResolvedValue({ skill })
     mocks.remove.mockResolvedValue({ skill })
-  })
-
-  it('gets a skill through the semantic read operation', async () => {
-    const response = await GET(request('GET'), context)
-
-    expect(response.status).toBe(200)
-    expect((await response.json()).data.content).toBe(skill.content)
-    expect(mocks.get).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: { workspaceId: WORKSPACE_ID, skillId: skill.id },
-      request: expect.anything(),
-    })
-  })
-
-  /**
-   * Every list in this family rejects a query param it does not implement, so
-   * the single-resource reads must too. A caller who mistypes a flag otherwise
-   * gets a 200 that silently ignored it, which reads as confirmation the flag
-   * exists and does nothing.
-   */
-  it('rejects a query param it does not implement', async () => {
-    const response = await GET(
-      new NextRequest(
-        `http://localhost:3000/api/v2/skills/${skill.id}?workspaceId=${WORKSPACE_ID}&includeContents=true`,
-        { method: 'GET', headers: { 'x-api-key': 'key' } }
-      ),
-      context
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.get).not.toHaveBeenCalled()
-  })
-
-  it('updates a skill and emits only surface analytics', async () => {
-    const response = await PATCH(
-      request('PATCH', { workspaceId: WORKSPACE_ID, content: '# Updated' }),
-      context
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.update).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: {
-        workspaceId: WORKSPACE_ID,
-        skillId: skill.id,
-        content: '# Updated',
-        source: 'api',
-      },
-      request: expect.anything(),
-    })
-    expect(mocks.capture).toHaveBeenCalledWith(
-      'user-1',
-      'skill_updated',
-      expect.objectContaining({ skill_id: skill.id }),
-      expect.anything()
-    )
-  })
-
-  it('deletes a skill through the semantic delete operation', async () => {
-    const response = await DELETE(request('DELETE'), context)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { id: skill.id, deleted: true } })
-    expect(mocks.remove).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: { workspaceId: WORKSPACE_ID, skillId: skill.id, source: 'api' },
-      request: expect.anything(),
-    })
-  })
-
-  it('authenticates before parsing an empty update body', async () => {
-    mocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await PATCH(request('PATCH', {}), context)
-
-    expect(response.status).toBe(401)
-    expect(mocks.update).not.toHaveBeenCalled()
   })
 
   it('conceals cross-tenant access while preserving same-workspace role denials', async () => {

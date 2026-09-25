@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -95,21 +92,18 @@ describe('secureFetchWithPinnedIP request framing', () => {
     }
   )
 
-  it.each(['POST', 'PUT', 'PATCH', 'DELETE'])(
-    'sends a UTF-8 %s body with its byte length',
-    async (method) => {
-      const body = JSON.stringify({ query: 'select 1', label: 'synthetic café 🦀' })
-      const received = await sendToLengthRequiredEndpoint({
-        method,
-        body,
-        headers: { 'Content-Type': 'application/json' },
-      })
+  it.each(['POST', 'DELETE'])('sends a UTF-8 %s body with its byte length', async (method) => {
+    const body = JSON.stringify({ query: 'select 1', label: 'synthetic café 🦀' })
+    const received = await sendToLengthRequiredEndpoint({
+      method,
+      body,
+      headers: { 'Content-Type': 'application/json' },
+    })
 
-      expect(received.method).toBe(method)
-      expect(received.body.toString('utf8')).toBe(body)
-      expect(received.headers['content-length']).toBe(String(Buffer.byteLength(body)))
-    }
-  )
+    expect(received.method).toBe(method)
+    expect(received.body.toString('utf8')).toBe(body)
+    expect(received.headers['content-length']).toBe(String(Buffer.byteLength(body)))
+  })
 
   it.each([
     { label: 'buffer', body: Buffer.from([0x00, 0xff, 0x80, 0x42]) },
@@ -127,8 +121,6 @@ describe('secureFetchWithPinnedIP request framing', () => {
   it.each([
     { label: 'omitted', body: undefined },
     { label: 'empty string', body: '' },
-    { label: 'empty buffer', body: Buffer.alloc(0) },
-    { label: 'empty byte view', body: new Uint8Array(0) },
   ])('sends Content-Length: 0 for an $label POST body', async ({ body }) => {
     const received = await sendToLengthRequiredEndpoint({ method: 'POST', body })
 

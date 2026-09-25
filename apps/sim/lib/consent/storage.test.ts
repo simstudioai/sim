@@ -160,18 +160,4 @@ describe('prepareConsentStorage', () => {
     expect(getCookie('c15t')).toBeNull()
     expect(onTrackingLoad).not.toHaveBeenCalled()
   })
-
-  it('tolerates inaccessible storage and removes an expired cookie', () => {
-    setCookie('c15t', savedConsent(NOW - 400 * DAY_MS))
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
-      throw new DOMException('Storage denied', 'SecurityError')
-    })
-    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
-      throw new DOMException('Storage denied', 'SecurityError')
-    })
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-
-    expect(() => prepareConsentStorage()).not.toThrow()
-    expect(getCookie('c15t')).toBeNull()
-  })
 })

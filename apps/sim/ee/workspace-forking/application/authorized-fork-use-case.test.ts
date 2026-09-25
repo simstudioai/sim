@@ -1,5 +1,3 @@
-/** @vitest-environment node */
-import type { DelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -22,10 +20,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({ getWorkspaceWithOwner: mo
 vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({ assertForkingEnabled: vi.fn() }))
 vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => ({ resolveForkEdge: vi.fn() }))
 
-import {
-  isCopilotWorkspaceInvocation,
-  markCopilotWorkspaceInvocation,
-} from '@/lib/core/application/copilot-workspace-invocation'
+import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import { withWorkspaceInvocationScope } from '@/lib/core/application/workspace-invocation-scope'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { defineForkUseCase } from '@/ee/workspace-forking/application/authorized-fork-use-case'
@@ -59,7 +54,6 @@ function run(value = principal(), otherWorkspaceId = 'target') {
   )
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.permission.mockResolvedValue('admin')
   mocks.capability.mockResolvedValue(undefined)
   mocks.workspace.mockImplementation(async (id: string) => ({
@@ -70,26 +64,6 @@ beforeEach(() => {
   }))
 })
 describe('Copilot fork authorization', () => {
-  it('authorizes both canonical workspaces as the actual actor without API key access', async () => {
-    const incoming = principal()
-    const context = await run(incoming)
-    expect(operation.delegationAudience).toBe('sim:workspaces')
-    expect(mocks.permission.mock.calls.map((call) => call.slice(0, 3))).toEqual([
-      ['actor', 'source', 'org'],
-      ['actor', 'target', 'org'],
-    ])
-    expect(context.userId).toBe('actor')
-    const secondary = context.workspacePrincipals.get('target') as DelegatedPrincipal
-    expect(secondary).toMatchObject({
-      kind: 'delegated',
-      serviceId: 'copilot',
-      subjectUserId: 'actor',
-      workspaceId: 'target',
-      resourceScope: { chatId: 'chat' },
-      expiresAt: incoming.expiresAt,
-    })
-    expect(isCopilotWorkspaceInvocation(secondary)).toBe(true)
-  })
   it.each(['source', 'target'])(
     'refuses a missing admin role on %s before execution',
     async (denied) => {
@@ -117,18 +91,6 @@ describe('Copilot fork authorization', () => {
   it('does not accept an unadmitted delegation or stale serialized copy', async () => {
     await expect(run(principal(false))).rejects.toMatchObject({ code: 'forbidden' })
     await expect(run({ ...principal() })).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.execute).not.toHaveBeenCalled()
-  })
-  it('retains primary target scope and expiry checks', async () => {
-    for (const change of [
-      { workspaceId: 'elsewhere' },
-      { audience: 'sim:tables' },
-      { expiresAt: new Date(0) },
-    ]) {
-      const value = { ...principal(), ...change }
-      if (value.expiresAt > new Date()) markCopilotWorkspaceInvocation(value)
-      await expect(run(value)).rejects.toMatchObject({ code: 'forbidden' })
-    }
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 })

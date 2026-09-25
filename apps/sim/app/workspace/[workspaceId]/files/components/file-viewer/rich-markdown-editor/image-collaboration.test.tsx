@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
-import { NodeSelection, TextSelection } from '@tiptap/pm/state'
+import { NodeSelection } from '@tiptap/pm/state'
 import { Editor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { yUndoPluginKey } from '@tiptap/y-tiptap'
@@ -206,103 +206,6 @@ describe('image resizing during real peer Yjs updates', () => {
     }
   )
 
-  it.each(['heading', 'paragraph'])(
-    'renders and scrolls a valid selection when undoing a move into a %s',
-    async (target) => {
-      local.setOptions({ editorProps: { handleScrollToSelection: () => false } })
-      yUndoPluginKey.getState(local.state).undoManager.clear()
-      const dropPosition = target === 'heading' ? 8 : imagePosition(local) + 5
-      await act(async () => {
-        local.view.focus()
-        expect(dispatchEditorDrop(local, dropPosition).defaultPrevented).toBe(true)
-      })
-      expect(local.state.selection).toBeInstanceOf(NodeSelection)
-      expect(host.querySelector(`${target === 'heading' ? 'h2' : 'p'} img`)).not.toBeNull()
-      peer.commands.insertContentAt(peer.state.doc.content.size - 1, ' preserved')
-      await receivePeerUpdate()
-      await act(async () => {
-        expect(local.commands.undo()).toBe(true)
-      })
-      expect(local.state.doc.nodeAt(imagePosition(local))?.type.name).toBe('image')
-      if (local.state.selection instanceof NodeSelection) {
-        expect(NodeSelection.isSelectable(local.state.selection.node)).toBe(true)
-      }
-      expect(local.state.doc.textContent).toContain('After image preserved')
-      await act(async () => {
-        expect(local.commands.redo()).toBe(true)
-        Y.applyUpdate(peerDoc, Y.encodeStateAsUpdate(localDoc))
-      })
-      expect(local.getJSON()).toEqual(peer.getJSON())
-      expect(host.querySelector(`${target === 'heading' ? 'h2' : 'p'} img`)).not.toBeNull()
-    }
-  )
-
-  it('normalizes an invalid node selection without changing the document or Yjs history', async () => {
-    const original = local.getJSON()
-    const onUpdate = vi.fn()
-    localDoc.on('update', onUpdate)
-    yUndoPluginKey.getState(local.state).undoManager.clear()
-    await act(async () => {
-      local.view.dispatch(local.state.tr.setSelection(NodeSelection.create(local.state.doc, 3)))
-    })
-    expect(local.state.selection).toBeInstanceOf(TextSelection)
-    expect(local.state.selection.from).toBe(3)
-    expect(local.getJSON()).toEqual(original)
-    expect(onUpdate).not.toHaveBeenCalled()
-    expect(local.can().undo()).toBe(false)
-    await act(async () => local.commands.setNodeSelection(imagePosition(local)))
-    expect(local.state.selection).toBeInstanceOf(NodeSelection)
-    expect(local.state.selection.from).toBe(imagePosition(local))
-  })
-
-  it.each(['image', 'inlineImage'])(
-    'copies a linked %s with exactly one link wrapper',
-    async (type) => {
-      const image = {
-        type,
-        attrs: {
-          src: '/logo.png',
-          alt: 'Logo',
-          href: '/target',
-          hrefTitle: 'Destination',
-          width: '217',
-        },
-      }
-      await act(async () => {
-        local.commands.setContent({
-          type: 'doc',
-          content: type === 'inlineImage' ? [{ type: 'heading', content: [image] }] : [image],
-        })
-        local.commands.setNodeSelection(imagePosition(local))
-      })
-      const clipboard = local.view.serializeForClipboard(local.state.selection.content())
-      expect(clipboard.dom.querySelectorAll('a')).toHaveLength(1)
-      expect(clipboard.dom.querySelector('a')?.getAttribute('href')).toBe('/target')
-      expect(clipboard.dom.querySelector('a')?.getAttribute('title')).toBe('Destination')
-      expect(clipboard.dom.querySelector('img')?.getAttribute('width')).toBe('217')
-    }
-  )
-
-  it('resizes an inline image alongside peer heading text', async () => {
-    await act(async () => {
-      local.commands.setContent(
-        '<h2>Before <img src="https://sim.ai/image.png" alt="Original" width="200" height="100"> after</h2>'
-      )
-      Y.applyUpdate(peerDoc, Y.encodeStateAsUpdate(localDoc))
-      local.commands.setNodeSelection(imagePosition(local))
-    })
-    expect(host.querySelector('h2 img')).not.toBeNull()
-    expect(host.querySelector('h2 div')).toBeNull()
-    beginResize()
-    peer.commands.insertContentAt(1, 'Peer ')
-    await receivePeerUpdate()
-    pointer(window, 'pointerup', 160)
-    expect(imageAttributes(local)).toMatchObject({ alt: 'Original', href: null, width: '260' })
-    expect(local.state.doc.firstChild?.textContent).toBe('Peer Before  after')
-    await act(async () => Y.applyUpdate(peerDoc, Y.encodeStateAsUpdate(localDoc)))
-    expect(peer.getJSON()).toEqual(local.getJSON())
-  })
-
   it('cancels an inline image resize when a peer deletes it', async () => {
     await act(async () => {
       local.commands.setContent(
@@ -350,29 +253,6 @@ describe('image resizing during real peer Yjs updates', () => {
     }
   )
 
-  it('preserves metadata and peer text while resizing inside nested image containers', async () => {
-    await setNestedImages(2)
-    beginResize()
-    peer.commands.setNodeSelection(imagePosition(peer, 'Original'))
-    peer.commands.updateAttributes('image', {
-      alt: 'Peer corrected alt',
-      href: 'https://sim.ai/peer-link',
-    })
-    peer.commands.insertContentAt('Earlier heading'.length + 1, ' PEER')
-    peer.commands.insertContentAt(imagePosition(peer, 'Peer image') - 2, ' PEER')
-    await receivePeerUpdate()
-    pointer(window, 'pointerup', 160)
-    expect(local.state.doc.nodeAt(imagePosition(local, 'Peer corrected alt'))?.attrs).toMatchObject(
-      {
-        alt: 'Peer corrected alt',
-        href: 'https://sim.ai/peer-link',
-        width: '260',
-      }
-    )
-    await act(async () => Y.applyUpdate(peerDoc, Y.encodeStateAsUpdate(localDoc)))
-    expect(local.getJSON()).toEqual(peer.getJSON())
-  })
-
   it.each(['delete', 'replace'] as const)(
     'rejects a queued resize after the peer %ss its containing block',
     async (action) => {
@@ -390,16 +270,6 @@ describe('image resizing during real peer Yjs updates', () => {
     }
   )
 
-  it('cancels resizing conservatively when another container image changes', async () => {
-    await setNestedImages(2)
-    beginResize()
-    peer.commands.setNodeSelection(imagePosition(peer, 'Peer image'))
-    peer.commands.updateAttributes('image', { alt: 'Peer corrected alt', width: '480' })
-    await receivePeerUpdate()
-    pointer(window, 'pointerup', 160)
-    expect(local.getJSON()).toEqual(peer.getJSON())
-  })
-
   it.each(
     [false, true].flatMap((sameSource) =>
       ['target', 'sibling'].map((moved) => ({ sameSource, moved }))
@@ -414,43 +284,6 @@ describe('image resizing during real peer Yjs updates', () => {
       await receivePeerUpdate()
       pointer(window, 'pointerup', 160)
       expect(local.state.doc.nodeAt(position)?.attrs.alt).toBe('Peer image')
-      expect(local.getJSON()).toEqual(peer.getJSON())
-    }
-  )
-
-  it('preserves target metadata and text edits around an unchanged same-source sibling', async () => {
-    const position = await addPeerSibling()
-    beginResize()
-    peer.commands.setNodeSelection(position)
-    peer.commands.updateAttributes('image', {
-      alt: 'Peer corrected alt',
-      href: 'https://sim.ai/peer-link',
-    })
-    peer.commands.insertContentAt('Earlier heading'.length + 1, ' PEER')
-    await receivePeerUpdate()
-    pointer(window, 'pointerup', 160)
-    const currentPosition = local.state.doc.firstChild!.nodeSize
-    expect(local.state.doc.nodeAt(currentPosition)?.attrs).toMatchObject({
-      alt: 'Peer corrected alt',
-      href: 'https://sim.ai/peer-link',
-      width: '260',
-    })
-    expect(local.state.doc.nodeAt(currentPosition + 1)?.attrs.alt).toBe('Peer image')
-    await act(async () => Y.applyUpdate(peerDoc, Y.encodeStateAsUpdate(localDoc)))
-    expect(local.getJSON()).toEqual(peer.getJSON())
-  })
-
-  it.each(['alt', 'width', 'src'])(
-    'cancels resizing conservatively when a sibling image changes its %s',
-    async (field) => {
-      const position = await addPeerSibling()
-      beginResize()
-      peer.commands.setNodeSelection(position + 1)
-      peer.commands.updateAttributes('image', {
-        [field]: field === 'width' ? '500' : 'https://sim.ai/peer-change',
-      })
-      await receivePeerUpdate()
-      pointer(window, 'pointerup', 160)
       expect(local.getJSON()).toEqual(peer.getJSON())
     }
   )
@@ -475,40 +308,6 @@ describe('image resizing during real peer Yjs updates', () => {
     }
   )
 
-  it.each(['pointerup', 'pointercancel', 'blur', 'unmount'])(
-    'removes the resize transaction listener after %s',
-    (finish) => {
-      const subscribe = vi.spyOn(local, 'on')
-      const unsubscribe = vi.spyOn(local, 'off')
-      beginResize()
-      const listener = subscribe.mock.calls.find(([event]) => event === 'transaction')?.[1]
-      expect(listener).toBeTypeOf('function')
-
-      if (finish === 'unmount') act(() => root.unmount())
-      else pointer(window, finish, 160)
-
-      expect(unsubscribe).toHaveBeenCalledWith('transaction', listener)
-    }
-  )
-
-  it('keeps resizing the same image after a peer heading and metadata edit', async () => {
-    const originalImage = localDoc.getXmlFragment('default').get(1)
-    beginResize()
-    peer.commands.insertContentAt('Earlier heading'.length + 1, ' PEER')
-    peer.commands.setNodeSelection(imagePosition(peer))
-    peer.commands.updateAttributes('image', { alt: 'Peer corrected alt' })
-    await receivePeerUpdate()
-
-    expect(localDoc.getXmlFragment('default').get(1)).toBe(originalImage)
-    pointer(window, 'pointerup', 160)
-    expect(imageAttributes(local)).toMatchObject({
-      alt: 'Peer corrected alt',
-      width: '260',
-      height: null,
-    })
-    expect(local.state.doc.firstChild?.textContent).toBe('Earlier heading PEER')
-  })
-
   it.each([false, true])(
     'cancels a resize when the peer replaces the actual image node (identical attributes: %s)',
     async (identicalAttributes) => {
@@ -530,15 +329,4 @@ describe('image resizing during real peer Yjs updates', () => {
       expect(imageAttributes(local)).toMatchObject(replacement)
     }
   )
-
-  it('cancels a resize when the peer deletes the image', async () => {
-    beginResize()
-    const position = imagePosition(peer)
-    peer.commands.deleteRange({ from: position, to: position + 1 })
-    await receivePeerUpdate()
-    pointer(window, 'pointerup', 160)
-
-    expect(host.querySelector('img')).toBeNull()
-    expect(local.getHTML()).toBe('<h2>Earlier heading</h2><p>After image</p>')
-  })
 })

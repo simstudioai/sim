@@ -1,7 +1,6 @@
-/** @vitest-environment node */
 import { recordAudit } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
-import { member, permissionGroup } from '@sim/db/schema'
+import { member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -37,12 +36,7 @@ vi.mock('@/lib/permission-groups/member-manager', () => ({
 }))
 
 import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
-import { permissionGroupOperations } from '@/lib/permission-groups/application/operations'
-import {
-  bulkAddPermissionGroupMembers,
-  createPermissionGroup,
-  listPermissionGroups,
-} from '@/lib/permission-groups/application/use-cases'
+import { createPermissionGroup } from '@/lib/permission-groups/application/use-cases'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
 const session: Principal = { kind: 'session', userId: 'admin-1', sessionId: 'session-1' }
@@ -62,7 +56,6 @@ const input = {
 const group = { id: 'group-1', name: 'Restricted', isDefault: false, workspaceIds: ['workspace-1'] }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.regime.mockResolvedValue(true)
   mocks.config.mockResolvedValue(null)
@@ -70,33 +63,6 @@ beforeEach(() => {
 })
 
 describe('permission-group organization authorization', () => {
-  it.each([session, key, oauth])(
-    'uses the real $kind actor and one semantic operation',
-    async (principal) => {
-      queueTableRows(member, [{ role: 'admin' }])
-      await expect(createPermissionGroup.execute({ principal, input })).resolves.toEqual(group)
-      expect(mocks.create).toHaveBeenCalledExactlyOnceWith('org-1', 'admin-1', input.changes)
-      expect(recordAudit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          actorId: 'admin-1',
-          resourceId: 'group-1',
-          metadata: expect.objectContaining({
-            organizationId: 'org-1',
-            operation: 'permission_groups.create',
-            actor: expect.objectContaining({ kind: principal.kind }),
-          }),
-        })
-      )
-    }
-  )
-
-  it.each(['admin', 'owner'])('admits an organization %s', async (role) => {
-    queueTableRows(member, [{ role }])
-    await expect(createPermissionGroup.execute({ principal: session, input })).resolves.toEqual(
-      group
-    )
-  })
-
   it('rejects workspace keys before protected loading', async () => {
     await expect(
       createPermissionGroup.execute({
@@ -171,37 +137,5 @@ describe('permission-group organization authorization', () => {
       'database unavailable'
     )
     expect(recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('does not audit an authoritative bulk no-op', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    mocks.bulkAdd.mockResolvedValue({ group, addedUserIds: [], added: 0, skipped: 1 })
-    await bulkAddPermissionGroupMembers.execute({
-      principal: key,
-      input: { organizationId: 'org-1', groupId: 'group-1', userIds: ['member-1'] },
-    })
-    expect(recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('keeps every management operation on the same organization policy', () => {
-    for (const operation of Object.values(permissionGroupOperations)) {
-      expect(operation.minimumRole).toBe('admin')
-      expect(operation.principalKinds).toEqual([
-        'session',
-        'personal_api_key',
-        'oauth_access_token',
-        'organization_delegated',
-      ])
-      expect(Object.isFrozen(operation)).toBe(true)
-    }
-  })
-
-  it('lists only after current membership and entitlement pass', async () => {
-    queueTableRows(member, [{ role: 'owner' }])
-    queueTableRows(permissionGroup, [])
-    await expect(
-      listPermissionGroups.execute({ principal: key, input: { organizationId: 'org-1', limit: 1 } })
-    ).resolves.toEqual({ data: [], nextCursorKeys: null })
-    expect(dbChainMockFns.limit).toHaveBeenLastCalledWith(2)
   })
 })

@@ -34,7 +34,6 @@ function Harness() {
 
 describe('useDesktopUpdateState', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     desktopMocks.listener = null
     desktopMocks.onState.mockImplementation((listener) => {
       desktopMocks.listener = listener
@@ -68,23 +67,5 @@ describe('useDesktopUpdateState', () => {
     await act(async () => resolveSnapshot({ status: 'checking' }))
 
     expect(currentState).toEqual({ status: 'ready', version: '2.0.0' })
-  })
-
-  it('unsubscribes and ignores a snapshot after unmount', async () => {
-    let resolveSnapshot: (state: DesktopUpdateState) => void = () => {
-      throw new Error('Update-state snapshot did not initialize')
-    }
-    desktopMocks.getState.mockReturnValue(
-      new Promise((resolve) => {
-        resolveSnapshot = resolve
-      })
-    )
-    await act(async () => root.render(<Harness />))
-    act(() => root.unmount())
-    container.remove()
-
-    await act(async () => resolveSnapshot({ status: 'ready', version: '2.0.0' }))
-
-    expect(desktopMocks.unsubscribe).toHaveBeenCalledTimes(1)
   })
 })

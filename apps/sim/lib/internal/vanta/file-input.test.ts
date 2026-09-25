@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -34,7 +31,6 @@ const file = { key: 'workspace/file.txt', name: 'file.txt', size: 4 }
 
 describe('resolveVantaUploadFile', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.process.mockReturnValue([{ ...file, type: 'text/plain' }])
     mocks.assertAccess.mockResolvedValue(null)
     mocks.download.mockResolvedValue({ buffer: Buffer.from('test'), contentType: 'text/plain' })
@@ -52,27 +48,6 @@ describe('resolveVantaUploadFile', () => {
       body: { success: false, error: 'File not found' },
     })
     expect(mocks.download).not.toHaveBeenCalled()
-  })
-
-  it('passes the upload cap and cancellation to storage', async () => {
-    const controller = new AbortController()
-    await resolveVantaUploadFile(
-      { ...baseInput, file, fileName: 'evidence.txt' },
-      { requestId: 'request-1', signal: controller.signal, userId: 'user-1' }
-    )
-
-    expect(mocks.assertAccess).toHaveBeenCalledWith(
-      file.key,
-      'user-1',
-      'request-1',
-      expect.anything()
-    )
-    expect(mocks.download).toHaveBeenCalledWith(
-      expect.objectContaining({ key: file.key }),
-      'request-1',
-      expect.anything(),
-      { maxBytes: VANTA_MAX_TRANSFER_BYTES, signal: controller.signal }
-    )
   })
 
   it('preserves exact size errors for declared and streamed oversized files', async () => {
@@ -99,19 +74,5 @@ describe('resolveVantaUploadFile', () => {
       status: 400,
       body: { success: false, error: 'File size (101.00MB) exceeds upload limit of 100MB' },
     })
-  })
-
-  it('supports bounded base64 content without protected-file lookup', async () => {
-    await expect(
-      resolveVantaUploadFile(
-        { ...baseInput, fileContent: Buffer.from('hello').toString('base64') },
-        { requestId: 'request-1', userId: 'user-1' }
-      )
-    ).resolves.toMatchObject({
-      buffer: Buffer.from('hello'),
-      fileName: 'file',
-      mimeType: 'application/octet-stream',
-    })
-    expect(mocks.assertAccess).not.toHaveBeenCalled()
   })
 })

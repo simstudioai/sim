@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { DesktopPreferences } from '@sim/desktop-bridge'
 import { afterEach, expect, it, vi } from 'vitest'
 import {

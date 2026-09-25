@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDecryptSecret } = vi.hoisted(() => ({
@@ -31,7 +28,6 @@ function currentExecutionState(
 
 describe('table output backfill provenance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
       decrypted: encryptedValue === 'encrypted-secret' ? 'secret-value' : encryptedValue,
     }))

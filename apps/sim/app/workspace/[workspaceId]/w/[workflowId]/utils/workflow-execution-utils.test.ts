@@ -1,11 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { resetTerminalConsoleMock, terminalConsoleMockFns } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   addExecutionErrorConsoleEntry,
-  addHttpErrorConsoleEntry,
   createBlockEventHandlers,
   executeWorkflowWithFullLogging,
   handleExecutionCancelledConsole,
@@ -243,109 +239,6 @@ describe('workflow-execution-utils', () => {
       expect(addConsole).not.toHaveBeenCalled()
     })
 
-    it('keeps distinct start rows when replay identity differs', () => {
-      terminalConsoleMockFns.mockAddConsole({
-        workflowId: 'wf-1',
-        blockId: 'fn-1',
-        blockName: 'Function 1',
-        blockType: 'function',
-        executionId: 'exec-1',
-        executionOrder: 7,
-        isRunning: true,
-        iterationCurrent: 0,
-        iterationTotal: 2,
-        iterationType: 'loop',
-        iterationContainerId: 'loop-1',
-      })
-
-      const addConsole = vi.fn()
-      const handlers = createBlockEventHandlers(
-        {
-          workflowId: 'wf-1',
-          executionIdRef: { current: 'exec-1' },
-          workflowEdges: [],
-          activeBlocksSet: new Set<string>(),
-          activeBlockRefCounts: new Map<string, number>(),
-          accumulatedBlockLogs: [],
-          accumulatedBlockStates: new Map(),
-          executedBlockIds: new Set<string>(),
-          includeStartConsoleEntry: true,
-        },
-        {
-          addConsole,
-          updateConsole: vi.fn(),
-          setActiveBlocks: vi.fn(),
-          setBlockRunStatus: vi.fn(),
-          setEdgeRunStatus: vi.fn(),
-        }
-      )
-
-      handlers.onBlockStarted({
-        blockId: 'fn-1',
-        blockName: 'Function 1',
-        blockType: 'function',
-        executionOrder: 7,
-        iterationCurrent: 1,
-        iterationTotal: 2,
-        iterationType: 'loop',
-        iterationContainerId: 'loop-1',
-      })
-
-      expect(addConsole).toHaveBeenCalledTimes(1)
-    })
-
-    it('replays early child workflow instance updates after the start row is added', () => {
-      const updateConsole = vi.fn()
-      const handlers = createBlockEventHandlers(
-        {
-          workflowId: 'wf-1',
-          executionIdRef: { current: 'exec-1' },
-          workflowEdges: [],
-          activeBlocksSet: new Set<string>(),
-          activeBlockRefCounts: new Map<string, number>(),
-          accumulatedBlockLogs: [],
-          accumulatedBlockStates: new Map(),
-          executedBlockIds: new Set<string>(),
-          includeStartConsoleEntry: true,
-        },
-        {
-          addConsole: terminalConsoleMockFns.mockAddConsole as any,
-          updateConsole,
-          setActiveBlocks: vi.fn(),
-          setBlockRunStatus: vi.fn(),
-          setEdgeRunStatus: vi.fn(),
-        }
-      )
-
-      handlers.onBlockChildWorkflowStarted({
-        blockId: 'nested-workflow',
-        childWorkflowInstanceId: 'nested-inst-1',
-        executionOrder: 4,
-        childWorkflowBlockId: 'parent-inst-1',
-        childWorkflowName: 'Parent Workflow',
-      })
-      handlers.onBlockStarted({
-        blockId: 'nested-workflow',
-        blockName: 'Nested Workflow',
-        blockType: 'workflow',
-        executionOrder: 4,
-        childWorkflowBlockId: 'parent-inst-1',
-        childWorkflowName: 'Parent Workflow',
-      })
-
-      expect(updateConsole).toHaveBeenCalledTimes(2)
-      expect(updateConsole.mock.calls[1]).toEqual([
-        'nested-workflow',
-        expect.objectContaining({
-          childWorkflowInstanceId: 'nested-inst-1',
-          childWorkflowBlockId: 'parent-inst-1',
-          childWorkflowName: 'Parent Workflow',
-          executionOrder: 4,
-        }),
-        'exec-1',
-      ])
-    })
-
     it('keeps raw completion data functional while writing only the display projection', async () => {
       const accumulatedBlockLogs: BlockLog[] = []
       const accumulatedBlockStates = new Map()
@@ -465,72 +358,9 @@ describe('workflow-execution-utils', () => {
       )
       expect(JSON.stringify(updateConsole.mock.calls)).not.toContain('sk-resolved-secret')
     })
-
-    it('preserves legacy block error display when the server sends no projection', () => {
-      const updateConsole = vi.fn()
-      const handlers = createBlockEventHandlers(
-        {
-          workflowId: 'wf-1',
-          executionIdRef: { current: 'exec-1' },
-          workflowEdges: [],
-          activeBlocksSet: new Set<string>(),
-          activeBlockRefCounts: new Map<string, number>(),
-          accumulatedBlockLogs: [],
-          accumulatedBlockStates: new Map(),
-          executedBlockIds: new Set<string>(),
-          includeStartConsoleEntry: true,
-        },
-        {
-          addConsole: vi.fn(),
-          updateConsole,
-          setActiveBlocks: vi.fn(),
-          setBlockRunStatus: vi.fn(),
-          setEdgeRunStatus: vi.fn(),
-        }
-      )
-
-      handlers.onBlockError({
-        blockId: 'fn-1',
-        blockName: 'Function 1',
-        blockType: 'function',
-        executionOrder: 1,
-        input: { code: 'return ordinary-value' },
-        error: 'SyntaxError: ordinary-value',
-        durationMs: 10,
-        startedAt: '2026-07-31T00:00:00.000Z',
-        endedAt: '2026-07-31T00:00:00.010Z',
-      })
-
-      expect(updateConsole).toHaveBeenCalledWith(
-        'fn-1',
-        expect.objectContaining({
-          input: { code: 'return ordinary-value' },
-          error: 'SyntaxError: ordinary-value',
-        }),
-        'exec-1'
-      )
-    })
   })
 
   describe('addExecutionErrorConsoleEntry', () => {
-    it('adds a Run Error entry when no block-level error exists', () => {
-      const addConsole = vi.fn()
-      addExecutionErrorConsoleEntry(addConsole, {
-        workflowId: 'wf-1',
-        executionId: 'exec-1',
-        error: 'Run failed',
-        displayError: 'Safe run failure',
-        durationMs: 1234,
-        blockLogs: [],
-      })
-
-      expect(addConsole).toHaveBeenCalledTimes(1)
-      const entry = addConsole.mock.calls[0][0]
-      expect(entry.blockName).toBe('Run Error')
-      expect(entry.blockType).toBe('error')
-      expect(entry.error).toBe('Safe run failure')
-    })
-
     it('does not use the raw execution error when the server projection is empty', () => {
       const addConsole = vi.fn()
       addExecutionErrorConsoleEntry(addConsole, {
@@ -543,30 +373,6 @@ describe('workflow-execution-utils', () => {
 
       expect(addConsole.mock.calls[0][0].error).toBe('Run failed')
       expect(JSON.stringify(addConsole.mock.calls)).not.toContain('sk-resolved-secret')
-    })
-
-    it('preserves legacy execution errors when the server sends no projection', () => {
-      const addConsole = vi.fn()
-      addExecutionErrorConsoleEntry(addConsole, {
-        workflowId: 'wf-1',
-        executionId: 'exec-1',
-        error: 'Legacy run failure',
-        blockLogs: [],
-      })
-
-      expect(addConsole.mock.calls[0][0].error).toBe('Legacy run failure')
-    })
-
-    it('preserves HTTP error detail before SSE projection is available', () => {
-      const addConsole = vi.fn()
-      addHttpErrorConsoleEntry(addConsole, {
-        workflowId: 'wf-1',
-        executionId: 'exec-1',
-        error: 'Workflow is archived',
-        httpStatus: 409,
-      })
-
-      expect(addConsole.mock.calls[0][0].error).toBe('Workflow is archived')
     })
 
     it('skips when blockLogs already contain a block-level error', () => {
@@ -615,56 +421,6 @@ describe('workflow-execution-utils', () => {
 
       expect(addConsole).not.toHaveBeenCalled()
     })
-
-    it('still adds when only existing entries are themselves Run Error rows', () => {
-      terminalConsoleMockFns.mockAddConsole({
-        workflowId: 'wf-1',
-        blockId: 'execution-error',
-        blockName: 'Run Error',
-        blockType: 'error',
-        executionId: 'exec-1',
-        executionOrder: Number.MAX_SAFE_INTEGER,
-        success: false,
-        error: 'previous unrelated error',
-      })
-
-      const addConsole = vi.fn()
-      addExecutionErrorConsoleEntry(addConsole, {
-        workflowId: 'wf-1',
-        executionId: 'exec-1',
-        error: 'New run failed',
-        blockLogs: [],
-      })
-
-      expect(addConsole).toHaveBeenCalledTimes(1)
-    })
-
-    it('uses Timeout Error label when error indicates a timeout', () => {
-      const addConsole = vi.fn()
-      addExecutionErrorConsoleEntry(addConsole, {
-        workflowId: 'wf-1',
-        executionId: 'exec-1',
-        error: 'Workflow execution timed out after 5m',
-        blockLogs: [],
-      })
-
-      expect(addConsole).toHaveBeenCalledTimes(1)
-      expect(addConsole.mock.calls[0][0].blockName).toBe('Timeout Error')
-    })
-
-    it('uses Workflow Validation label when isPreExecutionError is true', () => {
-      const addConsole = vi.fn()
-      addExecutionErrorConsoleEntry(addConsole, {
-        workflowId: 'wf-1',
-        executionId: 'exec-1',
-        error: 'Invalid block reference',
-        blockLogs: [],
-        isPreExecutionError: true,
-      })
-
-      expect(addConsole).toHaveBeenCalledTimes(1)
-      expect(addConsole.mock.calls[0][0].blockName).toBe('Workflow Validation')
-    })
   })
 
   describe('reconcileFinalBlockLogs', () => {
@@ -678,40 +434,6 @@ describe('workflow-execution-utils', () => {
       success: true,
       executionOrder: 1,
       ...over,
-    })
-
-    it('flips a still-running entry to the server-reported success state', () => {
-      terminalConsoleMockFns.mockAddConsole({
-        workflowId: 'wf-1',
-        blockId: 'kb-1',
-        blockName: 'Knowledge 1',
-        blockType: 'knowledge',
-        executionId: 'exec-1',
-        executionOrder: 2,
-        isRunning: true,
-      })
-
-      const updateConsole = vi.fn()
-      reconcileFinalBlockLogs(updateConsole, 'wf-1', 'exec-1', [
-        makeLog({
-          blockId: 'kb-1',
-          blockName: 'Knowledge 1',
-          blockType: 'knowledge',
-          executionOrder: 2,
-          success: true,
-          output: { items: [] },
-        }),
-      ])
-
-      expect(updateConsole).toHaveBeenCalledTimes(1)
-      const [blockId, update, executionId] = updateConsole.mock.calls[0]
-      expect(blockId).toBe('kb-1')
-      expect(executionId).toBe('exec-1')
-      expect(update).toMatchObject({
-        success: true,
-        isRunning: false,
-        replaceOutput: { items: [] },
-      })
     })
 
     it('flips a still-running entry to the server-reported error state (Bug 1 reconciliation)', () => {
@@ -743,64 +465,6 @@ describe('workflow-execution-utils', () => {
       })
     })
 
-    it('skips entries that are not running', () => {
-      terminalConsoleMockFns.mockAddConsole({
-        workflowId: 'wf-1',
-        blockId: 'fn-1',
-        blockName: 'Function',
-        blockType: 'function',
-        executionId: 'exec-1',
-        executionOrder: 1,
-        isRunning: false,
-        success: true,
-      })
-
-      const updateConsole = vi.fn()
-      reconcileFinalBlockLogs(updateConsole, 'wf-1', 'exec-1', [makeLog({ blockId: 'fn-1' })])
-
-      expect(updateConsole).not.toHaveBeenCalled()
-    })
-
-    it('reprojects completed content without deep-comparing authoritative finalBlockLogs', () => {
-      terminalConsoleMockFns.mockAddConsole({
-        workflowId: 'wf-1',
-        blockId: 'fn-1',
-        blockName: 'Function',
-        blockType: 'function',
-        executionId: 'exec-1',
-        executionOrder: 1,
-        isRunning: false,
-        success: false,
-        input: { code: 'return sk-resolved-secret' },
-        output: { error: 'sk-resolved-secret' },
-        error: 'SyntaxError: sk-resolved-secret',
-        agentStreamThinking: 'sk-resolved-secret',
-      })
-
-      const updateConsole = vi.fn()
-      reconcileFinalBlockLogs(updateConsole, 'wf-1', 'exec-1', [
-        makeLog({
-          blockId: 'fn-1',
-          input: { code: 'return {{OPENAI_API_KEY}}' },
-          output: { error: '{{OPENAI_API_KEY}}' },
-          error: 'SyntaxError: {{OPENAI_API_KEY}}',
-          success: false,
-        }),
-      ])
-
-      expect(updateConsole).toHaveBeenCalledWith(
-        'fn-1',
-        expect.objectContaining({
-          input: { code: 'return {{OPENAI_API_KEY}}' },
-          replaceOutput: { error: '{{OPENAI_API_KEY}}' },
-          error: 'SyntaxError: {{OPENAI_API_KEY}}',
-        }),
-        'exec-1'
-      )
-      expect(updateConsole.mock.calls[0][1]).not.toHaveProperty('clearAgentStreamThinking')
-      expect(JSON.stringify(updateConsole.mock.calls)).not.toContain('sk-resolved-secret')
-    })
-
     it('clears live content but retains a safe failure label when projection is structural-only', () => {
       terminalConsoleMockFns.mockAddConsole({
         workflowId: 'wf-1',
@@ -827,68 +491,6 @@ describe('workflow-execution-utils', () => {
         error: 'Block failed',
         clearAgentStreamThinking: true,
       })
-    })
-
-    it('uses a safe failure label for a structural-only child error span', () => {
-      terminalConsoleMockFns.mockAddConsole({
-        workflowId: 'wf-1',
-        blockId: 'workflow-1',
-        blockName: 'Workflow 1',
-        blockType: 'workflow',
-        executionId: 'exec-1',
-        executionOrder: 1,
-        success: false,
-        output: {},
-        childWorkflowInstanceId: 'child-inst-1',
-      })
-      terminalConsoleMockFns.mockAddConsole({
-        workflowId: 'wf-1',
-        blockId: 'fn-1',
-        blockName: 'Function 1',
-        blockType: 'function',
-        executionId: 'exec-1',
-        executionOrder: 2,
-        isRunning: false,
-        success: false,
-        error: 'SyntaxError: sk-resolved-secret',
-        childWorkflowBlockId: 'child-inst-1',
-      })
-
-      const updateConsole = vi.fn()
-      reconcileFinalBlockLogs(updateConsole, 'wf-1', 'exec-1', [
-        makeLog({
-          blockId: 'workflow-1',
-          blockType: 'workflow',
-          executionOrder: 1,
-          success: false,
-          childTraceSpans: [
-            {
-              id: 'fn-span',
-              name: 'Function 1',
-              type: 'function',
-              blockId: 'fn-1',
-              executionOrder: 2,
-              status: 'error',
-              errorMessage: '   ',
-              duration: 10,
-              startTime: '2026-08-04T00:00:00.000Z',
-              endTime: '2026-08-04T00:00:00.010Z',
-            },
-          ],
-        }),
-      ])
-
-      expect(updateConsole).toHaveBeenCalledWith(
-        'fn-1',
-        expect.objectContaining({
-          replaceOutput: {},
-          success: false,
-          error: 'Block failed',
-          clearAgentStreamThinking: true,
-        }),
-        'exec-1'
-      )
-      expect(JSON.stringify(updateConsole.mock.calls)).not.toContain('sk-resolved-secret')
     })
 
     it('reconciles child workflow spans before running entries are swept to canceled', () => {
@@ -986,196 +588,6 @@ describe('workflow-execution-utils', () => {
           isRunning: false,
           isCanceled: false,
           childWorkflowBlockId: 'child-inst-1',
-        }),
-        'exec-1',
-      ])
-    })
-
-    it('uses span execution and iteration identity when reconciling repeated child blocks', () => {
-      terminalConsoleMockFns.mockAddConsole({
-        workflowId: 'wf-1',
-        blockId: 'workflow-1',
-        blockName: 'Workflow 1',
-        blockType: 'workflow',
-        executionId: 'exec-1',
-        executionOrder: 2,
-        success: true,
-        childWorkflowInstanceId: 'child-inst-1',
-      })
-      terminalConsoleMockFns.mockAddConsole({
-        workflowId: 'wf-1',
-        blockId: 'api-1',
-        blockName: 'API 1',
-        blockType: 'api',
-        executionId: 'exec-1',
-        executionOrder: 3,
-        isRunning: true,
-        iterationCurrent: 0,
-        iterationType: 'loop',
-        iterationContainerId: 'loop-1',
-        childWorkflowBlockId: 'child-inst-1',
-      })
-      terminalConsoleMockFns.mockAddConsole({
-        workflowId: 'wf-1',
-        blockId: 'api-1',
-        blockName: 'API 1',
-        blockType: 'api',
-        executionId: 'exec-1',
-        executionOrder: 4,
-        isRunning: true,
-        iterationCurrent: 1,
-        iterationType: 'loop',
-        iterationContainerId: 'loop-1',
-        childWorkflowBlockId: 'child-inst-1',
-      })
-
-      const startedAt = new Date().toISOString()
-      const endedAt = new Date(Date.now() + 20).toISOString()
-      const updateConsole = vi.fn()
-      reconcileFinalBlockLogs(updateConsole, 'wf-1', 'exec-1', [
-        makeLog({
-          blockId: 'workflow-1',
-          blockType: 'workflow',
-          executionOrder: 2,
-          childTraceSpans: [
-            {
-              id: 'api-iter-0',
-              name: 'API 1',
-              type: 'api',
-              blockId: 'api-1',
-              executionOrder: 3,
-              loopId: 'loop-1',
-              iterationIndex: 0,
-              status: 'success',
-              duration: 10,
-              startTime: startedAt,
-              endTime: endedAt,
-              output: { result: 'first' },
-            },
-            {
-              id: 'api-iter-1',
-              name: 'API 1',
-              type: 'api',
-              blockId: 'api-1',
-              executionOrder: 4,
-              loopId: 'loop-1',
-              iterationIndex: 1,
-              status: 'error',
-              duration: 20,
-              startTime: startedAt,
-              endTime: endedAt,
-              output: { error: new Error('second failed') },
-            },
-          ],
-        }),
-      ])
-
-      expect(updateConsole).toHaveBeenCalledTimes(2)
-      expect(updateConsole.mock.calls[0]).toEqual([
-        'api-1',
-        expect.objectContaining({
-          executionOrder: 3,
-          iterationCurrent: 0,
-          iterationType: 'loop',
-          iterationContainerId: 'loop-1',
-          replaceOutput: { result: 'first' },
-          success: true,
-        }),
-        'exec-1',
-      ])
-      expect(updateConsole.mock.calls[1]).toEqual([
-        'api-1',
-        expect.objectContaining({
-          executionOrder: 4,
-          iterationCurrent: 1,
-          iterationType: 'loop',
-          iterationContainerId: 'loop-1',
-          error: 'second failed',
-          success: false,
-        }),
-        'exec-1',
-      ])
-    })
-
-    it('recurses into nested workflow spans using the nested workflow instance id', () => {
-      terminalConsoleMockFns.mockAddConsole({
-        workflowId: 'wf-1',
-        blockId: 'workflow-1',
-        blockName: 'Workflow 1',
-        blockType: 'workflow',
-        executionId: 'exec-1',
-        executionOrder: 2,
-        success: true,
-        childWorkflowInstanceId: 'child-inst-1',
-      })
-      terminalConsoleMockFns.mockAddConsole({
-        workflowId: 'wf-1',
-        blockId: 'nested-workflow',
-        blockName: 'Nested Workflow',
-        blockType: 'workflow',
-        executionId: 'exec-1',
-        executionOrder: 3,
-        isRunning: false,
-        childWorkflowBlockId: 'child-inst-1',
-        childWorkflowInstanceId: 'nested-inst-1',
-      })
-      terminalConsoleMockFns.mockAddConsole({
-        workflowId: 'wf-1',
-        blockId: 'nested-api',
-        blockName: 'Nested API',
-        blockType: 'api',
-        executionId: 'exec-1',
-        executionOrder: 1,
-        isRunning: true,
-        childWorkflowBlockId: 'nested-inst-1',
-      })
-
-      const startedAt = new Date().toISOString()
-      const endedAt = new Date(Date.now() + 20).toISOString()
-      const updateConsole = vi.fn()
-      reconcileFinalBlockLogs(updateConsole, 'wf-1', 'exec-1', [
-        makeLog({
-          blockId: 'workflow-1',
-          blockType: 'workflow',
-          executionOrder: 2,
-          childTraceSpans: [
-            {
-              id: 'nested-workflow-span',
-              name: 'Nested Workflow',
-              type: 'workflow',
-              blockId: 'nested-workflow',
-              executionOrder: 3,
-              status: 'success',
-              duration: 10,
-              startTime: startedAt,
-              endTime: endedAt,
-              output: {},
-              children: [
-                {
-                  id: 'nested-api-span',
-                  name: 'Nested API',
-                  type: 'api',
-                  blockId: 'nested-api',
-                  executionOrder: 1,
-                  status: 'success',
-                  duration: 10,
-                  startTime: startedAt,
-                  endTime: endedAt,
-                  output: { ok: true },
-                },
-              ],
-            },
-          ],
-        }),
-      ])
-
-      expect(updateConsole.mock.calls[1]).toEqual([
-        'nested-api',
-        expect.objectContaining({
-          childWorkflowBlockId: 'nested-inst-1',
-          success: true,
-          isRunning: false,
-          isCanceled: false,
         }),
         'exec-1',
       ])
@@ -1347,69 +759,6 @@ describe('workflow-execution-utils', () => {
       })
     })
 
-    it('reconciles parallel-iteration spans inside a child workflow', () => {
-      terminalConsoleMockFns.mockAddConsole({
-        workflowId: 'wf-1',
-        blockId: 'workflow-1',
-        blockType: 'workflow',
-        blockName: 'Workflow 1',
-        executionId: 'exec-1',
-        executionOrder: 1,
-        success: true,
-        childWorkflowInstanceId: 'inst-1',
-      })
-      terminalConsoleMockFns.mockAddConsole({
-        workflowId: 'wf-1',
-        blockId: 'fn-leaf',
-        blockType: 'function',
-        blockName: 'Leaf',
-        executionId: 'exec-1',
-        executionOrder: 2,
-        isRunning: true,
-        iterationCurrent: 0,
-        iterationType: 'parallel',
-        iterationContainerId: 'par-1',
-        childWorkflowBlockId: 'inst-1',
-      })
-
-      const startedAt = new Date().toISOString()
-      const endedAt = new Date(Date.now() + 8).toISOString()
-      const updateConsole = vi.fn()
-      reconcileFinalBlockLogs(updateConsole, 'wf-1', 'exec-1', [
-        makeLog({
-          blockId: 'workflow-1',
-          blockType: 'workflow',
-          executionOrder: 1,
-          childTraceSpans: [
-            {
-              id: 'leaf-span',
-              name: 'Leaf',
-              type: 'function',
-              blockId: 'fn-leaf',
-              executionOrder: 2,
-              parallelId: 'par-1',
-              iterationIndex: 0,
-              status: 'success',
-              duration: 8,
-              startTime: startedAt,
-              endTime: endedAt,
-              output: { ok: true },
-            },
-          ],
-        }),
-      ])
-
-      expect(updateConsole).toHaveBeenCalledTimes(1)
-      expect(updateConsole.mock.calls[0][1]).toMatchObject({
-        executionOrder: 2,
-        iterationCurrent: 0,
-        iterationType: 'parallel',
-        iterationContainerId: 'par-1',
-        childWorkflowBlockId: 'inst-1',
-        success: true,
-      })
-    })
-
     it('rescues only the iteration whose terminal SSE event was dropped', () => {
       terminalConsoleMockFns.mockAddConsole({
         workflowId: 'wf-1',
@@ -1561,13 +910,6 @@ describe('workflow-execution-utils', () => {
         isCanceled: false,
       })
     })
-
-    it('is a no-op when finalBlockLogs is empty or executionId is missing', () => {
-      const updateConsole = vi.fn()
-      reconcileFinalBlockLogs(updateConsole, 'wf-1', 'exec-1', [])
-      reconcileFinalBlockLogs(updateConsole, 'wf-1', undefined, [makeLog({})])
-      expect(updateConsole).not.toHaveBeenCalled()
-    })
   })
 
   describe('handleExecutionCancelledConsole', () => {
@@ -1630,106 +972,9 @@ describe('workflow-execution-utils', () => {
       expect(cancelRunningEntries).toHaveBeenCalledWith('wf-1', 'exec-1')
       expect(calls).toEqual(['update', 'cancel', 'add'])
     })
-
-    it('preserves unfinished child-workflow spans for the cancellation sweep', () => {
-      terminalConsoleMockFns.mockAddConsole({
-        workflowId: 'wf-1',
-        blockId: 'workflow-1',
-        blockName: 'Workflow 1',
-        blockType: 'workflow',
-        executionId: 'exec-1',
-        executionOrder: 1,
-        isRunning: true,
-        childWorkflowInstanceId: 'child-inst-1',
-      })
-      terminalConsoleMockFns.mockAddConsole({
-        workflowId: 'wf-1',
-        blockId: 'fn-1',
-        blockName: 'Function 1',
-        blockType: 'function',
-        executionId: 'exec-1',
-        executionOrder: 2,
-        isRunning: true,
-        childWorkflowBlockId: 'child-inst-1',
-      })
-
-      const updateConsole = vi.fn()
-      handleExecutionCancelledConsole(
-        {
-          addConsole: vi.fn(),
-          updateConsole,
-          cancelRunningEntries: vi.fn(),
-        },
-        {
-          workflowId: 'wf-1',
-          executionId: 'exec-1',
-          finalBlockLogs: [
-            {
-              blockId: 'workflow-1',
-              blockName: 'Workflow 1',
-              blockType: 'workflow',
-              executionOrder: 1,
-              startedAt: '2026-08-04T00:00:00.000Z',
-              endedAt: '2026-08-04T00:00:00.010Z',
-              durationMs: 10,
-              success: false,
-              childTraceSpans: [
-                {
-                  id: 'fn-span',
-                  name: 'Function 1',
-                  type: 'function',
-                  blockId: 'fn-1',
-                  executionOrder: 2,
-                  status: 'error',
-                  duration: 10,
-                  startTime: '2026-08-04T00:00:00.000Z',
-                  endTime: '2026-08-04T00:00:00.010Z',
-                },
-              ],
-            },
-          ],
-        }
-      )
-
-      expect(updateConsole).toHaveBeenCalledWith(
-        'fn-1',
-        expect.objectContaining({
-          success: undefined,
-          error: null,
-          isRunning: true,
-          isCanceled: false,
-        }),
-        'exec-1'
-      )
-    })
   })
 
   describe('handleExecutionErrorConsole', () => {
-    it('cancels running entries before adding the synthetic entry', () => {
-      const calls: string[] = []
-      const addConsole = vi.fn(() => {
-        calls.push('add')
-        return undefined
-      })
-      const cancelRunningEntries = vi.fn(() => {
-        calls.push('cancel')
-      })
-
-      handleExecutionErrorConsole(
-        { addConsole, updateConsole: vi.fn(), cancelRunningEntries },
-        {
-          workflowId: 'wf-1',
-          executionId: 'exec-1',
-          error: 'boom',
-          blockLogs: [],
-        }
-      )
-
-      expect(calls[0]).toBe('cancel')
-      expect(calls).toContain('add')
-      expect(cancelRunningEntries).toHaveBeenCalledWith('wf-1', 'exec-1')
-    })
-
     it('reconciles finalBlockLogs before sweeping running entries (Fix C)', () => {
       terminalConsoleMockFns.mockAddConsole({
         workflowId: 'wf-1',

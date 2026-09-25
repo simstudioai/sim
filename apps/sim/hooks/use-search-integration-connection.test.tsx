@@ -98,7 +98,6 @@ function connection(id = 'one') {
   return value
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   vi.useFakeTimers()
   m.accounts = []
   m.receipts.clear()

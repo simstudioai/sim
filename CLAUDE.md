@@ -434,51 +434,15 @@ Principles when building or migrating shared UI:
 
 ## Testing
 
-Use Vitest. Test files: `feature.ts` → `feature.test.ts`. See `.claude/rules/sim-testing.md` for full details.
+Most unit tests in a codebase like this restate the code they test. They pass on the first run, break on every refactor, and catch nothing that type-check, `next build`, `bun run check:audits`, or a real end-to-end run would miss. Test for confidence, not coverage.
 
-### Global Mocks (vitest.setup.ts)
+- **Never write unit tests after you write code.** A test written to describe code that already exists restates the implementation and proves nothing. If the change needs proof, prove it end to end.
+- **Highly prefer E2E tests as the sole testing mechanism.** Use them to verify complex features work, against the real boundary: real Postgres/Redis (`*.integration.ts`), the running app over real HTTP (`apps/sim/scripts/test-*-e2e.ts`), or the packaged desktop app (`apps/desktop/e2e`, Playwright). At the end of an E2E test, produce a verifiable and repeatable artifact — a JSON report of each check with status and duration, an HTTP status log, a trace, or a screenshot — written to a caller-supplied `<SUITE>_REPORT_PATH` and uploaded by CI on failure. `apps/sim/scripts/test-scim-e2e.ts` is the reference.
+- **If you must test a system in isolation, first write down all the ways it could fail, then write the code.** Each failure mode (bad input, boundary, concurrency, partial failure, permission denial, resource cap) becomes one test that fails before the code exists.
+- A regression test must fail on the pre-fix code. Revert each guard of the fix and watch its test go red before you trust it.
+- Never write tests that restate declarations (block/tool/provider config, registries, constants, schemas accepting valid input), assert that mocks were called, check rendered text or class names, or test mocks and factories themselves.
 
-`@sim/db`, `@sim/db/schema`, `drizzle-orm`, `@sim/logger`, `@sim/platform-authz/workflow`, `@/blocks/registry`, `@/lib/auth`, `@/lib/auth/hybrid`, `@/lib/core/utils/request`, `@trigger.dev/sdk`, and store mocks are provided globally. Do NOT re-mock them unless overriding behavior. (The `vi.mock('@/lib/auth', ...)` in the example below is an override of the global mock so `getSession` can be controlled per-test.)
-
-### Standard Test Pattern
-
-```typescript
-/**
- * @vitest-environment node
- */
-import { createMockRequest } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetSession } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-}))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
-}))
-
-import { GET } from '@/app/api/my-route/route'
-
-describe('my route', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
-  })
-  it('returns data', async () => { ... })
-})
-```
-
-### Performance Rules
-
-- **NEVER** use `vi.resetModules()` + `vi.doMock()` + `await import()` — use `vi.hoisted()` + `vi.mock()` + static imports
-- **NEVER** use `vi.importActual()` — mock everything explicitly
-- **NEVER** use `mockAuth()`, `mockConsoleLogger()`, `setupCommonApiMocks()` from `@sim/testing` — they use `vi.doMock()` internally
-- **Mock heavy deps** (`@/blocks`, `@/tools/registry`, `@/triggers`) in tests that don't need them
-- **Use `@vitest-environment node`** unless DOM APIs are needed (`window`, `document`, `FormData`)
-- **Avoid real timers** — use 1ms delays or `vi.useFakeTimers()`
-
-Use `@sim/testing` mocks/factories over local test data.
+Use the `test-audit` skill whenever you write, change, review, or sweep tests — it holds the authoring gate, the junk patterns, and the retention bar. Test layers, file naming, and Vitest mechanics (global mocks, `@sim/testing`, performance rules) are in `.claude/rules/sim-testing.md`.
 
 ## Caching
 

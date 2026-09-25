@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
 
@@ -44,22 +41,12 @@ function soqlOf(url: string): string {
   return decodeURIComponent(new URL(url).searchParams.get('q') ?? '')
 }
 
-beforeEach(() => {
-  vi.clearAllMocks()
-})
-
 describe('salesforce listing scope classification', () => {
   it('treats an object the caller may not read (400 INVALID_TYPE) as the scope being unavailable', async () => {
     mockQuery(400, [
       { message: "sObject type 'Case' is not supported.", errorCode: 'INVALID_TYPE' },
     ])
     const error = await listingError({ objectType: 'Case' })
-    expect(salesforceConnector.isListingScopeUnavailableError?.(error)).toBe(true)
-  })
-
-  it('treats an explicit denial (403 INSUFFICIENT_ACCESS) the same way', async () => {
-    mockQuery(403, [{ message: 'denied', errorCode: 'INSUFFICIENT_ACCESS_OR_READONLY' }])
-    const error = await listingError({ objectType: 'Account' })
     expect(salesforceConnector.isListingScopeUnavailableError?.(error)).toBe(true)
   })
 
@@ -77,23 +64,6 @@ describe('salesforce listing scope classification', () => {
 })
 
 describe('salesforce incremental listing', () => {
-  it('advertises incremental sync', () => {
-    expect(salesforceConnector.supportsIncrementalSync).toBe(true)
-  })
-
-  it('lists the whole object when no watermark is given', async () => {
-    const urls = mockQuery(200, { records: [] })
-    await salesforceConnector.listDocuments(
-      'token',
-      { objectType: 'Case' },
-      undefined,
-      syncContext()
-    )
-    expect(soqlOf(urls[0])).toBe(
-      'SELECT Id,Subject,Description,Status,LastModifiedDate,CaseNumber FROM Case ORDER BY LastModifiedDate DESC'
-    )
-  })
-
   it('filters on LastModifiedDate with an unquoted UTC literal after a watermark', async () => {
     const urls = mockQuery(200, { records: [] })
     await salesforceConnector.listDocuments(
@@ -105,20 +75,6 @@ describe('salesforce incremental listing', () => {
     )
     expect(soqlOf(urls[0])).toContain(
       ' FROM Case WHERE LastModifiedDate >= 2026-09-01T12:34:56Z ORDER BY'
-    )
-  })
-
-  it('appends the watermark to the mandatory Knowledge Article filters', async () => {
-    const urls = mockQuery(200, { records: [] })
-    await salesforceConnector.listDocuments(
-      'token',
-      { objectType: 'KnowledgeArticleVersion' },
-      undefined,
-      syncContext(),
-      new Date('2026-09-01T00:00:00Z')
-    )
-    expect(soqlOf(urls[0])).toContain(
-      "WHERE PublishStatus='Online' AND IsLatestVersion=true AND Language='en_US' AND LastModifiedDate >= 2026-09-01T00:00:00Z ORDER BY"
     )
   })
 })

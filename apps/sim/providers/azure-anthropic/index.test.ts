@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProviderRequest } from '@/providers/types'
@@ -64,7 +61,6 @@ afterAll(resetEnvMock)
 
 describe('azureAnthropicProvider — SSRF pinning', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     anthropicArgs.length = 0
     setEnv({ AZURE_ANTHROPIC_ENDPOINT: undefined, AZURE_ANTHROPIC_API_VERSION: undefined })
     mockExecuteAnthropic.mockResolvedValue({ content: 'ok' })

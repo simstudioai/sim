@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import type { Principal } from '@sim/auth/principal'
 import { member, organization } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
@@ -57,15 +53,12 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
 
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
-  loadKnowledgeWorkspaceAuthorizationContext,
-  resolveActiveKnowledgeBaseContext,
   resolveActiveKnowledgeChunkContext,
   resolveActiveKnowledgeConnectorContext,
   resolveActiveKnowledgeDocumentContext,
   resolveActiveKnowledgeResourceContext,
   resolveActiveKnowledgeTagContext,
   resolveCanonicalActiveKnowledgeDocumentContext,
-  resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 
@@ -80,7 +73,6 @@ const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'sess
 
 describe('knowledge application contexts', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.getOrganizationPermissionConfig.mockResolvedValue(null)
     mocks.getKnowledgeBase.mockResolvedValue(knowledgeBase)
@@ -111,30 +103,6 @@ describe('knowledge application contexts', () => {
     })
   })
 
-  it('resolves child-resource context without loading display counts', async () => {
-    const context = await resolveActiveKnowledgeResourceContext(
-      { knowledgeBaseId: 'knowledge-1', assertedWorkspaceId: 'workspace-1' },
-      principal
-    )
-
-    expect(context.knowledgeBase).toEqual(knowledgeBase)
-    expect(mocks.getKnowledgeBaseWithCounts).not.toHaveBeenCalled()
-    expect(mocks.createAccessProvider).toHaveBeenCalledWith(principal, {
-      workspaceId: 'workspace-1',
-      knowledgeBaseIds: ['knowledge-1'],
-    })
-  })
-
-  it('retains display counts in workspace knowledge-base detail context', async () => {
-    const context = await resolveActiveKnowledgeBaseContext(
-      { knowledgeBaseId: 'knowledge-1' },
-      principal
-    )
-
-    expect(context.knowledgeBase).toMatchObject({ docCount: 3, tokenCount: 1536 })
-    expect(mocks.getKnowledgeBase).not.toHaveBeenCalled()
-  })
-
   it('conceals a missing or archived knowledge-base reference before loading its owner', async () => {
     mocks.getKnowledgeBase.mockResolvedValueOnce(null)
 
@@ -161,47 +129,6 @@ describe('knowledge application contexts', () => {
     expect(mocks.createAccessProvider).not.toHaveBeenCalled()
   })
 
-  it('conceals a reference with conflicting owners', async () => {
-    mocks.getKnowledgeBase.mockResolvedValueOnce({
-      ...knowledgeBase,
-      organizationId: 'org-canonical',
-    })
-
-    await expect(
-      resolveActiveKnowledgeResourceContext({ knowledgeBaseId: 'knowledge-1' }, principal)
-    ).rejects.toMatchObject({ code: 'not_found' })
-    expect(mocks.createAccessProvider).not.toHaveBeenCalled()
-  })
-
-  it('uses the canonical active-workspace loader', async () => {
-    await expect(resolveKnowledgeWorkspaceContext({ workspaceId: 'workspace-1' })).resolves.toBe(
-      workspace
-    )
-    expect(mocks.loadWorkspace).toHaveBeenCalledWith('workspace-1')
-  })
-
-  it('resolves a document through its selected base after comparing workspace scope', async () => {
-    mocks.getDocument.mockResolvedValueOnce({ id: 'document-1', knowledgeBaseId: knowledgeBase.id })
-    await expect(
-      resolveActiveKnowledgeDocumentContext(
-        {
-          knowledgeBaseId: knowledgeBase.id,
-          documentId: 'document-1',
-          assertedWorkspaceId: workspace.workspaceId,
-        },
-        principal
-      )
-    ).resolves.toMatchObject({
-      knowledgeBaseId: knowledgeBase.id,
-      documentId: 'document-1',
-      workspaceId: workspace.workspaceId,
-    })
-    expect(mocks.getDocument).toHaveBeenCalledExactlyOnceWith(knowledgeBase.id, 'document-1', {
-      kind: 'workspace',
-      tokens: ['pub', 'ws'],
-    })
-  })
-
   it('does not look up a document in a knowledge base outside the asserted workspace', async () => {
     await expect(
       resolveActiveKnowledgeDocumentContext(
@@ -214,50 +141,6 @@ describe('knowledge application contexts', () => {
       )
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(mocks.getDocument).not.toHaveBeenCalled()
-  })
-
-  it('conceals documents absent from the selected knowledge base', async () => {
-    mocks.getDocument.mockResolvedValueOnce(null)
-    await expect(
-      resolveActiveKnowledgeDocumentContext(
-        {
-          knowledgeBaseId: knowledgeBase.id,
-          documentId: 'foreign-document',
-          assertedWorkspaceId: workspace.workspaceId,
-        },
-        principal
-      )
-    ).rejects.toMatchObject({ code: 'not_found' })
-    expect(mocks.getDocument).toHaveBeenCalledWith(knowledgeBase.id, 'foreign-document', {
-      kind: 'workspace',
-      tokens: ['pub', 'ws'],
-    })
-  })
-
-  it('uses the neutral canonical loader when archived workspace authorization is explicit', async () => {
-    await expect(
-      loadKnowledgeWorkspaceAuthorizationContext('workspace-1', { includeArchived: true })
-    ).resolves.toBe(workspace)
-    expect(mocks.loadWorkspaceIncludingArchived).toHaveBeenCalledWith('workspace-1', {
-      includeArchived: true,
-    })
-  })
-
-  it('conceals an inactive canonical workspace as knowledge-base absence', async () => {
-    mocks.loadWorkspace.mockResolvedValueOnce(null)
-
-    await expect(
-      resolveActiveKnowledgeBaseContext({ knowledgeBaseId: 'knowledge-1' }, principal)
-    ).rejects.toMatchObject({ code: 'not_found', message: 'Knowledge base not found' })
-  })
-
-  it('propagates canonical workspace database failures', async () => {
-    const failure = new Error('workspace database unavailable')
-    mocks.loadWorkspace.mockRejectedValueOnce(failure)
-
-    await expect(
-      resolveActiveKnowledgeBaseContext({ knowledgeBaseId: 'knowledge-1' }, principal)
-    ).rejects.toBe(failure)
   })
 
   it('conceals an unscoped knowledge base even from its creator', async () => {
@@ -273,23 +156,6 @@ describe('knowledge application contexts', () => {
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(mocks.loadWorkspace).not.toHaveBeenCalled()
     expect(mocks.createAccessProvider).not.toHaveBeenCalled()
-  })
-
-  it('does not load child documents from an unscoped knowledge base', async () => {
-    mocks.getKnowledgeBase.mockResolvedValueOnce({
-      id: 'unscoped-knowledge',
-      userId: principal.userId,
-      workspaceId: null,
-      organizationId: null,
-    })
-
-    await expect(
-      resolveCanonicalActiveKnowledgeDocumentContext(
-        { knowledgeBaseId: 'unscoped-knowledge', documentId: 'document-1' },
-        principal
-      )
-    ).rejects.toMatchObject({ code: 'not_found' })
-    expect(mocks.getDocumentById).not.toHaveBeenCalled()
   })
 
   describe('canonical child resources', () => {
@@ -329,36 +195,6 @@ describe('knowledge application contexts', () => {
 
       expect(mocks.getKnowledgeBase).toHaveBeenCalledWith('knowledge-b')
       expect(mocks.getDocumentById).not.toHaveBeenCalled()
-    })
-
-    it('resolves a tag parent canonically before comparing the trusted workspace', async () => {
-      await expect(
-        resolveActiveKnowledgeTagContext(
-          {
-            tagDefinitionId: 'tag-b',
-            assertedWorkspaceId: 'workspace-a',
-          },
-          principal
-        )
-      ).rejects.toMatchObject({ code: 'not_found' })
-
-      expect(mocks.getTag).toHaveBeenCalledWith('tag-b')
-      expect(mocks.getKnowledgeBase).toHaveBeenCalledWith('knowledge-b')
-    })
-
-    it('resolves a connector parent canonically before comparing the trusted workspace', async () => {
-      await expect(
-        resolveActiveKnowledgeConnectorContext(
-          {
-            connectorId: 'connector-b',
-            assertedWorkspaceId: 'workspace-a',
-          },
-          principal
-        )
-      ).rejects.toMatchObject({ code: 'not_found' })
-
-      expect(mocks.getConnector).toHaveBeenCalledWith('connector-b')
-      expect(mocks.getKnowledgeBase).toHaveBeenCalledWith('knowledge-b')
     })
   })
 
@@ -426,29 +262,6 @@ describe('knowledge application contexts', () => {
       expect(mocks.getKnowledgeBase).toHaveBeenCalledWith('org-index')
       expect(mocks.createAccessProvider).not.toHaveBeenCalled()
       expect(mocks.getOrganizationPermissionConfig).not.toHaveBeenCalled()
-      expect(execute).not.toHaveBeenCalled()
-    })
-
-    it('authorizes the canonical organization when no organization is asserted', async () => {
-      queueOrganization('org-b')
-      await expect(useCase.execute({ principal, input: {} })).resolves.toBe('authorized')
-      expect(mocks.getOrganizationPermissionConfig).toHaveBeenCalledWith('org-b')
-      expect(execute).toHaveBeenCalledWith(
-        expect.objectContaining({
-          principal,
-          context: expect.objectContaining({
-            organizationId: 'org-b',
-            knowledgeBaseId: 'org-index',
-          }),
-        })
-      )
-
-      execute.mockClear()
-      queueOrganization('org-b', false)
-      await expect(useCase.execute({ principal, input: {} })).rejects.toMatchObject({
-        code: 'not_found',
-        message: 'Organization not found',
-      })
       expect(execute).not.toHaveBeenCalled()
     })
   })

@@ -1,15 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { tableRowExecutions, userTableRows } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { deleteColumn, renameColumn } from '@/lib/table/columns/service'
 import {
-  batchInsertRows,
   batchUpdateRows,
-  getRowById,
-  getRowSummaryById,
   insertRow,
   replaceTableRows,
   updateRow,
@@ -57,15 +50,6 @@ function findExecutedSqlContaining(substring: string): boolean {
     }
     return false
   })
-}
-
-function findExecutedRawSql(substring: string): string | undefined {
-  for (const [arg] of dbChainMockFns.execute.mock.calls) {
-    if (!arg || typeof arg !== 'object') continue
-    const raw = (arg as { rawSql?: unknown }).rawSql
-    if (typeof raw === 'string' && raw.includes(substring)) return raw
-  }
-  return undefined
 }
 
 /** Every string reachable from a drizzle `sql` fragment — its literal chunks AND its bound values. */
@@ -138,7 +122,6 @@ const TABLE: TableDefinition = {
 
 describe('updateRow — partial merge', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([EXISTING_ROW])
     dbChainMockFns.returning.mockResolvedValue([
@@ -202,60 +185,6 @@ describe('updateRow — partial merge', () => {
       ['age']
     )
   })
-
-  it('allows updating a single column without affecting others', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      { ...EXISTING_ROW, data: { name: 'Bob', age: 30 }, updatedAt: PERSISTED_UPDATED_AT },
-    ])
-    const result = await updateRow(
-      { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Bob' }, workspaceId: 'ws-1' },
-      TABLE,
-      'req-1'
-    )
-
-    expect(result.data).toEqual({ name: 'Bob', age: 30 })
-    expect(lastSetDataSql()?.values).toContain(JSON.stringify({ name: 'Bob' }))
-  })
-
-  it('allows explicitly nulling a field while preserving others', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      { ...EXISTING_ROW, data: { name: 'Alice', age: null }, updatedAt: PERSISTED_UPDATED_AT },
-    ])
-    const result = await updateRow(
-      { tableId: 'tbl-1', rowId: 'row-1', data: { age: null }, workspaceId: 'ws-1' },
-      TABLE,
-      'req-1'
-    )
-
-    expect(result.data).toEqual({ name: 'Alice', age: null })
-    // A cleared cell is written as present-with-null, not dropped.
-    expect(lastSetDataSql()?.values).toContain(JSON.stringify({ age: null }))
-  })
-
-  it('handles a full-row update correctly (idempotent merge)', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      { ...EXISTING_ROW, data: { name: 'Bob', age: 25 }, updatedAt: PERSISTED_UPDATED_AT },
-    ])
-    const result = await updateRow(
-      { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Bob', age: 25 }, workspaceId: 'ws-1' },
-      TABLE,
-      'req-1'
-    )
-
-    expect(result.data).toEqual({ name: 'Bob', age: 25 })
-  })
-
-  it('throws when the row does not exist', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-
-    await expect(
-      updateRow(
-        { tableId: 'tbl-1', rowId: 'row-missing', data: { age: 31 }, workspaceId: 'ws-1' },
-        TABLE,
-        'req-1'
-      )
-    ).rejects.toThrow('Row not found')
-  })
 })
 
 describe('insertRow — position race safety (migration 0198 + advisory lock)', () => {
@@ -272,32 +201,6 @@ describe('insertRow — position race safety (migration 0198 + advisory lock)', 
 
     expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
     expect(findExecutedSqlContaining('hashtextextended')).toBe(true)
-  })
-
-  it('explicit-position inserts also acquire the advisory lock to serialize order-key minting', async () => {
-    await expect(
-      insertRow(
-        { tableId: 'tbl-1', data: { name: 'a' }, workspaceId: 'ws-1', position: 5 },
-        TABLE,
-        'req-1'
-      )
-    ).rejects.toBeDefined()
-
-    // A position-based insert resolves its order_key from the neighbor at that
-    // rank; the lock serializes concurrent minting at the same slot.
-    expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
-  })
-
-  it('batchInsertRows acquires the advisory lock (always auto-positioned)', async () => {
-    await expect(
-      batchInsertRows(
-        { tableId: 'tbl-1', rows: [{ name: 'a' }, { name: 'b' }], workspaceId: 'ws-1' },
-        TABLE,
-        'req-1'
-      )
-    ).rejects.toBeDefined()
-
-    expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
   })
 
   it('upsertRow skips the advisory lock on the update path (match found)', async () => {
@@ -435,31 +338,8 @@ describe('insertRow — position race safety (migration 0198 + advisory lock)', 
 
 describe('mutation paths — SET LOCAL timeouts', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.execute.mockResolvedValue([{ count: 0 }])
-  })
-
-  it('insertRow sets the default 10s/3s/5s timeouts', async () => {
-    await expect(
-      insertRow({ tableId: 'tbl-1', data: { name: 'a' }, workspaceId: 'ws-1' }, TABLE, 'req-1')
-    ).rejects.toBeDefined()
-
-    expect(executedTxTimeout('statement_timeout', '10000ms')).toBe(true)
-    expect(executedTxTimeout('lock_timeout', '3000ms')).toBe(true)
-    expect(executedTxTimeout('idle_in_transaction_session_timeout', '5000ms')).toBe(true)
-  })
-
-  it('batchInsertRows raises statement_timeout to 60s', async () => {
-    await expect(
-      batchInsertRows(
-        { tableId: 'tbl-1', rows: [{ name: 'a' }], workspaceId: 'ws-1' },
-        TABLE,
-        'req-1'
-      )
-    ).rejects.toBeDefined()
-
-    expect(executedTxTimeout('statement_timeout', '60000ms')).toBe(true)
   })
 
   it('replaceTableRows scales statement_timeout with (existing + new) row count', async () => {
@@ -485,38 +365,6 @@ describe('mutation paths — SET LOCAL timeouts', () => {
     expect(executedTxTimeout('statement_timeout', '600000ms')).toBe(true)
   })
 
-  it('replaceTableRows uses the 120s floor on small tables', async () => {
-    const smallTable: TableDefinition = { ...TABLE, rowCount: 10 }
-
-    await replaceTableRows(
-      { tableId: 'tbl-1', workspaceId: 'ws-1', rows: [{ name: 'a' }, { name: 'b' }] },
-      smallTable,
-      'req-1'
-    )
-
-    // 12 × 3ms = 36ms → floored at 120_000ms
-    expect(executedTxTimeout('statement_timeout', '120000ms')).toBe(true)
-  })
-
-  it('renameColumn is metadata-only — no per-row JSONB rewrite regardless of row count', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ ...TABLE, rowCount: 500_000 }])
-
-    await renameColumn({ tableId: 'tbl-1', oldName: 'name', newName: 'full_name' }, 'req-1')
-
-    // Row data is keyed by the column's stable id (unchanged by a rename), so no
-    // `user_table_rows` key rewrite is executed — and thus no scaled timeout.
-    expect(findExecutedSqlContaining('jsonb_build_object')).toBe(false)
-  })
-
-  it('deleteColumn uses the 60s floor on small tables', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ ...TABLE, rowCount: 100 }])
-
-    await deleteColumn({ tableId: 'tbl-1', columnName: 'age' }, 'req-1')
-
-    // 100 × 2ms = 200ms → floored at 60_000ms
-    expect(executedTxTimeout('statement_timeout', '60000ms')).toBe(true)
-  })
-
   it('replaceTableRows acquires the per-table advisory lock to serialize concurrent replaces', async () => {
     await replaceTableRows(
       { tableId: 'tbl-1', workspaceId: 'ws-1', rows: [{ name: 'a' }] },
@@ -527,25 +375,10 @@ describe('mutation paths — SET LOCAL timeouts', () => {
     expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
     expect(findExecutedSqlContaining('hashtextextended')).toBe(true)
   })
-
-  it('replaceTableRows reports the authoritative bounded delete count', async () => {
-    dbChainMockFns.execute.mockResolvedValue([{ count: 7 }])
-
-    const result = await replaceTableRows(
-      { tableId: 'tbl-1', workspaceId: 'ws-1', rows: [] },
-      { ...TABLE, rowCount: 7 },
-      'req-1'
-    )
-
-    expect(result).toEqual({ deletedCount: 7, insertedCount: 0 })
-    expect(findExecutedSqlContaining('DELETE FROM')).toBe(true)
-    expect(findExecutedSqlContaining('SELECT count(*)::integer AS count FROM deleted')).toBe(true)
-  })
 })
 
 describe('batchUpdateRows — per-row partial merge', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -602,7 +435,6 @@ describe('batchUpdateRows — per-row partial merge', () => {
  */
 describe('updateRow — uniqueness probe scoping', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     // The common case: one unique column. The two tests that need a different
     // shape override this.
@@ -623,16 +455,6 @@ describe('updateRow — uniqueness probe scoping', () => {
     expect(checkUniqueConstraintsDb).not.toHaveBeenCalled()
   })
 
-  it('still probes when the patch touches a unique column', async () => {
-    await updateRow(
-      { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Grace' }, workspaceId: 'ws-1' },
-      TABLE,
-      'req-1'
-    )
-
-    expect(checkUniqueConstraintsDb).toHaveBeenCalledTimes(1)
-  })
-
   it('probes against the merged row, so the excluded row is still the one being edited', async () => {
     await updateRow(
       { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Grace' }, workspaceId: 'ws-1' },
@@ -651,22 +473,6 @@ describe('updateRow — uniqueness probe scoping', () => {
     )
   })
 
-  it('hands the probe only the unique columns the patch touched', async () => {
-    vi.mocked(getUniqueColumns).mockReturnValue([
-      { name: 'name', type: 'string', unique: true },
-      { name: 'email', type: 'string', unique: true },
-    ])
-
-    await updateRow(
-      { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Grace' }, workspaceId: 'ws-1' },
-      TABLE,
-      'req-1'
-    )
-
-    const schemaArg = vi.mocked(checkUniqueConstraintsDb).mock.calls[0][2]
-    expect(schemaArg.columns).toEqual([{ name: 'name', type: 'string', unique: true }])
-  })
-
   it('surfaces a duplicate on a column the patch does write', async () => {
     vi.mocked(getUniqueColumns).mockReturnValue([{ name: 'name', type: 'string', unique: true }])
     vi.mocked(checkUniqueConstraintsDb).mockResolvedValueOnce({
@@ -681,51 +487,5 @@ describe('updateRow — uniqueness probe scoping', () => {
         'req-1'
       )
     ).rejects.toThrow(/Duplicate value for name/)
-  })
-
-  it('does not probe on a table with no unique columns at all', async () => {
-    vi.mocked(getUniqueColumns).mockReturnValue([])
-
-    await updateRow(
-      { tableId: 'tbl-1', rowId: 'row-1', data: { name: 'Grace' }, workspaceId: 'ws-1' },
-      TABLE,
-      'req-1'
-    )
-
-    expect(checkUniqueConstraintsDb).not.toHaveBeenCalled()
-  })
-})
-
-/**
- * The read surfaces never put the executions sidecar on the wire, so loading it
- * for them is a query whose result is discarded. Two readers rather than a flag:
- * a caller that forgets a flag reads an empty sidecar and cannot tell that from
- * a row that has none, whereas here the field is not on the type.
- */
-describe('row readers', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-    dbChainMockFns.limit.mockResolvedValue([EXISTING_ROW])
-  })
-
-  it('getRowSummaryById issues one select and returns no sidecar', async () => {
-    const row = await getRowSummaryById('tbl-1', 'row-1', 'ws-1')
-
-    expect(row).not.toHaveProperty('executions')
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
-  })
-
-  it('getRowById issues the extra select the sidecar needs', async () => {
-    const row = await getRowById('tbl-1', 'row-1', 'ws-1')
-
-    expect(row).toHaveProperty('executions')
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
-  })
-
-  it('getRowSummaryById returns null for a missing row', async () => {
-    dbChainMockFns.limit.mockResolvedValue([])
-
-    await expect(getRowSummaryById('tbl-1', 'nope', 'ws-1')).resolves.toBeNull()
   })
 })

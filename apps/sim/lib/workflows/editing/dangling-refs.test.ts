@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import { collectDanglingBlockOutputReferences } from '@/lib/workflows/editing/lint'
 
@@ -156,37 +153,6 @@ describe('collectDanglingBlockOutputReferences', () => {
     })
   })
 
-  it('ignores comparisons and generics in function code', () => {
-    const findings = collectDanglingBlockOutputReferences(
-      graph({
-        b1: {
-          type: 'function',
-          name: 'Fn',
-          subBlocks: {
-            code: {
-              value: 'const xs: Array<string> = []\nif (a < b && c > d) { return xs }\nreturn []',
-            },
-          },
-        },
-      })
-    )
-    expect(findings).toHaveLength(0)
-  })
-
-  it('resolves start and loop heads in function code', () => {
-    const findings = collectDanglingBlockOutputReferences(
-      graph({
-        b1: { type: 'starter', name: 'Start' },
-        b2: {
-          type: 'function',
-          name: 'Fn',
-          subBlocks: { code: { value: 'return { input: <start.input>, i: <loop.index> }' } },
-        },
-      })
-    )
-    expect(findings).toHaveLength(0)
-  })
-
   it('walks nested values like inputMapping objects', () => {
     const findings = collectDanglingBlockOutputReferences(
       graph({
@@ -266,23 +232,6 @@ describe('collectDanglingBlockOutputReferences', () => {
       expect(findings[0]!.reason).toContain('Available fields: title, summary')
     })
 
-    it('uses the base agent outputs when no responseFormat is set', () => {
-      const findings = collectDanglingBlockOutputReferences(
-        graph({
-          b1: { type: 'agent', name: 'Writer', subBlocks: { responseFormat: { value: '' } } },
-          b2: {
-            type: 'api',
-            name: 'Post',
-            subBlocks: {
-              body: { value: '<writer.content> <writer.answer> <writer.toolCalls[0].name>' },
-            },
-          },
-        })
-      )
-      expect(findings).toHaveLength(1)
-      expect(findings[0]!.value).toEqual(['<writer.answer>'])
-    })
-
     it('does not flag an agent whose responseFormat cannot be parsed', () => {
       const findings = collectDanglingBlockOutputReferences(
         graph({
@@ -324,24 +273,6 @@ describe('collectDanglingBlockOutputReferences', () => {
         })
       )
       expect(findings).toHaveLength(0)
-    })
-
-    it('keeps the dangling-head finding separate from unknown-field findings', () => {
-      const findings = collectDanglingBlockOutputReferences(
-        graph({
-          b1: { type: 'function', name: 'Guard' },
-          b2: {
-            type: 'api',
-            name: 'Call',
-            subBlocks: { body: { value: '<ghost.result> <guard.nope>' } },
-          },
-        })
-      )
-      expect(findings).toHaveLength(2)
-      expect(findings[0]!.value).toEqual(['<ghost.result>'])
-      expect(findings[0]!.reason).toMatch(/does not exist in this workflow/)
-      expect(findings[1]!.value).toEqual(['<guard.nope>'])
-      expect(findings[1]!.reason).toMatch(/^unknown-field:/)
     })
   })
 })

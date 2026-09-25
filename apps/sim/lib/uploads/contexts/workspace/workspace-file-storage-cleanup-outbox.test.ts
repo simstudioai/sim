@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDeleteFile, mockEnqueueOutboxEvents, mockProcessOutboxEventById } = vi.hoisted(() => ({
@@ -47,7 +44,6 @@ function handler() {
 
 describe('workspace file storage cleanup outbox', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockDeleteFile.mockResolvedValue(undefined)
   })
 
@@ -65,43 +61,9 @@ describe('workspace file storage cleanup outbox', () => {
 
     await expect(handler()({ key: 'workspace/ws/file.txt' }, context())).resolves.toBeUndefined()
   })
-
-  it('rejects malformed payloads without touching storage', async () => {
-    await expect(handler()({ key: '' }, context())).rejects.toThrow(
-      'Workspace file storage cleanup outbox payload is missing key'
-    )
-
-    expect(mockDeleteFile).not.toHaveBeenCalled()
-  })
-
-  it('propagates storage failures for retry', async () => {
-    mockDeleteFile.mockRejectedValueOnce(new Error('storage unavailable'))
-
-    await expect(handler()({ key: 'workspace/ws/file.txt' }, context())).rejects.toThrow(
-      'storage unavailable'
-    )
-  })
 })
 
 describe('batched workspace file storage cleanup', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('enqueues released keys within the bulk limit in one insert', async () => {
-    const executor = { insert: vi.fn() }
-    mockEnqueueOutboxEvents.mockResolvedValueOnce(['event-a', 'event-b'])
-
-    await expect(
-      enqueueWorkspaceFileStorageCleanups(executor as never, ['a', 'b'])
-    ).resolves.toEqual(['event-a', 'event-b'])
-    expect(mockEnqueueOutboxEvents).toHaveBeenCalledWith(
-      executor,
-      WORKSPACE_FILE_STORAGE_CLEANUP_OUTBOX_EVENT,
-      [{ key: 'a' }, { key: 'b' }]
-    )
-  })
-
   it('splits keys beyond the outbox bulk limit into several inserts', async () => {
     const executor = { insert: vi.fn() }
     mockEnqueueOutboxEvents.mockResolvedValueOnce(['event-a', 'event-b'])

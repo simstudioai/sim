@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { encryptionMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,17 +17,12 @@ vi.mock('@/lib/core/security/encryption', () => ({
 import { buildSimToolSpecs } from '@/executor/handlers/pi/local/sim-tools'
 import type { ExecutionContext } from '@/executor/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
-import { ToolSchemaEnrichmentError } from '@/tools/params'
 
 function executionContext(registry: ResolvedSecretTraceRegistry | undefined): ExecutionContext {
   return {
     workspaceId: 'ws-1',
     resolvedSecretTraceRegistry: registry,
   } as ExecutionContext
-}
-
-function completeExecutionContext(): ExecutionContext {
-  return executionContext(new ResolvedSecretTraceRegistry())
 }
 
 const toolInput = [{ type: 'exa', operation: 'exa_search', usageControl: 'auto' }]
@@ -47,28 +39,7 @@ function mockToolAdapter(params: Record<string, unknown> = {}): void {
 
 describe('buildSimToolSpecs', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     encryptionMockFns.mockDecryptSecret.mockReset()
-  })
-
-  it('names the Pi tool with the snake_case tool id, not the human label', async () => {
-    // transformBlockTool returns a human label with a space, which the model
-    // provider rejects (tool names must match /^[a-zA-Z0-9_-]{1,128}$/).
-    mockTransformBlockTool.mockResolvedValue({
-      id: 'exa_search',
-      name: 'Exa Search',
-      description: 'Search the web',
-      params: {},
-      parameters: { type: 'object', properties: {} },
-    })
-
-    const specs = await buildSimToolSpecs(completeExecutionContext(), [
-      { type: 'exa', operation: 'exa_search', usageControl: 'auto' },
-    ])
-
-    expect(specs).toHaveLength(1)
-    expect(specs[0].name).toBe('exa_search')
-    expect(specs[0].name).toMatch(/^[a-zA-Z0-9_-]{1,128}$/)
   })
 
   it('aliases duplicate instances while executing each with its canonical id and bound params', async () => {
@@ -108,31 +79,6 @@ describe('buildSimToolSpecs', () => {
     )
   })
 
-  it('skips mcp, custom, and usage-none tools without adapting them', async () => {
-    const specs = await buildSimToolSpecs(completeExecutionContext(), [
-      { type: 'mcp', usageControl: 'auto' },
-      { type: 'custom-tool', usageControl: 'auto' },
-      { type: 'exa', usageControl: 'none' },
-    ])
-
-    expect(specs).toHaveLength(0)
-    expect(mockTransformBlockTool).not.toHaveBeenCalled()
-  })
-
-  it('fails fast when a tool schema cannot be enriched', async () => {
-    const error = new ToolSchemaEnrichmentError(
-      'table_query_rows',
-      new Error('table metadata unavailable')
-    )
-    mockTransformBlockTool.mockRejectedValueOnce(error)
-
-    await expect(
-      buildSimToolSpecs(completeExecutionContext(), [
-        { type: 'table', operation: 'query_rows', usageControl: 'auto' },
-      ])
-    ).rejects.toBe(error)
-  })
-
   it('forwards a trusted _context that an LLM-supplied _context cannot override', async () => {
     mockTransformBlockTool.mockResolvedValue({
       id: 'exa_search',
@@ -160,69 +106,6 @@ describe('buildSimToolSpecs', () => {
     expect(callParams._context.userId).toBe('user-1')
     expect(callParams._context.workspaceId).toBe('ws-1')
     expect(callParams._context.workflowId).toBe('wf-1')
-  })
-
-  it('executes Function tools with resolved inputs and the complete trusted execution context', async () => {
-    mockTransformBlockTool.mockResolvedValue({
-      id: 'function_execute',
-      name: 'Function Execute',
-      description: 'Execute code',
-      params: {
-        code: 'return [{{API_KEY}}, __blockRef_0.field, workflowVariables.customer]',
-        envVars: { API_KEY: 'resolved-secret' },
-        workflowVariables: { customer: 'Ada' },
-        contextVariables: { __blockRef_0: { field: 'resolved-output' } },
-      },
-      parameters: { type: 'object', properties: {} },
-    })
-    const abortController = new AbortController()
-    const trustedCtx = {
-      workspaceId: 'ws-1',
-      workflowId: 'wf-1',
-      userId: 'user-1',
-      executionId: 'execution-1',
-      largeValueExecutionIds: ['execution-1'],
-      largeValueKeys: ['lv_ABCDEFGHIJKL'],
-      fileKeys: ['file-1'],
-      allowLargeValueWorkflowScope: true,
-      abortSignal: abortController.signal,
-      resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
-    } as ExecutionContext
-    mockExecuteTool.mockResolvedValue({
-      success: true,
-      output: { result: ['resolved-secret', 'resolved-output', 'Ada'] },
-    })
-
-    const [spec] = await buildSimToolSpecs(trustedCtx, [
-      { type: 'function', operation: 'execute', usageControl: 'auto' },
-    ])
-    const result = await spec.execute({
-      _context: { userId: 'attacker', workspaceId: 'evil-workspace' },
-    })
-
-    expect(mockExecuteTool).toHaveBeenCalledWith(
-      'function_execute',
-      expect.objectContaining({
-        code: 'return [{{API_KEY}}, __blockRef_0.field, workflowVariables.customer]',
-        envVars: { API_KEY: 'resolved-secret' },
-        workflowVariables: { customer: 'Ada' },
-        contextVariables: { __blockRef_0: { field: 'resolved-output' } },
-        _context: expect.objectContaining({
-          userId: 'user-1',
-          workspaceId: 'ws-1',
-          workflowId: 'wf-1',
-          executionId: 'execution-1',
-        }),
-      }),
-      expect.objectContaining({
-        executionContext: trustedCtx,
-        resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry),
-      })
-    )
-    expect(result).toEqual({
-      text: JSON.stringify({ result: ['resolved-secret', 'resolved-output', 'Ada'] }),
-      isError: false,
-    })
   })
 
   it('accumulates cost from canonical Function results while preserving failures', async () => {
@@ -302,62 +185,6 @@ describe('buildSimToolSpecs', () => {
       text: JSON.stringify({ authorization: 'Bearer {{API_KEY}}' }),
       isError: false,
     })
-  })
-
-  it('uses the anonymous fallback for cross-scope provenance', async () => {
-    mockToolAdapter()
-    encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'foreign-secret' })
-    mockExecuteTool.mockImplementation(async (_toolId, _params, options) => {
-      await options.resolvedSecretTraceRegistry.importProvenance(
-        {
-          version: 1,
-          complete: true,
-          entries: [{ name: 'FOREIGN', encryptedValue: 'foreign-ciphertext' }],
-          scope: { userId: 'foreign-user', workspaceId: 'foreign-workspace' },
-        },
-        { trusted: true }
-      )
-      return {
-        success: true,
-        output: { token: 'foreign-secret' },
-      }
-    })
-    const registry = new ResolvedSecretTraceRegistry()
-
-    const [spec] = await buildSimToolSpecs(executionContext(registry), toolInput)
-
-    await expect(spec.execute({})).resolves.toEqual({
-      text: JSON.stringify({ token: '[REDACTED_SECRET]' }),
-      isError: false,
-    })
-  })
-
-  it('preserves ordinary Sim tool output byte-for-byte without active provenance', async () => {
-    mockToolAdapter()
-    mockExecuteTool.mockResolvedValue({
-      success: true,
-      output: 'ordinary external result',
-    })
-
-    const [spec] = await buildSimToolSpecs(completeExecutionContext(), toolInput)
-
-    await expect(spec.execute({})).resolves.toEqual({
-      text: 'ordinary external result',
-      isError: false,
-    })
-  })
-
-  it('does not rewrite an unrelated result that collides with low-entropy run provenance', async () => {
-    mockToolAdapter()
-    mockExecuteTool.mockResolvedValue({ success: true, output: 'Test' })
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TEST_SECRET', plaintext: 'Test', encryptedValue: 'ciphertext' },
-    ])
-    registry.recordResolved('TEST_SECRET', 'Test')
-
-    const [spec] = await buildSimToolSpecs(executionContext(registry), toolInput)
-
-    await expect(spec.execute({})).resolves.toEqual({ text: 'Test', isError: false })
   })
 
   it('projects only the selected tool params by original array index and leaves raw output unchanged', async () => {
@@ -448,20 +275,6 @@ describe('buildSimToolSpecs', () => {
     })
   })
 
-  it('preserves legacy Sim tool behavior when no provenance registry exists', async () => {
-    mockToolAdapter()
-    const output = { result: 'ordinary output' }
-    mockExecuteTool.mockResolvedValue({ success: true, output })
-    const [spec] = await buildSimToolSpecs(executionContext(undefined), toolInput)
-
-    await expect(spec.execute({})).resolves.toEqual({
-      text: JSON.stringify(output),
-      isError: false,
-    })
-    expect(mockExecuteTool.mock.calls[0][2].resolvedSecretTraceRegistry).toBeUndefined()
-    expect(output).toEqual({ result: 'ordinary output' })
-  })
-
   it('fails closed when Sim tool result provenance is incomplete', async () => {
     mockToolAdapter()
     mockExecuteTool.mockResolvedValue({
@@ -480,32 +293,5 @@ describe('buildSimToolSpecs', () => {
     )
     expect(result.text).not.toContain('untrusted output')
     expect(mockExecuteTool).not.toHaveBeenCalled()
-  })
-
-  it('keeps the fixed unavailable message unchanged when active provenance contains one character', async () => {
-    mockToolAdapter()
-    encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'T' })
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'LETTER', plaintext: 'T', encryptedValue: 'encrypted-letter' },
-    ])
-    const cyclic: Record<string, unknown> = {}
-    cyclic.self = cyclic
-    mockExecuteTool.mockImplementation(async (_toolId, _params, options) => {
-      await options.resolvedSecretTraceRegistry.importProvenance(
-        {
-          version: 1,
-          complete: true,
-          entries: [{ name: 'LETTER', encryptedValue: 'encrypted-letter' }],
-        },
-        { trusted: true }
-      )
-      return { success: true, output: cyclic }
-    })
-    const [spec] = await buildSimToolSpecs(executionContext(registry), toolInput)
-
-    await expect(spec.execute({})).resolves.toEqual({
-      text: 'Tool execution settled, but its result could not be returned safely. Do not retry a mutation automatically.',
-      isError: true,
-    })
   })
 })

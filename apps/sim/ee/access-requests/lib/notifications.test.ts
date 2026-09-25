@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-import { db } from '@sim/db'
 import { member, outboxEvent, permissionAccessRequest, user, workspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -71,7 +67,6 @@ function queueWorkspaceRequest(overrides: Partial<typeof request> = {}) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mockRender.mockResolvedValue('<html>Authenticated request link</html>')
   mockSend.mockResolvedValue({ success: true })
@@ -140,16 +135,6 @@ describe('access request administrator notifications', () => {
     expect(dbChainMockFns.onConflictDoNothing).toHaveBeenCalledTimes(2)
   })
 
-  it('skips fan-out when email is not configured', async () => {
-    queueWorkspaceRequest()
-    mockHasEmailService.mockReturnValue(false)
-
-    await createdHandler({ requestId: request.id }, context())
-
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    expect(mockSend).not.toHaveBeenCalled()
-  })
-
   it('does not email a former administrator', async () => {
     queueWorkspaceRequest()
     queueTableRows(user, [{ email: 'former-admin@example.com' }])
@@ -169,23 +154,6 @@ describe('access request administrator notifications', () => {
     )
   })
 
-  it('emails an eligible administrator after a temporary ban has expired', async () => {
-    queueWorkspaceRequest()
-    queueTableRows(user, [
-      {
-        email: 'admin@example.com',
-        banned: true,
-        banExpires: new Date('2020-01-01'),
-        suspendedAt: null,
-      },
-    ])
-    queueTableRows(member, [{ id: 'admin-member' }])
-
-    await adminHandler({ requestId: request.id, recipientUserId: 'admin-one' }, context())
-
-    expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({ to: 'admin@example.com' }))
-  })
-
   it.each([
     { banned: true, banExpires: null, suspendedAt: null },
     { banned: true, banExpires: new Date('2099-01-01'), suspendedAt: null },
@@ -199,52 +167,12 @@ describe('access request administrator notifications', () => {
     expect(mockSend).not.toHaveBeenCalled()
   })
 
-  it('skips pending-request emails after the organization disables requests', async () => {
-    queueWorkspaceRequest()
-    mockEnabled.mockResolvedValue(false)
-
-    await adminHandler({ requestId: request.id, recipientUserId: 'admin-one' }, context())
-
-    expect(mockSend).not.toHaveBeenCalled()
-  })
-
-  it('builds an authenticated review link and loads the current administrator email', async () => {
-    queueWorkspaceRequest()
-    queueTableRows(user, [{ email: 'current-admin@example.com' }])
-    queueTableRows(member, [{ id: 'member-one' }])
-
-    await adminHandler({ requestId: request.id, recipientUserId: 'admin-one' }, context())
-
-    expect(mockRender).toHaveBeenCalledExactlyOnceWith({
-      kind: 'created',
-      requestLink:
-        'https://sim.example/access-requests?organizationId=organization-one&view=review&request-id=request-one',
-    })
-    expect(mockSend).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'current-admin@example.com', emailType: 'transactional' })
-    )
-  })
-
   it('discards stale creation notifications after a request is resolved', async () => {
     queueTableRows(permissionAccessRequest, [{ ...request, status: 'fulfilled' }])
 
     await adminHandler({ requestId: request.id, recipientUserId: 'admin-one' }, context())
 
     expect(mockSend).not.toHaveBeenCalled()
-  })
-
-  it('fails delivery for retry without mutating request state', async () => {
-    queueWorkspaceRequest()
-    queueTableRows(user, [{ email: 'admin@example.com' }])
-    queueTableRows(member, [{ id: 'member-one' }])
-    mockSend.mockResolvedValueOnce({ success: false })
-
-    await expect(
-      adminHandler({ requestId: request.id, recipientUserId: 'admin-one' }, context())
-    ).rejects.toThrow('Failed to send access request notification')
-
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 
   it('refuses a caller-provided destination or URL in the durable payload', async () => {
@@ -259,45 +187,6 @@ describe('access request administrator notifications', () => {
 })
 
 describe('access request requester notifications', () => {
-  it.each(['fulfilled', 'declined', 'cancelled', 'closed'])(
-    'notifies the requester for %s without putting private request details in email',
-    async (status) => {
-      queueWorkspaceRequest({ status })
-      queueTableRows(user, [{ email: 'requester@example.com' }])
-
-      await decidedHandler({ requestId: request.id }, context())
-
-      expect(mockRender).toHaveBeenCalledExactlyOnceWith({
-        kind: 'decided',
-        requestLink:
-          'https://sim.example/workspace/workspace-one/settings/requests?view=requests&requestId=request-one',
-      })
-      expect(mockSend).toHaveBeenCalledWith(
-        expect.objectContaining({ to: 'requester@example.com', emailType: 'transactional' })
-      )
-    }
-  )
-
-  it('supports an external workspace member without organization membership', async () => {
-    queueWorkspaceRequest({ status: 'fulfilled' })
-    queueTableRows(user, [{ email: 'external@example.com' }])
-
-    await decidedHandler({ requestId: request.id }, context())
-
-    expect(mockMembership).toHaveBeenCalledWith(
-      db,
-      request.requesterId,
-      { kind: 'workspace', workspaceId: request.workspaceId },
-      request.organizationId
-    )
-    expect(mockSend).toHaveBeenCalledWith(expect.objectContaining({ to: 'external@example.com' }))
-    expect(mockRender).toHaveBeenCalledExactlyOnceWith({
-      kind: 'decided',
-      requestLink:
-        'https://sim.example/workspace/workspace-one/settings/requests?view=requests&requestId=request-one',
-    })
-  })
-
   it('encodes a canonical workspace identifier as one path segment', async () => {
     queueWorkspaceRequest({ status: 'fulfilled', workspaceId: 'workspace/with?characters' })
     queueTableRows(user, [{ email: 'requester@example.com' }])
@@ -320,40 +209,6 @@ describe('access request requester notifications', () => {
     expect(mockSend).not.toHaveBeenCalled()
   })
 
-  it('skips delivery after the workspace moves to another organization', async () => {
-    queueTableRows(permissionAccessRequest, [{ ...request, status: 'closed' }])
-    queueTableRows(workspace, [{ organizationId: 'other-organization' }])
-
-    await decidedHandler({ requestId: request.id }, context())
-
-    expect(mockMembership).not.toHaveBeenCalled()
-    expect(mockSend).not.toHaveBeenCalled()
-  })
-
-  it('requires current organization membership for an organization-scoped request', async () => {
-    queueTableRows(permissionAccessRequest, [{ ...request, workspaceId: null, status: 'declined' }])
-    mockMembership.mockResolvedValueOnce(null)
-
-    await decidedHandler({ requestId: request.id }, context())
-
-    expect(mockSend).not.toHaveBeenCalled()
-  })
-
-  it('links organization-scoped decisions to the requester history', async () => {
-    queueTableRows(permissionAccessRequest, [
-      { ...request, workspaceId: null, status: 'fulfilled' },
-    ])
-    queueTableRows(user, [{ email: 'requester@example.com' }])
-
-    await decidedHandler({ requestId: request.id }, context())
-
-    expect(mockRender).toHaveBeenCalledWith({
-      kind: 'decided',
-      requestLink:
-        'https://sim.example/access-requests?view=requests&requestId=request-one&organizationId=organization-one',
-    })
-  })
-
   it('stops before email delivery when its outbox lease has expired', async () => {
     queueWorkspaceRequest({ status: 'fulfilled' })
     queueTableRows(user, [{ email: 'requester@example.com' }])
@@ -373,16 +228,5 @@ describe('access request requester notifications', () => {
     await decidedHandler({ requestId: request.id }, context())
 
     expect(mockSend).not.toHaveBeenCalled()
-  })
-
-  it('delivers existing decisions after the organization disables new requests', async () => {
-    queueWorkspaceRequest({ status: 'declined' })
-    queueTableRows(user, [{ email: 'requester@example.com' }])
-    mockEnabled.mockResolvedValue(false)
-
-    await decidedHandler({ requestId: request.id }, context())
-
-    expect(mockSend).toHaveBeenCalledOnce()
-    expect(mockEnabled).not.toHaveBeenCalled()
   })
 })

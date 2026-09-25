@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockResolveWorkflow, mockResolveRun, mockResolveExecution, mockResolveDeploymentVersion } =
@@ -37,7 +34,6 @@ const claims = {
 
 describe('bindInternalExecutorDelegation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveWorkflow.mockResolvedValue({
       workflowId: 'workflow-1',
       workspaceId: 'workspace-1',

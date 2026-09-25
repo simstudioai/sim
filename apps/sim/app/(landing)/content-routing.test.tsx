@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ContentPost } from '@/lib/content/schema'
 
 const { getPostBySlug } = vi.hoisted(() => ({
@@ -51,8 +48,6 @@ const POST: ContentPost = {
   technical: true,
   Content: () => null,
 }
-
-beforeEach(() => vi.clearAllMocks())
 
 describe.each([
   ['blog', BlogPage, blogMetadata],

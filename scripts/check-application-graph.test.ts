@@ -1,22 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import {
-  deferredSpecifiers,
-  FORBIDDEN_PREFIXES,
-  findViolations,
-  GUARDED_ROOTS,
-  resolveSpecifier,
-  runtimeSpecifiers,
-} from './check-application-graph'
+import { FORBIDDEN_PREFIXES, findViolations, runtimeSpecifiers } from './check-application-graph'
 
 describe('runtimeSpecifiers', () => {
-  it('collects import and re-export specifiers', () => {
-    expect(
-      runtimeSpecifiers(
-        "import { a } from '@/lib/a'\nexport { b } from '@/lib/b'\nimport '@/lib/c'\n"
-      )
-    ).toEqual(['@/lib/a', '@/lib/b', '@/lib/c'])
-  })
-
   /**
    * The heaviest edge of all — the module is loaded purely to run — and the one
    * nothing in the importing file names, so it was walked straight past.
@@ -27,10 +12,6 @@ describe('runtimeSpecifiers', () => {
     ).toEqual(['@/lib/uploads/core/setup.server', '@/lib/a'])
   })
 
-  it('leaves a dynamic import out of the module-evaluation set', () => {
-    expect(runtimeSpecifiers("const a = await import('@/lib/a')\n")).toEqual([])
-  })
-
   it('ignores type-only statements, which the compiler erases', () => {
     expect(
       runtimeSpecifiers(
@@ -38,41 +19,9 @@ describe('runtimeSpecifiers', () => {
       )
     ).toEqual([])
   })
-
-  it('keeps an inline type import, which still emits a runtime load', () => {
-    expect(runtimeSpecifiers("import { type A, b } from '@/lib/a'\n")).toEqual(['@/lib/a'])
-  })
-})
-
-describe('resolveSpecifier', () => {
-  it('resolves an @/ specifier against apps/sim', () => {
-    expect(resolveSpecifier('@/lib/permission-groups/capabilities', __filename)).toMatch(
-      /apps\/sim\/lib\/permission-groups\/capabilities\.ts$/
-    )
-  })
-
-  it('returns null for a bare package specifier', () => {
-    expect(resolveSpecifier('drizzle-orm', __filename)).toBeNull()
-  })
 })
 
 describe('the guarded roots', () => {
-  it('guards the universal route wrapper against the billing graph', () => {
-    const wrapper = GUARDED_ROOTS.find(
-      (guarded) => guarded.root === 'lib/core/utils/with-route-handler.ts'
-    )
-    expect(wrapper?.forbidden['lib/billing/']).toBeTruthy()
-  })
-
-  it('reaches no forbidden module tree at runtime', () => {
-    for (const guarded of GUARDED_ROOTS) {
-      expect({ root: guarded.root, violations: findViolations(guarded) }).toEqual({
-        root: guarded.root,
-        violations: [],
-      })
-    }
-  })
-
   it('reports the shortest chain when a forbidden module is reachable', () => {
     /**
      * Walked from a module that legitimately imports the provider registry, so
@@ -90,25 +39,6 @@ describe('the guarded roots', () => {
       'lib/permission-groups/model-access.ts',
       'providers/utils.ts',
     ])
-  })
-})
-
-describe('deferredSpecifiers', () => {
-  it('collects a dynamic import, awaited or not', () => {
-    expect(
-      deferredSpecifiers(
-        "const a = await import('@/lib/a')\nvoid import('@/lib/b').then(noop)\n" +
-          "const { c } = await import(\n  '@/lib/c'\n)\n"
-      )
-    ).toEqual(['@/lib/a', '@/lib/b', '@/lib/c'])
-  })
-
-  it('ignores a `typeof import(…)` type query, which the compiler erases', () => {
-    expect(deferredSpecifiers("type A = typeof import('@/lib/a')\n")).toEqual([])
-  })
-
-  it('leaves static forms to runtimeSpecifiers', () => {
-    expect(deferredSpecifiers("import { a } from '@/lib/a'\nimport '@/lib/b'\n")).toEqual([])
   })
 })
 

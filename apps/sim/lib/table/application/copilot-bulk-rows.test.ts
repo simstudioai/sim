@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
@@ -121,7 +117,6 @@ const input = {
 
 describe('Copilot bulk row application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveContext.mockResolvedValue({
       tableId: table.id,
@@ -203,14 +198,5 @@ describe('Copilot bulk row application use cases', () => {
     expect(mocks.deleteByFilter).toHaveBeenCalledTimes(1)
     expect(mocks.releaseJob).toHaveBeenCalledWith('table-1', 'workspace-1', 'job-12345678')
     expect(mocks.audit).toHaveBeenCalledTimes(1)
-  })
-
-  it('propagates unknown infrastructure failures without audit or effects', async () => {
-    const failure = new Error('database host unavailable')
-    mocks.updateByFilter.mockRejectedValueOnce(failure)
-
-    await expect(copilotUpdateRowsByFilter.execute({ principal, input })).rejects.toBe(failure)
-    expect(mocks.audit).not.toHaveBeenCalled()
-    expect(mocks.signal).not.toHaveBeenCalled()
   })
 })

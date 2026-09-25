@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -58,7 +57,6 @@ const context = {
 }
 describe('Assistant retrieval tools', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.search.mockResolvedValue({
       retrieval: { status: 'complete', timedOutLegs: [] },
       knowledgeBases: [{ id: 'index', name: 'Enterprise Search' }],

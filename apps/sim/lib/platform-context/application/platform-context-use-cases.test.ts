@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { DelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -64,7 +61,6 @@ function copilotPrincipal(): DelegatedPrincipal {
 
 describe('platform context application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue(workspace)
     mocks.resolvePermission.mockResolvedValue('read')
   })

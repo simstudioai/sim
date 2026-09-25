@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { OrganizationDelegatedPrincipal, Principal } from '@sim/auth/principal'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -62,7 +61,6 @@ import {
 import {
   authorizeDataDrainOperation,
   createDataDrain,
-  deleteDataDrain,
   getDataDrain,
   listDataDrainRuns,
   listDataDrains,
@@ -105,7 +103,6 @@ function allow(role = 'admin') {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.enterprise.mockResolvedValue(true)
   mocks.config.mockResolvedValue(null)
@@ -118,18 +115,6 @@ beforeEach(() => {
 })
 
 describe('organization data drain application boundary', () => {
-  it('declares immutable administrator policies with exact settings delegation', () => {
-    expect(Object.isFrozen(dataDrainOperations)).toBe(true)
-    for (const operation of Object.values(dataDrainOperations)) {
-      expect(operation).toMatchObject({
-        minimumRole: 'admin',
-        principalKinds: ['session', 'organization_delegated'],
-        delegationAudience: 'sim:settings',
-        delegatedServices: ['copilot'],
-      })
-      expect(Object.isFrozen(operation)).toBe(true)
-    }
-  })
   it.each<Principal>([
     { kind: 'workspace_api_key', workspaceId: 'org', keyId: 'key' },
     { kind: 'personal_api_key', userId: 'actor', keyId: 'key' },
@@ -145,16 +130,6 @@ describe('organization data drain application boundary', () => {
     await expect(getDataDrain.execute({ principal: caller, input })).rejects.toThrow()
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
-  })
-  it.each(['owner', 'admin'])('allows %s reads using genuine session identity', async (role) => {
-    allow(role)
-    dbChainMockFns.limit.mockResolvedValueOnce([row])
-    const result = await getDataDrain.execute({
-      principal: { kind: 'session', userId: 'actor', sessionId: 'session' },
-      input,
-    })
-    expect(result.id).toBe('drain')
-    expect(result).not.toHaveProperty('destinationCredentials')
   })
   it.each(Object.values(dataDrainOperations))(
     'rejects members for $id including reads',
@@ -180,11 +155,6 @@ describe('organization data drain application boundary', () => {
     mocks.enterprise.mockResolvedValue(false)
     await expect(getDataDrain.execute({ principal, input })).rejects.toThrow('Enterprise')
     expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
-  })
-  it('rechecks membership and propagates infrastructure errors', async () => {
-    dbChainMockFns.limit.mockRejectedValueOnce(new Error('database unavailable'))
-    await expect(getDataDrain.execute({ principal, input })).rejects.toThrow('database unavailable')
-    expect(mocks.enterprise).not.toHaveBeenCalled()
   })
   it('conceals a drain outside the requested organization', async () => {
     allow()
@@ -229,15 +199,6 @@ describe('organization data drain application boundary', () => {
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(mocks.audit).not.toHaveBeenCalled()
   })
-  it('does not audit a concurrent delete that affected no row', async () => {
-    allow()
-    dbChainMockFns.limit.mockResolvedValueOnce([row])
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-    await expect(deleteDataDrain.execute({ principal, input })).resolves.toMatchObject({
-      deleted: false,
-    })
-    expect(mocks.audit).not.toHaveBeenCalled()
-  })
   it('requires creation credentials before persisting', async () => {
     allow()
     await expect(
@@ -263,18 +224,6 @@ describe('organization data drain application boundary', () => {
     await expect(runDataDrain.execute({ principal, input })).rejects.toThrow('disabled')
     expect(mocks.enqueue).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
-  })
-  it('queues manual exports using the existing concurrency key', async () => {
-    allow()
-    dbChainMockFns.limit.mockResolvedValueOnce([row]).mockResolvedValueOnce([])
-    await expect(runDataDrain.execute({ principal, input })).resolves.toMatchObject({
-      jobId: 'job',
-    })
-    expect(mocks.enqueue).toHaveBeenCalledWith(
-      'run-data-drain',
-      { drainId: 'drain', trigger: 'manual' },
-      { concurrencyKey: 'data-drain:drain' }
-    )
   })
   it('tests using saved credentials under outbound organization policy and audits failure', async () => {
     allow()

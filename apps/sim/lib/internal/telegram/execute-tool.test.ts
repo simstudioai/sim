@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
@@ -22,7 +18,6 @@ const fileResult = createInternalToolFileResult(
 
 describe('executeTelegramTool', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.sendTelegramDocument.mockResolvedValue(fileResult)
   })
 

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { member } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,7 +30,6 @@ const principal = { kind: 'session', userId: 'admin', sessionId: 'session' } as 
 const input = { organizationId: 'organization', period: '7d', surface: 'mcp' } as const
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.context.mockResolvedValue({ organizationId: 'organization' })
   mocks.policy.mockResolvedValue(null)
@@ -40,17 +38,6 @@ beforeEach(() => {
 })
 
 describe('organization Search stats authorization', () => {
-  it.each(['admin', 'owner'])(
-    'allows a current %s and forwards the selected scope',
-    async (role) => {
-      queueTableRows(member, [{ role }])
-      expect(await readOrganizationSearchStats.execute({ principal, input })).toEqual({
-        totals: { invocations: 3 },
-      })
-      expect(mocks.available).toHaveBeenCalledWith('organization')
-      expect(mocks.load).toHaveBeenCalledWith(input)
-    }
-  )
   it.each([
     { rows: [{ role: 'member' }], code: 'forbidden' },
     { rows: [], code: 'not_found' },

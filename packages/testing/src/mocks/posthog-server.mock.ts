@@ -1,23 +1,7 @@
 import { vi } from 'vitest'
 
 /**
- * Controllable mock functions for `@/lib/posthog/server`.
- * All defaults are bare `vi.fn()` — configure per-test as needed.
- *
- * @example
- * ```ts
- * import { posthogServerMockFns } from '@sim/testing'
- *
- * expect(posthogServerMockFns.mockCaptureServerEvent).toHaveBeenCalledWith(...)
- * ```
- */
-export const posthogServerMockFns = {
-  mockCaptureServerEvent: vi.fn(),
-  mockGetPostHogClient: vi.fn(() => null),
-}
-
-/**
- * Static mock module for `@/lib/posthog/server`.
+ * Static mock module for `@/lib/posthog/server`. Every export is a bare `vi.fn()`.
  *
  * @example
  * ```ts
@@ -25,6 +9,6 @@ export const posthogServerMockFns = {
  * ```
  */
 export const posthogServerMock = {
-  captureServerEvent: posthogServerMockFns.mockCaptureServerEvent,
-  getPostHogClient: posthogServerMockFns.mockGetPostHogClient,
+  captureServerEvent: vi.fn(),
+  getPostHogClient: vi.fn(() => null),
 }

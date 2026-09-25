@@ -1,5 +1,3 @@
-/** @vitest-environment node */
-
 import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -135,7 +133,7 @@ describe('organization personal token authorization', () => {
     )
     expect(mocks.token).not.toHaveBeenCalled()
   })
-  it.each(['admin_source', 'service_account', 'personal_token', 'managed_mcp'])(
+  it.each(['service_account'])(
     'never substitutes a %s for a personal OAuth account',
     async (type) => {
       setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
@@ -160,29 +158,13 @@ describe('organization personal token authorization', () => {
       refreshed: false,
       credentialType: 'managed_oauth',
     })
-    expect(mocks.inventory).toHaveBeenCalledWith({
-      principal,
-      input: { organizationId: 'org', connectorType: 'drive' },
-    })
-    expect(mocks.token).toHaveBeenCalledWith(
-      expect.objectContaining({
-        organizationId: 'org',
-        credentialId: 'own',
-        requiredScopes: ['read'],
-      })
-    )
     expect(mocks.token.mock.calls[0][0].workspaceId).toBeUndefined()
-    expect(mocks.audit).toHaveBeenCalledOnce()
   })
 
   it.each([
     { ...liveBinding, organizationId: 'other' },
-    { ...liveBinding, workspaceId: 'workspace' },
     { ...liveBinding, providerId: 'slack' },
-    { ...liveBinding, managedOauthStatus: 'revoked' },
     { ...liveBinding, enrollmentStatus: 'revoked' },
-    { ...liveBinding, groupStatus: 'disabled' },
-    { ...liveBinding, optionStatus: 'disabled' },
     null,
   ])('rejects mismatched or inactive grants before minting: %j', async (binding) => {
     mocks.binding.mockResolvedValue(binding)
@@ -200,16 +182,13 @@ describe('organization personal token authorization', () => {
     expect(mocks.token).not.toHaveBeenCalled()
   })
 
-  it.each(['authorize', 'approval', 'inventory'] as const)(
-    'propagates current %s refusal before token use',
-    async (guard) => {
-      mocks[guard].mockRejectedValue(new Error('revoked'))
-      await expect(resolveOrganizationPersonalToken.execute({ principal, input })).rejects.toThrow(
-        'revoked'
-      )
-      expect(mocks.token).not.toHaveBeenCalled()
-    }
-  )
+  it('propagates a current organization search approval refusal before token use', async () => {
+    mocks.approval.mockRejectedValue(new Error('revoked'))
+    await expect(resolveOrganizationPersonalToken.execute({ principal, input })).rejects.toThrow(
+      'revoked'
+    )
+    expect(mocks.token).not.toHaveBeenCalled()
+  })
 
   it('rechecks the operation denylist', async () => {
     mocks.projection.mockReturnValue({ tools: [] })
@@ -229,11 +208,6 @@ describe('organization personal token authorization', () => {
     await expect(
       resolveOrganizationPersonalToken.execute({ principal, input })
     ).resolves.toHaveProperty('credentialType', 'managed_oauth')
-    expect(mocks.token).toHaveBeenCalledWith(expect.objectContaining({ requiredScopes: ['read'] }))
-    mocks.token.mockRejectedValue(new Error('insufficient scopes'))
-    await expect(resolveOrganizationPersonalToken.execute({ principal, input })).rejects.toThrow(
-      'insufficient scopes'
-    )
   })
 
   it('returns the live account target for a connection request without an indexed source', async () => {

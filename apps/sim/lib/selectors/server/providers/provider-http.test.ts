@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   SelectorConnectionUnavailableError,
@@ -25,7 +22,6 @@ function openBody(onCancel: () => void): ReadableStream<Uint8Array> {
 
 describe('provider HTTP selector boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
   })
 

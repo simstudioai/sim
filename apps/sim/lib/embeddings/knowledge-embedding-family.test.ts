@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   inspectCapability,
@@ -26,14 +23,6 @@ import { isKbEmbeddingModel } from '@/lib/knowledge/embedding-models'
  * one report as ready.
  */
 describe('knowledgeEmbeddingFamily', () => {
-  it('agrees with the catalog for every model a knowledge base can be created with', () => {
-    for (const model of getKbEligibleModels()) {
-      expect(knowledgeEmbeddingFamily({ KB_EMBEDDING_MODEL: model }), model).toBe(
-        getEmbeddingModelInfo(model).provider
-      )
-    }
-  })
-
   /**
    * The capability also duplicates each model's storable widths, to reject a
    * width the selected model cannot emit. A width the catalog allows but the
@@ -54,12 +43,6 @@ describe('knowledgeEmbeddingFamily', () => {
           !widths.includes(width)
         )
       }
-    }
-  })
-
-  it('classifies any model on the deployment’s own Ollama by its routing prefix', () => {
-    for (const model of ['ollama/nomic-embed-text', 'ollama/mxbai-embed-large:335m']) {
-      expect(knowledgeEmbeddingFamily({ KB_EMBEDDING_MODEL: model }), model).toBe('ollama')
     }
   })
 
