@@ -202,11 +202,12 @@ export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void
   // reducer, run its side effects now (the result event had no node to act on).
   if (node?.kind === 'tool' && node.result) runToolResultSideEffects(ctx, node, replay)
 
-  const start = resolveClientToolStart(parsed, (toolCallId) => {
-    if (deps.options.suppressedWorkflowToolStartIds?.has(toolCallId)) return false
-    const tool = state.model.nodes.get(resolveToolId(state.model, toolCallId))
-    return tool?.kind === 'tool' && tool.status === 'running' && !tool.result
-  })
-  if (start) startClientTool(deps, start)
+  const start = resolveClientToolStart(parsed)
+  const isPending =
+    node?.kind === 'tool' &&
+    node.status === 'running' &&
+    !node.result &&
+    !deps.options.suppressedWorkflowToolStartIds?.has(rawId)
+  if (start && isPending) startClientTool(deps, start)
   ops.flush()
 }

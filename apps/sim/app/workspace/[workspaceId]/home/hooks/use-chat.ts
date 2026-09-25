@@ -178,6 +178,7 @@ import {
   isStreamSchemaValidationError,
   parseStreamBatchResponse,
   resolveChatIdFromStreamBatch,
+  STREAM_BATCH_FETCH_TIMEOUT_MS,
   STREAM_IDLE_TIMEOUT_MS,
   type StreamBatchResponse,
   StreamGoneError,
@@ -293,7 +294,6 @@ const MAX_RECONNECT_ATTEMPTS = 10
 const RECONNECT_BASE_DELAY_MS = 1000
 const RECONNECT_MAX_DELAY_MS = 30_000
 const RECONNECT_EXHAUSTED_RECHECK_MS = 30_000
-const STREAM_BATCH_FETCH_TIMEOUT_MS = 10_000
 const STREAM_CHAT_ID_RESOLVE_TIMEOUT_MS = 10_000
 const CHAT_HISTORY_RECOVERY_TIMEOUT_MS = 10_000
 const STOP_REQUEST_TIMEOUT_MS = 15_000
@@ -1609,23 +1609,22 @@ export function useChat(
 
   /**
    * Hands the live turn's client tools to a detached relay as the user leaves
-   * its chat, so a desktop run keeps going in the background. A turn is live
-   * once the server admitted it: its stream id is known, or its response is
-   * being read (a send's stream id is its user message id). When a relay takes
-   * the turn, the caller releases the turn's controller without aborting it,
-   * so tools already running report their outcome instead of being cancelled.
+   * its chat, so a desktop run keeps going in the background. Only a turn the
+   * server admitted is detached; a send still awaiting admission is withdrawn
+   * by the unmount cleanup and handed to the next chat surface instead. When a
+   * relay takes the turn, the caller releases the turn's controller without
+   * aborting it, so tools already running report their outcome.
    *
    * @returns whether a relay took the turn
    */
   detachLiveTurnClientToolsRef.current = (): boolean => {
-    const streamId =
-      streamIdRef.current ??
-      (streamReaderRef.current ? activeTurnRef.current?.userMessageId : undefined)
+    const streamId = streamIdRef.current
     if (
       !isDesktopApp() ||
       requestModeRef.current === 'assistant' ||
       !sendingRef.current ||
-      !streamId
+      !streamId ||
+      pendingChatAdmissionRef.current
     ) {
       return false
     }
@@ -2210,8 +2209,7 @@ export function useChat(
         return { sawStreamError: false, sawComplete: false }
       }
       streamReaderRef.current = reader
-      const readerChatId = options?.targetChatId ?? chatIdRef.current
-      if (readerChatId) reattachClientTools(readerChatId)
+      if (streamIdRef.current) reattachClientTools(streamIdRef.current)
 
       try {
         await readSSELines(reader, {
@@ -2563,6 +2561,7 @@ export function useChat(
           }
 
           if (isStaleReconnect()) {
+            await sseRes.body.cancel()
             return { error: false, aborted: true }
           }
 

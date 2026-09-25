@@ -40,10 +40,19 @@ import {
   parseStreamBatchResponse,
   resolveChatIdFromStreamBatch,
   resolveChatIdFromStreamEvent,
+  STREAM_BATCH_FETCH_TIMEOUT_MS,
   STREAM_IDLE_TIMEOUT_MS,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream-protocol'
 
 const logger = createLogger('DetachedClientTools')
+
+/**
+ * Responses after which there is nothing left to relay: no run exists for the
+ * stream (404), or this client can no longer read it (401, 403).
+ */
+function isRelayEndStatus(status: number): boolean {
+  return status === 404 || status === 401 || status === 403
+}
 
 /** A live turn the user left. */
 export interface DetachedChatTurn {
@@ -60,6 +69,7 @@ export interface DetachedChatTurn {
 
 interface Relay {
   controller: AbortController
+  /** Known up front or read off the stream; tools run in this chat's desktop scope. */
   chatId?: string
 }
 
@@ -132,8 +142,8 @@ async function relayClientTools(turn: DetachedChatTurn, relay: Relay): Promise<v
       handledToolCallIds.add(settledId)
       return
     }
-    const start = resolveClientToolStart(event, (id) => !handledToolCallIds.has(id))
-    if (!start) return
+    const start = resolveClientToolStart(event)
+    if (!start || handledToolCallIds.has(start.toolCallId)) return
     handledToolCallIds.add(start.toolCallId)
     if (!relay.chatId) {
       logger.error('Detached client tool arrived before its chat id', {
@@ -145,14 +155,14 @@ async function relayClientTools(turn: DetachedChatTurn, relay: Relay): Promise<v
     startDetachedClientTool(turn, relay.chatId, start)
   }
 
-  /** Reads the events past the cursor at once; resolves true once the run is over. */
+  /** Reads the events past the cursor at once; resolves true once there is nothing left to relay. */
   const readBatch = async (): Promise<boolean> => {
     // boundary-raw-fetch: stream-resume batch endpoint needs per-request traceparent propagation the contract layer does not model
     const response = await fetch(buildStreamResumeUrl(streamId, cursor, { batch: true }), {
-      signal,
+      signal: AbortSignal.any([signal, AbortSignal.timeout(STREAM_BATCH_FETCH_TIMEOUT_MS)]),
       headers,
     })
-    if (response.status === 404) return true
+    if (isRelayEndStatus(response.status)) return true
     if (!response.ok) throw new Error(`Stream batch responded with status ${response.status}`)
     const batch = parseStreamBatchResponse(await response.json())
     relay.chatId ??= resolveChatIdFromStreamBatch(batch)
@@ -164,11 +174,11 @@ async function relayClientTools(turn: DetachedChatTurn, relay: Relay): Promise<v
     return isTerminalStreamStatus(batch.status)
   }
 
-  /** Tails one live connection; resolves true once the run is over. */
+  /** Tails one live connection; resolves true once there is nothing left to relay. */
   const readTail = async (): Promise<boolean> => {
     // boundary-raw-fetch: live SSE tail endpoint streams events consumed via readSSELines
     const response = await fetch(buildStreamResumeUrl(streamId, cursor), { signal, headers })
-    if (response.status === 404) return true
+    if (isRelayEndStatus(response.status)) return true
     if (!response.ok || !response.body) {
       throw new Error(`Stream tail responded with status ${response.status}`)
     }
@@ -224,13 +234,10 @@ export function detachClientTools(turn: DetachedChatTurn): void {
 }
 
 /**
- * Stops relaying a chat whose view reads its stream again. Tools the relay
- * already started keep running and report their outcome.
+ * Stops relaying a stream the chat view reads again. Tools the relay already
+ * started keep running and report their outcome.
  */
-export function reattachClientTools(chatId: string): void {
-  for (const [streamId, relay] of relays) {
-    if (relay.chatId !== chatId) continue
-    relay.controller.abort('chat_reattached')
-    relays.delete(streamId)
-  }
+export function reattachClientTools(streamId: string): void {
+  relays.get(streamId)?.controller.abort('chat_reattached')
+  relays.delete(streamId)
 }

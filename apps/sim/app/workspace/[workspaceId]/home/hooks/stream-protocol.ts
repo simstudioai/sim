@@ -22,6 +22,7 @@ import type { StreamBatchEvent } from '@/lib/mothership/request/session/types'
 
 /** Both live transports heartbeat every 15s; three missed heartbeats trigger cursor recovery. */
 export const STREAM_IDLE_TIMEOUT_MS = 45_000
+export const STREAM_BATCH_FETCH_TIMEOUT_MS = 10_000
 
 export type StreamBatchResponse = {
   success: boolean

@@ -29,17 +29,12 @@ export type ClientToolStart = ClientToolCall &
   )
 
 /**
- * Resolves the client-executed tool call a stream event asks this client to
- * start, or null when the event starts nothing. Only a complete call frame
- * that is not held behind an approval prompt starts a tool.
- *
- * @param isPending - whether the call is still running without a result, as
- *   far as the caller has seen
+ * Resolves the client-executed tool call a stream event hands this client, or
+ * null when the event starts nothing. Only a complete call frame that is not
+ * held behind an approval prompt starts a tool; whether the call is still
+ * pending is the caller's to decide from what it has seen.
  */
-export function resolveClientToolStart(
-  event: ToolEvent,
-  isPending: (toolCallId: string) => boolean
-): ClientToolStart | null {
+export function resolveClientToolStart(event: ToolEvent): ClientToolStart | null {
   const payload = event.payload
   if (
     'previewPhase' in payload ||
@@ -55,15 +50,11 @@ export function resolveClientToolStart(
   const { toolCallId, toolName } = payload
   const args = payload.arguments as Record<string, unknown> | undefined
   const call = { toolCallId, args: args ?? {}, eventTs: event.ts }
-  let start: ClientToolStart | null = null
-  if (isWorkflowToolName(toolName)) {
-    start = { ...call, kind: 'workflow', toolName }
-  } else if (isNativeFileTool(toolName) || isUserLocalVfsToolCall(toolName, args)) {
-    start = { ...call, kind: 'localFilesystem', toolName }
-  } else if (isCurrentBrowserToolName(toolName)) {
-    start = { ...call, kind: 'browser', toolName }
-  } else if (isTerminalToolName(toolName)) {
-    start = { ...call, kind: 'terminal', toolName }
+  if (isWorkflowToolName(toolName)) return { ...call, kind: 'workflow', toolName }
+  if (isNativeFileTool(toolName) || isUserLocalVfsToolCall(toolName, args)) {
+    return { ...call, kind: 'localFilesystem', toolName }
   }
-  return start && isPending(toolCallId) ? start : null
+  if (isCurrentBrowserToolName(toolName)) return { ...call, kind: 'browser', toolName }
+  if (isTerminalToolName(toolName)) return { ...call, kind: 'terminal', toolName }
+  return null
 }

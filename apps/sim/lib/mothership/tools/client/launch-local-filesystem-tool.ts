@@ -1,17 +1,8 @@
 import { createLogger } from '@sim/logger'
-import { LRUCache } from 'lru-cache'
 import type { LocalFilesystemExecutionContext } from '@/lib/mothership/tools/client/local-filesystem'
 import { isNativeFileTool, isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 
 const logger = createLogger('CopilotLocalFilesystemTool')
-
-/**
- * Exactly-once guard. A call's chat view and the relay that runs it after the
- * user leaves can both see it, and a remounted view replays calls still
- * running, so the guard lives here rather than with any one caller. Bounded:
- * a call evicted behind this many newer ones is long settled.
- */
-const launchedToolCallIds = new LRUCache<string, true>({ max: 500 })
 
 /**
  * Runs a local filesystem tool call on the desktop client. The executor is
@@ -33,8 +24,6 @@ export function launchLocalFilesystemTool(
   ) {
     return
   }
-  if (launchedToolCallIds.has(toolCallId)) return
-  launchedToolCallIds.set(toolCallId, true)
 
   import('@/lib/mothership/tools/client/local-filesystem').then(
     (m) => m.executeLocalFilesystemTool(toolCallId, toolName, args, context),
