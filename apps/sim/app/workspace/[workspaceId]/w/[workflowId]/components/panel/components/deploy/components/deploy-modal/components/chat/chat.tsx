@@ -359,10 +359,7 @@ export function ChatDeploy({
           />
 
           <div>
-            <Label
-              htmlFor='title'
-              className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'
-            >
+            <Label htmlFor='title' className='mb-[6.5px] block pl-0.5 text-small'>
               Title
             </Label>
             <ChipInput
@@ -379,9 +376,7 @@ export function ChatDeploy({
           </div>
 
           <div>
-            <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-              Output
-            </Label>
+            <Label className='mb-[6.5px] block pl-0.5 text-small'>Output</Label>
             <OutputSelect
               workflowId={workflowId}
               selectedOutputs={formData.selectedOutputBlocks}
@@ -402,9 +397,7 @@ export function ChatDeploy({
 
           <div className='flex items-center justify-between gap-3'>
             <div className='min-w-0'>
-              <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>
-                Include thinking
-              </Label>
+              <Label className='block pl-0.5 text-small'>Include thinking</Label>
             </div>
             <Switch
               checked={formData.includeThinking}
@@ -416,9 +409,7 @@ export function ChatDeploy({
 
           <div className='flex items-center justify-between gap-3'>
             <div className='min-w-0'>
-              <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>
-                Include tool calls
-              </Label>
+              <Label className='block pl-0.5 text-small'>Include tool calls</Label>
             </div>
             <Switch
               checked={formData.includeToolCalls}
@@ -444,10 +435,7 @@ export function ChatDeploy({
             error={errors.password || errors.emails}
           />
           <div>
-            <Label
-              htmlFor='welcomeMessage'
-              className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'
-            >
+            <Label htmlFor='welcomeMessage' className='mb-[6.5px] block pl-0.5 text-small'>
               Welcome message
             </Label>
             <Textarea
@@ -587,10 +575,7 @@ function IdentifierInput({
 
   return (
     <div>
-      <Label
-        htmlFor='chat-url'
-        className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'
-      >
+      <Label htmlFor='chat-url' className='mb-[6.5px] block pl-0.5 text-small'>
         URL
       </Label>
       <div
@@ -731,9 +716,7 @@ function AuthSelector({
   return (
     <div className='space-y-4'>
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-          Access control
-        </Label>
+        <Label className='mb-[6.5px] block pl-0.5 text-small'>Access control</Label>
         <ChipButtonGroup
           value={authType}
           onValueChange={(val) => onAuthTypeChange(val as AuthType)}
@@ -749,9 +732,7 @@ function AuthSelector({
 
       {authType === 'password' && (
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-            Password
-          </Label>
+          <Label className='mb-[6.5px] block pl-0.5 text-small'>Password</Label>
           <GeneratedPasswordInput
             value={password}
             onChange={handlePasswordChange}
@@ -777,7 +758,7 @@ function AuthSelector({
 
       {(authType === 'email' || authType === 'sso') && (
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
+          <Label className='mb-[6.5px] block pl-0.5 text-small'>
             {authType === 'email' ? 'Allowed emails' : 'Allowed SSO emails'}
           </Label>
           <ChipEmailsInput
