@@ -768,6 +768,20 @@ describe('collectSnapshot', () => {
     expect(outlineOf(collectSnapshot())).not.toContain(' new')
   })
 
+  it('leaves new markers out of an unmarked read without consuming them', () => {
+    document.body.innerHTML = '<button>Compose</button>'
+    visible(document.querySelector('button') as HTMLButtonElement)
+    collectSnapshot()
+
+    const added = document.createElement('button')
+    added.textContent = 'Send'
+    document.body.append(visible(added))
+
+    expect(outlineOf(collectSnapshot(0, null, false))).not.toContain(' new')
+    const lines = outlineOf(collectSnapshot()).split('\n')
+    expect(lines.find((line) => line.includes('"Send"'))).toMatch(/ new$/)
+  })
+
   it('sanitizes a malicious role so it cannot forge a second snapshot line', () => {
     document.body.innerHTML = '<div tabindex="0" aria-label="Safe control"></div>'
     const control = visible(document.querySelector('div') as HTMLDivElement)

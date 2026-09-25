@@ -795,6 +795,8 @@ async function moveStagedBrowserDownload(active: ActiveBrowserDownload): Promise
   for (let attempt = 1; ; attempt++) {
     try {
       await moveFile(active.stagingPath, destination)
+      // The name now holds the finished file, which no cleanup may remove as a placeholder.
+      active.placeholderPath = undefined
       return destination
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code
@@ -1737,27 +1739,33 @@ function configureBrowserDownloads(ses: Session): void {
         })
     })
     let allocationExpired = false
+    const allocationLive = () =>
+      !allocationExpired &&
+      !active.terminal &&
+      !active.limitReason &&
+      activeBrowserDownloads.has(active)
     const allocation = uniqueDownloadPath(directory, filename, {
-      isActive: () =>
-        !allocationExpired &&
-        !active.terminal &&
-        !active.limitReason &&
-        activeBrowserDownloads.has(active),
+      isActive: allocationLive,
       pathExists: browserDownloadSettings?.pathExists,
       reservePath: (candidate) => {
-        if (
-          allocationExpired ||
-          active.terminal ||
-          active.limitReason ||
-          !activeBrowserDownloads.has(active) ||
-          activeDownloadPaths.has(candidate)
-        ) {
-          return false
-        }
+        if (!allocationLive() || activeDownloadPaths.has(candidate)) return false
         activeDownloadPaths.set(candidate, active)
         active.savePath = candidate
         return true
       },
+    }).then(async (savePath) => {
+      if (!savePath || !allocationLive()) return savePath
+      active.claimingDestination = true
+      try {
+        await claimBrowserDownloadDestination(active, savePath)
+      } finally {
+        active.claimingDestination = false
+        if (!allocationLive()) {
+          removeBrowserDownloadPlaceholder(active)
+          releaseActiveBrowserDownloadPath(active, savePath)
+        }
+      }
+      return savePath
     })
     active.destination = withBrowserDownloadTimeout(
       allocation,
@@ -1767,7 +1775,7 @@ function configureBrowserDownloads(ses: Session): void {
         allocationExpired = true
       }
     )
-      .then(async (savePath) => {
+      .then((savePath) => {
         if (active.terminal || !activeBrowserDownloads.has(active)) {
           releaseActiveBrowserDownloadPath(active, savePath ?? undefined)
           return null
@@ -1780,17 +1788,6 @@ function configureBrowserDownloads(ses: Session): void {
           publishActiveBrowserDownload(active)
           return null
         }
-        active.claimingDestination = true
-        try {
-          await claimBrowserDownloadDestination(active, savePath)
-        } finally {
-          active.claimingDestination = false
-          if (active.terminal || !activeBrowserDownloads.has(active)) {
-            removeBrowserDownloadPlaceholder(active)
-            releaseActiveBrowserDownloadPath(active, savePath)
-          }
-        }
-        if (active.terminal || !activeBrowserDownloads.has(active)) return null
         checkBrowserDownloadDiskSpace(active, 'admission')
         return savePath
       })
