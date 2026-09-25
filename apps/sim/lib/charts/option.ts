@@ -9,10 +9,29 @@
  * between slide chrome and slide content.
  */
 
+import { toRecord } from '@sim/utils/object'
+
+export const CHART_BAR_MAX_WIDTH = 16
+
 export interface ChartRenderInput {
   title?: string
   option: Record<string, unknown>
   rows?: Array<Record<string, unknown>> | null
+}
+
+/** Category labels share the plot width for a single horizontal Cartesian bar chart. */
+export function isHorizontalBarOption(option: Record<string, unknown>): boolean {
+  const yAxes = Array.isArray(option.yAxis) ? option.yAxis : [option.yAxis]
+  const xAxes = Array.isArray(option.xAxis) ? option.xAxis : [option.xAxis]
+  const series = Array.isArray(option.series) ? option.series : [option.series]
+  return (
+    yAxes.length === 1 &&
+    xAxes.length === 1 &&
+    toRecord(yAxes[0]).type === 'category' &&
+    toRecord(xAxes[0]).type === 'value' &&
+    series.length > 0 &&
+    series.every((entry) => toRecord(entry).type === 'bar')
+  )
 }
 
 export function buildChartRenderOption({
@@ -21,7 +40,28 @@ export function buildChartRenderOption({
   rows,
 }: ChartRenderInput): Record<string, unknown> {
   const option = structuredClone(specOption)
-  if (rows && rows.length > 0) {
+  const horizontalBars = isHorizontalBarOption(option)
+  if (horizontalBars) {
+    const series = Array.isArray(option.series) ? option.series : [option.series]
+    const barWidth = Math.max(
+      CHART_BAR_MAX_WIDTH,
+      ...series.map((entry) => {
+        const bar = toRecord(entry)
+        const width = bar.barWidth ?? bar.barMaxWidth
+        return typeof width === 'number' ? width : CHART_BAR_MAX_WIDTH
+      })
+    )
+    const axis = toRecord(Array.isArray(option.yAxis) ? option.yAxis[0] : option.yAxis)
+    axis.axisLabel = {
+      inside: true,
+      align: 'left',
+      verticalAlign: 'bottom',
+      margin: 0,
+      padding: [0, 0, barWidth / 2 + 8, 0],
+      ...toRecord(axis.axisLabel),
+    }
+  }
+  if (rows !== null && rows !== undefined) {
     // The resolved rows become the FIRST dataset (id "table", datasetIndex 0).
     // Spec-declared datasets follow it, so filter/sort transform datasets can
     // derive from the injected rows (transforms default to fromDatasetIndex 0,
@@ -68,19 +108,22 @@ export function buildChartRenderOption({
       if (l.type === undefined) l.type = 'scroll'
     }
   }
-  // Reserve a chrome row above the plot. Fill only what the spec left unset
-  // inside grid — axis-name insets remain the spec's call.
-  const chromeTop = hasTitle || hasLegend ? 48 : 16
+  /** ECharts 6 outer bounds fit both end ticks and axis names; containLabel omits names. */
+  const chromeTop = hasTitle || hasLegend ? 48 : horizontalBars ? 24 : 16
+  const gridDefaults = {
+    top: chromeTop,
+    left: 12,
+    right: 12,
+    bottom: 12,
+    outerBounds: { top: chromeTop, left: 12, right: 12, bottom: 12 },
+    outerBoundsContain: 'all',
+  }
   if (option.grid === undefined) {
-    option.grid = { top: chromeTop, left: 12, right: 12, bottom: 12, containLabel: true }
-  } else if (
-    option.grid !== null &&
-    typeof option.grid === 'object' &&
-    !Array.isArray(option.grid)
-  ) {
-    const g = option.grid as Record<string, unknown>
-    if (g.top === undefined) g.top = chromeTop
-    if (g.containLabel === undefined) g.containLabel = true
+    option.grid = gridDefaults
+  } else if (Array.isArray(option.grid)) {
+    option.grid = option.grid.map((grid) => ({ ...gridDefaults, ...toRecord(grid) }))
+  } else if (option.grid !== null && typeof option.grid === 'object') {
+    option.grid = { ...gridDefaults, ...option.grid }
   }
   return option
 }

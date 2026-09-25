@@ -1,3 +1,5 @@
+import { DASHBOARD_AUTHORING_CONTENT } from '@/lib/dashboards/authoring'
+
 /**
  * Built-in (template) skills that ship with every workspace.
  *
@@ -190,6 +192,13 @@ You can attach an existing workflow to a table so it runs once for every row, wi
 `
 
 export const BUILTIN_SKILLS: readonly BuiltinSkill[] = [
+  {
+    id: 'builtin-create-dashboard',
+    name: 'create-dashboard',
+    description:
+      'Build a live table-backed dashboard with YAML, ECharts, time filters, rows, and tabs.',
+    content: DASHBOARD_AUTHORING_CONTENT,
+  },
   {
     id: 'builtin-connect-integration',
     name: 'connect-integration',

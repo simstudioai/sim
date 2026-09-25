@@ -2,7 +2,13 @@ import { z } from 'zod'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 
 /** Mirrors `folderResourceTypeEnum` in `packages/db/schema.ts`. */
-export const folderResourceTypeSchema = z.enum(['workflow', 'file', 'knowledge_base', 'table'])
+export const folderResourceTypeSchema = z.enum([
+  'workflow',
+  'file',
+  'knowledge_base',
+  'table',
+  'dashboard',
+])
 export type FolderResourceType = z.output<typeof folderResourceTypeSchema>
 
 /**
@@ -123,6 +129,7 @@ export const reorderFoldersBodySchema = z.object({
 
 /** Per-resourceType cascade counts from a folder delete/restore; only the relevant key is populated. */
 export const folderCascadeCountsSchema = z.object({
+  dashboards: z.number().int().optional(),
   folders: z.number().int(),
   workflows: z.number().int().optional(),
   files: z.number().int().optional(),

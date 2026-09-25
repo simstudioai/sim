@@ -4,6 +4,8 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import '@sim/emcn/components/code/code.css'
+import { DashboardFeatureGate } from '@/components/dashboards/dashboard-feature-gate'
+import { DashboardPreview } from '@/components/dashboards/dashboard-preview'
 import { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import {
@@ -21,7 +23,7 @@ import { DataTable } from './data-table'
 import { MermaidDiagram } from './mermaid-diagram'
 import { ZoomablePreview } from './zoomable-preview'
 
-type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | 'mermaid' | 'chart' | null
+type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | 'mermaid' | 'chart' | 'dashboard' | null
 
 const PREVIEWABLE_MIME_TYPES: Record<string, PreviewType> = {
   // Sim pages store an EXTENSIONLESS name — without this mapping the record
@@ -34,6 +36,7 @@ const PREVIEWABLE_MIME_TYPES: Record<string, PreviewType> = {
   'image/svg+xml': 'svg',
   'text/x-mermaid': 'mermaid',
   'text/x-sim-chart': 'chart',
+  'text/x-sim-dashboard': 'dashboard',
 }
 
 const PREVIEWABLE_EXTENSIONS: Record<string, PreviewType> = {
@@ -44,6 +47,7 @@ const PREVIEWABLE_EXTENSIONS: Record<string, PreviewType> = {
   svg: 'svg',
   mmd: 'mermaid',
   chart: 'chart',
+  dashboard: 'dashboard',
 }
 
 /** All extensions that have a rich preview renderer. */
@@ -82,6 +86,19 @@ export const PreviewPanel = memo(function PreviewPanel({
   readOnly,
 }: PreviewPanelProps) {
   const previewType = resolvePreviewType(mimeType, filename)
+
+  if (previewType === 'dashboard')
+    return (
+      <DashboardFeatureGate>
+        <DashboardPreview
+          content={content}
+          workspaceId={workspaceId}
+          fileId={fileId}
+          isStreaming={isStreaming}
+          readOnly={readOnly}
+        />
+      </DashboardFeatureGate>
+    )
 
   if (previewType === 'html')
     return (

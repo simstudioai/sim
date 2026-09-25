@@ -52,6 +52,8 @@ export const AgentCliServiceInvocation = z.object({
     "read_document",
     "settings",
     "search_sources",
+    "dashboards",
+    "dashboard_folders",
     "workspaces",
   ]),
   input: z.record(z.string(), z.json()),

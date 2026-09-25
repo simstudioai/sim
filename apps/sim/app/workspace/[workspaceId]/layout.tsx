@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
+import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
 import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
@@ -58,6 +59,7 @@ export default async function WorkspaceLayout({
     modelSelectorEnabled,
     planModeEnabled,
     organizationHref,
+    dashboardsEnabled,
   ] = await Promise.all([
     cookies(),
     hostContext.hostOrganizationId
@@ -74,6 +76,7 @@ export default async function WorkspaceLayout({
     isMothershipModelSelectorEnabled(),
     isPlanModeEnabled(),
     resolveOrganizationEntryPath(session),
+    isDashboardsEnabled(hostContext.hostOrganizationId),
     prefetchWorkspaceAccess(queryClient, workspaceId, {
       kind: 'session',
       userId: session.user.id,
@@ -86,6 +89,7 @@ export default async function WorkspaceLayout({
     <HydrationBoundary state={dehydrate(queryClient)}>
       <FeatureFlagsProvider
         flags={{
+          dashboards: dashboardsEnabled,
           'table-row-ttl': tableRowTtlEnabled,
           'mothership-model-selector': modelSelectorEnabled,
           'mothership-plan-mode': planModeEnabled,

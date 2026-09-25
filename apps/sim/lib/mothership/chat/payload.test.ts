@@ -5,6 +5,7 @@ import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
 import { searchIssuesV2Tool } from '@/tools/github/search_issues'
 
 const {
+  mockDashboardAvailability,
   mockCreateUserToolSchema,
   mockGetHighestPrioritySubscription,
   mockGetUserPermissionConfig,
@@ -14,6 +15,7 @@ const {
   mockSearchApprovals,
   mockSecretNames,
 } = vi.hoisted(() => ({
+  mockDashboardAvailability: vi.fn(async () => false),
   mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
   mockGetHighestPrioritySubscription: vi.fn(),
   mockGetUserPermissionConfig: vi.fn(),
@@ -41,6 +43,9 @@ vi.mock('@/lib/mothership/chat/workspace-inventory', () => ({
     secrets: [],
     truncated: [],
   })),
+}))
+vi.mock('@/lib/dashboards/application/availability', () => ({
+  readDashboardAvailability: { execute: mockDashboardAvailability },
 }))
 vi.mock('@/lib/billing/core/subscription', () => ({
   getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
@@ -366,6 +371,28 @@ describe('buildIntegrationToolSchemas', () => {
 })
 
 describe('buildCopilotRequestPayload', () => {
+  it.each([true, false])('passes server-authorized dashboard availability: %s', async (enabled) => {
+    const principal = { kind: 'session' as const, userId: 'actor' }
+    mockDashboardAvailability.mockResolvedValueOnce(enabled)
+    const payload = await buildCopilotRequestPayload(
+      {
+        message: 'Show my dashboard',
+        userId: 'actor',
+        userMessageId: 'message-1',
+        workspaceId: 'workspace-1',
+        principal,
+        mode: 'agent',
+        model: '',
+      },
+      { selectedModel: '' }
+    )
+    expect(payload.dashboardsEnabled).toBe(enabled)
+    expect(mockDashboardAvailability).toHaveBeenCalledWith({
+      principal,
+      input: { workspaceId: 'workspace-1' },
+    })
+  })
+
   beforeEach(() => {
     mockTrackChatUpload.mockResolvedValue({ displayName: 'payroll.xlsx' })
     mockSecretNames.mockResolvedValue({ names: [] })

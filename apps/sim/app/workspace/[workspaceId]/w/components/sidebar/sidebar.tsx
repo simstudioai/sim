@@ -25,6 +25,7 @@ import {
 } from '@sim/emcn'
 import {
   Building,
+  ChartColumn,
   Database,
   Files,
   Integration,
@@ -53,6 +54,7 @@ import { captureEvent } from '@/lib/posthog/client'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -749,6 +751,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
     ]
   )
 
+  const dashboardsEnabled = useFeatureFlag('dashboards')
   const workspaceNavItems = useMemo(
     () =>
       [
@@ -759,6 +762,14 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
           href: `/workspace/${workspaceId}/tables`,
           hidden: permissionConfig.hideTablesTab && !accessRequestsEnabled,
           restricted: permissionConfig.hideTablesTab,
+        },
+        {
+          id: 'dashboards',
+          label: 'Dashboards',
+          icon: ChartColumn,
+          href: `/workspace/${workspaceId}/dashboards`,
+          hidden: !dashboardsEnabled || (permissionConfig.hideFilesTab && !accessRequestsEnabled),
+          restricted: permissionConfig.hideFilesTab,
         },
         {
           id: 'files',
@@ -786,6 +797,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
       ].filter((item) => !item.hidden),
     [
       workspaceId,
+      dashboardsEnabled,
       permissionConfig.hideFilesTab,
       permissionConfig.hideKnowledgeBaseTab,
       permissionConfig.hideTablesTab,

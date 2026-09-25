@@ -169,6 +169,13 @@ export const tableOperations = {
   updateColumn: writeOperation('tables.columns.update'),
   deleteColumn: writeOperation('tables.columns.delete'),
   listRows: readOperation('tables.rows.list'),
+  analytics: defineWorkspaceOperation({
+    id: 'tables.rows.analytics',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'tables.use',
+    principalKinds: ['session'],
+  }),
   queryRows: toolReadOperation('tables.rows.query'),
   searchRows: readOperation('tables.rows.search'),
   readRow: toolReadOperation('tables.rows.read'),

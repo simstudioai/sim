@@ -65,6 +65,7 @@ export type ChatContext =
       columnIds?: string[]
     }
   | { kind: 'file'; fileId: string; label: string }
+  | { kind: 'dashboard'; fileId: string; label: string }
   | {
       kind: 'file_selection'
       fileId: string

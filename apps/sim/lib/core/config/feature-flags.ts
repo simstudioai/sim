@@ -46,6 +46,11 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
+  dashboards: {
+    description:
+      'Enable dashboard resources, rendering, analytics, and Mothership authoring. Supports global and organization rollout; disabled by default.',
+    fallback: 'DASHBOARDS',
+  },
   'mothership-model-selector': {
     description:
       'Show the Mothership model selector, model-specific effort levels, and Fast for supported ' +

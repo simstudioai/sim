@@ -75,6 +75,7 @@ const TAB_TRANSITION = { duration: 0.1, ease: [0.2, 0, 0, 1] as const }
 const TAB_WIDTH: Record<TabStripVariant, string> = {
   attached: 'w-[156px] min-w-[96px] shrink',
   floating: 'max-w-[var(--tab-strip-max-tab-width,200px)] shrink-0',
+  underline: 'max-w-[var(--tab-strip-max-tab-width,200px)] shrink-0',
 }
 
 /** The resting shape of a tab that is not the active one. */
@@ -85,6 +86,8 @@ const TAB_SHAPE: Record<TabStripVariant, string> = {
   // shape appears on hover, which is where the close affordance lives.
   floating:
     'rounded-lg text-[var(--text-secondary)] hover-hover:bg-[var(--surface-hover)] hover-hover:text-[var(--text-primary)]',
+  underline:
+    'rounded-none border-transparent border-b-2 text-[var(--text-muted)] hover-hover:bg-transparent hover-hover:text-[var(--text-body)]',
 }
 
 /**
@@ -97,6 +100,8 @@ const TAB_ACTIVE: Record<TabStripVariant, string> = {
     'hover-hover:border-[var(--border)]! hover-hover:bg-[var(--bg)]! hover-hover:text-[var(--text-primary)]! hover-hover:brightness-100! hover-hover:opacity-100! border-[var(--border)] bg-[var(--bg)] text-[var(--text-primary)] transition-none',
   floating:
     'hover-hover:bg-[var(--surface-active)]! hover-hover:text-[var(--text-primary)]! bg-[var(--surface-active)] text-[var(--text-primary)]',
+  underline:
+    'border-[var(--text-body)] bg-transparent text-[var(--text-body)] hover-hover:bg-transparent!',
 }
 
 /**
@@ -111,6 +116,7 @@ const TAB_ACTIVE: Record<TabStripVariant, string> = {
 const TAB_SELECTED: Record<TabStripVariant, string> = {
   attached: 'bg-[var(--surface-active)]',
   floating: 'bg-[var(--surface-4)]',
+  underline: 'text-[var(--text-body)]',
 }
 
 /** Whether a tab draws no shape of its own, and so needs dividing from its neighbour. */
@@ -173,7 +179,8 @@ export interface TabStripDragContext {
  *   divided by a hairline. Quieter, and it does not claim the surface below, so
  *   it suits a panel header that sits above content it does not own.
  */
-export type TabStripVariant = 'attached' | 'floating'
+/** Underline tabs use an active bottom indicator without a filled tab surface. */
+export type TabStripVariant = 'attached' | 'floating' | 'underline'
 
 /** How a tab selection was initiated. */
 export type TabStripSelectionSource = 'pointer' | 'keyboard'
@@ -246,6 +253,10 @@ interface TabStripBaseProps {
   overlays?: ReactNode
   /** Defaults to `attached`. See {@link TabStripVariant}. */
   variant?: TabStripVariant
+  /** Larger labels and targets for content navigation, such as dashboard sections. */
+  size?: 'default' | 'large'
+  /** Draw the strip's bottom rule and separators between floating tabs. Defaults to true. */
+  dividers?: boolean
   /**
    * Merged onto the strip root. Intended for the geometry custom properties
    * below rather than for competing utility classes, so a caller that owns the
@@ -380,7 +391,7 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
       data-tab-strip-button={tab.id}
       tabIndex={focusable ? 0 : -1}
       className={cn(
-        'h-[var(--tab-strip-band,30px)] w-full select-none bg-transparent py-0 text-caption',
+        'h-[var(--tab-strip-band,30px)] w-full select-none bg-transparent py-0 text-[length:var(--tab-strip-font-size,12px)]',
         tab.pinned ? 'justify-center px-0' : 'justify-start gap-1.5 px-2',
         closeable && 'pr-8',
         closeable &&
@@ -512,6 +523,7 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
  */
 export function TabStrip({
   tabs,
+  size = 'default',
   onSelect,
   onClose,
   onNew,
@@ -524,6 +536,7 @@ export function TabStrip({
   endActions,
   overlays,
   variant = 'attached',
+  dividers = true,
   className,
 }: TabStripProps) {
   const stripId = useId()
@@ -829,7 +842,7 @@ export function TabStrip({
         buttonId={`${stripId}-${encodeURIComponent(tab.id)}`}
         tab={tab}
         variant={variant}
-        showDivider={variant === 'floating' && isBareTab(tab) && isBareTab(previous)}
+        showDivider={dividers && variant === 'floating' && isBareTab(tab) && isBareTab(previous)}
         draggable={reorderable || Boolean(onTabDragStart)}
         dragging={draggedId === tab.id}
         focusable={tab.active || (activeIndex < 0 && index === 0)}
@@ -866,7 +879,10 @@ export function TabStrip({
       // `var()` calls, so a caller resizes the strip by setting a property
       // rather than by passing a utility class that has to out-merge this one.
       className={cn(
-        'flex h-[var(--tab-strip-height,34px)] shrink-0 select-none gap-1 border-[var(--border)] border-b bg-transparent pr-[var(--tab-strip-inline-end,8px)] pl-[var(--tab-strip-inline-start,8px)]',
+        'flex h-[var(--tab-strip-height,34px)] shrink-0 select-none gap-1 bg-transparent pr-[var(--tab-strip-inline-end,8px)] pl-[var(--tab-strip-inline-start,8px)]',
+        size === 'large' &&
+          '[--tab-strip-band:42px] [--tab-strip-font-size:16px] [--tab-strip-height:42px]',
+        dividers && 'border-[var(--border)] border-b',
         // Attached tabs hang from the top so the active one can reach the strip's
         // bottom border and cover it; floating tabs are centred in the bar.
         variant === 'attached' ? 'items-end pt-1' : 'items-center',

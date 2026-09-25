@@ -409,12 +409,13 @@ describe('POST /api/v2/chat', () => {
     // CHAT pipeline now (persona + skills + CLI), not the persona-less execute surface.
     expect(payload).toMatchObject({
       message: 'hi',
+      mode: 'agent',
       userId: 'user-1',
       workspaceId: 'workspace-1',
       chatId: SERVER_ISSUED_CHAT_ID,
       integrationCatalog: { mcpServerIds: [] },
     })
-    for (const legacy of ['messages', 'mode', 'isHosted', 'workspaceContext', 'userPermission']) {
+    for (const legacy of ['messages', 'isHosted', 'workspaceContext', 'userPermission']) {
       expect(payload).not.toHaveProperty(legacy)
     }
     expect(options).toMatchObject({

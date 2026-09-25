@@ -5,11 +5,14 @@ import {
   openResourceOutputSchema,
 } from '@/lib/api/contracts/mothership-resource-tools'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { readDashboard } from '@/lib/dashboards/application/dashboards'
+import { dashboardDisplayName, fileBackedResourceType } from '@/lib/dashboards/resource'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import { logDelegationPolicy } from '@/lib/logs/application/authorization'
 import { logOperations } from '@/lib/logs/application/operations'
 import { readLogDetailUseCase } from '@/lib/logs/application/read-log-detail'
 import { createCopilotApplicationAdapter } from '@/lib/mothership/application/application-adapter'
+import { executeDashboardUseCase } from '@/lib/mothership/application/execute-dashboard-use-case'
 import { executeCopilotFileUseCase } from '@/lib/mothership/application/execute-file-use-case'
 import { executeCopilotKnowledgeUseCase } from '@/lib/mothership/application/execute-knowledge-use-case'
 import { executeCopilotTableUseCase } from '@/lib/mothership/application/execute-table-use-case'
@@ -85,6 +88,14 @@ export const openResourceServerTool: BaseServerTool<OpenResourceInput, OpenResou
           })
           break
         }
+        case 'dashboard': {
+          const { dashboard } = await executeDashboardUseCase(context, readDashboard, {
+            workspaceId,
+            dashboardId: resource.id,
+          })
+          resources.push({ ...base, title: dashboard.name })
+          break
+        }
         case 'file': {
           const { file } = await executeCopilotFileUseCase(
             context,
@@ -92,7 +103,12 @@ export const openResourceServerTool: BaseServerTool<OpenResourceInput, OpenResou
             { fileId: resource.id, assertedWorkspaceId: workspaceId },
             { fileId: resource.id }
           )
-          resources.push({ ...base, title: file.name })
+          const type = fileBackedResourceType(file.type)
+          resources.push({
+            ...base,
+            type,
+            title: type === 'dashboard' ? dashboardDisplayName(file.name) : file.name,
+          })
           break
         }
         case 'knowledgebase': {

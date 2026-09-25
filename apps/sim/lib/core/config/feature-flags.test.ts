@@ -10,6 +10,7 @@ const { mockFetch, mockIsPlatformAdmin, envRef } = vi.hoisted(() => ({
     KNOWLEDGE_PROJECTION_FILL: undefined as boolean | undefined,
     KNOWLEDGE_ASYNC_PROJECTION: undefined as boolean | undefined,
     APPCONFIG_ENVIRONMENT: 'staging' as string | undefined,
+    DASHBOARDS: undefined as boolean | undefined,
     TABLES_V2_API: undefined as boolean | undefined,
     TABLE_ROW_TTL: undefined as boolean | undefined,
     MSHIP_MODEL_SELECTOR: undefined as boolean | undefined,
@@ -76,6 +77,22 @@ describe('getFeatureFlags', () => {
   beforeEach(() => {
     setEnvFlags({ isAppConfigEnabled: false })
     envRef.AGENT_MEMORY_HISTORY = undefined
+    envRef.DASHBOARDS = undefined
+  })
+
+  it('rolls dashboards out globally or by organization and defaults off locally', async () => {
+    expect(await isFeatureEnabled('dashboards')).toBe(false)
+    envRef.DASHBOARDS = true
+    expect(await isFeatureEnabled('dashboards')).toBe(true)
+    withAppConfig({ dashboards: { orgIds: ['org-a'] } })
+    expect(await isFeatureEnabled('dashboards', { orgId: 'org-a' })).toBe(true)
+    expect(await isFeatureEnabled('dashboards', { orgId: 'org-b' })).toBe(false)
+    expect(await isFeatureEnabled('dashboards')).toBe(false)
+    withAppConfig({ dashboards: { enabled: true } })
+    expect(await isFeatureEnabled('dashboards', { orgId: 'org-b' })).toBe(true)
+    withAppConfig({ dashboards: { enabled: false } })
+    expect(await isFeatureEnabled('dashboards', { orgId: 'org-a' })).toBe(false)
+    envRef.DASHBOARDS = undefined
   })
 
   it('rolls Agent history out by workspace and retains a global capture switch', async () => {
