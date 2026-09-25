@@ -109,7 +109,7 @@ export function readEmcnChartTheme(element: HTMLElement): Record<string, unknown
     splitNumber: 4,
   }
   return {
-    color: [text, token('--text-icon'), token('--surface-7'), token('--text-subtle')],
+    color: [text, token('--text-subtle'), token('--surface-7'), token('--text-icon')],
     backgroundColor: 'transparent',
     axisPointer: { shadowStyle: { color: text, opacity: 0.06 } },
     animationDuration: 0,
@@ -147,7 +147,16 @@ export function readEmcnChartTheme(element: HTMLElement): Record<string, unknown
       itemStyle: { borderRadius: 2 },
     },
     pie: {
-      label: { fontFamily, fontSize: 13, color: text },
+      label: {
+        fontFamily,
+        fontSize: 13,
+        lineHeight: 18,
+        color: text,
+        alignTo: 'edge',
+        edgeDistance: 8,
+        overflow: 'break',
+      },
+      labelLine: { length: 12, length2: 8 },
       itemStyle: { borderColor: token('--bg'), borderWidth: 2 },
     },
   }
