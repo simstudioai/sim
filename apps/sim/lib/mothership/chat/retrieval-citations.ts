@@ -1,6 +1,9 @@
 import { isRecordLike } from '@sim/utils/object'
 
-/** Keeps only bounded display evidence when large retrieval results leave the live stream. */
+/**
+ * Keeps only bounded display evidence when large retrieval results leave the live stream,
+ * plus a partial-coverage marker so an empty timed-out search never reads as "No results".
+ */
 export function compactRetrievalCitations(toolName: string, raw: unknown): unknown {
   if (!['search_workspace', 'read_document'].includes(toolName)) return undefined
   let output: unknown = raw
@@ -43,5 +46,9 @@ export function compactRetrievalCitations(toolName: string, raw: unknown): unkno
     }
     return [citation]
   })
-  return { success: true, data: { results: citations } }
+  const partial = isRecordLike(data.retrieval) && data.retrieval.status === 'partial'
+  return {
+    success: true,
+    data: { results: citations, ...(partial ? { retrieval: { status: 'partial' } } : {}) },
+  }
 }

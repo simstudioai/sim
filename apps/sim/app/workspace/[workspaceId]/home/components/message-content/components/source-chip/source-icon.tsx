@@ -6,7 +6,7 @@ import { FileText } from '@sim/emcn/icons'
 import { stripVersionSuffix } from '@sim/utils/string'
 import { faviconUrl } from '@/lib/core/utils/favicon'
 import { blockTypeToIconMap } from '@/lib/integrations/icon-mapping'
-import { externalLinkHostname } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/external-link'
+import { externalLinkHostname } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { BrandIcon, type StyleableIcon } from '@/blocks/brand-icon'
 
@@ -38,8 +38,9 @@ export function SourceIcon({ source, size = 'default' }: SourceIconProps) {
   if (hostname && failedHostname !== hostname) {
     return (
       <img
-        src={faviconUrl(hostname, 32)}
+        src={faviconUrl(hostname, 64)}
         alt=''
+        referrerPolicy='no-referrer'
         className={cn(className, 'rounded-sm')}
         onError={() => setFailedHostname(hostname)}
       />

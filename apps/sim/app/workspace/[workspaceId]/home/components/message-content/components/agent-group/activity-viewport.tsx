@@ -1,7 +1,13 @@
 'use client'
 
 import { type ReactNode, useEffect, useLayoutEffect, useRef } from 'react'
-import { cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
+import {
+  cn,
+  overflowFadeSizeClass,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  useScrollEdges,
+} from '@sim/emcn'
 
 interface ActivityViewportProps {
   children: ReactNode
@@ -86,7 +92,7 @@ export function ActivityViewport({
         'pr-2',
         !unbounded && 'scrollbar-hide max-h-[110px] overflow-y-auto',
         scrollFadeClass,
-        (edges.top || edges.bottom) && 'py-1'
+        overflowFadeSizeClass
       )}
       {...scrollFadeAttributes(edges)}
     >

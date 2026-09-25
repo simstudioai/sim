@@ -1241,14 +1241,14 @@ describe('parseBlocks main activity controls', () => {
 
 describe('deriveThinkingLabel', () => {
   it('maps the most recent block to an activity phrase', () => {
-    expect(deriveThinkingLabel([])).toBe('Thinking…')
+    expect(deriveThinkingLabel([])).toBe('Thinking')
     expect(deriveThinkingLabel([{ type: 'thinking', content: 'hm', timestamp: 1 }])).toBe(
-      'Thinking…'
+      'Thinking'
     )
     // A stall after streamed text is the agent deciding what's next, not generating.
-    expect(deriveThinkingLabel([mainText('hi')])).toBe('Thinking…')
+    expect(deriveThinkingLabel([mainText('hi')])).toBe('Thinking')
     expect(deriveThinkingLabel([{ type: 'subagent_text', content: 'x', timestamp: 1 }])).toBe(
-      'Thinking…'
+      'Thinking'
     )
     expect(deriveThinkingLabel([{ type: 'subagent_end', spanId: 'S1', timestamp: 1 }])).toBe(
       'Returning…'
@@ -1258,8 +1258,8 @@ describe('deriveThinkingLabel', () => {
   it('shows Dispatching for the dispatch call, then yields to the opened lane', () => {
     expect(deriveThinkingLabel([mainToolCall('t1', 'workflow')])).toBe('Dispatching…')
     expect(deriveThinkingLabel([mainToolCall('t1', 'prepare_file_edit')])).toBe('Dispatching…')
-    expect(deriveThinkingLabel([mainToolCall('t1', 'grep')])).toBe('Thinking…')
-    expect(deriveThinkingLabel([subagentStart('workflow', 'S1', 'main')])).toBe('Thinking…')
+    expect(deriveThinkingLabel([mainToolCall('t1', 'grep')])).toBe('Thinking')
+    expect(deriveThinkingLabel([subagentStart('workflow', 'S1', 'main')])).toBe('Thinking')
   })
 })
 

@@ -8,6 +8,8 @@ vi.mock('@/lib/browser-agent/open-in-panel', () => ({
   shouldOpenInBrowserPanel: () => false,
   openInBrowserPanel: vi.fn(),
 }))
+vi.mock('@/hooks/queries/link-preview', () => ({ useLinkPreview: () => ({ data: undefined }) }))
+
 vi.mock('@/lib/integrations/icon-mapping', () => ({ blockTypeToIconMap: {} }))
 
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
@@ -47,15 +49,11 @@ describe('citation labels', () => {
     expect(link.textContent).toBe('#engineering')
     expect(link.getAttribute('href')).toBe(source.url)
 
-    act(() => {
-      link.dispatchEvent(
-        new MouseEvent('pointerover', { bubbles: true, clientX: 200, clientY: 200 })
-      )
-    })
-    const tooltip = document.querySelector('[role="tooltip"]')!
+    act(() => link.focus())
+    const tooltip = document.querySelector('[role="dialog"][aria-label="Source preview"]')!
     expect(tooltip.textContent).toContain(source.title)
-    expect(tooltip.textContent).toContain(source.url)
-    expect(link.getAttribute('aria-describedby')).toBe(tooltip.id)
+    expect(tooltip.textContent).not.toContain(source.url)
+    expect(tooltip.querySelector('a')?.getAttribute('href')).toBe(source.url)
   })
 
   it.each([

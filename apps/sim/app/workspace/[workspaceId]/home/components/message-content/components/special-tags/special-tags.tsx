@@ -10,7 +10,15 @@ import {
   useRef,
   useState,
 } from 'react'
-import { cn, Expandable, ExpandableContent, SecretReveal, Tooltip, toast } from '@sim/emcn'
+import {
+  ChipLink,
+  cn,
+  Expandable,
+  ExpandableContent,
+  SecretReveal,
+  Tooltip,
+  toast,
+} from '@sim/emcn'
 import {
   ArrowRight,
   Check,
@@ -18,6 +26,7 @@ import {
   Lock,
   SquareArrowUpRight,
   TerminalWindow,
+  TriangleAlert,
 } from '@sim/emcn/icons'
 import { isRecordLike, omit } from '@sim/utils/object'
 import { useParams } from 'next/navigation'
@@ -2027,7 +2036,7 @@ function WorkspaceResourceDisplayContent({
       icon={
         <ContextMentionIcon
           context={context}
-          className='relative top-0.5 size-[12px] shrink-0 text-[var(--text-icon)]'
+          className='size-[12px] shrink-0 text-[var(--text-icon)]'
         />
       }
       title={resource.title}
@@ -3457,54 +3466,45 @@ function UsageUpgradeDisplay({ data }: { data: UsageUpgradeTagData }) {
       : 'Only the workspace owner can manage this workspace’s usage limits.'
 
   return (
-    <div className='rounded-2xl border border-amber-300/40 bg-amber-50/50 px-4 py-3 dark:border-amber-500/20 dark:bg-amber-950/20'>
-      <div className='flex items-center gap-2'>
-        <svg
-          className='size-4 shrink-0 text-amber-600 dark:text-amber-400'
-          viewBox='0 0 16 16'
-          fill='none'
-          xmlns='http://www.w3.org/2000/svg'
-        >
-          <path
-            d='M8 1.5L1 14h14L8 1.5z'
-            stroke='currentColor'
-            strokeWidth='1.3'
-            strokeLinejoin='round'
+    <InteractionCard
+      title={
+        <span className='inline-flex items-center gap-2'>
+          <TriangleAlert
+            aria-hidden
+            className='size-[14px] shrink-0 text-[var(--badge-amber-text)]'
           />
-          <path d='M8 6.5v3' stroke='currentColor' strokeWidth='1.3' strokeLinecap='round' />
-          <circle cx='8' cy='11.5' r='0.75' fill='currentColor' />
-        </svg>
-        <span className='text-amber-800 text-sm leading-5 dark:text-amber-300'>
           Usage Limit Reached
         </span>
+      }
+    >
+      <div className='px-2 pb-2'>
+        <p className='text-[var(--text-body)] text-small leading-5'>{data.message}</p>
+        {canManageBilling ? (
+          <ChipLink
+            href={href}
+            variant='border'
+            rightIcon={hosted ? ArrowRight : SquareArrowUpRight}
+            target={hosted ? undefined : '_blank'}
+            rel={hosted ? undefined : 'noopener noreferrer'}
+            aria-label={hosted ? undefined : `${buttonLabel} (opens in a new tab)`}
+            className='mt-2'
+          >
+            {buttonLabel}
+          </ChipLink>
+        ) : (
+          <div className='mt-2 flex flex-col items-start gap-2'>
+            <p className='text-[var(--text-secondary)] text-small'>{unavailableMessage}</p>
+            {hostContext &&
+              usageGate.isSuccess &&
+              usageGate.data.isExceeded &&
+              usageGate.data.scope === 'member' && (
+                <MemberLimitRequestAction
+                  scope={{ kind: 'workspace', workspaceId: hostContext.workspace.id }}
+                />
+              )}
+          </div>
+        )}
       </div>
-      <p className='mt-1.5 text-amber-700/90 text-small leading-[20px] dark:text-amber-400/80'>
-        {data.message}
-      </p>
-      {canManageBilling ? (
-        <a
-          href={href}
-          target={hosted ? undefined : '_blank'}
-          rel={hosted ? undefined : 'noopener noreferrer'}
-          aria-label={hosted ? undefined : `${buttonLabel} (opens in a new tab)`}
-          className='mt-2 inline-flex items-center gap-1 text-amber-700 text-small underline decoration-dashed underline-offset-2 transition-colors hover-hover:text-amber-900 dark:text-amber-300 dark:hover-hover:text-amber-200'
-        >
-          {buttonLabel}
-          {hosted ? <ArrowRight className='size-3' /> : <SquareArrowUpRight className='size-3' />}
-        </a>
-      ) : (
-        <div className='mt-2 flex flex-col items-start gap-2'>
-          <p className='text-amber-700 text-small dark:text-amber-300'>{unavailableMessage}</p>
-          {hostContext &&
-            usageGate.isSuccess &&
-            usageGate.data.isExceeded &&
-            usageGate.data.scope === 'member' && (
-              <MemberLimitRequestAction
-                scope={{ kind: 'workspace', workspaceId: hostContext.workspace.id }}
-              />
-            )}
-        </div>
-      )}
-    </div>
+    </InteractionCard>
   )
 }

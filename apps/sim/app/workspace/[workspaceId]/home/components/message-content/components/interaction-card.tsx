@@ -27,6 +27,7 @@ interface InteractionCardProps {
 export function InteractionCard({ children, title, actions, className }: InteractionCardProps) {
   return (
     <div
+      data-interaction-card
       className={cn(
         'rounded-2xl border border-[var(--border-1)] bg-[var(--white)] px-2.5 py-2 dark:bg-[var(--surface-4)]',
         className

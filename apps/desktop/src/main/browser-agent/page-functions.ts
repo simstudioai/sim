@@ -3348,7 +3348,7 @@ export function resolveFileInputTarget(id: number): {
       )
     if (candidates.length === 1) input = candidates[0]
     const root = scope.getRootNode()
-    scope = scope.parentElement ?? (root instanceof ShadowRoot ? root.host : null)
+    scope = scope.parentElement ?? ('host' in root ? (root.host as Element) : null)
   }
   if (!input) throw new Error('The selected element has no nearby file input.')
   if (input.matches(':disabled')) throw new Error('The file input is disabled.')

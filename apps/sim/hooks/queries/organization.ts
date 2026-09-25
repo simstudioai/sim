@@ -7,6 +7,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
@@ -605,6 +606,7 @@ type CreateOrganizationParams = Pick<
 
 export function useCreateOrganization() {
   const queryClient = useQueryClient()
+  const router = useRouter()
 
   return useMutation({
     mutationFn: async ({ name, slug }: CreateOrganizationParams) => {
@@ -615,15 +617,17 @@ export function useCreateOrganization() {
         },
       })
 
-      await client.organization.setActive({
+      const { error } = await client.organization.setActive({
         organizationId: data.organizationId,
       })
+      if (error) throw new Error(error.message || 'Failed to activate organization')
 
       return data
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
+      router.refresh()
     },
   })
 }

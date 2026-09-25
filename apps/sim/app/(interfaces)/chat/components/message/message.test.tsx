@@ -154,7 +154,7 @@ describe('ClientChatMessage thinking chrome (Step 6)', () => {
     })
     mounts.push(unmount)
 
-    expect(container.textContent).toContain('Thinking…')
+    expect(container.textContent).toContain('Thinking')
     expect(container.textContent).toContain('Internal reasoning')
     expect(container.textContent).toContain('Answer text')
   })

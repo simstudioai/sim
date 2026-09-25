@@ -2565,6 +2565,14 @@ export const workspaceFileSearchRevision = pgTable(
     indexedBytes: integer('indexed_bytes').notNull().default(0),
     chunkCount: integer('chunk_count').notNull().default(0),
     dispatchedAt: timestamp('dispatched_at'),
+    /**
+     * Deadline for a claim's run to be handed off, in PostgreSQL time. Set with the claim and
+     * cleared once a run is known to exist: Trigger.dev accepted it, in-process indexing took it, or
+     * it began its build. A claim still carrying an expired deadline has no run known to exist and
+     * is released, and its token fences out any run it did get. NULL otherwise, including claims
+     * made before this column existed, which fall back to the stale-dispatch window.
+     */
+    handoffExpiresAt: timestamp('handoff_expires_at'),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({

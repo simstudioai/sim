@@ -125,6 +125,60 @@ describe('TabStrip interactions', () => {
     expect(onClose).toHaveBeenCalledWith('two')
   })
 
+  it('shares the action slot between background activity and closing', () => {
+    const onClose = vi.fn()
+    const items = tabs.map((tab) => ({ ...tab, attention: true }))
+    mount(renderStrip(items, vi.fn(), onClose))
+
+    const slot = stripItem('two').querySelector('[data-row-actions]')
+    expect(slot?.querySelector('[data-row-action-indicator]')).not.toBeNull()
+    expect(tabButton('two').getAttribute('aria-label')).toBe('Two, Background activity')
+    const close = slot?.querySelector<HTMLButtonElement>('[aria-label="Close Two"]')
+    expect(close).not.toBeNull()
+    expect(tabButton('two').querySelector('[data-row-actions]')).toBeNull()
+    expect(tabButton('one').hasAttribute('aria-label')).toBe(false)
+    expect(tabButton('pinned').getAttribute('aria-label')).toBe('Pinned, Background activity')
+    act(() => close?.click())
+    expect(onClose).toHaveBeenCalledWith('two')
+  })
+
+  it('uses the shared overflow tooltip for clipped labels', () => {
+    mount(renderStrip(tabs))
+    const label = tabButton('two').querySelector<HTMLElement>('[data-overflow-text]')
+    if (!label) throw new Error('Missing shared overflow label')
+    Object.defineProperties(label, {
+      clientWidth: { configurable: true, value: 20 },
+      scrollWidth: { configurable: true, value: 80 },
+    })
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+      label.dispatchEvent(
+        new MouseEvent('pointerover', { bubbles: true, clientX: 100, clientY: 100 })
+      )
+    })
+    expect(document.querySelector('[data-native-surface-overlay]')?.textContent).toBe('Two')
+  })
+
+  it('keeps one tooltip when a tab supplies fuller detail', () => {
+    mount(renderStrip([{ id: 'detail', title: 'Shell', tooltip: 'Project directory — shell' }]))
+    const button = tabButton('detail')
+    const label = button.querySelector<HTMLElement>('[data-overflow-text]')
+    if (!label) throw new Error('Missing shared overflow label')
+    Object.defineProperties(label, {
+      clientWidth: { configurable: true, value: 20 },
+      scrollWidth: { configurable: true, value: 80 },
+    })
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+      label.dispatchEvent(
+        new MouseEvent('pointerover', { bubbles: true, clientX: 100, clientY: 100 })
+      )
+    })
+    const tooltips = document.querySelectorAll('[data-native-surface-overlay]')
+    expect(tooltips).toHaveLength(1)
+    expect(tooltips[0].textContent).toBe('Project directory — shell')
+  })
+
   it('cycles, jumps, and closes from the keyboard', () => {
     const onSelect = vi.fn()
     const onClose = vi.fn()
@@ -328,16 +382,17 @@ describe('TabStrip interactions', () => {
     it('offers a close affordance on every tab, at rest only on the active one', () => {
       mountFloating()
 
-      // `opacity-0` is not a substring of `opacity-100`, so these two assertions
-      // genuinely separate the states. (`toContain('pointer-events-none')` would
-      // not: the Button base carries `disabled:pointer-events-none`.)
-      const bare = container?.querySelector<HTMLElement>('[aria-label="Close Two"]')
+      const bare = container?.querySelector<HTMLElement>(
+        '[data-tab-strip-item="two"] [data-row-action-controls]'
+      )
       expect(bare).not.toBeNull()
-      expect(bare?.className).toContain('opacity-0')
-      expect(bare?.className).toContain('group-hover:opacity-100')
+      expect(bare?.classList.contains('opacity-0')).toBe(true)
+      expect(bare?.className).toContain('group-hover/row-actions:opacity-100')
 
-      const active = container?.querySelector<HTMLElement>('[aria-label="Close One"]')
-      expect(active?.className).not.toContain('opacity-0')
+      const active = container?.querySelector<HTMLElement>(
+        '[data-tab-strip-item="one"] [data-row-action-controls]'
+      )
+      expect(active?.classList.contains('opacity-100')).toBe(true)
     })
 
     it('reserves the close slot on every tab, so activating one shifts nothing', () => {
@@ -420,9 +475,10 @@ describe('TabStrip interactions', () => {
   it('shows background activity without marking that tab selected', () => {
     mount(renderStrip(tabs.map((tab) => ({ ...tab, attention: tab.id === 'two' }))))
 
-    expect(tabButton('two').querySelector('[aria-label="Background activity"]')).not.toBeNull()
+    expect(stripItem('two').querySelector('[data-row-action-indicator]')).not.toBeNull()
+    expect(tabButton('two').getAttribute('aria-label')).toBe('Two, Background activity')
     expect(tabButton('two').getAttribute('aria-selected')).toBe('false')
-    expect(tabButton('one').querySelector('[aria-label="Background activity"]')).toBeNull()
+    expect(tabButton('one').hasAttribute('aria-label')).toBe(false)
   })
 
   it('does not reserve phantom space after a pointer close', () => {

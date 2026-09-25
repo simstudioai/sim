@@ -208,7 +208,7 @@ export function HeroChatLoop({
           )}
         >
           {showThinking && (
-            <PendingTagIndicator label={phase === 'dispatching' ? 'Dispatching…' : 'Thinking…'} />
+            <PendingTagIndicator label={phase === 'dispatching' ? 'Dispatching…' : 'Thinking'} />
           )}
           {showBuilding && (
             <AgentGroupView

@@ -15,6 +15,7 @@ export interface EntryBlockTileProps {
 export const EntryBlockTile = memo(function EntryBlockTile({ blockType }: EntryBlockTileProps) {
   return (
     <BlockTile
+      as='span'
       blockType={blockType}
       icon={getBlockIcon(blockType) ?? undefined}
       bgColor={getBlockColor(blockType)}

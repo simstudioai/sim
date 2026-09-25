@@ -4,7 +4,7 @@ import type { PinnedConnectionPool } from '@/lib/core/security/input-validation.
 import type { ResolvedLiveAccount } from '@/lib/sim-search/live/accounts'
 import { createCodaMcpClient, readCodaMcp, searchCodaMcp } from '@/lib/sim-search/live/coda-mcp'
 import { createAdminGitLabSession } from '@/lib/sim-search/live/gitlab-admin'
-import { createNativeClient } from '@/lib/sim-search/live/http'
+import { createNativeClient, NATIVE_SEARCH_REQUEST_BUDGET } from '@/lib/sim-search/live/http'
 import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
 import type { LiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
@@ -40,6 +40,8 @@ interface OpenLiveAccountSessionInput {
   policies: Record<string, unknown>
   signal: AbortSignal
   pool?: PinnedConnectionPool
+  /** Native searches this session serves; each gets the budget a separate call would have. */
+  searches?: number
 }
 
 /**
@@ -58,7 +60,13 @@ export async function openLiveAccountSession(
   const client =
     account.type === 'managed_mcp'
       ? null
-      : createNativeClient({ origin, accessToken: resolved.accessToken, signal, pool: input.pool })
+      : createNativeClient({
+          origin,
+          accessToken: resolved.accessToken,
+          signal,
+          pool: input.pool,
+          requestBudget: NATIVE_SEARCH_REQUEST_BUDGET * (input.searches ?? 1),
+        })
   const admin =
     'adminSource' in resolved && client
       ? await createAdminGitLabSession({

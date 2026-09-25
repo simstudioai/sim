@@ -1,5 +1,11 @@
 import { type ReactNode, useRef } from 'react'
-import { cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
+import {
+  cn,
+  pageHeadingClassName,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  useScrollEdges,
+} from '@sim/emcn'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type { SearchResource } from '@/lib/mothership/generated/resources'
@@ -70,7 +76,7 @@ export function SearchResultsView({
         <div className='min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]'>
           {/* Asymmetric padding biases the group up so heading and field sit at the optical center, as on Home */}
           <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
-            <h1 className='mb-7 max-w-chat text-balance font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
+            <h1 className={cn(pageHeadingClassName, 'mb-7 max-w-chat')}>
               Search {organization.name}
             </h1>
             <div className='w-full max-w-chat'>{composer}</div>

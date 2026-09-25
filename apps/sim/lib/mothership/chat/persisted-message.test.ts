@@ -13,9 +13,51 @@ import {
   normalizeMessage,
   type PersistedMessage,
   stripToolResultOutput,
+  withStoppedContentBlock,
 } from './persisted-message'
 
 describe('persisted-message', () => {
+  it.each([
+    { state: 'executing', alreadyStopped: false },
+    { state: 'executing', alreadyStopped: true },
+    { state: 'pending', alreadyStopped: false },
+    { state: 'pending', alreadyStopped: true },
+    { state: 'awaiting_approval', alreadyStopped: false },
+    { state: 'awaiting_approval', alreadyStopped: true },
+  ] as const)(
+    'cancels $state tools (existing stopped marker: $alreadyStopped)',
+    ({ state, alreadyStopped }) => {
+      const message: PersistedMessage = {
+        id: 'assistant',
+        role: 'assistant',
+        content: '',
+        timestamp: '2026-09-24T19:00:00Z',
+        contentBlocks: [
+          {
+            type: 'tool',
+            toolCall: {
+              id: 'unfinished',
+              name: 'run_code',
+              state,
+              params: { code: 'keep me' },
+            },
+          },
+          { type: 'tool', toolCall: { id: 'finished', name: 'read', state: 'success' } },
+          ...(alreadyStopped ? [{ type: 'complete' as const, status: 'cancelled' as const }] : []),
+        ],
+      }
+      const saved = withStoppedContentBlock(message)
+      expect(saved.contentBlocks?.[0].toolCall).toMatchObject({
+        state: 'cancelled',
+        params: { code: 'keep me' },
+        display: { title: 'Stopped by user' },
+      })
+      expect(saved.contentBlocks?.[1].toolCall?.state).toBe('success')
+      expect(saved.contentBlocks?.filter((block) => block.type === 'complete')).toHaveLength(1)
+      expect(message.contentBlocks?.[0].toolCall?.state).toBe(state)
+    }
+  )
+
   it.each(['success', 'cancelled'] as const)(
     'preserves model-authored activity metadata through persisted %s history and stop validation',
     (status) => {
@@ -519,6 +561,43 @@ describe('persisted-message', () => {
 })
 
 describe('stripToolResultOutput', () => {
+  it('keeps the partial-coverage marker of an empty search through save and reload', () => {
+    const message: PersistedMessage = {
+      id: 'msg-search',
+      role: 'assistant',
+      content: '',
+      timestamp: '2026-01-01T00:00:00.000Z',
+      contentBlocks: [
+        {
+          type: 'tool',
+          phase: 'call',
+          toolCall: {
+            id: 'search',
+            name: 'search_workspace',
+            state: 'success',
+            result: {
+              success: true,
+              output: {
+                success: true,
+                data: {
+                  query: 'q',
+                  results: [],
+                  retrieval: { status: 'partial', timedOutLegs: ['vector'] },
+                },
+              },
+            },
+          },
+        },
+      ],
+    }
+    const reloaded = stripToolResultOutput(stripToolResultOutput(message))
+
+    expect(reloaded.contentBlocks?.[0].toolCall?.result?.output).toEqual({
+      success: true,
+      data: { results: [], retrieval: { status: 'partial' } },
+    })
+  })
+
   it('drops result.output but keeps success and error', () => {
     const message: PersistedMessage = {
       id: 'msg-1',
