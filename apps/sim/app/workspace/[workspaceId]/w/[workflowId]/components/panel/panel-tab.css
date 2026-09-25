@@ -1,6 +1,0 @@
-/* Keep the persisted tab's text in step with its pre-hydration surface. */
-@layer utilities {
-  html[data-panel-active-tab] .panel-container [data-tab-button] span {
-    color: inherit !important;
-  }
-}

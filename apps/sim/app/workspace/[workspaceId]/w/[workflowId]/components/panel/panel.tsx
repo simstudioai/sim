@@ -7,6 +7,7 @@ import {
   Button,
   Chip,
   ChipConfirmModal,
+  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -94,7 +95,6 @@ import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import './panel-tab.css'
 
 const logger = createLogger('Panel')
 const EMPTY_COPILOT_CHATS: readonly CopilotChatListItem[] = []
@@ -115,20 +115,30 @@ function copilotDraftKey(
   return workflowId ? `${workspaceId}:workflow-copilot:${workflowId}:${chatId ?? 'new'}` : undefined
 }
 
-interface PanelTabChipProps {
+interface PanelTabButtonProps {
   tab: PanelTab
   active: boolean
   onClick: () => void
   children: string
 }
 
-function PanelTabChip({ tab, active, onClick, children }: PanelTabChipProps) {
+function PanelTabButton({ tab, active, onClick, children }: PanelTabButtonProps) {
   return (
-    <Chip active={active} aria-pressed={active} onClick={onClick} data-tab-button={tab}>
-      <span className={active ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}>
-        {children}
-      </span>
-    </Chip>
+    <Button
+      className={cn(
+        'h-[28px] rounded-md border py-[5px] text-[12.5px]',
+        tab === 'copilot' && 'truncate',
+        active
+          ? 'border-[var(--border-1)]'
+          : 'border-transparent hover-hover:border-[var(--border-1)] hover-hover:bg-[var(--surface-5)]'
+      )}
+      variant={active ? 'active' : 'ghost'}
+      aria-pressed={active}
+      onClick={onClick}
+      data-tab-button={tab}
+    >
+      {children}
+    </Button>
   )
 }
 /**
@@ -876,28 +886,28 @@ export const Panel = memo(function Panel() {
           <div className='flex shrink-0 items-center justify-between px-2 pt-3.5'>
             <div className='flex gap-1'>
               {isCopilotTabAvailable && (
-                <PanelTabChip
+                <PanelTabButton
                   tab='copilot'
                   active={_hasHydrated && activeTab === 'copilot'}
                   onClick={() => handleTabClick('copilot')}
                 >
                   Chat
-                </PanelTabChip>
+                </PanelTabButton>
               )}
-              <PanelTabChip
+              <PanelTabButton
                 tab='toolbar'
                 active={_hasHydrated && activeTab === 'toolbar'}
                 onClick={() => handleTabClick('toolbar')}
               >
                 Toolbar
-              </PanelTabChip>
-              <PanelTabChip
+              </PanelTabButton>
+              <PanelTabButton
                 tab='editor'
                 active={_hasHydrated && activeTab === 'editor'}
                 onClick={() => handleTabClick('editor')}
               >
                 Editor
-              </PanelTabChip>
+              </PanelTabButton>
             </div>
           </div>
 
