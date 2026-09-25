@@ -7,13 +7,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/emcn', () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
-}))
-
-vi.mock('@/lib/mothership/tools/tool-display', () => ({
-  humanizeToolName: (name: string) => name,
-}))
-
-vi.mock('@/components/ui', () => ({
   ShimmerText: ({
     as: Comp = 'span',
     children,
@@ -32,6 +25,10 @@ vi.mock('@/components/ui', () => ({
       </Tag>
     )
   },
+}))
+
+vi.mock('@/lib/mothership/tools/tool-display', () => ({
+  humanizeToolName: (name: string) => name,
 }))
 
 import {

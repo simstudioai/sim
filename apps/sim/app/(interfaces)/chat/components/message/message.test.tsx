@@ -11,7 +11,9 @@ vi.mock('@sim/emcn', () => ({
       {children}
     </button>
   ),
+  Check: () => null,
   Duplicate: () => null,
+  ShimmerText: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
   Tooltip: {
     Provider: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
     Root: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
@@ -19,6 +21,7 @@ vi.mock('@sim/emcn', () => ({
     Content: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   },
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
+  handleKeyboardActivation: vi.fn(),
 }))
 
 vi.mock('@/app/(interfaces)/chat/components/message/components/file-download', () => ({

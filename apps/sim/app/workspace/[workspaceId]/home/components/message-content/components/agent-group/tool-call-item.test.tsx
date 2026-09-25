@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, type ReactNode, type SVGProps } from 'react'
+import { act, type SVGProps } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,10 +10,6 @@ import { ToolCallItem } from '@/app/workspace/[workspaceId]/home/components/mess
 import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
 import { notifyBlockOverlayChanged } from '@/blocks/custom/client-overlay'
 import { getBlock, getBlockByToolName } from '@/blocks/registry'
-
-vi.mock('@/components/ui', () => ({
-  ShimmerText: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-}))
 
 describe('ToolCallItem', () => {
   beforeEach(() => {
