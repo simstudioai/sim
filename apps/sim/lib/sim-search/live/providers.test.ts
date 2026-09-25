@@ -808,4 +808,12 @@ describe('native query guidance', () => {
     expect(lines.slice(1).map((line) => line.split(':')[0])).toEqual(['slack', 'github'])
     expect(liveSearchGuidance([]).split('\n')).toHaveLength(1)
   })
+
+  it('asks for one cross-provider search per question and independent calls in one step', () => {
+    const guidance = liveSearchGuidance([])
+    expect(guidance).toContain('One search across several providers returns one ranked list')
+    expect(guidance).toContain(
+      'issue independent searches and reads of different documents together in the same step'
+    )
+  })
 })
