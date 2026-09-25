@@ -15,6 +15,7 @@ import {
   resourceFromItem,
   useAvailableResources,
   useResourceTreeSections,
+  WorkspaceResourceSubmenu,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import type { AvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/available-resources'
 import {
@@ -62,6 +63,22 @@ const MENTION_MAX_HEIGHT_CLASS = 'max-h-[min(280px,var(--radix-popper-available-
  * (`ADD_RESOURCE_EXCLUDED_TYPES` in `resource-tabs`).
  */
 const MENTION_ONLY_RESOURCE_TYPES = new Set<MothershipResourceType>(['integration'])
+
+/**
+ * Families an organization chat's workspace submenus leave out: the mention-only
+ * ones, plus Browser and Terminal, which belong to this desktop rather than to a
+ * workspace and so sit once after the workspaces.
+ */
+const WORKSPACE_SUBMENU_EXCLUDED_TYPES: readonly MothershipResourceType[] = [
+  ...MENTION_ONLY_RESOURCE_TYPES,
+  'browser',
+  'terminal',
+]
+
+function isNativeResourceGroup({ type }: { type: MothershipResourceType }): boolean {
+  return type === 'browser' || type === 'terminal'
+}
+
 const EMPTY_BROWSER_TABS = [] as const
 const EMPTY_TERMINAL_TABS = [] as const
 
@@ -138,12 +155,9 @@ export const PlusMenuDropdown = React.memo(
       : workspaceInventory
     const { structureFolders } = combined
     const availableResources = organizationId
-      ? [
-          ...combined.groups,
-          ...workspaceInventory.groups.filter(
-            (group) => group.type === 'browser' || group.type === 'terminal'
-          ),
-        ].sort(byResourceMenuOrder)
+      ? [...combined.groups, ...workspaceInventory.groups.filter(isNativeResourceGroup)].sort(
+          byResourceMenuOrder
+        )
       : combined.groups
     const isHydrating = combined.isHydrating || Boolean(organizationId && workspacesPending)
 
@@ -183,9 +197,14 @@ export const PlusMenuDropdown = React.memo(
       terminalTabs,
     ])
 
+    /**
+     * Built from this workspace's own inventory, which has no foldered families in an
+     * organization chat: there each workspace submenu builds its own sections, because
+     * ids are only unique within a workspace.
+     */
     const treeSections = useResourceTreeSections({
-      groups: availableResources,
-      structureFolders,
+      groups: workspaceInventory.groups,
+      structureFolders: workspaceInventory.structureFolders,
       selectFolders: true,
     })
 
@@ -386,10 +405,21 @@ export const PlusMenuDropdown = React.memo(
             {/* Always-mounted; swapping this subtree with filtered results makes Radix's
                   menu FocusScope steal focus from the search input back to the content root. */}
             <div hidden={filteredItems !== null}>
+              {organizationId &&
+                workspaces.map((workspace) => (
+                  <WorkspaceResourceSubmenu
+                    key={workspace.id}
+                    workspace={workspace}
+                    excludeTypes={WORKSPACE_SUBMENU_EXCLUDED_TYPES}
+                    selectFolders
+                    onSelect={handleSelect}
+                  />
+                ))}
               <ResourceMenuSections
-                flat={Boolean(organizationId)}
-                sections={organizationId ? [] : treeSections}
-                groups={visibleResources}
+                sections={treeSections}
+                groups={
+                  organizationId ? visibleResources.filter(isNativeResourceGroup) : visibleResources
+                }
                 onSelect={handleSelect}
                 subContentClassName='max-w-[min(300px,calc(100vw-32px))]'
               />
