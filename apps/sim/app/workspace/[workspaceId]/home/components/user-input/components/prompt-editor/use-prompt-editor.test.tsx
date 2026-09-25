@@ -219,6 +219,30 @@ it('keeps a copied organization resource chip addressed to its owner workspace o
   }
 })
 
+it('pastes a chip link with a malformed owner as the plain text it is', () => {
+  const { result, textarea, unmount } = renderPromptEditor({
+    workspaceId: '',
+    organizationId: 'org-1',
+  })
+  const preventDefault = vi.fn()
+  try {
+    act(() => {
+      result().handlePaste({
+        currentTarget: textarea,
+        clipboardData: {
+          getData: (type: string) =>
+            type === 'text/plain' ? '[Notes](sim:file/file-1?workspace=100%)' : '',
+        },
+        preventDefault,
+      } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
+    })
+    expect(preventDefault).not.toHaveBeenCalled()
+    expect(result().contexts).toEqual([])
+  } finally {
+    unmount()
+  }
+})
+
 it('auto-registers unique organization skill names with their owner but leaves ambiguous names unresolved', () => {
   const skill = {
     id: 'built-in',

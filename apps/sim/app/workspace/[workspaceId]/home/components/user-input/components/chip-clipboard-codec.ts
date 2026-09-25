@@ -52,6 +52,18 @@ export type PortableKind = keyof typeof PORTABLE_KIND_TO_ID_FIELD
  */
 const OWNER_PARAM = '?workspace='
 
+/**
+ * Decodes a link's owner, or `null` when it is not valid percent-encoding —
+ * such a link was not written by this codec, so it stays plain text.
+ */
+function decodeOwner(encoded: string): string | null {
+  try {
+    return decodeURIComponent(encoded)
+  } catch {
+    return null
+  }
+}
+
 /** Serializes a portable chip link, escaping Markdown delimiters in its label. */
 export function serializePortableChipLink(
   kind: PortableKind,
@@ -235,12 +247,13 @@ export function parseChipLinks(text: string): ParsedChipLink[] {
     const [full, label, kind, address] = match
     if (!isPortableKind(kind)) continue
     const ownerAt = address.lastIndexOf(OWNER_PARAM)
+    const workspaceId =
+      ownerAt === -1 ? undefined : decodeOwner(address.slice(ownerAt + OWNER_PARAM.length))
+    if (workspaceId === null) continue
     links.push({
       kind,
       id: ownerAt === -1 ? address : address.slice(0, ownerAt),
-      ...(ownerAt === -1
-        ? {}
-        : { workspaceId: decodeURIComponent(address.slice(ownerAt + OWNER_PARAM.length)) }),
+      ...(workspaceId ? { workspaceId } : {}),
       label: parsePortableChipLabel(label),
       start: match.index,
       end: match.index + full.length,
