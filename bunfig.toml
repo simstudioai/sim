@@ -3,7 +3,8 @@ exact = true
 # Supply-chain gate: only install package versions published at least 7 days ago
 # (blocks freshly published, potentially compromised releases).
 minimumReleaseAge = 604800
-# Reviewed Next.js 16.3.6 security patch; remove after 2026-09-29 once it clears the age gate.
+# CI restricts this reviewed security exception to Next.js 16.3.6.
+# Remove after 2026-09-29 once the pinned release clears the seven-day gate.
 minimumReleaseAgeExcludes = ["next"]
 
 [run]

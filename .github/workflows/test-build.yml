@@ -213,6 +213,16 @@ jobs:
         with:
           bun-version: 1.4.1
 
+      - name: Check reviewed Next.js release exception
+        run: |
+          bun -e '
+            const config = Bun.TOML.parse(await Bun.file("bunfig.toml").text());
+            const { overrides } = await Bun.file("package.json").json();
+            if (config.install?.minimumReleaseAgeExcludes?.includes("next") && overrides?.next !== "16.3.6") {
+              throw new Error("Remove the Next.js 16.3.6 release-age exception before changing its pin");
+            }
+          '
+
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
