@@ -13,6 +13,7 @@ import {
   NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
   type NativeSurfaceOcclusionPrepareDetail,
 } from '@sim/emcn'
+import { backoffWithJitter } from '@sim/utils/retry'
 import {
   captureBrowserPanelSnapshot,
   setBrowserPanelOccluded,
@@ -21,9 +22,14 @@ import {
 
 const SNAPSHOT_DECODE_TIMEOUT_MS = 3_000
 const SNAPSHOT_PAINT_TIMEOUT_MS = 1_000
+const OVERLAY_RETRY_LIMIT = 3
 
 /** Full-screen modal/takeover effects that must composite above the native page. */
 export const NATIVE_SURFACE_OCCLUSION_SELECTOR = '[data-native-surface-occlusion]'
+
+/** Passive notifications must never suspend interaction with the browser page. */
+const NATIVE_SURFACE_OVERLAY_SELECTOR =
+  '[data-native-surface-overlay]:not([data-native-surface-overlay="passive"])'
 
 export type BrowserPanelSnapshotLayer = 'modal' | 'popover'
 
@@ -118,30 +124,134 @@ interface BrowserPanelOcclusion extends BrowserPanelOverlayController {
   snapshot: BrowserPanelSnapshot | null
   snapshotLayer: BrowserPanelSnapshotLayer
   onSnapshotError: () => void
+  /** Allows the bounds reporter to release its modal lease without revealing through another overlay. */
+  shouldKeepNativeHidden: () => boolean
 }
 
 /**
  * Deliberately narrower than `data-native-surface-overlay`: the broad marker is
- * also used by menus, tooltips, and toasts, none of which should blur the whole
- * browser panel or take ownership of its native-surface lease.
+ * also used by transient menus/tooltips and passive notifications. Transient
+ * overlays only need a replacement when they overlap the page; notifications
+ * never acquire a lease that could suspend browser interaction indefinitely.
  */
 export function hasNativeSurfaceOcclusion(root: ParentNode = document): boolean {
   return root.querySelector(NATIVE_SURFACE_OCCLUSION_SELECTOR) !== null
 }
 
-function nodeContainsNativeSurfaceOcclusion(node: Node): boolean {
-  if (node instanceof Element && node.matches(NATIVE_SURFACE_OCCLUSION_SELECTOR)) return true
+function nodeContainsSelector(node: Node, selector: string): boolean {
+  if (node instanceof Element && node.matches(selector)) return true
   return (
     (node instanceof Element || node instanceof DocumentFragment) &&
-    node.querySelector(NATIVE_SURFACE_OCCLUSION_SELECTOR) !== null
+    node.querySelector(selector) !== null
   )
 }
 
 export function mutationsTouchNativeSurfaceOcclusion(records: MutationRecord[]): boolean {
   return records.some((record) => {
     if (record.type === 'attributes') return true
-    return [...record.addedNodes, ...record.removedNodes].some(nodeContainsNativeSurfaceOcclusion)
+    return [...record.addedNodes, ...record.removedNodes].some((node) =>
+      nodeContainsSelector(node, NATIVE_SURFACE_OCCLUSION_SELECTOR)
+    )
   })
+}
+
+/**
+ * Watches marked overlays only while any exist. Sampling their painted bounds
+ * also catches cursor-following tooltips and CSS transitions that do not resize
+ * the element. DOM churn elsewhere (including streamed chat text) does not
+ * rescan the document or start an animation-frame loop.
+ */
+function observeOverlappingOverlays(
+  getHostRect: () => DOMRect | null,
+  onChange: (overlapping: boolean) => Promise<boolean>
+): () => void {
+  let overlays: HTMLElement[] = []
+  let frame: number | null = null
+  let overlapping = false
+  let hostGeometry = ''
+  let disposed = false
+  let revision = 0
+  let retryTimer: ReturnType<typeof setTimeout> | undefined
+
+  const reconcile = (attempt = 0) => {
+    clearTimeout(retryTimer)
+    const request = ++revision
+    void onChange(overlapping).then((ready) => {
+      if (disposed || request !== revision || ready || attempt >= OVERLAY_RETRY_LIMIT) return
+      retryTimer = setTimeout(
+        () => reconcile(attempt + 1),
+        backoffWithJitter(attempt + 1, null, { baseMs: 250, maxMs: 1_000 })
+      )
+    })
+  }
+
+  const measure = () => {
+    frame = null
+    const host = getHostRect()
+    const geometry = host ? `${host.x}:${host.y}:${host.width}:${host.height}` : ''
+    const next = Boolean(
+      host &&
+        host.width > 0 &&
+        host.height > 0 &&
+        overlays.some((overlay) => {
+          const bounds = overlay.getBoundingClientRect()
+          if (
+            bounds.width <= 0 ||
+            bounds.height <= 0 ||
+            bounds.right <= host.left ||
+            bounds.left >= host.right ||
+            bounds.bottom <= host.top ||
+            bounds.top >= host.bottom
+          )
+            return false
+          const style = getComputedStyle(overlay)
+          return (
+            style.visibility !== 'hidden' &&
+            style.visibility !== 'collapse' &&
+            style.display !== 'none' &&
+            style.opacity !== '0' &&
+            (overlay.checkVisibility?.({ opacityProperty: true, visibilityProperty: true }) ?? true)
+          )
+        })
+    )
+    if (next !== overlapping || (next && geometry !== hostGeometry)) {
+      overlapping = next
+      reconcile()
+    }
+    hostGeometry = geometry
+    if (overlays.length > 0) frame = requestAnimationFrame(measure)
+  }
+
+  const refresh = () => {
+    overlays = Array.from(document.querySelectorAll<HTMLElement>(NATIVE_SURFACE_OVERLAY_SELECTOR))
+    if (frame === null) frame = requestAnimationFrame(measure)
+  }
+  const observer = new MutationObserver((records) => {
+    if (
+      records.some(
+        (record) =>
+          record.type === 'attributes' ||
+          [...record.addedNodes, ...record.removedNodes].some((node) =>
+            nodeContainsSelector(node, NATIVE_SURFACE_OVERLAY_SELECTOR)
+          )
+      )
+    )
+      refresh()
+  })
+  observer.observe(document.body, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ['data-native-surface-overlay'],
+  })
+  refresh()
+  return () => {
+    disposed = true
+    revision++
+    clearTimeout(retryTimer)
+    observer.disconnect()
+    if (frame !== null) cancelAnimationFrame(frame)
+  }
 }
 
 /**
@@ -172,17 +282,6 @@ async function decodeSnapshot(dataUrl: string): Promise<boolean> {
   }
 }
 
-/**
- * Coordinates the renderer replacement for the native browser surface.
- *
- * Browser chrome popovers use a replacement immediately below `--z-popover`,
- * where opening them is pixel-neutral. Full-screen modals use the same exact
- * replacement below `--z-modal`, allowing the real modal scrim to tint and
- * backdrop-blur it exactly like the rest of Sim. Both are one shared lease:
- * changing layers never reveals or recaptures the native view, and the view is
- * revealed only after the final reason disappears.
- */
-
 /** Largest tolerated drift, in CSS px, between a capture and the live host rect. */
 const SNAPSHOT_GEOMETRY_TOLERANCE_PX = 1
 
@@ -205,6 +304,15 @@ export function snapshotMatchesHost(
   )
 }
 
+/**
+ * Coordinates the renderer replacement for the native browser surface.
+ *
+ * Transient overlays use a replacement below the shared dropdown layer,
+ * where opening them is pixel-neutral. Full-screen modals use the same exact
+ * replacement below `--z-modal`, allowing the real modal scrim to tint and
+ * backdrop-blur it exactly like the rest of Sim. Both share a lease and reuse
+ * a frame while its tab and geometry remain valid.
+ */
 export function useBrowserPanelOcclusion(
   scopeId: string,
   activeTabId: string | null,
@@ -220,6 +328,7 @@ export function useBrowserPanelOcclusion(
   const activeTabIdRef = useRef(activeTabId)
   const panelVisibleRef = useRef(panelVisible)
   const screenOcclusionPresentRef = useRef(false)
+  const overlappingOverlayPresentRef = useRef(false)
   const nativeHiddenRef = useRef(false)
   const transitionVersionRef = useRef(0)
   const paintIdRef = useRef(0)
@@ -293,9 +402,19 @@ export function useBrowserPanelOcclusion(
   const desiredLayer = useCallback((): BrowserPanelSnapshotLayer | null => {
     if (!panelVisibleRef.current) return null
     if (screenOcclusionPresentRef.current) return 'modal'
-    if (pendingOverlayRef.current || activeOverlayRef.current) return 'popover'
+    if (
+      pendingOverlayRef.current ||
+      activeOverlayRef.current ||
+      overlappingOverlayPresentRef.current
+    )
+      return 'popover'
     return null
   }, [])
+
+  const shouldKeepNativeHidden = useCallback(
+    () => nativeHiddenRef.current && desiredLayer() !== null,
+    [desiredLayer]
+  )
 
   const reconcile = useCallback(
     async (version: number): Promise<boolean> => {
@@ -318,17 +437,32 @@ export function useBrowserPanelOcclusion(
         return true
       }
 
-      // Modal and popover reasons share the captured frame. Moving between the
-      // two is only a stacking-level change; revealing here would punch the
-      // native WebContentsView through the modal for a frame.
+      /** Reuse valid frames across layer changes to avoid revealing through an overlay. */
       if (nativeHiddenRef.current) {
-        if (snapshotRenderRef.current) updateSnapshotLayer(desired)
-        return true
+        const frame = snapshotRenderRef.current?.frame
+        if (
+          desired === 'modal' ||
+          (frame &&
+            (!activeTabIdRef.current || frame.tabId === activeTabIdRef.current) &&
+            snapshotMatchesHost(frame, getHostRectRef.current?.() ?? null))
+        ) {
+          if (frame) updateSnapshotLayer(desired)
+          return true
+        }
+
+        /** A lingering overlay must capture the new page after a tab or panel geometry change. */
+        const revealed = await setBrowserPanelOccluded(false, scopeId).catch(() => false)
+        if (!revealed) return false
+        nativeHiddenRef.current = false
+        updateSnapshotRender(null)
+        if (!mountedRef.current || version !== transitionVersionRef.current) return false
+        desired = desiredLayer()
+        if (!desired) return true
       }
 
       // Modal scroll locking can alter panel geometry between capture and the
       // final native hide. One fresh capture retries that now-settled layout.
-      const maxAttempts = desired === 'modal' ? 3 : 1
+      const maxAttempts = desired === 'modal' ? 3 : 2
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const frame = await captureBrowserPanelSnapshot(scopeId).catch(() => null)
         if (!mountedRef.current || version !== transitionVersionRef.current) return false
@@ -431,7 +565,7 @@ export function useBrowserPanelOcclusion(
     [desiredLayer, scopeId, settlePaint, updateSnapshotLayer, updateSnapshotRender]
   )
 
-  const scheduleReconcile = useCallback((): Promise<boolean> => {
+  const scheduleReconcile = useCallback(async (): Promise<boolean> => {
     const version = ++transitionVersionRef.current
     cancelPendingPaint()
     const run = reconcileChainRef.current.then(
@@ -439,7 +573,14 @@ export function useBrowserPanelOcclusion(
       () => reconcile(version)
     )
     reconcileChainRef.current = run
-    return run
+    let current = run
+    let ready = await current
+    /** A newer request can service the same overlay while superseding its original transition. */
+    while (!ready && mountedRef.current && current !== reconcileChainRef.current) {
+      current = reconcileChainRef.current
+      ready = await current
+    }
+    return ready
   }, [cancelPendingPaint, reconcile])
 
   const clearBrowserOverlay = useCallback(() => {
@@ -455,14 +596,7 @@ export function useBrowserPanelOcclusion(
     if (!panelVisibleRef.current) return Promise.resolve(true)
     screenOcclusionPresentRef.current = true
     clearBrowserOverlay()
-    const scheduled = scheduleReconcile()
-    return scheduled.then((ready) => {
-      // Two modal layers can mount in one React commit. The second request
-      // supersedes the first transition version; its gate must not make the
-      // first modal visible merely because that canceled transition resolved.
-      const latest = reconcileChainRef.current
-      return !ready && latest !== scheduled ? latest : ready
-    })
+    return scheduleReconcile()
   }, [clearBrowserOverlay, scheduleReconcile])
 
   const closeOverlay = useCallback(
@@ -590,11 +724,28 @@ export function useBrowserPanelOcclusion(
   }, [clearBrowserOverlay, panelVisible, prepareScreenOcclusion, scheduleReconcile])
 
   useEffect(() => {
+    if (!panelVisible || !supportsAtomicBrowserPanelOcclusion()) return
+    const stop = observeOverlappingOverlays(
+      () => getHostRectRef.current?.() ?? null,
+      (overlapping) => {
+        overlappingOverlayPresentRef.current = overlapping
+        return scheduleReconcile()
+      }
+    )
+    return () => {
+      stop()
+      overlappingOverlayPresentRef.current = false
+      void scheduleReconcile()
+    }
+  }, [activeTabId, panelVisible, scheduleReconcile])
+
+  useEffect(() => {
     mountedRef.current = true
     return () => {
       mountedRef.current = false
       panelVisibleRef.current = false
       screenOcclusionPresentRef.current = false
+      overlappingOverlayPresentRef.current = false
       pendingOverlayRef.current = null
       activeOverlayRef.current = null
       activeOverlayOwnershipLostRef.current = null
@@ -629,5 +780,6 @@ export function useBrowserPanelOcclusion(
     requestOverlay,
     closeOverlay,
     onSnapshotError,
+    shouldKeepNativeHidden,
   }
 }

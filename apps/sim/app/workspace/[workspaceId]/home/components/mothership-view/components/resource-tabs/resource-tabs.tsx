@@ -43,7 +43,6 @@ import { getResourceConfig } from '@/app/workspace/[workspaceId]/home/components
 import {
   RESOURCE_HEADER_CLASSES,
   RESOURCE_TAB_ICON_CLASS,
-  resourceTabWidthClass,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import type {
   MothershipResource,
@@ -604,10 +603,7 @@ export function ResourceTabs({
         onReorder={handleReorder}
         onTabDragStart={handleTabDragStart}
         variant='floating'
-        className={cn(
-          RESOURCE_HEADER_CLASSES.stripGeometry,
-          resourceTabWidthClass(resources.length)
-        )}
+        className={RESOURCE_HEADER_CLASSES.stripGeometry}
         newTabControl={
           // Offered before the chat exists too: a resource opened while composing
           // the first prompt is context for that prompt, and gating on a chat id

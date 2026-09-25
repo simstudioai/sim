@@ -61,20 +61,13 @@ const TAB_TRANSITION = { duration: 0.1, ease: [0.2, 0, 0, 1] as const }
  * the `flex` shorthand after `flex-basis`, so pairing the two silently discarded
  * the basis and left every tab sized by its own title.
  *
- * `attached` gives every tab the same width and a floor, so a crowded strip
- * degrades evenly and then scrolls. `floating` sizes to content up to a cap, so
- * short labels stay short and only a long one ellipsizes — a row of bare labels
- * must not read as a grid of buttons.
- *
- * Both refuse to shrink below their floor, and that is what makes the strip
- * scrollable at all: a flex child that is both shrinkable and `min-w-0` compresses
- * to fit its container instead of overflowing it, so `scrollWidth` never exceeds
- * `clientWidth`, the edge fades never appear, and every label crushes to an
- * ellipsis. `floating` therefore never shrinks; `attached` shrinks only to 96px.
+ * Floating tabs start at their content width, capped at 200px, then shrink with
+ * the available space. Both variants stop at 96px so crowded rows scroll before
+ * labels become unreadable. Short labels never grow to fill spare space.
  */
 const TAB_WIDTH: Record<TabStripVariant, string> = {
   attached: 'w-[156px] min-w-[96px] shrink',
-  floating: 'max-w-[var(--tab-strip-max-tab-width,200px)] shrink-0',
+  floating: 'min-w-[96px] max-w-[var(--tab-strip-max-tab-width,200px)] shrink',
 }
 
 /** The resting shape of a tab that is not the active one. */
