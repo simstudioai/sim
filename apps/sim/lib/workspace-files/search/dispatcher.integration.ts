@@ -68,7 +68,7 @@ describe('workspace file search dispatch PostgreSQL deadlines', () => {
      * using it.
      */
     await connection`CREATE TABLE workspace_files (
-      id text PRIMARY KEY, workspace_id text, context text NOT NULL,
+      id text PRIMARY KEY, workspace_id text, context text NOT NULL, discovery text NOT NULL DEFAULT 'listed',
       deleted_at timestamp, content_updated_at timestamp NOT NULL
     )`
     await connection`CREATE TABLE workspace_file_search_revision (

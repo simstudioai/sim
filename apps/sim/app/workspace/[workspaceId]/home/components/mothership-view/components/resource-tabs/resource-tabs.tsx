@@ -29,7 +29,7 @@ import {
   reorderBrowserTab,
   sendBrowserPanelAction,
 } from '@/lib/browser-agent/transport'
-import { dashboardDisplayName, fileBackedResourceType } from '@/lib/dashboards/resource'
+import { dashboardDisplayName } from '@/lib/dashboards/resource'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import { requestTerminalFocus } from '@/lib/terminal/focus'
@@ -50,6 +50,8 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
+import { useDashboards } from '@/hooks/queries/dashboards'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'
@@ -162,7 +164,11 @@ function useResourceNameLookup(
   workspaceId: string | undefined,
   resources: MothershipResource[]
 ): Map<string, string> {
+  const dashboardsEnabled = useFeatureFlag('dashboards')
   const enabled = resources.length > 0
+  const { data: dashboardData } = useDashboards(workspaceId ?? '', '', {
+    enabled: enabled && dashboardsEnabled,
+  })
   const owners = [
     ...new Set(
       resources
@@ -204,14 +210,23 @@ function useResourceNameLookup(
           map.set(`workflow:${workflow.id}`, workflow.name)
     }
     for (const t of tables ?? []) map.set(`table:${t.id}`, t.name)
-    for (const f of files ?? []) {
-      const type = fileBackedResourceType(f.type)
-      map.set(`${type}:${f.id}`, type === 'dashboard' ? dashboardDisplayName(f.name) : f.name)
-    }
+    for (const file of files ?? []) map.set(`file:${file.id}`, file.name)
+    for (const dashboard of dashboardData?.dashboards ?? [])
+      map.set(`dashboard:${dashboard.id}`, dashboard.name)
     for (const kb of knowledgeBases ?? []) map.set(`knowledgebase:${kb.id}`, kb.name)
     for (const folder of folders ?? []) map.set(`folder:${folder.id}`, folder.name)
     return map
-  }, [enabled, workflows, tables, files, knowledgeBases, folders, ownedWorkflows, owners])
+  }, [
+    enabled,
+    workflows,
+    tables,
+    files,
+    dashboardData,
+    knowledgeBases,
+    folders,
+    ownedWorkflows,
+    owners,
+  ])
 }
 
 interface ResourceTabsProps {

@@ -28,7 +28,7 @@ export const dashboardKeys = {
     [...dashboardKeys.details(), workspaceId, id] as const,
   folders: (workspaceId: string) => [...dashboardKeys.all, 'folders', workspaceId] as const,
 }
-export function useDashboards(workspaceId: string, search = '') {
+export function useDashboards(workspaceId: string, search = '', options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: dashboardKeys.list(workspaceId, search),
     queryFn: ({ signal }) =>
@@ -37,7 +37,7 @@ export function useDashboards(workspaceId: string, search = '') {
         query: { search },
         signal,
       }),
-    enabled: Boolean(workspaceId),
+    enabled: Boolean(workspaceId) && (options?.enabled ?? true),
     staleTime: DASHBOARD_STALE_TIME,
     placeholderData: keepPreviousData,
   })

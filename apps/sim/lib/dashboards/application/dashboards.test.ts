@@ -116,7 +116,11 @@ describe('dashboard application boundary', () => {
     const result = await listDashboards.execute({ principal, input: { workspaceId: 'ws-1' } })
     expect(mocks.list).toHaveBeenCalledWith(
       'ws-1',
-      expect.objectContaining({ resourceType: 'dashboard', limit: 500 })
+      expect.objectContaining({
+        discovery: 'unlisted',
+        contentType: 'text/x-sim-dashboard',
+        limit: 500,
+      })
     )
     expect(result).toEqual({
       dashboards: [

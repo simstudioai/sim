@@ -1,5 +1,6 @@
 import { DASHBOARD_CONTENT_TYPE, fileBackedResourceType } from '@/lib/dashboards/resource'
 import { listFoldersForWorkspace } from '@/lib/folders/queries'
+import { type FileDiscovery, fileDiscoveryCondition } from '@/lib/workspace-files/discovery'
 /**
  * Workspace file storage system
  * Files uploaded at workspace level persist indefinitely and are accessible across all workflows
@@ -205,7 +206,8 @@ export interface ActiveWorkspaceContext {
 }
 
 interface ListWorkspaceFilesOptions {
-  resourceType?: 'file' | 'dashboard'
+  discovery?: FileDiscovery
+  contentType?: string
 
   scope?: WorkspaceFileScope
   folders?: WorkspaceFileFolderRecord[]
@@ -269,6 +271,7 @@ const MAX_COPY_SUFFIX = 1000
 const MAX_UPLOAD_UNIQUE_RETRIES = 8
 
 interface WorkspaceFileMetadataInsert {
+  discovery?: FileDiscovery
   id: string
   key: string
   userId: string
@@ -432,6 +435,7 @@ export async function uploadWorkspaceFile(
     folderId?: string | null
     folderPath?: string
     exactName?: boolean
+    discovery?: FileDiscovery
     secretProvenance?: WorkspaceFileSecretProvenance
     notifyWorkspaceChange?: boolean
   }
@@ -541,6 +545,7 @@ export async function uploadWorkspaceFile(
             originalName: uniqueName,
             contentType: effectiveContentType,
             size: effectiveBuffer.length,
+            discovery: options?.discovery ?? 'listed',
           })
           if (!inserted) {
             throw new FileConflictError(uniqueName)
@@ -1053,6 +1058,7 @@ export async function trackChatUpload(
               chatId,
               messageId: messageId ?? null,
               context: 'mothership',
+              discovery: 'unlisted',
               displayName: candidate,
             })
             .where(
@@ -1100,6 +1106,7 @@ export async function trackChatUpload(
             userId,
             workspaceId,
             context: 'mothership',
+            discovery: 'unlisted',
             chatId,
             messageId: messageId ?? null,
             originalName: fileName,
@@ -1301,8 +1308,8 @@ export async function getWorkspaceFileByName(
 }
 
 /**
- * Chat uploads (`context = 'mothership'`) are hidden from every listing and closed to
- * writes. A read may opt in to one by explicit reference only — its `uploads/<name>`
+ * Chat uploads are created unlisted; their `mothership` ownership context also closes
+ * them to writes. A read may opt in by explicit reference only — its `uploads/<name>`
  * VFS path or its own id — which is what this option grants.
  */
 export interface WorkspaceFileLookupOptions {
@@ -1394,7 +1401,8 @@ export async function listWorkspaceFiles(
       .where(
         and(
           workspaceFileScopeCondition(workspaceId, scope),
-          workspaceFileKindCondition(options?.resourceType)
+          fileDiscoveryCondition(options?.discovery),
+          options?.contentType ? eq(workspaceFiles.contentType, options.contentType) : undefined
         )
       )
       .orderBy(workspaceFiles.uploadedAt)
@@ -1430,7 +1438,8 @@ const WORKSPACE_FILE_SORTS = {
 } satisfies Record<V2FileSortBy, readonly KeysetKey<WorkspaceFileRecord>[]>
 
 export interface QueryWorkspaceFilesOptions {
-  resourceType?: 'file' | 'dashboard'
+  discovery?: FileDiscovery
+  contentType?: string
 
   scope?: WorkspaceFileScope
   /** Restrict to one file folder. */
@@ -1493,13 +1502,6 @@ function workspaceFileFolderScopeCondition(scope: FolderIdScope | undefined): SQ
  * A cursor that does not fit the requested sort is a classified `validation`
  * failure, so the route renders it as a 400 rather than a 500.
  */
-function workspaceFileKindCondition(kind?: 'file' | 'dashboard'): SQL | undefined {
-  if (!kind) return undefined
-  return kind === 'dashboard'
-    ? eq(workspaceFiles.contentType, DASHBOARD_CONTENT_TYPE)
-    : sql`${workspaceFiles.contentType} <> ${DASHBOARD_CONTENT_TYPE}`
-}
-
 export async function queryWorkspaceFiles(
   workspaceId: string,
   options: QueryWorkspaceFilesOptions
@@ -1528,7 +1530,8 @@ export async function queryWorkspaceFiles(
 
   const conditions = [
     workspaceFileScopeCondition(workspaceId, scope),
-    workspaceFileKindCondition(options.resourceType),
+    fileDiscoveryCondition(options.discovery),
+    options.contentType ? eq(workspaceFiles.contentType, options.contentType) : undefined,
     workspaceFileFolderCondition(folderId),
     workspaceFileFolderScopeCondition(folderScope),
     searchFilter(workspaceFiles.originalName, search),

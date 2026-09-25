@@ -5,6 +5,7 @@ import { and, eq, inArray, isNull, or, type SQL, type SQLWrapper, sql } from 'dr
 import type { DbTransaction } from '@/lib/db/types'
 import type { FolderIdScope } from '@/lib/folders/scope'
 import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { fileDiscoveryCondition } from '@/lib/workspace-files/discovery'
 import { fileSearchAdmission } from '@/lib/workspace-files/search/admission'
 import {
   probeFileSearchCandidates,
@@ -350,6 +351,7 @@ export async function searchWorkspaceFileIndex({
                 and(
                   eq(workspaceFiles.workspaceId, workspaceId),
                   eq(workspaceFiles.context, 'workspace'),
+                  fileDiscoveryCondition(),
                   isNull(workspaceFiles.deletedAt),
                   folderPredicate
                 )

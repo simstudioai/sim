@@ -173,6 +173,7 @@ describe('chunked workspace file search on PostgreSQL', () => {
       '0359_workspace_file_search_chunks.sql',
       ginWriteMigration,
       '0382_workspace_file_search_dispatch_handoff.sql',
+      '0385_file_discovery.sql',
     ]) {
       await applyMigration(migration)
     }
@@ -206,6 +207,22 @@ describe('chunked workspace file search on PostgreSQL', () => {
       database.search = undefined
       await Promise.all([connection.end(), searchConnection.end()])
     }
+  })
+
+  it('excludes an unlisted file even when a stale search build still exists', async () => {
+    await index('shared needle')
+    const hidden = await addFile('hidden')
+    await index('hidden needle', hidden)
+    await connection`ALTER TABLE workspace_files DISABLE TRIGGER workspace_files_search_index_pending`
+    try {
+      await connection`UPDATE workspace_files SET discovery = 'unlisted' WHERE id = 'hidden'`
+    } finally {
+      await connection`ALTER TABLE workspace_files ENABLE TRIGGER workspace_files_search_index_pending`
+    }
+    const result = await search('needle')
+    expect(result.results.map((hit) => hit.fileId)).toEqual(['file-1'])
+    expect(result.indexStatus.readyFiles).toBe(1)
+    expect(await beginFileSearchBuild(hidden)).toBeNull()
   })
 
   it('preserves search through disabling, draining, and replaying GIN pending-list maintenance', async () => {

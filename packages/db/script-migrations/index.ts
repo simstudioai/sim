@@ -8,6 +8,7 @@ import { tinKeywordProjectionMigration } from '@sim/db/script-migrations/0019_ti
 import { projectionSourceAclBackfillMigration } from '@sim/db/script-migrations/0022_projection_source_acl_backfill'
 import { projectionAclSkipUnfilledMigration } from '@sim/db/script-migrations/0023_projection_acl_skip_unfilled'
 import { knowledgeProjectionAsyncMigration } from '@sim/db/script-migrations/0024_knowledge_projection_async'
+import { backfillFileDiscoveryMigration } from '@sim/db/script-migrations/0025_backfill_file_discovery'
 import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
@@ -52,6 +53,7 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   projectionAclSkipUnfilledMigration,
   /** 0024 marks changed documents for the knowledge projector and lets writers defer to it. */
   knowledgeProjectionAsyncMigration,
+  backfillFileDiscoveryMigration,
 ]
 
 /**

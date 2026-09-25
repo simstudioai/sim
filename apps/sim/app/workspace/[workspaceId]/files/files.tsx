@@ -27,7 +27,6 @@ import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
-import { DASHBOARD_CONTENT_TYPE } from '@/lib/dashboards/resource'
 import { captureEvent } from '@/lib/posthog/client'
 import {
   type FileDownloadSource,
@@ -315,15 +314,11 @@ function FilesContent() {
   }, [permissionConfig.hideFilesTab, router, workspaceId])
 
   const {
-    data: allFiles = EMPTY_WORKSPACE_FILES,
+    data: files = EMPTY_WORKSPACE_FILES,
     isLoading,
     isPlaceholderData,
     error,
   } = useWorkspaceFiles(workspaceId)
-  const files = useMemo(
-    () => allFiles.filter((file) => file.type !== DASHBOARD_CONTENT_TYPE),
-    [allFiles]
-  )
   const {
     data: folders = EMPTY_WORKSPACE_FILE_FOLDERS,
     isSuccess: foldersLoaded,

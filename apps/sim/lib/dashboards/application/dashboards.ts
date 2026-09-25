@@ -88,7 +88,8 @@ export const listDashboards = defineAuthorizedWorkspaceFileUseCase({
   authorizeResource: ({ context }) => requireDashboardsEnabled(context.workspaceOrganizationId),
   async execute({ input, context }) {
     const { files, nextKeys } = await queryWorkspaceFiles(context.workspaceId, {
-      resourceType: 'dashboard',
+      discovery: 'unlisted',
+      contentType: DASHBOARD_CONTENT_TYPE,
       search: input.search,
       sortBy: 'name',
       sortOrder: 'asc',
@@ -128,6 +129,7 @@ export const createDashboard = defineAuthorizedWorkspaceFileUseCase({
       {
         folderId: input.folderId,
         exactName: true,
+        discovery: 'unlisted',
         secretProvenance: EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
         notifyWorkspaceChange: false,
       }
