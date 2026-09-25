@@ -3,6 +3,10 @@ import {
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/knowledge/search'
 import { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
+import {
+  serializeWorkspaceRecency,
+  WORKSPACE_RECENCY_COOKIE,
+} from '@/lib/workspaces/recency-cookie'
 /**
  * Safe localStorage utilities with SSR support
  * Provides clean error handling and type safety for browser storage operations
@@ -141,8 +145,10 @@ export class WorkspaceRecencyStorage {
     }
   }
 
+  /** Also mirrors the head of the history into a cookie so server renders use the same order. */
   private static save(map: Record<string, number>): void {
     if (BrowserStorage.setItem(WorkspaceRecencyStorage.KEY, map)) {
+      document.cookie = `${WORKSPACE_RECENCY_COOKIE}=${serializeWorkspaceRecency(map)}; path=/; max-age=31536000; samesite=lax`
       window.dispatchEvent(new Event(WorkspaceRecencyStorage.CHANGE_EVENT))
     }
   }

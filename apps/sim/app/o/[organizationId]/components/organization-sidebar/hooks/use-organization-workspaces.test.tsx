@@ -5,7 +5,9 @@ import { act } from 'react'
 import { createRoot, hydrateRoot, type Root } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { WorkspaceRecencyProvider } from '@/components/workspaces/workspace-recency-provider'
 import { STORAGE_KEYS, WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
+import { WORKSPACE_RECENCY_COOKIE } from '@/lib/workspaces/recency-cookie'
 
 const { mockUseWorkspacesQuery, pins } = vi.hoisted(() => ({
   pins: { current: new Set<string>() },
@@ -64,20 +66,31 @@ function workspaceIds() {
 }
 
 describe('useOrganizationWorkspaces', () => {
-  it('hydrates the prefetched order before applying visit history without changing the query cache', async () => {
+  it('renders the visit order on the server so hydration does not reshuffle rows', async () => {
     localStorage.setItem(
       STORAGE_KEYS.WORKSPACE_RECENCY,
       JSON.stringify({ oldest: 100, older: 200, 'other-org': 300 })
     )
-    container.innerHTML = renderToString(<Harness />)
-    expect(workspaceIds()).toEqual(['newest', 'older', 'oldest'])
+    const recentIds = ['other-org', 'older', 'oldest']
+    const tree = (
+      <WorkspaceRecencyProvider recentWorkspaceIds={recentIds}>
+        <Harness />
+      </WorkspaceRecencyProvider>
+    )
+    container.innerHTML = renderToString(tree)
+    expect(workspaceIds()).toEqual(['older', 'oldest', 'newest'])
 
     const onRecoverableError = vi.fn()
+    const observed: string[][] = []
+    const observer = new MutationObserver(() => observed.push(workspaceIds()))
+    observer.observe(container, { childList: true, subtree: true, characterData: true })
     await act(async () => {
-      root = hydrateRoot(container, <Harness />, { onRecoverableError })
+      root = hydrateRoot(container, tree, { onRecoverableError })
     })
+    observer.disconnect()
 
     expect(onRecoverableError).not.toHaveBeenCalled()
+    expect(observed).toEqual([])
     expect(workspaceIds()).toEqual(['older', 'oldest', 'newest'])
     expect(mockUseWorkspacesQuery().data.map(({ id }: { id: string }) => id)).toEqual([
       'newest',
@@ -85,6 +98,15 @@ describe('useOrganizationWorkspaces', () => {
       'older',
       'oldest',
     ])
+  })
+
+  it('mirrors visits into the recency cookie', async () => {
+    await act(async () => {
+      root = createRoot(container)
+      root.render(<Harness />)
+    })
+    await act(async () => WorkspaceRecencyStorage.touch('older'))
+    expect(document.cookie).toContain(`${WORKSPACE_RECENCY_COOKIE}=older`)
   })
 
   it('preserves creation-date order when the browser has no visit history', async () => {
