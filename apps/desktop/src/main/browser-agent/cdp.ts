@@ -11,7 +11,7 @@
 import type { BrowserTheme } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
+import { interruptibleSleep, sleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import type { NativeImage, WebContents, WebFrameMain } from 'electron'
 
@@ -983,12 +983,18 @@ export function clearAgentContextMenu(contents: WebContents): void {
   agentContextClicks.delete(contents)
 }
 
+/**
+ * Clicks at viewport coordinates. `signal` ends a press-and-hold early: the click rejects with the
+ * abort reason and the button is released at once, so a cancelled or timed-out click cannot stay
+ * held into the next action. That release can still activate the control under the pointer.
+ */
 export async function clickAt(
   contents: WebContents,
   x: number,
   y: number,
   moveBeforePress = true,
-  click: PointerClick = PRIMARY_CLICK
+  click: PointerClick = PRIMARY_CLICK,
+  signal?: AbortSignal
 ): Promise<void> {
   if (moveBeforePress) await moveMouse(contents, x, y)
   const { button, clickCount, modifiers, holdMs } = click
@@ -1013,12 +1019,13 @@ export async function clickAt(
         clickCount: count,
       })
       if (holdMs > 0) {
-        await sleep(holdMs)
+        await interruptibleSleep(holdMs, signal)
         // Windows opens the context menu on release, after the hold; renew a marker a
         // press-time menu has not already consumed.
         if (button === 'right' && agentContextClicks.has(contents)) {
           agentContextClicks.set(contents, Date.now())
         }
+        signal?.throwIfAborted()
       }
       await sendInput(contents, 'Input.dispatchMouseEvent', {
         type: 'mouseReleased',

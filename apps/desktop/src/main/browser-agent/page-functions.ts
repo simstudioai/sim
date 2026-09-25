@@ -46,7 +46,7 @@ declare global {
     /** Elements an earlier snapshot of this document listed; a later snapshot marks the rest `new`. */
     __simAgentShownElements?: WeakSet<Element>
     /** Installed by {@link installPageHelpers} before every page function; cached per call. */
-    __simAgentFindExemptModal: () => Element | null
+    __simAgentIsExemptModal: (element: Element) => boolean
     /** Why the last __simAgentResolveElement call returned null — read by the
      * shared stale-error producers so a refusal names its cause instead of
      * the blanket "the page changed". Cleared on every successful resolve. */
@@ -66,23 +66,27 @@ export function serializePageCall(fn: (...args: never[]) => unknown, args: unkno
  */
 export function installPageHelpers(): void {
   /**
-   * The open modal the page aria-hid together with everything else. MUI's ModalManager
+   * The open modal each document aria-hid together with everything else. MUI's ModalManager
    * aria-hides every <body> child except the modal's mount node, and a `disablePortal` modal
    * mounts inside the app root it just hid, so its own ancestor carries aria-hidden. Visibility
-   * checks skip only the aria-hidden test on ancestors above this modal. Null when any modal is
-   * visible unmodified (the portaled case) or no single topmost modal is contained by all of its
-   * hidden ancestors. A modal nested inside another open modal is the topmost of the two.
+   * checks skip only the aria-hidden test on ancestors above this modal. A document has none when
+   * any modal is visible unmodified (the portaled case), when anything other than a <body> child
+   * hides a modal (the app hid that dialog itself), or when no single innermost modal is contained
+   * by every hidden ancestor. Looked up per document, so a same-origin iframe gets its own.
    */
-  let exemptModal: Element | null | undefined
-  window.__simAgentFindExemptModal = (): Element | null => {
-    if (exemptModal === undefined) exemptModal = findExemptModal()
-    return exemptModal
+  const exemptModals = new Map<Document, Element | null>()
+  window.__simAgentIsExemptModal = (element: Element): boolean => {
+    const doc = element.ownerDocument
+    let modal = exemptModals.get(doc)
+    if (modal === undefined) {
+      modal = findExemptModal(doc)
+      exemptModals.set(doc, modal)
+    }
+    return modal === element
   }
-  function findExemptModal(): Element | null {
+  function findExemptModal(doc: Document): Element | null {
     const rendered: Array<{ modal: Element; hidden: Element[] }> = []
-    for (const modal of Array.from(
-      document.querySelectorAll('[aria-modal="true"], dialog[open]')
-    )) {
+    for (const modal of Array.from(doc.querySelectorAll('[aria-modal="true"], dialog[open]'))) {
       const rect = modal.getBoundingClientRect()
       if (rect.width <= 0 || rect.height <= 0 || modal.getAttribute('aria-hidden') === 'true')
         continue
@@ -106,7 +110,9 @@ export function installPageHelpers(): void {
           current = 'host' in root ? (root.host as Element) : null
         }
       }
-      if (visible) rendered.push({ modal, hidden })
+      if (visible && hidden.every((ancestor) => ancestor.parentElement === doc.body)) {
+        rendered.push({ modal, hidden })
+      }
     }
     if (rendered.some(({ hidden }) => hidden.length === 0)) return null
     const topmost = rendered.filter(
@@ -283,7 +289,7 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
           !current.hasAttribute('hidden') &&
           (aboveExemptModal || current.getAttribute('aria-hidden') !== 'true')
       )
-      if (current === window.__simAgentFindExemptModal()) aboveExemptModal = true
+      if (window.__simAgentIsExemptModal(current)) aboveExemptModal = true
       if (current.parentElement) current = current.parentElement
       else {
         const root = current.getRootNode()
@@ -872,7 +878,7 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
         ) {
           return false
         }
-        if (current === window.__simAgentFindExemptModal()) aboveExemptModal = true
+        if (window.__simAgentIsExemptModal(current)) aboveExemptModal = true
         if (current.parentElement) current = current.parentElement
         else {
           const root = current.getRootNode()
@@ -1110,7 +1116,7 @@ export function clickElement(
     ) {
       return { error: 'not-visible' }
     }
-    if (current === window.__simAgentFindExemptModal()) aboveExemptModal = true
+    if (window.__simAgentIsExemptModal(current)) aboveExemptModal = true
     if (current.parentElement) current = current.parentElement
     else {
       const root = current.getRootNode()
@@ -1603,7 +1609,7 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
     ) {
       return { error: 'not-visible' }
     }
-    if (current === window.__simAgentFindExemptModal()) aboveExemptModal = true
+    if (window.__simAgentIsExemptModal(current)) aboveExemptModal = true
   }
 
   if (moveFocus) {
@@ -2349,7 +2355,7 @@ export function readPageActionState(
       ) {
         return false
       }
-      if (current === window.__simAgentFindExemptModal()) aboveExemptModal = true
+      if (window.__simAgentIsExemptModal(current)) aboveExemptModal = true
       if (current.parentElement) current = current.parentElement
       else {
         const root = current.getRootNode()
@@ -2514,7 +2520,7 @@ export function readPageActionState(
       ) {
         return false
       }
-      if (current === window.__simAgentFindExemptModal()) aboveExemptModal = true
+      if (window.__simAgentIsExemptModal(current)) aboveExemptModal = true
       if (current.parentElement) current = current.parentElement
       else {
         const root = current.getRootNode()
@@ -2649,7 +2655,7 @@ export function scrollPage(direction: string, amount?: number, elementId?: numbe
       ) {
         return false
       }
-      if (current === window.__simAgentFindExemptModal()) aboveExemptModal = true
+      if (window.__simAgentIsExemptModal(current)) aboveExemptModal = true
       if (current.parentElement) current = current.parentElement
       else {
         const root = current.getRootNode()
@@ -3133,7 +3139,7 @@ export function getElementScreenshotRect(id: number): unknown {
     ) {
       return { error: 'not-visible' }
     }
-    if (current === window.__simAgentFindExemptModal()) aboveExemptModal = true
+    if (window.__simAgentIsExemptModal(current)) aboveExemptModal = true
     if (current.parentElement) current = current.parentElement
     else {
       const root = current.getRootNode()
@@ -3284,7 +3290,7 @@ export function readChildFrameElementState(
       visible = false
       break
     }
-    if (current === window.__simAgentFindExemptModal()) aboveExemptModal = true
+    if (window.__simAgentIsExemptModal(current)) aboveExemptModal = true
     if (style.transform && style.transform !== 'none') {
       try {
         if (typeof DOMMatrixReadOnly !== 'function') {

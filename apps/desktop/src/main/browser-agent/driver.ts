@@ -3223,7 +3223,7 @@ async function executeToolInner(
         try {
           assertCurrentExecution()
           assertElementActionCurrent(contents, elementId, target)
-          await cdp.clickAt(contents, x, y, false, click)
+          await cdp.clickAt(contents, x, y, false, click, signal)
           trusted = true
           activation = 'native-pointer'
         } catch (error) {
@@ -3263,7 +3263,7 @@ async function executeToolInner(
           try {
             assertCurrentExecution()
             assertElementActionCurrent(contents, elementId, target)
-            await cdp.clickAt(contents, finalTopPoint.x, finalTopPoint.y, false, click)
+            await cdp.clickAt(contents, finalTopPoint.x, finalTopPoint.y, false, click, signal)
             trusted = true
             activation = 'native-pointer'
             prepared = finalSurface
@@ -4642,7 +4642,7 @@ async function executeToolInner(
       assertCurrentExecution()
       assertActiveContents(contents, clickNavigationEpoch)
       try {
-        await cdp.clickAt(contents, x, y, true, click)
+        await cdp.clickAt(contents, x, y, true, click, signal)
       } catch (error) {
         const rescued = navigationRescue(contents, clickNavigationEpoch, urlAtDispatch, {
           trusted: true,

@@ -23,7 +23,9 @@ import type {
 } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId, generateShortId } from '@sim/utils/id'
+import { backoffWithJitter } from '@sim/utils/retry'
 import type {
   BrowserWindow,
   BrowserWindowConstructorOptions,
@@ -140,6 +142,8 @@ export interface BrowserDownloadSettings {
   getFreeDiskBytes?: (directory: string) => number | Promise<number>
   /** Overrides asynchronous destination collision checks. */
   pathExists?: (path: string) => boolean | Promise<boolean>
+  /** Overrides the move of a completed staging file to its final name. */
+  moveFile?: (from: string, to: string) => Promise<void>
 }
 
 export interface AgentSessionEvents {
@@ -728,6 +732,13 @@ function discardStagedBrowserDownload(active: ActiveBrowserDownload): void {
   })
 }
 
+/**
+ * Errors a just-written file raises while antivirus or indexing briefly holds it open (Windows);
+ * Chromium retries its own final download rename on these too.
+ */
+const TRANSIENT_MOVE_ERROR_CODES = new Set(['EACCES', 'EBUSY', 'EPERM'])
+const STAGED_DOWNLOAD_MOVE_ATTEMPTS = 5
+
 /** Moves a completed staging file to its final name; resolves to that name. */
 async function moveStagedBrowserDownload(active: ActiveBrowserDownload): Promise<string> {
   const destination = await active.destination
@@ -736,16 +747,28 @@ async function moveStagedBrowserDownload(active: ActiveBrowserDownload): Promise
       active.limitReason ?? 'Stopped: the download destination could not be prepared safely'
     )
   }
-  try {
-    await rename(active.stagingPath, destination)
-  } catch (error) {
-    logger.warn('Could not move a finished agent browser download to its destination', {
-      error: getErrorMessage(error),
-      filename: active.download.filename,
-    })
-    throw new Error('Stopped: the finished download could not be moved to its destination')
+  const moveFile = browserDownloadSettings?.moveFile ?? rename
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await moveFile(active.stagingPath, destination)
+      return destination
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (
+        attempt < STAGED_DOWNLOAD_MOVE_ATTEMPTS &&
+        code !== undefined &&
+        TRANSIENT_MOVE_ERROR_CODES.has(code)
+      ) {
+        await sleep(backoffWithJitter(attempt, null, { baseMs: 100, maxMs: 1_000 }))
+        continue
+      }
+      logger.warn('Could not move a finished agent browser download to its destination', {
+        error: getErrorMessage(error),
+        filename: active.download.filename,
+      })
+      throw new Error('Stopped: the finished download could not be moved to its destination')
+    }
   }
-  return destination
 }
 
 function finishBrowserDownload(active: ActiveBrowserDownload): void {

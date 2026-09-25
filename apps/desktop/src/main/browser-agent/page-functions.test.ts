@@ -2537,6 +2537,39 @@ describe('modal hidden together with its own app root', () => {
     expect((readPageActionState() as { dialogs: string[] }).dialogs).toEqual(['Upper'])
   })
 
+  it('keeps a dialog the app aria-hid below its root hidden', () => {
+    document.body.innerHTML = `
+      <div id="__next"><main>
+        <button>Shown action</button>
+        <div class="carousel-slide" aria-hidden="true">
+          <div role="dialog" aria-modal="true" aria-label="Offscreen"><button>Ghost</button></div>
+        </div>
+      </main></div>`
+    showAll()
+
+    const outline = outlineOf(collectSnapshot())
+
+    expect(outline).toContain('Shown action')
+    expect(outline).not.toContain('Ghost')
+  })
+
+  it('reads a disablePortal dialog inside a same-origin iframe', () => {
+    const frame = visible(document.createElement('iframe'))
+    document.body.append(frame)
+    const inner = frame.contentDocument as Document
+    inner.body.innerHTML = `
+      <div id="root" aria-hidden="true">
+        <button>Framed compose</button>
+        <div role="dialog" aria-modal="true" aria-label="Framed"><button>Framed send</button></div>
+      </div>`
+    for (const element of Array.from(inner.body.querySelectorAll('*'))) visible(element)
+
+    const outline = outlineOf(collectSnapshot())
+
+    expect(outline).toContain('Framed send')
+    expect(outline).not.toContain('Framed compose')
+  })
+
   it('exposes a disablePortal modal nested inside another open modal', () => {
     document.body.innerHTML = `
       <div id="__next" aria-hidden="true"><main>

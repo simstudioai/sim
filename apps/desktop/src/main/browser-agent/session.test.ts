@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import type { MenuItemConstructorOptions, WebContents } from 'electron'
@@ -3528,6 +3528,43 @@ describe('browser-agent session', () => {
       )
       expect(download.item.cancel).not.toHaveBeenCalled()
       expect(finishedDownloadFiles(directory)).toEqual(['late-probe.bin'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('retries moving a completed download while another process briefly holds the file', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+    try {
+      const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+      const busy = Object.assign(new Error('resource busy'), { code: 'EBUSY' })
+      const moveFile = vi
+        .fn<(from: string, to: string) => Promise<void>>()
+        .mockRejectedValueOnce(busy)
+        .mockRejectedValueOnce(busy)
+        .mockImplementation(async (from, to) => renameSync(from, to))
+      session = freshSession(win, {}, undefined, {
+        getDirectory: () => directory,
+        getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
+        moveFile,
+      })
+      const contents = (session.ensureTab().view as unknown as MockView).webContents
+      const download = mockDownloadItem({ filename: 'held.bin', totalBytes: 100 })
+
+      startMockDownload(contents, download)
+      await vi.waitFor(() => expect(download.item.resume).toHaveBeenCalledOnce())
+      download.emitDone('completed')
+      await vi.waitFor(() => expect(moveFile).toHaveBeenCalledOnce())
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      await vi.waitFor(() =>
+        expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
+          filename: 'held.bin',
+          state: 'completed',
+        })
+      )
+      expect(moveFile).toHaveBeenCalledTimes(3)
+      expect(finishedDownloadFiles(directory)).toEqual(['held.bin'])
     } finally {
       vi.useRealTimers()
     }

@@ -328,6 +328,17 @@ describe('dispatchKeyCombo', () => {
       .mocked(contents.debugger.sendCommand)
       .mock.calls.map(([, params]) => `${toRecord(params).type} ${toRecord(params).key}`)
     expect(keys).toEqual(['rawKeyDown Control', 'rawKeyDown Shift', 'keyUp Shift', 'keyUp Control'])
+
+    const early = new WebContentsView().webContents
+    vi.mocked(early.debugger.sendCommand).mockRejectedValueOnce(new Error('control-down lost'))
+    await expect(dispatchKeyCombo(early, parseKeyCombo('Ctrl+Shift+K'))).rejects.toMatchObject({
+      name: KeyDispatchError.name,
+    })
+    expect(
+      vi
+        .mocked(early.debugger.sendCommand)
+        .mock.calls.map(([, params]) => `${toRecord(params).type} ${toRecord(params).key}`)
+    ).toEqual(['rawKeyDown Control', 'keyUp Control'])
   })
 
   it('does not turn menu-restoration cleanup failure into a duplicate key retry signal', async () => {

@@ -1,7 +1,8 @@
 /**
  * Keyboard machinery for `browser_press_key` and internal key dispatch:
- * parsing "Cmd+Shift+Z"-style combos and building the trusted CDP
- * keyDown/keyUp pair. Pure logic except {@link dispatchKeyCombo}.
+ * parsing "Cmd+Shift+Z"-style combos and building the trusted CDP key events —
+ * each modifier's own press and release around the main key's keyDown/keyUp
+ * pair. Pure logic except {@link dispatchKeyCombo}.
  */
 import { getErrorMessage } from '@sim/utils/errors'
 import type { WebContents } from 'electron'
@@ -360,8 +361,9 @@ export function modifierKeyEvents(
  * Electron normally lets modified key events escape a focused WebContents to
  * application-menu accelerators. Agent input must stay inside the browser — a
  * page-level Cmd shortcut must never reload, close, or open a native window in
- * Sim — so menu handling is suspended for the complete CDP down/up pair. The
- * depth counter keeps overlapping tool calls from re-enabling it too early.
+ * Sim — so menu handling is suspended for the whole chord, modifier presses
+ * included. The depth counter keeps overlapping tool calls from re-enabling it
+ * too early.
  */
 export async function dispatchKeyCombo(contents: WebContents, combo: ParsedCombo): Promise<void> {
   const [down, up] = buildKeyDispatchPlan(combo)

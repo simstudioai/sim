@@ -276,6 +276,26 @@ describe('browser-agent CDP instrumentation', () => {
     }
   })
 
+  it('releases a held button as soon as its click is aborted', async () => {
+    const contents = new WebContentsView().webContents
+    const types = () =>
+      vi.mocked(contents.debugger.sendCommand).mock.calls.map(([, params]) => toRecord(params).type)
+    vi.useFakeTimers()
+    try {
+      const controller = new AbortController()
+      const hold = { ...PRIMARY_CLICK, holdMs: 10_000 }
+      const click = clickAt(contents, 5, 6, false, hold, controller.signal)
+      await vi.advanceTimersByTimeAsync(100)
+      expect(types()).toEqual(['mousePressed'])
+
+      controller.abort()
+      await expect(click).rejects.toMatchObject({ name: 'AbortError' })
+      expect(types()).toEqual(['mousePressed', 'mouseReleased'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps a held right-click marked as the agent context menu until release', async () => {
     const contents = new WebContentsView().webContents
     vi.useFakeTimers()
