@@ -198,6 +198,7 @@ export {
   overflowTextClipClass,
   overflowTextFadeClass,
 } from './overflow-text/overflow-text'
+export { pageHeadingClassName } from './page-heading/page-heading'
 export {
   Popover,
   PopoverAnchor,

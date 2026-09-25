@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
-import { toast } from '@sim/emcn'
+import { cn, pageHeadingClassName, toast } from '@sim/emcn'
 import { useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
@@ -388,7 +388,7 @@ function OrganizationHomeContent({
         <div className='min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable_both-edges]'>
           {/* Asymmetric padding biases the group up so the full cluster (heading + input + steps) sits at the optical center */}
           <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
-            <h1 className='mb-7 max-w-chat text-balance font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
+            <h1 className={cn(pageHeadingClassName, 'mb-7 max-w-chat')}>
               {requestMode === 'assistant'
                 ? `Search ${organization.name}`
                 : requestMode === 'plan'
