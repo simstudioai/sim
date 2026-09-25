@@ -3,22 +3,27 @@
  * mid-turn. Leaving detaches the chat view but not the server run, and that
  * run's browser, terminal, and local filesystem tools execute only in this
  * client: the orchestrator blocks until the client reports each outcome, so
- * without a reader the left chat stalls at its next such call. A relay tails
- * the left chat's stream headlessly and starts those tools until the run
- * completes or the chat is reopened. Relays live at module scope because
- * switching chats remounts the chat surface that detached them. Each holds one
- * resume connection, so a relay exists only while its left run is live.
+ * without a reader the left chat stalls at its next such call. A relay reads
+ * the left turn's stream headlessly and starts those tools until the run ends
+ * or the chat's view reads the stream again. Relays live at module scope
+ * because switching chats remounts the chat surface that detached them. Each
+ * holds one resume connection, and only while its run is live.
  */
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { readSSELines } from '@/lib/core/utils/sse'
+import { desktopChatScopeId } from '@/lib/desktop/chat-scope'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1ToolPhase,
 } from '@/lib/mothership/generated/mothership-stream-v1'
-import { parsePersistedStreamEventEnvelopeJson } from '@/lib/mothership/request/session/contract'
+import {
+  isTerminalStreamStatus,
+  type PersistedStreamEventEnvelope,
+  parsePersistedStreamEventEnvelopeJson,
+} from '@/lib/mothership/request/session/contract'
 import { executeBrowserToolOnClient } from '@/lib/mothership/tools/client/browser-tool-execution'
 import { launchLocalFilesystemTool } from '@/lib/mothership/tools/client/launch-local-filesystem-tool'
 import { executeTerminalToolOnClient } from '@/lib/mothership/tools/client/terminal-tool-execution'
@@ -32,73 +37,141 @@ import {
   getStreamEventCursor,
   isAlreadyProcessedStreamCursor,
   isStreamSchemaValidationError,
+  parseStreamBatchResponse,
+  resolveChatIdFromStreamBatch,
+  resolveChatIdFromStreamEvent,
   STREAM_IDLE_TIMEOUT_MS,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream-protocol'
 
 const logger = createLogger('DetachedClientTools')
 
-/** Consecutive tail attempts that make no progress before a relay gives up. */
-const MAX_STALLED_TAIL_ATTEMPTS = 5
-
-/** A live turn the user left, and where its client tools run. */
+/** A live turn the user left. */
 export interface DetachedChatTurn {
-  chatId: string
   streamId: string
+  /** The turn's chat when the view knew it; a new chat's id is read off the stream. */
+  chatId?: string
   /** The last cursor the chat view dispatched; the relay resumes after it. */
   afterCursor: string
   traceparent?: string
   workspaceId?: string
-  /** The chat's desktop scope, which owns its browser and terminal tabs. */
-  scopeId: string
+  /** The owner key the chat's desktop scope derives from. */
+  scopeKey: string
 }
 
-/** Relays by chat id. An entry is removed when its relay ends. */
-const relays = new Map<string, AbortController>()
+interface Relay {
+  controller: AbortController
+  chatId?: string
+}
+
+/** Relays by stream id. An entry is removed when its relay ends. */
+const relays = new Map<string, Relay>()
+
+/** The call a tool result frame settles, or undefined for any other event. */
+function settledToolCallId(event: PersistedStreamEventEnvelope): string | undefined {
+  if (event.type !== MothershipStreamV1EventType.tool || 'previewPhase' in event.payload) {
+    return undefined
+  }
+  return event.payload.phase === MothershipStreamV1ToolPhase.result
+    ? event.payload.toolCallId
+    : undefined
+}
 
 /**
  * Starts the client tools a detached turn hands this client. Workflow runs are
  * left alone: running one drives the workflow editor, and the server runs a
  * workflow call itself when no client picks it up.
  */
-function startDetachedClientTool(turn: DetachedChatTurn, start: ClientToolStart): void {
+function startDetachedClientTool(
+  turn: DetachedChatTurn,
+  chatId: string,
+  start: ClientToolStart
+): void {
   const { toolCallId, toolName, args, eventTs } = start
+  const scopeId = desktopChatScopeId(turn.scopeKey, chatId)
   switch (start.kind) {
     case 'workflow':
       return
     case 'localFilesystem':
       launchLocalFilesystemTool(toolCallId, toolName, args, {
         workspaceId: turn.workspaceId,
-        chatId: turn.chatId,
+        chatId,
       })
       return
     case 'browser':
-      executeBrowserToolOnClient(toolCallId, start.toolName, args, turn.scopeId, eventTs)
+      executeBrowserToolOnClient(toolCallId, start.toolName, args, scopeId, eventTs)
       return
     case 'terminal':
-      executeTerminalToolOnClient(toolCallId, args, turn.scopeId, eventTs)
+      executeTerminalToolOnClient(toolCallId, args, scopeId, eventTs)
       return
   }
 }
 
-async function relayClientTools(turn: DetachedChatTurn, signal: AbortSignal): Promise<void> {
-  const { streamId, traceparent } = turn
+/**
+ * Relays until the run ends or the relay is aborted. Like the chat view's own
+ * reconnect, every connection first reads the events past the cursor as one
+ * batch, so calls that already have a result are settled before any call frame
+ * replays, then tails live. That makes any cursor a safe starting point.
+ */
+async function relayClientTools(turn: DetachedChatTurn, relay: Relay): Promise<void> {
+  const { streamId } = turn
+  const { signal } = relay.controller
+  const headers = turn.traceparent ? { traceparent: turn.traceparent } : undefined
   /** Calls this relay started or saw settle; ids alone decide what is pending. */
   const handledToolCallIds = new Set<string>()
   let cursor = turn.afterCursor
-  let stalledAttempts = 0
+  let failedAttempts = 0
 
-  /** Reads one tail connection; resolves true once the run is over. */
+  const applyEvent = (event: PersistedStreamEventEnvelope): void => {
+    const eventCursor = getStreamEventCursor(event)
+    if (isAlreadyProcessedStreamCursor(eventCursor, cursor)) return
+    cursor = eventCursor
+    relay.chatId ??= resolveChatIdFromStreamEvent(event)
+    if (event.type !== MothershipStreamV1EventType.tool) return
+    const settledId = settledToolCallId(event)
+    if (settledId) {
+      handledToolCallIds.add(settledId)
+      return
+    }
+    const start = resolveClientToolStart(event, (id) => !handledToolCallIds.has(id))
+    if (!start) return
+    handledToolCallIds.add(start.toolCallId)
+    if (!relay.chatId) {
+      logger.error('Detached client tool arrived before its chat id', {
+        streamId,
+        toolCallId: start.toolCallId,
+      })
+      return
+    }
+    startDetachedClientTool(turn, relay.chatId, start)
+  }
+
+  /** Reads the events past the cursor at once; resolves true once the run is over. */
+  const readBatch = async (): Promise<boolean> => {
+    // boundary-raw-fetch: stream-resume batch endpoint needs per-request traceparent propagation the contract layer does not model
+    const response = await fetch(buildStreamResumeUrl(streamId, cursor, { batch: true }), {
+      signal,
+      headers,
+    })
+    if (response.status === 404) return true
+    if (!response.ok) throw new Error(`Stream batch responded with status ${response.status}`)
+    const batch = parseStreamBatchResponse(await response.json())
+    relay.chatId ??= resolveChatIdFromStreamBatch(batch)
+    for (const { event } of batch.events) {
+      const settledId = settledToolCallId(event)
+      if (settledId) handledToolCallIds.add(settledId)
+    }
+    for (const { event } of batch.events) applyEvent(event)
+    return isTerminalStreamStatus(batch.status)
+  }
+
+  /** Tails one live connection; resolves true once the run is over. */
   const readTail = async (): Promise<boolean> => {
     // boundary-raw-fetch: live SSE tail endpoint streams events consumed via readSSELines
-    const response = await fetch(buildStreamResumeUrl(streamId, cursor), {
-      signal,
-      ...(traceparent ? { headers: { traceparent } } : {}),
-    })
+    const response = await fetch(buildStreamResumeUrl(streamId, cursor), { signal, headers })
     if (response.status === 404) return true
     if (!response.ok || !response.body) {
       throw new Error(`Stream tail responded with status ${response.status}`)
     }
-
     let complete = false
     await readSSELines(response.body, {
       signal,
@@ -106,24 +179,8 @@ async function relayClientTools(turn: DetachedChatTurn, signal: AbortSignal): Pr
       onData: (raw) => {
         const parsed = parsePersistedStreamEventEnvelopeJson(raw)
         if (!parsed.ok) throw createStreamSchemaValidationError(parsed, 'Detached SSE event.')
-        const event = parsed.event
-        const eventCursor = getStreamEventCursor(event)
-        if (isAlreadyProcessedStreamCursor(eventCursor, cursor)) return
-        cursor = eventCursor
-
-        if (event.type === MothershipStreamV1EventType.tool) {
-          const start = resolveClientToolStart(event, (id) => !handledToolCallIds.has(id))
-          if (start) {
-            handledToolCallIds.add(start.toolCallId)
-            startDetachedClientTool(turn, start)
-          } else if (
-            !('previewPhase' in event.payload) &&
-            event.payload.phase === MothershipStreamV1ToolPhase.result
-          ) {
-            handledToolCallIds.add(event.payload.toolCallId)
-          }
-        }
-        if (event.type === MothershipStreamV1EventType.complete) {
+        applyEvent(parsed.event)
+        if (parsed.event.type === MothershipStreamV1EventType.complete) {
           complete = true
           return true
         }
@@ -135,7 +192,7 @@ async function relayClientTools(turn: DetachedChatTurn, signal: AbortSignal): Pr
   while (!signal.aborted) {
     const cursorBeforeAttempt = cursor
     try {
-      if (await readTail()) return
+      if ((await readBatch()) || (await readTail())) return
     } catch (error) {
       if (signal.aborted) return
       if (isStreamSchemaValidationError(error)) {
@@ -145,43 +202,35 @@ async function relayClientTools(turn: DetachedChatTurn, signal: AbortSignal): Pr
         })
         return
       }
-      logger.warn('Detached stream tail failed', { streamId, error: getErrorMessage(error) })
+      logger.warn('Detached stream read failed', { streamId, error: getErrorMessage(error) })
     }
-
     if (cursor !== cursorBeforeAttempt) {
-      stalledAttempts = 0
+      failedAttempts = 0
       continue
     }
-    stalledAttempts++
-    if (stalledAttempts >= MAX_STALLED_TAIL_ATTEMPTS) {
-      logger.warn('Stopped relaying detached client tools after repeated stalls', {
-        streamId,
-        cursor,
-      })
-      return
-    }
-    await interruptibleSleep(backoffWithJitter(stalledAttempts, null), signal)
+    failedAttempts++
+    await interruptibleSleep(backoffWithJitter(failedAttempts, null), signal)
   }
 }
 
-/**
- * Relays a left turn's client tools until its run completes or the chat is
- * reopened. Replaces any relay the chat already has.
- */
+/** Relays a left turn's client tools until its run ends or its chat's view reads it again. */
 export function detachClientTools(turn: DetachedChatTurn): void {
-  relays.get(turn.chatId)?.abort('superseded_detached_relay')
-  const controller = new AbortController()
-  relays.set(turn.chatId, controller)
-  void relayClientTools(turn, controller.signal).finally(() => {
-    if (relays.get(turn.chatId) === controller) relays.delete(turn.chatId)
+  relays.get(turn.streamId)?.controller.abort('superseded_detached_relay')
+  const relay: Relay = { controller: new AbortController(), chatId: turn.chatId }
+  relays.set(turn.streamId, relay)
+  void relayClientTools(turn, relay).finally(() => {
+    if (relays.get(turn.streamId) === relay) relays.delete(turn.streamId)
   })
 }
 
 /**
- * Stops relaying a chat the user reopened; its chat view takes the turn back.
- * Tools the relay already started keep running and report their outcome.
+ * Stops relaying a chat whose view reads its stream again. Tools the relay
+ * already started keep running and report their outcome.
  */
 export function reattachClientTools(chatId: string): void {
-  relays.get(chatId)?.abort('chat_reattached')
-  relays.delete(chatId)
+  for (const [streamId, relay] of relays) {
+    if (relay.chatId !== chatId) continue
+    relay.controller.abort('chat_reattached')
+    relays.delete(streamId)
+  }
 }

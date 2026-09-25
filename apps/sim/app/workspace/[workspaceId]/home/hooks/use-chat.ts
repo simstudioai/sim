@@ -176,7 +176,6 @@ import {
   isAlreadyProcessedStreamCursor,
   isStreamGoneError,
   isStreamSchemaValidationError,
-  isZeroStreamCursor,
   parseStreamBatchResponse,
   resolveChatIdFromStreamBatch,
   STREAM_IDLE_TIMEOUT_MS,
@@ -1610,34 +1609,33 @@ export function useChat(
 
   /**
    * Hands the live turn's client tools to a detached relay as the user leaves
-   * its chat, so a desktop run keeps going in the background. When it does,
-   * the caller releases the turn's controller without aborting it: tools
-   * already running report their outcome instead of being cancelled. A view
-   * that has applied no event yet cannot tell settled calls from pending ones
-   * on replay, so it keeps no relay.
+   * its chat, so a desktop run keeps going in the background. A turn is live
+   * once the server admitted it: its stream id is known, or its response is
+   * being read (a send's stream id is its user message id). When a relay takes
+   * the turn, the caller releases the turn's controller without aborting it,
+   * so tools already running report their outcome instead of being cancelled.
    *
    * @returns whether a relay took the turn
    */
   detachLiveTurnClientToolsRef.current = (): boolean => {
-    const chatId = chatIdRef.current
-    const streamId = streamIdRef.current
+    const streamId =
+      streamIdRef.current ??
+      (streamReaderRef.current ? activeTurnRef.current?.userMessageId : undefined)
     if (
       !isDesktopApp() ||
       requestModeRef.current === 'assistant' ||
       !sendingRef.current ||
-      !chatId ||
-      !streamId ||
-      isZeroStreamCursor(lastCursorRef.current)
+      !streamId
     ) {
       return false
     }
     detachClientTools({
-      chatId,
       streamId,
+      chatId: chatIdRef.current,
       afterCursor: lastCursorRef.current,
       traceparent: streamTraceparentRef.current,
       workspaceId,
-      scopeId: desktopChatScopeId(scopeKey, chatId),
+      scopeKey,
     })
     return true
   }
@@ -1686,7 +1684,6 @@ export function useChat(
   )
 
   useEffect(() => {
-    if (initialChatId) reattachClientTools(initialChatId)
     const previousDesktopScopeId = desktopScopeIdRef.current
     const canDiscardPreviousPendingScope = !sendingRef.current
     const streamOwnerId = chatIdRef.current
@@ -2213,6 +2210,8 @@ export function useChat(
         return { sawStreamError: false, sawComplete: false }
       }
       streamReaderRef.current = reader
+      const readerChatId = options?.targetChatId ?? chatIdRef.current
+      if (readerChatId) reattachClientTools(readerChatId)
 
       try {
         await readSSELines(reader, {

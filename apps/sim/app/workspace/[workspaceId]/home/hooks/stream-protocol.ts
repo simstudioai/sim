@@ -115,18 +115,27 @@ export function parseStreamBatchResponse(value: unknown): StreamBatchResponse {
   }
 }
 
+/** The chat an event names, from its stream metadata or a chat session event. */
+export function resolveChatIdFromStreamEvent(
+  event: PersistedStreamEventEnvelope
+): string | undefined {
+  const streamChatId = typeof event.stream?.chatId === 'string' ? event.stream.chatId : undefined
+  if (streamChatId) return streamChatId
+  if (
+    event.type === MothershipStreamV1EventType.session &&
+    event.payload.kind === MothershipStreamV1SessionKind.chat
+  ) {
+    return event.payload.chatId
+  }
+  return undefined
+}
+
 export function resolveChatIdFromStreamBatch(batch: StreamBatchResponse): string | undefined {
   if (batch.chatId) return batch.chatId
 
   for (const { event } of batch.events) {
-    const streamChatId = typeof event.stream?.chatId === 'string' ? event.stream.chatId : undefined
-    if (streamChatId) return streamChatId
-    if (
-      event.type === MothershipStreamV1EventType.session &&
-      event.payload.kind === MothershipStreamV1SessionKind.chat
-    ) {
-      return event.payload.chatId
-    }
+    const chatId = resolveChatIdFromStreamEvent(event)
+    if (chatId) return chatId
   }
 
   return undefined
