@@ -3,6 +3,7 @@ import {
   mothershipChatPayloadMock,
   mothershipChatPayloadMockFns,
 } from '@sim/testing/mocks/mothership-chat-payload.mock'
+import { mothershipChatWorkspaceContextMock } from '@sim/testing/mocks/mothership-chat-workspace-context.mock'
 import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import {
@@ -17,9 +18,10 @@ vi.mock('@/lib/mothership/mcp-tools', () => ({ buildTaggedMcpToolSchemas: vi.fn(
 vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
 vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
-vi.mock('@/lib/mothership/chat/application/workspace-context', () => ({
-  readWorkspaceContext: { execute: vi.fn() },
-}))
+vi.mock(
+  '@/lib/mothership/chat/application/workspace-context',
+  () => mothershipChatWorkspaceContextMock
+)
 vi.mock('@/lib/mothership/request/application/read-control', () => ({
   RUN_CONTROL_AUDIENCE: 'control',
   readRunControl: { execute: vi.fn() },
