@@ -21,6 +21,7 @@ export default defineConfig(({ mode }) => {
     test: {
       css: false,
       globals: true,
+      clearMocks: true,
       environment: 'node',
       include: integration ? ['**/*.integration.ts'] : ['**/*.test.{ts,tsx}'],
       exclude: [

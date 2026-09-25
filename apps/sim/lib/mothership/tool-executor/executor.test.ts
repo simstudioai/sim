@@ -121,7 +121,7 @@ describe('copilot tool executor fallback', () => {
     )
     expect(result).toEqual({
       success: false,
-      error: 'Search Assistant uses scoped search and document reads for connected sources.',
+      error: 'This operation is not available in Search Assistant.',
     })
     expect(handler).not.toHaveBeenCalled()
     expect(executeAppTool).not.toHaveBeenCalled()

@@ -679,6 +679,7 @@ export const GmailV2Block: BlockConfig<GmailToolResponse> = {
       'gmail_delete_v2',
       'gmail_add_label_v2',
       'gmail_remove_label_v2',
+      'gmail_list_labels_v2',
     ],
     config: {
       ...GmailBlock.tools?.config,

@@ -468,9 +468,9 @@ export async function buildCopilotRequestPayload(
     messageId: userMessageId,
     ...(chatId ? { chatId } : {}),
     ...(allContexts.length > 0 ? { context: allContexts } : {}),
-    ...(!isAssistant && {
-      integrationCatalog: { mcpServerIds: [...new Set(params.mcpServerIds ?? [])] },
-    }),
+    integrationCatalog: {
+      mcpServerIds: isAssistant ? [] : [...new Set(params.mcpServerIds ?? [])],
+    },
     ...(params.userTimezone ? { userTimezone: params.userTimezone } : {}),
     ...(params.effort ? { effort: params.effort } : {}),
     ...(params.modelSelection ? { modelSelection: params.modelSelection } : {}),

@@ -5,7 +5,8 @@ import { envFlagsMockFns, resetEnvFlagsMock, setEnvFlags, workflowsUtilsMock } f
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getExposedIntegrationTools } from '@/lib/integrations/tool-catalog'
 import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
-import { searchIssuesV2Tool } from '@/tools/github/search_issues'
+import { searchUsersV2Tool } from '@/tools/github/search_users'
+import { gmailListLabelsV2Tool } from '@/tools/gmail/list_labels'
 
 const {
   mockCreateUserToolSchema,
@@ -162,15 +163,17 @@ vi.mock('@/tools/params', () => ({
 
 vi.mock('@/tools/metadata', () => ({
   getToolMetadata: (id: string) =>
-    id === 'github_search_issues_v2'
-      ? searchIssuesV2Tool
-      : id === 'gmail_send'
-        ? {
-            id,
-            params: { accessToken: { type: 'string', visibility: 'hidden', required: true } },
-            oauth: { required: true, provider: 'google-email' },
-          }
-        : undefined,
+    id === gmailListLabelsV2Tool.id
+      ? gmailListLabelsV2Tool
+      : id === 'github_search_users_v2'
+        ? searchUsersV2Tool
+        : id === 'gmail_send'
+          ? {
+              id,
+              params: { accessToken: { type: 'string', visibility: 'hidden', required: true } },
+              oauth: { required: true, provider: 'google-email' },
+            }
+          : undefined,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
@@ -692,16 +695,16 @@ describe('Assistant payload', () => {
     mockCreateUserToolSchema.mockReturnValue({ type: 'object', properties: {} })
     mockSearchApprovals.mockResolvedValue(new Map())
   })
-  it('discovers the existing GitHub PR-count tool with a personal credential in live Search', async () => {
+  it('discovers the existing GitHub user lookup tool with a personal credential in live Search', async () => {
     clearIntegrationToolSchemaCacheForTests()
     setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     mockSearchApprovals.mockResolvedValue(new Map([['github', true]]))
     vi.mocked(getExposedIntegrationTools).mockReturnValueOnce([
       {
-        toolId: searchIssuesV2Tool.id,
-        config: searchIssuesV2Tool,
+        toolId: searchUsersV2Tool.id,
+        config: searchUsersV2Tool,
         service: 'github',
-        operation: 'search_issues',
+        operation: 'search_users',
         blockType: 'github_v2',
         owners: [{ service: 'github', blockType: 'github_v2' }],
       },
@@ -715,7 +718,7 @@ describe('Assistant payload', () => {
     })
     expect(tools).toHaveLength(1)
     expect(tools[0]).toMatchObject({
-      name: 'github_search_issues_v2',
+      name: 'github_search_users_v2',
       oauth: { provider: 'github-repositories' },
       input_schema: { required: expect.arrayContaining(['q', 'credentialId']) },
     })
@@ -730,6 +733,17 @@ describe('Assistant payload', () => {
     ).toEqual([])
   })
   it('advertises approved personal organization integrations and rechecks revocation', async () => {
+    clearIntegrationToolSchemaCacheForTests()
+    vi.mocked(getExposedIntegrationTools).mockReturnValueOnce([
+      {
+        toolId: gmailListLabelsV2Tool.id,
+        config: gmailListLabelsV2Tool,
+        service: 'gmail',
+        operation: 'list_labels',
+        blockType: 'gmail',
+        owners: [{ service: 'gmail', blockType: 'gmail' }],
+      },
+    ])
     mockSearchApprovals.mockResolvedValue(new Map([['gmail', true]]))
     const options = {
       schemaSurface: 'copilot' as const,
@@ -737,7 +751,7 @@ describe('Assistant payload', () => {
       organizationId: 'org',
     }
     const approved = await buildIntegrationToolSchemas('person', options)
-    expect(approved.map((tool) => tool.name)).toContain('gmail_send')
+    expect(approved.map((tool) => tool.name)).toEqual(['gmail_list_labels_v2'])
     mockSearchApprovals.mockResolvedValue(new Map([['gmail', false]]))
     expect(await buildIntegrationToolSchemas('person', options)).toEqual([])
     mockSearchApprovals.mockResolvedValue(new Map([['gmail', true]]))
@@ -771,7 +785,7 @@ describe('Assistant payload', () => {
     expect(mockTrackChatUpload).not.toHaveBeenCalled()
   })
 
-  it('forwards organization scope without workspace, integration, or desktop authority', async () => {
+  it('forwards organization scope without workspace or desktop authority', async () => {
     const payload = await buildCopilotRequestPayload(
       {
         message: 'Find the policy',
@@ -788,13 +802,13 @@ describe('Assistant payload', () => {
       { selectedModel: '' }
     )
     expect(payload.organizationId).toBe('org-1')
-    expect(payload).not.toHaveProperty('integrationCatalog')
+    expect(payload.integrationCatalog).toEqual({ mcpServerIds: [] })
     expect(payload).not.toHaveProperty('workspaceId')
     expect(payload).not.toHaveProperty('desktopCapabilities')
     expect(payload).not.toHaveProperty('integrationTools')
   })
 
-  it('keeps the shared search scope without an integration gateway catalog', async () => {
+  it('keeps the shared search scope with native discovery and no MCP servers', async () => {
     clearIntegrationToolSchemaCacheForTests()
     const payload = await buildCopilotRequestPayload(
       {
@@ -824,7 +838,7 @@ describe('Assistant payload', () => {
       expect(payload).not.toHaveProperty(field)
     }
     expect(payload).not.toHaveProperty('integrationTools')
-    expect(payload).not.toHaveProperty('integrationCatalog')
+    expect(payload.integrationCatalog).toEqual({ mcpServerIds: [] })
   })
 })
 

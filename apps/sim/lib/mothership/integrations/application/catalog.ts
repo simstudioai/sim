@@ -166,11 +166,6 @@ const catalogUseCase = defineAuthorizedChatUseCase({
     delegation: { audience: INTEGRATION_CATALOG_AUDIENCE, isWithinScope: () => true },
   },
   async execute({ input, context }) {
-    if (context.mode === 'assistant')
-      throw new OrchestrationError(
-        'forbidden',
-        'Search Assistant uses scoped search and document reads for connected sources.'
-      )
     if (input.mcpExecution && context.organizationId)
       throw new OrchestrationError('forbidden', 'Executor catalogs require workspace agent scope')
     let workspaceId = context.workspaceId
@@ -185,10 +180,12 @@ const catalogUseCase = defineAuthorizedChatUseCase({
           {
             schemaSurface: 'copilot',
             organizationId: context.organizationId,
+            ...(context.mode === 'assistant' ? { personalAccountsOnly: true } : {}),
           },
           workspaceId
         )
     const includeMcp =
+      context.mode !== 'assistant' &&
       (!input.toolId || input.toolId.startsWith('mcp-')) &&
       (!input.service || input.service.startsWith('mcp:'))
     if (includeMcp && (input.mcpServerIds.length || input.mcpToolIds?.length)) {

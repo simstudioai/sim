@@ -225,16 +225,14 @@ describe('catalog authorization', () => {
     }
   )
 
-  it('rejects Search Assistant discovery before building native or MCP catalogs', async () => {
+  it('does not discover MCP operations in Search even with selected servers', async () => {
     queueChat()
-    await expect(
-      readIntegrationCatalog.execute({
-        principal: principal(),
-        input: { ...input, mcpServerIds: ['mcp-abc'] },
-      })
-    ).rejects.toThrow('Search Assistant uses scoped search and document reads')
-    expect(mocks.build).not.toHaveBeenCalled()
-    expect(mocks.mcp).not.toHaveBeenCalled()
+    mocks.mcp.mockResolvedValue([{ ...tools[0], name: 'mcp-abc-send', service: 'mcp:mcp-abc' }])
+    const result = await readIntegrationCatalog.execute({
+      principal: principal(),
+      input: { ...input, service: 'mcp:mcp-abc', mcpServerIds: ['mcp-abc'] },
+    })
+    expect(result.operations).toEqual([])
   })
   it.each(['user', 'organization', 'expired', 'audience', 'mode', 'membership'] as const)(
     'rejects invalid %s before catalog building',

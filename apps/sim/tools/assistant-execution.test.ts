@@ -111,7 +111,7 @@ describe('Assistant integration execution boundary', () => {
   it.each(['oauth', 'personal_token'])(
     'protects resolved %s credentials in results, errors, diagnostics, and resume provenance',
     async (kind) => {
-      const selected = tool('personal_read')
+      const selected = tool('google_drive_get_file')
       if (kind === 'personal_token') {
         selected.oauth = undefined
         selected.personalToken = {
@@ -194,7 +194,7 @@ describe('Assistant integration execution boundary', () => {
   it('refuses token-bearing execution when its trusted registry is missing', async () => {
     const { resolvedSecretTraceRegistry, ...withoutRegistry } = assistantContext
     const result = await executeTool(
-      'personal_read',
+      'google_drive_get_file',
       { credentialId: 'mine' },
       {
         operationContext: withoutRegistry,
@@ -207,7 +207,7 @@ describe('Assistant integration execution boundary', () => {
   it('refuses provider dispatch when its secret projection registry is incomplete', async () => {
     assistantContext.resolvedSecretTraceRegistry?.markIncomplete('unspecified')
     const result = await executeTool(
-      'personal_read',
+      'google_drive_get_file',
       { credentialId: 'mine' },
       {
         operationContext: assistantContext,
@@ -218,7 +218,7 @@ describe('Assistant integration execution boundary', () => {
   })
 
   it('binds the personal token and host through the authorized operation', async () => {
-    const gitlab = tool('gitlab_read')
+    const gitlab = tool('gitlab_list_projects')
     gitlab.oauth = undefined
     gitlab.personalToken = { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' }
     gitlab.params.host = { type: 'string', visibility: 'user-only' }
@@ -251,7 +251,7 @@ describe('Assistant integration execution boundary', () => {
   })
 
   it('does not call the provider after personal token access is revoked', async () => {
-    const gitlab = tool('gitlab_read')
+    const gitlab = tool('gitlab_list_projects')
     gitlab.oauth = undefined
     gitlab.personalToken = { provider: 'gitlab', tokenParam: 'accessToken', hostParam: 'host' }
     gitlab.params.host = { type: 'string', visibility: 'user-only' }
@@ -270,7 +270,7 @@ describe('Assistant integration execution boundary', () => {
 
   it('keeps the Assistant person when a direct call also carries workflow authority', async () => {
     const result = await executeTool(
-      'personal_read',
+      'google_drive_get_file',
       { credential: 'mine' },
       {
         operationContext: assistantContext,
@@ -295,10 +295,10 @@ describe('Assistant integration execution boundary', () => {
   })
 
   it('pins Assistant authority through nested post-processing calls', async () => {
-    const parent = tool('personal_parent')
+    const parent = tool('google_drive_list_comments')
     parent.postProcess = async (_result, _params, nested) =>
       nested(
-        'personal_read',
+        'google_drive_get_file',
         {
           credential: 'mine',
           _context: {
@@ -341,7 +341,7 @@ describe('Assistant integration execution boundary', () => {
   })
 
   it('still rejects non-OAuth nested operations after a forged mode downgrade', async () => {
-    const parent = tool('personal_parent')
+    const parent = tool('google_drive_list_comments')
     parent.postProcess = async (_result, _params, nested) =>
       nested(
         'not_personal',
