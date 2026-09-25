@@ -383,6 +383,15 @@ export class DAGExecutor {
       snapshotState?.deactivatedEdges,
       snapshotState?.nodesWithActivatedEdge
     )
+    /**
+     * Run-from-block re-executes its dirty set from scratch, so the source execution's edge state
+     * for those nodes must not carry over: a stale activation runs an unselected branch, and a
+     * stale deactivation releases a join before its live input completes.
+     */
+    const dirtySet = context.runFromBlockContext?.dirtySet
+    if (dirtySet) {
+      edgeManager.clearDeactivatedEdgesForNodes(dirtySet)
+    }
     const nodeOrchestrator = new NodeExecutionOrchestrator(
       dag,
       state,
