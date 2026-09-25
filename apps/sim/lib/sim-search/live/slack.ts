@@ -138,7 +138,11 @@ export async function searchSlack(
       url: string(message.permalink),
       content: [
         ...before.map(contextLine),
-        text && line(string(message.author_name), text),
+        text &&
+          line(
+            string(message.author_name) || users.get(string(message.author_user_id)) || '',
+            text
+          ),
         ...after.map(contextLine),
       ]
         .filter(Boolean)

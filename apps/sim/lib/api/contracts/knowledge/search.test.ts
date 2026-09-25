@@ -50,4 +50,15 @@ describe('workspaceKnowledgeSearchBodySchema', () => {
     )
     expect(workspaceKnowledgeSearchBodySchema.safeParse(body).success).toBe(false)
   })
+  it('accepts a newest- or oldest-first listing without terms, as the Assistant contract does', () => {
+    const body = { workspaceId: 'workspace-1', query: '' }
+    for (const sortBy of ['newest', 'oldest'] as const)
+      expect(
+        workspaceKnowledgeSearchBodySchema.safeParse({ ...body, filters: { sortBy } }).success
+      ).toBe(true)
+    expect(
+      workspaceKnowledgeSearchBodySchema.safeParse({ ...body, filters: { sortBy: 'relevance' } })
+        .success
+    ).toBe(false)
+  })
 })

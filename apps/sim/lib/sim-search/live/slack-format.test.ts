@@ -80,6 +80,32 @@ describe('Slack search presentation', () => {
       containerUrl: 'https://sim.slack.com/archives/G123',
     })
   })
+  it('names a match missing its author name from a surrounding message by the same user', async () => {
+    const api = {
+      json: vi.fn().mockResolvedValue({
+        ok: true,
+        results: {
+          messages: [
+            {
+              message_ts: '123.456',
+              channel_id: 'D1',
+              author_user_id: 'U1',
+              content: 'see you then',
+              permalink: 'https://sim.slack.com/archives/D1/p123456',
+              context_messages: { before: [{ text: 'lunch?', user_id: 'U1', author_name: 'Sid' }] },
+            },
+          ],
+        },
+      }),
+      text: vi.fn(),
+    }
+    const result = await searchSlack(api, {
+      query: 'lunch',
+      limit: 20,
+      scopes: ['search:read.public'],
+    })
+    expect(result.documents[0]?.content).toBe('Sid: lunch?\nSid: see you then')
+  })
   it('keeps a lone search match unlabeled, since its author is a separate field', async () => {
     const api = {
       json: vi.fn().mockResolvedValue({
