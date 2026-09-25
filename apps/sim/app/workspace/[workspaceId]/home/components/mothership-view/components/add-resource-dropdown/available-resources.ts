@@ -1,5 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
+import { DASHBOARD_CONTENT_TYPE, dashboardDisplayName } from '@/lib/dashboards/resource'
 import { subscribeDesktopPreferences } from '@/lib/desktop'
 import { isTerminalAvailable } from '@/lib/terminal/transport'
 import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
@@ -9,6 +10,7 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { listIntegrationsByPopularity } from '@/blocks/integration-matcher'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
@@ -94,6 +96,7 @@ export function useAvailableResources(
   workspaceId: string,
   options?: UseAvailableResourcesOptions
 ): AvailableResources {
+  const dashboardsEnabled = useFeatureFlag('dashboards')
   const enabled = options?.enabled ?? true
   const excludeTypes = options?.excludeTypes
   const browserAvailable = useSyncExternalStore(
@@ -177,6 +180,7 @@ export function useAvailableResources(
   const groups = useMemo(() => {
     if (!enabled) return NO_RESOURCE_GROUPS
     const excluded = new Set<MothershipResourceType>(excludeTypes ?? [])
+    if (!dashboardsEnabled) excluded.add('dashboard')
     const groups: AvailableItemsByType[] = [
       {
         type: 'workflow' as const,
@@ -205,8 +209,16 @@ export function useAvailableResources(
         })),
       },
       {
+        type: 'dashboard' as const,
+        items: (files ?? [])
+          .filter((f) => f.type === DASHBOARD_CONTENT_TYPE)
+          .map((f) => ({ id: f.id, name: dashboardDisplayName(f.name), folderId: null })),
+      },
+      {
         type: 'file' as const,
-        items: (files ?? []).map((f) => ({ id: f.id, name: f.name, folderId: f.folderId ?? null })),
+        items: (files ?? [])
+          .filter((f) => f.type !== DASHBOARD_CONTENT_TYPE)
+          .map((f) => ({ id: f.id, name: f.name, folderId: f.folderId ?? null })),
       },
       {
         type: 'filefolder' as const,
@@ -300,6 +312,7 @@ export function useAvailableResources(
     tasks,
     logs,
     excludeTypes,
+    dashboardsEnabled,
   ])
 
   /**

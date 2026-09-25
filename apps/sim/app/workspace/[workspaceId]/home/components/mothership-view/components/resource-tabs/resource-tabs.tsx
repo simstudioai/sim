@@ -29,6 +29,7 @@ import {
   reorderBrowserTab,
   sendBrowserPanelAction,
 } from '@/lib/browser-agent/transport'
+import { dashboardDisplayName, fileBackedResourceType } from '@/lib/dashboards/resource'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import { requestTerminalFocus } from '@/lib/terminal/focus'
@@ -203,7 +204,10 @@ function useResourceNameLookup(
           map.set(`workflow:${workflow.id}`, workflow.name)
     }
     for (const t of tables ?? []) map.set(`table:${t.id}`, t.name)
-    for (const f of files ?? []) map.set(`file:${f.id}`, f.name)
+    for (const f of files ?? []) {
+      const type = fileBackedResourceType(f.type)
+      map.set(`${type}:${f.id}`, type === 'dashboard' ? dashboardDisplayName(f.name) : f.name)
+    }
     for (const kb of knowledgeBases ?? []) map.set(`knowledgebase:${kb.id}`, kb.name)
     for (const folder of folders ?? []) map.set(`folder:${folder.id}`, folder.name)
     return map
@@ -308,7 +312,9 @@ export function ResourceTabs({
               ? terminalTabTitle(terminal, settledCommands)
               : nameLookup.get(`${resource.type}:${resource.id}`)
           )?.trim() ||
-          resource.title.trim() ||
+          (resource.type === 'dashboard'
+            ? dashboardDisplayName(resource.title).trim()
+            : resource.title.trim()) ||
           getResourceConfig(resource.type).label,
         // A shell's label is a basename, and it may be running something it is
         // not naming yet, so hovering identifies the directory and program.

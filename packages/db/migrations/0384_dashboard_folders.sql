@@ -1,0 +1,1 @@
+ALTER TYPE "public"."folder_resource_type" ADD VALUE 'dashboard' BEFORE 'workflow';

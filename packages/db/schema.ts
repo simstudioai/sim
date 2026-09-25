@@ -198,6 +198,7 @@ export const verification = pgTable(
 )
 
 export const folderResourceTypeEnum = pgEnum('folder_resource_type', [
+  'dashboard',
   'workflow',
   'file',
   'knowledge_base',

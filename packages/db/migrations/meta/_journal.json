@@ -2682,6 +2682,13 @@
       "when": 1790296491758,
       "tag": "0383_workspace_visit",
       "breakpoints": true
+    },
+    {
+      "idx": 384,
+      "version": "7",
+      "when": 1790302239184,
+      "tag": "0384_dashboard_folders",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,6 @@
 import type { QueryClient, QueryKey } from '@tanstack/react-query'
 import type { MothershipResourceType } from '@/lib/mothership/resources/types'
+import { dashboardKeys } from '@/hooks/queries/dashboards'
 import { deploymentKeys, invalidateDeploymentQueries } from '@/hooks/queries/deployments'
 import { logKeys } from '@/hooks/queries/logs'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
@@ -25,6 +26,11 @@ const RESOURCE_INVALIDATORS: Record<
     invalidate(qc, tableKeys.lists())
     invalidate(qc, id ? tableKeys.detail(id) : tableKeys.details())
     invalidate(qc, id ? tableKeys.views(id) : tableKeys.viewsRoot())
+  },
+  dashboard: (qc, wId, id) => {
+    invalidate(qc, dashboardKeys.lists())
+    invalidate(qc, dashboardKeys.folders(wId))
+    invalidate(qc, id ? dashboardKeys.detail(wId, id) : dashboardKeys.details())
   },
   file: (qc, wId, id) => {
     invalidate(qc, workspaceFilesKeys.lists())

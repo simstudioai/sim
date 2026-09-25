@@ -112,6 +112,7 @@ const EXT_TO_MIME: Record<string, string> = {
   '.json': 'application/json',
   '.csv': 'text/csv',
   '.chart': 'text/x-sim-chart',
+  '.dashboard': 'text/x-sim-dashboard',
   '.pptx': PPTX_MIME,
   '.docx': DOCX_MIME,
   '.pdf': PDF_MIME,

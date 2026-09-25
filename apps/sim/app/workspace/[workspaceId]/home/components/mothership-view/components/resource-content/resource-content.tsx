@@ -23,6 +23,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
+import { DashboardResource } from '@/components/dashboards/dashboard-resource'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import { useSession } from '@/lib/auth/auth-client'
@@ -50,6 +51,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/home/types'
 import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
 import { LogDetailsContent } from '@/app/workspace/[workspaceId]/logs/components'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   useUserPermissionsContext,
@@ -297,6 +299,15 @@ export const ResourceContent = memo(function ResourceContent({
         />
       )
 
+    case 'dashboard':
+      return (
+        <DashboardResource
+          key={resource.id}
+          workspaceId={workspaceId}
+          dashboardId={resource.id}
+          embedded
+        />
+      )
     case 'file':
       return (
         <EmbeddedFile
@@ -401,6 +412,8 @@ export function ResourceActions({
       return (
         <EmbeddedKnowledgeBaseActions workspaceId={workspaceId} knowledgeBaseId={resource.id} />
       )
+    case 'dashboard':
+      return <EmbeddedDashboardActions workspaceId={workspaceId} dashboardId={resource.id} />
     case 'table':
       return <EmbeddedTableActions workspaceId={workspaceId} tableId={resource.id} />
     case 'log':
@@ -515,6 +528,33 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
         </Tooltip.Content>
       </Tooltip.Root>
     </>
+  )
+}
+
+interface EmbeddedDashboardActionsProps {
+  workspaceId: string
+  dashboardId: string
+}
+
+function EmbeddedDashboardActions({ workspaceId, dashboardId }: EmbeddedDashboardActionsProps) {
+  const router = useRouter()
+  const dashboardsEnabled = useFeatureFlag('dashboards')
+  if (!dashboardsEnabled) return null
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>
+        <TabStripAction
+          variant='subtle'
+          onClick={() => router.push(`/workspace/${workspaceId}/dashboards/${dashboardId}`)}
+          aria-label='Open dashboard'
+        >
+          <SquareArrowUpRight className={RESOURCE_TAB_ICON_CLASS} />
+        </TabStripAction>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='bottom'>
+        <p>Open dashboard</p>
+      </Tooltip.Content>
+    </Tooltip.Root>
   )
 }
 

@@ -15,6 +15,7 @@ export const ResourceType = z.enum([
   "table",
   "knowledgebase",
   "file",
+  "dashboard",
   "folder",
   "filefolder",
   "log",

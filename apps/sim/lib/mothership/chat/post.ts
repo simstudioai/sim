@@ -120,6 +120,7 @@ const GENERIC_RESOURCE_TITLE: Record<z.infer<typeof ResourceAttachmentSchema>['t
   table: 'Table',
   integration: 'Integration',
   file: 'File',
+  dashboard: 'Dashboard',
   knowledgebase: 'Knowledge Base',
   folder: 'Folder',
   filefolder: 'File Folder',

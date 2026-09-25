@@ -3,6 +3,7 @@
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { useQueryClient } from '@tanstack/react-query'
 import { useWorkspaceInvalidationRoom } from '@/app/workspace/[workspaceId]/hooks/use-workspace-invalidation-room'
+import { dashboardKeys } from '@/hooks/queries/dashboards'
 import {
   invalidateWorkspaceFileBrowsers,
   WORKSPACE_FILE_BROWSER_INVALIDATION_KEY,
@@ -18,7 +19,10 @@ export function useWorkspaceFilesRoom(workspaceId: string): void {
   useWorkspaceInvalidationRoom(
     workspaceId,
     ROOM_TYPES.WORKSPACE_FILES,
-    () => invalidateWorkspaceFileBrowsers(queryClient, workspaceId),
+    () => {
+      invalidateWorkspaceFileBrowsers(queryClient, workspaceId)
+      void queryClient.invalidateQueries({ queryKey: dashboardKeys.all })
+    },
     WORKSPACE_FILE_BROWSER_INVALIDATION_KEY
   )
 }

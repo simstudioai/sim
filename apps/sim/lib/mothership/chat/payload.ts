@@ -8,6 +8,8 @@ import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { isPaid } from '@/lib/billing/plan-helpers'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import { isHosted, isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
+import { readDashboardAvailability } from '@/lib/dashboards/application/availability'
+import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isOAuthServiceDeploymentAvailable } from '@/lib/integrations/availability.server'
 import {
   type IntegrationGateConfig,
@@ -442,7 +444,18 @@ export async function buildCopilotRequestPayload(
     !isAssistant && params.principal && params.workspaceId
       ? await buildWorkspaceInventory(params.principal, params.workspaceId)
       : undefined
+  const dashboardsEnabled =
+    !isAssistant &&
+    (params.organizationId
+      ? await isDashboardsEnabled(params.organizationId)
+      : params.workspaceId && params.principal
+        ? await readDashboardAvailability.execute({
+            principal: params.principal,
+            input: { workspaceId: params.workspaceId },
+          })
+        : false)
   return {
+    dashboardsEnabled,
     message,
     ...(!isAssistant && workflowId ? { workflowId } : {}),
     ...(params.workspaceId ? { workspaceId: params.workspaceId } : {}),

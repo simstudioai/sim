@@ -561,12 +561,12 @@ function RangeCalendarView({
         </div>
       )}
 
-      <div className='mt-1 flex items-center justify-between gap-2'>
+      <div className='mt-3 flex items-center justify-between gap-2'>
         <Chip onClick={clear} disabled={!rangeStart && !rangeEnd}>
           Clear
         </Chip>
         <div className='flex items-center gap-2'>
-          <Chip variant='border' onClick={() => onCancel?.()}>
+          <Chip variant='outline' onClick={() => onCancel?.()}>
             Cancel
           </Chip>
           <Chip variant='primary' onClick={apply} disabled={!rangeStart}>

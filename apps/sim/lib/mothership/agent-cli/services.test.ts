@@ -53,6 +53,32 @@ describe('scoped CLI service adapter', () => {
     boundary.provenance.mockReturnValue({ observeOutput: vi.fn() })
     boundary.sink.mockImplementation(async (_sink, _session, result) => result)
   })
+  it.each(['dashboards', 'dashboard_folders'] as const)(
+    '%s binds the canonical workspace before dispatch',
+    async (name) => {
+      const result = await executeAgentCliService(
+        { ...service(name, { action: 'list' }), workspaceId: 'chosen' },
+        organization
+      )
+      expect(result.exitCode).toBe(0)
+      expect(boundary.workspace).toHaveBeenCalledWith(organization, 'chosen')
+      expect(boundary.route).toHaveBeenCalledWith(
+        name,
+        { action: 'list' },
+        expect.objectContaining({
+          workspaceId: 'chosen',
+          organizationId: undefined,
+          userId: 'actor',
+        })
+      )
+      await expect(
+        executeAgentCliService(
+          service(name, { action: 'list', workspaceId: 'forged' }),
+          organization
+        )
+      ).rejects.toThrow('invocation workspace target')
+    }
+  )
   it.each(['approve', 'setup'])('refreshes organization sources after %s', async (action) => {
     const result = await executeAgentCliService(service('search_sources', { action }), organization)
     expect(result.resources).toEqual([

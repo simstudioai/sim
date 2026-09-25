@@ -71,3 +71,21 @@ PostgreSQL database and run these tests from `packages/db` with
 Remove the patch when Drizzle provides an explicit noninteractive create/drop
 policy and propagates push failures. Keep Drizzle pinned until the replacement
 passes these regression tests.
+
+# ECharts rich-text tooltip fonts
+
+`echarts@6.1.0` omits the configured font from its rich-text tooltip container
+and the font family from generated name/value tokens. Custom formatter strings
+therefore use the renderer's default font, and built-in tooltips lose the app's
+font family. The patch applies the configured font and line height to the
+container and preserves the family/style on generated tokens, so sizing and
+drawing use the same typography. Authored font overrides still take precedence.
+
+The patch covers the package's ESM source entry point and its full CommonJS and
+ESM bundles. Sim uses the ESM source entry point; the optional common/simple and
+minified distributions are not used or patched. It keeps tooltips in canvas
+rich-text mode, preserving the chart document's untrusted-markup boundary.
+
+`apps/sim/lib/charts/tooltip.test.ts` exercises actual ECharts tooltip rendering,
+font overrides, generated tokens, and box sizing. Remove this patch when an
+upstream release provides equivalent font handling and these tests pass.

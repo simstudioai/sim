@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     loadContext: vi.fn(),
+    flag: vi.fn(),
     resolvePermission: vi.fn(),
     getById: vi.fn(),
     update: vi.fn(),
@@ -10,6 +11,7 @@ const { mocks } = vi.hoisted(() => ({
   },
 }))
 
+vi.mock('@/lib/dashboards/feature-flag', () => ({ requireDashboardsEnabled: mocks.flag }))
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   loadActiveWorkspaceContext: mocks.loadContext,
 }))
@@ -59,10 +61,23 @@ const skill = {
 
 describe('skill application use cases', () => {
   beforeEach(() => {
+    mocks.flag.mockResolvedValue(undefined)
     mocks.loadContext.mockResolvedValue(workspace)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.getById.mockResolvedValue(skill)
     mocks.update.mockResolvedValue({ ...skill, content: '# Updated' })
+  })
+
+  it('refuses the dashboard authoring skill when dashboards are disabled', async () => {
+    mocks.getById.mockResolvedValue({ ...skill, id: 'builtin-create-dashboard' })
+    mocks.flag.mockRejectedValue(new Error('Dashboards are not enabled'))
+    await expect(
+      getSkillUseCase.execute({
+        principal: { kind: 'session', userId: 'reader' },
+        input: { workspaceId: workspace.workspaceId, skillId: 'builtin-create-dashboard' },
+      })
+    ).rejects.toThrow('Dashboards are not enabled')
+    expect(mocks.flag).toHaveBeenCalledWith(null)
   })
 
   it.each(['skill-1', 'builtin-research'])(

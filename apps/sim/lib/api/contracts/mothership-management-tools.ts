@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import {
+  mothershipDashboardFoldersInputSchema,
+  mothershipDashboardsInputSchema,
+} from '@/lib/api/contracts/mothership-dashboards'
 import { createWorkspaceInputSchema } from '@/lib/workspaces/create-input'
 import { organizationSearchSourcesInputSchema } from './mothership-search-sources'
 import { mothershipSettingsInputSchema } from './mothership-settings'
@@ -9,6 +13,22 @@ export const mothershipWorkspacesInputSchema = z.discriminatedUnion('action', [
 
 /** Shared input contracts and availability; permission decisions remain in the domain use cases. */
 export const managementToolContracts = [
+  {
+    id: 'dashboards',
+    route: 'sim',
+    scope: 'all',
+    description:
+      'Create, list, read, edit, move, rename and delete dashboards in the selected workspace. Dashboards are separate resources with validated YAML source. Load the create-dashboard skill for the actual schema. get returns content and revision; update requires expectedRevision to avoid overwriting concurrent edits. move changes name and/or folderId. Use open_resource with type dashboard to show the result. Sharing is not supported by this tool.',
+    inputSchema: mothershipDashboardsInputSchema,
+  },
+  {
+    id: 'dashboard_folders',
+    route: 'sim',
+    scope: 'all',
+    description:
+      'Manage the selected workspace’s dashboard folders. Paths are slash-separated under the Dashboards root. Create requires existing ancestors; move also renames via destinationPath. Delete archives the folder and its dashboards recursively. Folders are separate from Files.',
+    inputSchema: mothershipDashboardFoldersInputSchema,
+  },
   {
     id: 'workspaces',
     route: 'sim',
