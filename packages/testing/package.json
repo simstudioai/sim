@@ -60,7 +60,7 @@
   },
   "devDependencies": {
     "@sim/tsconfig": "workspace:*",
-    "next": "16.3.4",
+    "next": "16.3.6",
     "stripe": "18.5.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.1"
