@@ -1,7 +1,8 @@
 /**
- * Pooled reservations against real Redis Lua scripts. Requires `TEST_REDIS_URL`; the hosted
+ * Pooled reservations against real Redis Lua scripts. Skipped without `TEST_REDIS_URL`; the hosted
  * billing flags and the Redis client accessor are the only fixtures.
  */
+import { readTestRedisUrl } from '@sim/db/testing/test-infrastructure'
 import { envFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { redisConfigMock, redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { generateId } from '@sim/utils/id'
@@ -16,16 +17,15 @@ import {
 vi.mock('@/lib/core/config/env-flags', () => envFlagsMock)
 vi.mock('@/lib/core/config/redis', () => redisConfigMock)
 
-const redisUrl = process.env.TEST_REDIS_URL
-if (!redisUrl) throw new Error('Set TEST_REDIS_URL to a disposable local Redis')
+const redisUrl = readTestRedisUrl()
 
-describe('pooled usage reservations with Redis', () => {
+describe.runIf(Boolean(redisUrl))('pooled usage reservations with Redis', () => {
   let redis: Redis
   const reservations: string[] = []
   const payer = { type: 'organization' as const, id: generateId() }
 
   beforeAll(async () => {
-    redis = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 0 })
+    redis = new Redis(redisUrl!, { lazyConnect: true, maxRetriesPerRequest: 0 })
     await redis.connect()
   })
 

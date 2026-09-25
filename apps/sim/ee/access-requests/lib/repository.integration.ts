@@ -1,4 +1,5 @@
 import { permissionAccessRequest } from '@sim/db/schema'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -8,17 +9,11 @@ import type { CursorKey } from '@/lib/api/list-query'
 import type { DbOrTx } from '@/lib/db/types'
 import { listAccessRequestRecords } from '@/ee/access-requests/lib/repository'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 
 async function createFixture() {
-  const url = new URL(databaseUrl ?? '')
-  if (
-    !['localhost', '127.0.0.1'].includes(url.hostname) ||
-    !/(^|_)test(_|$)/.test(url.pathname.slice(1))
-  )
-    throw new Error('Use a disposable local test database')
   const schema = `access_search_${generateId().replaceAll('-', '')}`
-  const client = postgres(url.toString(), { max: 1, onnotice: () => undefined })
+  const client = postgres(databaseUrl, { max: 1, onnotice: () => undefined })
   await client.unsafe(`CREATE SCHEMA "${schema}"`)
   await client.unsafe(`SET search_path TO "${schema}"`)
   await client.unsafe(`
@@ -52,7 +47,7 @@ async function createFixture() {
   }
 }
 
-describe.skipIf(!databaseUrl)('organization request search on PostgreSQL', () => {
+describe('organization request search on PostgreSQL', () => {
   let fixture: Awaited<ReturnType<typeof createFixture>>
   beforeAll(async () => {
     fixture = await createFixture()

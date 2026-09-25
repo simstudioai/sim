@@ -1,6 +1,7 @@
 import { AuditAction, recordAudit } from '@sim/audit'
 import type { SessionPrincipal } from '@sim/auth/principal'
 import * as schema from '@sim/db/schema'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
@@ -9,18 +10,7 @@ import postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 
-const { databaseUrl, select, transaction } = vi.hoisted(() => {
-  const databaseUrl = process.env.TEST_DATABASE_URL
-  if (databaseUrl) {
-    const url = new URL(databaseUrl)
-    if (
-      !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) ||
-      !/(^|_)test(_|$)/.test(url.pathname.slice(1))
-    )
-      throw new Error('Use a disposable local test database')
-  }
-  return { databaseUrl, select: vi.fn(), transaction: vi.fn() }
-})
+const { select, transaction } = vi.hoisted(() => ({ select: vi.fn(), transaction: vi.fn() }))
 vi.mock('@/lib/core/config/env-flags', async () => (await import('@sim/testing')).envFlagsMock)
 vi.mock('@sim/db', async () => ({
   ...(await import('@sim/db/schema')),
@@ -54,19 +44,17 @@ import {
 } from '@/ee/access-requests/lib/notification-events'
 
 const schemaName = `access_flow_${generateId().replaceAll('-', '')}`
-const connection = databaseUrl
-  ? postgres(databaseUrl, {
-      max: 3,
-      prepare: false,
-      connection: {
-        search_path: schemaName,
-        application_name: schemaName,
-        statement_timeout: 5000,
-      },
-      onnotice: () => undefined,
-    })
-  : undefined
-const database = connection ? (drizzle(connection, { schema }) as DbOrTx) : undefined
+const connection = postgres(readTestDatabaseUrl(), {
+  max: 3,
+  prepare: false,
+  connection: {
+    search_path: schemaName,
+    application_name: schemaName,
+    statement_timeout: 5000,
+  },
+  onnotice: () => undefined,
+})
+const database = drizzle(connection, { schema }) as DbOrTx
 const session = (userId: string): SessionPrincipal => ({
   kind: 'session',
   userId,
@@ -79,7 +67,6 @@ const target = { kind: 'feature', configKey: 'hideTablesTab' } as const
 const page = { limit: 10, offset: 0 }
 
 beforeAll(async () => {
-  if (!connection) return
   await connection.unsafe(`CREATE SCHEMA "${schemaName}"`)
   await connection.unsafe(`
     CREATE TABLE "user" (
@@ -158,12 +145,11 @@ beforeAll(async () => {
       created_at timestamp DEFAULT now(), processed_at timestamp
     );
   `)
-  select.mockImplementation((fields) => database!.select(fields))
-  transaction.mockImplementation((callback) => database!.transaction(callback))
+  select.mockImplementation((fields) => database.select(fields))
+  transaction.mockImplementation((callback) => database.transaction(callback))
 })
 
 beforeEach(async () => {
-  if (!connection) return
   vi.mocked(recordAudit).mockClear()
   setEnvFlags({ isHosted: true, isBillingEnabled: true, isAccessControlEnabled: true })
   await connection.unsafe(`
@@ -205,7 +191,6 @@ beforeEach(async () => {
 
 afterAll(async () => {
   resetEnvFlagsMock()
-  if (!connection) return
   try {
     await connection.unsafe(`DROP SCHEMA "${schemaName}" CASCADE`)
   } finally {
@@ -235,7 +220,7 @@ function apply(requestId: string, expectedFingerprint: string) {
 }
 
 async function authorizeTables(principal = member, workspaceId = 'primary') {
-  const workspace = await getWorkspaceWithOwner(workspaceId, { executor: database! })
+  const workspace = await getWorkspaceWithOwner(workspaceId, { executor: database })
   if (!workspace) throw new Error('Missing fixture workspace')
   return authorizeWorkspaceOperation(
     principal,
@@ -245,26 +230,26 @@ async function authorizeTables(principal = member, workspaceId = 'primary') {
       workspaceOrganizationId: workspace.organizationId,
       allowPersonalApiKeys: workspace.allowPersonalApiKeys,
     },
-    { executor: database! }
+    { executor: database }
   )
 }
 
 async function storedState() {
-  const [group] = await database!
+  const [group] = await database
     .select({ config: schema.permissionGroup.config })
     .from(schema.permissionGroup)
     .where(eq(schema.permissionGroup.id, 'restricted'))
   return {
     config: group.config,
-    requests: await connection!`
+    requests: await connection`
       SELECT id, status, decision, decision_reason, decided_by, decided_at, updated_at
       FROM permission_access_request ORDER BY id
     `,
-    memberLimits: await connection!`
+    memberLimits: await connection`
       SELECT organization_id, user_id, usage_limit, set_by, updated_at
       FROM organization_member_usage_limit ORDER BY organization_id, user_id
     `,
-    events: await connection!`SELECT event_type FROM outbox_event ORDER BY event_type`,
+    events: await connection`SELECT event_type FROM outbox_event ORDER BY event_type`,
     audit: vi.mocked(recordAudit).mock.calls.map(([entry]) => ({
       action: entry.action,
       actorId: entry.actorId,
@@ -276,7 +261,7 @@ async function storedState() {
   }
 }
 
-describe.skipIf(!databaseUrl)('access request member-to-admin flow on PostgreSQL', () => {
+describe('access request member-to-admin flow on PostgreSQL', () => {
   it('refuses workspace API keys before any protected read or transaction', async () => {
     const readsBefore = select.mock.calls.length
     const transactionsBefore = transaction.mock.calls.length
@@ -342,7 +327,7 @@ describe.skipIf(!databaseUrl)('access request member-to-admin flow on PostgreSQL
       'member',
       'primary',
       'org',
-      database!
+      database
     )
     expect(effective).toMatchObject({
       entitled: true,
@@ -369,7 +354,7 @@ describe.skipIf(!databaseUrl)('access request member-to-admin flow on PostgreSQL
   })
 
   it('fulfills an organization member credit-cap request without changing another member', async () => {
-    await connection!`
+    await connection`
       INSERT INTO organization_member_usage_limit (id, organization_id, user_id, usage_limit, set_by)
       VALUES ('member-cap', 'org', 'member', 10, 'admin'), ('peer-cap', 'org', 'peer', 7, 'admin')
     `
@@ -498,9 +483,9 @@ describe.skipIf(!databaseUrl)('access request member-to-admin flow on PostgreSQL
       const { request } = await create()
       const prepared = await preview(request.id)
       if (change === 'policy') {
-        await connection!`UPDATE permission_group SET config = config || '{"disableTableExport":true}'::jsonb WHERE id = 'restricted'`
+        await connection`UPDATE permission_group SET config = config || '{"disableTableExport":true}'::jsonb WHERE id = 'restricted'`
       } else {
-        await connection!`DELETE FROM permissions WHERE id = 'peer-primary'`
+        await connection`DELETE FROM permissions WHERE id = 'peer-primary'`
       }
       const persisted = await storedState()
       await expect(apply(request.id, prepared.fingerprint)).rejects.toMatchObject({
@@ -565,7 +550,7 @@ describe.skipIf(!databaseUrl)('access request member-to-admin flow on PostgreSQL
         input: { scope: { kind: 'organization', organizationId: 'org' }, ...page },
       })
     ).rejects.toMatchObject({ code: 'not_found' })
-    await connection!`DELETE FROM permissions WHERE id = 'external-primary'`
+    await connection`DELETE FROM permissions WHERE id = 'external-primary'`
     const prepared = await preview(request.id)
     expect(prepared.canApply).toBe(false)
     await expect(apply(request.id, prepared.fingerprint)).rejects.toMatchObject({

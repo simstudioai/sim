@@ -1,16 +1,11 @@
 import { readFile } from 'node:fs/promises'
+import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import postgres from 'postgres'
 
 /** Minimal pre-migration tables in an isolated schema; the entire migration runs unchanged. */
 export async function createEnterpriseSearchMigrationFixture(databaseUrl: string) {
-  const url = new URL(databaseUrl)
-  if (
-    !['localhost', '127.0.0.1'].includes(url.hostname) ||
-    !/(^|_)test(_|$)/.test(url.pathname.slice(1))
-  ) {
-    throw new Error('Search migration tests require a disposable local test database')
-  }
+  assertDisposableTestDatabaseUrl(databaseUrl)
   const client = postgres(databaseUrl, { max: 1, fetch_types: false })
   const schemaName = `search_migration_${generateId().replaceAll('-', '')}`
   await client.unsafe(`CREATE SCHEMA "${schemaName}"`)

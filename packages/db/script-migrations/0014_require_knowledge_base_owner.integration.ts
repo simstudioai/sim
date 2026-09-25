@@ -1,10 +1,11 @@
 import { readFile } from 'node:fs/promises'
 import { requireKnowledgeBaseOwnerMigration } from '@sim/db/script-migrations/0014_require_knowledge_base_owner'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 const tables = [
   'knowledge_base',
   'document',
@@ -21,28 +22,21 @@ const tables = [
 ] as const
 
 /** Exercises the deploy order against current table definitions in an isolated local schema. */
-describe.runIf(Boolean(databaseUrl))('required KB ownership migration in PostgreSQL', () => {
+describe('required KB ownership migration in PostgreSQL', () => {
   let admin: Sql
   let sql: Sql
   let migrationSql: string
   const schema = `kb_owner_${generateId().replaceAll('-', '')}`
 
   beforeAll(async () => {
-    const url = new URL(databaseUrl!)
-    if (
-      !['localhost', '127.0.0.1'].includes(url.hostname) ||
-      !/(^|_)test(_|$)/.test(url.pathname.slice(1))
-    ) {
-      throw new Error('Ownership tests require a disposable local test database')
-    }
-    admin = postgres(url.toString(), { max: 1, onnotice: () => undefined })
+    admin = postgres(databaseUrl, { max: 1, onnotice: () => undefined })
     await admin.unsafe(`CREATE SCHEMA "${schema}"`)
     for (const table of tables) {
       await admin.unsafe(
         `CREATE TABLE "${schema}"."${table}" (LIKE public."${table}" INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)`
       )
     }
-    sql = postgres(url.toString(), {
+    sql = postgres(databaseUrl, {
       max: 1,
       connection: { search_path: schema },
       onnotice: () => undefined,

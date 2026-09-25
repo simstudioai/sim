@@ -1,27 +1,21 @@
 import { readFile } from 'node:fs/promises'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 
-describe.runIf(Boolean(databaseUrl))('member sync status upgrade in PostgreSQL', () => {
+describe('member sync status upgrade in PostgreSQL', () => {
   let admin: Sql
   let sql: Sql
   let migration: string
   const schema = `member_sync_status_${generateId().replaceAll('-', '')}`
 
   beforeAll(async () => {
-    const url = new URL(databaseUrl!)
-    if (
-      !['localhost', '127.0.0.1'].includes(url.hostname) ||
-      !/(^|_)test(_|$)/.test(url.pathname.slice(1))
-    ) {
-      throw new Error('Member sync migration tests require a disposable local test database')
-    }
-    admin = postgres(url.toString(), { max: 1, onnotice: () => undefined })
+    admin = postgres(databaseUrl, { max: 1, onnotice: () => undefined })
     await admin.unsafe(`CREATE SCHEMA "${schema}"`)
-    sql = postgres(url.toString(), {
+    sql = postgres(databaseUrl, {
       max: 1,
       connection: { search_path: schema },
       onnotice: () => undefined,

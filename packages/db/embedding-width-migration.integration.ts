@@ -1,15 +1,16 @@
 import { readFile } from 'node:fs/promises'
 import { backfillEmbeddingSearch } from '@sim/db/script-migrations/0015_backfill_embedding_search'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 const SUPPORTED_WIDTHS = [384, 768, 1024, 1536, 3072] as const
 type EmbeddingWidth = (typeof SUPPORTED_WIDTHS)[number]
 
 /** Replays the historical vector DDL so db-push cannot hide migration-only constraints. */
-describe.runIf(Boolean(databaseUrl))('embedding width migration in PostgreSQL', () => {
+describe('embedding width migration in PostgreSQL', () => {
   let admin: Sql
   let sql: Sql
   let correctiveMigration: string
@@ -22,16 +23,9 @@ describe.runIf(Boolean(databaseUrl))('embedding width migration in PostgreSQL', 
   }
 
   beforeAll(async () => {
-    const url = new URL(databaseUrl!)
-    if (
-      !['localhost', '127.0.0.1'].includes(url.hostname) ||
-      !/(^|_)test(_|$)/.test(url.pathname.slice(1))
-    ) {
-      throw new Error('Embedding migration tests require a disposable local test database')
-    }
-    admin = postgres(url.toString(), { max: 1, onnotice: () => undefined })
+    admin = postgres(databaseUrl, { max: 1, onnotice: () => undefined })
     await admin.unsafe(`CREATE SCHEMA "${schema}"`)
-    sql = postgres(url.toString(), {
+    sql = postgres(databaseUrl, {
       max: 1,
       connection: { search_path: `${schema},public` },
       onnotice: () => undefined,
@@ -255,7 +249,7 @@ describe.runIf(Boolean(databaseUrl))('embedding width migration in PostgreSQL', 
     it('keeps concurrent updates and deletes authoritative during backfill', async () => {
       for (let index = 0; index < 10; index++) await insertEmbedding(1536, `concurrent-${index}`)
       await sql`DELETE FROM embedding_search`
-      const writer = postgres(databaseUrl!, {
+      const writer = postgres(databaseUrl, {
         max: 1,
         connection: { search_path: `${schema},public` },
         onnotice: () => undefined,

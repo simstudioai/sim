@@ -4,12 +4,13 @@ import {
   type LegacyKnowledgeBaseMoveOutcome,
   selectLegacyKnowledgeBaseWorkspace,
 } from '@sim/db/script-migrations/0013_backfill_legacy_knowledge_base_workspaces'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 const tables = [
   'knowledge_base',
   'document',
@@ -26,28 +27,21 @@ const tables = [
 ] as const
 
 /** Copies current table definitions into an isolated disposable schema; no public rows are touched. */
-describe.runIf(Boolean(databaseUrl))('legacy KB workspace backfill in PostgreSQL', () => {
+describe('legacy KB workspace backfill in PostgreSQL', () => {
   let sql: Sql
   let admin: Sql
   const schemaName = `kb_backfill_${generateId().replaceAll('-', '')}`
   let subject: ReturnType<typeof createPostgresLegacyKnowledgeBaseWorkspaceStore>
 
   beforeAll(async () => {
-    const url = new URL(databaseUrl!)
-    if (
-      !['localhost', '127.0.0.1'].includes(url.hostname) ||
-      !/(^|_)test(_|$)/.test(url.pathname.slice(1))
-    ) {
-      throw new Error('Backfill tests require a disposable local test database')
-    }
-    admin = postgres(url.toString(), { max: 1, onnotice: () => undefined })
+    admin = postgres(databaseUrl, { max: 1, onnotice: () => undefined })
     await admin.unsafe(`CREATE SCHEMA "${schemaName}"`)
     for (const table of tables) {
       await admin.unsafe(
         `CREATE TABLE "${schemaName}"."${table}" (LIKE public."${table}" INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES)`
       )
     }
-    sql = postgres(url.toString(), {
+    sql = postgres(databaseUrl, {
       max: 2,
       connection: { search_path: schemaName },
       onnotice: () => undefined,

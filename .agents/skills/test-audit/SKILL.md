@@ -99,7 +99,8 @@ is not a deletion reason.
 
 Keep discovery read-only and report evidence before editing. Before judging a candidate, read the
 complete test and its production owner, callers, sibling implementations, overlapping tests, CI
-routing (`.github/workflows/test-build.yml` names DB suites by path), and relevant history
+routing (CI discovers `*.integration.ts` by glob; `.github/workflows/*.yml` names a few scripts and
+files by path), and relevant history
 (`git log --format='%h %s' -5 -- <file>`).
 
 Record for every deletion candidate: the test and location; the failure it can actually detect;
@@ -118,7 +119,7 @@ that restate the same implementation.
 For a whole subsystem or the whole repo:
 
 1. Partition test files into lanes of ~150–350 files by owning directory, and list the protected
-   set (every `*.integration.ts`, `*.postgres.test.ts`, `__integration__/**`, `apps/desktop/e2e/**`,
+   set (every `*.integration.ts`, `*.live.test.ts`, `__integration__/**`, `apps/desktop/e2e/**`,
    and every path named in `.github/workflows/*.yml`).
 2. Give each lane its own git worktree and branch (`git worktree add -b <branch> <path> <base>`,
    then `bun install --frozen-lockfile` inside it). Lanes never share a checkout, never symlink

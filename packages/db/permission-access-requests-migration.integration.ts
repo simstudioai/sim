@@ -1,20 +1,14 @@
 import { readFile } from 'node:fs/promises'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import postgres from 'postgres'
 import { describe, expect, it } from 'vitest'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 
 async function createFixture() {
-  const url = new URL(databaseUrl ?? '')
-  if (
-    !['localhost', '127.0.0.1'].includes(url.hostname) ||
-    !/(^|_)test(_|$)/.test(url.pathname.slice(1))
-  ) {
-    throw new Error('Use a disposable local test database')
-  }
   const schema = `access_requests_${generateId().replaceAll('-', '')}`
-  const client = postgres(url.toString(), { max: 2, onnotice: () => undefined })
+  const client = postgres(databaseUrl, { max: 2, onnotice: () => undefined })
   const sql = await client.reserve()
   const migration = await readFile(
     new URL('./migrations/0349_permission_access_requests.sql', import.meta.url),
@@ -56,7 +50,7 @@ const insertRequest = `INSERT INTO permission_access_request
   VALUES ($1, 'org', 'requester', 'workspace', 'workspace:workspace', 'feature:hideTablesTab',
     '{"kind":"feature","configKey":"hideTablesTab"}', 'Tables', '["member",null]')`
 
-describe.skipIf(!databaseUrl)('permission access request migration on PostgreSQL', () => {
+describe('permission access request migration on PostgreSQL', () => {
   it('preserves history, enforces lifecycle states, and allows a fresh request after a decision', async () => {
     const fixture = await createFixture()
     try {

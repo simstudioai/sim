@@ -5,11 +5,12 @@ import {
   installKnowledgeProjectionMarking,
   knowledgeProjectionAsyncMigration,
 } from '@sim/db/script-migrations/0024_knowledge_projection_async'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 
 /**
  * The projections here carry only the columns the source and ACL triggers touch; the vector and
@@ -17,7 +18,7 @@ const databaseUrl = process.env.TEST_DATABASE_URL
  * which rows the triggers write or which documents they mark. `embedding` and its projection
  * functions are stand-ins, so `0024` can re-create the triggers it guards.
  */
-describe.runIf(Boolean(databaseUrl))('projection source and ACL triggers in PostgreSQL', () => {
+describe('projection source and ACL triggers in PostgreSQL', () => {
   let admin: Sql
   let sql: Sql
   const schemaName = `projection_acl_${generateId().replaceAll('-', '')}`
@@ -38,16 +39,9 @@ describe.runIf(Boolean(databaseUrl))('projection source and ACL triggers in Post
     })
 
   beforeAll(async () => {
-    const url = new URL(databaseUrl!)
-    if (
-      !['localhost', '127.0.0.1'].includes(url.hostname) ||
-      !/(^|_)test(_|$)/.test(url.pathname.slice(1))
-    ) {
-      throw new Error('Projection tests require a disposable local integration database')
-    }
-    admin = postgres(url.toString(), { max: 1, onnotice: () => undefined })
+    admin = postgres(databaseUrl, { max: 1, onnotice: () => undefined })
     await admin.unsafe(`CREATE SCHEMA "${schemaName}"`)
-    sql = postgres(url.toString(), {
+    sql = postgres(databaseUrl, {
       max: 1,
       onnotice: () => undefined,
       connection: { search_path: schemaName },

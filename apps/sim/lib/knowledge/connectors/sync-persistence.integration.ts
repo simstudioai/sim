@@ -1,4 +1,5 @@
 import { installProjectionSourceAcl } from '@sim/db/script-migrations/0021_embedding_search_connector'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -14,7 +15,7 @@ const schema = await import('@sim/db/schema')
 const { persistDocumentAcls } = await import('@/lib/knowledge/connectors/sync-persistence')
 const { leaseTransaction } = await import('@/lib/knowledge/connectors/sync-lock')
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 
 const ALICE = 'u:alice@corp.com'
 const BOB = 'u:bob@corp.com'
@@ -24,7 +25,7 @@ const BOB = 'u:bob@corp.com'
  * touch. A projection row whose `acl` is NULL is one the backfill has not filled yet: the trigger
  * rewrites it on any ACL assignment, because NULL is distinct from every ACL.
  */
-describe.runIf(Boolean(databaseUrl))('persistDocumentAcls in PostgreSQL', () => {
+describe('persistDocumentAcls in PostgreSQL', () => {
   let admin: Sql
   let sql: Sql
   const schemaName = `acl_write_${generateId().replaceAll('-', '')}`
@@ -45,16 +46,9 @@ describe.runIf(Boolean(databaseUrl))('persistDocumentAcls in PostgreSQL', () => 
   const persist = (acls: Map<string, string[]>) => persistDocumentAcls('admin', acls, pages())
 
   beforeAll(async () => {
-    const url = new URL(databaseUrl!)
-    if (
-      !['localhost', '127.0.0.1'].includes(url.hostname) ||
-      !/(^|_)test(_|$)/.test(url.pathname.slice(1))
-    ) {
-      throw new Error('ACL write tests require a disposable local integration database')
-    }
-    admin = postgres(url.toString(), { max: 1, onnotice: () => undefined })
+    admin = postgres(databaseUrl, { max: 1, onnotice: () => undefined })
     await admin.unsafe(`CREATE SCHEMA "${schemaName}"`)
-    sql = postgres(url.toString(), {
+    sql = postgres(databaseUrl, {
       max: 1,
       onnotice: () => undefined,
       connection: { search_path: schemaName },

@@ -44,7 +44,7 @@ Otherwise apply the surviving changes yourself (in the main context, not delegat
 
 For each pass in turn, apply all of that pass's changes, then move to the next pass. A file touched by several passes is therefore edited once per pass, in this order — not once as a merged patch. This is what makes the ordering real: a single merged-per-file patch would collapse all passes into one edit and lose it.
 
-Comments apply last, on purpose: that pass operates on whatever the earlier structural passes settled the code into, so it never edits lines a sibling pass is about to delete or rewrite.
+Comments apply after every structural pass, on purpose: that pass operates on whatever the earlier passes settled the code into, so it never edits lines a sibling pass is about to delete or rewrite. Tests apply last because they only touch test files; in Step 2, drop any other pass's proposal on a test file the tests pass deletes.
 
 **Treat every Step 1 proposal as snapshot-relative, not authoritative.** All passes analyzed the *original* files in parallel, so a proposal's line ranges and before/after text describe the code as it was *before* any edits — once an earlier pass has run, a later pass's snippet may no longer match. So for each change, before applying:
 

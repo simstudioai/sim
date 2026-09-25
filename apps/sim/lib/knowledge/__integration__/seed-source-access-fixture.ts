@@ -15,6 +15,7 @@ import {
   user,
   workspace,
 } from '@sim/db/schema'
+import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import { and, eq } from 'drizzle-orm'
 
@@ -40,13 +41,7 @@ export async function seedKnowledgeAclFixture(
   ids = createKnowledgeAclFixtureIds(),
   options: { connectorType?: 'confluence' | 'google_drive' } = {}
 ) {
-  const target = new URL(process.env.DATABASE_URL ?? '')
-  if (
-    !['localhost', '127.0.0.1'].includes(target.hostname) ||
-    !/(^|_)test(_|$)/.test(target.pathname.slice(1))
-  ) {
-    throw new Error('Knowledge fixture seeding requires a local disposable test database')
-  }
+  assertDisposableTestDatabaseUrl(process.env.DATABASE_URL ?? '')
   const {
     aliceId,
     bobId,

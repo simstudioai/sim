@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { repairWorkspaceFileContentRevisions } from '@sim/db/script-migrations/0018_repair_workspace_file_content_revision'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 const MICROSECOND_REVISION = '2026-08-01 03:30:51.566952'
 const MILLISECOND_REVISION = '2026-08-01 03:30:51.566'
 const MIGRATIONS = path.join(__dirname, '../migrations')
@@ -24,22 +25,15 @@ async function applyMigration(
   for (const statement of statements) await sql.unsafe(statement)
 }
 
-describe.runIf(Boolean(databaseUrl))('workspace file content revision repair in PostgreSQL', () => {
+describe('workspace file content revision repair in PostgreSQL', () => {
   let sql: Sql
   let admin: Sql
   const schemaName = `revision_repair_${generateId().replaceAll('-', '')}`
 
   beforeAll(async () => {
-    const url = new URL(databaseUrl!)
-    if (
-      !['localhost', '127.0.0.1'].includes(url.hostname) ||
-      !/(^|_)test(_|$)/.test(url.pathname.slice(1))
-    ) {
-      throw new Error('Repair tests require a disposable local integration database')
-    }
-    admin = postgres(url.toString(), { max: 1, onnotice: () => undefined })
+    admin = postgres(databaseUrl, { max: 1, onnotice: () => undefined })
     await admin.unsafe(`CREATE SCHEMA "${schemaName}"`)
-    sql = postgres(url.toString(), {
+    sql = postgres(databaseUrl, {
       max: 2,
       onnotice: () => undefined,
       connection: { search_path: schemaName, TimeZone: 'UTC' },

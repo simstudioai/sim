@@ -6,6 +6,7 @@
 import { writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createDeferred } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
@@ -34,25 +35,14 @@ import type { TableSchema } from '@/lib/table/types'
 import { checkBatchUniqueConstraintsDb, coerceRowToSchema } from '@/lib/table/validation'
 import { runCleanupTableRowTtl } from '@/background/cleanup-table-row-ttl'
 
-const url = process.env.TEST_DATABASE_URL
-if (url) {
-  const parsed = new URL(url)
-  const otherDatabase = Object.entries(process.env).some(
-    ([key, value]) => /^DATABASE_(URL|REPLICA_URL)(_|$)/.test(key) && value && value !== url
-  )
-  if (
-    !['127.0.0.1', 'localhost'].includes(parsed.hostname) ||
-    !/(^|_)test(_|$)/.test(parsed.pathname.slice(1)) ||
-    process.env.DATABASE_URL !== url ||
-    otherDatabase
-  ) {
-    throw new Error('This suite requires only the disposable local test database')
-  }
+const url = readTestDatabaseUrl()
+const otherDatabase = Object.entries(process.env).some(
+  ([key, value]) => /^DATABASE_(URL|REPLICA_URL)(_|$)/.test(key) && value && value !== url
+)
+if (process.env.DATABASE_URL !== url || otherDatabase) {
+  throw new Error('This suite requires only the disposable local test database')
 }
-const control = postgres(url ?? 'postgres://localhost/disabled_expiration_test', {
-  max: 4,
-  onnotice: () => {},
-})
+const control = postgres(url, { max: 4, onnotice: () => {} })
 const workspaceId = generateId()
 const userId = generateId()
 const expired = '2020-01-01T00:00:00Z'
@@ -113,6 +103,8 @@ async function waitForSleepingDelete(): Promise<number> {
 const [{ migrated }] = await control<{ migrated: boolean }[]>`SELECT EXISTS (
   SELECT 1 FROM pg_trigger WHERE tgname = 'user_table_rows_insert_stmt_trigger'
 ) AS migrated`
+/** The suite's own `afterAll` never runs when it is skipped, so release the probe connection here. */
+if (!migrated) await control.end()
 
 describe.skipIf(!migrated)('Expiration with real PostgreSQL transactions', () => {
   beforeAll(async () => {

@@ -1,4 +1,5 @@
 import { installProjectionSourceAcl } from '@sim/db/script-migrations/0021_embedding_search_connector'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,7 +31,7 @@ const { revokeDocumentAcls } = await import('@/lib/knowledge/connectors/sync-per
 const { leaseTransaction } = await import('@/lib/knowledge/connectors/sync-lock')
 const { confluenceConnector } = await import('@/connectors/confluence/confluence')
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 
 const ALICE = 'u:alice@corp.com'
 const CONNECTOR = 'admin'
@@ -43,7 +44,7 @@ const ABSENT_SINCE = '2026-09-01 12:00:00'
  * document carries only the columns reconciliation reads and writes; a projection row whose
  * `acl` is NULL is one the backfill has not filled yet.
  */
-describe.runIf(Boolean(databaseUrl))('completed listing reconciliation in PostgreSQL', () => {
+describe('completed listing reconciliation in PostgreSQL', () => {
   let admin: Sql
   let sql: Sql
   const schemaName = `acl_revoke_${generateId().replaceAll('-', '')}`
@@ -136,16 +137,9 @@ describe.runIf(Boolean(databaseUrl))('completed listing reconciliation in Postgr
   }
 
   beforeAll(async () => {
-    const url = new URL(databaseUrl!)
-    if (
-      !['localhost', '127.0.0.1'].includes(url.hostname) ||
-      !/(^|_)test(_|$)/.test(url.pathname.slice(1))
-    ) {
-      throw new Error('Reconciliation tests require a disposable local integration database')
-    }
-    admin = postgres(url.toString(), { max: 1, onnotice: () => undefined })
+    admin = postgres(databaseUrl, { max: 1, onnotice: () => undefined })
     await admin.unsafe(`CREATE SCHEMA "${schemaName}"`)
-    sql = postgres(url.toString(), {
+    sql = postgres(databaseUrl, {
       max: 1,
       onnotice: () => undefined,
       connection: { search_path: schemaName },

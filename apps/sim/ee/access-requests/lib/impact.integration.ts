@@ -1,3 +1,4 @@
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
@@ -5,17 +6,11 @@ import { describe, expect, it } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import { loadAccessRequestGroupImpact } from '@/ee/access-requests/lib/impact'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 
 async function createFixture() {
-  const url = new URL(databaseUrl ?? '')
-  if (
-    !['localhost', '127.0.0.1'].includes(url.hostname) ||
-    !/(^|_)test(_|$)/.test(url.pathname.slice(1))
-  )
-    throw new Error('Use a disposable local test database')
   const schema = `access_impact_${generateId().replaceAll('-', '')}`
-  const client = postgres(url.toString(), { max: 1, onnotice: () => undefined })
+  const client = postgres(databaseUrl, { max: 1, onnotice: () => undefined })
   await client.unsafe(`CREATE SCHEMA "${schema}"`)
   await client.unsafe(`SET search_path TO "${schema}"`)
   await client.unsafe(`
@@ -45,7 +40,7 @@ async function createFixture() {
   }
 }
 
-describe.skipIf(!databaseUrl)('access request impact on PostgreSQL', () => {
+describe('access request impact on PostgreSQL', () => {
   it('counts scoped people once without requiring or scanning the global user table', async () => {
     const fixture = await createFixture()
     try {

@@ -13,6 +13,19 @@ function headers(entries: Record<string, string>) {
 }
 
 describe('formatClientInfo', () => {
+  it('renders every field as a product token in a fixed order', () => {
+    expect(
+      formatClientInfo({
+        surface: 'cli',
+        version: '2.1.2',
+        runtime: { name: 'node', version: '22.14.0' },
+        os: 'darwin',
+        arch: 'arm64',
+        agent: 'claude-code',
+      })
+    ).toBe('cli/2.1.2; node/22.14.0; os/darwin; arch/arm64; agent/claude-code')
+  })
+
   it('refuses a value that is not an RFC 9110 token', () => {
     expect(() => formatClientInfo({ surface: 'cli', version: '2.1.2 beta' })).toThrow(
       /not a valid token/
@@ -21,6 +34,28 @@ describe('formatClientInfo', () => {
 })
 
 describe('parseClientInfo', () => {
+  it('round-trips a formatted value', () => {
+    const info = {
+      surface: 'desktop' as const,
+      version: '1.4.2',
+      runtime: { name: 'electron', version: '43.5.0' },
+      os: 'darwin',
+      arch: 'arm64',
+    }
+    expect(parseClientInfo(formatClientInfo(info))).toEqual(info)
+  })
+
+  it('accepts trailing tokens in any order', () => {
+    expect(parseClientInfo('cli/2.1.2; agent/codex; arch/x64; node/20.0.0; os/linux')).toEqual({
+      surface: 'cli',
+      version: '2.1.2',
+      runtime: { name: 'node', version: '20.0.0' },
+      os: 'linux',
+      arch: 'x64',
+      agent: 'codex',
+    })
+  })
+
   it('returns undefined for an empty, missing, or oversized value', () => {
     expect(parseClientInfo('')).toBeUndefined()
     expect(parseClientInfo(null)).toBeUndefined()

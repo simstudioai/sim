@@ -5,11 +5,12 @@ import {
   backfillProjection,
   installProjection,
 } from '@sim/db/script-migrations/0019_tin_keyword_projection'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 const MIGRATIONS = path.join(__dirname, '../migrations')
 
 /** Resolves once backend `pid` waits on a lock, so each race runs in a fixed order. */
@@ -26,7 +27,7 @@ async function waitUntilBlocked(observer: Sql, pid: number): Promise<void> {
  * The Tin extension is not available here, but the projection's functions and triggers are plain
  * SQL, so membership and its races are exercised without the index.
  */
-describe.runIf(Boolean(databaseUrl))('Tin keyword projection in PostgreSQL', () => {
+describe('Tin keyword projection in PostgreSQL', () => {
   let admin: Sql
   let sql: Sql
   let promoter: Sql
@@ -37,17 +38,10 @@ describe.runIf(Boolean(databaseUrl))('Tin keyword projection in PostgreSQL', () 
       SELECT id, enabled, content FROM embedding_keyword_tin ORDER BY id`
 
   beforeAll(async () => {
-    const url = new URL(databaseUrl!)
-    if (
-      !['localhost', '127.0.0.1'].includes(url.hostname) ||
-      !/(^|_)test(_|$)/.test(url.pathname.slice(1))
-    ) {
-      throw new Error('Projection tests require a disposable local integration database')
-    }
-    admin = postgres(url.toString(), { max: 1, onnotice: () => undefined })
+    admin = postgres(databaseUrl, { max: 1, onnotice: () => undefined })
     await admin.unsafe(`CREATE SCHEMA "${schemaName}"`)
     const connect = () =>
-      postgres(url.toString(), {
+      postgres(databaseUrl, {
         max: 1,
         onnotice: () => undefined,
         connection: { search_path: schemaName },

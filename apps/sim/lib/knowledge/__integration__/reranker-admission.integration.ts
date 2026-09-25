@@ -71,6 +71,6 @@ describe('reranker shared PostgreSQL admission', () => {
     await expect(rerank('Orion', items, options)).rejects.toMatchObject({
       name: 'ProviderAdmissionTimeoutError',
     })
-    expect(upstream).toHaveBeenCalledTimes(2)
+    expect(upstream).toHaveBeenCalledOnce()
   })
 })

@@ -6,27 +6,21 @@ import {
   buildSearchIndexes,
 } from '@sim/db/script-migrations/0016_backfill_search_vectors'
 import { runScriptMigrations, scriptMigrations } from '@sim/db/script-migrations/index'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import postgres, { type Sql } from 'postgres'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 const schemaName = `search_projection_${generateId().replaceAll('-', '')}`
 const fields = ['vector', 'vector_384', 'vector_512', 'vector_768', 'vector_1024', 'vector_3072']
 
-describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', () => {
+describe('search projection upgrade in PostgreSQL', () => {
   let admin: Sql
   let sql: Sql
 
   beforeAll(async () => {
-    const url = new URL(databaseUrl!)
-    if (
-      !['localhost', '127.0.0.1'].includes(url.hostname) ||
-      !/(^|_)test(_|$)/.test(url.pathname.slice(1))
-    ) {
-      throw new Error('Projection tests require a disposable local integration database')
-    }
-    admin = postgres(url.toString(), { max: 1, onnotice: () => undefined })
+    admin = postgres(databaseUrl, { max: 1, onnotice: () => undefined })
     await admin.unsafe(`CREATE SCHEMA "${schemaName}"`)
     for (const table of [
       'knowledge_base',
@@ -39,7 +33,7 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
         `CREATE TABLE "${schemaName}"."${table}" (LIKE public."${table}" INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES INCLUDING GENERATED)`
       )
     }
-    sql = postgres(url.toString(), {
+    sql = postgres(databaseUrl, {
       max: 1,
       connection: { search_path: `${schemaName},public` },
       onnotice: () => undefined,
@@ -91,7 +85,7 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
   }, 60_000)
 
   it('serializes behind existing writers before upgrading the projection in batches', async () => {
-    const writer = postgres(databaseUrl!, {
+    const writer = postgres(databaseUrl, {
       max: 1,
       connection: { search_path: `${schemaName},public` },
       onnotice: () => undefined,
@@ -191,7 +185,7 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
 
   it('allows other writers while the document lookup index waits for an existing writer', async () => {
     await sql.unsafe('DROP INDEX embedding_search_document_lookup_idx')
-    const writer = postgres(databaseUrl!, {
+    const writer = postgres(databaseUrl, {
       max: 1,
       connection: { search_path: `${schemaName},public` },
     })

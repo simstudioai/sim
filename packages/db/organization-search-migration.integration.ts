@@ -1,20 +1,13 @@
 import { readFile } from 'node:fs/promises'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import postgres from 'postgres'
 import { describe, expect, it } from 'vitest'
 
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 
 /** Uses pre-migration tables in an isolated schema; only public schema qualifiers are redirected. */
 async function createMigrationFixture() {
-  const url = new URL(databaseUrl ?? '')
-  if (
-    !['localhost', '127.0.0.1'].includes(url.hostname) ||
-    !/(^|_)test(_|$)/.test(url.pathname.slice(1))
-  ) {
-    throw new Error('Migration tests require a disposable local test database')
-  }
-
   const schema = `organization_migration_${generateId().replaceAll('-', '')}`
   const migration = await readFile(
     new URL('./migrations/0326_enterprise_organization_search.sql', import.meta.url),
@@ -26,7 +19,7 @@ async function createMigrationFixture() {
     .split('--> statement-breakpoint')
     .map((statement) => statement.trim())
     .filter(Boolean)
-  const client = postgres(url.toString(), { max: 1, onnotice: () => undefined })
+  const client = postgres(databaseUrl, { max: 1, onnotice: () => undefined })
   const sql = await client.reserve()
 
   async function cleanup() {
@@ -143,7 +136,7 @@ async function createMigrationFixture() {
   }
 }
 
-describe.skipIf(!databaseUrl)('Organization Search PostgreSQL migration replay', () => {
+describe('Organization Search PostgreSQL migration replay', () => {
   it('preserves data on duplicate failures and rebuilds the invalid index after duplicates are removed', async () => {
     const fixture = await createMigrationFixture()
     const { sql, schema } = fixture
