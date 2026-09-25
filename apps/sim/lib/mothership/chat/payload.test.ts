@@ -24,19 +24,27 @@ import {
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getExposedIntegrationTools } from '@/lib/integrations/tool-catalog'
 import { ChatPayloadSchema } from '@/lib/mothership/generated/protocol'
-import { searchIssuesV2Tool } from '@/tools/github/search_issues'
+import { searchUsersV2Tool } from '@/tools/github/search_users'
+import { gmailListLabelsV2Tool } from '@/tools/gmail/list_labels'
 import { getToolMetadata } from '@/tools/metadata'
 
-const { mockCreateUserToolSchema, mockDashboardAvailability, mockSecretNames, mockComputerUseAvailable } = vi.hoisted(() => ({
+const { mockCreateUserToolSchema, mockDashboardAvailability, mockSecretNames, mockComputerUseAvailable, mockSearchIntegrationToolsEnabled } = vi.hoisted(() => ({
   mockDashboardAvailability: vi.fn(async () => false),
   mockComputerUseAvailable: vi.fn(async () => false),
   mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
   mockSecretNames: vi.fn(async () => ({ names: [] as string[] })),
+  mockSearchIntegrationToolsEnabled: vi.fn(async () => true),
 }))
 
 vi.mock('@/lib/computer-use/availability.server', () => ({
   isComputerUseAvailable: mockComputerUseAvailable,
 }))
+
+vi.mock('@/lib/mothership/feature-flags', () => ({
+  isSearchIntegrationToolsEnabled: mockSearchIntegrationToolsEnabled,
+}))
+
+beforeEach(() => mockSearchIntegrationToolsEnabled.mockResolvedValue(true))
 
 // The inventory reads nine application worlds; these suites exercise the request shape, not the reads.
 vi.mock('@/lib/mothership/application/execute-organization-secret-use-case', () => ({
@@ -72,8 +80,10 @@ const mockSearchApprovals =
   knowledgeSearchIntegrationPolicyMockFns.mockListOrganizationSearchApprovals
 mockSearchApprovals.mockResolvedValue(new Map<string, boolean>())
 vi.mocked(getToolMetadata).mockImplementation((id) =>
-  id === 'github_search_issues_v2'
-    ? searchIssuesV2Tool
+  id === gmailListLabelsV2Tool.id
+    ? gmailListLabelsV2Tool
+    : id === 'github_search_users_v2'
+    ? searchUsersV2Tool
     : id === 'gmail_send'
       ? {
           id,
@@ -633,15 +643,15 @@ describe('Assistant payload', () => {
     mockCreateUserToolSchema.mockReturnValue({ type: 'object', properties: {} })
     mockSearchApprovals.mockResolvedValue(new Map())
   })
-  it('discovers the existing GitHub PR-count tool with a personal credential in live Search', async () => {
+  it('discovers the existing GitHub user lookup tool with a personal credential in live Search', async () => {
     clearIntegrationToolSchemaCacheForTests()
     mockSearchApprovals.mockResolvedValue(new Map([['github', true]]))
     vi.mocked(getExposedIntegrationTools).mockReturnValueOnce([
       {
-        toolId: searchIssuesV2Tool.id,
-        config: searchIssuesV2Tool,
+        toolId: searchUsersV2Tool.id,
+        config: searchUsersV2Tool,
         service: 'github',
-        operation: 'search_issues',
+        operation: 'search_users',
         blockType: 'github_v2',
         owners: [{ service: 'github', blockType: 'github_v2' }],
       },
@@ -655,7 +665,7 @@ describe('Assistant payload', () => {
     })
     expect(tools).toHaveLength(1)
     expect(tools[0]).toMatchObject({
-      name: 'github_search_issues_v2',
+      name: 'github_search_users_v2',
       oauth: { provider: 'github-repositories' },
       input_schema: { required: expect.arrayContaining(['q', 'credentialId']) },
     })
@@ -670,6 +680,17 @@ describe('Assistant payload', () => {
     ).toEqual([])
   })
   it('advertises approved personal organization integrations and rechecks revocation', async () => {
+    clearIntegrationToolSchemaCacheForTests()
+    vi.mocked(getExposedIntegrationTools).mockReturnValueOnce([
+      {
+        toolId: gmailListLabelsV2Tool.id,
+        config: gmailListLabelsV2Tool,
+        service: 'gmail',
+        operation: 'list_labels',
+        blockType: 'gmail',
+        owners: [{ service: 'gmail', blockType: 'gmail' }],
+      },
+    ])
     mockSearchApprovals.mockResolvedValue(new Map([['gmail', true]]))
     const options = {
       schemaSurface: 'copilot' as const,
@@ -677,7 +698,7 @@ describe('Assistant payload', () => {
       organizationId: 'org',
     }
     const approved = await buildIntegrationToolSchemas('person', options)
-    expect(approved.map((tool) => tool.name)).toContain('gmail_send')
+    expect(approved.map((tool) => tool.name)).toEqual(['gmail_list_labels_v2'])
     mockSearchApprovals.mockResolvedValue(new Map([['gmail', false]]))
     expect(await buildIntegrationToolSchemas('person', options)).toEqual([])
     mockSearchApprovals.mockResolvedValue(new Map([['gmail', true]]))
@@ -722,13 +743,13 @@ describe('Assistant payload', () => {
       desktopLocalFiles: true,
     })
     expect(payload.organizationId).toBe('org-1')
-    expect(payload).not.toHaveProperty('integrationCatalog')
+    expect(payload.integrationCatalog).toEqual({ mcpServerIds: [] })
     expect(payload).not.toHaveProperty('workspaceId')
     expect(payload).not.toHaveProperty('desktopCapabilities')
     expect(payload).not.toHaveProperty('integrationTools')
   })
 
-  it('keeps the shared search scope without an integration gateway catalog', async () => {
+  it('keeps the shared search scope with native discovery and no MCP servers', async () => {
     clearIntegrationToolSchemaCacheForTests()
     const payload = await buildCopilotRequestPayload({
       message: 'Find it and update it',
@@ -755,7 +776,7 @@ describe('Assistant payload', () => {
       expect(payload).not.toHaveProperty(field)
     }
     expect(payload).not.toHaveProperty('integrationTools')
-    expect(payload).not.toHaveProperty('integrationCatalog')
+    expect(payload.integrationCatalog).toEqual({ mcpServerIds: [] })
   })
 })
 
@@ -867,3 +888,29 @@ it('carries only enabled MCP IDs without eager catalog discovery while preservin
   expect(payload).not.toHaveProperty('mothershipTools')
   expect(payload.desktop).toMatchObject({ browser: true, terminal: true })
 })
+
+/** The worker derives both its gateway tools and prompt instructions from this capability. */
+it.each([{ organizationId: 'org-1' }, { workspaceId: 'ws-1' }])(
+  'switches Search integration capability per turn while preserving Build for %j',
+  async (scope) => {
+    for (const enabled of [true, false, true]) {
+      mockSearchIntegrationToolsEnabled.mockResolvedValue(enabled)
+      for (const mode of ['assistant', 'agent', 'plan']) {
+        const payload = await buildCopilotRequestPayload(
+          {
+            message: 'Find a person',
+            userId: 'person',
+            userMessageId: 'message',
+            mode,
+            model: '',
+            ...scope,
+          },
+          { selectedModel: '' }
+        )
+        expect(payload.integrationCatalog).toEqual(
+          mode === 'assistant' && !enabled ? undefined : { mcpServerIds: [] }
+        )
+      }
+    }
+  }
+)

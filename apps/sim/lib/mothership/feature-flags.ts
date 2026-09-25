@@ -9,3 +9,8 @@ export function isMothershipModelSelectorEnabled(): Promise<boolean> {
 export function isPlanModeEnabled(): Promise<boolean> {
   return isFeatureEnabled('mothership-plan-mode')
 }
+
+/** One AppConfig gate controls Search integration discovery, execution, and prompt capability. */
+export function isSearchIntegrationToolsEnabled(): Promise<boolean> {
+  return isFeatureEnabled('mothership-search-integration-tools')
+}
