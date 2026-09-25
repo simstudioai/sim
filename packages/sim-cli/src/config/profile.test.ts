@@ -257,6 +257,18 @@ describe('profile resolution', () => {
     expect(resolveProfile({ endpoint: 'https://sim.ai///' }).endpoint).toBe('https://sim.ai')
   })
 
+  it('keeps inner slashes and strips a long trailing run in linear time', () => {
+    expect(resolveProfile({ endpoint: 'https://sim.ai/a//b//' }).endpoint).toBe(
+      'https://sim.ai/a//b'
+    )
+    const slashes = '/'.repeat(100_000)
+    const started = performance.now()
+    expect(resolveProfile({ endpoint: `https://sim.ai/${slashes}x` }).endpoint).toBe(
+      `https://sim.ai/${slashes}x`
+    )
+    expect(performance.now() - started).toBeLessThan(1000)
+  })
+
   it('trims a padded endpoint instead of storing text the writer would refuse', () => {
     // `new URL()` tolerates padding and hands the string straight back, but the
     // config writer refuses it. Untrimmed, `login --endpoint " https://…"` threw
