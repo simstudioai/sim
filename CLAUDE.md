@@ -2,7 +2,7 @@
 
 You are a professional software engineer. All code must follow best practices: accurate, readable, clean, and efficient.
 
-This file (also `AGENTS.md`) holds the repo-wide rules. Area detail lives in `.claude/rules/*.md`: Claude loads each one by path, and any other agent reads the file a section points to before editing in that area. Skills live in `.agents/skills/`.
+This file (also `AGENTS.md`) holds the repo-wide rules. Area detail lives in `.claude/rules/*.md` (indexed in `apps/sim/AGENTS.md`): Claude loads each one by path, and any other agent reads the file a section points to before editing in that area. Skills live in `.agents/skills/`.
 
 ## Global Standards
 
@@ -24,7 +24,7 @@ This file (also `AGENTS.md`) holds the repo-wide rules. Area detail lives in `.c
   - `compareStrings(left, right)` from `@sim/utils/string` — code-unit ordering for hashes, fingerprints, and cross-process comparisons; never `localeCompare` there
   - `backoffWithJitter(attempt, retryAfterMs, options?)` / `parseRetryAfter(header)` from `@sim/utils/retry` — never reimplement exponential backoff inline
 - **Deployment flags in the browser**: client code inside a workspace, organization, or standalone settings surface reads `hosted`, `billingEnabled`, `chatEnabled`, and the enterprise feature set through `useDeploymentShape()` (components) or `getDeploymentShape()` (block conditions, stores, helpers) from `@/lib/core/config/deployment-shape`, never `isHosted`/`isBillingEnabled`/... from `env-flags`. Those constants freeze at module init from the root layout's `NEXT_PUBLIC_*` transport, which Next's bare 404 shell and `global-error` never emit, so a recovered tab would render Sim Cloud as self-hosted; the reader is seeded from the server-resolved workspace host context, organization layout, or standalone settings layout instead. Server code keeps reading `env-flags`.
-- **Type-checking**: `bun run type-check` (per workspace) or `bunx turbo run type-check` (all). Never remove the `@typescript/native` alias from the root `devDependencies`. Nothing imports it; it exists so a bare `tsc` resolves to the native TypeScript 7 compiler. `apps/sim` needs `@typescript/typescript6`, whose `@typescript/old` dependency (an alias of `typescript@6`) ships its own `tsc` bin, and bin winners are picked by lexical sort, so without the alias `tsc` silently becomes the ~10x slower JavaScript compiler. `bun run check:native-typecheck` enforces this ([microsoft/typescript-go#4567](https://github.com/microsoft/typescript-go/issues/4567)).
+- **Type-checking**: `bun run type-check` (per workspace) or `bunx turbo run type-check` (all). Never remove the `@typescript/native` alias from the root `devDependencies`. Nothing imports it; it exists so a bare `tsc` resolves to the native TypeScript 7 compiler. `apps/sim` needs `@typescript/typescript6`, whose `@typescript/old` dependency (an alias of `typescript@6`) ships its own `tsc` bin, and bin winners are picked by lexical sort, so without the alias `tsc` silently becomes the ~10x slower JavaScript compiler. `bun run check:native-typecheck` enforces this, and also fails when a newly added dependency that sorts ahead of `@typescript/native` ships a `tsc` bin ([microsoft/typescript-go#4567](https://github.com/microsoft/typescript-go/issues/4567)).
 - **Checks**: `bun run lint` autofixes formatting; `bun run check:audits` runs every `check:*` audit CI enforces.
 
 ## Architecture

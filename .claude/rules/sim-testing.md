@@ -125,6 +125,10 @@ Global (installed by `vitest.setup.ts` — knobs only, no `vi.mock`):
 | `@sim/platform-authz/workflow` | `workflowAuthzMockFns` (`workflow-authz.mock`) |
 | `@/lib/environment/utils` | `environmentUtilsMockFns` (`environment-utils.mock`) |
 
+Also global, with no knobs — never re-mock: the console/terminal/execution stores,
+`@/blocks/registry`, `@/tools/registry`, `@/tools/metadata`, `@/tools/metadata-outputs`,
+`@trigger.dev/core/v3`. `apps/sim/vitest.setup.ts` is the authoritative list.
+
 Helpers — use these instead of redefining them:
 
 | Need | Helper |
@@ -147,6 +151,11 @@ module scope or in `beforeAll` is undone before the first test. Integration mode
 fixtures (restore/unstub off). Node is the default environment — add
 `/** @vitest-environment jsdom */` only when the test needs the DOM.
 
+Those resets clear call history and undo spies, but not an implementation you install on a central
+mock's `vi.fn`: `xMockFns.mockFoo.mockReturnValue(...)` carries into later tests in the file. Prefer
+`*Once`; a test that installs a permanent one calls `mockFoo.mockReset()` (which restores the
+default) in `beforeEach`.
+
 ### Performance rules
 
 The suite's wall time is bound by the single Vite server thread that serves every module fetch and
@@ -155,8 +164,10 @@ The suite's wall time is bound by the single Vite server thread that serves ever
 1. `vi.hoisted()` + `vi.mock()` + static imports. Never `vi.resetModules()` + `vi.doMock()` +
    dynamic `import()`, except for a module that caches a singleton at module scope.
 2. Never `vi.importActual()`/`importOriginal` to build a partial mock — use the central mock.
-3. No real timers: `vi.useFakeTimers()`, `flushMicrotasks()`, or `flushMacrotask()`.
-4. Absolute imports only.
+3. Mock heavy graphs a test does not need and the setup does not already mock: `@/blocks`,
+   `@/triggers/registry`, `@/tools/generated/*`.
+4. No real timers: `vi.useFakeTimers()`, `flushMicrotasks()`, or `flushMacrotask()`.
+5. Absolute imports only.
 
 ### Running
 
