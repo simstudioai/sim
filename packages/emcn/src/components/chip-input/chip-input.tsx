@@ -32,6 +32,7 @@ import * as React from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../../lib/cn'
 import {
+  chipContentGap,
   chipContentGeometryClass,
   chipFieldSurfaceClass,
   chipFieldTextClass,
@@ -46,7 +47,7 @@ export const chipInputVariants = cva('', {
   variants: {
     appearance: {
       chip: '',
-      compactSearch: `${chipFieldSurfaceClass} h-[23px] items-center rounded-sm px-2 dark:bg-[var(--surface-5)]`,
+      compactSearch: `${chipFieldSurfaceClass} ${chipContentGap} h-[23px] items-center rounded-sm px-2 dark:bg-[var(--surface-5)]`,
     },
   },
   defaultVariants: { appearance: 'chip' },

@@ -22,7 +22,6 @@
 
 import * as React from 'react'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
-import { RowActions, rowActionsGroupClass } from '@sim/emcn'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronRight, Circle, Search } from '../../icons'
 import { cn } from '../../lib/cn'
@@ -30,6 +29,7 @@ import { chipContentGap, chipFieldSurfaceClass, chipGeometryClass } from '../chi
 import { InsideModalContext } from '../modal/modal'
 import { OverflowText, type OverflowTextProps } from '../overflow-text/overflow-text'
 import { POPOVER_ANIMATION_CLASSES } from '../popover/popover-animation'
+import { RowActions, rowActionsGroupClass } from '../row-actions/row-actions'
 
 /**
  * Menu row geometry. Rows sit 2px flatter than the 30px chip pill — the menu is a

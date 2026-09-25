@@ -1,9 +1,3 @@
 .description {
   color: var(--text-muted);
 }
-
-@supports (color: color-mix(in srgb, red, blue)) {
-  .description {
-    color: color-mix(in srgb, var(--text-muted) 60%, transparent);
-  }
-}

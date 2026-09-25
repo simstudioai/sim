@@ -1358,10 +1358,6 @@ input[type="search"]::-ms-clear {
     background-color: transparent !important;
     color: var(--text-tertiary) !important;
   }
-
-  html[data-panel-active-tab] .panel-container [data-tab-button] span {
-    color: inherit !important;
-  }
 }
 
 /**

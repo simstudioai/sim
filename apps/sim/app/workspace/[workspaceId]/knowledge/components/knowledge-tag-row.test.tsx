@@ -28,7 +28,7 @@ describe('KnowledgeTagRow actions', () => {
           typeLabel='Text'
           detail='3 documents'
           activateLabel='View documents for Customer'
-          removeLabel='Delete tag'
+          removeLabel='Delete Customer'
           onActivate={onActivate}
           onRemove={onRemove}
         />
@@ -40,6 +40,7 @@ describe('KnowledgeTagRow actions', () => {
     expect(buttons[0].contains(buttons[1])).toBe(false)
     expect(buttons[0].getAttribute('type')).toBe('button')
     expect(buttons[0].getAttribute('aria-label')).toBe('View documents for Customer')
+    expect(buttons[1].getAttribute('aria-label')).toBe('Delete Customer')
 
     act(() => buttons[0].click())
     expect(onActivate).toHaveBeenCalledTimes(1)

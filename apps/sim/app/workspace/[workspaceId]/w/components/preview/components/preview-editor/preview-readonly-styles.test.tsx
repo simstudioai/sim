@@ -5,7 +5,10 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('next/navigation', () => ({ useParams: () => ({ workspaceId: 'workspace-1' }) }))
+vi.mock('next/navigation', () => ({
+  useParams: () => ({ workspaceId: 'workspace-1' }),
+  usePathname: () => '/workspace/workspace-1/w/workflow-1',
+}))
 vi.mock('@/hooks/use-webhook-management', () => ({
   useWebhookManagement: () => ({ webhookUrl: null }),
 }))
@@ -19,6 +22,12 @@ import { READONLY_PREVIEW_STYLES } from '@/app/workspace/[workspaceId]/w/compone
 import type { SubBlockConfig } from '@/blocks/types'
 
 const config: SubBlockConfig = { id: 'enabled', type: 'switch', title: 'Enabled' }
+const piiConfig: SubBlockConfig = {
+  id: 'pii-types',
+  type: 'grouped-checkbox-list',
+  title: 'PII Types',
+  options: [{ id: 'email', label: 'Email', group: 'Personal' }],
+}
 
 let container: HTMLDivElement
 let root: Root
@@ -49,6 +58,12 @@ describe('workflow preview read-only appearance', () => {
                 isPreview
                 subBlockValues={{ enabled: { value: true } }}
               />
+              <SubBlock
+                blockId='block-1'
+                config={piiConfig}
+                isPreview
+                subBlockValues={{ 'pii-types': { value: ['email'] } }}
+              />
               <div data-preview-readonly>
                 <button type='button' disabled>
                   Remove file
@@ -73,7 +88,14 @@ describe('workflow preview read-only appearance', () => {
     expect(previewSwitch.getAttribute('aria-checked')).toBe('true')
     expect(getComputedStyle(previewSwitch).opacity).toBe('1')
     expect(getComputedStyle(previewSwitch).pointerEvents).toBe('none')
-    const removeButton = preview.querySelector('button:not([role="switch"])') as HTMLButtonElement
+    const piiTrigger = Array.from(preview.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Configure PII Types')
+    )!
+    expect(piiTrigger.disabled).toBe(true)
+    expect(piiTrigger.hasAttribute('data-preview-full-opacity')).toBe(true)
+    const removeButton = Array.from(preview.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Remove file')
+    )!
     expect(getComputedStyle(removeButton).pointerEvents).toBe('none')
     expect(getComputedStyle(removeButton).opacity).toBe('0.5')
 

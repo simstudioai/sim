@@ -106,7 +106,7 @@ function FileCard({ file, isExecutionFile = false, workspaceId }: FileCardProps)
           {file.type}
           {file.version === undefined ? '' : ` · v${file.version}`}
         </span>
-        <Button variant='ghost' size='inline' onClick={handleDownload}>
+        <Button variant='ghost' size='inline' onClick={handleDownload} className='text-xs'>
           <Download className='mr-1 size-[10px]' />
           Download
         </Button>

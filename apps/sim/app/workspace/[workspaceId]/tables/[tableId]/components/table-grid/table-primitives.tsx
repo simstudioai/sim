@@ -72,8 +72,11 @@ export const AddRowButton = React.memo(function AddRowButton({
     <Button
       type='button'
       variant='ghost'
-      size='inline'
-      className={cn('gap-2', blockedReason && 'cursor-not-allowed opacity-50')}
+      size='sm'
+      className={cn(
+        'h-[20px] gap-2 p-0 text-[var(--text-body)]',
+        blockedReason && 'cursor-not-allowed opacity-50'
+      )}
       aria-disabled={blockedReason ? true : undefined}
       onClick={blockedReason ? undefined : onClick}
     >

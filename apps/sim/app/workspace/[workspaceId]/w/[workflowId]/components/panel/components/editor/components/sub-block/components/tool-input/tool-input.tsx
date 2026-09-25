@@ -1635,7 +1635,9 @@ export const ToolInput = memo(function ToolInput({
               onDrop={(e) => handleDrop(e, toolIndex)}
             >
               <div
-                data-preview-full-opacity={isPreview || undefined}
+                data-preview-full-opacity={
+                  (isPreview && !(showToolControl && isToolDisabled)) || undefined
+                }
                 className={cn(
                   'flex items-center justify-between gap-2 rounded-t-sm bg-[var(--surface-4)] px-2 py-[6.5px]',
                   (isCustomTool || hasToolBody) && 'cursor-pointer',

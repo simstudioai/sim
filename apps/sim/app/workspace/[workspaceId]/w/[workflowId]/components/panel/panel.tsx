@@ -94,6 +94,7 @@ import { getWorkflowWithValues } from '@/stores/workflows'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+import './panel-tab.css'
 
 const logger = createLogger('Panel')
 const EMPTY_COPILOT_CHATS: readonly CopilotChatListItem[] = []

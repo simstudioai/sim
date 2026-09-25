@@ -155,7 +155,7 @@ export function SidebarFooter({
     />
   ) : (
     <div
-      className='flex size-[16px] shrink-0 items-center justify-center rounded-full text-micro text-white leading-none'
+      className='flex size-[16px] shrink-0 items-center justify-center rounded-full text-[9px] text-white leading-none'
       style={{ backgroundColor: getUserColor(profile.id) }}
     >
       {name.charAt(0).toUpperCase()}
@@ -292,7 +292,7 @@ export function SidebarFooter({
               onSelect={handleUpdateSelect}
               disabled={updateState.status === 'downloading'}
             >
-              <img src='/favicon/favicon-32x32.png' alt='' className='size-[14px] rounded-sm' />
+              <img src='/favicon/favicon-32x32.png' alt='' className='size-[14px] rounded-[3px]' />
               {desktopUpdateActionLabel(updateState)}
             </DropdownMenuItem>
             <DropdownMenuSeparator />

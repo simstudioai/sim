@@ -391,7 +391,7 @@ export function DocumentTagsModal({
                   typeLabel={FIELD_TYPE_LABELS[tag.fieldType] || tag.fieldType}
                   detail={formatValueForDisplay(tag.value, tag.fieldType)}
                   truncateDetail
-                  removeLabel='Remove tag'
+                  removeLabel={`Remove ${tag.displayName}`}
                   onRemove={(e) => {
                     e.stopPropagation()
                     handleRemoveTag(index)

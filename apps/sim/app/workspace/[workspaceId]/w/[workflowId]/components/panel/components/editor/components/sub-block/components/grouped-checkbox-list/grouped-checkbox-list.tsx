@@ -97,10 +97,10 @@ export function GroupedCheckboxList({
   const noneSelected = selectedValues.length === 0
 
   useEffect(() => {
-    if (activeSearchTarget?.subBlockId === subBlockId) {
+    if (!isPreview && activeSearchTarget?.subBlockId === subBlockId) {
       setOpen(true)
     }
-  }, [activeSearchTarget, subBlockId])
+  }, [activeSearchTarget, isPreview, subBlockId])
 
   useEffect(() => {
     if (!open || activeSearchTarget?.subBlockId !== subBlockId) return
@@ -119,7 +119,8 @@ export function GroupedCheckboxList({
         leftAdornment={
           <ManageWorkspace className='size-4 shrink-0 opacity-50' data-preview-full-opacity />
         }
-        disabled={disabled}
+        disabled={disabled || isPreview}
+        data-preview-full-opacity={isPreview || undefined}
         onClick={() => setOpen(true)}
         rightAdornment={
           <SelectedCountDisplay
@@ -131,7 +132,12 @@ export function GroupedCheckboxList({
       >
         Configure PII Types
       </Chip>
-      <ChipModal open={open} onOpenChange={setOpen} srTitle='Select PII Types to Detect' size='lg'>
+      <ChipModal
+        open={open && !isPreview}
+        onOpenChange={setOpen}
+        srTitle='Select PII Types to Detect'
+        size='lg'
+      >
         <ChipModalHeader onClose={() => setOpen(false)}>Select PII Types to Detect</ChipModalHeader>
         <ChipModalBody onWheel={(e) => e.stopPropagation()}>
           <ChipModalField

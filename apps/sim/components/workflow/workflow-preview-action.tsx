@@ -14,7 +14,7 @@ interface WorkflowPreviewActionProps
 /** Overlay corner action shared by embedded workflow previews. */
 export const WorkflowPreviewAction = forwardRef<HTMLButtonElement, WorkflowPreviewActionProps>(
   ({ 'aria-label': label, ...props }, ref) => (
-    <Tooltip.Root>
+    <Tooltip.Root preferAbove>
       <Tooltip.Trigger asChild>
         <OverlayActionButton
           {...props}
@@ -25,7 +25,7 @@ export const WorkflowPreviewAction = forwardRef<HTMLButtonElement, WorkflowPrevi
           className='absolute right-[6px] bottom-1.5 z-10'
         />
       </Tooltip.Trigger>
-      <Tooltip.Content side='top'>{label}</Tooltip.Content>
+      <Tooltip.Content>{label}</Tooltip.Content>
     </Tooltip.Root>
   )
 )

@@ -280,7 +280,7 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
                         {usage.documentCount} document{usage.documentCount !== 1 ? 's' : ''}
                       </>
                     }
-                    removeLabel='Delete Tag'
+                    removeLabel={`Delete ${tag.displayName}`}
                     onRemove={(e) => {
                       e.stopPropagation()
                       handleDeleteTagClick(tag)
