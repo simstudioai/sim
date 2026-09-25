@@ -128,16 +128,22 @@ export function installPageHelpers(): void {
  * Builds the page snapshot: a structural outline (headings, landmarks) with
  * interactive elements carrying numeric ids, walking open shadow roots and
  * same-origin iframes. Rebuilds the element registry as a side effect.
+ * `markNew` false leaves the `new` markers out and records nothing as shown,
+ * for internal reads (such as a text search) whose outline the model never sees.
  */
-export function collectSnapshot(startingElementId = 0, elementId?: number): unknown {
+export function collectSnapshot(
+  startingElementId = 0,
+  elementId: number | null = null,
+  markNew = true
+): unknown {
   const resolver = window.__simAgentResolveElement
   const scopedRoot =
-    elementId === undefined
+    elementId === null
       ? undefined
       : resolver
         ? resolver(elementId, false)?.element
         : window.__simAgentElements?.[elementId]
-  if (elementId !== undefined) {
+  if (elementId !== null) {
     if (!scopedRoot?.isConnected) return { error: 'stale', reason: window.__simAgentStaleReason }
     if (scopedRoot.ownerDocument !== document) return { error: 'framed-snapshot' }
   }
@@ -238,9 +244,13 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
   window.__simAgentElements = registry
   const previouslyShown = window.__simAgentShownElements
   const shown = previouslyShown ?? new WeakSet<Element>()
-  window.__simAgentShownElements = shown
+  if (markNew) window.__simAgentShownElements = shown
   /** Whether no earlier snapshot of this document listed the element; the first snapshot marks nothing. */
-  const isNew = (el: Element): boolean => previouslyShown !== undefined && !shown.has(el)
+  const isNew = (el: Element): boolean => markNew && previouslyShown !== undefined && !shown.has(el)
+  /** Records an element whose line made it into the outline, so the next snapshot knows it. */
+  const recordShown = (el: Element): void => {
+    if (markNew) shown.add(el)
+  }
   const lines: string[] = []
   let truncated = false
   let refCount = 0
@@ -585,11 +595,11 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
       }
     }
     if (isNew(el)) parts.push('new')
-    shown.add(el)
     const suffix = parts.length > 0 ? ` ${parts.join(' ')}` : ''
     const lineIndex = lines.length
     if (push(`${indent}- ${role} ${quote(name)} [ref=${id}]${suffix}`)) {
       refLineIndexes[id] = lineIndex
+      recordShown(el)
     }
   }
 
@@ -608,9 +618,11 @@ export function collectSnapshot(startingElementId = 0, elementId?: number): unkn
     const id = registerElement(el, roleFor(el), text)
     textLineCount++
     const marker = isNew(el) ? ' new' : ''
-    shown.add(el)
     const lineIndex = lines.length
-    if (push(`${indent}- text ${quote(text)} [ref=${id}]${marker}`)) refLineIndexes[id] = lineIndex
+    if (push(`${indent}- text ${quote(text)} [ref=${id}]${marker}`)) {
+      refLineIndexes[id] = lineIndex
+      recordShown(el)
+    }
   }
 
   const headingLevel = (el: Element): number | null => {
