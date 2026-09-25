@@ -1973,6 +1973,29 @@ it('does not treat a forged built-in identifier as a global template', async () 
 })
 
 describe('organization resource mention targets', () => {
+  /**
+   * Resolves only for a principal and input both scoped to the authorized owner
+   * workspace, as the real use cases enforce, so a read addressed anywhere else
+   * yields no context.
+   */
+  const ownedBy =
+    (workspaceId: string, value: unknown) =>
+    async ({
+      principal,
+      input,
+    }: {
+      principal: { workspaceId?: string }
+      input: { workspaceId?: string; assertedWorkspaceId?: string }
+    }) => {
+      if (
+        principal.workspaceId !== workspaceId ||
+        (input.workspaceId ?? input.assertedWorkspaceId) !== workspaceId
+      ) {
+        throw new DelegatedWorkspaceAuthorizationError()
+      }
+      return value
+    }
+
   beforeEach(() => {
     resolveInvocationWorkspace.mockReset()
     resolveInvocationWorkspace.mockImplementation(async (_owner, workspaceId) => {
@@ -1980,22 +2003,47 @@ describe('organization resource mention targets', () => {
       return { workspaceId }
     })
     readWorkflowMetadata.mockReset()
-    readWorkflowMetadata.mockResolvedValue({
-      workflow: { id: 'workflow-1', workspaceId: 'workspace-a', name: 'Lead intake' },
-      folderPath: '/',
-    })
-    listWorkflowFolders.mockClear()
-    listWorkflowFolders.mockResolvedValue({
-      folders: [{ id: 'folder-1', name: 'Leads', parentId: null }],
-    })
+    readWorkflowMetadata.mockImplementation(
+      ownedBy('workspace-a', {
+        workflow: { id: 'workflow-1', workspaceId: 'workspace-a', name: 'Lead intake' },
+        folderPath: '/',
+      })
+    )
+    listWorkflowFolders.mockImplementation(
+      ownedBy('workspace-a', { folders: [{ id: 'folder-1', name: 'Leads', parentId: null }] })
+    )
+    readTableUseCase.mockImplementation(
+      ownedBy('workspace-a', {
+        table: { id: 'table-1', name: 'Accounts', workspaceId: 'workspace-a', schema: {} },
+        folderPath: '/',
+      })
+    )
+    readWorkspaceFileMetadata.mockImplementation(
+      ownedBy('workspace-a', { file: { name: 'Notes.md', folderPath: null } })
+    )
+    readKnowledgeBase.mockImplementation(
+      ownedBy('workspace-a', { knowledgeBase: { id: 'kb-1', name: 'Docs' }, folderPath: '/' })
+    )
   })
 
-  it('reads each tagged resource in its authorized owner workspace', async () => {
+  it.each<[string, ChatContext]>([
+    [
+      'workflow',
+      { kind: 'workflow', workflowId: 'workflow-1', label: 'Intake', workspaceId: 'workspace-a' },
+    ],
+    [
+      'folder',
+      { kind: 'folder', folderId: 'folder-1', label: 'Leads', workspaceId: 'workspace-a' },
+    ],
+    ['table', { kind: 'table', tableId: 'table-1', label: 'Accounts', workspaceId: 'workspace-a' }],
+    ['file', { kind: 'file', fileId: 'file-1', label: 'Notes', workspaceId: 'workspace-a' }],
+    [
+      'knowledge base',
+      { kind: 'knowledge', knowledgeId: 'kb-1', label: 'Docs', workspaceId: 'workspace-a' },
+    ],
+  ])('reads a tagged %s in its authorized owner workspace', async (_kind, context) => {
     const result = await processContextsServer(
-      [
-        { kind: 'workflow', workflowId: 'workflow-1', label: 'Intake', workspaceId: 'workspace-a' },
-        { kind: 'folder', folderId: 'folder-1', label: 'Leads', workspaceId: 'workspace-a' },
-      ],
+      [context],
       'user',
       '',
       undefined,
@@ -2003,51 +2051,15 @@ describe('organization resource mention targets', () => {
       undefined,
       'org'
     )
-    expect(result.map((context) => context.content.split('\n')[0])).toEqual([
-      'Workspace workspace-a:',
-      'Workspace workspace-a:',
-    ])
-    expect(readWorkflowMetadata).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: { workflowId: 'workflow-1', assertedWorkspaceId: 'workspace-a' },
-      })
-    )
-    expect(listWorkflowFolders).toHaveBeenCalledWith(
-      expect.objectContaining({ input: expect.objectContaining({ workspaceId: 'workspace-a' }) })
-    )
-  })
-
-  it.each<[string, ChatContext, Mock, Record<string, string>]>([
-    [
-      'table',
-      { kind: 'table', tableId: 'table-1', label: 'Accounts', workspaceId: 'workspace-a' },
-      readTableUseCase,
-      { tableId: 'table-1', workspaceId: 'workspace-a' },
-    ],
-    [
-      'file',
-      { kind: 'file', fileId: 'file-1', label: 'Notes', workspaceId: 'workspace-a' },
-      readWorkspaceFileMetadata,
-      { fileId: 'file-1', assertedWorkspaceId: 'workspace-a' },
-    ],
-    [
-      'knowledge base',
-      { kind: 'knowledge', knowledgeId: 'kb-1', label: 'Docs', workspaceId: 'workspace-a' },
-      readKnowledgeBase,
-      { knowledgeBaseId: 'kb-1', assertedWorkspaceId: 'workspace-a' },
-    ],
-  ])('reads a tagged %s in its authorized owner workspace', async (_kind, context, read, input) => {
-    read.mockClear()
-    await processContextsServer([context], 'user', '', undefined, 'chat', undefined, 'org')
-    expect(read).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal: expect.objectContaining({ workspaceId: 'workspace-a' }),
-        input: expect.objectContaining(input),
-      })
-    )
+    expect(result).toHaveLength(1)
+    expect(result[0]?.content.startsWith('Workspace workspace-a:\n')).toBe(true)
   })
 
   it('reads nothing for a resource whose owner workspace is not authorized for the chat', async () => {
+    readWorkflowMetadata.mockResolvedValue({
+      workflow: { id: 'workflow-1', workspaceId: 'foreign', name: 'Elsewhere' },
+      folderPath: '/',
+    })
     const result = await processContextsServer(
       [{ kind: 'workflow', workflowId: 'workflow-1', label: 'Foreign', workspaceId: 'foreign' }],
       'user',
@@ -2058,7 +2070,6 @@ describe('organization resource mention targets', () => {
       'org'
     )
     expect(result).toEqual([])
-    expect(readWorkflowMetadata).not.toHaveBeenCalled()
   })
 })
 
@@ -2074,11 +2085,16 @@ describe('workspace mentions', () => {
   })
 
   it('describes the workspace through the authorized organization discovery', async () => {
-    readWorkspaceContext.mockResolvedValue({
-      success: true,
-      workspaces: [{ id: 'workspace-a', name: 'Sales', role: 'write' }],
-      nextCursor: null,
-    })
+    readWorkspaceContext.mockImplementation(
+      async ({ input }: { input: { workspaceId: string } }) => ({
+        success: true,
+        workspaces:
+          input.workspaceId === 'workspace-a'
+            ? [{ id: 'workspace-a', name: 'Sales', role: 'write' }]
+            : [],
+        nextCursor: null,
+      })
+    )
     const [context] = await processContextsServer(
       [workspaceMention],
       'user',
@@ -2091,9 +2107,6 @@ describe('workspace mentions', () => {
     expect(context?.type).toBe('workspace')
     expect(context?.tag).toBe('@Sales')
     expect(context?.content).toContain('{"id":"workspace-a","name":"Sales","role":"write"}')
-    expect(readWorkspaceContext).toHaveBeenCalledWith(
-      expect.objectContaining({ input: { workspaceId: 'workspace-a' } })
-    )
   })
 
   it('drops a workspace that organization discovery does not return', async () => {

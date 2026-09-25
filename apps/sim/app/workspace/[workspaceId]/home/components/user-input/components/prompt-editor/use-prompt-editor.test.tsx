@@ -224,7 +224,7 @@ it('pastes a chip link with a malformed owner as the plain text it is', () => {
     workspaceId: '',
     organizationId: 'org-1',
   })
-  const preventDefault = vi.fn()
+  let nativePasteCancelled = false
   try {
     act(() => {
       result().handlePaste({
@@ -233,10 +233,12 @@ it('pastes a chip link with a malformed owner as the plain text it is', () => {
           getData: (type: string) =>
             type === 'text/plain' ? '[Notes](sim:file/file-1?workspace=100%)' : '',
         },
-        preventDefault,
+        preventDefault: () => {
+          nativePasteCancelled = true
+        },
       } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
     })
-    expect(preventDefault).not.toHaveBeenCalled()
+    expect(nativePasteCancelled).toBe(false)
     expect(result().contexts).toEqual([])
   } finally {
     unmount()
