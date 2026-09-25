@@ -12,7 +12,6 @@ import type {
 import { isBrowserTheme } from '@sim/browser-protocol'
 import type { BrowserAddToChatPayload, DesktopAppearanceTheme } from '@sim/desktop-bridge'
 import {
-  Button,
   ChipConfirmModal,
   ChipInput,
   chipVariants,
@@ -76,6 +75,7 @@ import {
   useBrowserPanelOcclusion,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion'
 import { BrowserThemeNotice } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-theme-notice'
+import { BrowserToolbarButton } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-toolbar-button'
 import {
   buildOmniboxSuggestions,
   googleSearchUrl,
@@ -111,7 +111,7 @@ function BrowserSuggestionIcon({ suggestion }: { suggestion: UrlSuggestion }) {
     <img
       src={source}
       alt=''
-      className='size-4 shrink-0 rounded-[3px]'
+      className='size-4 shrink-0 rounded-sm'
       onError={() => setFailed(true)}
     />
   )
@@ -1006,38 +1006,26 @@ export function BrowserSession({
     <div ref={panelRef} className='flex h-full flex-col overflow-hidden'>
       <div className='relative shrink-0 border-[var(--border)] border-b bg-[var(--bg)]'>
         <div className='flex items-center gap-1 px-2.5 py-1.5'>
-          <Button
-            type='button'
-            variant='ghost-secondary'
-            size='sm'
+          <BrowserToolbarButton
             aria-label='Back'
             disabled={!pageState?.canGoBack}
-            className='size-[30px] shrink-0 p-0'
             onClick={() => sendBrowserPanelAction('back', {}, scopeId)}
           >
             <ArrowLeft className='size-[14px]' />
-          </Button>
-          <Button
-            type='button'
-            variant='ghost-secondary'
-            size='sm'
+          </BrowserToolbarButton>
+          <BrowserToolbarButton
             aria-label='Forward'
             disabled={!pageState?.canGoForward}
-            className='size-[30px] shrink-0 p-0'
             onClick={() => sendBrowserPanelAction('forward', {}, scopeId)}
           >
             <ArrowRight className='size-[14px]' />
-          </Button>
-          <Button
-            type='button'
-            variant='ghost-secondary'
-            size='sm'
+          </BrowserToolbarButton>
+          <BrowserToolbarButton
             aria-label='Reload page'
-            className='size-[30px] shrink-0 p-0'
             onClick={() => sendBrowserPanelAction('reload', {}, scopeId)}
           >
             <RefreshCw className='size-[14px]' />
-          </Button>
+          </BrowserToolbarButton>
           {/* URL bar: Enter navigates the agent browser. */}
           <Popover
             open={suggestionsOpen}
@@ -1228,6 +1216,7 @@ export function BrowserSession({
           {findOpen && (
             <BrowserFindBar inputRef={findInputRef} onClose={closeFind} scopeId={scopeId} />
           )}
+
           <BrowserDownloads
             scopeId={scopeId}
             open={activeOverlay === 'downloads'}

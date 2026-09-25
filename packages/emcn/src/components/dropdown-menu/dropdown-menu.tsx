@@ -22,16 +22,14 @@
 
 import * as React from 'react'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
-import { RowActions, rowActionsGroupClass } from '@sim/emcn'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronRight, Circle, Search } from '../../icons'
 import { cn } from '../../lib/cn'
 import { chipContentGap, chipFieldSurfaceClass, chipGeometryClass } from '../chip/chip-chrome'
 import { InsideModalContext } from '../modal/modal'
 import { OverflowText, type OverflowTextProps } from '../overflow-text/overflow-text'
-
-const ANIMATION_CLASSES =
-  'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=open]:animate-in motion-reduce:animate-none'
+import { POPOVER_ANIMATION_CLASSES } from '../popover/popover-animation'
+import { RowActions, rowActionsGroupClass } from '../row-actions/row-actions'
 
 /**
  * Menu row geometry. Rows sit 2px flatter than the 30px chip pill — the menu is a
@@ -264,7 +262,7 @@ const DropdownMenuSubContent = React.forwardRef<
   <DropdownMenuPrimitive.Portal>
     <DropdownMenuPrimitive.SubContent
       ref={ref}
-      className={cn(ANIMATION_CLASSES, CONTENT_BASE_CLASSES, 'max-w-[280px]', className)}
+      className={cn(POPOVER_ANIMATION_CLASSES, CONTENT_BASE_CLASSES, 'max-w-[280px]', className)}
       {...props}
       data-native-surface-overlay=''
     />
@@ -298,7 +296,7 @@ const DropdownMenuContent = React.forwardRef<
     <DropdownMenuPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
-      className={cn(ANIMATION_CLASSES, CONTENT_BASE_CLASSES, 'max-w-[220px]', className)}
+      className={cn(POPOVER_ANIMATION_CLASSES, CONTENT_BASE_CLASSES, 'max-w-[220px]', className)}
       {...props}
       data-native-surface-overlay=''
     />
@@ -486,7 +484,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} whitespace-nowrap pr-2 pl-7 text-[var(--text-body)] text-small outline-hidden ${MENU_ROW_TRANSITION_CLASS} ${MENU_ROW_HIGHLIGHT_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
+      `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center ${chipContentGap} ${MENU_ROW_RADIUS_CLASS} whitespace-nowrap pr-2 pl-7 text-[var(--text-body)] text-small outline-hidden ${MENU_ROW_TRANSITION_CLASS} ${MENU_ROW_HIGHLIGHT_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
       className
     )}
     checked={checked}

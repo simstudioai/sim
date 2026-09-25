@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import {
-  ChipDropdown,
   ChipModal,
   ChipModalBody,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipSelect,
 } from '@sim/emcn'
 import { TagIcon, TypeNumber, TypeText } from '@sim/emcn/icons'
 import type { LeadRecord } from '@/app/(landing)/tables/components/tables-records-preview/data'
@@ -65,7 +65,11 @@ export function LeadRecordDetail({ record, onClose, onSave }: LeadRecordDetailPr
             </span>
           }
         >
-          <ChipDropdown
+          <ChipSelect
+            showSelectedCheck
+            dropdownWidth='trigger'
+            modal={false}
+            className='w-auto max-w-none'
             value={draft.status}
             options={[
               { value: 'Qualified', label: 'Qualified' },

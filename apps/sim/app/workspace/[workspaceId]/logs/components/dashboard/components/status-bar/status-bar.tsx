@@ -85,7 +85,7 @@ function StatusBarInner({
               role='button'
               tabIndex={0}
               aria-pressed={isSelected}
-              className={`h-6 flex-1 rounded-[3px] ${color} ${hoverBrightness} cursor-pointer transition-all ${
+              className={`h-6 flex-1 rounded-sm ${color} ${hoverBrightness} cursor-pointer transition-all ${
                 isSelected
                   ? 'relative z-10 scale-105 shadow-xs ring-1 ring-[var(--text-secondary)]'
                   : 'relative z-0'

@@ -69,7 +69,7 @@ interface ChipDatePickerRangeProps extends ChipDatePickerBaseProps {
 export type ChipDatePickerProps = ChipDatePickerSingleProps | ChipDatePickerRangeProps
 
 /**
- * Date counterpart to {@link ChipDropdown} — a chip-styled trigger that opens a
+ * Date counterpart to {@link ChipSelect} — a chip-styled trigger that opens a
  * {@link Calendar} in a popover. The default `filled` trigger reuses
  * `chipVariants` (filled + border) and the owned chevron for visual parity with
  * the other chip field controls; `ghost` renders the bare toolbar pill instead.

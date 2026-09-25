@@ -36,7 +36,7 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 const DEFAULT_DUPLICATE_OFFSET = { x: 50, y: 50 }
 
 const ACTION_BUTTON_STYLES = [
-  'size-[24px] rounded-md p-0',
+  'rounded-md',
   'border-none bg-transparent text-[var(--text-icon)]',
   'hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]!',
   'dark:hover-hover:bg-[var(--surface-4)]',
@@ -472,6 +472,7 @@ export const ActionBar = memo(
                       }
                       if (canRunBlock) handleRunFromBlockClick()
                     }}
+                    iconSize='compact-fixed'
                     className={cn(getActionButtonStyles('run'), isWorkflowRunning && 'group/run')}
                     disabled={!canStopWorkflow && !canRunBlock}
                   >
@@ -517,6 +518,7 @@ export const ActionBar = memo(
                         collaborativeBatchToggleBlockEnabled([blockId])
                       }
                     }}
+                    iconSize='compact-fixed'
                     className={getActionButtonStyles('enabled')}
                     disabled={
                       isWorkflowRunning ||
@@ -553,6 +555,7 @@ export const ActionBar = memo(
                   <DropdownMenuTrigger asChild>
                     <Button
                       variant='ghost'
+                      iconSize='compact-fixed'
                       className={getActionButtonStyles('color')}
                       disabled={
                         isWorkflowRunning ||
@@ -618,6 +621,7 @@ export const ActionBar = memo(
                         collaborativeBatchToggleLocked([blockId])
                       }
                     }}
+                    iconSize='compact-fixed'
                     className={getActionButtonStyles('lock')}
                     disabled={isWorkflowRunning || disabled || (isLocked && isParentLocked)}
                   >
@@ -650,6 +654,7 @@ export const ActionBar = memo(
                         handleDuplicateBlock()
                       }
                     }}
+                    iconSize='compact-fixed'
                     className={getActionButtonStyles('duplicate')}
                     disabled={isWorkflowRunning || disabled || isLocked || isParentLocked}
                   >
@@ -682,6 +687,7 @@ export const ActionBar = memo(
                         )
                       }
                     }}
+                    iconSize='compact-fixed'
                     className={getActionButtonStyles('remove')}
                     disabled={
                       isWorkflowRunning ||
@@ -717,6 +723,7 @@ export const ActionBar = memo(
                       collaborativeBatchRemoveBlocks([blockId])
                     }
                   }}
+                  iconSize='compact-fixed'
                   className={getActionButtonStyles('delete')}
                   disabled={isWorkflowRunning || disabled || isLocked || isParentLocked}
                 >

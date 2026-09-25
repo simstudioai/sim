@@ -61,7 +61,10 @@ export function SliderInput({
   const isDisabled = isPreview || disabled
 
   return (
-    <div className={cn('relative pt-2 pb-[22px]', isDisabled && 'opacity-50')}>
+    <div
+      data-preview-full-opacity={isPreview || undefined}
+      className={cn('relative pt-2 pb-[22px]', isDisabled && 'opacity-50')}
+    >
       <Slider
         value={[normalizedValue]}
         min={min}

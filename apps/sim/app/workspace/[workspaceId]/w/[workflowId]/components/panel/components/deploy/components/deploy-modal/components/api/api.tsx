@@ -493,7 +493,7 @@ console.log(limits);`
           code={getSyncCommand()}
           language={LANGUAGE_SYNTAX[language]}
           wrapText
-          className='min-h-0! rounded-sm border border-[var(--border-1)]'
+          className='min-h-0!'
         />
       </div>
 
@@ -531,7 +531,7 @@ console.log(limits);`
           code={getStreamCommand()}
           language={LANGUAGE_SYNTAX[language]}
           wrapText
-          className='min-h-0! rounded-sm border border-[var(--border-1)]'
+          className='min-h-0!'
         />
       </div>
 
@@ -575,7 +575,7 @@ console.log(limits);`
             code={getAsyncCommand()}
             language={LANGUAGE_SYNTAX[language]}
             wrapText
-            className='min-h-0! rounded-sm border border-[var(--border-1)]'
+            className='min-h-0!'
           />
         </div>
       )}

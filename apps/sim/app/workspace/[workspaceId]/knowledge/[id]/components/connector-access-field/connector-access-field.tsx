@@ -5,9 +5,9 @@ import {
   ChipButtonGroup,
   ChipButtonGroupItem,
   ChipCombobox,
-  ChipDropdown,
   ChipLink,
   ChipModalField,
+  ChipSelect,
   type ComboboxOption,
   Tooltip,
 } from '@sim/emcn'
@@ -171,12 +171,15 @@ export function ConnectorAccessField({
           <Tooltip.Root>
             <Tooltip.Trigger asChild tabIndex={0}>
               <span className='inline-flex w-fit cursor-not-allowed'>
-                <ChipDropdown
+                <ChipSelect
+                  showSelectedCheck
+                  dropdownWidth='trigger'
+                  modal={false}
                   aria-label={`Sync using: ${currentMode?.label ?? 'Unavailable'}`}
                   value={value.accessMode}
                   options={visibleModes.map(({ mode, label }) => ({ value: mode, label }))}
                   disabled
-                  className='pointer-events-none w-fit'
+                  className='pointer-events-none w-fit max-w-none'
                 />
               </span>
             </Tooltip.Trigger>

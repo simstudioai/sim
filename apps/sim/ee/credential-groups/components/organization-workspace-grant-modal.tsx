@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import {
-  ChipDropdown,
   ChipModal,
   ChipModalBody,
   ChipModalError,
@@ -108,14 +107,18 @@ export function OrganizationWorkspaceGrantModal(props: OrganizationWorkspaceGran
           hint={access.mode === 'all' ? 'Includes integrations added in the future.' : undefined}
         >
           {(aria) => (
-            <ChipDropdown
-              multiple
+            <ChipSelect
+              placeholder='Select integrations'
+              modal={false}
+              multiSelect
               options={[
                 { value: ALL_INTEGRATIONS, label: 'All integrations' },
                 ...credentialTypes.map((type) => ({ value: type.id, label: type.label })),
               ]}
-              value={access.mode === 'all' ? [ALL_INTEGRATIONS] : access.credentialTypes}
-              onChange={(values) => {
+              multiSelectValues={
+                access.mode === 'all' ? [ALL_INTEGRATIONS] : access.credentialTypes
+              }
+              onMultiSelectChange={(values) => {
                 if (access.mode !== 'all' && values.includes(ALL_INTEGRATIONS)) {
                   setAccess({ mode: 'all' })
                   return
@@ -125,14 +128,14 @@ export function OrganizationWorkspaceGrantModal(props: OrganizationWorkspaceGran
                   throw new Error('Unknown credential type')
                 setAccess({ mode: 'selected', credentialTypes: selected })
               }}
-              allLabel='Select integrations'
+              allOptionLabel='Select integrations'
               aria-label='Integrations'
               showAllOption={false}
               searchable
               searchPlaceholder='Search integrations'
               disabled={disabled}
               fullWidth
-              matchTriggerWidth
+              dropdownWidth='trigger'
               align='start'
               {...aria}
             />

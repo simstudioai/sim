@@ -25,13 +25,22 @@ describe('cn', () => {
       ['text-base text-md', 'text-md'],
       ['text-md text-base', 'text-base'],
       ['text-small text-md text-micro', 'text-micro'],
+      ['text-sm text-title', 'text-title'],
+      ['text-title-lg text-xl', 'text-xl'],
+      ['text-title text-title-lg text-display', 'text-display'],
     ])('%s -> %s', (input, expected) => {
       expect(cn(input)).toBe(expected)
     })
 
-    it('keeps a font size and a text colour together', () => {
-      expect(cn('text-small text-[var(--text-body)]')).toBe('text-small text-[var(--text-body)]')
-    })
+    it.each(['small', 'title', 'title-lg', 'display'])(
+      'keeps text-%s and a text colour together in either order',
+      (size) => {
+        const fontSize = `text-${size}`
+        const colour = 'text-[var(--text-body)]'
+        expect(cn(fontSize, colour)).toBe(`${fontSize} ${colour}`)
+        expect(cn(colour, fontSize)).toBe(`${colour} ${fontSize}`)
+      }
+    )
 
     it('conflicts an arbitrary size with a named one', () => {
       expect(cn('text-[13px] text-small')).toBe('text-small')

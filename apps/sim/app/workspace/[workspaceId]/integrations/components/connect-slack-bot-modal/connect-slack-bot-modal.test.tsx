@@ -13,21 +13,21 @@ vi.mock('@sim/emcn', () => ({
       {children}
     </div>
   ),
-  ChipDropdown: ({
-    value,
-    onChange,
+  ChipSelect: ({
+    multiSelectValues,
+    onMultiSelectChange,
     options,
   }: {
-    value: string[]
-    onChange: (value: string[]) => void
+    multiSelectValues: string[]
+    onMultiSelectChange: (value: string[]) => void
     options: { value: string; label: string }[]
   }) => (
     <select
       multiple
       aria-label='Additional permissions'
-      value={value}
+      value={multiSelectValues}
       onChange={(event) =>
-        onChange(Array.from(event.target.selectedOptions, (option) => option.value))
+        onMultiSelectChange(Array.from(event.target.selectedOptions, (option) => option.value))
       }
     >
       {options.map((option) => (

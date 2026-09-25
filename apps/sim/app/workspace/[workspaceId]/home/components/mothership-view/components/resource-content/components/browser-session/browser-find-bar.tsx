@@ -106,7 +106,8 @@ export function BrowserFindBar({ inputRef, onClose, scopeId }: BrowserFindBarPro
               size='sm'
               aria-label='Previous match'
               disabled={!result?.matches}
-              className='size-[24px] shrink-0 p-0'
+              iconSize='compact-fixed'
+              className='shrink-0'
               onClick={() => step('back')}
             >
               <ArrowUp className='size-[13px]' />
@@ -117,7 +118,8 @@ export function BrowserFindBar({ inputRef, onClose, scopeId }: BrowserFindBarPro
               size='sm'
               aria-label='Next match'
               disabled={!result?.matches}
-              className='size-[24px] shrink-0 p-0'
+              iconSize='compact-fixed'
+              className='shrink-0'
               onClick={() => step('forward')}
             >
               <ArrowDown className='size-[13px]' />
@@ -127,7 +129,8 @@ export function BrowserFindBar({ inputRef, onClose, scopeId }: BrowserFindBarPro
               variant='ghost-secondary'
               size='sm'
               aria-label='Close find bar'
-              className='size-[24px] shrink-0 p-0'
+              iconSize='compact-fixed'
+              className='shrink-0'
               onClick={dismiss}
             >
               <X className='size-[13px]' />

@@ -946,10 +946,10 @@ export function ConditionInput({
               className={cn(
                 'flex items-center justify-between overflow-hidden bg-transparent px-2.5 py-[5px]',
                 isRouterMode
-                  ? 'rounded-t-[4px] border-[var(--border-1)] border-b'
+                  ? 'rounded-t-sm border-[var(--border-1)] border-b'
                   : isElseConditionTitle(block.title)
                     ? 'rounded-sm border-0'
-                    : 'rounded-t-[4px] border-[var(--border-1)] border-b'
+                    : 'rounded-t-sm border-[var(--border-1)] border-b'
               )}
             >
               <span className='text-[var(--text-tertiary)] text-sm'>
@@ -966,7 +966,7 @@ export function ConditionInput({
                         disabled ||
                         (!isRouterMode && isElseConditionTitle(block.title))
                       }
-                      className='h-auto p-0'
+                      size='bare'
                     >
                       <Plus className='size-[14px]' />
                       <span className='sr-only'>Add Block</span>
@@ -986,7 +986,7 @@ export function ConditionInput({
                         disabled ||
                         (!isRouterMode && isElseConditionTitle(block.title))
                       }
-                      className='h-auto p-0'
+                      size='bare'
                     >
                       <ChevronUp className='size-[14px]' />
                       <span className='sr-only'>Move Up</span>
@@ -1008,7 +1008,7 @@ export function ConditionInput({
                           isElseConditionTitle(conditionalBlocks[index + 1]?.title)) ||
                         (!isRouterMode && isElseConditionTitle(block.title))
                       }
-                      className='h-auto p-0'
+                      size='bare'
                     >
                       <ChevronDown className='size-[14px]' />
                       <span className='sr-only'>Move Down</span>
@@ -1020,12 +1020,12 @@ export function ConditionInput({
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
-                      variant='ghost'
+                      variant='ghost-destructive'
                       onClick={() => removeBlock(block.id)}
                       disabled={
                         isPreview || disabled || conditionalBlocks.length <= (isRouterMode ? 1 : 2)
                       }
-                      className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
+                      size='bare'
                     >
                       <Trash className='size-[14px]' />
                       <span className='sr-only'>Delete Block</span>
@@ -1114,6 +1114,7 @@ export function ConditionInput({
                       overlayRefs.current.delete(block.id)
                     }
                   }}
+                  data-preview-full-opacity={isPreview || undefined}
                   className={cn(
                     'pointer-events-none absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-3 py-2 font-sans text-sm',
                     (isPreview || disabled) && 'opacity-50'

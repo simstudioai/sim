@@ -102,11 +102,11 @@ describe('mark WRAPPING a link (`<mark><a>text</a></mark>`) — link color still
 })
 
 describe('each mark keeps its own non-color styling even when link-colored', () => {
-  it('bold link keeps font-weight 600', () => {
+  it('bold link keeps the central semibold weight', () => {
     const root = mount('<a href="#"><strong>bold link</strong></a>')
     const strong = root.querySelector('strong') as HTMLElement
     expect(colorOf(strong)).toBe(LINK_COLOR)
-    expect(getComputedStyle(strong).fontWeight).toBe('600')
+    expect(getComputedStyle(strong).fontWeight).toBe('var(--font-weight-semibold)')
   })
 
   it('italic link keeps font-style italic', () => {
@@ -144,7 +144,7 @@ describe('multiple marks stacked together with a link', () => {
     expect(colorOf(em)).toBe(LINK_COLOR)
     expect(colorOf(strong)).toBe(LINK_COLOR)
     expect(getComputedStyle(em).fontStyle).toBe('italic')
-    expect(getComputedStyle(strong).fontWeight).toBe('600')
+    expect(getComputedStyle(strong).fontWeight).toBe('var(--font-weight-semibold)')
   })
 
   it('bold + italic + strikethrough + link: link color wins at every nesting level', () => {

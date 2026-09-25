@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import type { ReactElement } from 'react'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import { type ChipSelectOption, chipSelectOptionMatchesSearch } from './chip-select'
 
 const GOOGLE_CLOUD_OPTION: ChipSelectOption = {
@@ -8,6 +9,20 @@ const GOOGLE_CLOUD_OPTION: ChipSelectOption = {
 }
 
 describe('chipSelectOptionMatchesSearch', () => {
+  it('requires search text for rich labels', () => {
+    expectTypeOf<{ label: ReactElement; value: string }>().not.toExtend<ChipSelectOption>()
+    expectTypeOf<{
+      label: ReactElement
+      value: string
+      searchTerms: readonly []
+    }>().not.toExtend<ChipSelectOption>()
+    expectTypeOf<{
+      label: ReactElement
+      value: string
+      searchTerms: readonly [string]
+    }>().toExtend<ChipSelectOption>()
+  })
+
   it('matches labels with normalized casing and whitespace', () => {
     expect(chipSelectOptionMatchesSearch(GOOGLE_CLOUD_OPTION, '  CLOUD  ')).toBe(true)
   })

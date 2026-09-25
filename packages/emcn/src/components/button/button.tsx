@@ -1,6 +1,7 @@
 import { type ButtonHTMLAttributes, forwardRef } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '../../lib/cn'
+import { mutedFocusRingClass } from '../../lib/focus-ring'
 
 /**
  * `size='icon'` is the square 20px icon-only button — a chip field's trailing
@@ -37,9 +38,19 @@ const buttonVariants = cva(
         destructive:
           'bg-[var(--text-error)] text-white hover-hover:text-white hover-hover:brightness-106',
         secondary: 'bg-[var(--brand-secondary)] text-[var(--text-primary)]',
-        tertiary:
-          'bg-[var(--brand-accent)] text-[var(--text-inverse)] hover-hover:text-[var(--text-inverse)] hover-hover:bg-[var(--brand-accent-hover)] dark:bg-[var(--brand-accent)] dark:hover-hover:bg-[var(--brand-accent-hover)] dark:text-[var(--text-inverse)] dark:hover-hover:text-[var(--text-inverse)]',
         ghost: 'text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)]',
+        'ghost-hover':
+          'text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)] hover-hover:bg-[var(--surface-hover)]',
+        /**
+         * Destructive action without a filled surface; stays red on hover.
+         * @example <Button variant='ghost-destructive'>Delete</Button>
+         */
+        'ghost-destructive': 'text-[var(--text-error)] hover-hover:text-[var(--text-error)]',
+        /**
+         * Muted destructive action that turns red on hover.
+         * @example <Button variant='ghost-destructive-muted'>Remove</Button>
+         */
+        'ghost-destructive-muted': 'text-[var(--text-muted)] hover-hover:text-[var(--text-error)]',
         subtle:
           'text-[var(--text-body)] hover-hover:text-[var(--text-body)] hover-hover:bg-[var(--surface-4)]',
         'ghost-secondary': 'text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]',
@@ -49,6 +60,21 @@ const buttonVariants = cva(
         sm: 'px-1.5 py-1 text-[length:11px]',
         md: 'px-2 py-1.5 text-[length:12px]',
         icon: 'size-[20px] rounded-sm p-0 [&_svg]:[stroke-width:1.25]',
+        inline: 'h-[20px] px-1.5 py-0 text-caption',
+        bare: 'h-auto p-0 text-[length:12px]',
+      },
+      iconSize: {
+        compact: 'size-6 p-0',
+        'compact-fixed': 'size-[24px] p-0',
+        regular: 'size-7 p-0',
+        roomy: 'size-8 p-0',
+        touch: 'size-10 p-0',
+      },
+      shape: {
+        round: 'rounded-full',
+      },
+      focusRing: {
+        muted: mutedFocusRingClass,
       },
       iconPadding: {
         sm: 'p-1',
@@ -64,6 +90,7 @@ const buttonVariants = cva(
        */
       { size: 'icon', variant: 'quiet', className: 'text-[var(--text-icon-muted)]' },
       { size: 'icon', variant: 'ghost', className: 'text-[var(--text-icon-muted)]' },
+      { size: 'icon', variant: 'ghost-hover', className: 'text-[var(--text-icon-muted)]' },
     ],
     defaultVariants: {
       variant: 'default',
@@ -72,9 +99,31 @@ const buttonVariants = cva(
   }
 )
 
+type ButtonIconSize = NonNullable<VariantProps<typeof buttonVariants>['iconSize']>
+
+const responsiveIconSizes = {
+  compact: 'sm:size-6',
+  'compact-fixed': 'sm:size-[24px]',
+  regular: 'sm:size-7',
+  roomy: 'sm:size-8',
+  touch: 'sm:size-10',
+} as const satisfies Record<ButtonIconSize, string>
+
 export interface ButtonProps
   extends ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+    Omit<VariantProps<typeof buttonVariants>, 'iconSize'> {
+  /**
+   * Square icon-action geometry without changing the selected size's typography,
+   * corner radius, icon stroke or color. `compact` follows the spacing scale
+   * (24px at the default root font size); `compact-fixed` stays at 24px.
+   * Regular, roomy and touch follow the spacing scale (28px, 32px and 40px
+   * at the default root font size). A responsive
+   * value changes geometry at the standard sm breakpoint. All remove padding;
+   * explicit iconPadding or className can override it.
+   * Omit to retain the selected size's geometry.
+   * @example <Button variant='ghost' iconSize='compact' aria-label='Remove'><X /></Button>
+   */
+  iconSize?: ButtonIconSize | { base: ButtonIconSize; sm?: ButtonIconSize } | null
   /**
    * Symmetric padding for icon actions whose content or layout determines their size.
    * Preserves the selected size's typography, corner radius and icon stroke.
@@ -85,11 +134,24 @@ export interface ButtonProps
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, iconPadding, ...props }, ref) => {
+  ({ className, variant, size, iconSize, iconPadding, shape, focusRing, ...props }, ref) => {
+    const baseIconSize = typeof iconSize === 'object' ? iconSize?.base : iconSize
+    const smIconSize = typeof iconSize === 'object' ? iconSize?.sm : undefined
     return (
       <button
         ref={ref}
-        className={cn(buttonVariants({ variant, size, iconPadding }), className)}
+        className={cn(
+          buttonVariants({
+            variant,
+            size,
+            iconSize: baseIconSize,
+            iconPadding,
+            shape,
+            focusRing,
+          }),
+          smIconSize && responsiveIconSizes[smIconSize],
+          className
+        )}
         {...props}
       />
     )

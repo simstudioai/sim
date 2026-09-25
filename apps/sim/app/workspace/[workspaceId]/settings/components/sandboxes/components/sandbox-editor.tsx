@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Chip, ChipDropdown, ChipInput, ChipTextarea, cn } from '@sim/emcn'
+import { Chip, ChipInput, ChipSelect, ChipTextarea, cn } from '@sim/emcn'
 import type { SandboxDependencyIssue } from '@/lib/api/contracts/sandboxes'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { ManagedCliSelect } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/components/managed-cli-select'
@@ -67,7 +67,11 @@ export function SandboxEditor({
             />
           </SettingsField>
           <SettingsField label='Language'>
-            <ChipDropdown
+            <ChipSelect
+              showSelectedCheck
+              dropdownWidth='trigger'
+              modal={false}
+              className='w-auto max-w-none'
               value={draft.language}
               onChange={(language) => onChange({ ...draft, language: language as SandboxLanguage })}
               options={LANGUAGE_OPTIONS.map((option) => ({
@@ -238,7 +242,7 @@ export function SandboxStatus({
                 {showLog ? 'Hide log' : 'Show log'}
               </Chip>
               {showLog && (
-                <pre className='max-h-64 overflow-auto whitespace-pre-wrap rounded-[8px] bg-[var(--surface-3)] p-3 text-[var(--text-muted)] text-caption'>
+                <pre className='max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-[var(--surface-3)] p-3 text-[var(--text-muted)] text-caption'>
                   {sandbox.errorDetail}
                 </pre>
               )}

@@ -114,7 +114,7 @@ Settings pages never use a literal `text-[Npx]` class — always the named Tailw
 scale token from the `@theme` block in `apps/sim/app/_styles/globals.css` (`text-micro`
 10px, `text-xs` 11px, `text-caption` 12px, `text-small` 13px, `text-sm` 14px
 [Tailwind default, unmodified], `text-base` 15px, `text-md` 16px, `text-lg` 18px
-[Tailwind default]). A literal size is either a straight rename to the equivalent
+[the exact Tailwind default adopted in globals.css]). A literal size is either a straight rename to the equivalent
 token (if the pixel value matches one exactly) or a sign the page never migrated —
 grep `text-\[1[0-8]px\]` under `apps/sim/app/workspace/*/settings/**` and
 `apps/sim/ee/**` to find stragglers.

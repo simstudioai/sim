@@ -212,14 +212,16 @@ function SingleFileSelector({
         aria-label='Remove file'
         type='button'
         variant='ghost'
-        className='-translate-y-1/2 absolute top-1/2 right-[28px] z-10 size-6 p-0'
+        iconSize='compact'
+        className='-translate-y-1/2 absolute top-1/2 right-[28px] z-10'
         onClick={onClear}
-        disabled={isDeleting}
+        disabled={disabled || isDeleting}
+        data-preview-full-opacity={disabled || undefined}
       >
         {isDeleting ? (
           <div className='size-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
         ) : (
-          <X className='size-4 opacity-50 hover-hover:opacity-100' />
+          <X className='size-4 opacity-50 hover-hover:opacity-100' data-preview-full-opacity />
         )}
       </Button>
     </div>
@@ -766,14 +768,16 @@ export function FileUpload({
           aria-label='Remove file'
           type='button'
           variant='ghost'
-          className='-translate-y-1/2 absolute top-1/2 right-[4px] size-6 p-0'
+          iconSize='compact'
+          className='-translate-y-1/2 absolute top-1/2 right-[4px]'
           onClick={(e) => handleRemoveFile(file, e)}
-          disabled={isDeleting}
+          disabled={disabled || isPreview || isDeleting}
+          data-preview-full-opacity={isPreview || undefined}
         >
           {isDeleting ? (
             <div className='size-4 animate-spin rounded-full border-[1.5px] border-current border-t-transparent' />
           ) : (
-            <X className='size-4 opacity-50' />
+            <X className='size-4 opacity-50' data-preview-full-opacity />
           )}
         </Button>
       </div>
@@ -970,7 +974,7 @@ export function FileUpload({
           onOpenChange={(open) => {
             if (open) void refetchWorkspaceFiles()
           }}
-          disabled={disabled}
+          disabled={disabled || isPreview}
           isLoading={loadingWorkspaceFiles}
           formatFileSize={formatFileSize}
           truncateMiddle={truncateMiddle}

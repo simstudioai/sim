@@ -10,7 +10,7 @@ interface ChipChevronDownProps {
 /**
  * Canonical trailing chevron adornment for chip-style dropdown triggers — a
  * 16px hidden-from-AT slot centering the 14px {@link ChevronDown} glyph in
- * `--text-icon`, matching the chevron `ChipDropdown` owns internally. Use it
+ * `--text-icon`, matching the chevron `ChipSelect` owns internally. Use it
  * inside hand-built `chipVariants` triggers (breadcrumb dropdowns, header
  * "New column"-style buttons) instead of re-deriving the span + icon markup.
  *

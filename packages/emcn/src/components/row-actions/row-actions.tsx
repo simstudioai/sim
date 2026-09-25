@@ -1,5 +1,5 @@
 import type { ReactNode, Ref } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '../../lib/cn'
 
 export const rowActionsGroupClass = 'group/row-actions'
 

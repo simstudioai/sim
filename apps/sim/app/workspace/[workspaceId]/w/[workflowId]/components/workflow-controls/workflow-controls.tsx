@@ -1,11 +1,11 @@
 'use client'
 
+/** biome-ignore assist/source/organizeImports: Keep the local feature import after shared hooks and stores, per AGENTS.md. */
 import { memo, useCallback, useRef, useState } from 'react'
 import {
   Button,
   ChevronDown,
   Cursor,
-  chipHoverSurfaceClass,
   cn,
   disclosureChevronClass,
   Hand,
@@ -31,6 +31,8 @@ import { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 import { useCanvasModeStore } from '@/stores/canvas-mode'
 import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+
+import { CanvasControlButton } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/canvas-control-button'
 
 const logger = createLogger('WorkflowControls')
 
@@ -100,7 +102,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
          * CONTENT_WINDOW_GAP; these controls measure from the canvas floor and
          * wall, so they take the 12 directly.
          */
-        className='absolute bottom-3 left-3 z-10 flex h-[36px] items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-1'
+        className='absolute bottom-3 left-3 z-10 flex h-9 items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-1'
         onContextMenu={handleContextMenu}
       >
         {/* Canvas Mode Selector */}
@@ -109,23 +111,15 @@ export const WorkflowControls = memo(function WorkflowControls() {
             <PopoverTrigger asChild>
               <div className='flex cursor-pointer items-center gap-1'>
                 <Tooltip.Trigger asChild>
-                  <Button
-                    aria-label={mode === 'hand' ? 'Mover' : 'Pointer'}
-                    className='size-[28px] rounded-sm p-0'
-                    variant='active'
-                  >
+                  <CanvasControlButton aria-label={mode === 'hand' ? 'Mover' : 'Pointer'} active>
                     {mode === 'hand' ? (
                       <Hand className='size-[14px]' />
                     ) : (
                       <Cursor className='size-[14px]' />
                     )}
-                  </Button>
+                  </CanvasControlButton>
                 </Tooltip.Trigger>
-                <Button
-                  aria-label='Change canvas mode'
-                  variant='ghost'
-                  className={cn('size-[20px] rounded-sm p-0', chipHoverSurfaceClass)}
-                >
+                <Button aria-label='Change canvas mode' variant='ghost-hover' size='icon'>
                   <ChevronDown
                     className={cn(disclosureChevronClass, isCanvasModeOpen && 'rotate-180')}
                   />
@@ -160,15 +154,9 @@ export const WorkflowControls = memo(function WorkflowControls() {
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Button
-              aria-label='Undo'
-              variant='ghost'
-              className={cn('size-[28px] rounded-sm p-0', chipHoverSurfaceClass)}
-              onClick={undo}
-              disabled={!canUndo}
-            >
+            <CanvasControlButton aria-label='Undo' onClick={undo} disabled={!canUndo}>
               <Undo className='size-[14px]' />
-            </Button>
+            </CanvasControlButton>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
             <Tooltip.Shortcut keys='⌘Z'>Undo</Tooltip.Shortcut>
@@ -177,15 +165,9 @@ export const WorkflowControls = memo(function WorkflowControls() {
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Button
-              aria-label='Redo'
-              variant='ghost'
-              className={cn('size-[28px] rounded-sm p-0', chipHoverSurfaceClass)}
-              onClick={redo}
-              disabled={!canRedo}
-            >
+            <CanvasControlButton aria-label='Redo' onClick={redo} disabled={!canRedo}>
               <Redo className='size-[14px]' />
-            </Button>
+            </CanvasControlButton>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
             <Tooltip.Shortcut keys='⌘⇧Z'>Redo</Tooltip.Shortcut>
@@ -196,14 +178,9 @@ export const WorkflowControls = memo(function WorkflowControls() {
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
-            <Button
-              aria-label='Fit to View'
-              variant='ghost'
-              className={cn('size-[28px] rounded-sm p-0', chipHoverSurfaceClass)}
-              onClick={handleFitToView}
-            >
+            <CanvasControlButton aria-label='Fit to View' onClick={handleFitToView}>
               <SelectAll className='size-[14px]' />
-            </Button>
+            </CanvasControlButton>
           </Tooltip.Trigger>
           <Tooltip.Content side='top'>
             <Tooltip.Shortcut keys='⌘⇧F'>Fit to View</Tooltip.Shortcut>

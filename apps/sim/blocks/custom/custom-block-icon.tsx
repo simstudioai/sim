@@ -34,7 +34,7 @@ export function makeImageIcon(url: string): BlockIcon {
       src={url}
       alt=''
       style={style}
-      className={cn('size-full rounded-[4px] object-contain', className)}
+      className={cn('size-full rounded-sm object-contain', className)}
     />
   ))
   // double-cast-allowed: an <img> renderer must satisfy the SVG-typed BlockIcon slot

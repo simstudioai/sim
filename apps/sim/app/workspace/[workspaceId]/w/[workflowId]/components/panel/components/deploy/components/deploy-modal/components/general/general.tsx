@@ -2,7 +2,6 @@
 
 import { useId, useState } from 'react'
 import {
-  Button,
   ChipButtonGroup,
   ChipButtonGroupItem,
   ChipConfirmModal,
@@ -12,6 +11,7 @@ import {
   cn,
   Expand,
   Label,
+  OverlayActionButton,
   Skeleton,
   Tooltip,
 } from '@sim/emcn'
@@ -241,15 +241,15 @@ export function GeneralDeploy({
                 </div>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
-                    <Button
+                    <OverlayActionButton
                       aria-label='See preview'
                       type='button'
-                      variant='default'
+                      size='md'
                       onClick={() => setShowExpandedPreview(true)}
-                      className='absolute right-[8px] bottom-2 z-10 size-[28px] cursor-pointer bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-3)]'
+                      className='absolute right-[8px] bottom-2 z-10'
                     >
                       <Expand className='size-[14px]' />
-                    </Button>
+                    </OverlayActionButton>
                   </Tooltip.Trigger>
                   <Tooltip.Content side='top'>See preview</Tooltip.Content>
                 </Tooltip.Root>

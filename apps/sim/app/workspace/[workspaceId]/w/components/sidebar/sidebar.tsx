@@ -1507,7 +1507,7 @@ export const Sidebar = memo(function Sidebar({ organizationHref }: SidebarProps)
                                           }
                                           onKeyDown={chatFlyoutRename.handleKeyDown}
                                           onBlur={handleChatRenameBlur}
-                                          className='min-w-0 flex-1 border-none bg-transparent text-[14px] text-[var(--text-body)] outline-hidden'
+                                          className='min-w-0 flex-1 border-none bg-transparent text-[var(--text-body)] text-sm leading-[inherit] outline-hidden'
                                         />
                                       </div>
                                     )

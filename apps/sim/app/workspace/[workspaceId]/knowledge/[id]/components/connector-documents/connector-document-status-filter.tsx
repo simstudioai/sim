@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipDropdown } from '@sim/emcn'
+import { ChipSelect } from '@sim/emcn'
 import type {
   ConnectorDocumentFilter,
   ConnectorDocumentsData,
@@ -20,14 +20,17 @@ export function ConnectorDocumentStatusFilter({
   isLoading,
 }: ConnectorDocumentStatusFilterProps) {
   return (
-    <ChipDropdown
+    <ChipSelect
+      showSelectedCheck
+      modal={false}
+      className='w-auto max-w-none'
       aria-label='Document status'
       value={filter}
       onChange={(value) => {
         if (value === 'active' || value === 'excluded' || value === 'failed' || value === 'skipped')
           onFilterChange(value)
       }}
-      matchTriggerWidth={false}
+      dropdownWidth='content'
       options={[
         { value: 'active', label: isLoading ? 'Included' : `Included (${counts.active})` },
         { value: 'excluded', label: isLoading ? 'Excluded' : `Excluded (${counts.excluded})` },

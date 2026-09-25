@@ -2,7 +2,7 @@
 
 import { type ReactNode, useId, useRef, useState } from 'react'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
-import { Chip, ChipDropdown, ChipInput, ChipTextarea, Label } from '@sim/emcn'
+import { Chip, ChipInput, ChipSelect, ChipTextarea, Label } from '@sim/emcn'
 import { Check } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import {
@@ -286,7 +286,10 @@ export function ContactForm() {
             />
           </ContactField>
           <ContactField label='Topic' required error={errors.topic}>
-            <ChipDropdown
+            <ChipSelect
+              showSelectedCheck
+              dropdownWidth='trigger'
+              modal={false}
               fullWidth
               className={FIELD_HEIGHT}
               value={form.topic || undefined}

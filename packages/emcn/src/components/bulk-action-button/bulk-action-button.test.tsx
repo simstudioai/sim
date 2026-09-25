@@ -35,33 +35,28 @@ const PREVIOUS_GEOMETRY =
   'hover-hover:text-[var(--text-inverse)]! size-[28px] rounded-lg p-0 hover-hover:bg-[var(--brand-secondary)]'
 
 describe('BulkActionButton', () => {
-  for (const surface of [undefined, 'adaptive', 'uniform'] as const) {
-    it(`preserves the previous button markup for ${surface ?? 'default'}`, () => {
-      const previousFill =
-        surface === 'uniform'
-          ? 'bg-[var(--surface-5)]'
-          : 'bg-[var(--surface-5)] dark:bg-[var(--surface-4)]'
-      const view = mount(
-        <>
-          <Button
-            variant='ghost'
-            aria-label='Delete'
-            className={`${previousFill} ${PREVIOUS_GEOMETRY}`}
-          >
-            <svg className='size-[12px]' aria-hidden='true' />
-          </Button>
-          <BulkActionButton aria-label='Delete' surface={surface}>
-            <svg className='size-[12px]' aria-hidden='true' />
-          </BulkActionButton>
-        </>
-      )
-      const [previous, current] = view.querySelectorAll('button')
-      /** Class order changes when composing recipes; the resolved utility set must not. */
-      previous.className = previous.className.split(/\s+/).sort().join(' ')
-      current.className = current.className.split(/\s+/).sort().join(' ')
-      expect(current.outerHTML).toBe(previous.outerHTML)
-    })
-  }
+  it('uses the shared adaptive fill without changing action geometry', () => {
+    const previousFill = 'bg-[var(--surface-5)] dark:bg-[var(--surface-4)]'
+    const view = mount(
+      <>
+        <Button
+          variant='ghost'
+          aria-label='Delete'
+          className={`${previousFill} ${PREVIOUS_GEOMETRY}`}
+        >
+          <svg className='size-[12px]' aria-hidden='true' />
+        </Button>
+        <BulkActionButton aria-label='Delete'>
+          <svg className='size-[12px]' aria-hidden='true' />
+        </BulkActionButton>
+      </>
+    )
+    const [previous, current] = view.querySelectorAll('button')
+    /** Class order changes when composing recipes; the resolved utility set must not. */
+    previous.className = previous.className.split(/\s+/).sort().join(' ')
+    current.className = current.className.split(/\s+/).sort().join(' ')
+    expect(current.outerHTML).toBe(previous.outerHTML)
+  })
 
   it('forwards the native ref, attributes and original events', () => {
     const ref = createRef<HTMLButtonElement>()

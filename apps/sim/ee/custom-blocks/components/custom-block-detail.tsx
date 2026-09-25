@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import {
   Badge,
   Button,
+  Chip,
   ChipCombobox,
   ChipConfirmModal,
   ChipInput,
@@ -533,26 +534,23 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                   ) : null}
                 </UploadPreviewButton>
               </DropZone>
-              <div className='flex gap-2'>
-                <Button
+              <div className='flex items-center gap-2'>
+                <Chip
                   type='button'
                   variant='outline'
-                  size='sm'
                   onClick={iconUpload.handleThumbnailClick}
                   disabled={iconUpload.isUploading || !canManageBlock}
-                  className='text-small'
                 >
                   {iconUrl ? 'Change' : 'Upload'}
-                </Button>
+                </Chip>
                 {iconUrl && (
                   <Button
                     type='button'
                     variant='ghost'
-                    size='sm'
+                    size='icon'
                     onClick={iconUpload.handleRemove}
                     aria-label='Remove icon'
                     disabled={iconUpload.isUploading || !canManageBlock}
-                    className='text-[var(--text-muted)] text-small hover:text-[var(--text-primary)]'
                   >
                     <X className='size-[14px]' />
                   </Button>

@@ -172,7 +172,7 @@ export function BlockTileView({
         />
       ) : (
         fallbackLabel && (
-          <span className={cn('font-bold text-micro', foregroundClass)}>{fallbackLabel}</span>
+          <span className={cn('font-semibold text-micro', foregroundClass)}>{fallbackLabel}</span>
         )
       )}
     </Element>

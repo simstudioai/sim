@@ -2,6 +2,7 @@
 
 import { memo, useEffect, useRef, useState } from 'react'
 import {
+  Button,
   Check,
   ChipModal,
   ChipModalBody,
@@ -27,8 +28,6 @@ import { useForkMothershipChat } from '@/hooks/queries/mothership-chats'
 import { useFolderStore } from '@/stores/folders/store'
 
 const ICON_CLASS = 'size-[14px]'
-const BUTTON_CLASS =
-  'flex size-[26px] items-center justify-center rounded-[6px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-hidden'
 
 interface MessageActionsProps {
   content: string
@@ -162,14 +161,15 @@ export const MessageActions = memo(function MessageActions({
         {canCopyContent && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <button
+              <Button
                 type='button'
                 aria-label='Copy message'
                 onClick={copyToClipboard}
-                className={BUTTON_CLASS}
+                variant='quiet'
+                iconSize='compact-fixed'
               >
                 {copied ? <Check className={ICON_CLASS} /> : <Duplicate className={ICON_CLASS} />}
-              </button>
+              </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>
               {copied ? 'Copied message' : 'Copy message'}
@@ -180,27 +180,29 @@ export const MessageActions = memo(function MessageActions({
           <>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
-                <button
+                <Button
                   type='button'
                   aria-label='Like'
                   onClick={() => handleFeedbackClick('up')}
-                  className={BUTTON_CLASS}
+                  variant='quiet'
+                  iconSize='compact-fixed'
                 >
                   <ThumbsUp className={ICON_CLASS} />
-                </button>
+                </Button>
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>Good response</Tooltip.Content>
             </Tooltip.Root>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
-                <button
+                <Button
                   type='button'
                   aria-label='Dislike'
                   onClick={() => handleFeedbackClick('down')}
-                  className={BUTTON_CLASS}
+                  variant='quiet'
+                  iconSize='compact-fixed'
                 >
                   <ThumbsDown className={ICON_CLASS} />
-                </button>
+                </Button>
               </Tooltip.Trigger>
               <Tooltip.Content side='top'>Bad response</Tooltip.Content>
             </Tooltip.Root>
@@ -209,15 +211,16 @@ export const MessageActions = memo(function MessageActions({
         {canFork && (
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
-              <button
+              <Button
                 type='button'
                 aria-label='Fork in new chat'
                 onClick={handleFork}
                 disabled={forkChat.isPending}
-                className={cn(BUTTON_CLASS, forkChat.isPending && 'cursor-not-allowed opacity-50')}
+                variant='quiet'
+                iconSize='compact-fixed'
               >
                 <Split className={cn(ICON_CLASS, 'rotate-90')} />
-              </button>
+              </Button>
             </Tooltip.Trigger>
             <Tooltip.Content side='top'>Fork in new chat</Tooltip.Content>
           </Tooltip.Root>

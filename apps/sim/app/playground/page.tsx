@@ -172,7 +172,7 @@ export default function PlaygroundPage() {
                   aria-label='Go back'
                   variant='ghost'
                   onClick={() => router.back()}
-                  className='size-8 p-0'
+                  iconSize='roomy'
                 >
                   <ArrowLeft className='size-4' />
                 </Button>
@@ -187,7 +187,7 @@ export default function PlaygroundPage() {
                   aria-label={isDarkMode ? 'Light mode' : 'Dark mode'}
                   variant='default'
                   onClick={toggleDarkMode}
-                  className='size-8 p-0'
+                  iconSize='roomy'
                 >
                   {isDarkMode ? <Sun className='size-4' /> : <Moon className='size-4' />}
                 </Button>
@@ -307,12 +307,6 @@ export default function PlaygroundPage() {
               <VariantRow label='destructive'>
                 <Button variant='destructive'>Destructive</Button>
               </VariantRow>
-              <VariantRow label='secondary'>
-                <Button variant='secondary'>Secondary</Button>
-              </VariantRow>
-              <VariantRow label='tertiary'>
-                <Button variant='tertiary'>Tertiary</Button>
-              </VariantRow>
               <VariantRow label='ghost'>
                 <Button variant='ghost'>Ghost</Button>
               </VariantRow>
@@ -344,14 +338,8 @@ export default function PlaygroundPage() {
                   <ChipButtonGroupItem value='javascript'>JavaScript</ChipButtonGroupItem>
                 </ChipButtonGroup>
               </VariantRow>
-              <VariantRow label='gap none'>
-                <ChipButtonGroup value='opt1' gap='none'>
-                  <ChipButtonGroupItem value='opt1'>Option 1</ChipButtonGroupItem>
-                  <ChipButtonGroupItem value='opt2'>Option 2</ChipButtonGroupItem>
-                </ChipButtonGroup>
-              </VariantRow>
-              <VariantRow label='gap sm'>
-                <ChipButtonGroup value='opt1' gap='sm'>
+              <VariantRow label='compact'>
+                <ChipButtonGroup value='opt1' size='compact'>
                   <ChipButtonGroupItem value='opt1'>Option 1</ChipButtonGroupItem>
                   <ChipButtonGroupItem value='opt2'>Option 2</ChipButtonGroupItem>
                 </ChipButtonGroup>
@@ -410,9 +398,6 @@ export default function PlaygroundPage() {
               <VariantRow label='amber'>
                 <Badge variant='amber'>Amber</Badge>
               </VariantRow>
-              <VariantRow label='teal'>
-                <Badge variant='teal'>Teal</Badge>
-              </VariantRow>
               <VariantRow label='cyan'>
                 <Badge variant='cyan'>Cyan</Badge>
               </VariantRow>
@@ -425,7 +410,6 @@ export default function PlaygroundPage() {
               <VariantRow label='sizes'>
                 <Badge size='sm'>Small</Badge>
                 <Badge size='md'>Medium</Badge>
-                <Badge size='lg'>Large</Badge>
               </VariantRow>
             </Section>
 
@@ -525,10 +509,7 @@ export default function PlaygroundPage() {
                 <Checkbox size='md' />
                 <span className='text-[var(--text-secondary)] text-sm'>Medium (16px)</span>
               </VariantRow>
-              <VariantRow label='size lg'>
-                <Checkbox size='lg' />
-                <span className='text-[var(--text-secondary)] text-sm'>Large (20px)</span>
-              </VariantRow>
+
               <VariantRow label='disabled'>
                 <Checkbox disabled />
                 <Checkbox disabled checked />
@@ -879,7 +860,7 @@ export default function PlaygroundPage() {
               <VariantRow label='inverted color scheme'>
                 <Popover colorScheme='inverted'>
                   <PopoverTrigger asChild>
-                    <Button variant='secondary'>Inverted Popover</Button>
+                    <Button variant='primary'>Inverted Popover</Button>
                   </PopoverTrigger>
                   <PopoverContent>
                     <PopoverItem>Item 1</PopoverItem>

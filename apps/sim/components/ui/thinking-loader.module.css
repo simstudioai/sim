@@ -85,14 +85,14 @@
    is 400, never medium. */
 .label {
   composes: shimmer from "./shimmer-text.module.css";
-  font-size: var(--tl-label-size, 14px);
-  font-weight: 400;
+  font-size: var(--tl-label-size, var(--text-sm));
+  font-weight: var(--font-weight-normal);
 }
 
 /* Static label (shimmer off): the phrase in solid body ink, no gradient sweep. */
 .labelStatic {
-  font-size: var(--tl-label-size, 14px);
-  font-weight: 400;
+  font-size: var(--tl-label-size, var(--text-sm));
+  font-weight: var(--font-weight-normal);
   color: var(--text-body);
 }
 

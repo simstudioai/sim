@@ -412,15 +412,15 @@ export function FieldFormat({
         className='flex items-center gap-2 pl-2'
         onClick={(e) => e.stopPropagation()}
       >
-        <Button variant='ghost' onClick={addField} disabled={isReadOnly} className='h-auto p-0'>
+        <Button variant='ghost' onClick={addField} disabled={isReadOnly} size='bare'>
           <Plus className='size-[14px]' />
           <span className='sr-only'>Add {title}</span>
         </Button>
         <Button
-          variant='ghost'
+          variant='ghost-destructive'
           onClick={() => removeField(field.id)}
           disabled={isReadOnly}
-          className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)] hover-hover:opacity-90'
+          className='h-auto p-0 hover-hover:opacity-90'
         >
           <Trash className='size-[14px]' />
           <span className='sr-only'>Delete Field</span>
@@ -720,6 +720,7 @@ export function FieldFormat({
                         ref={(el) => {
                           if (el) descriptionOverlayRefs.current[field.id] = el
                         }}
+                        data-preview-full-opacity={isPreview || undefined}
                         style={{ scrollbarWidth: 'none' }}
                         className={cn(
                           'pointer-events-none absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',

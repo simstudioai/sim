@@ -128,12 +128,12 @@ function VariableHeader({
         )}
       </div>
       <Button
-        variant='ghost'
+        variant='ghost-destructive'
         onClick={(e) => {
           e.stopPropagation()
           onRemove()
         }}
-        className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
+        size='bare'
         disabled={readOnly}
         aria-label={`Delete ${variable.name || `variable ${index + 1}`}`}
       >

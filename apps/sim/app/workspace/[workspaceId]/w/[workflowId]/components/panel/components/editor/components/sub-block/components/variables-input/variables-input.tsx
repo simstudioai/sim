@@ -422,19 +422,19 @@ export function VariablesInput({
                         addAssignment()
                       }}
                       disabled={isReadOnly || allVariablesAssigned}
-                      className='h-auto p-0'
+                      size='bare'
                     >
                       <Plus className='size-[14px]' />
                       <span className='sr-only'>Add Variable</span>
                     </Button>
                     <Button
-                      variant='ghost'
+                      variant='ghost-destructive'
                       onClick={(e) => {
                         e.stopPropagation()
                         removeAssignment(assignment.id)
                       }}
                       disabled={isReadOnly}
-                      className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
+                      size='bare'
                     >
                       <Trash className='size-[14px]' />
                       <span className='sr-only'>Delete Variable</span>

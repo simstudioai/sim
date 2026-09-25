@@ -436,7 +436,7 @@ export function SlackManagedUsersModal({
             )
           ) : isLoading ? (
             <div className='flex flex-col gap-[9px] px-2'>
-              <Skeleton className='h-4 w-24 rounded' />
+              <Skeleton className='h-4 w-24 rounded-sm' />
               <Skeleton className='h-[30px] w-full rounded-lg' />
             </div>
           ) : noBots ? (

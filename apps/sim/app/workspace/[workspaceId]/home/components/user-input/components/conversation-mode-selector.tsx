@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipDropdown, Tooltip } from '@sim/emcn'
+import { ChipSelect, Tooltip } from '@sim/emcn'
 import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 
@@ -29,15 +29,15 @@ export function ConversationModeSelector({
     <Tooltip.Root>
       <Tooltip.Trigger asChild>
         <span className='inline-flex shrink-0'>
-          <ChipDropdown
+          <ChipSelect
             variant='ghost'
-            shape='round'
             aria-label='Conversation mode'
             options={options}
             value={value}
             disabled={!onChange}
             align='start'
-            matchTriggerWidth={false}
+            dropdownWidth='content'
+            modal={false}
             showSelectedCheck={false}
             onOpenChange={setOpen}
             onChange={(mode) => {

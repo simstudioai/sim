@@ -1,6 +1,6 @@
 'use client'
 
-import { Avatar, Chip, ChipDropdown, cn, OverflowText } from '@sim/emcn'
+import { Avatar, Chip, ChipSelect, cn, OverflowText } from '@sim/emcn'
 import type { MemberRole } from './member-role-options'
 import { RoleLockTooltip } from './role-lock'
 
@@ -72,7 +72,11 @@ export function MemberRow<TRole extends string = MemberRole>({
         </div>
       </div>
       <RoleLockTooltip reason={lockReason}>
-        <ChipDropdown
+        <ChipSelect
+          showSelectedCheck
+          dropdownWidth='trigger'
+          modal={false}
+          className='w-auto max-w-none'
           options={roleOptions}
           value={member.role}
           placeholder='Role'

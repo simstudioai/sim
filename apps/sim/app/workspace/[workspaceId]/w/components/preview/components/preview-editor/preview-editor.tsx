@@ -12,11 +12,10 @@ import {
   Input,
   Label,
   OverflowText,
+  OverlayActionButton,
   Tooltip,
 } from '@sim/emcn'
 import {
-  ArrowDown,
-  ArrowUp,
   Check,
   ChevronDown,
   ChevronUp,
@@ -29,6 +28,7 @@ import {
 import { formatDuration } from '@sim/utils/formatting'
 import { ReactFlowProvider } from '@xyflow/react'
 import { useParams } from 'next/navigation'
+import { WorkflowPreviewAction } from '@/components/workflow/workflow-preview-action'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
   buildCanonicalIndexForSurface,
@@ -39,8 +39,10 @@ import {
   isToolInputOnlySubBlock,
 } from '@/lib/workflows/subblocks/visibility'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/workflow-labels'
+import { CodeSearchOverlay } from '@/app/workspace/[workspaceId]/components/code-search-overlay/code-search-overlay'
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
 import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-context-menu'
+import { READONLY_PREVIEW_STYLES } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-editor/preview-readonly-styles'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
 import { getBlock } from '@/blocks'
 import { BlockTile } from '@/blocks/block-tile'
@@ -51,31 +53,6 @@ import { useWorkflowState } from '@/hooks/queries/workflows'
 import { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
-
-/**
- * CSS override to show full opacity and prevent interaction in readonly preview mode.
- * Extracted to avoid duplicating the style block in multiple places.
- */
-const READONLY_PREVIEW_STYLES = `
-  .readonly-preview,
-  .readonly-preview * {
-    cursor: default !important;
-  }
-  .readonly-preview [disabled],
-  .readonly-preview [data-disabled],
-  .readonly-preview input,
-  .readonly-preview textarea,
-  .readonly-preview [role="combobox"],
-  .readonly-preview [role="slider"],
-  .readonly-preview [role="switch"],
-  .readonly-preview [role="checkbox"] {
-    opacity: 1 !important;
-    pointer-events: none;
-  }
-  .readonly-preview .opacity-50 {
-    opacity: 1 !important;
-  }
-`
 
 /**
  * Format a value for display as JSON string
@@ -435,7 +412,7 @@ function ConnectionsSection({
               }
             >
               <div className='relative flex size-[14px] shrink-0 items-center justify-center overflow-hidden rounded-sm bg-violet-500'>
-                <span className='text-[9px] text-white'>V</span>
+                <span className='text-micro text-white'>V</span>
               </div>
               <OverflowText
                 label='Variables'
@@ -484,7 +461,7 @@ function ConnectionsSection({
               }
             >
               <div className='relative flex size-[14px] shrink-0 items-center justify-center overflow-hidden rounded-sm bg-cool-gray-500'>
-                <span className='text-[9px] text-white'>E</span>
+                <span className='text-micro text-white'>E</span>
               </div>
               <OverflowText
                 label='Secrets'
@@ -604,7 +581,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
   return (
     <div className='flex-1 overflow-y-auto overflow-x-hidden pt-2 pb-2'>
       {/* Type Selection - matches SubflowEditor */}
-      <div>
+      <div data-preview-readonly>
         <Label className='mb-[6.5px] block pl-0.5 text-small'>
           {isLoop ? 'Loop Type' : 'Parallel Type'}
         </Label>
@@ -625,7 +602,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
         <Label className='mb-[6.5px] block pl-0.5 text-small'>{getConfigLabel()}</Label>
 
         {isCountMode ? (
-          <div>
+          <div data-preview-readonly>
             <Input
               type='text'
               value={iterations.toString()}
@@ -1062,7 +1039,7 @@ function PreviewEditorContent({
     return (
       <div className='relative flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
         {/* Header - styled like subflow header */}
-        <div className='mx-[-1px] flex shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
+        <div className='mx-[-1px] flex shrink-0 items-center gap-2 rounded-b-sm border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <BlockTile blockType={block.type} size='lg' />
           <OverflowText label={subflowName} className='flex-1 text-[var(--text-primary)] text-sm' />
           {onClose && (
@@ -1094,7 +1071,7 @@ function PreviewEditorContent({
   if (!blockConfig) {
     return (
       <div className='flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
-        <div className='mx-[-1px] flex items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
+        <div className='mx-[-1px] flex items-center gap-2 rounded-b-sm border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
           <div className='flex size-[18px] items-center justify-center rounded-sm bg-[var(--surface-3)]' />
           <span className='text-[var(--text-primary)] text-sm'>
             {block.name || 'Unknown Block'}
@@ -1152,7 +1129,7 @@ function PreviewEditorContent({
   return (
     <div className='relative flex h-full w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--surface-1)]'>
       {/* Header - styled like editor */}
-      <div className='mx-[-1px] flex shrink-0 items-center gap-2 rounded-b-[4px] border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
+      <div className='mx-[-1px] flex shrink-0 items-center gap-2 rounded-b-sm border-[var(--border)] border-x border-b bg-[var(--surface-4)] px-3 py-1.5'>
         {block.type !== 'note' && <BlockTile blockType={block.type} size='lg' />}
         <OverflowText
           label={block.name || blockConfig.name}
@@ -1222,7 +1199,8 @@ function PreviewEditorContent({
                   <Code.Viewer
                     code={formatValueAsJson(executionData.input)}
                     language='json'
-                    className='max-h-[300px] min-h-0 max-w-full rounded-md border-0 bg-[var(--surface-4)]! [word-break:break-all] dark:bg-[var(--surface-3)]!'
+                    appearance='inspection'
+                    className='max-h-[300px] min-h-0 max-w-full [word-break:break-all]'
                     wrapText={wrapText}
                     searchQuery={isSearchActive ? searchQuery : undefined}
                     currentMatchIndex={currentMatchIndex}
@@ -1233,22 +1211,20 @@ function PreviewEditorContent({
                     <div className='absolute top-[7px] right-[6px] z-10 flex gap-1'>
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
-                          <Button
+                          <OverlayActionButton
                             aria-label={copiedSection === 'input' ? 'Copied' : 'Copy'}
                             type='button'
-                            variant='ghost'
                             onClick={(e) => {
                               e.stopPropagation()
                               handleCopySection(formatValueAsJson(executionData.input), 'input')
                             }}
-                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-4)]'
                           >
                             {copiedSection === 'input' ? (
                               <Check className='size-[10px] text-[var(--text-success)]' />
                             ) : (
                               <Clipboard className='size-[10px]' />
                             )}
-                          </Button>
+                          </OverlayActionButton>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top'>
                           {copiedSection === 'input' ? 'Copied' : 'Copy'}
@@ -1256,18 +1232,16 @@ function PreviewEditorContent({
                       </Tooltip.Root>
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
-                          <Button
+                          <OverlayActionButton
                             aria-label='Search'
                             type='button'
-                            variant='ghost'
                             onClick={(e) => {
                               e.stopPropagation()
                               activateSearch()
                             }}
-                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-4)]'
                           >
                             <Search className='size-[10px]' />
-                          </Button>
+                          </OverlayActionButton>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top'>Search</Tooltip.Content>
                       </Tooltip.Root>
@@ -1293,8 +1267,9 @@ function PreviewEditorContent({
                   <Code.Viewer
                     code={formatValueAsJson(executionData.output)}
                     language='json'
+                    appearance='inspection'
                     className={cn(
-                      'max-h-[300px] min-h-0 max-w-full rounded-md border-0 bg-[var(--surface-4)]! [word-break:break-all] dark:bg-[var(--surface-3)]!',
+                      'max-h-[300px] min-h-0 max-w-full [word-break:break-all]',
                       executionData.status === 'error' && 'text-[var(--text-error)]'
                     )}
                     wrapText={wrapText}
@@ -1307,22 +1282,20 @@ function PreviewEditorContent({
                     <div className='absolute top-[7px] right-[6px] z-10 flex gap-1'>
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
-                          <Button
+                          <OverlayActionButton
                             aria-label={copiedSection === 'output' ? 'Copied' : 'Copy'}
                             type='button'
-                            variant='ghost'
                             onClick={(e) => {
                               e.stopPropagation()
                               handleCopySection(formatValueAsJson(executionData.output), 'output')
                             }}
-                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-4)]'
                           >
                             {copiedSection === 'output' ? (
                               <Check className='size-[10px] text-[var(--text-success)]' />
                             ) : (
                               <Clipboard className='size-[10px]' />
                             )}
-                          </Button>
+                          </OverlayActionButton>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top'>
                           {copiedSection === 'output' ? 'Copied' : 'Copy'}
@@ -1330,18 +1303,16 @@ function PreviewEditorContent({
                       </Tooltip.Root>
                       <Tooltip.Root>
                         <Tooltip.Trigger asChild>
-                          <Button
+                          <OverlayActionButton
                             aria-label='Search'
                             type='button'
-                            variant='ghost'
                             onClick={(e) => {
                               e.stopPropagation()
                               activateSearch()
                             }}
-                            className='size-[20px] cursor-pointer border border-[var(--border-1)] bg-transparent p-0 backdrop-blur-xs hover-hover:bg-[var(--surface-4)]'
                           >
                             <Search className='size-[10px]' />
-                          </Button>
+                          </OverlayActionButton>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top'>Search</Tooltip.Content>
                       </Tooltip.Root>
@@ -1385,30 +1356,18 @@ function PreviewEditorContent({
                             cursorStyle='grab'
                           />
                         </div>
-                        <Tooltip.Root>
-                          <Tooltip.Trigger asChild>
-                            <Button
-                              aria-label={
-                                isExecutionMode && onDrillDown
-                                  ? 'Expand workflow'
-                                  : 'Open in new tab'
-                              }
-                              type='button'
-                              variant='ghost'
-                              onClick={handleExpandChildWorkflow}
-                              className='absolute right-[6px] bottom-1.5 z-10 size-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
-                            >
-                              {isExecutionMode && onDrillDown ? (
-                                <Expand className='size-[12px]' />
-                              ) : (
-                                <SquareArrowUpRight className='size-[12px]' />
-                              )}
-                            </Button>
-                          </Tooltip.Trigger>
-                          <Tooltip.Content side='top'>
-                            {isExecutionMode && onDrillDown ? 'Expand workflow' : 'Open in new tab'}
-                          </Tooltip.Content>
-                        </Tooltip.Root>
+                        <WorkflowPreviewAction
+                          aria-label={
+                            isExecutionMode && onDrillDown ? 'Expand workflow' : 'Open in new tab'
+                          }
+                          onClick={handleExpandChildWorkflow}
+                        >
+                          {isExecutionMode && onDrillDown ? (
+                            <Expand className='size-[12px]' />
+                          ) : (
+                            <SquareArrowUpRight className='size-[12px]' />
+                          )}
+                        </WorkflowPreviewAction>
                       </>
                     ) : (
                       <div className='flex h-full items-center justify-center bg-[var(--surface-3)]'>
@@ -1447,7 +1406,6 @@ function PreviewEditorContent({
                           ...subBlockValues,
                           __canonicalModes: canonicalModeOverrides,
                         }}
-                        disabled={true}
                       />
                       {index < visibleSubBlocks.length - 1 && (
                         <FieldDivider
@@ -1493,49 +1451,18 @@ function PreviewEditorContent({
 
       {/* Search Overlay */}
       {isSearchActive && (
-        <div
-          role='presentation'
-          className='absolute top-10 right-[8px] z-30 flex h-[34px] items-center gap-1.5 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-1.5 shadow-xs'
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Input
-            ref={searchInputRef}
-            type='text'
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder='Search...'
-            className='mr-0.5 h-[23px] w-[94px] text-caption'
-          />
-          <span
-            className={cn(
-              'min-w-[45px] text-center text-xs',
-              matchCount > 0 ? 'text-[var(--text-secondary)]' : 'text-[var(--text-tertiary)]'
-            )}
-          >
-            {matchCount > 0 ? `${currentMatchIndex + 1}/${matchCount}` : '0/0'}
-          </span>
-          <Button
-            variant='ghost'
-            iconPadding='sm'
-            onClick={goToPreviousMatch}
-            disabled={matchCount === 0}
-            aria-label='Previous match'
-          >
-            <ArrowUp className='size-[12px]' />
-          </Button>
-          <Button
-            variant='ghost'
-            iconPadding='sm'
-            onClick={goToNextMatch}
-            disabled={matchCount === 0}
-            aria-label='Next match'
-          >
-            <ArrowDown className='size-[12px]' />
-          </Button>
-          <Button variant='ghost' iconPadding='sm' onClick={closeSearch} aria-label='Close search'>
-            <X className='size-[12px]' />
-          </Button>
-        </div>
+        <CodeSearchOverlay
+          className='top-10 right-[8px]'
+          inputKind='plain'
+          inputRef={searchInputRef}
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
+          matchCount={matchCount}
+          currentMatchIndex={currentMatchIndex}
+          onPrevious={goToPreviousMatch}
+          onNext={goToNextMatch}
+          onClose={closeSearch}
+        />
       )}
 
       {/* Context Menu */}

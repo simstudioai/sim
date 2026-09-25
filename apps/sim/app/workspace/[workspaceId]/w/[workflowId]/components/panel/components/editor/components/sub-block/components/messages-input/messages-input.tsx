@@ -547,6 +547,7 @@ export function MessagesInput({
       {currentMessages.map((message, index) => (
         <div
           key={messageIdsRef.current[index] ?? `fallback-${index}`}
+          data-preview-full-opacity={isPreview || undefined}
           className={cn(
             'relative flex w-full flex-col rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] transition-colors dark:bg-[var(--surface-5)]',
             disabled && 'opacity-50'
@@ -614,7 +615,7 @@ export function MessagesInput({
                         type='button'
                         disabled={isPreview || disabled}
                         className={cn(
-                          'group -ml-1.5 -my-1 flex items-center gap-1 rounded px-1.5 py-1 text-[var(--text-primary)] text-small leading-none transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-secondary)]',
+                          'group -ml-1.5 -my-1 flex items-center gap-1 rounded-sm px-1.5 py-1 text-[var(--text-primary)] text-small leading-none transition-colors hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-secondary)]',
                           (isPreview || disabled) &&
                             'cursor-default hover-hover:bg-transparent hover-hover:text-[var(--text-primary)]'
                         )}
@@ -661,7 +662,8 @@ export function MessagesInput({
                               deleteMessage(index)
                             }}
                             disabled={disabled}
-                            className='-my-1 -mr-1 size-6 p-0'
+                            iconSize='compact'
+                            className='-my-1 -mr-1'
                             aria-label='Delete message'
                           >
                             <Trash className='size-3' />
@@ -673,7 +675,8 @@ export function MessagesInput({
                               moveMessageUp(index)
                             }}
                             disabled={disabled || index === 0}
-                            className='-my-1 -mr-1 size-6 p-0'
+                            iconSize='compact'
+                            className='-my-1 -mr-1'
                             aria-label='Move message up'
                           >
                             <ChevronUp className='size-3' />
@@ -685,7 +688,8 @@ export function MessagesInput({
                               moveMessageDown(index)
                             }}
                             disabled={disabled || index === currentMessages.length - 1}
-                            className='-my-1 -mr-1 size-6 p-0'
+                            iconSize='compact'
+                            className='-my-1 -mr-1'
                             aria-label='Move message down'
                           >
                             <ChevronDown className='size-3' />
@@ -699,7 +703,8 @@ export function MessagesInput({
                           addMessageAfter(index)
                         }}
                         disabled={disabled}
-                        className='-mr-1.5 -my-1 size-6 p-0'
+                        iconSize='compact'
+                        className='-mr-1.5 -my-1'
                         aria-label='Add message below'
                       >
                         <Plus className='size-3.5' />

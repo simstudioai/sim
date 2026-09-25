@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Avatar,
-  Button,
+  Chip,
   ChipCombobox,
   ChipConfirmModal,
   Columns2,
@@ -2061,13 +2061,9 @@ function FilesContent() {
           </ResourceFilterSection>
         )}
         {hasActiveFilters && (
-          <Button
-            variant='ghost'
-            onClick={clearFileFilters}
-            className='h-[32px] w-full text-caption hover-hover:bg-[var(--surface-active)]'
-          >
+          <Chip fullWidth onClick={clearFileFilters} align='center'>
             Clear all filters
-          </Button>
+          </Chip>
         )}
       </ResourceFilterPanel>
     )

@@ -51,7 +51,7 @@ export function createSidebarDragGhost(label: string, icon?: SidebarDragGhostIco
     padding: 4px 10px;
     background: var(--surface-active);
     border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     font-family: system-ui, -apple-system, sans-serif;
     font-size: 13px;
     color: var(--text-body);

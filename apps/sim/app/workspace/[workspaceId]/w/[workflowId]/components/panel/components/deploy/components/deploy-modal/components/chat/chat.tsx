@@ -1,19 +1,19 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import {
   ChipButtonGroup,
   ChipButtonGroupItem,
   ChipConfirmModal,
   ChipEmailsInput,
   ChipInput,
+  ChipModalField,
   cn,
   Input,
   Label,
   Loader,
   Skeleton,
   Switch,
-  Textarea,
   Tooltip,
 } from '@sim/emcn'
 import { Check, TriangleAlert } from '@sim/emcn/icons'
@@ -48,6 +48,19 @@ import {
 const logger = createLogger('ChatDeploy')
 
 const IDENTIFIER_PATTERN = /^[a-z0-9-]+$/
+
+interface DeployFieldErrorProps {
+  children: ReactNode
+  id?: string
+}
+
+function DeployFieldError({ children, id }: DeployFieldErrorProps) {
+  return (
+    <p id={id} role='alert' className='mt-[6.5px] text-[var(--text-error)] text-caption'>
+      {children}
+    </p>
+  )
+}
 
 interface ChatDeployProps {
   workflowId: string
@@ -335,12 +348,7 @@ export function ChatDeploy({
 
   return (
     <>
-      <form
-        id='chat-deploy-form'
-        ref={formRef}
-        onSubmit={handleSubmit}
-        className='-mx-1 space-y-4 px-1'
-      >
+      <form id='chat-deploy-form' ref={formRef} onSubmit={handleSubmit} className='space-y-4'>
         {errors.general && (
           <div className='flex items-center gap-2 rounded-md border border-[color-mix(in_srgb,var(--text-error)_20%,transparent)] bg-[color-mix(in_srgb,var(--text-error)_10%,transparent)] px-3 py-2 text-[var(--text-error)] text-small'>
             <TriangleAlert className='size-4 shrink-0' />
@@ -358,24 +366,21 @@ export function ChatDeploy({
             isEditingExisting={!!existingChat}
           />
 
-          <div>
-            <Label htmlFor='title' className='mb-[6.5px] block pl-0.5 text-small'>
-              Title
-            </Label>
-            <ChipInput
-              id='title'
-              placeholder='Customer Support Assistant'
-              value={formData.title}
-              onChange={(e) => updateField('title', e.target.value)}
-              required
-              disabled={chatSubmitting}
-            />
-            {errors.title && (
-              <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{errors.title}</p>
+          <ChipModalField type='custom' title='Title' htmlFor='title' error={errors.title}>
+            {(aria) => (
+              <ChipInput
+                id='title'
+                placeholder='Customer Support Assistant'
+                value={formData.title}
+                onChange={(e) => updateField('title', e.target.value)}
+                required
+                disabled={chatSubmitting}
+                {...aria}
+              />
             )}
-          </div>
+          </ChipModalField>
 
-          <div>
+          <div className='px-2'>
             <Label className='mb-[6.5px] block pl-0.5 text-small'>Output</Label>
             <OutputSelect
               workflowId={workflowId}
@@ -388,14 +393,10 @@ export function ChatDeploy({
               className='w-full'
               disablePortal
             />
-            {errors.outputBlocks && (
-              <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>
-                {errors.outputBlocks}
-              </p>
-            )}
+            {errors.outputBlocks && <DeployFieldError>{errors.outputBlocks}</DeployFieldError>}
           </div>
 
-          <div className='flex items-center justify-between gap-3'>
+          <div className='flex items-center justify-between gap-3 px-2'>
             <div className='min-w-0'>
               <Label className='block pl-0.5 text-small'>Include thinking</Label>
             </div>
@@ -407,7 +408,7 @@ export function ChatDeploy({
             />
           </div>
 
-          <div className='flex items-center justify-between gap-3'>
+          <div className='flex items-center justify-between gap-3 px-2'>
             <div className='min-w-0'>
               <Label className='block pl-0.5 text-small'>Include tool calls</Label>
             </div>
@@ -434,23 +435,17 @@ export function ChatDeploy({
             hasExistingPassword={existingPassword}
             error={errors.password || errors.emails}
           />
-          <div>
-            <Label htmlFor='welcomeMessage' className='mb-[6.5px] block pl-0.5 text-small'>
-              Welcome message
-            </Label>
-            <Textarea
-              id='welcomeMessage'
-              placeholder='Enter a welcome message for your chat'
-              value={formData.welcomeMessage}
-              onChange={(e) => updateField('welcomeMessage', e.target.value)}
-              rows={3}
-              disabled={chatSubmitting}
-              className='min-h-[80px] resize-none'
-            />
-            <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
-              This message will be displayed when users first open the chat
-            </p>
-          </div>
+          <ChipModalField
+            type='textarea'
+            title='Welcome message'
+            placeholder='Enter a welcome message for your chat'
+            value={formData.welcomeMessage}
+            onChange={(value) => updateField('welcomeMessage', value)}
+            rows={3}
+            disabled={chatSubmitting}
+            minHeight={80}
+            hint='This message will be displayed when users first open the chat'
+          />
 
           <button
             type='button'
@@ -504,7 +499,7 @@ export function ChatDeploy({
 
 function LoadingSkeleton() {
   return (
-    <div className='-mx-1 space-y-4 px-1'>
+    <div className='space-y-4 px-2'>
       <div className='space-y-3'>
         <div>
           <Skeleton className='mb-[6.5px] h-[16px] w-[26px]' />
@@ -547,7 +542,7 @@ const getDomainPrefix = (() => {
   return () => prefix
 })()
 
-function IdentifierInput({
+export function IdentifierInput({
   value,
   onChange,
   originalIdentifier,
@@ -555,6 +550,7 @@ function IdentifierInput({
   onValidationChange,
   isEditingExisting = false,
 }: IdentifierInputProps) {
+  const errorId = useId()
   const { isChecking, error, isValid } = useIdentifierValidation(
     value,
     originalIdentifier,
@@ -574,7 +570,7 @@ function IdentifierInput({
   const displayUrl = fullUrl.replace(/^https?:\/\//, '')
 
   return (
-    <div>
+    <div className='px-2'>
       <Label htmlFor='chat-url' className='mb-[6.5px] block pl-0.5 text-small'>
         URL
       </Label>
@@ -595,6 +591,8 @@ function IdentifierInput({
             onChange={(e) => handleChange(e.target.value)}
             required
             disabled={disabled}
+            aria-invalid={Boolean(error)}
+            aria-describedby={error ? errorId : undefined}
             className={cn(
               'rounded-none border-0 bg-transparent pl-0 shadow-none disabled:bg-transparent disabled:opacity-100',
               (isChecking || (isValid && value)) && 'pr-8'
@@ -622,7 +620,7 @@ function IdentifierInput({
           )}
         </div>
       </div>
-      {error && <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{error}</p>}
+      {error && <DeployFieldError id={errorId}>{error}</DeployFieldError>}
       <p className='mt-[6.5px] truncate text-[var(--text-secondary)] text-xs'>
         {isEditingExisting && value ? (
           <>
@@ -714,7 +712,7 @@ function AuthSelector({
   }, [authOptions, authType, onAuthTypeChange])
 
   return (
-    <div className='space-y-4'>
+    <div className='space-y-4 px-2'>
       <div>
         <Label className='mb-[6.5px] block pl-0.5 text-small'>Access control</Label>
         <ChipButtonGroup
@@ -746,9 +744,7 @@ function AuthSelector({
             }
           />
           {canRevealPassword && revealPasswordMutation.isError && (
-            <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>
-              Failed to load the current password
-            </p>
+            <DeployFieldError>Failed to load the current password</DeployFieldError>
           )}
           <p className='mt-[6.5px] text-[var(--text-secondary)] text-xs'>
             {getPasswordHelperText(hasExistingPassword)}
@@ -773,7 +769,7 @@ function AuthSelector({
         </div>
       )}
 
-      {error && <p className='mt-[6.5px] text-[var(--text-error)] text-caption'>{error}</p>}
+      {error && <DeployFieldError>{error}</DeployFieldError>}
     </div>
   )
 }

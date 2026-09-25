@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, ChipDropdown, ChipSwitch, ChipTag, toast } from '@sim/emcn'
+import { Chip, ChipSelect, ChipSwitch, ChipTag, toast } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
 import type { SettingsAction } from '@/components/settings/settings-header'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -104,7 +104,11 @@ export function OrganizationAccessRequests({
       <SettingsSection
         label={requestCount === undefined ? requestLabel : `${requestLabel} (${requestCount})`}
         action={
-          <ChipDropdown
+          <ChipSelect
+            showSelectedCheck
+            dropdownWidth='trigger'
+            modal={false}
+            className='w-auto max-w-none'
             value={params['request-status']}
             onChange={(value) =>
               void setParams({

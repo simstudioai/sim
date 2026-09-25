@@ -6,7 +6,6 @@ import {
   Checkbox,
   Chip,
   ChipConfirmModal,
-  ChipDropdown,
   ChipInput,
   ChipModal,
   ChipModalBody,
@@ -15,6 +14,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipModalTabs,
+  ChipSelect,
   ChipTag,
   cn,
   Info,
@@ -150,12 +150,14 @@ interface StatusFilterChipProps {
 /** The All/Enabled/Disabled narrowing control shared by the three list tabs. */
 function StatusFilterChip({ value, onChange }: StatusFilterChipProps) {
   return (
-    <ChipDropdown
+    <ChipSelect
+      showSelectedCheck
+      modal={false}
       value={value}
       onChange={(next) => onChange(next as StatusFilter)}
       options={STATUS_FILTER_OPTIONS}
-      matchTriggerWidth={false}
-      className='w-[140px] shrink-0'
+      dropdownWidth='content'
+      className='w-[140px] max-w-none shrink-0'
     />
   )
 }
@@ -182,22 +184,24 @@ function AllowlistField({ label, value, onChange, options, disabled }: Allowlist
       <span id={labelId} className='text-[var(--text-muted)] text-caption'>
         {label}
       </span>
-      <ChipDropdown
-        multiple
+      <ChipSelect
+        placeholder='None allowed'
+        modal={false}
+        multiSelect
         showAllOption={false}
         id={triggerId}
         // Both ids: `aria-labelledby` replaces the content-derived name, so
         // naming it with the label alone would drop the selected value.
         aria-labelledby={`${labelId} ${triggerId}`}
-        value={value}
-        onChange={onChange}
+        multiSelectValues={value}
+        onMultiSelectChange={onChange}
         options={options}
         disabled={disabled}
         // An empty allow-list denies every option, so the multi-select's default
         // empty label — 'All' — states the opposite of what the server enforces.
-        allLabel='None allowed'
-        matchTriggerWidth={false}
-        className='w-[200px]'
+        allOptionLabel='None allowed'
+        dropdownWidth='content'
+        className='w-[200px] max-w-none'
       />
     </div>
   )

@@ -90,11 +90,13 @@ export const MicButton = memo(function MicButton({
         <Button
           type='button'
           variant={isListening ? 'active' : 'ghost'}
+          iconSize='regular'
+          shape='round'
           onClick={onToggle}
           aria-label={isListening ? 'Stop listening' : 'Voice input'}
           aria-pressed={isListening}
           className={cn(
-            'relative size-[28px] overflow-hidden rounded-full p-0 transition-[background-color,color,scale] duration-150 ease-out active:scale-[0.96] motion-reduce:transition-none motion-reduce:active:scale-100',
+            'relative overflow-hidden transition-[background-color,color,scale] duration-150 ease-out active:scale-[0.96] motion-reduce:transition-none motion-reduce:active:scale-100',
             !isListening &&
               'text-[var(--text-icon)] hover-hover:bg-[var(--surface-hover)] hover-hover:text-[var(--text-icon)]'
           )}

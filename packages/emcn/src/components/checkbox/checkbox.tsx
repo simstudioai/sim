@@ -18,8 +18,8 @@ import { cn } from '../../lib/cn'
  * // Small checkbox (for tables)
  * <Checkbox size="sm" />
  *
- * // Large checkbox
- * <Checkbox size="lg" />
+ * // Standard checkbox
+ * <Checkbox size="md" />
  * ```
  */
 const checkboxVariants = cva(
@@ -37,7 +37,6 @@ const checkboxVariants = cva(
       size: {
         sm: 'h-[14px] w-[14px]',
         md: 'h-4 w-4',
-        lg: 'h-5 w-5',
       },
     },
     defaultVariants: {
@@ -54,7 +53,6 @@ const checkboxIconVariants = cva('stroke-[3]', {
     size: {
       sm: 'h-[10px] w-[10px]',
       md: 'h-3.5 w-3.5',
-      lg: 'h-4 w-4',
     },
   },
   defaultVariants: {
