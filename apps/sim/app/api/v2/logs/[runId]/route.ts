@@ -4,6 +4,7 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { v2LogErrorPolicies } from '@/lib/logs/api/route-policies'
 import { getPublicLog } from '@/lib/logs/application/get-public-log'
 import { logOperations } from '@/lib/logs/application/operations'
+import { withSpanDurationMs } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { projectLogFiles } from '@/lib/logs/log-files'
 
 export const revalidate = 0
@@ -63,7 +64,8 @@ export const GET = defineV2JsonRoute({
         deleted: !log.workflowName || log.workflowArchivedAt !== null,
       },
       workflowState: log.workflowState,
-      traceSpans: traceSpansSchema.parse(executionData.traceSpans ?? []),
+      traceSpans: withSpanDurationMs(traceSpansSchema.parse(executionData.traceSpans ?? [])),
+
       finalOutput: executionData.finalOutput ?? null,
       /**
        * `cost_total` is a backfilled projection of the ledger, so it is null on

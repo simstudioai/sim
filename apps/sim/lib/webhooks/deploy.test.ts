@@ -305,7 +305,12 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     })
   }
 
-  it('routes a custom bot credential without the native app signing secret', async () => {
+  it.each([
+    'message',
+    'app_context_changed',
+    'agent_session_stopped',
+    'agent_session_title_changed',
+  ])('routes custom-bot %s without the native app signing secret', async (eventType) => {
     setEnvFlags({ isSlackExtendedScopesEnabled: false })
     setEnv({ SLACK_SIGNING_SECRET: undefined })
     mockGetSlackBotCredential.mockResolvedValue({
@@ -316,7 +321,7 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
       signingSecret: 'secret',
     })
 
-    const result = await resolveSlack({ eventType: 'message', customBotCredential: 'cred_bot_1' })
+    const result = await resolveSlack({ eventType, customBotCredential: 'cred_bot_1' })
 
     expect(result?.success).toBe(true)
     if (!result?.success) throw new Error('expected success')
@@ -324,6 +329,31 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     expect(result.config.routingKey).toBe('cred_bot_1')
     expect(result.config.triggerPath).toBeNull()
     expect(result.config.providerConfig.bot_user_id).toBe('BUSER')
+    expect(mockFetchSlackTeamId).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['assistant_thread_started', 'customBotCredential'],
+    ['assistant_thread_context_changed', 'customBotCredential'],
+    ['assistant_thread_started', 'manualBotCredential'],
+    ['assistant_thread_context_changed', 'manualBotCredential'],
+  ])('rejects persisted custom-bot %s through %s before deployment', async (eventType, field) => {
+    mockGetSlackBotCredential.mockResolvedValue({
+      workspaceId: 'ws-1',
+      botToken: 'xoxb-token',
+      signingSecret: 'secret',
+    })
+
+    const result = await resolveSlack({ eventType, [field]: 'cred_bot_1' })
+
+    expect(result?.success).toBe(false)
+    if (result?.success) throw new Error('expected failure')
+    expect(result?.error).toEqual({
+      message:
+        'Legacy Assistant events require a native Sim Slack connection. Choose an Agent View event for a custom bot.',
+      status: 400,
+    })
+    expect(mockRefreshAccessTokenIfNeeded).not.toHaveBeenCalled()
     expect(mockFetchSlackTeamId).not.toHaveBeenCalled()
   })
 
@@ -525,27 +555,34 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     expect(mockRefreshAccessTokenIfNeeded).not.toHaveBeenCalled()
   })
 
-  it('routes an OAuth account by team_id on the slack_app provider', async () => {
-    mockGetSlackBotCredential.mockResolvedValue(null)
-    mockResolveOAuthAccountId.mockResolvedValue({ accountId: 'acct-1' })
-    queueTableRows(credential, [{ id: 'cred_oauth_1' }])
-    queueTableRows(account, [{ userId: 'owner-1' }])
-    mockRefreshAccessTokenIfNeeded.mockResolvedValue('xoxb-token')
-    mockFetchSlackTeamId.mockResolvedValue({ teamId: 'T123', userId: 'UBOT' })
+  it.each(['message', 'assistant_thread_started', 'assistant_thread_context_changed'])(
+    'routes native OAuth %s by team_id on the slack_app provider',
+    async (eventType) => {
+      mockGetSlackBotCredential.mockResolvedValue(null)
+      mockResolveOAuthAccountId.mockResolvedValue({ accountId: 'acct-1' })
+      queueTableRows(credential, [{ id: 'cred_oauth_1' }])
+      queueTableRows(account, [{ userId: 'owner-1' }])
+      mockRefreshAccessTokenIfNeeded.mockResolvedValue('xoxb-token')
+      mockFetchSlackTeamId.mockResolvedValue({ teamId: 'T123', userId: 'UBOT' })
 
-    const result = await resolveSlack({ eventType: 'message', customBotCredential: 'cred_oauth_1' })
+      const result = await resolveSlack({ eventType, customBotCredential: 'cred_oauth_1' })
 
-    expect(result?.success).toBe(true)
-    if (!result?.success) throw new Error('expected success')
-    expect(result.config.provider).toBe('slack_app')
-    expect(result.config.routingKey).toBe('T123')
-    expect(result.config.triggerPath).toBeNull()
-    expect(result.config.providerConfig.bot_user_id).toBe('UBOT')
-    // Runtime token resolution + disconnect cleanup key slack_app rows on this.
-    expect(result.config.providerConfig.credentialId).toBe('cred_oauth_1')
-    // Owner's token, not the deploying actor's.
-    expect(mockRefreshAccessTokenIfNeeded).toHaveBeenCalledWith('cred_oauth_1', 'owner-1', 'req-1')
-  })
+      expect(result?.success).toBe(true)
+      if (!result?.success) throw new Error('expected success')
+      expect(result.config.provider).toBe('slack_app')
+      expect(result.config.routingKey).toBe('T123')
+      expect(result.config.triggerPath).toBeNull()
+      expect(result.config.providerConfig.bot_user_id).toBe('UBOT')
+      // Runtime token resolution + disconnect cleanup key slack_app rows on this.
+      expect(result.config.providerConfig.credentialId).toBe('cred_oauth_1')
+      // Owner's token, not the deploying actor's.
+      expect(mockRefreshAccessTokenIfNeeded).toHaveBeenCalledWith(
+        'cred_oauth_1',
+        'owner-1',
+        'req-1'
+      )
+    }
+  )
 
   it('fails when the connected Slack account token cannot be resolved', async () => {
     mockGetSlackBotCredential.mockResolvedValue(null)

@@ -1,4 +1,5 @@
 import type { Principal } from '@sim/auth/principal'
+import { chatDeploymentDelegationPolicy } from '@/lib/chat-deployments/application/authorization'
 import {
   assertedChatDeploymentWorkspaceId,
   resolveActiveChatDeploymentApplicationContext,
@@ -53,7 +54,7 @@ export const listChatDeployments = defineAuthorizedWorkspaceUseCase({
   operation: chatDeploymentOperations.list,
   resolveContext: ({ input }: { input: ListChatDeploymentsInput }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
-  authorizationOptions: {},
+  authorizationOptions: { delegation: chatDeploymentDelegationPolicy },
   async execute({ input, context }) {
     const page = await listWorkspaceChatDeployments({
       workspaceId: context.workspaceId,
@@ -91,7 +92,7 @@ export const readChatDeployment = defineAuthorizedWorkspaceUseCase({
       chatDeploymentId: input.chatDeploymentId,
       assertedWorkspaceId: assertedChatDeploymentWorkspaceId(principal, input.assertedWorkspaceId),
     }),
-  authorizationOptions: {},
+  authorizationOptions: { delegation: chatDeploymentDelegationPolicy },
   async execute({ context }) {
     return {
       deployment: toChatDeploymentView(context.chatDeployment),

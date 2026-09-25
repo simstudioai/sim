@@ -1,6 +1,13 @@
 'use client'
 
-import { chipVariants, cn, DropdownMenuItem, Loader, OverflowText, Skeleton } from '@sim/emcn'
+import {
+  chipVariants,
+  cn,
+  DropdownMenuItem,
+  OverflowText,
+  RowActions,
+  rowActionsGroupClass,
+} from '@sim/emcn'
 import { MoreHorizontal, Pin, Task } from '@sim/emcn/icons'
 import type { OrganizationChat } from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
 import { useOrganizationChatActions } from '@/app/o/[organizationId]/components/organization-sidebar/hooks/use-organization-chat-actions'
@@ -8,7 +15,6 @@ import {
   ChatNavigationLink,
   CollapsedChatFlyoutItem,
   CollapsedSidebarMenu,
-  SidebarRowActions,
   SidebarSection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import { SidebarRenameRow } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-rename-row'
@@ -19,15 +25,6 @@ import {
   SIDEBAR_ITEM_GAP_CLASS,
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
-
-/** Stands in for a chip row while the list loads, so it carries no margin either. */
-function ChatRowSkeleton() {
-  return (
-    <div className='sidebar-collapse-hide flex h-[30px] items-center gap-2 rounded-lg px-2'>
-      <Skeleton className='size-[16px] shrink-0 rounded-sm' />
-    </div>
-  )
-}
 
 interface ChatRowProps {
   chat: OrganizationChat
@@ -60,12 +57,12 @@ function ChatRow({
       isCurrentRoute={isCurrentRoute}
       className={cn(
         chipVariants({ active: isCurrentRoute || isMenuOpen, fullWidth: true }),
-        'group/sidebar-row'
+        rowActionsGroupClass
       )}
       onContextMenu={(e) => onContextMenu(e, chat.id)}
     >
       <OverflowText label={chat.name} className='flex-1 text-[var(--text-body)]' />
-      <SidebarRowActions
+      <RowActions
         open={isMenuOpen}
         indicator={
           showStatusDot ? (
@@ -90,7 +87,7 @@ function ChatRow({
         >
           <MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />
         </SidebarRowAction>
-      </SidebarRowActions>
+      </RowActions>
     </ChatNavigationLink>
   )
 }
@@ -132,12 +129,7 @@ export function ChatsSection({
               ariaLabel='Chats'
               isEditing={rename.editingId !== null}
             >
-              {isLoading ? (
-                <DropdownMenuItem disabled>
-                  <Loader className='size-[14px]' animate />
-                  Loading...
-                </DropdownMenuItem>
-              ) : chats.length === 0 ? (
+              {isLoading ? null : chats.length === 0 ? (
                 <DropdownMenuItem disabled>No chats yet</DropdownMenuItem>
               ) : (
                 chats.map((chat) => (
@@ -163,9 +155,7 @@ export function ChatsSection({
           </div>
         ) : (
           <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
-            {isLoading ? (
-              <ChatRowSkeleton />
-            ) : (
+            {!isLoading && (
               <>
                 {chats.length === 0 && (
                   <div className='flex h-[30px] items-center px-2 text-[var(--text-muted)] text-small'>

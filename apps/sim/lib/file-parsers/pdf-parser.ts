@@ -4,6 +4,7 @@ import { sleep } from '@sim/utils/helpers'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist/types/src/pdf'
 import { FileParserError } from '@/lib/file-parsers/errors'
 import { type PdfPageLines, suppressFurniture } from '@/lib/file-parsers/pdf-furniture'
+import { PdfPageCollector } from '@/lib/file-parsers/pdf-layout'
 import {
   collectCompounds,
   collectWords,
@@ -12,9 +13,7 @@ import {
   joinLines,
   normalizePdfWhitespace,
   PDF_HEADING_MARKERS_ENABLED,
-  type PdfItemGeometry,
   type PdfLine,
-  PdfLineBuilder,
   type PdfTextItem,
   readItemGeometry,
 } from '@/lib/file-parsers/pdf-lines'
@@ -171,7 +170,7 @@ async function readPageWithinBudget(
     .streamTextContent()
     .getReader() as ReadableStreamDefaultReader<TextContentChunk>
 
-  const builder = new PdfLineBuilder()
+  const collector = new PdfPageCollector()
   let remaining = budget
   let completed = false
   let dropped = false
@@ -213,20 +212,17 @@ async function readPageWithinBudget(
         const str = item.str
         const hasEOL = item.hasEOL === true
         const geometry = readItemGeometry(item)
-        const separator = str.length > 0 ? builder.separatorBefore(str, geometry) : ''
         /** Only text and pdf.js's own line breaks count, exactly as before geometry separators existed. */
         const cost = str.length + (hasEOL ? 1 : 0)
         if (cost > remaining) {
-          appendTruncated(builder, separator, str, geometry, remaining)
+          /** Keeps as much of `str` as the budget allows, mirroring the old `slice(0, remaining)`. */
+          if (remaining > 0) collector.add(str.slice(0, remaining), geometry, false)
           remaining = 0
           dropped = true
           break
         }
 
-        if (separator === '\n') builder.endLine()
-        else if (separator.length > 0) builder.append(separator)
-        builder.append(str, geometry)
-        if (hasEOL) builder.endLine()
+        collector.add(str, geometry, hasEOL)
         remaining -= cost
       }
     }
@@ -239,21 +235,7 @@ async function readPageWithinBudget(
     }
   }
 
-  return { lines: builder.finish(), used: budget - remaining, completed, deadlineReached }
-}
-
-/** Applies the free separator, then as much of `str` as `remaining` allows, mirroring the old `slice(0, remaining)`. */
-function appendTruncated(
-  builder: PdfLineBuilder,
-  separator: string,
-  str: string,
-  geometry: PdfItemGeometry | undefined,
-  remaining: number
-): void {
-  if (remaining <= 0) return
-  if (separator === '\n') builder.endLine()
-  else if (separator.length > 0) builder.append(separator)
-  builder.append(str.slice(0, remaining), geometry)
+  return { lines: collector.finish(), used: budget - remaining, completed, deadlineReached }
 }
 
 /** Page height in user space, or undefined when the page cannot report a viewport. */

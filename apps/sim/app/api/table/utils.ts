@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import { permissionSatisfies } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   asOrchestrationError,
   messageForOrchestrationError,
@@ -20,6 +19,10 @@ import type { ColumnDefinition, Filter, TableDefinition, TablePredicate } from '
 import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
 import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { TableLockedError } from '@/lib/table/mutation-locks'
+import {
+  getTableQueryAvailability,
+  TABLE_QUERY_UNAVAILABLE_REASON,
+} from '@/lib/table/query-availability'
 import { isTablePredicate } from '@/lib/table/query-builder/converters'
 import { validateStoragePredicate } from '@/lib/table/query-builder/validate'
 import type { TableLockKind } from '@/lib/table/types'
@@ -40,10 +43,10 @@ export async function tablesV2GateError(
   workspaceId: string
 ): Promise<NextResponse | null> {
   const orgId = await getWorkspaceOrganizationId(workspaceId)
-  if (await isFeatureEnabled('tables-v2-api', { userId, orgId })) return null
+  if ((await getTableQueryAvailability({ userId, orgId })).enabled) return null
   return NextResponse.json(
     {
-      error: 'The v2 table query API is not enabled for this workspace',
+      error: TABLE_QUERY_UNAVAILABLE_REASON,
       code: 'tables_v2_disabled',
     },
     { status: 403 }

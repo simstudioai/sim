@@ -55,6 +55,7 @@ const LINT = {
   invalidConnectionTargets: [],
   fieldIssues: [],
   unresolvedReferences: [],
+  tableFieldIssues: [],
   notes: [],
 }
 
@@ -141,6 +142,47 @@ describe('/api/v2/workflows/[workflowId]/operations', () => {
         }),
       })
     )
+  })
+
+  /**
+   * A dry run's ids are decoys — the committed apply mints different UUIDs —
+   * so they are published as previews, apart from `mintedBlockIds`, and only
+   * when the use case reports them.
+   */
+  it("publishes a dry run's provisional ids as previews", async () => {
+    mocks.applyWorkflowOperations.mockResolvedValue({
+      workflowId: WORKFLOW_ID,
+      workflowName: 'Daily digest',
+      workspaceId: 'workspace-1',
+      graph: { blocks: {}, edges: [], loops: {}, parallels: {} },
+      operationCount: 1,
+      applied: 1,
+      skipped: [],
+      deferred: [],
+      inputValidationErrors: [],
+      mintedBlockIds: {},
+      previewBlockIds: { triage: 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77' },
+      lint: LINT,
+      warnings: ['Dry run: block ids are previews'],
+      needsRedeployment: true,
+      dryRun: true,
+    })
+
+    const response = await POST(
+      new NextRequest(`http://localhost/api/v2/workflows/${WORKFLOW_ID}/operations?dryRun=true`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ operations: [ADD] }),
+      }),
+      routeContext
+    )
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data).toMatchObject({
+      mintedBlockIds: {},
+      previewBlockIds: { triage: 'a3f1c0b2-7a44-4c1d-9d3a-2b8e5f0a1c77' },
+      dryRun: true,
+    })
   })
 
   it('maps the setBlockEnabled flag onto the use case input', async () => {

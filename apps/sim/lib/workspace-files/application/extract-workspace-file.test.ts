@@ -385,17 +385,41 @@ describe('extractWorkspaceFile', () => {
     ).resolves.toMatchObject({ extractedCount: 2 })
   })
 
-  /**
-   * Delegated services stay out. No copilot or executor caller exists today and
-   * admitting one is a separate decision, so the widening must not quietly
-   * include them.
-   */
-  it('still rejects a delegated principal before loading the file', async () => {
+  it('allows scoped Copilot extraction with the actual actor and no personal API key', async () => {
+    const copilotPrincipal = {
+      kind: 'delegated',
+      serviceId: 'copilot',
+      subjectUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      delegationId: 'delegation-1',
+      audience: 'sim:workspace-files',
+      issuedAt: new Date('2026-01-01T00:00:00Z'),
+      expiresAt: new Date('2999-01-01T00:00:00Z'),
+    } as const
+    mocks.loadContext.mockResolvedValue({ ...context, allowPersonalApiKeys: false })
+
+    await expect(
+      extractWorkspaceFile.execute({
+        principal: copilotPrincipal,
+        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
+      })
+    ).resolves.toMatchObject({ extractedCount: 2 })
+
+    expect(mocks.createFolder).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'workspace-1', userId: 'user-1' })
+    )
+    expect(mocks.decompress).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      expect.objectContaining({ principal: copilotPrincipal, workspaceId: 'workspace-1' })
+    )
+  })
+
+  it('rejects a non-Copilot delegated principal before loading the file', async () => {
     await expect(
       extractWorkspaceFile.execute({
         principal: {
           kind: 'delegated',
-          serviceId: 'copilot',
+          serviceId: 'executor',
           subjectUserId: 'user-1',
           workspaceId: 'workspace-1',
           delegationId: 'delegation-1',

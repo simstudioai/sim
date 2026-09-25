@@ -25,8 +25,6 @@ const REQUIRED_AGENT_EVENTS = [
   'agent_session_title_changed',
   'app_context_changed',
   'app_home_opened',
-  'assistant_thread_context_changed',
-  'assistant_thread_started',
   'message.im',
 ]
 
@@ -58,6 +56,29 @@ describe('buildSlackManifest - interactivity', () => {
 })
 
 describe('buildSlackManifest - Agent View', () => {
+  it.each([
+    { name: 'minimal', capabilities: new Set<string>() },
+    { name: 'all capabilities', capabilities: new Set(SLACK_CAPABILITIES.map(({ id }) => id)) },
+  ])('excludes incompatible Assistant events from $name manifests', ({ capabilities }) => {
+    const manifest = buildSlackManifest(capabilities, opts)
+    const features = manifest.features as Record<string, unknown>
+    const subscriptions = settingsOf(manifest).event_subscriptions as { bot_events: string[] }
+
+    expect(features.agent_view).toBeDefined()
+    expect(features.assistant_view).toBeUndefined()
+    expect(subscriptions.bot_events).not.toContain('assistant_thread_started')
+    expect(subscriptions.bot_events).not.toContain('assistant_thread_context_changed')
+    expect(subscriptions.bot_events).toEqual(
+      expect.arrayContaining([
+        'app_home_opened',
+        'app_context_changed',
+        'message.im',
+        'agent_session_stopped',
+        'agent_session_title_changed',
+      ])
+    )
+  })
+
   it('enables Agent View, Agent Sessions, streaming, and direct messages for every custom bot', () => {
     const manifest = buildSlackManifest(new Set(), opts)
     const features = manifest.features as Record<string, Record<string, unknown>>

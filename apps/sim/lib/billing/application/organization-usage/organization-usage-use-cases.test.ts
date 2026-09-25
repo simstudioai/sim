@@ -26,7 +26,7 @@ vi.mock('@/lib/billing/core/usage-analytics-queries', () => ({
   readUsageTotals: mocks.readUsageTotals,
   readUsageTimeSeries: mocks.readUsageTimeSeries,
   readUsageBreakdown: vi.fn(),
-  readUsageEntityNames: vi.fn(),
+  readUsageEntities: vi.fn(),
 }))
 
 import { getOrganizationUsageSummary } from '@/lib/billing/application/organization-usage/get-organization-usage-summary'

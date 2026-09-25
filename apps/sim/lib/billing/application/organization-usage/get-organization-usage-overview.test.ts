@@ -12,8 +12,7 @@ const mocks = vi.hoisted(() => ({
   getOrgUsageLimit: vi.fn(),
   readUsageDays: vi.fn(),
   readUsageGroups: vi.fn(),
-  readUsageEntityNames: vi.fn(),
-  readUsageMemberProfiles: vi.fn(),
+  readUsageEntities: vi.fn(),
 }))
 
 vi.mock('@/lib/core/application/organization-authorization', () => ({
@@ -29,8 +28,7 @@ vi.mock('@/lib/billing/core/usage', () => ({ getOrgUsageLimit: mocks.getOrgUsage
 vi.mock('@/lib/billing/core/usage-analytics-queries', () => ({
   readUsageDays: mocks.readUsageDays,
   readUsageGroups: mocks.readUsageGroups,
-  readUsageEntityNames: mocks.readUsageEntityNames,
-  readUsageMemberProfiles: mocks.readUsageMemberProfiles,
+  readUsageEntities: mocks.readUsageEntities,
 }))
 vi.mock('@/providers/models', () => ({
   getProviderFromModel: () => 'openai',
@@ -82,19 +80,43 @@ describe('getOrganizationUsageOverview', () => {
         events: 1,
       }))
     )
-    mocks.readUsageEntityNames.mockImplementation(
-      async (_dimension: string, ids: string[]) => new Map(ids.map((id) => [id, `Member ${id}`]))
-    )
-    mocks.readUsageMemberProfiles.mockImplementation(
-      async (ids: string[]) =>
+    mocks.readUsageEntities.mockImplementation(
+      async (_dimension: string, ids: string[]) =>
         new Map(
-          ids.map((id) => [id, { name: `Member ${id}`, image: id === 'u0' ? 'a.png' : null }])
+          ids.map((id) => [
+            id,
+            { name: `Member ${id}`, ...(id === 'u0' ? { image: 'a.png' } : {}) },
+          ])
         )
     )
   })
 
   afterAll(() => {
     setEnvFlags({ isBillingEnabled: false, isHosted: false })
+  })
+
+  it('reads names only for the kept rows, however large a tie at the cutoff', async () => {
+    mocks.readUsageGroups.mockResolvedValue(
+      Array.from({ length: 12 }, (_, index) => ({
+        key: `u${String(index).padStart(2, '0')}`,
+        cost: 0.01,
+        events: 1,
+      }))
+    )
+    mocks.readUsageEntities.mockImplementation(
+      async (_dimension: string, ids: string[]) =>
+        new Map(ids.map((id) => [id, { name: `Member ${id}` }]))
+    )
+    const { members } = await run({})
+    expect(mocks.readUsageEntities.mock.calls[0]?.[1]).toEqual(['u00', 'u01', 'u02', 'u03', 'u04'])
+    expect(members.rows.map((row) => row.label)).toEqual([
+      'Member u00',
+      'Member u01',
+      'Member u02',
+      'Member u03',
+      'Member u04',
+    ])
+    expect(members.other.rowCount).toBe(7)
   })
 
   it('reconciles the stack and the headline to one figure', async () => {
@@ -118,6 +140,8 @@ describe('getOrganizationUsageOverview', () => {
     const { members } = await run({})
     expect(members.rows.map((row) => row.id)).toEqual(['u0', 'u1', 'u2', 'u3', 'u4'])
     expect(members.rows[0]?.image).toBe('a.png')
+    expect(members.rows[1]).not.toHaveProperty('image')
+    expect(mocks.readUsageEntities).toHaveBeenCalledTimes(1)
     expect(members.other.rowCount).toBe(2)
     expect(mocks.readUsageGroups).toHaveBeenCalledWith(
       expect.objectContaining({ dimension: 'member' })

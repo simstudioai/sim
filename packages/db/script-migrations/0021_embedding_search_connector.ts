@@ -3,6 +3,7 @@ import { getPostgresErrorCode, getTransientDatabaseFailure } from '@sim/utils/er
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import postgres, { type Sql, type TransactionSql } from 'postgres'
+import { resolveMigrationDatabaseUrl } from './database-url'
 
 const logger = createLogger('ProjectionSourceAcl')
 
@@ -335,7 +336,7 @@ export async function indexProjectionAcl(pool: Sql): Promise<void> {
  * `0022_projection_source_acl_backfill`, which supersedes this file's earlier, synchronous shape.
  */
 if (import.meta.main) {
-  const url = process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL
+  const url = resolveMigrationDatabaseUrl()
   if (!url) throw new Error('DATABASE_URL is required to backfill the projection source and ACL')
   const sql = postgres(url, { max: 1, max_lifetime: null, onnotice: () => undefined })
   try {

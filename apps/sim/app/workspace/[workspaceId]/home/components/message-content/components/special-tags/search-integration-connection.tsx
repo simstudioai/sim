@@ -64,7 +64,13 @@ function SearchIntegrationConnectionControl({
           ? `${name} connection is no longer available`
           : `${action} ${name}`
   const handleConnect = () => {
-    if (connector && !connection.connectorId && connector.setupFields.length && !connection.pending)
+    if (
+      target.connectionMode !== 'live' &&
+      connector &&
+      !connection.connectorId &&
+      connector.setupFields.length &&
+      !connection.pending
+    )
       setSetupOpen(true)
     else void connection.connect()
   }

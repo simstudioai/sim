@@ -11,7 +11,7 @@
   },
   "scripts": {
     "prebuild": "bun run clean",
-    "build": "bun build src/index.ts --target=node --format=esm --packages=bundle --reject-unresolved --env='SIM_CLI_TELEMETRY_*' --outfile=dist/index.js",
+    "build": "bun build src/index.ts src/runtime.ts --target=node --format=esm --packages=bundle --reject-unresolved --env='SIM_CLI_TELEMETRY_*' --outdir=dist && tsc -p tsconfig.types.json",
     "clean": "bun -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
     "type-check": "tsc --noEmit",
     "lint": "biome check --write --unsafe .",
@@ -63,5 +63,15 @@
     "@types/proper-lockfile": "4.1.4",
     "typescript": "^7.0.2",
     "vitest": "^4.1.0"
+  },
+  "exports": {
+    "./embed": {
+      "types": "./src/embed.ts",
+      "default": "./src/embed.ts"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "default": "./dist/runtime.js"
+    }
   }
 }

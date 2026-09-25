@@ -14,10 +14,16 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: vi.fn(() => ({ data: null, isPending: false })),
 }))
 
-import { TOOL_CATALOG, type ToolCatalogEntry } from '@/lib/copilot/generated/tool-catalog-v1'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
-import { getHiddenToolNames } from '@/lib/copilot/tools/client/hidden-tools'
-import { getToolDisplayTitle, getToolStatusDisplayTitle } from '@/lib/copilot/tools/tool-display'
+import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
+import { normalizeMessage, stripToolResultOutput } from '@/lib/mothership/chat/persisted-message'
+import { TOOL_CATALOG, type ToolCatalogEntry } from '@/lib/mothership/generated/tool-catalog-v1'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
+import { getHiddenToolNames } from '@/lib/mothership/tools/client/hidden-tools'
+import { getToolDisplayTitle, getToolStatusDisplayTitle } from '@/lib/mothership/tools/tool-display'
+import {
+  getTurnLiveIndicators,
+  ownsTurnWait,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/lane-activity'
 import {
   createTurnModel,
   reduceEvent,
@@ -25,12 +31,21 @@ import {
 import { modelToContentBlocks } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model-serialize'
 import type { ContentBlock } from '../../types'
 import {
-  assistantMessageHasVisibleActivity,
   deriveThinkingLabel,
   getOrchestratorMessageText,
   parseBlocks,
   shouldSmoothTextSegment,
 } from './message-content'
+
+/** Whether the transcript owns the turn's wait, read through the rule's single owner. */
+function ownsWait(segments: ReturnType<typeof parseBlocks>, isStreaming = false): boolean {
+  return ownsTurnWait(
+    getTurnLiveIndicators(
+      segments.flatMap((segment) => (segment.type === 'agent_group' ? [segment] : [])),
+      isStreaming
+    )
+  )
+}
 
 function subagentStart(name: string, spanId: string, parentSpanId: string): ContentBlock {
   return { type: 'subagent', content: name, spanId, parentSpanId, timestamp: 1 }
@@ -57,6 +72,240 @@ function mainText(content: string): ContentBlock {
 function mainToolCall(id: string, name: string): ContentBlock {
   return { type: 'tool_call', toolCall: { id, name, status: 'success' }, timestamp: 1 }
 }
+
+describe('top-level activity groups', () => {
+  const activityCall = (id: string, title?: string, spanId?: string): ContentBlock => ({
+    type: 'tool_call',
+    spanId,
+    toolCall: {
+      id,
+      name: 'sim_cli',
+      status: 'executing',
+      params: title
+        ? {
+            activity: { id: title, title, completedTitle: title.replace('Checking', 'Checked') },
+          }
+        : {},
+    },
+  })
+  const activityReference = (id: string, activityId: string, spanId?: string): ContentBlock => ({
+    type: 'tool_call',
+    spanId,
+    toolCall: {
+      id,
+      name: 'sim_cli',
+      status: 'executing',
+      params: { activity: { id: activityId } },
+    },
+  })
+
+  it.each([undefined, 'main'])(
+    'keeps interleaved parallel calls in one chronological active group (%s)',
+    (spanId) => {
+      const blocks = [
+        activityCall('a1', 'Checking invoice inputs', spanId),
+        activityReference('a2', 'Checking invoice inputs', spanId),
+        activityCall('b1', 'Checking customer inputs', spanId),
+        activityReference('a3', 'Checking invoice inputs', spanId),
+        activityReference('a4', 'Checking invoice inputs', spanId),
+      ]
+      const groups = parseBlocks(blocks).filter((segment) => segment.type === 'agent_group')
+      expect(groups).toHaveLength(1)
+      expect(
+        groups.map((group) =>
+          group.items.flatMap((item) => (item.type === 'tool' ? [item.data.id] : []))
+        )
+      ).toEqual([['a1', 'a2', 'b1', 'a3', 'a4']])
+      const completed = blocks.map(
+        (block): ContentBlock => ({
+          ...block,
+          toolCall: block.toolCall ? { ...block.toolCall, status: 'success' } : undefined,
+        })
+      )
+      const stillRunning = [...completed.slice(0, -1), blocks.at(-1)!]
+      expect(parseBlocks(stillRunning)).toHaveLength(3)
+      const finished = parseBlocks(completed)
+      expect(finished).toHaveLength(3)
+      expect(finished[0]).toMatchObject({ id: groups[0].id })
+      expect(
+        finished.map((group) => group.type === 'agent_group' && group.activity?.completedTitle)
+      ).toEqual(['Checked invoice inputs', 'Checked customer inputs', 'Checked invoice inputs'])
+      expect(
+        finished.flatMap((group) =>
+          group.type === 'agent_group'
+            ? group.items.map((item) => item.type === 'tool' && item.data.id)
+            : []
+        )
+      ).toEqual(['a1', 'a2', 'b1', 'a3', 'a4'])
+    }
+  )
+
+  it('keeps every completed activity under its own header across text and reused ids', () => {
+    const blocks = [
+      activityCall('a1', 'Checking invoice inputs'),
+      activityCall('b1', 'Checking customer inputs'),
+      mainText('Now checking the updated inputs.'),
+      activityReference('a2', 'Checking invoice inputs'),
+      activityReference('b2', 'Checking customer inputs'),
+    ].map(
+      (block): ContentBlock => ({
+        ...block,
+        toolCall: block.toolCall ? { ...block.toolCall, status: 'success' } : undefined,
+      })
+    )
+    const segments = parseBlocks(blocks)
+    expect(segments.map((segment) => segment.type)).toEqual([
+      'agent_group',
+      'agent_group',
+      'text',
+      'agent_group',
+      'agent_group',
+    ])
+    const groups = segments.filter((segment) => segment.type === 'agent_group')
+    expect(new Set(groups.map((group) => group.id)).size).toBe(4)
+    expect(groups.map((group) => group.activity?.completedTitle)).toEqual([
+      'Checked invoice inputs',
+      'Checked customer inputs',
+      'Checked invoice inputs',
+      'Checked customer inputs',
+    ])
+    expect(
+      groups.map((group) => group.items.map((item) => item.type === 'tool' && item.data.id))
+    ).toEqual([['a1'], ['b1'], ['a2'], ['b2']])
+  })
+
+  it('keeps calls without new metadata inside the current sequential activity', () => {
+    const groups = parseBlocks([
+      activityCall('a1', 'Checking invoice inputs'),
+      activityCall('b1'),
+      activityReference('a2', 'Checking invoice inputs'),
+    ]).filter((segment) => segment.type === 'agent_group')
+    expect(groups).toHaveLength(1)
+    expect(groups[0].activity?.title).toBe('Checking invoice inputs')
+    expect(groups[0].items.map((item) => item.type === 'tool' && item.data.id)).toEqual([
+      'a1',
+      'b1',
+      'a2',
+    ])
+  })
+
+  it('keeps only the latest sequential activity open through thinking gaps', () => {
+    const completed = [
+      activityCall('a1', 'Checking invoice inputs'),
+      activityCall('b1', 'Checking customer inputs'),
+      activityReference('a2', 'Checking invoice inputs'),
+    ].map(
+      (block): ContentBlock => ({
+        ...block,
+        toolCall: { ...block.toolCall!, status: 'success' },
+      })
+    )
+    const open = parseBlocks(completed, true)
+    expect(open).toHaveLength(3)
+    expect(open).toMatchObject([
+      { isOpen: false, items: [{ data: { id: 'a1' } }] },
+      { isOpen: false, items: [{ data: { id: 'b1' } }] },
+      { isOpen: true, items: [{ data: { id: 'a2' } }] },
+    ])
+    const settled = parseBlocks(completed, false)
+    expect(settled).toMatchObject([
+      { isOpen: false, activity: { completedTitle: 'Checked invoice inputs' } },
+      { isOpen: false, activity: { completedTitle: 'Checked customer inputs' } },
+      { isOpen: false, activity: { completedTitle: 'Checked invoice inputs' } },
+    ])
+    const proseClosed = parseBlocks([...completed, mainText('The inputs are ready.')], true)
+    expect(proseClosed.map((segment) => segment.type)).toEqual([
+      'agent_group',
+      'agent_group',
+      'agent_group',
+      'text',
+    ])
+    expect(proseClosed.slice(0, 3)).toMatchObject([
+      { isOpen: false },
+      { isOpen: false },
+      { isOpen: false },
+    ])
+  })
+
+  it('keeps one active group when parallel calls settle out of order without reordering history', () => {
+    const blocks = [
+      activityCall('a1', 'Checking invoice inputs'),
+      activityCall('b1', 'Checking customer inputs'),
+    ]
+    blocks[1].toolCall!.status = 'success'
+    const pending = parseBlocks(blocks, true)
+    expect(pending).toHaveLength(1)
+    expect(pending[0]).toMatchObject({
+      activity: { title: 'Checking invoice inputs' },
+      items: [{ data: { id: 'a1' } }, { data: { id: 'b1' } }],
+    })
+    blocks[0].toolCall!.status = 'success'
+    const open = parseBlocks(blocks, true).filter((segment) => segment.type === 'agent_group')
+    expect(open.map((group) => group.isOpen)).toEqual([false, true])
+    expect(open[0].id).toBe(pending[0].type === 'agent_group' ? pending[0].id : '')
+    expect(parseBlocks(blocks)).toMatchObject([
+      { activity: { title: 'Checking invoice inputs' }, items: [{ data: { id: 'a1' } }] },
+      { activity: { title: 'Checking customer inputs' }, items: [{ data: { id: 'b1' } }] },
+    ])
+  })
+
+  it('retains labels on id-only reuse and does not rewrite an earlier closed activity', () => {
+    const first = activityCall('a1', 'Checking invoice inputs')
+    const renamed = activityReference('a2', 'Checking invoice inputs')
+    renamed.toolCall!.params = {
+      activity: {
+        id: 'Checking invoice inputs',
+        title: 'Checking updated invoices',
+        completedTitle: 'Checked updated invoices',
+      },
+    }
+    first.toolCall!.status = 'success'
+    const segments = parseBlocks([first, mainText('Inputs changed.'), renamed], true)
+    const groups = segments.filter((segment) => segment.type === 'agent_group')
+    expect(groups.map((group) => group.activity?.title)).toEqual([
+      'Checking invoice inputs',
+      'Checking updated invoices',
+    ])
+  })
+
+  it('closes at prose and reopens a reused activity below it during the same turn', () => {
+    const first = activityCall('a1', 'Checking invoice inputs')
+    first.toolCall!.status = 'success'
+    const reused = activityReference('a2', 'Checking invoice inputs')
+    reused.toolCall!.status = 'success'
+    const segments = parseBlocks([first, mainText('Checking the updated inputs.'), reused], true)
+    expect(segments).toMatchObject([
+      { type: 'agent_group', isOpen: false, activity: { id: 'Checking invoice inputs' } },
+      { type: 'text' },
+      { type: 'agent_group', isOpen: true, activity: { id: 'Checking invoice inputs' } },
+    ])
+  })
+
+  it('does not merge activities across prose or absorb a subagent into the main activity', () => {
+    const segments = parseBlocks([
+      activityCall('a1', 'Checking invoice inputs'),
+      mainText('The invoice inputs are valid.'),
+      activityReference('a2', 'Checking invoice inputs'),
+      subagentStart('general', 'child', 'main'),
+      {
+        ...activityCall('child-tool', 'Checking customer inputs', 'child'),
+        toolCall: {
+          ...activityCall('child-tool', 'Checking customer inputs').toolCall!,
+          calledBy: 'general',
+        },
+      },
+    ])
+    expect(segments.map((segment) => segment.type)).toEqual([
+      'agent_group',
+      'text',
+      'agent_group',
+      'agent_group',
+    ])
+    expect(
+      segments.filter((segment) => segment.type === 'agent_group').map((group) => group.agentName)
+    ).toEqual(['mothership', 'mothership', 'general'])
+  })
+})
 
 function representativeToolArgs(entry: ToolCatalogEntry): Record<string, unknown> {
   const args: Record<string, unknown> = {}
@@ -813,20 +1062,49 @@ describe('parseBlocks legacy — thinking between top-level tools', () => {
   })
 })
 
-describe('assistantMessageHasVisibleActivity', () => {
-  it('keeps the main tail active between calls but closes it when narration follows', () => {
+describe('turn wait ownership', () => {
+  it('keeps the gap after a completed main tool with its open activity until prose closes it', () => {
     const blocks = [mainToolCall('finished', 'read')]
-    expect(assistantMessageHasVisibleActivity(parseBlocks(blocks), true)).toBe(true)
-    expect(assistantMessageHasVisibleActivity(parseBlocks(blocks), false)).toBe(false)
-    expect(
-      assistantMessageHasVisibleActivity(parseBlocks([...blocks, mainText('Done.')]), true)
-    ).toBe(false)
+    expect(ownsWait(parseBlocks(blocks, true), true)).toBe(true)
+    expect(ownsWait(parseBlocks(blocks), false)).toBe(false)
+    expect(ownsWait(parseBlocks([...blocks, mainText('Done.')], true), true)).toBe(false)
+  })
+
+  it.each(['error', 'cancelled'] as const)(
+    'leaves the gap after a %s main tool to the turn indicator',
+    (status) => {
+      const blocks: ContentBlock[] = [
+        { type: 'tool_call', toolCall: { id: 'last', name: 'read', status }, timestamp: 1 },
+      ]
+      expect(ownsWait(parseBlocks(blocks, true), true)).toBe(false)
+    }
+  )
+
+  const searchCall = (id: string, status: 'executing' | 'success'): ContentBlock => ({
+    type: 'tool_call',
+    toolCall: { id, name: 'search_workspace', status, params: { query: 'launch review' } },
+    timestamp: 1,
+  })
+
+  it('lets a running main search, whose label shimmers, own the wait', () => {
+    const blocks = [mainToolCall('read', 'read'), searchCall('search', 'executing')]
+    expect(ownsWait(parseBlocks(blocks, true), true)).toBe(true)
+  })
+
+  it('keeps the search activity live between calls in an open lane', () => {
+    const blocks = [mainToolCall('read', 'read'), searchCall('search', 'success')]
+    expect(ownsWait(parseBlocks(blocks, true), true)).toBe(true)
+  })
+
+  it('lets the open group own the gap once a later non-search call follows a search', () => {
+    const blocks = [searchCall('search', 'success'), mainToolCall('read', 'read')]
+    expect(ownsWait(parseBlocks(blocks, true), true)).toBe(true)
   })
 
   it('leaves an empty open subagent to the turn indicator', () => {
     const segments = parseBlocks([subagentStart('workflow', 'S1', 'main')])
-    expect(assistantMessageHasVisibleActivity(segments, true)).toBe(false)
-    expect(assistantMessageHasVisibleActivity(segments, false)).toBe(false)
+    expect(ownsWait(segments, true)).toBe(false)
+    expect(ownsWait(segments, false)).toBe(false)
   })
 
   it.each([undefined, 'main'])('retains an earlier running tool with spanId=%s', (spanId) => {
@@ -840,15 +1118,14 @@ describe('assistantMessageHasVisibleActivity', () => {
       mainText('Reading the result.'),
       mainToolCall('latest', 'read'),
     ]
-    const segments = parseBlocks(blocks)
+    const segments = parseBlocks(blocks, true)
     expect(segments.map((segment) => segment.type)).toEqual(['agent_group', 'text', 'agent_group'])
-    expect(assistantMessageHasVisibleActivity(segments)).toBe(true)
+    expect(ownsWait(segments, true)).toBe(true)
+    expect(ownsWait(parseBlocks(blocks), false)).toBe(false)
   })
 
   it('does not treat an open subagent lane as an executing tool row', () => {
-    expect(
-      assistantMessageHasVisibleActivity(parseBlocks([subagentStart('workflow', 'S1', 'main')]))
-    ).toBe(false)
+    expect(ownsWait(parseBlocks([subagentStart('workflow', 'S1', 'main')]))).toBe(false)
   })
 
   it('keeps a visible executing tool as active work', () => {
@@ -861,7 +1138,8 @@ describe('assistantMessageHasVisibleActivity', () => {
         timestamp: 3,
       },
     ]
-    expect(assistantMessageHasVisibleActivity(parseBlocks(blocks))).toBe(true)
+    expect(ownsWait(parseBlocks(blocks, true), true)).toBe(true)
+    expect(ownsWait(parseBlocks(blocks), false)).toBe(false)
   })
 
   it('does not let open parallel lanes suppress the single turn-level indicator', () => {
@@ -869,7 +1147,7 @@ describe('assistantMessageHasVisibleActivity', () => {
       subagentStart('workflow', 'S1', 'main'),
       subagentStart('search', 'S2', 'main'),
     ]
-    expect(assistantMessageHasVisibleActivity(parseBlocks(blocks))).toBe(false)
+    expect(ownsWait(parseBlocks(blocks))).toBe(false)
   })
 
   it('ignores the executing dispatch tool represented by its subagent lane', () => {
@@ -884,7 +1162,7 @@ describe('assistantMessageHasVisibleActivity', () => {
         parentToolCallId: 'dispatch-1',
       },
     ]
-    expect(assistantMessageHasVisibleActivity(parseBlocks(blocks))).toBe(false)
+    expect(ownsWait(parseBlocks(blocks))).toBe(false)
   })
 })
 
@@ -963,14 +1241,14 @@ describe('parseBlocks main activity controls', () => {
 
 describe('deriveThinkingLabel', () => {
   it('maps the most recent block to an activity phrase', () => {
-    expect(deriveThinkingLabel([])).toBe('Thinking…')
+    expect(deriveThinkingLabel([])).toBe('Thinking')
     expect(deriveThinkingLabel([{ type: 'thinking', content: 'hm', timestamp: 1 }])).toBe(
-      'Thinking…'
+      'Thinking'
     )
     // A stall after streamed text is the agent deciding what's next, not generating.
-    expect(deriveThinkingLabel([mainText('hi')])).toBe('Thinking…')
+    expect(deriveThinkingLabel([mainText('hi')])).toBe('Thinking')
     expect(deriveThinkingLabel([{ type: 'subagent_text', content: 'x', timestamp: 1 }])).toBe(
-      'Thinking…'
+      'Thinking'
     )
     expect(deriveThinkingLabel([{ type: 'subagent_end', spanId: 'S1', timestamp: 1 }])).toBe(
       'Returning…'
@@ -980,7 +1258,117 @@ describe('deriveThinkingLabel', () => {
   it('shows Dispatching for the dispatch call, then yields to the opened lane', () => {
     expect(deriveThinkingLabel([mainToolCall('t1', 'workflow')])).toBe('Dispatching…')
     expect(deriveThinkingLabel([mainToolCall('t1', 'prepare_file_edit')])).toBe('Dispatching…')
-    expect(deriveThinkingLabel([mainToolCall('t1', 'grep')])).toBe('Thinking…')
-    expect(deriveThinkingLabel([subagentStart('workflow', 'S1', 'main')])).toBe('Thinking…')
+    expect(deriveThinkingLabel([mainToolCall('t1', 'grep')])).toBe('Thinking')
+    expect(deriveThinkingLabel([subagentStart('workflow', 'S1', 'main')])).toBe('Thinking')
+  })
+})
+
+describe.each([undefined, 'main'])('watch presentation (%s)', (spanId) => {
+  const watch: ContentBlock = {
+    type: 'task',
+    task: {
+      taskId: 'timer-1',
+      kind: 'timer',
+      target: {},
+      note: 'Check results',
+      status: 'pending',
+    },
+  }
+  const registration: ContentBlock = {
+    type: 'tool_call',
+    spanId,
+    toolCall: {
+      id: 'watch-call',
+      name: 'watch',
+      status: 'success',
+      result: { success: true, output: { ok: true, taskId: 'timer-1' } },
+    },
+  }
+
+  it('renders one watch row, preserving independent work and text ordering', () => {
+    const segments = parseBlocks([
+      mainText('Checking the result shortly.'),
+      registration,
+      watch,
+      { ...mainToolCall('other', 'cli_secrets_list'), spanId },
+      mainText('Continuing independent work.'),
+    ])
+    expect(segments).toMatchObject([
+      { type: 'text', content: 'Checking the result shortly.' },
+      watch,
+      { type: 'agent_group', items: [{ type: 'tool', data: { id: 'other' } }] },
+      { type: 'text', content: 'Continuing independent work.' },
+    ])
+    expect(ownsWait(segments, true)).toBe(false)
+  })
+
+  it.each(['pending', 'completed', 'stopped'] as const)(
+    'does not duplicate a %s watch on replay',
+    (status) => {
+      const recorded = { ...watch, task: { ...watch.task!, status } }
+      expect(parseBlocks([registration, recorded])).toEqual([{ type: 'task', task: recorded.task }])
+    }
+  )
+
+  it('preserves only the watch identity through persisted output stripping and reload', () => {
+    const stored = normalizeMessage({
+      id: 'message',
+      role: 'assistant',
+      content: '',
+      contentBlocks: [
+        {
+          type: 'tool',
+          spanId,
+          toolCall: {
+            id: 'watch-call',
+            name: 'watch',
+            state: 'success',
+            result: {
+              success: true,
+              output: { ok: true, taskId: 'timer-1', large: 'x'.repeat(10000) },
+            },
+          },
+        },
+        watch,
+      ],
+    })
+    const stripped = stripToolResultOutput(stored)
+    expect(stripped.contentBlocks[0].toolCall?.result?.output).toEqual({ taskId: 'timer-1' })
+    expect(stripToolResultOutput(stripped)).toBe(stripped)
+    expect(parseBlocks(toDisplayMessage(stripped).contentBlocks ?? [])).toEqual([watch])
+  })
+
+  it('keeps the registration tool until its durable watch is present', () => {
+    expect(parseBlocks([registration])).toMatchObject([
+      { type: 'agent_group', items: [{ type: 'tool', data: { id: 'watch-call' } }] },
+    ])
+  })
+
+  it('does not hide failed, unmatched, or non-watch tools', () => {
+    const blocks = [
+      {
+        ...registration,
+        toolCall: { ...registration.toolCall!, id: 'failed', status: 'error' as const },
+      },
+      {
+        ...registration,
+        toolCall: {
+          ...registration.toolCall!,
+          id: 'unmatched',
+          result: { success: true, output: { taskId: 'timer-2' } },
+        },
+      },
+      {
+        ...registration,
+        toolCall: { ...registration.toolCall!, id: 'other', name: 'task_output' },
+      },
+      watch,
+    ]
+    const groups = parseBlocks(blocks).filter((segment) => segment.type === 'agent_group')
+    expect(
+      groups.flatMap((group) =>
+        group.items.flatMap((item) => (item.type === 'tool' ? [item.data.id] : []))
+      )
+    ).toEqual(['failed', 'unmatched', 'other'])
   })
 })

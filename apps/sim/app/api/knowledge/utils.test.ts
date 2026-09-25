@@ -343,7 +343,7 @@ describe('Knowledge Utils', () => {
 
       try {
         await expect(generateEmbeddings(['test text'], DEFAULT_EMBEDDING_TARGET)).rejects.toThrow(
-          'OPENAI_API_KEY is not configured'
+          'Semantic retrieval is unavailable because its embedding provider is not configured.'
         )
         expect(rotationSpy).toHaveBeenCalledWith('openai')
         expect(fetch).not.toHaveBeenCalled()

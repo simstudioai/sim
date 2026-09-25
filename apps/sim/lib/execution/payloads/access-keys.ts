@@ -39,3 +39,23 @@ export function recordMaterializedAccessKeys(context: ExactAccessKeyContext, val
   mergeLargeValueKeys(context, collectLargeValueKeys(value))
   mergeFileKeys(context, collectUserFileKeys(value))
 }
+
+/** Canonical workspace/workflow/execution scope carried by an execution storage key. */
+export function getExecutionKeyParts(key: string):
+  | {
+      workspaceId: string
+      workflowId: string
+      executionId: string
+    }
+  | undefined {
+  const parts = key.split('/')
+  if (parts[0] !== 'execution' || parts.length < 5) {
+    return undefined
+  }
+
+  return {
+    workspaceId: parts[1],
+    workflowId: parts[2],
+    executionId: parts[3],
+  }
+}

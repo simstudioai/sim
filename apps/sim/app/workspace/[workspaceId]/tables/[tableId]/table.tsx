@@ -9,6 +9,7 @@ import { isEqual } from 'es-toolkit'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
+import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import type { RunLimit, RunMode, TableViewWire } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
@@ -24,12 +25,7 @@ import type {
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { withCellValueFilter } from '@/lib/table/query-builder/cell-filter'
-import {
-  type BreadcrumbItem,
-  type ColumnOption,
-  Resource,
-  type SortConfig,
-} from '@/app/workspace/[workspaceId]/components'
+import { resolveWorkflowGroupDeploymentMode } from '@/lib/table/workflow-groups/deployment-mode'
 import {
   FOLDERED_RESOURCE_HEADERS,
   folderBreadcrumbItems,
@@ -37,6 +33,12 @@ import {
   useFolderAncestors,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { PresenceAvatars } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
+import type { BreadcrumbItem } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
+import type {
+  ColumnOption,
+  SortConfig,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -127,6 +129,8 @@ interface TableProps {
    * fights a later user switch.
    */
   initialViewId?: string
+  /** Reports the embedded panel query to its chat owner. */
+  onViewContextChange?: (context: MothershipTableViewContext) => void
 }
 
 /**
@@ -194,6 +198,7 @@ interface ViewConfigKeep {
 export function Table({
   embedded,
   initialViewId,
+  onViewContextChange,
   workspaceId: propWorkspaceId,
   tableId: propTableId,
 }: TableProps = {}) {
@@ -357,7 +362,11 @@ export function Table({
     ((previousName: string, newName: string) => void) | null
   >(null)
 
-  const { data: viewsData, isError: viewsErrored } = useTableViews({
+  const {
+    data: viewsData,
+    isError: viewsErrored,
+    isFetching: viewsFetching,
+  } = useTableViews({
     workspaceId,
     tableId,
   })
@@ -390,12 +399,18 @@ export function Table({
   const updateMetadataMutation = useUpdateTableMetadata({ workspaceId, tableId })
   const deleteViewMutation = useDeleteTableView({ workspaceId, tableId })
 
-  /** Resolve the restored or default view synchronously so the grid, autosave
-   *  owner, and menu agree before the URL effect records the adopted view id. */
-  const { selectedView, defaultView, activeView } = resolveTableViewSelection(
+  /** Resolve the default synchronously so the grid, autosave owner, and menu all
+   *  agree before the URL effect records the adopted view id. */
+  const {
+    selectedView,
+    defaultView,
+    activeView,
+    pending: viewSelectionPending,
+  } = resolveTableViewSelection(
     views,
     activeViewId,
-    embedded ? initialViewId : undefined
+    embedded ? initialViewId : undefined,
+    viewsFetching
   )
   const activeViewConfig = useMemo(
     () => resolveTableViewConfig(tableData?.metadata, activeView?.config ?? null),
@@ -573,7 +588,8 @@ export function Table({
       resolvePendingLayout(null)
       return
     }
-    if (!viewsAvailable || !tableAvailable) return
+    /** A tool can select a newly saved view before invalidation has refreshed the cached list. */
+    if (!viewsAvailable || !tableAvailable || viewSelectionPending) return
     ownerResolvedRef.current = true
     if (appliedViewRevisionRef.current === undefined) {
       // Embedded tables bind these parsers to the HOST page's URL, which the
@@ -704,6 +720,7 @@ export function Table({
     if (activeView) flushPendingViewConfig(activeView.id)
   }, [
     viewsAvailable,
+    viewSelectionPending,
     viewsErrored,
     tableAvailable,
     views,
@@ -977,13 +994,14 @@ export function Table({
       if (mutateArgs.groupIds.length === 0) return
       if (mutateArgs.rowIds && mutateArgs.rowIds.length === 0) return
       runColumnMutate(mutateArgs)
-      // Derive the run's deployment mode from the targeted groups (default 'live' when unset).
+      // Derive the run's deployment mode from the targeted groups (effective mode, so an
+      // unset value resolves to the shared default rather than a third state).
       // 'mixed' when the targeted groups don't all agree.
       const targetGroupIds = new Set(mutateArgs.groupIds)
       const modes = new Set(
         tableWorkflowGroups
           .filter((g) => targetGroupIds.has(g.id))
-          .map((g) => g.deploymentMode ?? 'live')
+          .map((g) => resolveWorkflowGroupDeploymentMode(g))
       )
       const deploymentMode = modes.size === 1 ? [...modes][0] : 'mixed'
       captureEvent(posthogRef.current, 'table_workflow_run', {
@@ -1515,6 +1533,24 @@ export function Table({
   /** Right-aligned slot. Left `undefined` when absent so the options bar
    *  doesn't render an empty flex row. */
   const optionsTrailing = runStatus || undefined
+
+  useEffect(() => {
+    if (!embedded || !onViewContextChange || !tableAvailable || !viewsAvailable) return
+    if (appliedViewRevisionRef.current?.id !== (activeView?.id ?? null)) return
+    onViewContextChange({
+      viewId: activeView?.id ?? null,
+      filter: effectiveFilter ?? null,
+      sort: queryOptions.sort ?? null,
+    })
+  }, [
+    embedded,
+    onViewContextChange,
+    tableAvailable,
+    viewsAvailable,
+    activeView?.id,
+    effectiveFilter,
+    queryOptions.sort,
+  ])
 
   return (
     <Resource>

@@ -2,14 +2,15 @@
 import type { OAuthAccessTokenPrincipal, Principal } from '@sim/auth/principal'
 import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CopilotLifecycleOptions } from '@/lib/copilot/request/lifecycle/run'
-import type { OrchestratorResult, ToolCallSummary } from '@/lib/copilot/request/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { CopilotLifecycleOptions } from '@/lib/mothership/request/lifecycle/run'
+import type { OrchestratorResult, ToolCallSummary } from '@/lib/mothership/request/types'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const mocks = vi.hoisted(() => ({
   available: vi.fn(),
+  inventory: vi.fn(),
   billing: vi.fn(),
   config: vi.fn(),
   lifecycle: vi.fn(),
@@ -17,6 +18,9 @@ const mocks = vi.hoisted(() => ({
   explicitAbort: vi.fn(),
 }))
 
+vi.mock('@/lib/mothership/application/load-search-integrations', () => ({
+  loadCopilotSearchIntegrations: mocks.inventory,
+}))
 vi.mock('@/lib/knowledge/access/availability', () => ({
   requireOrganizationSearchAvailable: mocks.available,
 }))
@@ -26,16 +30,19 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
 vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveOrganizationBillingAttribution: mocks.billing,
 }))
-vi.mock('@/lib/copilot/request/lifecycle/run', () => ({
+vi.mock('@/lib/mothership/request/lifecycle/run', () => ({
   runCopilotLifecycle: mocks.lifecycle,
 }))
-vi.mock('@/lib/copilot/chat/messages-store', () => ({
+vi.mock('@/lib/mothership/chat/messages-store', () => ({
   persistCopilotChatTurn: mocks.persist,
 }))
-vi.mock('@/lib/copilot/request/session/explicit-abort', () => ({
+vi.mock('@/lib/mothership/request/session/explicit-abort', () => ({
   requestExplicitStreamAbort: mocks.explicitAbort,
 }))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.example' }))
+vi.mock('@/lib/core/utils/urls', () => ({
+  getBaseUrl: () => 'https://sim.example',
+  SITE_URL: 'https://sim.example',
+}))
 
 import { organizationSearchChat } from '@/lib/knowledge/application/chat'
 import { resolveSearchChatCitations } from '@/lib/knowledge/application/chat-citations'
@@ -83,6 +90,7 @@ beforeEach(() => {
   dbChainMockFns.for.mockResolvedValue([{ id: 'private-chat' }])
   mocks.config.mockResolvedValue(null)
   mocks.available.mockResolvedValue(undefined)
+  mocks.inventory.mockResolvedValue('{"connections":[],"available":[]}')
   mocks.billing.mockResolvedValue({
     actorUserId: 'member-1',
     organizationId: 'org-1',
@@ -97,6 +105,12 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('organization Search Assistant chat', () => {
+  it('does not dispatch if authorized source inventory cannot be loaded', async () => {
+    mocks.inventory.mockRejectedValueOnce(new Error('Inventory unavailable'))
+    await expect(execute()).rejects.toThrow('Inventory unavailable')
+    expect(mocks.lifecycle).not.toHaveBeenCalled()
+  })
+
   it('uses Search consent and the real organization Assistant through the headless lifecycle', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     const filters = { source: 'google_drive', documentIds: ['document-1'] }
@@ -112,20 +126,21 @@ describe('organization Search Assistant chat', () => {
     expect(mocks.lifecycle).toHaveBeenCalledOnce()
     const [payload, options] = mocks.lifecycle.mock.calls[0]
     expect(payload).toEqual({
-      messages: [{ role: 'user', content: 'Where is the field kit?' }],
+      message: 'Where is the field kit?',
       messageId: expect.any(String),
       userId: 'member-1',
       organizationId: 'org-1',
       chatId: 'private-chat',
       mode: 'assistant',
       assistantSearch: filters,
-      isHosted: expect.any(Boolean),
+      context: [{ type: 'search_integrations', content: '{"connections":[],"available":[]}' }],
+      clientCapabilities: [],
     })
     expect(options).toMatchObject({
       userId: 'member-1',
       organizationId: 'org-1',
       chatId: 'private-chat',
-      goRoute: '/api/mothership/execute',
+      goRoute: '/api/mothership',
       interactive: false,
       autoExecuteTools: true,
       secretActorUserId: null,
@@ -143,6 +158,14 @@ describe('organization Search Assistant chat', () => {
     expect(payload).not.toHaveProperty('integrationTools')
     expect(payload).not.toHaveProperty('workspaceContext')
     expect(mocks.billing).toHaveBeenCalledWith({ actorUserId: 'member-1', organizationId: 'org-1' })
+    expect(mocks.inventory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'member-1',
+        organizationId: 'org-1',
+        chatId: 'private-chat',
+        messageId: expect.any(String),
+      })
+    )
     expect(result).toEqual({
       content: 'The field kit is in the violet suitcase.',
       citations: [],
@@ -248,9 +271,12 @@ describe('organization Search Assistant chat', () => {
   })
 
   it('rechecks OAuth restrictions after the run', async () => {
-    mocks.config.mockResolvedValueOnce(null).mockResolvedValueOnce({
-      ...DEFAULT_PERMISSION_GROUP_CONFIG,
-      disableOAuthAppAccess: true,
+    mocks.lifecycle.mockImplementationOnce(async () => {
+      mocks.config.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        disableOAuthAppAccess: true,
+      })
+      return createResult()
     })
     await expect(execute()).rejects.toThrow('OAuth app access')
     expect(mocks.persist).not.toHaveBeenCalled()
@@ -275,6 +301,24 @@ describe('organization Search Assistant chat', () => {
     await expect(execute()).rejects.toThrow(/assistant/i)
     expect(mocks.persist).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).toHaveBeenCalledOnce()
+  })
+
+  it('drops interactive Chat tags from the MCP answer but keeps them in the transcript', async () => {
+    const tags =
+      '<options>{"1":"Open it"}</options><question>{"prompt":"Which </question> kit?"}</question>'
+    mocks.lifecycle.mockResolvedValue(createResult({ content: `Violet suitcase.${tags}` }))
+    const result = await execute()
+    expect(result.content).toBe('Violet suitcase.')
+    const [, messages] = mocks.persist.mock.calls[0]
+    expect(JSON.stringify(messages)).toContain('<options>')
+    expect(JSON.stringify(messages)).toContain('<question>')
+  })
+
+  it('refuses an answer that is only interactive Chat tags', async () => {
+    mocks.lifecycle.mockResolvedValue(
+      createResult({ content: '<options>{"1":"Open it"}</options>' })
+    )
+    await expect(execute()).rejects.toThrow('The assistant returned no answer')
   })
 
   it('fails closed when retrieval makes provenance incomplete', async () => {
@@ -384,7 +428,6 @@ describe('organization Search Assistant chat', () => {
     expect(mocks.explicitAbort).toHaveBeenCalledWith({
       streamId: expect.any(String),
       userId: 'member-1',
-      organizationId: 'org-1',
       chatId: 'private-chat',
     })
     expect(mocks.explicitAbort).toHaveBeenCalledOnce()

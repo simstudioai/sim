@@ -10,6 +10,7 @@ const {
   mockClearAllExecutionPointers,
   mockGetQueryClient,
   mockMothershipQueueReset,
+  mockMothershipDraftsReset,
   mockOperationQueueReset,
   mockResetRegisteredUserData,
   mockRegistrySetState,
@@ -22,6 +23,7 @@ const {
   mockConsoleReset: vi.fn(),
   mockGetQueryClient: vi.fn(),
   mockMothershipQueueReset: vi.fn(),
+  mockMothershipDraftsReset: vi.fn(),
   mockOperationQueueReset: vi.fn(),
   mockResetRegisteredUserData: vi.fn(),
   mockRegistrySetState: vi.fn(),
@@ -40,7 +42,7 @@ vi.mock('@/stores/execution', () => ({
   useExecutionStore: { getState: () => ({ reset: vi.fn() }) },
 }))
 vi.mock('@/stores/mothership-drafts/store', () => ({
-  useMothershipDraftsStore: { setState: vi.fn() },
+  useMothershipDraftsStore: { getState: () => ({ reset: mockMothershipDraftsReset }) },
 }))
 vi.mock('@/stores/mothership-queue/store', () => ({
   useMothershipQueueStore: { getState: () => ({ reset: mockMothershipQueueReset }) },
@@ -104,6 +106,7 @@ describe('resetAllStores', () => {
     expect(mockConsoleReset).toHaveBeenCalledOnce()
     expect(mockClearAllExecutionPointers).toHaveBeenCalledOnce()
     expect(mockMothershipQueueReset).toHaveBeenCalledOnce()
+    expect(mockMothershipDraftsReset).toHaveBeenCalledOnce()
     expect(mockConsolePersist).toHaveBeenCalledWith({ merge: false })
   })
 

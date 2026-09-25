@@ -53,7 +53,7 @@ export async function resetAllStores(): Promise<void> {
   })
   consolePersistence.reset()
   clearAllExecutionPointers()
-  useMothershipDraftsStore.setState({ drafts: {} })
+  useMothershipDraftsStore.getState().reset()
   useMothershipQueueStore.getState().reset()
   await consolePersistence.persist({ merge: false })
 }

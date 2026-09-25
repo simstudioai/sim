@@ -59,6 +59,8 @@ interface SetupCallbackInput {
 function safeSetupError(error: unknown): string {
   if (error instanceof ManagedOAuthCredentialError)
     return 'Reconnect your GitHub account, then start setup again.'
+  if (error instanceof GitHubInstallationError && error.operation === 'membership-permissions')
+    return error.message
   if (error instanceof GitHubInstallationError)
     return error.status === 403
       ? 'Choose a GitHub account or organization you own and allow the required app permissions.'
@@ -189,9 +191,15 @@ async function discoverInstallations(principal: SessionPrincipal, attempt: GitHu
   if (!result.available)
     throw new OrchestrationError('validation', 'GitHub App setup is unavailable.')
   if (result.needsUserConnection) return null
-  if (attempt.intent === 'install' || result.installations.length === 0)
+  /** GitHub can keep users on its settings page after repository access changes. */
+  if (attempt.phase === 'installing' && result.installations.length === 0)
+    return { url: currentUrl(attempt) }
+  if (
+    attempt.phase !== 'installing' &&
+    (attempt.intent === 'install' || result.installations.length === 0)
+  )
     return installAttempt(attempt)
-  if (result.installations.length === 1)
+  if (result.installations.length === 1 && attempt.intent !== 'install')
     return connectAttempt(principal, attempt, result.installations[0]!.installationId)
   await saveGitHubSetupAttempt(
     {
@@ -272,6 +280,15 @@ export const startGitHubSearchSetup = defineAuthorizedKnowledgeUseCase({
       sessionId: principal.sessionId,
     }
     const existing = await readGitHubSetupAttempt(scope)
+    if (existing?.phase === 'installing') {
+      const discovered = await discoverInstallations(principal, existing)
+      if (!discovered)
+        throw new OrchestrationError(
+          'validation',
+          'Reconnect your GitHub account, then start setup again.'
+        )
+      return discovered
+    }
     if (existing && existing.phase !== 'starting') return { url: currentUrl(existing) }
     if (await readSearchConnectionCompletion({ ...scope, completionId: input.setupId }))
       throw new OrchestrationError('conflict', 'Start a new GitHub setup attempt.')
@@ -430,7 +447,7 @@ export const completeGitHubSearchSetup = defineAuthorizedKnowledgeUseCase({
   },
   async execute({ principal, input, context }) {
     const attempt = await requireAttempt(context.setupScope)
-    if (attempt.phase === 'completed' || attempt.phase === 'failed')
+    if (attempt.phase === 'completed' || attempt.phase === 'failed' || attempt.phase === 'choosing')
       return { url: currentUrl(attempt) }
     if (
       (attempt.phase !== 'installing' && attempt.phase !== 'connecting') ||

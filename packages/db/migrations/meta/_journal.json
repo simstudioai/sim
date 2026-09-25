@@ -2654,6 +2654,34 @@
       "when": 1790180334617,
       "tag": "0379_sync_log_database_failure_class",
       "breakpoints": true
+    },
+    {
+      "idx": 380,
+      "version": "7",
+      "when": 1790187690218,
+      "tag": "0380_mothership_staging_merge",
+      "breakpoints": true
+    },
+    {
+      "idx": 381,
+      "version": "7",
+      "when": 1790197970553,
+      "tag": "0381_browser_download_save_claim",
+      "breakpoints": true
+    },
+    {
+      "idx": 382,
+      "version": "7",
+      "when": 1790284582673,
+      "tag": "0382_workspace_file_search_dispatch_handoff",
+      "breakpoints": true
+    },
+    {
+      "idx": 383,
+      "version": "7",
+      "when": 1790296491758,
+      "tag": "0383_workspace_visit",
+      "breakpoints": true
     }
   ]
 }

@@ -278,6 +278,7 @@ describe('credential group OAuth persistence', () => {
       expect(dispatchMemberSyncsForCredentialOption).toHaveBeenCalledWith({
         organizationId: 'org-1',
         credentialGroupOptionId: 'option-1',
+        connectedCredentialId: 'credential-1',
       })
       expect(eq).toHaveBeenCalledWith(
         schemaMock.credentialGroupEnrollment.invitationTokenHash,

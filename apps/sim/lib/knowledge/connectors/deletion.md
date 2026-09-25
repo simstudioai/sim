@@ -1,5 +1,7 @@
 # Connection removal
 
+This shared removal path handles ordinary KB connectors, legacy indexed Search, and live Search source records. Live Search checks source liveness on each operation and does not create indexed documents. Document cleanup below applies to stored KB or legacy content, including content left before switching to live Search.
+
 All existing UI, API, and Copilot callers still enter `knowledge.connectors.delete` through its authorized application use case. Roles, scope checks, response shapes, audit attribution, and the workspace-only option to retain documents are unchanged.
 
 When documents are removed, a transaction locks the canonical knowledge base and connector, counts the attached documents, marks the connector deleted, invalidates both sync leases, disables scheduling, and inserts one `knowledge.connector.cleanup` outbox event. Failure rolls back both the deletion and the event. Returned deletion counts describe documents logically removed from Sim; physical deletion follows asynchronously.
@@ -12,4 +14,4 @@ The existing outbox worker runs cleanup, with 48 failure attempts and bounded co
 
 After document and connector cleanup, credential grant revocation and unused-tag cleanup are retried as needed. Tag cleanup checks for existence rather than counting the entire remaining corpus. No provider credentials or document contents enter the connector cleanup payload.
 
-The mutation's success handler navigates before cache invalidation and survives the source component unmounting. Source detail replaces its history entry with the Sources page from Documents, Settings, or Sync history; failed removal stays on the current page with the error.
+The mutation's success handler navigates before cache invalidation and survives the source component unmounting. Source detail replaces its history entry with the Sources page; failed removal stays on the current page with the error. Documents and Sync history tabs apply only to indexed sources.

@@ -14,15 +14,17 @@ vi.mock('next/navigation', () => ({
   },
 }))
 vi.mock('@/lib/organizations/surface', () => ({ getOrganizationSurfaceContext: mocks.context }))
-vi.mock('@/lib/copilot/chat/lifecycle', () => ({ getAccessibleCopilotChatAuth: mocks.chat }))
-vi.mock('@/app/o/[organizationId]/search/search', () => ({
-  OrganizationSearch: () => <div>Organization Search</div>,
-}))
+vi.mock('@/lib/mothership/chat/lifecycle', () => ({ getAccessibleCopilotChatAuth: mocks.chat }))
 vi.mock('@/app/o/[organizationId]/integrations/integrations', () => ({
   OrganizationIntegrations: () => <div>Integrations</div>,
 }))
+vi.mock('@/app/o/[organizationId]/search/search', () => ({
+  OrganizationSearch: () => <div>Standalone Search</div>,
+}))
 vi.mock('@/app/o/[organizationId]/home/organization-home', () => ({
-  OrganizationHome: () => <div>Organization Assistant</div>,
+  OrganizationHome: ({ requestMode }: { requestMode?: string }) => (
+    <div data-request-mode={requestMode}>Organization Assistant</div>
+  ),
 }))
 
 import OrganizationChatPage from '@/app/o/[organizationId]/chat/[chatId]/page'
@@ -38,8 +40,11 @@ describe('organization Search page gates', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue(session)
-    mocks.context.mockResolvedValue({ searchAccess: { memberScoped: true } })
-    mocks.chat.mockResolvedValue({ type: 'mothership', organizationId: 'org-1' })
+    mocks.context.mockResolvedValue({
+      mothershipAvailable: true,
+      searchAccess: { memberScoped: true },
+    })
+    mocks.chat.mockResolvedValue({ type: 'mothership', organizationId: 'org-1', mode: 'agent' })
   })
 
   it.each([
@@ -113,4 +118,68 @@ describe('organization Search page gates', () => {
     mocks.context.mockRejectedValue(new Error('Availability unavailable'))
     await expect(OrganizationHomePage({ params })).rejects.toThrow('Availability unavailable')
   })
+
+  it('keeps Home available without Search and reopens Search chats in Assistant', async () => {
+    mocks.context.mockResolvedValue({
+      mothershipAvailable: true,
+      canBuild: true,
+      searchAccess: { memberScoped: false },
+    })
+    expect(renderToStaticMarkup(await OrganizationHomePage({ params }))).toContain(
+      'Organization Assistant'
+    )
+    await expect(OrganizationSearchPage({ params })).rejects.toThrow(
+      'redirect:/workspace?redirect=settings'
+    )
+    mocks.context.mockResolvedValue({
+      mothershipAvailable: true,
+      searchAccess: { memberScoped: true },
+    })
+    mocks.chat.mockResolvedValue({ type: 'mothership', organizationId: 'org-1', mode: 'assistant' })
+    const markup = renderToStaticMarkup(await OrganizationChatPage({ params }))
+    expect(markup).toContain('Organization Assistant')
+    expect(markup).toContain('data-request-mode="assistant"')
+  })
+
+  it('denies Home when neither Build nor Search is allowed despite Mothership availability', async () => {
+    mocks.context.mockResolvedValue({
+      mothershipAvailable: true,
+      canBuild: false,
+      searchAccess: { memberScoped: false },
+    })
+    await expect(OrganizationHomePage({ params })).rejects.toThrow(
+      'redirect:/workspace?redirect=settings'
+    )
+    expect(mocks.chat).not.toHaveBeenCalled()
+  })
+
+  it('routes chat URLs exactly where Home routes the same viewer, before loading the chat', async () => {
+    mocks.context.mockResolvedValue({
+      mothershipAvailable: true,
+      canBuild: false,
+      searchAccess: { memberScoped: false },
+    })
+    await expect(OrganizationChatPage({ params })).rejects.toThrow(
+      'redirect:/workspace?redirect=settings'
+    )
+    mocks.context.mockResolvedValue({
+      mothershipAvailable: false,
+      canBuild: false,
+      searchAccess: { memberScoped: true },
+    })
+    await expect(OrganizationChatPage({ params })).rejects.toThrow('redirect:/o/org-1/search')
+    expect(mocks.chat).not.toHaveBeenCalled()
+  })
+})
+
+it('renders standalone Search independently of assistant availability', async () => {
+  authMockFns.mockGetSession.mockResolvedValue(session)
+  mocks.context.mockResolvedValue({
+    mothershipAvailable: false,
+    searchAccess: { memberScoped: true },
+  })
+  expect(renderToStaticMarkup(await OrganizationSearchPage({ params }))).toContain(
+    'Standalone Search'
+  )
+  await expect(OrganizationHomePage({ params })).rejects.toThrow('redirect:/o/org-1/search')
 })

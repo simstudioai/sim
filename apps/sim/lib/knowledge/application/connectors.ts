@@ -17,7 +17,9 @@ import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { requireCurrentHumanRole } from '@/lib/core/application'
+import { resolvePrincipalEnvironmentVariable } from '@/lib/core/application/environment-reference'
 import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
+import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import {
   OrchestrationError,
   type OrchestrationRequestContext,
@@ -30,6 +32,7 @@ import {
 import { redactKnownSensitiveValues } from '@/lib/core/security/redaction'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
+import { parseExactEnvironmentReference } from '@/lib/environment/reference'
 import { resolveEffectiveEnvironmentVariables } from '@/lib/environment/utils'
 import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
@@ -257,6 +260,7 @@ function connectorTarget(context: ActiveKnowledgeResourceBaseContext) {
   return {
     id: context.knowledgeBaseId,
     name: context.knowledgeBase.name,
+    isSearchIndex: context.knowledgeBase.isSearchIndex,
     workspaceId: context.workspaceId ?? null,
     organizationId: context.organizationId ?? null,
   }
@@ -706,20 +710,25 @@ export const readKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   async execute({ principal, context }) {
     const connector = await getKnowledgeConnector(context.knowledgeBaseId, context.connectorId)
     if (!connector) throw new OrchestrationError('not_found', 'Connector not found')
+    const liveSearchConnector = isLiveEnterpriseSearchEnabled && context.knowledgeBase.isSearchIndex
     const [syncLogs, memberSyncLogs, members] = await Promise.all([
-      db
-        .select()
-        .from(knowledgeConnectorSyncLog)
-        .where(eq(knowledgeConnectorSyncLog.connectorId, context.connectorId))
-        .orderBy(desc(knowledgeConnectorSyncLog.startedAt))
-        .limit(10),
-      db
-        .select()
-        .from(knowledgeConnectorMemberSyncLog)
-        .where(eq(knowledgeConnectorMemberSyncLog.connectorId, context.connectorId))
-        .orderBy(desc(knowledgeConnectorMemberSyncLog.startedAt))
-        .limit(10),
-      connector.accessMode === 'members'
+      liveSearchConnector
+        ? []
+        : db
+            .select()
+            .from(knowledgeConnectorSyncLog)
+            .where(eq(knowledgeConnectorSyncLog.connectorId, context.connectorId))
+            .orderBy(desc(knowledgeConnectorSyncLog.startedAt))
+            .limit(10),
+      liveSearchConnector
+        ? []
+        : db
+            .select()
+            .from(knowledgeConnectorMemberSyncLog)
+            .where(eq(knowledgeConnectorMemberSyncLog.connectorId, context.connectorId))
+            .orderBy(desc(knowledgeConnectorMemberSyncLog.startedAt))
+            .limit(10),
+      !liveSearchConnector && connector.accessMode === 'members'
         ? summarizeConnectorMembers(context.connectorId, connector.syncIntervalMinutes)
         : { active: 0, suspended: 0, stale: 0 },
     ])
@@ -778,20 +787,44 @@ async function summarizeConnectorMembers(
   return { active: row?.active ?? 0, suspended: row?.suspended ?? 0, stale: row?.stale ?? 0 }
 }
 
+/** Whole-value `$NAME`, the shell-style spelling of a secret reference that is never resolved. */
+const SHELL_STYLE_SECRET_PATTERN = /^\$([A-Za-z_][A-Za-z0-9_]*)$/
+
+/**
+ * Rejects an API key spelled `$NAME` when the caller has a secret named `NAME`, so the literal
+ * reference is not sent to the provider and stored as the key. A `$`-prefixed value that names no
+ * secret passes through, since password-style keys (SFTP, ServiceNow) can legitimately look alike.
+ */
+async function rejectShellStyleSecretReference(
+  apiKey: string,
+  principal: Principal,
+  workspaceId: string | undefined
+): Promise<void> {
+  const name = apiKey.trim().match(SHELL_STYLE_SECRET_PATTERN)?.[1]
+  if (!name) return
+  const userId = resolvePrincipalSubjectUserId(principal)
+  if (!userId) return
+  const variables = await resolveEffectiveEnvironmentVariables(userId, workspaceId, [name])
+  if (!Object.hasOwn(variables, name)) return
+  throw new OrchestrationError(
+    'validation',
+    `Secret references use {{${name}}}, not $${name}. Pass apiKey as "{{${name}}}" to use the secret.`
+  )
+}
+
 /** Resolves a secret reference at setup time; the connector stores an encrypted token snapshot. */
 async function resolveConnectorApiKey(
   apiKey: string | undefined,
   principal: Principal,
   workspaceId: string | undefined
 ): Promise<string | undefined> {
-  const name = apiKey?.trim().match(/^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}$/)?.[1]
-  if (!name) return apiKey
-  const userId = resolvePrincipalSubjectUserId(principal)
-  if (!userId) {
-    throw new OrchestrationError('forbidden', 'Secret references require a user identity')
+  if (apiKey === undefined) return undefined
+  const name = parseExactEnvironmentReference(apiKey.trim())
+  if (!name) {
+    await rejectShellStyleSecretReference(apiKey, principal, workspaceId)
+    return apiKey
   }
-  const variables = await resolveEffectiveEnvironmentVariables(userId, workspaceId, [name])
-  const value = Object.hasOwn(variables, name) ? variables[name].value : undefined
+  const value = await resolvePrincipalEnvironmentVariable(principal, workspaceId, name)
   if (!value) {
     throw new OrchestrationError('validation', `Secret "${name}" is unavailable or empty`)
   }

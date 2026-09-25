@@ -101,7 +101,7 @@ describe('fork excluded-workflows route', () => {
       expect.objectContaining({ kind: 'session', userId: ADMIN_ID }),
       expect.objectContaining({ id: 'workspaces.fork.exclusions', minimumRole: 'admin' }),
       expect.objectContaining({ workspaceId: WORKSPACE_ID }),
-      {}
+      { delegation: { audience: 'sim:workspaces', isWithinScope: expect.any(Function) } }
     )
     expect(mockAssertForkingEnabled).toHaveBeenCalledWith(null)
     expect(mockAssertForkingEnabled.mock.invocationCallOrder[0]).toBeLessThan(

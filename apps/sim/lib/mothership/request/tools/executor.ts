@@ -1,0 +1,1140 @@
+import { browserToolRendererTimeoutMs, isCurrentBrowserToolName } from '@sim/browser-protocol'
+import { createLogger } from '@sim/logger'
+import { toError } from '@sim/utils/errors'
+import { isRecordLike } from '@sim/utils/object'
+import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
+import type {
+  AsyncCompletionEnvelope,
+  AsyncCompletionSignal,
+} from '@/lib/mothership/async-runs/lifecycle'
+import {
+  type CompleteAsyncToolCallInput,
+  completeAsyncToolCall,
+  markAsyncToolRunning,
+  upsertAsyncToolCall,
+} from '@/lib/mothership/async-runs/repository'
+import { withToolServiceMeter } from '@/lib/mothership/billing/service-meter'
+import { TOOL_WATCHDOG_DEFAULT_MS, TOOL_WATCHDOG_LONG_RUNNING_MS } from '@/lib/mothership/constants'
+import {
+  MothershipStreamV1AsyncToolRecordStatus,
+  MothershipStreamV1EventType,
+  MothershipStreamV1ToolExecutor,
+  MothershipStreamV1ToolMode,
+  MothershipStreamV1ToolOutcome,
+  MothershipStreamV1ToolPhase,
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import { ArtifactObservations } from '@/lib/mothership/generated/observations'
+import {
+  ApplyFileEdit,
+  CreateWorkflow,
+  Ffmpeg,
+  GenerateApiKey,
+  GenerateAudio,
+  GenerateImage,
+  GenerateVideo,
+  PrepareFileEdit,
+  Run,
+  RunBlock,
+  RunCode,
+  RunFromBlock,
+  RunFunction,
+  RunWorkflow,
+  RunWorkflowUntilBlock,
+} from '@/lib/mothership/generated/tool-catalog-v1'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import {
+  publishToolConfirmation,
+  waitForToolConfirmation,
+} from '@/lib/mothership/persistence/tool-confirm'
+import { recordSimToolMetric } from '@/lib/mothership/request/metrics'
+import { withCopilotSpan, withCopilotToolSpan } from '@/lib/mothership/request/otel'
+import { markToolResultSeen } from '@/lib/mothership/request/sse-utils'
+import {
+  getToolCallTerminalData,
+  requireToolCallError,
+  setTerminalToolCallState,
+} from '@/lib/mothership/request/tool-call-state'
+import {
+  sealClientToolCompletion,
+  sealClientToolContext,
+} from '@/lib/mothership/request/tools/client-completion-seal.server'
+import {
+  type ToolExecutionLifetime,
+  withToolExecutionLifetime,
+} from '@/lib/mothership/request/tools/execution-lifetime'
+import { maybeWriteOutputToFile } from '@/lib/mothership/request/tools/files'
+import {
+  describeWithholdingCause,
+  inspectToolResultForCopilot,
+} from '@/lib/mothership/request/tools/resolved-secret-result'
+import { handleResourceSideEffects } from '@/lib/mothership/request/tools/resources'
+import {
+  maybeWriteOutputToTable,
+  maybeWriteReadCsvToTable,
+} from '@/lib/mothership/request/tools/tables'
+import { applyCreateWorkflowOutputToContext } from '@/lib/mothership/request/tools/workflow-context'
+import {
+  type ExecutionContext,
+  isTerminalToolCallStatus,
+  type OrchestratorOptions,
+  type StreamEvent,
+  type StreamingContext,
+  type ToolCallState,
+} from '@/lib/mothership/request/types'
+import { ensureHandlersRegistered, executeTool } from '@/lib/mothership/tool-executor'
+import { withSandboxResourceScope } from '@/lib/mothership/tools/sandbox-resources'
+import { isMcpTool } from '@/executor/constants'
+
+const logger = createLogger('CopilotSseToolExecution')
+
+function hasOutputValue(result: { output?: unknown } | undefined): result is { output: unknown } {
+  return result !== undefined && Object.hasOwn(result, 'output')
+}
+
+/** Visual bytes reach the model through durable tool results, not the bounded UI replay stream. */
+function toolStatusOutput(output: unknown): unknown {
+  if (!isRecordLike(output)) return output
+  const observations = ArtifactObservations.safeParse(output.observations)
+  if (!observations.success) return output
+  return {
+    ...output,
+    observations: observations.data.map(({ data: _data, ...metadata }) => metadata),
+  }
+}
+
+interface ToolResultSpanSummary {
+  resultSuccess: boolean
+  outputBytes: number
+  outputKind: string
+  errorMessage?: string
+  imageCount?: number
+  imageBytes?: number
+  attachmentMediaType?: string
+}
+
+function summarizeToolResultForSpan(result: {
+  success: boolean
+  output?: unknown
+  error?: string
+}): ToolResultSpanSummary {
+  const summary: ToolResultSpanSummary = {
+    resultSuccess: Boolean(result.success),
+    outputBytes: 0,
+    outputKind: 'none',
+  }
+  if (!result.success && result.error) {
+    summary.errorMessage = String(result.error).slice(0, 500)
+  }
+  if (!hasOutputValue(result)) {
+    return summary
+  }
+  const output = result.output
+  if (typeof output === 'string') {
+    summary.outputKind = 'string'
+    summary.outputBytes = Buffer.byteLength(output)
+  } else if (output && typeof output === 'object') {
+    summary.outputKind = Array.isArray(output) ? 'array' : 'object'
+    try {
+      summary.outputBytes = Buffer.byteLength(JSON.stringify(output))
+    } catch {
+      summary.outputBytes = 0
+    }
+    const attachment = extractAttachmentShape(output)
+    if (attachment) {
+      summary.imageCount = attachment.imageCount
+      summary.imageBytes = attachment.imageBytes
+      if (attachment.mediaType) {
+        summary.attachmentMediaType = attachment.mediaType
+      }
+    }
+  } else if (output !== undefined && output !== null) {
+    summary.outputKind = typeof output
+    summary.outputBytes = Buffer.byteLength(String(output))
+  }
+  return summary
+}
+
+function extractAttachmentShape(
+  output: unknown
+): { imageCount: number; imageBytes: number; mediaType?: string } | null {
+  if (!isRecordLike(output)) return null
+  const candidate = (output as Record<string, unknown>).attachment
+  if (!isRecordLike(candidate)) return null
+  const source = (candidate as Record<string, unknown>).source
+  if (!isRecordLike(source)) return null
+  const type =
+    typeof (candidate as Record<string, unknown>).type === 'string'
+      ? ((candidate as Record<string, unknown>).type as string)
+      : ''
+  if (type !== 'image') return null
+  const mediaType =
+    typeof source.media_type === 'string' ? (source.media_type as string) : undefined
+  const data = typeof source.data === 'string' ? (source.data as string) : ''
+  return {
+    imageCount: 1,
+    imageBytes: data.length,
+    mediaType,
+  }
+}
+
+function buildCompletionSignal(input: {
+  status: AsyncCompletionSignal['status']
+  message?: string
+  data?: unknown
+}): AsyncCompletionSignal {
+  return {
+    status: input.status,
+    ...(input.message !== undefined ? { message: input.message } : {}),
+    ...(input.data !== undefined ? { data: input.data } : {}),
+  }
+}
+
+function publishTerminalToolConfirmation(input: {
+  toolCallId: string
+  status: AsyncCompletionEnvelope['status']
+  message?: string
+  data?: unknown
+}): void {
+  publishToolConfirmation({
+    toolCallId: input.toolCallId,
+    status: input.status,
+    message: input.message,
+    data: input.data,
+    timestamp: new Date().toISOString(),
+  })
+}
+
+function abortRequested(
+  context: StreamingContext,
+  execContext: ExecutionContext,
+  options?: OrchestratorOptions
+): boolean {
+  return Boolean(
+    options?.abortSignal?.aborted || execContext.abortSignal?.aborted || context.wasAborted
+  )
+}
+
+/**
+ * Tool classes whose legitimate runtime can far exceed the default watchdog:
+ * workflow executions, sandboxed code, media/image/audio generation, deep
+ * research, large downloads, knowledge-base indexing, and file-content
+ * producers (create/edit/materialize hit the E2B doc compile/recalc/render
+ * pipeline on doc-backed files). They get the long watchdog cap; everything
+ * else (read/glob/grep/metadata CRUD/...) must settle within the strict
+ * default or be failed so the run can continue.
+ */
+const LONG_RUNNING_TOOL_IDS: ReadonlySet<string> = new Set([
+  // Embedded CLI commands retain their own request budgets, including synchronous runs.
+  'sim_cli',
+  Run.id,
+  RunBlock.id,
+  RunFromBlock.id,
+  RunWorkflow.id,
+  RunWorkflowUntilBlock.id,
+  RunFunction.id,
+  RunCode.id,
+  GenerateImage.id,
+  GenerateAudio.id,
+  GenerateVideo.id,
+  Ffmpeg.id,
+  ApplyFileEdit.id,
+  PrepareFileEdit.id,
+])
+
+export function toolWatchdogTimeoutMs(toolName: string | undefined): number {
+  return toolName && (LONG_RUNNING_TOOL_IDS.has(toolName) || isMcpTool(toolName))
+    ? TOOL_WATCHDOG_LONG_RUNNING_MS
+    : TOOL_WATCHDOG_DEFAULT_MS
+}
+
+/**
+ * How long the resume gate may wait on one pending tool call. Permission
+ * prompts receive the long-running budget. Browser calls share the renderer's
+ * budget so authorization and native queueing cannot outlive the resume gate.
+ */
+export function pendingToolWaitBudgetMs(
+  toolCall:
+    | (Pick<ToolCallState, 'name' | 'status'> & Partial<Pick<ToolCallState, 'params' | 'execName'>>)
+    | undefined
+): number {
+  if (toolCall?.status === 'awaiting_approval') return TOOL_WATCHDOG_LONG_RUNNING_MS
+  const executableName = toolCall?.execName ?? toolCall?.name
+  if (executableName && isCurrentBrowserToolName(executableName)) {
+    return browserToolRendererTimeoutMs(executableName, toolCall?.params)
+  }
+  return toolWatchdogTimeoutMs(executableName)
+}
+
+/**
+ * Bare timeout/abort messages (AbortSignal.timeout's "The operation timed out.",
+ * a DOMException's "This operation was aborted") strip everything the model
+ * needs to reason about the failure. Name the tool, the elapsed time, and the
+ * honest uncertainty; leave every informative message untouched.
+ */
+export function enrichOpaqueToolError(
+  message: string,
+  toolName: string,
+  startTimeMs: number | undefined
+): string {
+  if (
+    !/^(the operation timed out\.?|this operation was aborted\.?|timeout|aborted)$/i.test(
+      message.trim()
+    )
+  ) {
+    return message
+  }
+  const elapsed = startTimeMs ? ` after ~${Math.round((Date.now() - startTimeMs) / 1000)}s` : ''
+  return (
+    `${toolName} timed out${elapsed} inside its handler ("${message}"). ` +
+    'The operation may or may not have landed — read the affected resource back before ' +
+    'retrying, and prefer a narrower invocation if this was a heavy call.'
+  )
+}
+
+class ToolExecutionTimeoutError extends Error {
+  constructor(toolName: string, timeoutMs: number) {
+    super(
+      `Tool '${toolName}' timed out after ${Math.round(timeoutMs / 1000)}s on the Sim executor. Cancellation was requested; completion is unconfirmed.`
+    )
+    this.name = 'ToolExecutionTimeoutError'
+  }
+}
+
+/** Builds the per-call context from the turn-scoped execution context. */
+export function buildToolExecutionContext(
+  toolCall: Pick<ToolCallState, 'id' | 'parentToolCallId' | 'params' | 'targetWorkspaceId'>,
+  execContext: ExecutionContext
+): ExecutionContext {
+  return {
+    ...execContext,
+    toolCallId: toolCall.id,
+    ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+    resolvedSecretTraceRegistry: execContext.resolvedSecretTraceRegistry?.forkForInputPaths([]),
+    ...(toolCall.parentToolCallId ? { parentToolCallId: toolCall.parentToolCallId } : {}),
+  }
+}
+
+/**
+ * Bounds the chat's wait and cancels this handler when its budget expires.
+ * A timeout is not proof that remote work has ended; the handler keeps owning
+ * cancellation cleanup after the model-facing result has been delivered.
+ */
+async function executeToolWithWatchdog(
+  toolCall: ToolCallState,
+  toolContext: ExecutionContext,
+  lifetime: ToolExecutionLifetime,
+  onEvent: OrchestratorOptions['onEvent']
+) {
+  // The frame's wire name can be a display identity (the worker's cli_* names);
+  // execution always dispatches on the model's real tool name.
+  const executableName = toolCall.execName ?? toolCall.name
+  const timeoutMs = toolWatchdogTimeoutMs(executableName)
+  const controller = new AbortController()
+  lifetime.signal.throwIfAborted()
+  const signal = AbortSignal.any([
+    controller.signal,
+    lifetime.signal,
+    ...(toolContext.abortSignal ? [toolContext.abortSignal] : []),
+  ])
+  const execute = () =>
+    withCopilotSpan(TraceSpan.CopilotToolRuntime, { [TraceAttr.ToolCallId]: toolCall.id }, () =>
+      withToolServiceMeter(toolContext, () =>
+        executeTool(executableName, toolCall.params || {}, {
+          ...toolContext,
+          abortSignal: signal,
+        })
+      )
+    )
+  const execution = lifetime.hold(
+    (executableName === RunCode.id || executableName === RunFunction.id) &&
+      lifetime.owner &&
+      toolContext.chatId &&
+      (toolContext.workspaceId || toolContext.organizationId)
+      ? withSandboxResourceScope(
+          {
+            ...lifetime.owner,
+            chatId: toolContext.chatId,
+            workspaceId: toolContext.workspaceId,
+            organizationId: toolContext.organizationId,
+          },
+          signal,
+          onEvent,
+          execute
+        )
+      : execute()
+  )
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let rejectOwnershipLoss: () => void = () => {}
+  const ownershipLost = new Promise<never>((_, reject) => {
+    rejectOwnershipLoss = () => reject(lifetime.signal.reason)
+    lifetime.signal.addEventListener('abort', rejectOwnershipLoss, { once: true })
+    if (lifetime.signal.aborted) rejectOwnershipLoss()
+  })
+  try {
+    return await Promise.race([
+      execution,
+      ownershipLost,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          const error = new ToolExecutionTimeoutError(toolCall.name, timeoutMs)
+          reject(error)
+          controller.abort(error)
+        }, timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+    lifetime.signal.removeEventListener('abort', rejectOwnershipLoss)
+    // Swallow the abandoned promise's eventual rejection so it can't surface
+    // as an unhandled rejection after a watchdog loss.
+    execution.catch(() => {})
+  }
+}
+
+const HUNG_TOOL_MESSAGE =
+  'Tool execution hung and was abandoned so the conversation could continue. Its outcome is unknown; do not retry it automatically.'
+const UNAVAILABLE_TOOL_SETTLEMENT_MESSAGE =
+  'The tool result could not be restored before the conversation resumed. Its outcome is unknown; do not retry it automatically.'
+
+/**
+ * Settles an abandoned tool with a fixed server-owned failure. Client waiters consume the same
+ * sealed transport as ordinary client completions; no abandoned tool content is certified.
+ * Execution ownership remains held while retained work cleans up.
+ */
+export async function failPendingToolCall(
+  toolCallId: string,
+  context: StreamingContext,
+  execContext: ExecutionContext,
+  failureMessage: string = HUNG_TOOL_MESSAGE
+): Promise<void> {
+  const toolCall = context.toolCalls.get(toolCallId)
+  if (!toolCall || toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) return
+
+  const failure = { error: failureMessage, outcomeUnknown: true, doNotRetry: true }
+  let durableData: unknown = failure
+  let completed = false
+  let lostSettlementRace = false
+  try {
+    if (context.runId && execContext.resolvedSecretTraceRegistry) {
+      const binding = { toolCallId, runId: context.runId, userId: execContext.userId }
+      const [completion, provenance] = await Promise.all([
+        sealClientToolCompletion({ ...binding, message: failureMessage, data: failure }),
+        sealClientToolContext({
+          ...binding,
+          registry: execContext.resolvedSecretTraceRegistry,
+          /** The fixed failure contains no output or arguments from the abandoned tool. */
+          toolInput: undefined,
+        }),
+      ])
+      durableData = { ...completion, ...provenance }
+    }
+    if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) return
+
+    completed = Boolean(
+      await completeAsyncToolCall({
+        toolCallId,
+        status: MothershipStreamV1AsyncToolRecordStatus.failed,
+        result: durableData,
+        error: failureMessage,
+      })
+    )
+    if (!completed) {
+      if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) return
+      lostSettlementRace = true
+    }
+  } catch (error) {
+    logger.warn('Failed to persist force-failed async tool status', {
+      toolCallId,
+      error: toError(error).message,
+    })
+    if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) return
+  }
+
+  /** A durable winner whose waiter is still hung must not become a fabricated local success. */
+  const message =
+    lostSettlementRace && failureMessage === HUNG_TOOL_MESSAGE
+      ? UNAVAILABLE_TOOL_SETTLEMENT_MESSAGE
+      : failureMessage
+  setTerminalToolCallState(toolCall, {
+    status: MothershipStreamV1ToolOutcome.error,
+    output: { ...failure, error: message },
+    error: message,
+  })
+  logger.error('Tool call failed', {
+    toolCallId,
+    toolName: toolCall.name,
+    persisted: completed,
+    lostSettlementRace,
+  })
+  markToolResultSeen(context, toolCallId)
+  if (completed) {
+    publishTerminalToolConfirmation({
+      toolCallId,
+      status: MothershipStreamV1ToolOutcome.error,
+      message: failureMessage,
+      data: durableData,
+    })
+  }
+}
+
+function cancelledCompletion(message: string): AsyncCompletionSignal {
+  return buildCompletionSignal({
+    status: MothershipStreamV1ToolOutcome.cancelled,
+    message,
+    data: { cancelled: true },
+  })
+}
+
+function terminalCompletionFromToolCall(toolCall: ToolCallState): AsyncCompletionSignal {
+  if (toolCall.status === MothershipStreamV1ToolOutcome.cancelled) {
+    return cancelledCompletion(requireToolCallError(toolCall))
+  }
+
+  if (toolCall.status === MothershipStreamV1ToolOutcome.success) {
+    // getToolCallTerminalData (not raw output) so the completion signal carries
+    // the model-facing/redacted result — keeps the sim_key out of every path
+    // that consumes a completion, matching the error branch below.
+    const data = getToolCallTerminalData(toolCall)
+    return buildCompletionSignal({
+      status: MothershipStreamV1ToolOutcome.success,
+      message: 'Tool completed',
+      ...(data !== undefined ? { data } : {}),
+    })
+  }
+
+  if (toolCall.status === MothershipStreamV1ToolOutcome.skipped) {
+    const data = getToolCallTerminalData(toolCall)
+    return buildCompletionSignal({
+      status: MothershipStreamV1ToolOutcome.success,
+      message: 'Tool skipped',
+      ...(data !== undefined ? { data } : {}),
+    })
+  }
+
+  const terminalErrorMessage = requireToolCallError(toolCall)
+  return buildCompletionSignal({
+    status: MothershipStreamV1ToolOutcome.error,
+    message: terminalErrorMessage,
+    data: getToolCallTerminalData(toolCall),
+  })
+}
+
+export async function executeToolAndReport(
+  toolCallId: string,
+  context: StreamingContext,
+  execContext: ExecutionContext,
+  options?: OrchestratorOptions
+): Promise<AsyncCompletionSignal> {
+  const toolCall = context.toolCalls.get(toolCallId)
+  if (!toolCall)
+    return buildCompletionSignal({
+      status: MothershipStreamV1ToolOutcome.error,
+      message: 'Tool call not found',
+    })
+
+  const argsPayload = toolCall.params
+    ? (() => {
+        try {
+          return JSON.stringify(toolCall.params)
+        } catch {
+          return undefined
+        }
+      })()
+    : undefined
+  return withCopilotToolSpan(
+    {
+      toolName: toolCall.name,
+      toolCallId: toolCall.id,
+      ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+      agentName: toolCall.agentId ?? 'main',
+      runId: context.runId,
+      chatId: execContext.chatId,
+      argsBytes: argsPayload?.length,
+      argsPreview: argsPayload?.slice(0, 200),
+    },
+    async (otelSpan) => {
+      const startedAt = Date.now()
+      try {
+        const completion = await withToolExecutionLifetime(toolCall.id, (lifetime) =>
+          executeToolAndReportInner(toolCall, context, execContext, lifetime, options)
+        )
+        const durationMs = Date.now() - startedAt
+        otelSpan.setAttribute(TraceAttr.ToolOutcome, completion.status)
+        otelSpan.setAttribute(TraceAttr.ToolDurationMs, durationMs)
+        if (completion.message) {
+          otelSpan.setAttribute(
+            TraceAttr.ToolOutcomeMessage,
+            String(completion.message).slice(0, 500)
+          )
+        }
+        // Durable Grafana signal for "which Sim tool is slowest" (executor=sim);
+        // pairs with the Go executor-boundary metric (U15) as one series set.
+        recordSimToolMetric(
+          toolCall.name,
+          toolCall.agentId ?? 'main',
+          completion.status,
+          durationMs
+        )
+        return completion
+      } catch (err) {
+        // executeToolAndReportInner threw (infra/unexpected error, not a normal
+        // 'error' completion). Still stamp the span + record the dispatch so
+        // copilot.tool.* isn't silently biased toward successful calls.
+        const durationMs = Date.now() - startedAt
+        otelSpan.setAttribute(TraceAttr.ToolOutcome, 'error')
+        otelSpan.setAttribute(TraceAttr.ToolDurationMs, durationMs)
+        recordSimToolMetric(
+          toolCall.name,
+          toolCall.agentId ?? 'main',
+          MothershipStreamV1ToolOutcome.error,
+          durationMs
+        )
+        if (err instanceof AsyncToolCallOwnershipError) throw err
+        const message = toError(err).message
+        const admissionFailure =
+          message === 'Tool could not start because its execution record is unavailable' ||
+          message === 'Tool could not start because execution admission could not be recorded'
+        await failPendingToolCall(
+          toolCall.id,
+          context,
+          execContext,
+          admissionFailure ? message : HUNG_TOOL_MESSAGE
+        )
+        return terminalCompletionFromToolCall(toolCall)
+      }
+    }
+  )
+}
+
+async function executeToolAndReportInner(
+  toolCall: ToolCallState,
+  context: StreamingContext,
+  execContext: ExecutionContext,
+  lifetime: ToolExecutionLifetime,
+  options?: OrchestratorOptions
+): Promise<AsyncCompletionSignal> {
+  if (toolCall.status === 'executing') {
+    return buildCompletionSignal({
+      status: MothershipStreamV1AsyncToolRecordStatus.running,
+      message: 'Tool already executing',
+    })
+  }
+  if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
+    return terminalCompletionFromToolCall(toolCall)
+  }
+
+  const markToolCallCancelled = (message: string) => {
+    setTerminalToolCallState(toolCall, {
+      status: MothershipStreamV1ToolOutcome.cancelled,
+      error: message,
+    })
+  }
+  const toolCallWasCancelled = () => toolCall.status === MothershipStreamV1ToolOutcome.cancelled
+
+  // Loads the handler map on first use; the abort check below covers that wait.
+  await ensureHandlersRegistered()
+  if (abortRequested(context, execContext, options)) {
+    return settleCancelled('Request aborted before tool execution')
+  }
+
+  toolCall.status = 'executing'
+  await upsertAsyncToolCall({
+    runId: context.runId,
+    toolCallId: toolCall.id,
+    ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+    toolName: toolCall.name,
+    args: toolCall.params,
+  }).catch((err) => {
+    if (err instanceof AsyncToolCallOwnershipError) throw err
+    throw new Error('Tool could not start because its execution record is unavailable')
+  })
+  if (context.runId) {
+    const claim = await lifetime.claim(context.runId, execContext.userId)
+    if (claim.outcome === 'closed') return settleCancelled('Run stopped before tool admission')
+    if (claim.outcome === 'existing') {
+      /** The winning controller owns execution; this promise observes its durable result. */
+      const completion = await waitForToolConfirmation(
+        toolCall.id,
+        pendingToolWaitBudgetMs(toolCall),
+        options?.abortSignal ?? execContext.abortSignal,
+        {
+          executionScope: { runId: context.runId, userId: execContext.userId },
+          acceptStatus: (status) =>
+            status === 'success' || status === 'error' || status === 'cancelled',
+        }
+      )
+      if (
+        !completion ||
+        (completion.status !== 'success' &&
+          completion.status !== 'error' &&
+          completion.status !== 'cancelled')
+      )
+        return buildCompletionSignal({
+          status: 'running',
+          message: 'Existing tool execution has no confirmed result',
+        })
+      setTerminalToolCallState(toolCall, {
+        status: completion.status,
+        ...(completion.data !== null && completion.data !== undefined
+          ? { output: completion.data }
+          : {}),
+        ...(completion.status === 'success'
+          ? {}
+          : {
+              error:
+                completion.message ||
+                (completion.status === 'cancelled' ? 'Tool cancelled' : 'Tool failed'),
+            }),
+      })
+      return terminalCompletionFromToolCall(toolCall)
+    }
+  } else {
+    /** A chatless one-shot has no persisted run and cannot be certified by the chat Stop API. */
+    await markAsyncToolRunning(toolCall.id, 'sim-stream')
+  }
+
+  if (toolCallWasCancelled()) return settleCancelled(toolCall.error || 'Stopped by user')
+  if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
+    return terminalCompletionFromToolCall(toolCall)
+  }
+
+  const argsPreview = toolCall.params ? JSON.stringify(toolCall.params).slice(0, 200) : undefined
+  const toolSpan = context.trace.startSpan(toolCall.name, 'tool.execute', {
+    toolCallId: toolCall.id,
+    ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+    toolName: toolCall.name,
+    argsPreview,
+    abortSignalAborted: execContext.abortSignal?.aborted ?? false,
+  })
+
+  /**
+   * The one cancel-settlement path: mark, ack the async record, publish the terminal
+   * confirmation, optionally close the span. This block was copy-pasted six times with
+   * only the message/cancelReason varying — and a seventh copy would inevitably drift.
+   */
+  // Hoisted declaration: the pre-execution abort check calls this before endToolSpan's
+  // const is assigned — safe because that path passes no span, so the reference is
+  // never evaluated (and the span does not exist yet there anyway).
+  async function settleCancelled(
+    message: string,
+    span?: { cancelReason: string; error?: string | undefined }
+  ): Promise<AsyncCompletionSignal> {
+    markToolCallCancelled(message)
+    const cancellationResult = toolCall.result
+    markToolResultSeen(context, toolCall.id)
+    await lifetime.complete({
+      toolCallId: toolCall.id,
+      ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+      status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
+      result: { cancelled: true },
+      error: message,
+    })
+    if (toolCall.result !== cancellationResult) {
+      return terminalCompletionFromToolCall(toolCall)
+    }
+    publishTerminalToolConfirmation({
+      toolCallId: toolCall.id,
+      ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+      status: MothershipStreamV1ToolOutcome.cancelled,
+      message,
+      data: { cancelled: true },
+    })
+    if (span) endToolSpan('cancelled', span)
+    return cancelledCompletion(message)
+  }
+
+  const endToolSpan = (
+    status: string,
+    detail?: { error?: string; cancelReason?: string; resultSuccess?: boolean }
+  ) => {
+    const abortDetail: Record<string, unknown> = {}
+    if (execContext.abortSignal?.aborted) {
+      abortDetail.abortSignalAborted = true
+      abortDetail.abortReason = String(execContext.abortSignal.reason ?? 'unknown')
+    }
+    if (options?.abortSignal?.aborted) {
+      abortDetail.optionsAbortReason = String(options.abortSignal.reason ?? 'unknown')
+    }
+    if (context.wasAborted) {
+      abortDetail.wasAborted = true
+    }
+    toolSpan.attributes = { ...toolSpan.attributes, ...abortDetail, ...detail }
+    context.trace.endSpan(toolSpan, status)
+  }
+  const endToolSpanFromTerminalState = () => {
+    const terminalStatus =
+      toolCall.status === MothershipStreamV1ToolOutcome.cancelled
+        ? 'cancelled'
+        : toolCall.status === MothershipStreamV1ToolOutcome.success ||
+            toolCall.status === MothershipStreamV1ToolOutcome.skipped
+          ? 'ok'
+          : 'error'
+    endToolSpan(terminalStatus, {
+      resultSuccess: toolCall.status === MothershipStreamV1ToolOutcome.success,
+      ...(toolCall.error ? { error: toolCall.error } : {}),
+    })
+  }
+
+  logger.info('Tool execution started', {
+    toolCallId: toolCall.id,
+    ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+    toolName: toolCall.name,
+  })
+
+  const toolExecutionContext = buildToolExecutionContext(toolCall, execContext)
+  toolExecutionContext.abortSignal = AbortSignal.any([
+    lifetime.signal,
+    ...(toolExecutionContext.abortSignal ? [toolExecutionContext.abortSignal] : []),
+  ])
+  let toolRegistryMerged = false
+  const mergeToolRegistry = (projectionSafe: boolean) => {
+    if (!projectionSafe || toolRegistryMerged) return
+    const toolRegistry = toolExecutionContext.resolvedSecretTraceRegistry
+    if (!toolRegistry?.isComplete()) return
+    toolRegistryMerged = true
+    const parentRegistry = execContext.resolvedSecretTraceRegistry
+    if (parentRegistry && toolRegistry) parentRegistry.mergeToolCallRegistry(toolRegistry)
+  }
+
+  let committedCompletion: AsyncCompletionSignal
+  let publishResult: () => Promise<void>
+  async function commitToolResult(input: CompleteAsyncToolCallInput): Promise<void> {
+    const candidate = toolCall.result
+    try {
+      await lifetime.complete(input)
+    } catch {
+      /** A provisional local result is not a durable receipt; preserve only a competing winner. */
+      if (toolCall.result !== candidate) return
+      const message =
+        'The tool result could not be committed. Its outcome is unknown; do not retry it automatically.'
+      setTerminalToolCallState(toolCall, {
+        status: MothershipStreamV1ToolOutcome.error,
+        error: message,
+        output: { error: message, outcomeUnknown: true, doNotRetry: true },
+      })
+      logger.warn('Tool result commit was not confirmed', { toolCallId: toolCall.id })
+    }
+  }
+  try {
+    let result = await executeToolWithWatchdog(
+      toolCall,
+      toolExecutionContext,
+      lifetime,
+      options?.onEvent
+    )
+    if (toolCallWasCancelled()) {
+      return settleCancelled(toolCall.error || 'Stopped by user', {
+        cancelReason: 'abort_during_execution',
+      })
+    }
+    if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
+      endToolSpanFromTerminalState()
+      return terminalCompletionFromToolCall(toolCall)
+    }
+    if (abortRequested(context, execContext, options)) {
+      const copilotResult = inspectToolResultForCopilot(
+        result,
+        toolExecutionContext.resolvedSecretTraceRegistry,
+        toolCall.name
+      ).result
+      return settleCancelled('Request aborted during tool execution', {
+        cancelReason: 'abort_during_execution',
+        error: copilotResult.success === false ? copilotResult.error : undefined,
+      })
+    }
+    result = await maybeWriteOutputToFile(
+      toolCall.name,
+      toolCall.params,
+      result,
+      toolExecutionContext
+    )
+    if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
+      endToolSpanFromTerminalState()
+      return terminalCompletionFromToolCall(toolCall)
+    }
+    if (abortRequested(context, execContext, options)) {
+      return settleCancelled('Request aborted during tool post-processing', {
+        cancelReason: 'abort_during_post_processing_file',
+      })
+    }
+    result = await maybeWriteOutputToTable(
+      toolCall.name,
+      toolCall.params,
+      result,
+      toolExecutionContext
+    )
+    if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
+      endToolSpanFromTerminalState()
+      return terminalCompletionFromToolCall(toolCall)
+    }
+    if (abortRequested(context, execContext, options)) {
+      return settleCancelled('Request aborted during tool post-processing', {
+        cancelReason: 'abort_during_post_processing_table',
+      })
+    }
+    result = await maybeWriteReadCsvToTable(
+      toolCall.name,
+      toolCall.params,
+      result,
+      toolExecutionContext
+    )
+    if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
+      endToolSpanFromTerminalState()
+      return terminalCompletionFromToolCall(toolCall)
+    }
+    if (abortRequested(context, execContext, options)) {
+      return settleCancelled('Request aborted during tool post-processing', {
+        cancelReason: 'abort_during_post_processing_csv',
+      })
+    }
+    const projection = inspectToolResultForCopilot(
+      result,
+      toolExecutionContext.resolvedSecretTraceRegistry,
+      toolCall.name
+    )
+    const copilotResult = projection.result
+    mergeToolRegistry(projection.safe)
+    const modelSucceeded = copilotResult.success
+
+    toolSpan.attributes = {
+      ...toolSpan.attributes,
+      ...summarizeToolResultForSpan(copilotResult),
+      ...(projection.safe
+        ? {}
+        : { resultWithheld: true, ...describeWithholdingCause(projection.cause) }),
+    }
+    if (!projection.safe) {
+      // A withheld SUCCESS otherwise leaves no trace anywhere: the span reads
+      // ok and the model just sees a bare `{success: true}` with no output.
+      // The cause is what says whether a guard latched, no catalog was built,
+      // or the payload itself was unprojectable — three different fixes.
+      logger.warn('Tool result withheld by egress projection', {
+        toolCallId: toolCall.id,
+        ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+        toolName: toolCall.name,
+        runtimeSucceeded: result.success,
+        ...describeWithholdingCause(projection.cause),
+      })
+    }
+
+    setTerminalToolCallState(toolCall, {
+      status: copilotResult.success
+        ? MothershipStreamV1ToolOutcome.success
+        : MothershipStreamV1ToolOutcome.error,
+      ...(hasOutputValue(copilotResult) ? { output: copilotResult.output } : {}),
+      ...(copilotResult.success ? {} : { error: copilotResult.error || 'Tool failed' }),
+    })
+
+    if (modelSucceeded) {
+      // Log the model-facing (redacted) view, not result.output — for
+      // generate_api_key the raw output carries the plaintext key, which must
+      // never reach application logs.
+      const raw = getToolCallTerminalData(toolCall)
+      const preview =
+        typeof raw === 'string'
+          ? raw.slice(0, 200)
+          : raw && typeof raw === 'object'
+            ? JSON.stringify(raw).slice(0, 200)
+            : undefined
+      logger.info('Tool execution succeeded', {
+        toolCallId: toolCall.id,
+        ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+        toolName: toolCall.name,
+        outputPreview: preview,
+      })
+    } else {
+      logger.warn('Tool execution failed', {
+        toolCallId: toolCall.id,
+        ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+        toolName: toolCall.name,
+        error: copilotResult.error,
+        params: toolCall.params,
+        runtimeSucceeded: result.success,
+      })
+    }
+
+    if (toolCall.name === CreateWorkflow.id && result.success) {
+      applyCreateWorkflowOutputToContext(result.output, execContext)
+    }
+
+    const terminalStatus = modelSucceeded
+      ? MothershipStreamV1ToolOutcome.success
+      : MothershipStreamV1ToolOutcome.error
+    const terminalMessage = modelSucceeded ? 'Tool completed' : requireToolCallError(toolCall)
+    const terminalData = getToolCallTerminalData(toolCall)
+    const terminalResult = toolCall.result
+
+    markToolResultSeen(context, toolCall.id)
+    await commitToolResult({
+      toolCallId: toolCall.id,
+      ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+      status: modelSucceeded
+        ? MothershipStreamV1AsyncToolRecordStatus.completed
+        : MothershipStreamV1AsyncToolRecordStatus.failed,
+      ...(terminalData !== undefined ? { result: terminalData } : {}),
+      error: modelSucceeded ? null : terminalMessage,
+    })
+    if (toolCall.result !== terminalResult) {
+      endToolSpanFromTerminalState()
+      return terminalCompletionFromToolCall(toolCall)
+    }
+    committedCompletion = buildCompletionSignal({
+      status: terminalStatus,
+      message: terminalMessage,
+      ...(terminalData !== undefined ? { data: terminalData } : {}),
+    })
+    publishResult = async () => {
+      publishTerminalToolConfirmation({
+        toolCallId: toolCall.id,
+        ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+        status: terminalStatus,
+        message: terminalMessage,
+        ...(terminalData !== undefined ? { data: terminalData } : {}),
+      })
+
+      if (abortRequested(context, execContext, options)) {
+        return
+      }
+
+      // A newly generated API key is intentionally included only in this
+      // live/replay client event. Model-facing results and long-term chat records stay redacted.
+      const clientEventOutput =
+        toolCall.name === GenerateApiKey.id && modelSucceeded && hasOutputValue(copilotResult)
+          ? copilotResult.output
+          : toolStatusOutput(terminalData)
+      const resultEvent: StreamEvent = {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: toolCall.id,
+          ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+          toolName: toolCall.name,
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.result,
+          success: modelSucceeded,
+          output: clientEventOutput,
+          ...(modelSucceeded
+            ? { status: MothershipStreamV1ToolOutcome.success }
+            : { status: MothershipStreamV1ToolOutcome.error, error: terminalMessage }),
+        },
+      }
+      await options?.onEvent?.(resultEvent)
+
+      if (abortRequested(context, execContext, options)) {
+        return
+      }
+
+      if (result.success && execContext.chatId && !abortRequested(context, execContext, options)) {
+        await handleResourceSideEffects(
+          toolCall.name,
+          toolCall.params,
+          result,
+          copilotResult,
+          execContext.chatId,
+          options?.onEvent,
+          () => abortRequested(context, execContext, options),
+          toolCall.targetWorkspaceId ?? execContext.workspaceId,
+          execContext.userId
+        )
+      }
+    }
+  } catch (error) {
+    if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
+      endToolSpanFromTerminalState()
+      return terminalCompletionFromToolCall(toolCall)
+    }
+    const thrownMessage = enrichOpaqueToolError(
+      toError(error).message,
+      toolCall.name,
+      toolCall.startTime
+    )
+    const projection = inspectToolResultForCopilot(
+      { success: false, error: thrownMessage },
+      toolExecutionContext.resolvedSecretTraceRegistry,
+      toolCall.name
+    )
+    const copilotError = projection.result
+    mergeToolRegistry(projection.safe)
+    const safeThrownMessage = copilotError.error || 'Tool failed'
+    if (abortRequested(context, execContext, options)) {
+      return settleCancelled('Request aborted during tool execution', {
+        cancelReason: 'abort_during_execution_catch',
+        error: safeThrownMessage,
+      })
+    }
+    setTerminalToolCallState(toolCall, {
+      status: MothershipStreamV1ToolOutcome.error,
+      error: safeThrownMessage,
+    })
+
+    const terminalErrorResult = toolCall.result
+    logger.error('Tool execution threw', {
+      toolCallId: toolCall.id,
+      ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+      toolName: toolCall.name,
+      error: toolCall.error,
+      params: toolCall.params,
+    })
+
+    markToolResultSeen(context, toolCall.id)
+    await commitToolResult({
+      toolCallId: toolCall.id,
+      ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+      status: MothershipStreamV1AsyncToolRecordStatus.failed,
+      result: { error: toolCall.error },
+      error: toolCall.error,
+    })
+    if (toolCall.result !== terminalErrorResult) {
+      endToolSpanFromTerminalState()
+      return terminalCompletionFromToolCall(toolCall)
+    }
+    committedCompletion = buildCompletionSignal({
+      status: MothershipStreamV1ToolOutcome.error,
+      message: toolCall.error,
+      data: { error: toolCall.error },
+    })
+    publishResult = async () => {
+      publishTerminalToolConfirmation({
+        toolCallId: toolCall.id,
+        ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+        status: MothershipStreamV1ToolOutcome.error,
+        message: toolCall.error,
+        data: { error: toolCall.error },
+      })
+
+      const errorEvent: StreamEvent = {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: toolCall.id,
+          ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+          toolName: toolCall.name,
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.result,
+          status: MothershipStreamV1ToolOutcome.error,
+          success: false,
+          error: toolCall.error,
+          output: { error: toolCall.error },
+        },
+      }
+      await options?.onEvent?.(errorEvent)
+    }
+  }
+
+  /** The durable result is final. Presentation failures cannot turn performed work into a retry. */
+  try {
+    await publishResult()
+  } catch (error) {
+    logger.warn('Committed tool result could not be published to the stream', {
+      toolCallId: toolCall.id,
+      ...(toolCall.targetWorkspaceId ? { targetWorkspaceId: toolCall.targetWorkspaceId } : {}),
+      error: toError(error).message,
+    })
+  }
+  endToolSpan(committedCompletion.status === 'success' ? 'ok' : 'error', {
+    resultSuccess: committedCompletion.status === 'success',
+    ...(committedCompletion.status === 'error' ? { error: committedCompletion.message } : {}),
+  })
+  return committedCompletion
+}

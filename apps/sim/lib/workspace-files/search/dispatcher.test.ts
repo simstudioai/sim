@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   batchTrigger: vi.fn(),
   info: vi.fn(),
+  warn: vi.fn(),
   error: vi.fn(),
 }))
 
@@ -25,7 +26,9 @@ vi.mock('@sim/db/schema', async () => ({
   },
 }))
 
-vi.mock('@sim/logger', () => ({ createLogger: () => ({ info: mocks.info, error: mocks.error }) }))
+vi.mock('@sim/logger', () => ({
+  createLogger: () => ({ info: mocks.info, warn: mocks.warn, error: mocks.error }),
+}))
 vi.mock('@/lib/workspace-files/search/index-state', () => ({
   cleanupFileSearchBuilds: vi.fn().mockResolvedValue(0),
 }))
@@ -37,6 +40,7 @@ vi.mock('@/lib/workspace-files/search/indexing', () => ({
   markWorkspaceFileSearchIndexFailed: vi.fn(),
 }))
 
+import { FILE_SEARCH_DISPATCH_HANDOFF_MS } from '@/lib/workspace-files/search/constants'
 import {
   buildWorkspaceFileSearchTriggerItems,
   dispatchWorkspaceFileSearchIndexJobs,
@@ -85,6 +89,7 @@ describe('workspace file search dispatch deadlines', () => {
       payloads: [],
       backfilledFiles: 0,
       reapedClaims: 0,
+      abandonedClaims: 0,
       lockAcquired: false,
     })
 
@@ -196,16 +201,116 @@ describe('workspace file search dispatch deadlines', () => {
         })
       } else {
         await expect(dispatchWorkspaceFileSearchIndexJobs()).rejects.toBe(error)
-        expect(dbChainMockFns.set).toHaveBeenCalledWith(
-          expect.objectContaining({ dispatchedAt: null })
+        const release = dbChainMockFns.set.mock.calls.findLastIndex(
+          ([values]) => 'dispatchedAt' in values
+        )
+        expect(dbChainMockFns.set.mock.calls[release][0]).toMatchObject({
+          dispatchedAt: null,
+          handoffExpiresAt: null,
+        })
+        expect(dbChainMockFns.set.mock.invocationCallOrder[release]).toBeGreaterThan(
+          mocks.batchTrigger.mock.invocationCallOrder[0]
         )
       }
+      expect(dbChainMockFns.set).not.toHaveBeenCalledWith({ handoffExpiresAt: null })
 
       expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(2)
       const guards = dbChainMockFns.execute.mock.calls.filter(([query]) =>
         JSON.stringify(query).includes('statement_timeout')
       )
       expect(guards).toHaveLength(1)
+    }
+  )
+
+  it('reports claims released for a lapsed handoff once the release commits', async () => {
+    queueTableRows(workspaceFileSearchBackfill, [{ completedAt: new Date() }])
+    queueTableRows(workspaceFileSearchRevision, [
+      {
+        workspaceId: 'workspace-1',
+        fileId: 'file-1',
+        sourceContentUpdatedAt: new Date('2026-09-16T00:00:00Z'),
+        currentFileId: 'file-1',
+        handoffExpired: true,
+      },
+      {
+        workspaceId: 'workspace-1',
+        fileId: 'file-2',
+        sourceContentUpdatedAt: new Date('2026-09-16T00:00:00Z'),
+        currentFileId: 'file-2',
+        handoffExpired: false,
+      },
+    ])
+    dbChainMockFns.execute
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ acquired: true }])
+      .mockResolvedValueOnce([{ active: 100 }])
+
+    await expect(dispatchWorkspaceFileSearchIndexJobs()).resolves.toMatchObject({
+      reapedClaims: 2,
+      abandonedClaims: 1,
+      dispatchedFiles: 0,
+    })
+
+    expect(mocks.warn).toHaveBeenCalledWith(
+      'Released workspace file search claims with no run known to exist',
+      { claims: 1 }
+    )
+    expect(mocks.warn.mock.invocationCallOrder[0]).toBeGreaterThan(
+      dbChainMockFns.transaction.mock.invocationCallOrder[0]
+    )
+  })
+
+  it.each([false, true])(
+    'records the handoff only after Trigger.dev accepts the runs (write fails: %s)',
+    async (handoffFails) => {
+      queueTableRows(workspaceFileSearchBackfill, [{ completedAt: new Date() }])
+      queueTableRows(workspaceFileSearchRevision, [])
+      queueTableRows(workspaceFileSearchDispatchQueue, [{ workspaceId: 'workspace-1' }])
+      dbChainMockFns.execute
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ acquired: true }])
+        .mockResolvedValueOnce([{ active: 0 }])
+        .mockResolvedValueOnce([
+          {
+            workspaceId: 'workspace-1',
+            fileId: 'file-1',
+            sourceContentUpdatedAt: new Date('2026-09-16T00:00:00Z'),
+          },
+        ])
+      mocks.batchTrigger.mockResolvedValueOnce({ batchId: 'batch-1' })
+      if (handoffFails) {
+        dbChainMockFns.set.mockImplementation((values: Record<string, unknown>) => {
+          if ('handoffExpiresAt' in values && !('dispatchedAt' in values)) {
+            return { where: () => Promise.reject(new Error('handoff write failed')) }
+          }
+          return { where: () => Promise.resolve([]) }
+        })
+      }
+
+      await expect(dispatchWorkspaceFileSearchIndexJobs()).resolves.toMatchObject({
+        dispatchedFiles: 1,
+      })
+
+      const claim = JSON.stringify(dbChainMockFns.execute.mock.calls[3][0])
+      expect(claim).toContain('handoff_expires_at = clock_timestamp() + ')
+      expect(claim).toContain(`${FILE_SEARCH_DISPATCH_HANDOFF_MS}`)
+      const handoff = dbChainMockFns.set.mock.calls.findIndex(
+        ([values]) => JSON.stringify(values) === JSON.stringify({ handoffExpiresAt: null })
+      )
+      expect(handoff).toBeGreaterThanOrEqual(0)
+      expect(mocks.batchTrigger.mock.invocationCallOrder[0]).toBeLessThan(
+        dbChainMockFns.set.mock.invocationCallOrder[handoff]
+      )
+      expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(2)
+      expect(mocks.info).not.toHaveBeenCalledWith('Workspace file search dispatch phase started', {
+        phase: 'release-claims',
+      })
+      if (handoffFails) {
+        expect(mocks.error).toHaveBeenCalledWith(
+          'Workspace file search dispatch phase failed',
+          expect.objectContaining({ phase: 'handoff', error: 'handoff write failed' })
+        )
+      }
     }
   )
 })

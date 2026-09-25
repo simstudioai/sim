@@ -24,29 +24,37 @@ import { getDocumentIcon } from '@/components/icons/document-icons'
 import { getDocumentIndexingStatus } from '@/lib/knowledge/documents/types'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { formatTokenCount } from '@/lib/tokenization'
-import type {
-  BreadcrumbItem,
-  FilterTag,
-  PaginationConfig,
-  ResourceAction,
-  ResourceColumn,
-  ResourceRow,
-  SearchConfig,
-  SelectableConfig,
-  SortConfig,
-} from '@/app/workspace/[workspaceId]/components'
-import {
-  EMPTY_CELL_PLACEHOLDER,
-  Resource,
-  ResourceNotFound,
-  SearchHighlight,
-} from '@/app/workspace/[workspaceId]/components'
 import {
   FOLDERED_RESOURCE_HEADERS,
   folderBreadcrumbItems,
   folderedResourceListHref,
   useFolderAncestors,
 } from '@/app/workspace/[workspaceId]/components/folders'
+import type {
+  BreadcrumbItem,
+  ResourceAction,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
+import type {
+  FilterTag,
+  SearchConfig,
+  SortConfig,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import {
+  ResourceFilterPanel,
+  ResourceFilterSection,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import type {
+  PaginationConfig,
+  ResourceColumn,
+  ResourceRow,
+  SelectableConfig,
+} from '@/app/workspace/[workspaceId]/components/resource/resource'
+import {
+  EMPTY_CELL_PLACEHOLDER,
+  Resource,
+} from '@/app/workspace/[workspaceId]/components/resource/resource'
+import { ResourceNotFound } from '@/app/workspace/[workspaceId]/components/resource/resource-not-found'
+import { SearchHighlight } from '@/app/workspace/[workspaceId]/components/search-highlight/search-highlight'
 import {
   ChunkContextMenu,
   ChunkEditor,
@@ -733,9 +741,11 @@ export function Document({
 
   const filterContent = useMemo(
     () => (
-      <div className='flex w-[240px] flex-col gap-3 p-3'>
-        <div className='flex flex-col gap-1.5'>
-          <span className='text-[var(--text-secondary)] text-caption'>Status</span>
+      <ResourceFilterPanel>
+        <ResourceFilterSection
+          label='Status'
+          labelClassName='text-[var(--text-secondary)] text-caption'
+        >
           <ChipCombobox
             options={[
               { value: 'enabled', label: 'Enabled' },
@@ -753,7 +763,7 @@ export function Document({
             allOptionLabel='All'
             className='w-full'
           />
-        </div>
+        </ResourceFilterSection>
         {enabledFilter.length > 0 && (
           <button
             type='button'
@@ -766,7 +776,7 @@ export function Document({
             Clear all filters
           </button>
         )}
-      </div>
+      </ResourceFilterPanel>
     ),
     [enabledFilter, setEnabledFilter]
   )

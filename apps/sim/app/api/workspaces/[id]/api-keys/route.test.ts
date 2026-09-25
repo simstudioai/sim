@@ -30,6 +30,21 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   getWorkspaceById: mockGetWorkspaceById,
 }))
 
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  loadActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
+    workspaceId,
+    workspaceOrganizationId: 'org',
+    allowPersonalApiKeys: true,
+    billedAccountUserId: 'billing',
+  }),
+}))
+vi.mock('@sim/platform-authz/workspace', () => ({
+  resolveEffectiveWorkspacePermission: (...args: unknown[]) =>
+    mockGetUserEntityPermissions(...args),
+  permissionSatisfies: (actual: string, required: string) =>
+    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
+}))
+
 import { GET } from '@/app/api/workspaces/[id]/api-keys/route'
 
 const mockGetSession = authMockFns.mockGetSession
@@ -38,7 +53,7 @@ describe('GET /api/workspaces/[id]/api-keys', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
-    mockGetSession.mockResolvedValue({ user: { id: 'reader-1' } })
+    mockGetSession.mockResolvedValue({ user: { id: 'reader-1' }, session: { id: 'session' } })
     mockGetWorkspaceById.mockResolvedValue({ id: 'workspace-1' })
     mockGetUserEntityPermissions.mockResolvedValue('read')
     mockGetApiKeyDisplayFormat.mockResolvedValue('sim_••••legacy')

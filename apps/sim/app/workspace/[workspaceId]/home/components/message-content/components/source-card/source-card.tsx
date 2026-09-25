@@ -1,41 +1,39 @@
 'use client'
 
-import { type ReactNode, useState } from 'react'
-import { Button, chipIconSlotClass, cn, OverflowText, Tooltip } from '@sim/emcn'
-import { Check, Link as LinkIcon } from '@sim/emcn/icons'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
+import type { ReactNode } from 'react'
+import {
+  Chip,
+  chipHoverSurfaceClass,
+  chipIconSlotClass,
+  chipRadiusClass,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  OverflowText,
+  toast,
+  useCopyToClipboard,
+} from '@sim/emcn'
+import { Check, Link as LinkIcon, MoreHorizontal, Sparkles } from '@sim/emcn/icons'
 import { formatDate } from '@sim/utils/formatting'
-import { faviconUrl } from '@/lib/core/utils/favicon'
 import { findTermMatches, queryTerms } from '@/lib/knowledge/search/snippet'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 import {
-  externalLinkHostname,
-  handleExternalLinkClick,
-  hideBrokenFavicon,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/external-link'
-import {
-  BRAND_ICON_BY_BASE_TYPE,
+  SourceIcon,
   sourceLabel,
   sourceSiteName,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'
+import { handleExternalLinkClick } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import { BrandIcon } from '@/blocks/brand-icon'
 
-const logger = createLogger('SourceCard')
-
-/** How long the copied state shows on the copy-link action. */
-const COPIED_FEEDBACK_MS = 1_500
-
-/**
- * The row every source card and its linkless sibling share: the chat surface's
- * row rhythm, a hairline between adjacent rows, and the surface fill on hover
- * or focus, so a list of results reads like the lists around the composer.
- */
-export const SOURCE_ROW_CLASSES =
-  'group/source not-prose flex items-start gap-2 border-[var(--border)] px-2 py-2 transition-colors focus-within:bg-[var(--surface-5)] hover-hover:bg-[var(--surface-5)] [&+&]:border-t'
-
-/** The 16px mark slot, nudged to centre on the title's first line. */
-export const SOURCE_ROW_MARK_CLASSES = cn(chipIconSlotClass, 'mt-[3px]')
+const SOURCE_ROW_CLASSES = cn(
+  'not-prose flex items-start gap-2 px-2 py-2 transition-colors focus-within:bg-[var(--surface-hover)]',
+  chipHoverSurfaceClass,
+  chipRadiusClass,
+  inter.className
+)
+const SOURCE_ROW_MARK_CLASSES = cn(chipIconSlotClass, 'mt-0.5')
 
 /**
  * The snippet with every query term in bold, so the reader sees why the
@@ -66,43 +64,38 @@ function parseUpdatedAt(value: string | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-interface CopyLinkActionProps {
-  url: string
+interface SourceActionsProps {
+  source: SourceTagData
+  onSummarize?: (source: SourceTagData) => void
 }
 
-/**
- * Copies the document's link; confirms with a check for a moment. The check
- * only shows once the clipboard accepted the write: a page denied clipboard
- * access is left at "Copy link" rather than claiming a copy that never landed.
- */
-function CopyLinkAction({ url }: CopyLinkActionProps) {
-  const [copied, setCopied] = useState(false)
+function SourceActions({ source, onSummarize }: SourceActionsProps) {
+  const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
   return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>
-        <Button
-          variant='ghost'
-          size='icon'
-          aria-label='Copy link'
-          onClick={() => {
-            navigator.clipboard.writeText(url).then(
-              () => {
-                setCopied(true)
-                window.setTimeout(() => setCopied(false), COPIED_FEEDBACK_MS)
-              },
-              (error: unknown) => {
-                logger.warn('Copying the document link failed', {
-                  error: getErrorMessage(error),
-                })
-              }
-            )
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Chip
+          leftIcon={copied ? Check : MoreHorizontal}
+          aria-label={copied ? 'Link copied' : `Actions for ${sourceLabel(source)}`}
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align='end'>
+        {onSummarize && (
+          <DropdownMenuItem onSelect={() => onSummarize(source)}>
+            <Sparkles className='size-[14px]' />
+            Summarize
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem
+          onSelect={async () => {
+            if (!(await copy(source.url))) toast.error('Unable to copy link')
           }}
         >
-          {copied ? <Check className='size-[14px]' /> : <LinkIcon className='size-[14px]' />}
-        </Button>
-      </Tooltip.Trigger>
-      <Tooltip.Content side='top'>{copied ? 'Copied' : 'Copy link'}</Tooltip.Content>
-    </Tooltip.Root>
+          <LinkIcon className='size-[14px]' />
+          Copy link
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -119,19 +112,8 @@ interface SourceCardProps {
   dense?: boolean
 }
 
-/**
- * One document a search found, laid out to be scanned: the source's brand
- * mark or favicon, the title as a link back to the document, where it lives,
- * who it is from, and when it last changed, and the passage that matched with
- * the query terms in bold. Actions stay out of the way until the row is
- * hovered or its title focused. The same row serves the composer's search
- * results and, in its dense form, the footer of a reply that cited sources.
- */
+/** Source results share the same document identity and actions across search and cited evidence. */
 export function SourceCard({ source, query, onSummarize, dense = false }: SourceCardProps) {
-  const hostname = externalLinkHostname(source.url)
-  const ConnectorIcon = source.connectorType
-    ? BRAND_ICON_BY_BASE_TYPE.get(source.connectorType)
-    : undefined
   const updatedAt = parseUpdatedAt(source.updatedAt)
   const meta = [
     sourceSiteName(source),
@@ -139,33 +121,19 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
     updatedAt ? formatDate(updatedAt) : null,
   ].filter((part): part is string => Boolean(part))
 
-  const mark = ConnectorIcon ? (
-    <BrandIcon icon={ConnectorIcon} className='size-[16px]' />
-  ) : hostname ? (
-    <img
-      src={faviconUrl(hostname, 32)}
-      alt=''
-      className='size-[16px] rounded-[3px]'
-      onError={hideBrokenFavicon}
-    />
-  ) : null
-
   if (dense) {
     return (
-      <div
-        className={cn(
-          SOURCE_ROW_CLASSES,
-          'items-center py-1 focus-within:bg-[var(--surface-hover)] hover-hover:bg-[var(--surface-hover)]'
-        )}
-      >
-        <span className={chipIconSlotClass}>{mark}</span>
+      <div className={cn(SOURCE_ROW_CLASSES, 'items-center py-1')}>
+        <span className={chipIconSlotClass}>
+          <SourceIcon source={source} />
+        </span>
         <a
           href={source.url}
           target='_blank'
           rel='noopener noreferrer'
           data-source-link=''
           onClick={(event) => handleExternalLinkClick(event, source.url)}
-          className='min-w-0 flex-1 text-[var(--text-primary)] text-sm no-underline underline-offset-2 hover:underline'
+          className='min-w-0 flex-1 text-[var(--text-body)] text-small no-underline focus-visible:rounded-sm focus-visible:outline focus-visible:outline-[var(--text-icon)]'
         >
           <OverflowText
             label={source.title?.trim() || sourceLabel(source)}
@@ -174,46 +142,45 @@ export function SourceCard({ source, query, onSummarize, dense = false }: Source
         </a>
         <OverflowText
           label={meta.join(' · ')}
-          className='max-w-[40%] shrink-0 text-[var(--text-muted)] text-caption'
+          className='max-w-[40%] shrink-0 text-[var(--text-tertiary)] text-caption'
         />
-        <div className='flex shrink-0 items-center opacity-0 transition-opacity group-focus-within/source:opacity-100 group-hover/source:opacity-100 [@media(hover:none)]:opacity-100'>
-          <CopyLinkAction url={source.url} />
-        </div>
+        <SourceActions source={source} />
       </div>
     )
   }
 
   return (
     <div className={SOURCE_ROW_CLASSES}>
-      <span className={SOURCE_ROW_MARK_CLASSES}>{mark}</span>
-      <div className='flex min-w-0 flex-1 flex-col gap-0.5'>
-        <a
-          href={source.url}
-          target='_blank'
-          rel='noopener noreferrer'
-          data-source-link=''
-          onClick={(event) => handleExternalLinkClick(event, source.url)}
-          className='block min-w-0 text-[var(--text-primary)] text-sm no-underline underline-offset-2 hover:underline'
-        >
+      <div className='flex min-w-0 flex-1 flex-col gap-1'>
+        <div className='relative flex items-start gap-2 pr-8'>
+          <span className={SOURCE_ROW_MARK_CLASSES}>
+            <SourceIcon source={source} />
+          </span>
+          <a
+            href={source.url}
+            target='_blank'
+            rel='noopener noreferrer'
+            data-source-link=''
+            onClick={(event) => handleExternalLinkClick(event, source.url)}
+            className='min-w-0 flex-1 text-[var(--text-body)] text-small no-underline [overflow-wrap:anywhere] focus-visible:rounded-sm focus-visible:outline focus-visible:outline-[var(--text-icon)]'
+          >
+            {sourceLabel(source)}
+          </a>
+          <div className='-top-1.5 absolute right-0'>
+            <SourceActions source={source} onSummarize={onSummarize} />
+          </div>
+        </div>
+        <div className='flex min-w-0 flex-col gap-1 pl-6'>
           <OverflowText
-            label={source.title?.trim() || sourceLabel(source)}
-            focusTarget='nearest-interactive'
+            label={meta.join(' · ')}
+            className='text-[var(--text-tertiary)] text-caption'
           />
-        </a>
-        <OverflowText label={meta.join(' · ')} className='text-[var(--text-muted)] text-caption' />
-        {source.snippet && (
-          <p className='line-clamp-2 text-[var(--text-body)] text-small leading-snug'>
-            {highlightTerms(source.snippet, query)}
-          </p>
-        )}
-      </div>
-      <div className='flex shrink-0 items-center gap-1 self-start opacity-0 transition-opacity group-focus-within/source:opacity-100 group-hover/source:opacity-100 [@media(hover:none)]:opacity-100'>
-        <CopyLinkAction url={source.url} />
-        {onSummarize && (
-          <Button variant='ghost' size='sm' onClick={() => onSummarize(source)}>
-            Summarize
-          </Button>
-        )}
+          {source.snippet && (
+            <p className='text-[var(--text-body)] text-small [overflow-wrap:anywhere]'>
+              {highlightTerms(source.snippet, query)}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )

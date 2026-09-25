@@ -53,6 +53,8 @@ export const organizationActivityBreakdownSchema = z.object({
         label: z.string(),
         workspaceId: workspaceIdSchema.nullable(),
         workspaceName: z.string().nullable(),
+        /** Member rows only, when the member has one. */
+        image: z.string().optional(),
       })
     )
     .max(ACTIVITY_PAGE_SIZE),

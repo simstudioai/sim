@@ -15,7 +15,7 @@ import {
   type BillingAttributionSnapshot,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
-import { isHosted } from '@/lib/core/config/env-flags'
+import { isHosted, isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import { findDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import {
   createTimeoutAbortController,
@@ -75,6 +75,14 @@ import { getInternalToolOperationHandler } from '@/lib/internal/tool-operations/
 import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
+import {
+  assistantConnectedAccountTokenParam,
+  projectAssistantConnectedAccountTool,
+} from '@/lib/mothership/assistant/connected-account-tool'
+import {
+  recordServiceCost,
+  recordServiceMeteringFailure,
+} from '@/lib/mothership/billing/service-observer'
 import type { CredentialTokenPayload } from '@/lib/oauth/token-resolution'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { markWorkspaceFileSecretProvenanceUnknown } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
@@ -500,7 +508,7 @@ function enforceCopilotCredentialSelection(
 
   const toolLabel = tool.name || toolId
   throw new Error(
-    `Copilot must pass credentialId for ${toolLabel}. Read environment/credentials.json and pass the exact credentialId for provider "${tool.oauth.provider}".`
+    `Copilot must pass credentialId for ${toolLabel}. Run \`credentials list\` and pass the exact credentialId for provider "${tool.oauth.provider}".`
   )
 }
 
@@ -1006,6 +1014,7 @@ async function applyHostedKeyCostToResult(
       `[${requestId}] Hosted-key metering failed for ${tool.id}; execution succeeded unbilled`,
       { provider, error: getErrorMessage(error) }
     )
+    await recordServiceMeteringFailure(`Hosted provider ${provider}: ${getErrorMessage(error)}`)
     hostedKeyMetrics.recordFailed({ provider, tool: tool.id, key, reason: 'metering' })
   }
 
@@ -1014,6 +1023,7 @@ async function applyHostedKeyCostToResult(
 
   if (hostedKeyCost > 0) {
     const { copilotToolExecution } = resolveToolScope(params, executionContext)
+    if (copilotToolExecution) await recordServiceCost(provider, hostedKeyCost)
     finalResult.output = {
       ...finalResult.output,
       cost: {
@@ -1334,6 +1344,8 @@ function consumeResolvedSecretNames(
   if (!Array.isArray(names) || !names.every((name) => typeof name === 'string')) {
     return false
   }
+
+  if (names.length === 0) return true
 
   const envVars = params.envVars
   if (!envVars || typeof envVars !== 'object' || Array.isArray(envVars)) {
@@ -1721,7 +1733,9 @@ async function executeToolImplementation(
 
     const scope = resolveToolScope(params, executionContext)
     if (operationContext?.requestMode === 'assistant') {
-      const { assertAssistantIntegrationCall } = await import('@/lib/copilot/assistant/tool-policy')
+      const { assertAssistantIntegrationCall } = await import(
+        '@/lib/mothership/assistant/tool-policy'
+      )
       const { getToolMetadata } = await import('@/tools/metadata')
       const { _context, ...modelParams } = params
       assertAssistantIntegrationCall(getToolMetadata(toolId), modelParams)
@@ -1814,6 +1828,10 @@ async function executeToolImplementation(
       }
     }
 
+    if (operationContext?.requestMode === 'assistant' && tool) {
+      tool = projectAssistantConnectedAccountTool(tool, isLiveEnterpriseSearchEnabled)
+    }
+
     // Ensure context is preserved if it exists
     const contextParams = { ...params }
     for (const paramId of tool?.oauth?.authoritativeParams ?? []) {
@@ -1864,7 +1882,7 @@ async function executeToolImplementation(
         throw new Error('Personal tokens require a trusted workspace execution context')
       }
       const [{ executeCopilotCredentialUseCase }, { resolvePersonalToken }] = await Promise.all([
-        import('@/lib/copilot/application/execute-credential-use-case'),
+        import('@/lib/mothership/application/execute-credential-use-case'),
         import('@/lib/credentials/application/resolve-personal-token'),
       ])
       const token = await executeCopilotCredentialUseCase(operationContext, resolvePersonalToken, {
@@ -1962,6 +1980,10 @@ async function executeToolImplementation(
           ])
         }
         contextParams.accessToken = data.accessToken
+        if (operationContext?.requestMode === 'assistant') {
+          const tokenParam = assistantConnectedAccountTokenParam(tool)
+          if (tokenParam) contextParams[tokenParam] = data.accessToken
+        }
         if (data.credentialType && tool.oauth?.authoritativeParams?.includes('credentialType')) {
           contextParams.credentialType = data.credentialType
         }
@@ -2598,8 +2620,17 @@ async function executeDeclaredInternalOperation({
   resolvedSecretTraceRegistry,
   internalSandboxProfile,
 }: ExecuteDeclaredInternalOperationInput): Promise<ToolResponse> {
+  const organizationScratch =
+    toolId === 'function_execute' &&
+    internalSandboxProfile === 'mothership' &&
+    context?.copilotToolExecution === true &&
+    (context.requestMode === 'agent' || context.requestMode === 'plan') &&
+    Boolean(context.organizationId && context.chatId && context.userId) &&
+    !context.workspaceId &&
+    !context.workflowId
   if (
-    !context?.workspaceId ||
+    !context ||
+    (!context.workspaceId && !organizationScratch) ||
     (!context.executorDelegationOrigin && !context.userId && !context.copilotToolExecution)
   ) {
     throw new Error('Internal tool execution requires trusted execution scope')

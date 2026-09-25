@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { db } from '@sim/db'
-import { user } from '@sim/db/schema'
+import { member, user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { batchWorkspaceInvitationBodySchema } from '@/lib/api/contracts/invitations'
@@ -24,6 +24,9 @@ vi.mock('@/lib/workspaces/application/workspace-context', () => ({
 vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
   resolveEffectiveWorkspacePermission: mocks.workspaceRole,
+}))
+vi.mock('@/lib/permission-groups/resolve.server', () => ({
+  getUserPermissionConfigForOrganization: mocks.config,
 }))
 vi.mock('@/lib/permission-groups/config-scope.server', () => ({
   resolvePermissionGroupConfig: mocks.config,
@@ -55,7 +58,11 @@ vi.mock('@/ee/access-control/utils/permission-check', () => ({
 }))
 
 import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
-import { sendInvitationBatch } from '@/lib/invitations/application/send-invitation-batch'
+import {
+  sendInvitationBatch,
+  sendOrganizationInvitationBatch,
+  sendWorkspaceInvitationBatch,
+} from '@/lib/invitations/application/send-invitation-batch'
 import {
   type createWorkspaceInvitation,
   WorkspaceInvitationError,
@@ -521,5 +528,145 @@ describe('invitation batch application boundary', () => {
       failed: [{ email: 'managed@example.com', error: message }],
     })
     expect(mocks.workspaceSend).toHaveBeenCalledTimes(2)
+  })
+})
+
+const delegated = {
+  kind: 'organization_delegated',
+  serviceId: 'copilot',
+  subjectUserId: 'admin-user',
+  organizationId: 'org-target',
+  delegationId: 'invites',
+  audience: 'sim:settings',
+  issuedAt: new Date(),
+  expiresAt: new Date(Date.now() + 60_000),
+  resourceScope: { chatId: 'chat' },
+} as const
+
+describe('organization invitation delegation', () => {
+  it.each(['admin', 'owner'])(
+    'uses current %s authority and actual actor in existing delivery pipeline',
+    async (role) => {
+      queueTableRows(member, [{ role }])
+      await expect(
+        sendOrganizationInvitationBatch.execute({ principal: delegated, input: orgInput })
+      ).resolves.toMatchObject({ success: true })
+      expect(mocks.orgContext).toHaveBeenCalledWith(
+        expect.objectContaining({ organizationId: 'org-target', inviterId: 'admin-user' })
+      )
+      expect(mocks.orgSend).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          principal: delegated,
+          input: { organizationId: 'org-target', email: 'person@example.com', role: 'member' },
+        })
+      )
+    }
+  )
+  it.each([{ role: 'member' }, { role: null }])(
+    'refuses revoked or insufficient role before delivery',
+    async ({ role }) => {
+      queueTableRows(member, role ? [{ role }] : [])
+      await expect(
+        sendOrganizationInvitationBatch.execute({ principal: delegated, input: orgInput })
+      ).rejects.toThrow()
+      expect(mocks.orgContext).not.toHaveBeenCalled()
+      expect(mocks.orgSend).not.toHaveBeenCalled()
+    }
+  )
+  it.each([
+    { organizationId: 'foreign' },
+    { audience: 'sim:knowledge' },
+    { expiresAt: new Date(0) },
+  ])('rejects invalid delegation', async (change) => {
+    await expect(
+      sendOrganizationInvitationBatch.execute({
+        principal: { ...delegated, ...change },
+        input: orgInput,
+      })
+    ).rejects.toThrow()
+    expect(mocks.orgSend).not.toHaveBeenCalled()
+  })
+  it('does not let organization authority grant workspace access', async () => {
+    await expect(
+      sendOrganizationInvitationBatch.execute({
+        principal: delegated,
+        input: { ...orgInput, workspaceIds: ['foreign-workspace'] },
+      })
+    ).rejects.toThrow('cannot grant workspace access')
+    expect(mocks.workspaceContext).not.toHaveBeenCalled()
+    expect(mocks.workspaceSend).not.toHaveBeenCalled()
+  })
+})
+
+it('enforces invitation capability on delegated admins before sending', async () => {
+  queueTableRows(member, [{ role: 'admin' }])
+  mocks.config.mockResolvedValue({ disableInvitations: true })
+  await expect(
+    sendOrganizationInvitationBatch.execute({ principal: delegated, input: orgInput })
+  ).rejects.toThrow()
+  expect(mocks.orgSend).not.toHaveBeenCalled()
+})
+
+describe('workspace invitation delegation', () => {
+  const actor = {
+    kind: 'delegated',
+    serviceId: 'copilot',
+    subjectUserId: 'admin-user',
+    workspaceId: 'workspace',
+    delegationId: 'workspace-invites',
+    audience: 'sim:settings',
+    issuedAt: new Date(),
+    expiresAt: new Date(Date.now() + 60_000),
+  } as const
+  const input = { ...orgInput, workspaceIds: ['workspace'] }
+
+  it('preserves the current actor in the workspace delivery lifecycle', async () => {
+    await expect(
+      sendWorkspaceInvitationBatch.execute({ principal: actor, input })
+    ).resolves.toMatchObject({ success: true })
+    expect(mocks.workspaceContext).toHaveBeenCalledWith(
+      expect.objectContaining({
+        inviterId: 'admin-user',
+        workspaceIds: ['workspace'],
+        auditActor: expect.objectContaining({
+          id: 'admin-user',
+          metadata: expect.objectContaining({
+            actor: expect.objectContaining({ kind: 'delegated' }),
+          }),
+        }),
+      })
+    )
+  })
+
+  it.each([[], ['foreign'], ['workspace', 'foreign']])(
+    'rejects targets outside the delegated workspace: %j',
+    async (workspaceIds) => {
+      await expect(
+        sendWorkspaceInvitationBatch.execute({
+          principal: actor,
+          input: { ...input, workspaceIds },
+        })
+      ).rejects.toThrow()
+      expect(mocks.workspaceContext).not.toHaveBeenCalled()
+      expect(mocks.workspaceSend).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each([{ audience: 'sim:knowledge' }, { expiresAt: new Date(0) }, { serviceId: 'untrusted' }])(
+    'rejects invalid workspace grants before delivery: %j',
+    async (patch) => {
+      await expect(
+        sendWorkspaceInvitationBatch.execute({ principal: { ...actor, ...patch }, input })
+      ).rejects.toThrow()
+      expect(mocks.workspaceSend).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rechecks current admin authority before delivery', async () => {
+    mocks.workspaceRole.mockResolvedValue('write')
+    await expect(
+      sendWorkspaceInvitationBatch.execute({ principal: actor, input })
+    ).rejects.toThrow()
+    expect(mocks.workspaceSend).not.toHaveBeenCalled()
   })
 })

@@ -61,6 +61,7 @@ export function buildFunctionExecuteBody(params: CodeExecutionInput): FunctionEx
     outputSandboxPath: params.outputSandboxPath,
     outputMimeType: params.outputMimeType,
     sandboxId: params.sandboxId,
+    sandboxSessionKey: params.sandboxSessionKey,
     secretScope: params.secretScope,
     mountedSecrets: params.mountedSecrets,
     unredactedSecretNames: params.unredactedSecretNames,
@@ -93,9 +94,9 @@ export function buildFunctionExecuteBody(params: CodeExecutionInput): FunctionEx
 export const functionExecuteTool: InternalToolConfig<CodeExecutionInput, CodeExecutionOutput> = {
   id: 'function_execute',
   name: 'Function Execute',
-  description: `Execute JavaScript, Python, or shell scripts in a secure sandbox. For JS: fetch() is available, code runs in an async IIFE wrapper. Shell includes general utilities such as jq, curl, git, and rg. Use outputPath/outputTable to persist returned data, or outputSandboxPath + outputPath to export a file created inside the sandbox into the workspace. Naming outputSandboxPath exports only those paths — the /tmp/sim/outputs directory is not harvested in the same call, so use one or the other.
+  description: `Execute JavaScript, Python, or shell scripts in a secure sandbox. For JS: fetch() is available, code runs in an async IIFE wrapper. Shell includes general utilities such as jq, curl, git, and rg. Use outputPath/outputTable to persist returned data, or outputSandboxPath + outputPath to export a file created inside the sandbox into the workspace. Naming outputSandboxPath exports only those paths; automatic directory collection is disabled for that call.
 To read a file, pass its id in \`files\`: each one is mounted read-only under ${SANDBOX_INPUT_DIR}. List that directory to find them rather than guessing a path — names are sanitized and de-duplicated, so they do not always match the original.
-To return a file, write it to ${SANDBOX_OUTPUT_DIR}. Everything there comes back in this tool's \`files\` output as a platform file object, which another tool that takes a file accepts directly — no upload step in between.`,
+To return a file from a Function sandbox, write it to ${SANDBOX_OUTPUT_DIR}. In a Mothership workbench, use the per-call SIM_OUTPUT_DIR instead (Python: os.environ["SIM_OUTPUT_DIR"], JavaScript: process.env.SIM_OUTPUT_DIR, shell: $SIM_OUTPUT_DIR). Files in the export directory come back in this tool's \`files\` output as platform file objects, which another tool that takes a file accepts directly — no upload step in between.`,
   version: '1.0.0',
 
   params: {
@@ -186,7 +187,8 @@ To return a file, write it to ${SANDBOX_OUTPUT_DIR}. Everything there comes back
       description: 'Whether this code can read all workspace secrets or only selected ones',
     },
     mountedSecrets: {
-      type: 'json',
+      type: 'array',
+      items: { type: 'string' },
       required: false,
       visibility: 'user-only',
       description: 'Secret names this code can read when secretScope is "selected"',
@@ -245,6 +247,9 @@ To return a file, write it to ${SANDBOX_OUTPUT_DIR}. Everything there comes back
           // missing warns on every call, and this branch runs for every failure.
           files: result.output?.files ?? [],
           ...(result.output?.cost ? { cost: result.output.cost } : {}),
+          ...(result.output?.sandboxSession
+            ? { sandboxSession: result.output.sandboxSession }
+            : {}),
         },
         error: result.error,
         retryable: result.retryable,
@@ -260,7 +265,9 @@ To return a file, write it to ${SANDBOX_OUTPUT_DIR}. Everything there comes back
         result: result.output.result,
         stdout: result.output.stdout,
         files: result.output.files ?? [],
+        ...(result.output.exported ? { exported: result.output.exported } : {}),
         ...(result.output.cost ? { cost: result.output.cost } : {}),
+        ...(result.output.sandboxSession ? { sandboxSession: result.output.sandboxSession } : {}),
       },
       resources: result.resources,
       largeValueKeys: result.largeValueKeys,
@@ -274,7 +281,8 @@ To return a file, write it to ${SANDBOX_OUTPUT_DIR}. Everything there comes back
     stdout: { type: 'string', description: 'The standard output of the code execution' },
     files: {
       type: 'file[]',
-      description: `Files the code wrote to ${SANDBOX_OUTPUT_DIR}, persisted as platform file objects`,
+      description:
+        'Files written to the execution export directory, persisted as platform file objects',
     },
   },
 }

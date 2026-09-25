@@ -132,6 +132,38 @@ describe('managed OAuth token resolution', () => {
     expect(mocks.decryptSecret).toHaveBeenCalledWith('encrypted-token-set')
   })
 
+  it('keeps an active GitHub grant connected when the worker lacks its OAuth app configuration', async () => {
+    setEnv({ GITHUB_APP_CLIENT_ID: 'fixture-client', GITHUB_APP_CLIENT_SECRET: 'fixture-secret' })
+    const adapter = createStandardOAuthCredentialGroupProviderAdapter('github-repositories')
+    const policy = await adapter.getPolicy(undefined, { workspaceId: 'workspace-1' })
+    mocks.getAdapter.mockReturnValue(adapter)
+    const row = {
+      ...mondayCredentialRow(),
+      providerId: policy.providerId,
+      authorizationAppId: policy.authorizationAppId,
+      managedOauthScopeVersion: policy.scopeVersion,
+      grantedScopes: [],
+      accessTokenExpiresAt: new Date('2026-09-01T13:00:00Z'),
+    }
+    dbChainMockFns.limit.mockResolvedValue([row])
+    const params = {
+      ...mondayTokenResolutionParams(),
+      expectedProviderId: policy.providerId,
+      requiredScopes: [],
+    }
+    setEnv({ GITHUB_APP_CLIENT_ID: undefined, GITHUB_APP_CLIENT_SECRET: undefined })
+    await expect(resolveManagedOAuthToken(params)).rejects.toMatchObject({
+      code: 'MANAGED_CREDENTIAL_CONFIGURATION_UNAVAILABLE',
+      statusCode: 503,
+    })
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(mocks.decryptSecret).not.toHaveBeenCalled()
+
+    setEnv({ GITHUB_APP_CLIENT_ID: 'fixture-client', GITHUB_APP_CLIENT_SECRET: 'fixture-secret' })
+    await expect(resolveManagedOAuthToken(params)).resolves.toMatchObject({ refreshed: false })
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+
   it.each([
     { grant: 'drive', request: 'drive.readonly', allowed: true },
     { grant: 'drive.readonly', request: 'drive.readonly', allowed: true },
@@ -279,7 +311,10 @@ describe('managed OAuth token resolution', () => {
         expectedProviderId: 'slack',
         requiredScopes: [...SLACK_SEARCH_USER_SCOPES],
       })
-    ).rejects.toMatchObject({ code: 'MANAGED_CREDENTIAL_NEEDS_REAUTH' })
+    ).rejects.toMatchObject({
+      code: 'MANAGED_CREDENTIAL_CONFIGURATION_UNAVAILABLE',
+      statusCode: 503,
+    })
     expect(mocks.decryptSecret).not.toHaveBeenCalled()
   })
 

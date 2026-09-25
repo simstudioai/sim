@@ -71,13 +71,17 @@ interface GooglePage<T> {
   truncated?: boolean
 }
 
-async function googleAccessToken(args: ExecuteServerSelectorArgs, serviceId: string) {
+async function googleAccessToken(
+  args: ExecuteServerSelectorArgs,
+  serviceId: string,
+  scopes = GOOGLE_SELECTOR_SCOPES[serviceId] ?? getScopesForService(serviceId)
+) {
   if (!args.credential) throw new SelectorConnectionUnavailableError()
   try {
     return await resolveSelectorOAuthAccessToken({
       credential: args.credential,
       serviceId,
-      scopes: GOOGLE_SELECTOR_SCOPES[serviceId] ?? getScopesForService(serviceId),
+      scopes,
       impersonateEmail: args.context.impersonateUserEmail,
       protectedValues: args.protectedValues,
     })
@@ -149,7 +153,13 @@ function gmailLabelName(label: GmailLabel): string {
 
 async function executeGmailLabels(args: ExecuteServerSelectorArgs) {
   requireListRequest(args.selectorKey, args.request)
-  const accessToken = await googleAccessToken(args, 'gmail')
+  const accessToken = await googleAccessToken(
+    args,
+    'gmail',
+    args.context.impersonateUserEmail
+      ? ['https://www.googleapis.com/auth/gmail.readonly']
+      : GOOGLE_SELECTOR_SCOPES.gmail
+  )
   const data = await fetchProviderJson<{ labels?: GmailLabel[] }>(
     'https://gmail.googleapis.com/gmail/v1/users/me/labels',
     { headers: { Authorization: `Bearer ${accessToken}` }, signal: args.signal }
@@ -159,20 +169,32 @@ async function executeGmailLabels(args: ExecuteServerSelectorArgs) {
     data.labels
       .filter((label) => label.id && label.name)
       .map((label) => ({
-        id: label.id,
+        id: args.context.impersonateUserEmail ? label.name : label.id,
         label: gmailLabelName(label),
       }))
   )
 }
 
 async function executeCalendars(args: ExecuteServerSelectorArgs) {
-  const accessToken = await googleAccessToken(args, 'google-calendar')
+  const accessToken = await googleAccessToken(
+    args,
+    'google-calendar',
+    args.context.impersonateUserEmail
+      ? ['https://www.googleapis.com/auth/calendar.readonly']
+      : GOOGLE_SELECTOR_SCOPES['google-calendar']
+  )
   if (args.request.kind === 'detail') {
     const calendar = await fetchProviderJson<CalendarListItem>(
       `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(requireGoogleCalendarId(args.request.id))}`,
       { headers: { Authorization: `Bearer ${accessToken}` }, signal: args.signal }
     )
-    return detailSelectorResult({ id: calendar.id, label: calendar.summary })
+    return detailSelectorResult({
+      id:
+        args.context.impersonateUserEmail && args.request.id === 'primary'
+          ? 'primary'
+          : calendar.id,
+      label: calendar.summary,
+    })
   }
   requireListRequest(args.selectorKey, args.request)
   const result = await fetchGooglePage<
@@ -199,7 +221,7 @@ async function executeCalendars(args: ExecuteServerSelectorArgs) {
     calendars
       .filter((calendar) => calendar.id && calendar.summary)
       .map((calendar) => ({
-        id: calendar.id,
+        id: args.context.impersonateUserEmail && calendar.primary ? 'primary' : calendar.id,
         label: calendar.summary,
       })),
     result.nextCursor

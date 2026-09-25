@@ -13,7 +13,7 @@ import {
   refuseHelpAfterUnknownCommand,
 } from './runtime/build'
 import { announceUpdateIfAvailable } from './update/check'
-import { CLI_VERSION } from './version'
+import { cliVersion } from './version'
 
 /** Root program description, shared by `--help` and the generated docs. */
 export const PROGRAM_DESCRIPTION = 'Talk to the Sim API from your terminal'
@@ -109,7 +109,11 @@ function addVersionOption(program: Command): void {
       'error: --version reports the Sim CLI version and takes no value. A command that acts on a deployment version reads it from --to-version.'
     )
   })
-  program.version(CLI_VERSION, '-V, --version [none]', 'output the version number (takes no value)')
+  program.version(
+    cliVersion(),
+    '-V, --version [none]',
+    'output the version number (takes no value)'
+  )
 }
 
 /**
@@ -124,8 +128,10 @@ function addVersionOption(program: Command): void {
  * and the emitted pages must not carry a version that goes stale on every
  * release.
  */
-export function buildProgram(options: { version?: boolean } = {}): Command {
-  const program = new Command()
+export function buildProgram(
+  options: { version?: boolean; helpText?: string; program?: Command } = {}
+): Command {
+  const program = options.program ?? new Command()
 
   program.name('sim').description(PROGRAM_DESCRIPTION)
 
@@ -138,12 +144,14 @@ export function buildProgram(options: { version?: boolean } = {}): Command {
     .addOption(
       new Option('--output <format>', 'Output format for this command').choices([...OUTPUT_FORMATS])
     )
-
-  program.addCommand(loginCommand())
-  program.addCommand(logoutCommand())
-  program.addCommand(whoamiCommand())
-  program.addCommand(profilesCommand())
-  program.addCommand(configureCommand())
+  for (const command of [
+    loginCommand,
+    logoutCommand,
+    whoamiCommand,
+    profilesCommand,
+    configureCommand,
+  ])
+    program.addCommand(command())
   const update = updateCommand()
   program.addCommand(update)
   program.addCommand(telemetryCommand())
@@ -156,7 +164,7 @@ export function buildProgram(options: { version?: boolean } = {}): Command {
   attachProtocolCommands(program)
   attachSecretCommands(program)
 
-  program.addHelpText('after', HELP_EPILOGUE)
+  program.addHelpText('after', options.helpText ?? HELP_EPILOGUE)
 
   program.hook('preAction', async (_program, command) => {
     if (command === update) return

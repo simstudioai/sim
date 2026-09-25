@@ -3,7 +3,7 @@ import { act, type MouseEvent, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
-import type { ResourceRow } from '@/app/workspace/[workspaceId]/components'
+import type { ResourceRow } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
 const mocks = vi.hoisted(() => ({
@@ -115,7 +115,7 @@ vi.mock('@/app/workspace/[workspaceId]/components/resource/components/action-bar
     return null
   },
 }))
-vi.mock('@/app/workspace/[workspaceId]/components', () => ({
+vi.mock('@/app/workspace/[workspaceId]/components/resource/resource', () => ({
   Resource: Object.assign(({ children }: { children: ReactNode }) => <>{children}</>, {
     Header: () => null,
     Options: () => null,
@@ -124,6 +124,9 @@ vi.mock('@/app/workspace/[workspaceId]/components', () => ({
       return <>{overlay}</>
     },
   }),
+  EMPTY_CELL_PLACEHOLDER: '',
+}))
+vi.mock('@/app/workspace/[workspaceId]/components/resource/use-resource-row-selection', () => ({
   useResourceRowSelection: ({ onDeleteSelected }: { onDeleteSelected: () => void }) => {
     mocks.deleteKey = onDeleteSelected
     return {
@@ -133,14 +136,6 @@ vi.mock('@/app/workspace/[workspaceId]/components', () => ({
       clearSelection: vi.fn(),
     }
   },
-  ownerCell: () => ({ label: '' }),
-  OwnerAvatar: () => null,
-  timeCell: () => ({ label: '' }),
-  resourceListState: () => 'ready',
-  selectionLabel: () => 'selected items',
-  reportBulkOutcome: vi.fn(),
-  EMPTY_CELL_PLACEHOLDER: '',
-  FILTER_SECTION_LABEL_CLASS: '',
 }))
 vi.mock('@/app/workspace/[workspaceId]/components/folders/use-folder-navigation', () => ({
   useFolderNavigation: () => ({

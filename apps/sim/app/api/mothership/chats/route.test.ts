@@ -17,14 +17,26 @@ const { mockReconcileChatStreamMarkers } = vi.hoisted(() => ({
   mockReconcileChatStreamMarkers: vi.fn(),
 }))
 
-vi.mock('@/lib/copilot/request/http', () => copilotHttpMock)
+vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
+    workspaceId,
+    workspaceOrganizationId: null,
+    allowPersonalApiKeys: true,
+    billedAccountUserId: 'owner',
+  }),
+}))
+vi.mock('@/lib/core/application/workspace-authorization', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/core/application/workspace-authorization')>()),
+  authorizeWorkspaceOperation: async () => undefined,
+}))
 
-vi.mock('@/lib/copilot/chat/stream-liveness', () => ({
+vi.mock('@/lib/mothership/chat/stream-liveness', () => ({
   reconcileChatStreamMarkers: mockReconcileChatStreamMarkers,
 }))
 
-vi.mock('@/lib/copilot/chat-status', () => ({
+vi.mock('@/lib/mothership/chat-status', () => ({
   chatPubSub: { publishStatusChanged: vi.fn() },
 }))
 
@@ -48,6 +60,7 @@ describe('GET /api/mothership/chats', () => {
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
     })
 
     mockReconcileChatStreamMarkers.mockImplementation(

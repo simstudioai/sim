@@ -46,7 +46,7 @@ describe('organization MCP provider creation contract', () => {
     oauthClientId: 'client-1',
   }
 
-  it.each(['fireflies', 'granola'])(
+  it.each(['fireflies', 'granola', 'coda'])(
     'allows adding %s without tenant configuration',
     (connectorId) => {
       expect(schema.parse({ connectorId })).toEqual({ connectorId })

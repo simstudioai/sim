@@ -40,8 +40,8 @@ const CUSTOM_BOT_REACTIVE_CONDITION = {
  * - Native Sim app: events route by Slack `team_id` on the official shared app
  *   (derived at deploy time via `auth.test`, no path or app setup). Only the
  *   events the shared app subscribes to are usable; the deploy path enforces
- *   that (`SIM_SUBSCRIBED_EVENTS`), so the event picker offers every event
- *   rather than mutating its option set with the selected credential.
+ *   that (`SIM_SUBSCRIBED_EVENTS`). Legacy Assistant event choices require a
+ *   native OAuth credential because custom apps use Agent View instead.
  *
  * Native Sim-app mode is a deployment capability controlled by the existing
  * Slack extended-scopes env pair. Custom bots stay available independently.
@@ -259,7 +259,7 @@ export const slackOAuthTrigger: TriggerConfig = {
       title: 'Include tool calls',
       type: 'switch',
       defaultValue: true,
-      description: 'Show tool execution lifecycle as Slack task updates.',
+      description: 'Show Agent and Sim Chat tool execution progress as Slack task updates.',
       required: false,
       mode: 'trigger',
       condition: {

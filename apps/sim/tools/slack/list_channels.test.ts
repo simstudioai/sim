@@ -2,11 +2,11 @@
  * @vitest-environment node
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { executeSlackListConversationsOperation } from '@/lib/internal/slack/operations/list-conversations'
 import {
   assertAssistantIntegrationCall,
   isAssistantIntegrationTool,
-} from '@/lib/copilot/assistant/tool-policy'
-import { executeSlackListConversationsOperation } from '@/lib/internal/slack/operations/list-conversations'
+} from '@/lib/mothership/assistant/tool-policy'
 import { slackListChannelsTool } from '@/tools/slack/list_channels'
 import type { SlackListChannelsParams } from '@/tools/slack/types'
 

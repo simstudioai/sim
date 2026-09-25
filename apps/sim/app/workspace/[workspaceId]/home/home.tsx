@@ -1,23 +1,10 @@
 'use client'
 
-import {
-  type Dispatch,
-  lazy,
-  type PointerEvent,
-  type SetStateAction,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
-import { Button, cn, toast } from '@sim/emcn'
-import { PanelLeft } from '@sim/emcn/icons'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { cn, pageHeadingClassName, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
-import { useParams, useRouter } from 'next/navigation'
-import { useQueryState } from 'nuqs'
+import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
@@ -34,20 +21,16 @@ import {
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
+import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
-import { useBrowserTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-browser-tab-resources'
-import { useTerminalTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-terminal-tab-resources'
-import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import {
-  resolveResourceEventPresentation,
-  resolveResourceSelectionUpdate,
-} from '@/app/workspace/[workspaceId]/home/resource-view-policy'
-import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
+  useChatResourcePanel,
+  useResourcePanelController,
+} from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
+import { resolveWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
-import { useFolders } from '@/hooks/queries/folders'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
-import { useWorkflows } from '@/hooks/queries/workflows'
 import { getWorkspaceFilesQueryOptions, useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import type { ChatContext } from '@/stores/panel'
@@ -55,17 +38,10 @@ import {
   ChatSurfaceProvider,
   CreditsChip,
   MothershipChat,
-  MothershipResourcesProvider,
   UserInput,
   type UserInputHandle,
 } from './components'
-import {
-  getMothershipUseChatOptions,
-  type ResourceEventOptions,
-  shouldActivateResourceEvent,
-  useChat,
-  useMothershipResize,
-} from './hooks'
+import { getMothershipUseChatOptions, useChat } from './hooks'
 import type {
   FileAttachmentForApi,
   MothershipResource,
@@ -74,17 +50,6 @@ import type {
 } from './types'
 
 const logger = createLogger('Home')
-
-/**
- * The resource preview panel pulls in the file-viewer stack (rich-markdown
- * editor, CSV/PDF viewers). It only renders once a chat has messages, so it is
- * code-split out of the initial `/chat` bundle and loaded on demand.
- */
-const MothershipView = lazy(() =>
-  import('./components/mothership-view/mothership-view').then((m) => ({
-    default: m.MothershipView,
-  }))
-)
 
 interface HomeProps {
   chatId?: string
@@ -103,59 +68,14 @@ export function Home(props: HomeProps) {
 function HomeContent({ chatId, userName, userId }: HomeProps) {
   useOAuthReturnRouter()
   const { workspaceId } = useParams<{ workspaceId: string }>()
-  const router = useRouter()
   const queryClient = useQueryClient()
-  /**
-   * URL is the single source of truth for the selected resource. `Home` renders
-   * client-side, so nuqs reads `?resource=` from the URL on mount — the same
-   * value the page previously threaded through `initialResourceId` — and writes
-   * it back with `history: 'replace'`, the previous behavior, minus the banned
-   * `window.history.replaceState` param-mutation effect. The page wraps `Home`
-   * in Suspense for the `useSearchParams` requirement.
-   */
-  const [activeResourceParam, setResourceParam] = useQueryState(resourceParam.key, {
-    ...resourceParam.parser,
-    ...resourceUrlKeys,
-  })
-  const activeResourceParamRef = useRef(activeResourceParam)
-  activeResourceParamRef.current = activeResourceParam
-  /**
-   * Strips any leftover URL fragment on selection change, preserving the old
-   * effect's `url.hash = ''` (the only hash usage on this surface) without a
-   * separate effect-sync mirror. This rewrites the fragment only — it never
-   * mutates a query param via the History API.
-   *
-   * Order matters: the fragment is stripped synchronously BEFORE the nuqs write,
-   * because nuqs re-appends `location.hash` on its (deferred) flush — clearing the
-   * hash first ensures the param write doesn't carry the stale fragment back.
-   */
-  const setActiveResourceUrl = useCallback<Dispatch<SetStateAction<string | null>>>(
-    (action) => {
-      const nextResourceId = resolveResourceSelectionUpdate(activeResourceParamRef.current, action)
-      activeResourceParamRef.current = nextResourceId
-      if (typeof window !== 'undefined' && window.location.hash) {
-        const { pathname, search } = window.location
-        window.history.replaceState(window.history.state, '', `${pathname}${search}`)
-      }
-      void setResourceParam(nextResourceId)
-    },
-    [setResourceParam]
-  )
-  /**
-   * Controlled binding handed to `useChat` so the URL is the sole owner of the
-   * selection with no dual source.
-   */
-  const activeResourceState = useMemo<[string | null, Dispatch<SetStateAction<string | null>>]>(
-    () => [activeResourceParam, setActiveResourceUrl],
-    [activeResourceParam, setActiveResourceUrl]
-  )
+  const controller = useResourcePanelController()
   const firstName = userName?.split(' ')[0] ?? ''
   const { data: workspaceFiles = [] } = useWorkspaceFiles(workspaceId)
-  const { data: workflows = [] } = useWorkflows(workspaceId)
-  const { data: folders = [] } = useFolders(workspaceId)
   const posthog = usePostHog()
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
+  const [selectedMode, setSelectedMode] = useState<'agent' | 'plan'>('agent')
   const [initialPrompt, setInitialPrompt] = useState('')
   const hasCheckedLandingStorageRef = useRef(false)
   const initialViewInputRef = useRef<HTMLDivElement>(null)
@@ -221,76 +141,13 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
 
   const { mutate: markRead } = useMarkMothershipChatRead(workspaceId)
 
-  const [isResourceCollapsed, setIsResourceCollapsedState] = useState(true)
-  const [skipResourceTransition, setSkipResourceTransition] = useState(false)
-  const [resourceActivityIds, setResourceActivityIds] = useState<Set<string>>(new Set())
-  const isResourceCollapsedRef = useRef(isResourceCollapsed)
-  const setResourceCollapsed = useCallback((collapsed: boolean) => {
-    isResourceCollapsedRef.current = collapsed
-    setIsResourceCollapsedState(collapsed)
-  }, [])
-  const resourceCollapseOwnedByUserRef = useRef(false)
-  const resourceSelectionOwnedByUserRef = useRef(false)
-
-  function handleResourceEvent(resourceId: string, options?: ResourceEventOptions) {
-    const activeResourceId = effectiveActiveResourceIdRef.current
-    const presentation = resolveResourceEventPresentation({
-      activeResourceId,
-      activationRequested: shouldActivateResourceEvent(activeResourceId, resourceId, options),
-      panelCollapseOwnedByUser: resourceCollapseOwnedByUserRef.current,
-      panelCollapsed: isResourceCollapsedRef.current,
-      resourceId,
-      selectionOwnedByUser: resourceSelectionOwnedByUserRef.current,
-    })
-
-    if (presentation.revealPanel) setResourceCollapsed(false)
-    if (presentation.markActivity) {
-      setResourceActivityIds((current) => new Set(current).add(resourceId))
-      return
-    }
-    setResourceActivityIds((current) => {
-      if (!current.has(resourceId)) return current
-      const next = new Set(current)
-      next.delete(resourceId)
-      return next
-    })
-    if (presentation.activateResource && activeResourceId !== resourceId) {
-      activeResourceParamRef.current = resourceId
-      setActiveResourceUrl(resourceId)
-    }
-  }
-
-  const {
-    messages,
-    isChatHistoryPending,
-    isSending,
-    isReconnecting,
-    sendMessage,
-    stopGeneration,
-    resolvedChatId,
-    desktopScopeId,
-    resources,
-    activeResourceId,
-    setActiveResourceId,
-    addResource,
-    removeResource,
-    reorderResources,
-    messageQueue,
-    removeFromQueue,
-    sendNow,
-    editQueuedMessage,
-    cancelQueueEdit,
-    editingQueuedId,
-    dispatchingHeadId,
-    previewSession,
-    genericResourceData,
-    getCurrentRequestId,
-  } = useChat(
+  const chat = useChat(
     workspaceId,
     chatId,
     getMothershipUseChatOptions({
-      onResourceEvent: handleResourceEvent,
-      activeResourceState,
+      ...(!chatId ? { requestMode: selectedMode } : {}),
+      onResourceEvent: controller.onResourceEvent,
+      activeResourceState: controller.activeResourceState,
       onRequestStarted: ({ requestId, userMessageId }) => {
         captureEvent(posthogRef.current, 'task_request_started', {
           workspace_id: workspaceId,
@@ -302,139 +159,41 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
     })
   )
 
-  const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize(desktopScopeId)
-  const effectiveActiveResourceIdRef = useRef(activeResourceId)
-  effectiveActiveResourceIdRef.current = activeResourceId
-  const resourceAttentionChatIdRef = useRef(resolvedChatId)
-
-  const collapseResource = useCallback(() => {
-    resourceCollapseOwnedByUserRef.current = true
-    resourceSelectionOwnedByUserRef.current = true
-    clearWidth()
-    setResourceCollapsed(true)
-  }, [clearWidth, setResourceCollapsed])
-
-  const clearResourceActivity = useCallback((resourceId: string) => {
-    setResourceActivityIds((current) => {
-      if (!current.has(resourceId)) return current
-      const next = new Set(current)
-      next.delete(resourceId)
-      return next
-    })
-  }, [])
-
-  const expandResource = () => {
-    resourceCollapseOwnedByUserRef.current = false
-    resourceSelectionOwnedByUserRef.current = true
-    const activeResourceId = effectiveActiveResourceIdRef.current
-    if (activeResourceId) clearResourceActivity(activeResourceId)
-    setResourceCollapsed(false)
-  }
-
-  const selectResourceFromUser = useCallback(
-    (resourceId: string) => {
-      resourceSelectionOwnedByUserRef.current = true
-      clearResourceActivity(resourceId)
-      if (effectiveActiveResourceIdRef.current === resourceId) return
-      effectiveActiveResourceIdRef.current = resourceId
-      activeResourceParamRef.current = resourceId
-      setActiveResourceId(resourceId)
-    },
-    [setActiveResourceId, clearResourceActivity]
-  )
-
-  const desktopTabResourceOptions = {
-    scopeId: desktopScopeId,
+  const {
+    messages,
+    isChatHistoryPending,
+    isSending,
+    isReconnecting,
+    sendMessage,
+    stopGeneration,
+    resolvedChatId,
     resources,
-    activeResourceId,
-    selectedResourceId: activeResourceParam,
-    addResource,
     removeResource,
-    selectResource: selectResourceFromUser,
-    onResourceEvent: handleResourceEvent,
-  }
-  useBrowserTabResources(desktopTabResourceOptions)
-  useTerminalTabResources(desktopTabResourceOptions)
-
-  const addResourceFromUser = useCallback(
-    (resource: MothershipResource) => {
-      resourceCollapseOwnedByUserRef.current = false
-      resourceSelectionOwnedByUserRef.current = true
-      addResource(resource)
-      selectResourceFromUser(resource.id)
-      setResourceCollapsed(false)
-    },
-    [addResource, selectResourceFromUser, setResourceCollapsed]
-  )
-
-  const handleResourceResizePointerDown = useCallback(
-    (event: PointerEvent<HTMLDivElement>) => {
-      resourceSelectionOwnedByUserRef.current = true
-      handleResizePointerDown(event)
-    },
-    [handleResizePointerDown]
-  )
-
-  const handleResourceInteraction = useCallback(() => {
-    resourceSelectionOwnedByUserRef.current = true
-  }, [])
-
-  const prepareResourceViewForAgentTurn = useCallback(() => {
-    resourceSelectionOwnedByUserRef.current = false
-    setResourceActivityIds(new Set())
-  }, [])
+    messageQueue,
+    removeFromQueue,
+    sendNow,
+    editQueuedMessage,
+    cancelQueueEdit,
+    editingQueuedId,
+    dispatchingHeadId,
+    getCurrentRequestId,
+  } = chat
+  const panel = useChatResourcePanel(chat, controller)
+  const {
+    isResourceCollapsed,
+    skipResourceTransition,
+    addResourceFromUser,
+    prepareResourceViewForAgentTurn,
+  } = panel
 
   useEffect(() => {
-    const previousChatId = resourceAttentionChatIdRef.current
-    resourceAttentionChatIdRef.current = resolvedChatId
     wasSendingRef.current = false
-    if (resolvedChatId) {
-      markRead(resolvedChatId)
-    } else {
-      clearWidth()
-      setResourceCollapsed(true)
-    }
-    if (!resolvedChatId || (previousChatId && previousChatId !== resolvedChatId)) {
-      resourceCollapseOwnedByUserRef.current = false
-      resourceSelectionOwnedByUserRef.current = false
-      setResourceActivityIds(new Set())
-    }
-  }, [resolvedChatId, markRead, clearWidth, setResourceCollapsed])
-
+    if (resolvedChatId) markRead(resolvedChatId)
+  }, [resolvedChatId, markRead])
   useEffect(() => {
-    if (wasSendingRef.current && !isSending && resolvedChatId) {
-      markRead(resolvedChatId)
-    }
+    if (wasSendingRef.current && !isSending && resolvedChatId) markRead(resolvedChatId)
     wasSendingRef.current = isSending
   }, [isSending, resolvedChatId, markRead])
-
-  useEffect(() => {
-    if (
-      !(resources.length > 0 && isResourceCollapsedRef.current) ||
-      resourceCollapseOwnedByUserRef.current
-    ) {
-      return
-    }
-    setResourceCollapsed(false)
-    setSkipResourceTransition(true)
-    const id = requestAnimationFrame(() => setSkipResourceTransition(false))
-    return () => cancelAnimationFrame(id)
-  }, [resources, setResourceCollapsed])
-
-  useEffect(() => {
-    if (resources.length === 0 && !isResourceCollapsedRef.current) {
-      clearWidth()
-      setResourceCollapsed(true)
-    }
-  }, [resources, clearWidth, setResourceCollapsed])
-
-  useEffect(() => {
-    const resourceIds = new Set(resources.map((resource) => resource.id))
-    setResourceActivityIds((current) => {
-      const next = new Set([...current].filter((id) => resourceIds.has(id)))
-      return next.size === current.size ? current : next
-    })
-  }, [resources])
 
   const handleStopGeneration = useCallback(() => {
     captureEvent(posthogRef.current, 'task_generation_aborted', {
@@ -483,6 +242,9 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
         ...(detail.resumeUserMessageId ? { resumeUserMessageId: detail.resumeUserMessageId } : {}),
         ...(detail.requestMode ? { requestMode: detail.requestMode } : {}),
         ...(detail.assistantSearch ? { assistantSearch: detail.assistantSearch } : {}),
+        ...(detail.assistantSearchLevel !== undefined
+          ? { assistantSearchLevel: detail.assistantSearchLevel }
+          : {}),
       })
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
@@ -519,6 +281,9 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
           : {}),
         ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
         ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
+        ...(handoff.assistantSearchLevel !== undefined
+          ? { assistantSearchLevel: handoff.assistantSearchLevel }
+          : {}),
       })
       return
     }
@@ -636,12 +401,6 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
   const hasMessages = messages.length > 0
   const showChatSkeleton = Boolean(chatId) && !hasMessages && isChatHistoryPending
   const draftScopeKey = `${workspaceId}:${chatId ?? 'new'}`
-  const resourceActivityCount = resourceActivityIds.size
-  const resourceToggleLabel = isResourceCollapsed
-    ? resourceActivityCount > 0
-      ? `Expand resource view, ${resourceActivityCount} resource${resourceActivityCount === 1 ? '' : 's'} updated`
-      : 'Expand resource view'
-    : 'Collapse resource view'
 
   // The empty state is the chat pane's content, not a layout of its own. It
   // used to return early, which meant the resource panel and its toggle did
@@ -650,8 +409,8 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
   const showEmptyState = !hasMessages && !showChatSkeleton
 
   return (
-    <div className={cn('relative flex h-full bg-[var(--bg)]', RESOURCE_HEADER_CLASSES.layout)}>
-      <div className='relative flex h-full min-w-[240px] flex-1 flex-col'>
+    <ChatResourcePanel workspaceId={workspaceId} chat={chat} panel={panel}>
+      <div className='relative flex h-full min-w-[min(480px,100%)] flex-1 flex-col'>
         {showEmptyState && (
           <div
             className={cn(
@@ -675,7 +434,7 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
           <div className='h-full overflow-y-auto [scrollbar-gutter:stable_both-edges]'>
             {/* Asymmetric padding biases the group up so the full cluster (heading + input + suggestions) sits at the optical center */}
             <div className='flex min-h-full flex-col items-center justify-center px-6 pt-[2vh] pb-[22vh]'>
-              <h1 className='mb-7 max-w-chat text-balance font-season text-[26px] text-[var(--text-primary)] leading-[1.15] tracking-[-0.01em] sm:text-[28px]'>
+              <h1 className={cn(pageHeadingClassName, 'mb-7 max-w-chat')}>
                 What should we get done{firstName ? `, ${firstName}` : ''}?
               </h1>
               <div ref={initialViewInputRef} className='relative w-full max-w-chat'>
@@ -686,6 +445,8 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
                 >
                   <UserInput
                     ref={initialViewUserInputRef}
+                    requestMode={selectedMode}
+                    onModeChange={setSelectedMode}
                     defaultValue={initialPrompt}
                     draftScopeKey={draftScopeKey}
                     onSubmit={handleSubmit}
@@ -731,68 +492,6 @@ function HomeContent({ chatId, userName, userId }: HomeProps) {
           />
         )}
       </div>
-
-      {/* Resize handle — zero-width flex child whose absolute child straddles the border */}
-      {!isResourceCollapsed && (
-        <div className='relative z-20 w-0 flex-none'>
-          <div
-            className='absolute inset-y-0 left-[-4px] w-[8px] cursor-ew-resize'
-            role='separator'
-            aria-orientation='vertical'
-            aria-label='Resize resource panel'
-            onPointerDown={handleResourceResizePointerDown}
-          />
-        </div>
-      )}
-
-      <MothershipResourcesProvider
-        selectResource={selectResourceFromUser}
-        addResource={addResourceFromUser}
-        removeResource={removeResource}
-        reorderResources={reorderResources}
-        collapseResource={collapseResource}
-      >
-        <Suspense fallback={null}>
-          <MothershipView
-            ref={mothershipRef}
-            workspaceId={workspaceId}
-            chatId={resolvedChatId}
-            desktopScopeId={desktopScopeId}
-            resources={resources}
-            activeResourceId={activeResourceId}
-            activityResourceIds={resourceActivityIds}
-            isCollapsed={isResourceCollapsed}
-            previewSession={previewSession}
-            isAgentResponding={isSending}
-            genericResourceData={genericResourceData ?? undefined}
-            onUserInteraction={handleResourceInteraction}
-            className={skipResourceTransition ? 'transition-none!' : undefined}
-          />
-        </Suspense>
-      </MothershipResourcesProvider>
-
-      <div
-        className={cn('z-30', RESOURCE_HEADER_CLASSES.overlay, RESOURCE_HEADER_CLASSES.endPosition)}
-      >
-        <Button
-          variant='ghost'
-          size={null}
-          type='button'
-          onClick={isResourceCollapsed ? expandResource : collapseResource}
-          className="after:-translate-x-1/2 after:-translate-y-1/2 relative size-[var(--resource-header-toggle-size)] rounded-[8px] after:absolute after:top-1/2 after:left-1/2 after:size-[var(--resource-header-toggle-hit-size)] after:content-[''] hover-hover:bg-[var(--surface-active)]"
-          aria-label={resourceToggleLabel}
-        >
-          <span className='relative'>
-            <PanelLeft className='-scale-x-100 size-[16px] text-[var(--text-icon)]' />
-            {isResourceCollapsed && resourceActivityIds.size > 0 && (
-              <span
-                aria-hidden='true'
-                className='-top-0.5 -right-0.5 absolute size-1.5 rounded-full bg-[var(--brand-blue)]'
-              />
-            )}
-          </span>
-        </Button>
-      </div>
-    </div>
+    </ChatResourcePanel>
   )
 }

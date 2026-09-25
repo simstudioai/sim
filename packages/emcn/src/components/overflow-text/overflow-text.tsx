@@ -10,9 +10,14 @@ import {
   useIsOverflowing,
 } from '../tooltip/tooltip'
 
+/** Shared fade width for clipped labels and scroll regions that use the same treatment. */
+export const overflowFadeSizeClass = '[--overflow-fade-size:16px]'
+
 /** Complete fade-only clipping treatment for measured special cases. */
-export const overflowTextFadeClass =
-  'overflow-hidden text-clip whitespace-nowrap [-webkit-mask-image:linear-gradient(to_right,black_calc(100%_-_16px),transparent)] [mask-image:linear-gradient(to_right,black_calc(100%_-_16px),transparent)]'
+export const overflowTextFadeClass = cn(
+  overflowFadeSizeClass,
+  'overflow-hidden text-clip whitespace-nowrap [-webkit-mask-image:linear-gradient(to_right,black_calc(100%_-_var(--overflow-fade-size)),transparent)] [mask-image:linear-gradient(to_right,black_calc(100%_-_var(--overflow-fade-size)),transparent)]'
+)
 
 /** Fade-free clipping for externally measured labels and rich-content overflow exceptions. */
 export const overflowTextClipClass = 'block min-w-0 overflow-hidden text-clip whitespace-nowrap'

@@ -186,7 +186,10 @@ describe('workspace-file Table application commands', () => {
     })
 
     expect(result).toMatchObject({ kind: 'inline', insertedCount: 1, table })
-    expect(mocks.resolveFile).toHaveBeenCalledWith('workspace-1', 'files/people.csv')
+    // Chat uploads resolve like reads do: `uploads/<name>` imports without a save step.
+    expect(mocks.resolveFile).toHaveBeenCalledWith('workspace-1', 'files/people.csv', {
+      includeChatUploads: true,
+    })
     expect(mocks.fetchFile).toHaveBeenCalledWith(sourceFile, { maxBytes: 50 * 1024 * 1024 })
     expect(mocks.createTable).toHaveBeenCalledWith(
       expect.objectContaining({ workspaceId: 'workspace-1', userId: 'user-1', maxTables: 5 }),

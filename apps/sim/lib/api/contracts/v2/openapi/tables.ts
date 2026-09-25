@@ -334,9 +334,12 @@ const declaredRoutes = [
       applicationOperation: tableOperations.updateColumn,
       operationId: 'updateTableColumn',
       summary: 'Update Column',
-      description: 'Update a column by name and return the complete resulting table schema.',
+      description:
+        'Update a column by name and return the complete schema. Renames update rows, views, and workflow-group references keyed by column ID. Workflow Table blocks keep their authored `filter`, `order`, and `data` JSON unchanged. Bound blocks still referencing the old name appear in `unmigrated`; edit them with Apply Workflow Operations to prevent failures on their next run.',
       errors: TABLE_MUTATION_ERRORS,
-      success: { description: 'The updated table columns.' },
+      success: {
+        description: 'The updated table columns, plus any unmigrated workflow Table blocks.',
+      },
     }),
     {
       query: v2UpdateTableColumnContract.query,
@@ -355,9 +358,34 @@ const declaredRoutes = [
       ),
       response: documentedSchema(
         v2UpdateTableColumnContract.response.schema,
-        'V2TableColumnsResponse',
-        'Table columns response',
-        'The table column list after a schema mutation.'
+        'V2UpdateTableColumnResponse',
+        'Update table column response',
+        'The table column list after the update, plus workflow Table blocks a rename left on the old column name.',
+        [
+          {
+            data: {
+              columns: [
+                { id: 'col_name', name: 'name', type: 'string', required: true, unique: false },
+                {
+                  id: 'col_plan',
+                  name: 'subscriptionPlan',
+                  type: 'string',
+                  required: false,
+                  unique: false,
+                },
+              ],
+              unmigrated: [
+                {
+                  workflowId: WORKFLOW_ID,
+                  workflowName: 'Weekly digest',
+                  blockId: 'blk_9c1d3f5a7e2b4068a0c2e4f6b8d0f193',
+                  blockName: 'Query plans',
+                  fields: ['filter'],
+                },
+              ],
+            },
+          },
+        ]
       ),
     }
   ),
@@ -970,7 +998,7 @@ const declaredRoutes = [
       operationId: 'addTableWorkflowGroup',
       summary: 'Add Workflow Group',
       description:
-        'Bind a workflow or enrichment to the table and create the columns populated by its outputs.',
+        'Bind a workflow or enrichment to the table and create the columns populated by its outputs. An output whose column the table already has attaches that column to the group instead of creating it, so `outputColumns` may be omitted when every output lands in an existing column.',
       errors: TABLE_MUTATION_ERRORS,
       success: { description: 'The created workflow group and resulting columns.' },
     }),
@@ -1759,11 +1787,13 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.readRow,
       operationId: 'getRowEnrichment',
-      summary: 'Get Enrichment Run Detail',
+      summary: 'Get Row Group Run',
       description:
-        "Get an enrichment cell's provider attempts, statuses, hosted-key costs, durations, and matching provider. Null means no run detail was recorded; `404` means the table, row, or group does not exist.",
+        'Read a workflow or enrichment group’s outcome for one row: `runState` (as exposed by `includeRunState`), output cells keyed by column name, and enrichment providers in cascade order with status, hosted-key cost, duration, and the matching provider. Existing rows always answer: `runState: null` means never run; `cascade: null` means no breakdown recorded. Missing tables, rows, or groups return `404`.',
       errors: RESOURCE_ERRORS,
-      success: { description: 'The enrichment run detail, or null when none was recorded.' },
+      success: {
+        description: 'The run state, output cells, and provider cascade for the group on the row.',
+      },
     }),
     {
       params: documentedSchema(
@@ -1782,7 +1812,7 @@ const declaredRoutes = [
         v2GetRowEnrichmentContract.response.schema,
         'V2RowEnrichmentResponse',
         'Row enrichment response',
-        'Provider cascade, cost, and timing for one enrichment cell.'
+        'Run state, output cells, and provider cascade for one group on one row.'
       ),
     }
   ),
@@ -1855,18 +1885,18 @@ const declaredRoutes = [
     tableOperation({
       applicationOperation: tableOperations.readRun,
       operationId: 'listTableDispatches',
-      summary: 'List Active Run Dispatches',
+      summary: 'List Run Dispatches',
       description:
-        'List in-flight run dispatches for a table in one page; `nextCursor` is always null. Use Get Run Dispatch to read a settled dispatch.',
+        'List the run dispatches on one table, most recent first — settled dispatches (`complete`, `canceled`) alongside the ones still in flight, so a run that finished between two polls is still visible next to the `dispatchId` its create returned. Capped at the 100 most recent, so this list is unpaginated and `nextCursor` is always null.',
       errors: RESOURCE_ERRORS,
-      success: { description: "The table's active run dispatches." },
+      success: { description: "The table's most recent run dispatches." },
     }),
     {
       params: documentedSchema(
         v2ListTableDispatchesContract.params,
         'ListTableDispatchesParams',
         'List table dispatches path parameters',
-        'Table whose active run dispatches should be listed.'
+        'Table whose run dispatches should be listed.'
       ),
       query: documentedSchema(
         v2ListTableDispatchesContract.query,
@@ -1878,7 +1908,7 @@ const declaredRoutes = [
         v2ListTableDispatchesContract.response.schema,
         'V2TableRunDispatchListResponse',
         'Table run dispatch list response',
-        "The table's active run dispatches."
+        "The table's most recent run dispatches, settled ones included."
       ),
     }
   ),

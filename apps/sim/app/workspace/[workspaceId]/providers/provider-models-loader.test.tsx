@@ -68,9 +68,9 @@ import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/pr
 
 let root: Root
 
-function renderLoader() {
+function renderLoader(workspaceId?: string) {
   act(() => {
-    root.render(<ProviderModelsLoader />)
+    root.render(<ProviderModelsLoader workspaceId={workspaceId} />)
   })
 }
 
@@ -128,5 +128,14 @@ describe('ProviderModelsLoader request gating', () => {
     renderLoader()
 
     expectEveryProviderEnabled(false)
+  })
+  it('loads an embedded org workflow from its explicit workspace, without a route workspace', () => {
+    mocks.pathname = '/o/org-a/home'
+    mocks.workspaceId = undefined
+    renderLoader('workspace-b')
+    expectEveryProviderEnabled(true)
+    expect(mocks.useProviderModels).toHaveBeenCalledWith('ollama-cloud', 'workspace-b', {
+      enabled: true,
+    })
   })
 })

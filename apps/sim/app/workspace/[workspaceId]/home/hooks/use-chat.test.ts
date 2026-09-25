@@ -2,22 +2,28 @@
  * @vitest-environment node
  */
 import { describe, expect, it, vi } from 'vitest'
-import type { PersistedMessage } from '@/lib/copilot/chat/persisted-message'
+import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1ToolPhase,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import type { StreamBatchEvent } from '@/lib/copilot/request/session/types'
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import type { StreamBatchEvent } from '@/lib/mothership/request/session/types'
 import {
   getReplayCompletedWorkflowToolCallIds,
   reconcileLiveAssistantTurn,
-  selectDeletedWorkflowResources,
   selectReconnectReplayState,
+} from '@/app/workspace/[workspaceId]/home/hooks/message-reconcile'
+import {
+  selectDeletedWorkflowResources,
   shouldActivateResourceEvent,
   shouldQueueOutgoingMessage,
   waitForDetachedChatResolution,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
+
+vi.mock('@/app/workspace/[workspaceId]/providers/feature-flags-provider', () => ({
+  useFeatureFlag: () => false,
+}))
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/workspace/workspace-1/home',

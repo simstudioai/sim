@@ -1,8 +1,14 @@
 /** @vitest-environment node */
+
 import type { CredentialGroupOptionConfig } from '@sim/db/schema'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ configuration: vi.fn(), exchange: vi.fn(), revoke: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  configuration: vi.fn(),
+  exchange: vi.fn(),
+  revoke: vi.fn(),
+}))
 vi.mock('@/lib/credential-groups/provider-configuration', () => ({
   getSlackCredentialGroupConfiguration: mocks.configuration,
 }))
@@ -28,6 +34,7 @@ import { slackCredentialGroupProviderAdapter as adapter } from '@/lib/credential
 describe('Slack member scope policy', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetEnvFlagsMock()
     mocks.configuration.mockResolvedValue({
       slackBotCredentialId: 'bot-1',
       clientId: 'client',
@@ -72,6 +79,30 @@ describe('Slack member scope policy', () => {
       options: [option],
     }
   }
+
+  it('requests RTS consent only with live search enabled while retaining the stored policy', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    const current = context(SLACK_SEARCH_USER_SCOPES)
+    const policy = await adapter.getPolicy(current.option, {
+      workspaceId: current.workspaceId,
+      credentialGroupId: current.credentialGroupId,
+    })
+    const authorization = await adapter.prepareAuthorization(current, policy)
+    const url = new URL(
+      await authorization.buildAuthorizationUrl({ state: 'state', nonce: 'nonce' })
+    )
+    expect(url.searchParams.get('user_scope')?.split(',')).toEqual(
+      expect.arrayContaining([
+        'search:read.public',
+        'search:read.private',
+        'search:read.im',
+        'search:read.mpim',
+        'search:read.files',
+        'files:read',
+      ])
+    )
+    expect(policy.requiredScopes).toEqual([...SLACK_SEARCH_USER_SCOPES])
+  })
 
   it.each([
     { name: 'search', scopes: SLACK_SEARCH_USER_SCOPES },

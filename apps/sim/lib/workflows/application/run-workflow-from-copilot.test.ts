@@ -64,11 +64,13 @@ vi.mock('@sim/workflow-persistence/subblocks', () => ({
 vi.mock('@sim/utils/id', () => ({ generateId: vi.fn(() => 'child-execution-1') }))
 vi.mock('@/lib/core/utils/request', () => ({ generateRequestId: vi.fn(() => 'request-1') }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   runFromBlockFromCopilot,
   runWorkflowFromCopilot,
 } from '@/lib/workflows/application/run-workflow-from-copilot'
 import { readAttemptedExecutionId } from '@/executor/utils/errors'
+import { RunFromBlockValidationError } from '@/executor/utils/run-from-block'
 
 const principal = {
   kind: 'delegated' as const,
@@ -147,6 +149,65 @@ describe('Copilot workflow run application commands', () => {
       }),
       'child-execution-1'
     )
+  })
+
+  describe('trigger selection errors name only tools the agent surface has', () => {
+    const twoTriggers = [
+      { triggerBlockId: 'start-1', blockName: 'Start', triggerType: 'start_trigger' },
+      { triggerBlockId: 'hook-1', blockName: 'Slack hook', triggerType: 'slack_webhook' },
+    ]
+
+    it('lists every trigger as blockId → type/name and points at inputFormat in workflows state get', async () => {
+      mocks.resolveOptions.mockReturnValue(twoTriggers)
+
+      await expect(
+        runWorkflowFromCopilot.execute({
+          principal,
+          input: {
+            workflowId: 'workflow-1',
+            useDraftState: true,
+            lifecycle,
+            hasWorkflowInput: false,
+            useMockPayload: true,
+          },
+        })
+      ).rejects.toThrow(
+        'This workflow has 2 triggers: pass triggerBlockId (start-1 → start_trigger/Start, hook-1 → slack_webhook/Slack hook). ' +
+          "Each trigger's input shape is its block's inputFormat in workflows state get."
+      )
+      expect(mocks.executeWorkflow).not.toHaveBeenCalled()
+    })
+
+    it('never tells the agent to call get_workflow_run_options, which does not exist on its surface', async () => {
+      mocks.resolveOptions.mockReturnValue(twoTriggers)
+
+      const messages: string[] = []
+      for (const triggerBlockId of [undefined, 'not-a-trigger']) {
+        try {
+          await runWorkflowFromCopilot.execute({
+            principal,
+            input: {
+              workflowId: 'workflow-1',
+              useDraftState: true,
+              lifecycle,
+              hasWorkflowInput: false,
+              useMockPayload: true,
+              triggerBlockId,
+            },
+          })
+        } catch (error) {
+          messages.push((error as Error).message)
+        }
+      }
+
+      expect(messages).toHaveLength(2)
+      for (const message of messages) {
+        expect(message).not.toContain('get_workflow_run_options')
+        expect(message).toContain('inputFormat in workflows state get')
+      }
+      expect(messages[1]).toContain('triggerBlockId "not-a-trigger" is not a runnable trigger')
+      expect(messages[1]).toContain('start-1 → start_trigger/Start')
+    })
   })
 
   it('runs under a caller-claimed execution id and stamps its copilot correlation', async () => {
@@ -288,6 +349,40 @@ describe('Copilot workflow run application commands', () => {
       }),
       'child-execution-1'
     )
+  })
+
+  it('surfaces a refused run-from-block start as a validation failure the caller can act on', async () => {
+    mocks.sourceState.mockResolvedValueOnce({
+      blockStates: {},
+      executedBlocks: [],
+      blockLogs: [],
+      decisions: {},
+      completedLoops: [],
+      activeExecutionPath: [],
+    })
+    mocks.executeWorkflow.mockRejectedValueOnce(
+      new RunFromBlockValidationError('Upstream dependency not executed: fetch-1')
+    )
+
+    const error = await runFromBlockFromCopilot
+      .execute({
+        principal,
+        input: {
+          workflowId: 'workflow-1',
+          useDraftState: true,
+          lifecycle,
+          blockId: 'agent-1',
+          sourceExecutionId: 'source-execution-1',
+        },
+      })
+      .catch((thrown) => thrown)
+
+    expect(error).toBeInstanceOf(OrchestrationError)
+    expect(error).toMatchObject({
+      code: 'validation',
+      message: 'Upstream dependency not executed: fetch-1',
+    })
+    expect(readAttemptedExecutionId(error)).toBe('child-execution-1')
   })
 
   it('propagates unexpected execution infrastructure failures', async () => {

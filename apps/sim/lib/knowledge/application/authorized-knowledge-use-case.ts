@@ -22,11 +22,13 @@ import type { ScopedKnowledgeOperation } from '@/lib/knowledge/application/opera
 
 type KnowledgePrincipalForOperation<O extends ScopedKnowledgeOperation> =
   | PrincipalForOperation<O>
-  | ('copilot' extends NonNullable<O['delegatedServices']>[number]
-      ? O['minimumRole'] extends 'read'
-        ? OrganizationDelegatedPrincipal
-        : never
-      : never)
+  | (O extends { readonly organizationDelegation: 'allow' }
+      ? OrganizationDelegatedPrincipal
+      : 'copilot' extends NonNullable<O['delegatedServices']>[number]
+        ? O['minimumRole'] extends 'read'
+          ? OrganizationDelegatedPrincipal
+          : never
+        : never)
 
 function requireKnowledgePrincipal<O extends ScopedKnowledgeOperation>(
   principal: Principal,
@@ -35,7 +37,7 @@ function requireKnowledgePrincipal<O extends ScopedKnowledgeOperation>(
   if (principal.kind !== 'organization_delegated')
     return requireAllowedWorkspacePrincipal(principal, operation)
   if (
-    operation.minimumRole !== 'read' ||
+    !operation.organizationOperation.principalKinds.includes('organization_delegated') ||
     !operation.organizationOperation.delegatedServices?.includes(principal.serviceId)
   ) {
     throw new OrchestrationError(
@@ -207,6 +209,7 @@ export function defineAuthorizedKnowledgeUseCase<
 
   return {
     operation: definition.operation,
+    delegationAudience: workspaceUseCase.delegationAudience,
     async authorize({ principal, input, request }) {
       const resolved = await resolveAuthorizedContext({ principal, input })
       if (resolved.scope !== 'workspace') return

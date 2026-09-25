@@ -209,27 +209,24 @@ export const v2WorkflowListItemSchema = z
     /**
      * A monotonic column on the workflow row, not an aggregate over the run
      * list. `updateWorkflowRunCounts` is called from exactly one place —
-     * `executeWorkflowCore`'s post-execution hook, under
-     * `result.success && result.status !== 'paused'` — and nothing ever
-     * decrements it, so the two ways it disagrees with
-     * `GET /workflows/{workflowId}/runs` point in opposite directions and both are
-     * reachable at once. The description is what makes that legible; the
-     * counter itself is left alone because its stored values already carry the
-     * narrow meaning and no backfill can recover runs whose logs retention has
-     * already deleted.
+     * `executeWorkflowCore`'s finalization, for every settled outcome — and
+     * nothing ever decrements it, so it can only exceed the size of
+     * `GET /workflows/{workflowId}/runs` as runs age out of log retention.
+     * Runs that settled before failures and cancellations were counted are not
+     * backfilled; their logs may already be gone.
      */
     runCount: z
       .number()
       .int()
       .nonnegative()
       .describe(
-        'Lifetime count of successful runs, excluding failed, canceled, and paused runs. Log retention does not reduce this count; it may differ from the number returned by List Workflow Runs.'
+        'Settled runs — completed, failed, or cancelled — counted as each one finishes; a paused run is counted once it settles. The counter is never reduced when a run ages out of log retention, so it can exceed the results returned by List Workflow Runs.'
       ),
     lastRunAt: z
       .string()
       .nullable()
       .describe(
-        'ISO 8601 timestamp of the latest run counted by `runCount`, or null when none has been. Stamped by the same successful-run path, so a workflow whose only runs failed reports null here.'
+        'ISO 8601 timestamp of the latest settled run, whatever its outcome, or null when the workflow has never run.'
       )
       .meta({ format: 'date-time' }),
     createdAt: z
@@ -367,6 +364,40 @@ export const v2DeploymentStateSchema = z
   })
 
 /**
+ * One public URL a live deployment receives events on.
+ *
+ * The block's own `webhookUrlDisplay` field is computed client-side and reads
+ * back as `null` through the API, so until this was published a caller that
+ * deployed a webhook-triggered workflow had no way to learn where to point the
+ * sender.
+ */
+export const v2DeployedWebhookSchema = z
+  .object({
+    blockId: z
+      .string()
+      .nullable()
+      .describe('Trigger block the URL delivers to, or null for a legacy row that recorded none.'),
+    provider: z
+      .string()
+      .nullable()
+      .describe(
+        'Webhook provider the endpoint verifies inbound requests against, e.g. `generic`, `github`, or `slack`.'
+      ),
+    url: z
+      .string()
+      .url()
+      .describe('Absolute URL for the external system to send events to.')
+      .meta({ examples: ['https://www.sim.ai/api/webhooks/trigger/leads'] }),
+  })
+  .strict()
+  .meta({
+    id: 'WorkflowDeploymentWebhook',
+    title: 'Deployed webhook',
+    description: 'The public delivery URL of one webhook the live deployment registered.',
+  })
+export type V2DeployedWebhook = z.output<typeof v2DeployedWebhookSchema>
+
+/**
  * Read-only deployment state. Extends the shared state with `needsRedeployment`,
  * which the mutation responses cannot carry: it compares the live graph against
  * the draft, and immediately after a deploy or rollback the two are equal by
@@ -384,6 +415,11 @@ export const v2WorkflowDeploymentSchema = v2DeploymentStateSchema
       .boolean()
       .describe(
         'Whether anyone with the execution URL can run the deployed workflow and consume billed usage without an API key. Change this with Update Workflow Public API Access.'
+      ),
+    webhooks: z
+      .array(v2DeployedWebhookSchema)
+      .describe(
+        'Public delivery URL of every webhook the live version registered, one per trigger block. Read URLs here: the editor computes the block URL field, which reads empty through the API. Empty while nothing is deployed; triggers using a shared endpoint without a per-workflow URL are omitted.'
       ),
   })
   .meta({
@@ -412,12 +448,33 @@ export const v2DeployWorkflowDataSchema = v2DeploymentStateSchema
   })
 export type V2DeployWorkflowData = z.output<typeof v2DeployWorkflowDataSchema>
 
-export const v2UndeployWorkflowDataSchema = v2DeploymentStateSchema.extend({}).meta({
-  id: 'UndeployResult',
-  title: 'Undeploy result',
-  description:
-    'Deployment state after a successful undeploy. `isDeployed` is false and no workflow version is active.',
-})
+export const v2ArchivedWorkflowMcpToolSchema = z
+  .object({
+    serverId: z.string().describe('Workflow-MCP server the tool is published on.'),
+    toolName: z.string().describe('Name MCP clients called the tool by.'),
+  })
+  .meta({
+    id: 'ArchivedWorkflowMcpTool',
+    title: 'Archived workflow MCP tool',
+    description: 'A workflow-MCP tool registration an undeploy took inactive.',
+  })
+export type V2ArchivedWorkflowMcpTool = z.output<typeof v2ArchivedWorkflowMcpToolSchema>
+
+export const v2UndeployWorkflowDataSchema = v2DeploymentStateSchema
+  .extend({
+    archivedMcpTools: z
+      .array(v2ArchivedWorkflowMcpToolSchema)
+      .describe(
+        'MCP tool registrations this undeploy archived. Each appears in its server’s tool list with `status: "inactive"` until the workflow is deployed again, which restores it; unpublishing one while it is inactive removes it for good. Empty when no server published the workflow.'
+      ),
+  })
+  .meta({
+    id: 'UndeployResult',
+    title: 'Undeploy result',
+    description:
+      'Deployment state after a successful undeploy. `isDeployed` is false and no workflow version is active. Undeploying also takes every MCP tool that published the workflow inactive; `archivedMcpTools` names them so the effect is not silent.',
+  })
+
 export type V2UndeployWorkflowData = z.output<typeof v2UndeployWorkflowDataSchema>
 
 export const v2RollbackWorkflowDataSchema = v2DeploymentStateSchema
@@ -1297,7 +1354,7 @@ export const v2ExecuteWorkflowBodySchema = z
       .max(100)
       .optional()
       .describe(
-        'Output references for streaming: `<blockName>.<outputPath>` or `<childWorkflowId>.<blockName>.<outputPath>`, using normalized block names. Child references apply to every invocation. Requires `stream: true` and rejects synchronous or async requests. Use `selectedOutputs` with Get Workflow Run to narrow an existing run.'
+        'Select `<blockName>.<outputPath>` or `<childWorkflowId>.<blockName>.<outputPath>` using normalized block reference names. Child selectors cover every invocation. Synchronous results use selector strings verbatim as `blockOutputs` keys; streaming selections shape the envelope. Unknown block names or IDs return `400` with available blocks before execution. Unexecuted blocks and absent paths are omitted. Incompatible with `async`; select outputs from the finished run resource instead.'
       ),
     includeThinking: z
       .boolean()
@@ -1369,6 +1426,12 @@ export const v2ExecuteWorkflowDataSchema = z
       .enum(['completed', 'failed', 'paused', 'cancelled'])
       .describe('Terminal or paused run status.'),
     output: z.unknown().describe('Workflow output, including partial output on failure.'),
+    blockOutputs: z
+      .record(z.string(), z.unknown().describe('Output value produced by one workflow block.'))
+      .nullable()
+      .describe(
+        'Outputs of the blocks named by `selectedOutputs`, keyed by those selector strings exactly as sent, or null when none were requested. `output` stays the final workflow output regardless. Selectors whose block did not run or whose path is absent are omitted (an unknown block is a `400` instead); failed runs include the outputs of the blocks that did run.'
+      ),
     error: v2ExecutionErrorSchema
       .nullable()
       .describe('Structured execution failure, or null when none occurred.'),
@@ -1861,7 +1924,11 @@ export const v2GetWorkflowRunContract = defineRouteContract({
 
 export const v2CancelWorkflowRunDataSchema = z
   .object({
-    success: z.boolean().describe('Whether cancellation was accepted.'),
+    success: z
+      .boolean()
+      .describe(
+        'Whether this request cancelled anything. `false` with an `already_*` reason means the run had already reached that terminal state, so there was nothing to cancel — still `200`, because a no-op is not an error. `false` with any other reason identifies a degraded or incomplete cancellation step.'
+      ),
     runId: v2WorkflowRunIdSchema,
     redisAvailable: z
       .boolean()
@@ -1883,7 +1950,7 @@ export const v2CancelWorkflowRunDataSchema = z
     id: 'CancelWorkflowRunResult',
     title: 'Cancel workflow run result',
     description:
-      'Outcome of a workflow run cancellation request. Cancellation is best-effort: a run already in a terminal state succeeds with no effect, reported as `durablyRecorded: false` with an `already_*` reason naming the state observed.',
+      'Outcome of a workflow run cancellation request. Cancellation is best-effort: a run already in a terminal state is a `200` no-op, reported as `success: false` and `durablyRecorded: false` with an `already_*` reason naming the state observed.',
   })
 export type V2CancelWorkflowRunData = z.output<typeof v2CancelWorkflowRunDataSchema>
 
@@ -2242,6 +2309,25 @@ export const v2PreviewWorkflowImportContract = defineRouteContract({
 export type V2ImportWorkflowBody = z.input<typeof v2ImportWorkflowBodySchema>
 export type V2PreviewWorkflowImportBody = z.input<typeof v2ImportWorkflowBaseBodySchema>
 
+const v2ImportedBlockSchema = z
+  .object({
+    id: z.string().describe('Block identifier.'),
+    type: z.string().describe('Registered block type.'),
+    name: z.string().describe('Block display name.'),
+  })
+  .strict()
+  .meta({
+    id: 'ImportedWorkflowBlock',
+    title: 'Imported workflow block',
+    description: 'A block the import created in the new workflow.',
+  })
+
+/**
+ * Import result. Carries the created blocks as a summary — the same shape the
+ * create result uses for its seeded blocks — so a caller can confirm what
+ * landed without reading the whole graph back. An import that reported no
+ * blocks was indistinguishable from one that imported an empty payload.
+ */
 export const v2ImportWorkflowDataSchema = z
   .object({
     id: z
@@ -2266,27 +2352,54 @@ export const v2ImportWorkflowDataSchema = z
       .string()
       .describe('ISO 8601 timestamp when the workflow was last updated.')
       .meta({ format: 'date-time' }),
+    blocks: z
+      .array(v2ImportedBlockSchema)
+      .optional()
+      .describe(
+        'Blocks the import created, in payload order. Omitted only when replaying an older receipt that did not record this summary. The workflow state read returns the current full graph.'
+      ),
+    warnings: z
+      .array(z.string())
+      .describe(
+        'One line per required workspace binding — a table, knowledge base, document, or other selector — that the payload carried empty, as `<block name>: <field> was stripped by export; set it before running`. Export clears those bindings unless `includeWorkspaceBindings=true` was sent, so a round-tripped workflow arrives unable to run until they are set again. Empty when nothing is missing.'
+      ),
   })
   .extend(v2OperationReportSchema.omit({ workspaceId: true }).partial().shape)
   .meta({
     id: 'ImportedWorkflow',
     title: 'Imported workflow',
-    description: 'Workflow created by an import operation.',
+    description:
+      'Workflow created by an import operation, with the required workspace bindings it arrived without.',
   })
+
+export const v2ExportWorkflowQuerySchema = z
+  .object({
+    includeReferences: booleanQueryFlagSchema
+      .optional()
+      .describe(
+        'Include non-secret resource identifiers and source field occurrences for mapped imports.'
+      ),
+    includeWorkspaceBindings: booleanQueryFlagSchema
+      .describe(
+        'Whether to keep workspace-scoped bindings — table, knowledge base, document, folder, channel, and other resource selectors — in the exported state. Defaults to false, the sharing-safe export in which those ids are cleared because they resolve nowhere else. Send true for a same-workspace round trip so the re-imported workflow can run without re-selecting them. Credentials, passwords, and table sub-block values are cleared either way.'
+      )
+      .optional()
+      .default(false),
+  })
+  .strict()
+  .meta({
+    id: 'ExportWorkflowQuery',
+    title: 'Export workflow query',
+    description: 'Whether the export keeps workspace-scoped bindings.',
+  })
+export type V2ExportWorkflowQuery = z.output<typeof v2ExportWorkflowQuerySchema>
 
 export const v2ExportWorkflowContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[workflowId]/export',
-  query: z
-    .object({
-      includeReferences: booleanQueryFlagSchema
-        .optional()
-        .describe(
-          'Include non-secret resource identifiers and source field occurrences for mapped imports.'
-        ),
-    })
-    .strict(),
+  query: v2ExportWorkflowQuerySchema,
   params: v2WorkflowIdParamsSchema,
+
   response: {
     mode: 'json',
     schema: v2DataResponse(v2WorkflowExportPayloadSchema),
@@ -2689,7 +2802,7 @@ const v2WorkflowGraphWriteResultSchema = z
     needsRedeployment: z
       .boolean()
       .describe(
-        'Whether the live deployment now differs from the draft. A graph write never changes what the deployed endpoint serves; deploy to publish it.'
+        'Whether the live deployment differs from the draft. A graph write never changes what the deployed endpoint serves; deploy to publish it. On a dry run, this describes the state before the proposed write.'
       ),
   })
   .meta({
@@ -2780,13 +2893,23 @@ const v2WorkflowLintSchema = z
             .union([z.string(), z.array(z.string())])
             .describe('The reference, or references, that did not resolve.'),
           kind: z
-            .enum(['credential', 'resource', 'custom-tool', 'mcp-tool', 'skill'])
+            .enum(['credential', 'resource', 'custom-tool', 'mcp-tool', 'skill', 'block-output'])
             .describe('What kind of entity the reference was expected to name.'),
           reason: z.string().describe('Why the reference does not resolve.'),
         })
       )
       .describe(
         'Credential, resource, tool, and skill references that do not resolve. These values are still persisted; they are reported, not dropped.'
+      ),
+    tableFieldIssues: z
+      .array(
+        v2WorkflowLintBlockRefSchema.extend({
+          field: z.string().describe('The filter or sort field that names no column.'),
+          tableName: z.string().describe('Display name of the table the block is bound to.'),
+        })
+      )
+      .describe(
+        "Table block `filter` and `order` fields checked against the bound table's live schema that name no column (nor the implicit `id`, `createdAt`, `updatedAt`). Such a run fails inside the block's error edge. A filter holding a `<block.output>` reference, or one that is not JSON, is not checked."
       ),
     notes: z.array(z.string()).describe('Advisory notes about the report itself.'),
   })
@@ -2812,7 +2935,7 @@ const v2GraphWriteDryRunQuerySchema = z
     dryRun: booleanQueryFlagSchema
       .optional()
       .describe(
-        'Validate and lint without persisting. The response is identical to the committed write of the same body, so a caller can inspect `lint` and then re-send the request for real. Nothing is written, no audit entry is recorded, and collaborators are not notified.'
+        'Validate and lint without writing, auditing, or notifying collaborators. Returns the same validation, preparation warnings, lint findings, and ID-ownership conflicts (`409`) as a committed write. `needsRedeployment` describes the pre-write state. For semantic operations, `mintedBlockIds` is empty; `previewBlockIds` contains provisional IDs with a warning, since committing mints new IDs.'
       ),
   })
   .strict()
@@ -2903,14 +3026,14 @@ const WORKFLOW_OPERATION_PARAM_ENVELOPE =
 const v2AgentToolUsageControlSchema = z
   .enum(['auto', 'force', 'none'])
   .describe(
-    'When the Agent may call the tool: `auto` lets the model decide, `force` requires a call, and `none` disables it. Omitted means `auto`.'
+    'Selector Permission Mode: `auto` lets the model decide, `force` requires a call, and `none` disables it. Supply this property and omit `usageControlExpression` to select or switch to Selector mode; do not send null or set `canonicalModes` or block-level `advancedMode`. With neither property, the default is `auto`.'
   )
 
 const v2AgentToolUsageControlExpressionSchema = z
   .string()
   .max(2048, 'Agent tool mode expression must be at most 2048 characters')
   .describe(
-    'Variable-capable tool mode value used when the matching canonical mode is `advanced`. It must resolve to `auto`, `force`, or `none` at execution time.'
+    'Variable Permission Mode: a reference such as `<start.toolMode>` or a literal such as `none`, resolving to `auto`, `force`, or `none` at execution time. Supply this property and omit `usageControl` to select or switch to Variable mode; do not send null or set `canonicalModes` or block-level `advancedMode`.'
   )
 
 const v2AgentToolParamsSchema = z
@@ -3437,7 +3560,13 @@ export const v2ApplyWorkflowOperationsDataSchema = v2WorkflowGraphWriteResultSch
     mintedBlockIds: z
       .record(z.string(), z.string().describe('The id the block was actually given.'))
       .describe(
-        'Minted block ids keyed by requested `block_id`, present only when they differ. References within this batch are remapped automatically; later requests must use the minted id. Supply a UUID when the requested id must survive unchanged.'
+        'Assigned IDs keyed by requested `block_id`, including only changed IDs. `add` and `insert_into_subflow` replace non-UUID labels with minted UUIDs. References within the batch are remapped automatically; later requests must use the minted IDs. Supply UUIDs to preserve your chosen IDs. Empty on dry runs, which return provisional IDs in `previewBlockIds` instead.'
+      ),
+    previewBlockIds: z
+      .record(z.string(), z.string().describe('The provisional id the dry run assigned.'))
+      .optional()
+      .describe(
+        'Dry run only: the provisional id the evaluation assigned to each block whose `block_id` was not already a UUID, keyed by the `block_id` you asked for. These are not the ids a committed apply produces — the real apply mints new ones — so never wire a later request against them. Wire edges by `block_id` within one batch, or by the `mintedBlockIds` the real apply returns.'
       ),
     lint: v2WorkflowLintSchema,
     dryRun: z

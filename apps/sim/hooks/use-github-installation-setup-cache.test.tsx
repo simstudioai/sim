@@ -34,6 +34,7 @@ describe('GitHub setup credential cache reconciliation', () => {
   let browsing: ReturnType<typeof useOAuthCredentials>
   let unrelated: ReturnType<typeof useOAuthCredentials>
   let completed: boolean
+  let completeOnRecheck: boolean
   let channels: Array<{ onmessage: ((event: MessageEvent<unknown>) => void) | null }>
 
   function Probe() {
@@ -73,6 +74,7 @@ describe('GitHub setup credential cache reconciliation', () => {
     mocks.request.mockReset()
     mocks.connected.mockReset()
     completed = false
+    completeOnRecheck = false
     channels = []
     vi.stubGlobal(
       'BroadcastChannel',
@@ -109,8 +111,15 @@ describe('GitHub setup credential cache reconciliation', () => {
           ],
         }
       }
-      if (contract === startGitHubSearchSetupContract)
-        return { success: true, url: 'https://github.com/apps/sim/installations/new' }
+      if (contract === startGitHubSearchSetupContract) {
+        if (completeOnRecheck) completed = true
+        return {
+          success: true,
+          url: completed
+            ? `${window.location.origin}/credential-groups/complete`
+            : 'https://github.com/apps/sim/installations/new',
+        }
+      }
       if (contract === readGitHubSearchSetupContract)
         return {
           success: true,
@@ -133,6 +142,28 @@ describe('GitHub setup credential cache reconciliation', () => {
     vi.useRealTimers()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
+  })
+
+  it('unlocks the account selection after rechecking GitHub without a callback or broadcast', async () => {
+    await act(async () =>
+      root.render(
+        <QueryClientProvider client={client}>
+          <Probe />
+        </QueryClientProvider>
+      )
+    )
+    await flush()
+    await act(async () => setup.connect())
+    await flush()
+    completeOnRecheck = true
+    await act(async () => window.dispatchEvent(new Event('focus')))
+    await flush()
+    await flush()
+    expect(mocks.connected).toHaveBeenCalledExactlyOnceWith('installation-new')
+    expect(setup.pending).toBe(false)
+    expect(setup.error).toBeNull()
+    expect(indexing.data?.map(({ id }) => id)).toContain('installation-new')
+    expect(unrelated.data?.map(({ id }) => id)).toEqual(['org-2-existing'])
   })
 
   it('refreshes mounted Add and Settings lists on completion without a visibility event', async () => {

@@ -11,7 +11,7 @@ vi.mock('@sim/emcn', () => ({
   useToast: () => ({ toast: { warning } }),
 }))
 
-import { SIM_SELECTION_MIME } from '@/lib/copilot/chat/selection-clipboard'
+import { SIM_SELECTION_MIME } from '@/lib/mothership/chat/selection-clipboard'
 import { PasteAdmissionGuard } from '@/app/_shell/paste-admission-guard'
 
 let host: HTMLDivElement

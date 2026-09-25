@@ -41,7 +41,7 @@ import {
 
 const logger = vi.mocked(createLogger).mock.results[
   vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'WorkspaceFileSearchIndexer')
-].value as { warn: ReturnType<typeof vi.fn> }
+].value as { info: ReturnType<typeof vi.fn>; warn: ReturnType<typeof vi.fn> }
 
 const FILE_TEXT = 'confidential customer text'
 
@@ -88,6 +88,10 @@ describe('complete-file indexing worker', () => {
     await indexWorkspaceFileForSearch(payload, signal)
     expect(mocks.load).not.toHaveBeenCalled()
     expect(mocks.publish).not.toHaveBeenCalled()
+    expect(logger.info).toHaveBeenCalledWith(
+      'Workspace file search run no longer owns its revision',
+      payload
+    )
   })
   it('rejects an oversized source before downloading', async () => {
     mocks.file.mockResolvedValue({

@@ -550,8 +550,10 @@ export interface PostHogEventMap {
     workspace_id: string
   }
 
-  task_forked: {
-    workspace_id: string
+  task_forked: (
+    | { workspace_id: string; organization_id?: never }
+    | { organization_id: string; workspace_id?: never }
+  ) & {
     source_chat_id: string
   }
 

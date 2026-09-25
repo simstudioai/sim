@@ -22,7 +22,10 @@ import {
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import type { OrganizationCredentialType } from '@/lib/credential-groups/credential-types'
 import { lockCredentialGroupEnrollmentLifecycle } from '@/lib/credential-groups/enrollments'
-import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
+import {
+  getManagedMcpConnector,
+  requireManagedMcpConnectorUrl,
+} from '@/lib/credential-groups/managed-mcp-connectors'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { generateManagedMcpConnectionId } from '@/lib/mcp/utils'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
@@ -179,6 +182,15 @@ export async function loadManagedMcpRuntimeCredential(
   const scope = resourceScopeFromOwner(
     context.organizationId ? { organizationId: context.organizationId } : { workspaceId }
   )
+  return { ...(await loadScopedManagedMcpRuntimeCredential(credentialId, scope)), workspaceId }
+}
+
+/** The caller authorizes the resource scope; supplying userId also requires their own enrollment. */
+export async function loadScopedManagedMcpRuntimeCredential(
+  credentialId: string,
+  scope: ResourceScope,
+  userId?: string
+): Promise<Omit<ManagedMcpRuntimeCredential, 'workspaceId'>> {
   if (!(await isScopedCredentialGroupsAvailable(scope))) {
     throw new ManagedMcpCredentialError(
       'Managed MCP credentials are not available for this workspace',
@@ -203,6 +215,7 @@ export async function loadManagedMcpRuntimeCredential(
       linkedCredentialGroupId: mcpServers.credentialGroupId,
       mcpServerId: mcpServers.id,
       mcpServerName: mcpServers.name,
+      serverUrl: mcpServers.url,
       managedConnectorId: mcpServers.managedConnectorId,
     })
     .from(credential)
@@ -217,6 +230,8 @@ export async function loadManagedMcpRuntimeCredential(
         eq(credential.id, credentialId),
         resourceScopeCondition(credential, scope),
         eq(credential.type, 'managed_mcp'),
+        isNull(credential.revokedAt),
+        ...(userId ? [eq(credentialGroupEnrollment.userId, userId)] : []),
         resourceScopeCondition(mcpServers, scope),
         resourceScopeCondition(credentialGroup, scope),
         eq(mcpServers.authType, 'oauth'),
@@ -230,8 +245,11 @@ export async function loadManagedMcpRuntimeCredential(
     throw new ManagedMcpCredentialError('Managed MCP connector metadata is missing', 500)
   }
   const connector = getManagedMcpConnector(row.managedConnectorId)
+  if (!row.serverUrl) throw new ManagedMcpCredentialError('Managed MCP endpoint is missing', 500)
+  requireManagedMcpConnectorUrl(connector.id, row.serverUrl)
   if (
     row.status !== 'active' ||
+    (userId !== undefined && row.enrollmentUserId !== userId) ||
     row.groupStatus !== 'active' ||
     !['in_progress', 'completed'].includes(row.enrollmentStatus) ||
     (scope.kind === 'organization' && !row.enrollmentUserId) ||
@@ -252,7 +270,6 @@ export async function loadManagedMcpRuntimeCredential(
     oauthConfigVersion: row.serverOauthConfigVersion,
     credentialGroupId: row.credentialGroupId,
     scope,
-    workspaceId,
     mcpServerId: row.mcpServerId,
     mcpServerName: row.mcpServerName,
     tokenVersion: row.encryptedTokens,

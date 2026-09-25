@@ -6,6 +6,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx } from '@/lib/db/types'
 import type { DeploymentOperationStatus } from '@/lib/workflows/deployment-lifecycle'
+import type { ImportedWorkflowBlock } from '@/lib/workflows/operations/import-workflow'
 import type { CreateForkResult } from '@/ee/workspace-forking/lib/create-fork'
 import type { PromoteForkResult } from '@/ee/workspace-forking/lib/promote/promote'
 
@@ -66,6 +67,8 @@ export interface WorkspaceOperationReport {
     sortOrder: number
     createdAt: string
     updatedAt: string
+    /** Absent only on receipts written before block summaries were persisted. */
+    blocks?: ImportedWorkflowBlock[]
   }
 }
 

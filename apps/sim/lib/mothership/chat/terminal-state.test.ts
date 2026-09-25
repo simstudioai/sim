@@ -1,0 +1,345 @@
+/**
+ * @vitest-environment node
+ */
+
+import { copilotChats } from '@sim/db/schema'
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { eq } from 'drizzle-orm'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockAppendCopilotChatMessages, mockReadEvents } = vi.hoisted(() => ({
+  mockAppendCopilotChatMessages: vi.fn(),
+  mockReadEvents: vi.fn(),
+}))
+vi.mock('@/lib/mothership/request/session/buffer', () => ({ readEvents: mockReadEvents }))
+
+vi.mock('@/lib/mothership/async-runs/repository', () => ({
+  getLatestRunForStream: vi.fn().mockResolvedValue({ chatId: 'chat-1', status: 'cancelled' }),
+}))
+
+vi.mock('@/lib/mothership/chat/messages-store', () => ({
+  appendCopilotChatMessages: mockAppendCopilotChatMessages,
+}))
+
+import { finalizeAssistantTurn } from './terminal-state'
+
+const assistantMessage = {
+  id: 'assistant-1',
+  role: 'assistant' as const,
+  content: 'hi',
+  timestamp: '2024-01-01T00:00:00.000Z',
+}
+
+/**
+ * Sequence the two in-tx reads: the chat row (`FOR UPDATE ... LIMIT 1`) and the
+ * last-message lookup that drives dedup — both terminate on `.limit(1)`.
+ */
+function mockReads(opts: {
+  chat: Record<string, unknown> | null
+  last?: { messageId: string; role: string; streamId?: string; hasResponse?: boolean }
+}) {
+  dbChainMockFns.limit.mockResolvedValueOnce(opts.chat ? [opts.chat] : [])
+  dbChainMockFns.limit.mockResolvedValueOnce(opts.last ? [opts.last] : [])
+}
+
+describe('finalizeAssistantTurn', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // Drain the once-queue (clearAllMocks/resetDbChainMock don't), then restore defaults.
+    dbChainMockFns.limit.mockReset()
+    resetDbChainMock()
+    mockReadEvents.mockResolvedValue([])
+  })
+
+  it('preserves canonical text and tools when the stopped client snapshot is empty', async () => {
+    mockReads({
+      chat: { conversationId: 'user-1', workspaceId: 'ws-1', model: null },
+      last: { messageId: 'user-1', role: 'user' },
+    })
+    const envelope = { v: 1, ts: '2026-09-08T13:11:55Z', stream: { streamId: 'user-1' } }
+    mockReadEvents.mockResolvedValue([
+      {
+        ...envelope,
+        seq: 1,
+        type: 'text',
+        payload: { channel: 'assistant', text: 'I found the relevant trace.' },
+      },
+      {
+        ...envelope,
+        seq: 2,
+        type: 'tool',
+        payload: {
+          phase: 'call',
+          toolCallId: 'call-1',
+          toolName: 'run_code',
+          arguments: {},
+          status: 'executing',
+        },
+      },
+      { ...envelope, seq: 3, type: 'complete', payload: { status: 'cancelled' } },
+    ])
+    await finalizeAssistantTurn({
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userMessageId: 'user-1',
+      assistantMessage: { ...assistantMessage, content: '' },
+      preferServerReplay: true,
+    })
+    expect(mockReadEvents).toHaveBeenCalledWith('user-1', '0')
+    const [, messages] = mockAppendCopilotChatMessages.mock.calls[0]
+    expect(messages[0].content).toBe('I found the relevant trace.')
+    expect(messages[0].contentBlocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'tool',
+          toolCall: expect.objectContaining({ id: 'call-1' }),
+        }),
+        expect.objectContaining({ type: 'complete', status: 'cancelled' }),
+      ])
+    )
+  })
+
+  it.each([
+    [2, 3],
+    [1, 3],
+  ])(
+    'preserves the full client snapshot when replay is trimmed or has a gap (%j)',
+    async (firstSeq, lastSeq) => {
+      mockReads({
+        chat: { conversationId: 'user-1', workspaceId: 'ws-1', model: null },
+        last: { messageId: 'user-1', role: 'user' },
+      })
+      const envelope = { v: 1, ts: '2026-09-08T13:11:55Z', stream: { streamId: 'user-1' } }
+      mockReadEvents.mockResolvedValue([
+        {
+          ...envelope,
+          seq: firstSeq,
+          type: 'text',
+          payload: { channel: 'assistant', text: 'tail only' },
+        },
+        {
+          ...envelope,
+          seq: lastSeq,
+          type: 'tool',
+          payload: {
+            phase: 'call',
+            toolCallId: 'tail-tool',
+            toolName: 'read',
+            arguments: {},
+            status: 'executing',
+          },
+        },
+      ])
+      await finalizeAssistantTurn({
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userMessageId: 'user-1',
+        preferServerReplay: true,
+        assistantMessage: {
+          ...assistantMessage,
+          content: 'Full opening and tail only',
+          contentBlocks: [
+            { type: 'text', channel: 'assistant', content: 'Full opening and tail only' },
+          ],
+        },
+      })
+      const persisted = mockAppendCopilotChatMessages.mock.calls[0][1][0]
+      expect(persisted.content).toBe('Full opening and tail only')
+      expect(persisted.contentBlocks).toEqual([
+        { type: 'text', channel: 'assistant', content: 'Full opening and tail only' },
+        { type: 'complete', status: 'cancelled' },
+      ])
+    }
+  )
+
+  it.each(['missing', 'other-stream', 'other-turn', 'already-persisted'])(
+    'does not read replay before exact append ownership is proven: %s',
+    async (state) => {
+      mockReads({
+        chat:
+          state === 'missing'
+            ? null
+            : {
+                conversationId: state === 'other-stream' ? 'other-stream' : 'user-1',
+                workspaceId: 'ws-1',
+                model: null,
+              },
+        last: {
+          messageId: state === 'other-turn' ? 'other-user' : 'user-1',
+          role: state === 'already-persisted' ? 'assistant' : 'user',
+        },
+      })
+      await finalizeAssistantTurn({
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userMessageId: 'user-1',
+        assistantMessage,
+        preferServerReplay: true,
+      })
+      expect(mockReadEvents).not.toHaveBeenCalled()
+      expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
+    }
+  )
+
+  it('does not commit an empty response when canonical replay cannot be read', async () => {
+    mockReads({
+      chat: { conversationId: 'user-1', workspaceId: 'ws-1', model: null },
+      last: { messageId: 'user-1', role: 'user' },
+    })
+    mockReadEvents.mockRejectedValueOnce(new Error('Replay temporarily unavailable'))
+    await expect(
+      finalizeAssistantTurn({
+        chatId: 'chat-1',
+        userId: 'user-1',
+        userMessageId: 'user-1',
+        assistantMessage: { ...assistantMessage, content: '' },
+        preferServerReplay: true,
+      })
+    ).rejects.toThrow('Replay temporarily unavailable')
+    expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
+
+  it('appends the assistant message when the user turn has no reply yet', async () => {
+    mockReads({
+      chat: { conversationId: 'user-1', workspaceId: 'ws-1', model: null },
+      last: { messageId: 'user-1', role: 'user' },
+    })
+
+    const result = await finalizeAssistantTurn({
+      chatId: 'chat-1',
+      userMessageId: 'user-1',
+      assistantMessage,
+    })
+
+    expect(result.appendedAssistant).toBe(true)
+    expect(mockReadEvents).not.toHaveBeenCalled()
+    const updateArg = dbChainMockFns.set.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(updateArg).toEqual(
+      expect.objectContaining({ updatedAt: expect.any(Date), conversationId: null })
+    )
+    expect(Object.hasOwn(updateArg, 'messages')).toBe(false)
+    expect(dbChainMockFns.where).toHaveBeenCalledWith(eq(copilotChats.id, 'chat-1'))
+    expect(mockAppendCopilotChatMessages).toHaveBeenCalledTimes(1)
+    expect(mockAppendCopilotChatMessages).toHaveBeenCalledWith(
+      'chat-1',
+      [assistantMessage],
+      { streamId: 'user-1', chatModel: null },
+      expect.anything()
+    )
+  })
+
+  it('only clears the active stream marker when a response is already persisted', async () => {
+    mockReads({
+      chat: { conversationId: 'user-1', workspaceId: 'ws-1', model: null },
+      last: { messageId: 'assistant-1', role: 'assistant' },
+    })
+
+    const result = await finalizeAssistantTurn({
+      chatId: 'chat-1',
+      userMessageId: 'user-1',
+      assistantMessage: { ...assistantMessage, id: 'assistant-2' },
+    })
+
+    expect(result.outcome).toBe('assistant_already_persisted')
+    const updateArg = dbChainMockFns.set.mock.calls[0]?.[0] as Record<string, unknown>
+    expect(updateArg).toEqual(
+      expect.objectContaining({ updatedAt: expect.any(Date), conversationId: null })
+    )
+    expect(Object.hasOwn(updateArg, 'messages')).toBe(false)
+    expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
+  })
+
+  it('appends a stopped assistant when the stream marker was already cleared', async () => {
+    mockReads({
+      chat: { conversationId: null, workspaceId: 'ws-1', model: null },
+      last: { messageId: 'user-1', role: 'user' },
+    })
+
+    const result = await finalizeAssistantTurn({
+      chatId: 'chat-1',
+      userMessageId: 'user-1',
+      streamMarkerPolicy: 'active-or-cleared',
+      assistantMessage,
+    })
+
+    expect(result.appendedAssistant).toBe(true)
+    expect(mockAppendCopilotChatMessages).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not append on a cleared marker unless the policy allows it', async () => {
+    mockReads({ chat: { conversationId: null, workspaceId: 'ws-1', model: null } })
+
+    const result = await finalizeAssistantTurn({
+      chatId: 'chat-1',
+      userMessageId: 'user-1',
+      assistantMessage,
+    })
+
+    expect(result.updated).toBe(false)
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
+  })
+
+  it('reports already persisted when a cleared marker races with a duplicate stop', async () => {
+    mockReads({
+      chat: { conversationId: null, workspaceId: 'ws-1', model: null },
+      last: { messageId: 'assistant-1', role: 'assistant' },
+    })
+
+    const result = await finalizeAssistantTurn({
+      chatId: 'chat-1',
+      userMessageId: 'user-1',
+      streamMarkerPolicy: 'active-or-cleared',
+      assistantMessage: { ...assistantMessage, id: 'assistant-2' },
+    })
+
+    expect(result.updated).toBe(false)
+    expect(result.outcome).toBe('assistant_already_persisted')
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+    expect(mockAppendCopilotChatMessages).not.toHaveBeenCalled()
+  })
+
+  it('appends the answer after a steering message belonging to the same turn', async () => {
+    mockReads({
+      chat: { conversationId: 'user-1', workspaceId: 'ws-1', model: null },
+      last: { messageId: 'steer-1', role: 'user', streamId: 'user-1', hasResponse: false },
+    })
+    const result = await finalizeAssistantTurn({
+      chatId: 'chat-1',
+      userMessageId: 'user-1',
+      assistantMessage,
+    })
+    expect(result.appendedAssistant).toBe(true)
+  })
+
+  it('does not append another answer when a delayed steering write follows the existing reply', async () => {
+    mockReads({
+      chat: { conversationId: null, workspaceId: 'ws-1', model: null },
+      last: { messageId: 'steer-1', role: 'user', streamId: 'user-1', hasResponse: true },
+    })
+    const result = await finalizeAssistantTurn({
+      chatId: 'chat-1',
+      userMessageId: 'user-1',
+      assistantMessage,
+      streamMarkerPolicy: 'active-or-cleared',
+    })
+    expect(result.appendedAssistant).toBe(false)
+    expect(result.outcome).toBe('assistant_already_persisted')
+  })
+
+  it('does not attach an old answer after a user message from a different turn', async () => {
+    mockReads({
+      chat: { conversationId: null, workspaceId: 'ws-1', model: null },
+      last: { messageId: 'steer-new', role: 'user', streamId: 'new-turn', hasResponse: false },
+    })
+    const result = await finalizeAssistantTurn({
+      chatId: 'chat-1',
+      userMessageId: 'user-1',
+      assistantMessage,
+      streamMarkerPolicy: 'active-or-cleared',
+    })
+    expect(result.appendedAssistant).toBe(false)
+    expect(result.outcome).toBe('stale_user_message')
+  })
+})

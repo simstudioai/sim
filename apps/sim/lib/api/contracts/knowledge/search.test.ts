@@ -42,4 +42,23 @@ describe('workspaceKnowledgeSearchBodySchema', () => {
     /** The filters schema stays a plain object, so the Assistant's search input can still extend it. */
     expect(typeof workspaceSearchFiltersSchema.extend).toBe('function')
   })
+  it('accepts a search whose only terms are a native query', () => {
+    const body = { workspaceId: 'workspace-1', query: '' }
+    const nativeQueries = [{ provider: 'github', query: 'author:@me', kind: 'commits' }]
+    expect(workspaceKnowledgeSearchBodySchema.safeParse({ ...body, nativeQueries }).success).toBe(
+      true
+    )
+    expect(workspaceKnowledgeSearchBodySchema.safeParse(body).success).toBe(false)
+  })
+  it('accepts a newest- or oldest-first listing without terms, as the Assistant contract does', () => {
+    const body = { workspaceId: 'workspace-1', query: '' }
+    for (const sortBy of ['newest', 'oldest'] as const)
+      expect(
+        workspaceKnowledgeSearchBodySchema.safeParse({ ...body, filters: { sortBy } }).success
+      ).toBe(true)
+    expect(
+      workspaceKnowledgeSearchBodySchema.safeParse({ ...body, filters: { sortBy: 'relevance' } })
+        .success
+    ).toBe(false)
+  })
 })

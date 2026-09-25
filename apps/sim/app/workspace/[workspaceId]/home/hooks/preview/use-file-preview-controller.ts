@@ -9,8 +9,8 @@ import {
 } from 'react'
 import { isRecordLike } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
-import type { SyntheticFilePreviewPayload } from '@/lib/copilot/request/session'
-import type { FilePreviewSession } from '@/lib/copilot/request/session/file-preview-session-contract'
+import type { SyntheticFilePreviewPayload } from '@/lib/mothership/request/session'
+import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import { deriveFilePreviewSession } from '@/app/workspace/[workspaceId]/home/hooks/preview/apply-file-preview-phase'
 import {
@@ -21,11 +21,13 @@ import {
   reduceFilePreviewSessions,
   useFilePreviewSessions,
 } from '@/app/workspace/[workspaceId]/home/hooks/preview/use-file-preview-sessions'
+import { resolveFileResourceSelectionId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { workspaceFilesKeys } from '@/hooks/queries/workspace-files'
 
 interface FilePreviewControllerDeps {
   workspaceId?: string
+  resourcesRef: MutableRefObject<MothershipResource[]>
   setResources: Dispatch<SetStateAction<MothershipResource[]>>
   setActiveResourceId: Dispatch<SetStateAction<string | null>>
   activeResourceIdRef: MutableRefObject<string | null>
@@ -46,6 +48,7 @@ function asPayloadRecord(value: unknown): Record<string, unknown> | undefined {
  */
 export function useFilePreviewController({
   workspaceId,
+  resourcesRef,
   setResources,
   setActiveResourceId,
   activeResourceIdRef,
@@ -78,21 +81,27 @@ export function useFilePreviewController({
       const activationOwnerId = previewActivationOwnerRef.current.get(session.id)
       return (
         currentActiveResourceId === null ||
-        currentActiveResourceId === session.fileId ||
+        currentActiveResourceId ===
+          resolveFileResourceSelectionId(resourcesRef.current, session.fileId, workspaceId) ||
         currentActiveResourceId === 'streaming-file' ||
         currentActiveResourceId === activationOwnerId
       )
     },
-    [activeResourceIdRef, onResourceEventRef]
+    [activeResourceIdRef, onResourceEventRef, resourcesRef, workspaceId]
   )
 
   const requestResourceAttention = useCallback(
     (resourceId: string) => {
+      const selectionId = resolveFileResourceSelectionId(
+        resourcesRef.current,
+        resourceId,
+        workspaceId
+      )
       const onResourceEvent = onResourceEventRef.current
-      if (onResourceEvent) onResourceEvent(resourceId)
-      else setActiveResourceId(resourceId)
+      if (onResourceEvent) onResourceEvent(selectionId)
+      else setActiveResourceId(selectionId)
     },
-    [onResourceEventRef, setActiveResourceId]
+    [onResourceEventRef, setActiveResourceId, resourcesRef, workspaceId]
   )
 
   const seedCompletedPreviewContentCache = useCallback(

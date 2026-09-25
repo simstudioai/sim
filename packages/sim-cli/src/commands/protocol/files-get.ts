@@ -1,11 +1,13 @@
 import { once } from 'node:events'
 import { createWriteStream, rmSync, type WriteStream } from 'node:fs'
 import { link, lstat, mkdtemp, readlink, rename, rm } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, posix, resolve } from 'node:path'
 import { Readable, type Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { Command } from 'commander'
+import { writeStdout } from '#sim-cli/output/io'
 import { clientFrom } from '../../context'
+import { embedStore } from '../../embed-context'
 import { V2_OPERATIONS } from '../../generated/v2-api'
 import { isRequestTimeout, RAISE_TIMEOUT_HINT, resolvePath, SimApiError } from '../../http/client'
 import { printProtocolResult } from './result'
@@ -201,23 +203,53 @@ export async function saveToFile(
   body: ReadableStream<Uint8Array>,
   target: string,
   force: boolean
-): Promise<void> {
-  return saveStagedFile(body, target, force)
+): Promise<string> {
+  const embedded = embedStore.getStore()
+  if (embedded) {
+    try {
+      if (embedded.workingDirectory) {
+        if (!posix.isAbsolute(embedded.workingDirectory))
+          throw new SimApiError('The caller working directory must be absolute.', 0)
+        target = posix.resolve(embedded.workingDirectory, target)
+      }
+      embedded.identity.signal?.throwIfAborted()
+      if (!embedded.writeFile) {
+        throw new SimApiError(
+          `--output-file cannot save ${target} here: this surface has no machine to write to. Read the file instead, or use a client with filesystem access to download it.`,
+          0
+        )
+      }
+      await embedded.writeFile(target, body, { overwrite: force })
+      embedded.identity.signal?.throwIfAborted()
+    } finally {
+      /** The host releases its reader; refusal and early failure must also close the source. */
+      await body.cancel().catch(() => {})
+    }
+    return target
+  }
+  target = resolve(target)
+  await saveStagedFile(body, target, force)
+  return target
 }
 
 /** Streams a fetch body to stdout without closing the process-wide stream. */
 export async function streamToStdout(
   body: ReadableStream<Uint8Array>,
-  output: NodeJS.WriteStream = process.stdout
+  output?: NodeJS.WriteStream
 ): Promise<void> {
   const reader = body.getReader()
   try {
     while (true) {
       const { done, value } = await reader.read()
       if (done) return
-      if (!output.write(value)) await once(output, 'drain')
+      if (output) {
+        if (!output.write(value)) await once(output, 'drain')
+      } else if (!writeStdout(value)) {
+        await once(process.stdout, 'drain')
+      }
     }
   } finally {
+    await reader.cancel().catch(() => {})
     reader.releaseLock()
   }
 }
@@ -280,10 +312,13 @@ async function downloadToOutput(
 
   if (writesToStdout) {
     const contentType = response.headers.get('content-type')
-    if (process.stdout.isTTY && !isTerminalSafeContentType(contentType)) {
+    const embedded = embedStore.getStore()
+    if ((embedded || process.stdout.isTTY) && !isTerminalSafeContentType(contentType)) {
       await response.body.cancel()
       throw new SimApiError(
-        `Refusing to write ${contentType ?? 'unknown content'} to an interactive terminal. Use --output-file <path> or pipe stdout.`,
+        embedded
+          ? `Refusing to put ${contentType ?? 'unknown content'} in a text result. Use --output-file <path>.`
+          : `Refusing to write ${contentType ?? 'unknown content'} to an interactive terminal. Use --output-file <path> or pipe stdout.`,
         0
       )
     }
@@ -292,10 +327,10 @@ async function downloadToOutput(
     return
   }
 
-  await saveToFile(response.body, target, Boolean(options.force))
+  const savedTarget = await saveToFile(response.body, target, Boolean(options.force))
   printProtocolResult(profile.output, {
     id: pathParams.fileId,
-    path: target,
+    path: savedTarget,
     status: 'saved',
   })
 }

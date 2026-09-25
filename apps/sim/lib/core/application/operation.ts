@@ -213,6 +213,8 @@ export function assertOperationPrincipal<O extends PrincipalScopedOperation>(
 
 export interface OperationUseCase<O extends ApplicationOperation, I, R> {
   readonly operation: O
+  /** Static domain delegation audience; absent means this use case is not a private Copilot route. */
+  readonly delegationAudience?: string
   execute(args: {
     principal: Principal
     input: I

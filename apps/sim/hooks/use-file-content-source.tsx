@@ -68,8 +68,12 @@ export interface FileContentSource {
   reportImageDimensions?: ImageDimensionsSource['reportImageDimensions']
 }
 
-function buildServeUrl(key: string, opts?: FileContentUrlOptions): string {
-  const base = `/api/files/serve/${encodeURIComponent(key)}?context=workspace`
+function buildServeUrl(
+  key: string,
+  opts?: FileContentUrlOptions,
+  storageContext: 'workspace' | 'mothership' = 'workspace'
+): string {
+  const base = `/api/files/serve/${encodeURIComponent(key)}?context=${storageContext}`
   const params: string[] = []
   if (opts?.version != null) params.push(`v=${encodeURIComponent(String(opts.version))}`)
   else if (opts?.bust) params.push(`t=${Date.now()}`)
@@ -100,10 +104,14 @@ function inlineImageSource(
  */
 export function createWorkspaceFileContentSource(
   workspaceId: string,
-  imageDimensions?: ImageDimensionsSource
+  imageDimensions?: ImageDimensionsSource,
+  storageContext: 'workspace' | 'mothership' = 'workspace'
 ): FileContentSource {
   return {
-    ...inlineImageSource(buildServeUrl, `/api/workspaces/${workspaceId}/files/inline`),
+    ...inlineImageSource(
+      (key, opts) => buildServeUrl(key, opts, storageContext),
+      `/api/workspaces/${workspaceId}/files/inline`
+    ),
     ...imageDimensions,
   }
 }

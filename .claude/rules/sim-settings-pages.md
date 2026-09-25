@@ -251,11 +251,13 @@ and — on activatable rows only — the hover band. Never hand-roll any of it, 
   `RESOURCE_TILE_FILL` for a glyph, `RESOURCE_TILE_PLAIN` for a brand logo or favicon.
 
 
-**Member avatars are deliberately two components, not one.** `member-list.tsx`
-renders a 14px neutral marker for the dense Teammates/Organization roster, where
-the email is the primary content; `components/permissions/member-row.tsx` renders
-a 36px `getUserColor`-hashed avatar for member *management* rows that carry a name,
-an email, and a role control. Same shape, different job — do not merge them.
+**One member avatar.** Every member list, owner cell, and ranking renders emcn
+`<Avatar size='xs' name={…} src={…} />` — a 14px photo, or the initial on the
+neutral disc. Pass `aria-hidden` only when the member's name is visibly rendered
+beside it; an email-only row (`MemberRow`) keeps the avatar labelled because it
+carries the name. Never hand-roll an avatar or give a person a `getUserColor`
+hash; per-person colors belong to live collaboration (presence, cursors), where
+the color matches that person's cursor.
 
 ## Header action order
 

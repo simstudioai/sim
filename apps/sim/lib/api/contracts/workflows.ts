@@ -333,6 +333,13 @@ export type ReorderWorkflowsBody = z.input<typeof reorderWorkflowsBodySchema>
 
 export const executeWorkflowRunFromBlockSchema = z.object({
   startBlockId: requiredFieldSchema('Start block ID is required'),
+  /**
+   * Mocked upstream outputs keyed by block name or id: each entry becomes that
+   * block's state (marked executed) so the start block runs in isolation
+   * without a prior execution — and overlays the resolved snapshot when one
+   * exists. Names resolve server-side with the executor's own normalization.
+   */
+  variableInputs: z.record(z.string(), z.unknown()).optional(),
   sourceSnapshot: z
     .object({
       blockStates: z.record(z.string(), z.any()),

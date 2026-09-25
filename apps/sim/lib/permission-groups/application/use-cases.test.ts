@@ -190,6 +190,7 @@ describe('permission-group organization authorization', () => {
         'session',
         'personal_api_key',
         'oauth_access_token',
+        'organization_delegated',
       ])
       expect(Object.isFrozen(operation)).toBe(true)
     }

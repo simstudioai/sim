@@ -469,14 +469,19 @@
 
 /*
  * Collaborative carets (TipTap CollaborationCaret). The caret bar and the name
- * label's background are colored inline from each collaborator's identity color
+ * label's background use the collaborator's identity palette slot from CSS
  * (the same `getUserColor` mechanism the canvas cursors use); the selection is a
- * translucent tint of that color (set via selectionRender). The name label shows
+ * translucent tint of that color. The name label shows
  * while the peer is active (JS toggles `--active` on each awareness change) or on
  * hover, then fades after inactivity — matching Google Docs. `z-index` lifts the
  * caret (and its label) above table cell backgrounds so a caret inside a table
  * cell is not hidden behind adjacent cells.
  */
+.rich-markdown-nodes .collaboration-carets__caret,
+.rich-markdown-nodes .collaboration-carets__selection {
+  --caret-color: var(--color-black);
+}
+
 .rich-markdown-nodes .collaboration-carets__caret {
   /* Zero inline footprint: a positioned anchor with NO width/border/margin, so inserting or moving this
    * inline widget never reflows the surrounding text. The visible bar, dormant cap (::before), name label,
@@ -484,6 +489,36 @@
   position: relative;
   word-break: normal;
   z-index: 20;
+}
+
+.rich-markdown-nodes .collaboration-carets__caret[data-color-slot="0"],
+.rich-markdown-nodes .collaboration-carets__selection[data-color-slot="0"] {
+  --caret-color: var(--indicator-active);
+}
+
+.rich-markdown-nodes .collaboration-carets__caret[data-color-slot="1"],
+.rich-markdown-nodes .collaboration-carets__selection[data-color-slot="1"] {
+  --caret-color: var(--color-pink-400);
+}
+
+.rich-markdown-nodes .collaboration-carets__caret[data-color-slot="2"],
+.rich-markdown-nodes .collaboration-carets__selection[data-color-slot="2"] {
+  --caret-color: var(--brand-secondary);
+}
+
+.rich-markdown-nodes .collaboration-carets__caret[data-color-slot="3"],
+.rich-markdown-nodes .collaboration-carets__selection[data-color-slot="3"] {
+  --caret-color: var(--color-orange-400);
+}
+
+.rich-markdown-nodes .collaboration-carets__caret[data-color-slot="4"],
+.rich-markdown-nodes .collaboration-carets__selection[data-color-slot="4"] {
+  --caret-color: var(--color-purple-400);
+}
+
+.rich-markdown-nodes .collaboration-carets__caret[data-color-slot="5"],
+.rich-markdown-nodes .collaboration-carets__selection[data-color-slot="5"] {
+  --caret-color: var(--color-amber-300);
 }
 
 /* The visible caret bar — absolutely positioned so it draws over the text without occupying inline
@@ -579,9 +614,8 @@
   border-radius: 2px 2px 0 2px;
 }
 
-/* Remote text selection: a rounded translucent tint of the collaborator's identity
- * color (the alpha fill is set inline by selectionRender). */
 .rich-markdown-nodes .collaboration-carets__selection {
+  background-color: color-mix(in srgb, var(--caret-color) 20%, transparent);
   border-radius: 2px;
   pointer-events: none;
 }

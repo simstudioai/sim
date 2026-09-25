@@ -1,42 +1,47 @@
 import { type Context, context as otelContext, type Span, trace } from '@opentelemetry/api'
-import type { Principal } from '@sim/auth/principal'
+import type { SessionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { type NextRequest, NextResponse } from 'next/server'
 import { copilotChatStreamContract } from '@/lib/api/contracts/copilot'
 import { parseRequest } from '@/lib/api/server'
-import { getLatestRunForStream } from '@/lib/copilot/async-runs/repository'
-import { getAccessibleCopilotChatAuth } from '@/lib/copilot/chat/lifecycle'
+import {
+  InternalUnauthenticatedError,
+  internalOrchestrationErrorPolicy,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { encodeSSEComment } from '@/lib/core/utils/sse'
+import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
-} from '@/lib/copilot/generated/mothership-stream-v1'
+} from '@/lib/mothership/generated/mothership-stream-v1'
 import {
   CopilotResumeOutcome,
   CopilotTransport,
-} from '@/lib/copilot/generated/trace-attribute-values-v1'
-import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
-import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
-import { contextFromRequestHeaders } from '@/lib/copilot/request/go/propagation'
-import { authenticateCopilotRequestSessionOnly } from '@/lib/copilot/request/http'
-import { getCopilotTracer, markSpanForError } from '@/lib/copilot/request/otel'
+} from '@/lib/mothership/generated/trace-attribute-values-v1'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import { readChatStream } from '@/lib/mothership/request/application/recover-stream'
+import { contextFromRequestHeaders } from '@/lib/mothership/request/go/propagation'
+import { getCopilotTracer, markSpanForError } from '@/lib/mothership/request/otel'
 import {
   checkForReplayGap,
   createEvent,
   encodeSSEEnvelope,
+  isTerminalStreamStatus,
   readEvents,
   readFilePreviewSessions,
   SSE_RESPONSE_HEADERS,
-} from '@/lib/copilot/request/session'
-import { toStreamBatchEvent } from '@/lib/copilot/request/session/types'
-import { encodeSSEComment } from '@/lib/core/utils/sse'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+} from '@/lib/mothership/request/session'
+import { toReplayEnvelope, toStreamBatchEvent } from '@/lib/mothership/request/session/types'
 
 export const maxDuration = 3600
 
 const logger = createLogger('CopilotChatStreamAPI')
 const POLL_INTERVAL_MS = 250
+const POLL_INTERVAL_MAX_MS = 2_000
 const REPLAY_KEEPALIVE_INTERVAL_MS = 15_000
 const MAX_STREAM_MS = 60 * 60 * 1000
 
@@ -57,16 +62,6 @@ function extractRunRequestId(run: { requestContext?: unknown } | null | undefine
 
 function extractEnvelopeRequestId(envelope: { trace?: { requestId?: unknown } }): string {
   return extractCanonicalRequestId(envelope.trace?.requestId)
-}
-
-function isTerminalStatus(
-  status: string | null | undefined
-): status is MothershipStreamV1CompletionStatus {
-  return (
-    status === MothershipStreamV1CompletionStatus.complete ||
-    status === MothershipStreamV1CompletionStatus.error ||
-    status === MothershipStreamV1CompletionStatus.cancelled
-  )
 }
 
 function buildResumeTerminalEnvelopes(options: {
@@ -117,15 +112,15 @@ function buildResumeTerminalEnvelopes(options: {
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  const {
-    userId: authenticatedUserId,
-    isAuthenticated,
-    principal,
-  } = await authenticateCopilotRequestSessionOnly()
-
-  if (!isAuthenticated || !authenticatedUserId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  let principal: SessionPrincipal
+  try {
+    principal = await internalSessionAuth.authenticate()
+  } catch (error) {
+    if (error instanceof InternalUnauthenticatedError)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    throw error
   }
+  const authenticatedUserId = principal.userId
 
   const parsed = await parseRequest(copilotChatStreamContract, request, {})
   if (!parsed.success) return parsed.response
@@ -173,7 +168,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         streamId,
         afterCursor,
         batchMode,
-        authenticatedUserId,
         principal,
         rootSpan,
         rootContext,
@@ -182,7 +176,12 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   } catch (err) {
     markSpanForError(rootSpan, err)
     rootSpan.end()
-    throw err
+    const errorResponse =
+      internalOrchestrationErrorPolicy.project(err) ?? internalOrchestrationErrorPolicy.unhandled!()
+    return NextResponse.json(errorResponse.body, {
+      status: errorResponse.status,
+      headers: errorResponse.headers,
+    })
   }
 })
 
@@ -191,7 +190,6 @@ async function handleResumeRequestBody({
   streamId,
   afterCursor,
   batchMode,
-  authenticatedUserId,
   principal,
   rootSpan,
   rootContext,
@@ -200,18 +198,16 @@ async function handleResumeRequestBody({
   streamId: string
   afterCursor: string
   batchMode: boolean
-  authenticatedUserId: string
-  principal?: Principal
+  principal: SessionPrincipal
   rootSpan: Span
   rootContext: Context
 }) {
-  const run = await getLatestRunForStream(streamId, authenticatedUserId).catch((err) => {
-    logger.warn('Failed to fetch latest run for stream', {
-      streamId,
-      error: getErrorMessage(err),
+  const readRun = () =>
+    readChatStream.execute({
+      principal,
+      input: { streamId },
     })
-    return null
-  })
+  const run = await readRun()
   logger.info('[Resume] Stream lookup', {
     streamId,
     afterCursor,
@@ -219,11 +215,7 @@ async function handleResumeRequestBody({
     hasRun: !!run,
     runStatus: run?.status,
   })
-  if (
-    !run ||
-    (run.chatId &&
-      !(await getAccessibleCopilotChatAuth(run.chatId, authenticatedUserId, { principal })))
-  ) {
+  if (!run) {
     rootSpan.setAttribute(TraceAttr.CopilotResumeOutcome, CopilotResumeOutcome.StreamNotFound)
     rootSpan.end()
     return NextResponse.json({ error: 'Stream not found' }, { status: 404 })
@@ -334,14 +326,7 @@ async function handleResumeRequestBody({
     }
     request.signal.addEventListener('abort', abortListener, { once: true })
 
-    const flushEvents = async () => {
-      if (
-        run?.chatId &&
-        !(await getAccessibleCopilotChatAuth(run.chatId, authenticatedUserId, { principal }))
-      ) {
-        closeController()
-        return
-      }
+    const flushEvents = async (): Promise<number> => {
       const events = await readEvents(streamId, cursor)
       if (events.length > 0) {
         logger.debug('[Resume] Flushing events', {
@@ -351,7 +336,7 @@ async function handleResumeRequestBody({
         })
       }
       for (const envelope of events) {
-        if (!enqueueEvent(envelope)) {
+        if (!enqueueEvent(toReplayEnvelope(envelope))) {
           break
         }
         totalEventsFlushed += 1
@@ -361,6 +346,7 @@ async function handleResumeRequestBody({
           sawTerminalEvent = true
         }
       }
+      return events.length
     }
 
     const emitTerminalIfMissing = (
@@ -409,17 +395,16 @@ async function handleResumeRequestBody({
 
       await flushEvents()
 
+      let pollDelayMs = POLL_INTERVAL_MS
       while (!controllerClosed && Date.now() - startTime < MAX_STREAM_MS) {
         pollIterations += 1
-        const currentRun = await getLatestRunForStream(streamId, authenticatedUserId).catch(
-          (err) => {
-            logger.warn('Failed to poll latest run for stream', {
-              streamId,
-              error: getErrorMessage(err),
-            })
-            return null
-          }
-        )
+        const currentRun = await readRun().catch((err) => {
+          logger.warn('Failed to poll latest run for stream', {
+            streamId,
+            error: getErrorMessage(err),
+          })
+          return null
+        })
         if (!currentRun) {
           emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {
             message: 'The stream could not be recovered because its run metadata is unavailable.',
@@ -431,12 +416,17 @@ async function handleResumeRequestBody({
 
         currentRequestId = extractRunRequestId(currentRun) || currentRequestId
 
-        await flushEvents()
+        const flushed = await flushEvents()
+        /* Adaptive tail: 4 Hz only while events are actually flowing; a quiet stream
+           decays toward the cap so an attached client doesn't hammer Postgres + Redis
+           at 4 Hz for up to an hour. Any flushed event snaps back to full rate. */
+        pollDelayMs =
+          flushed > 0 ? POLL_INTERVAL_MS : Math.min(pollDelayMs * 2, POLL_INTERVAL_MAX_MS)
 
         if (controllerClosed) {
           break
         }
-        if (isTerminalStatus(currentRun.status)) {
+        if (isTerminalStreamStatus(currentRun.status)) {
           emitTerminalIfMissing(currentRun.status, {
             message:
               currentRun.status === MothershipStreamV1CompletionStatus.error
@@ -459,7 +449,7 @@ async function handleResumeRequestBody({
           enqueueComment('keepalive')
         }
 
-        await sleep(POLL_INTERVAL_MS)
+        await sleep(pollDelayMs)
       }
       if (!controllerClosed && Date.now() - startTime >= MAX_STREAM_MS) {
         emitTerminalIfMissing(MothershipStreamV1CompletionStatus.error, {

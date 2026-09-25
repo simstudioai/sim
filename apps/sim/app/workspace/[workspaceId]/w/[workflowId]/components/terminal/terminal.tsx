@@ -7,7 +7,6 @@ import {
   ChevronDown,
   cn,
   disclosureChevronClass,
-  handleKeyboardActivation,
   Popover,
   PopoverContent,
   PopoverItem,
@@ -27,6 +26,7 @@ import {
   LogRowContextMenu,
   OutputPanel,
   StatusDisplay,
+  TerminalRowButton,
   ToggleButton,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/components'
 import {
@@ -110,25 +110,17 @@ const BlockRow = memo(function BlockRow({
   const isCanceled = Boolean(entry.isCanceled)
 
   return (
-    <div
+    <TerminalRowButton
       data-entry-id={entry.id}
-      role='button'
-      tabIndex={0}
-      className={isSelected ? ROW_STYLES.rowSelected : ROW_STYLES.row}
-      onClick={(e) => {
-        e.stopPropagation()
-        onSelect(entry)
-      }}
-      onKeyDown={(event) =>
-        handleKeyboardActivation(event, () => onSelect(entry), { stopPropagation: true })
-      }
+      selected={isSelected}
+      onClick={() => onSelect(entry)}
     >
-      <div className={ROW_STYLES.content}>
+      <span className={ROW_STYLES.content}>
         <EntryBlockTile blockType={entry.blockType} />
         <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>
           {entry.blockName}
         </span>
-      </div>
+      </span>
       <span className={cn(ROW_STYLES.status, !isRunning && ROW_STYLES.statusIdle)}>
         <StatusDisplay
           isRunning={isRunning}
@@ -136,7 +128,7 @@ const BlockRow = memo(function BlockRow({
           formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
         />
       </span>
-    </div>
+    </TerminalRowButton>
   )
 })
 
@@ -175,24 +167,15 @@ const IterationNodeRow = memo(function IterationNodeRow({
   return (
     <div className='flex min-w-0 flex-col'>
       {/* Iteration Header */}
-      <div
-        role='button'
-        tabIndex={0}
-        className={ROW_STYLES.row}
-        onClick={(e) => {
-          e.stopPropagation()
-          onToggle()
-        }}
-        onKeyDown={(event) => handleKeyboardActivation(event, onToggle, { stopPropagation: true })}
-      >
-        <div className={ROW_STYLES.content}>
+      <TerminalRowButton aria-expanded={hasChildren ? isExpanded : undefined} onClick={onToggle}>
+        <span className={ROW_STYLES.content}>
           <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>
             {iterationLabel}
           </span>
           {hasChildren && (
             <ChevronDown className={cn(disclosureChevronClass, !isExpanded && '-rotate-90')} />
           )}
-        </div>
+        </span>
         <span className={cn(ROW_STYLES.status, !hasRunningChild && ROW_STYLES.statusIdle)}>
           <StatusDisplay
             isRunning={hasRunningChild}
@@ -200,7 +183,7 @@ const IterationNodeRow = memo(function IterationNodeRow({
             formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
           />
         </span>
-      </div>
+      </TerminalRowButton>
 
       {/* Nested Blocks */}
       {renderChildren && isExpanded && hasChildren && (
@@ -258,25 +241,17 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
   return (
     <div className='flex min-w-0 flex-col'>
       {/* Subflow Header */}
-      <div
-        role='button'
-        tabIndex={0}
-        className={ROW_STYLES.row}
-        onClick={(e) => {
-          e.stopPropagation()
-          onToggleNode(nodeId)
-        }}
-        onKeyDown={(event) =>
-          handleKeyboardActivation(event, () => onToggleNode(nodeId), { stopPropagation: true })
-        }
+      <TerminalRowButton
+        aria-expanded={hasChildren ? isExpanded : undefined}
+        onClick={() => onToggleNode(nodeId)}
       >
-        <div className={ROW_STYLES.content}>
+        <span className={ROW_STYLES.content}>
           <EntryBlockTile blockType={entry.blockType} />
           <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>{displayName}</span>
           {hasChildren && (
             <ChevronDown className={cn(disclosureChevronClass, !isExpanded && '-rotate-90')} />
           )}
-        </div>
+        </span>
         <span className={cn(ROW_STYLES.status, !hasRunningDescendant && ROW_STYLES.statusIdle)}>
           <StatusDisplay
             isRunning={hasRunningDescendant}
@@ -284,7 +259,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
             formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
           />
         </span>
-      </div>
+      </TerminalRowButton>
 
       {/* Nested Iterations */}
       {renderChildren && isExpanded && hasChildren && (
@@ -347,27 +322,15 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
   return (
     <div className='flex min-w-0 flex-col'>
       {/* Workflow Block Header */}
-      <div
-        role='button'
-        tabIndex={0}
-        className={isSelected ? ROW_STYLES.rowSelected : ROW_STYLES.row}
-        onClick={(e) => {
-          e.stopPropagation()
+      <TerminalRowButton
+        aria-expanded={hasChildren ? isExpanded : undefined}
+        selected={isSelected}
+        onClick={() => {
           if (!isSelected) onSelectEntry(entry)
           if (hasChildren) onToggleNode(nodeId)
         }}
-        onKeyDown={(event) =>
-          handleKeyboardActivation(
-            event,
-            () => {
-              if (!isSelected) onSelectEntry(entry)
-              if (hasChildren) onToggleNode(nodeId)
-            },
-            { stopPropagation: true }
-          )
-        }
       >
-        <div className={ROW_STYLES.content}>
+        <span className={ROW_STYLES.content}>
           <EntryBlockTile blockType={entry.blockType} />
           <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>
             {entry.blockName}
@@ -375,7 +338,7 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
           {hasChildren && (
             <ChevronDown className={cn(disclosureChevronClass, !isExpanded && '-rotate-90')} />
           )}
-        </div>
+        </span>
         <span className={cn(ROW_STYLES.status, !hasRunningDescendant && ROW_STYLES.statusIdle)}>
           <StatusDisplay
             isRunning={hasRunningDescendant}
@@ -383,7 +346,7 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
             formattedDuration={formatDuration(entry.durationMs, { precision: 2 }) ?? '-'}
           />
         </span>
-      </div>
+      </TerminalRowButton>
 
       {/* Nested Child Blocks — rendered through EntryNodeRow for full loop/parallel support */}
       {renderChildren && isExpanded && hasChildren && (

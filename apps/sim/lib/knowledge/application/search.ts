@@ -135,7 +135,16 @@ export interface KnowledgeSearchItem {
   content: string
   chunkIndex: number
   metadata: Record<string, unknown>
+  /** Cosine similarity to the query in every mode (1 for tag-only matches); not the ordering key in hybrid mode. */
   similarity: number
+  /**
+   * Reranker score when reranked; otherwise the retrieval score (reciprocal-rank
+   * fusion in hybrid mode, cosine similarity in vector mode). Recency boosting
+   * may reorder retrieval results; `rank` always reflects the returned order.
+   */
+  rankScore: number
+  /** 1-based position in the returned order. */
+  rank: number
   rerankerScore?: number
 }
 
@@ -664,7 +673,7 @@ export async function runKnowledgeSearch({
    * card's modified time and connector type ride on the hydrated row, read under the same
    * predicate as the content.
    */
-  const results = rows.map((row): KnowledgeSearchItem => {
+  const results = rows.map((row, index): KnowledgeSearchItem => {
     const metadata: Record<string, unknown> = {}
     const tagMap = tagMaps.get(row.knowledgeBaseId)
     const provenanceDocument = provenanceSnapshot?.documentMetadata[row.documentId]
@@ -677,6 +686,7 @@ export async function runKnowledgeSearch({
       if (value !== null && value !== undefined) metadata[tagMap?.get(slot) ?? slot] = value
     }
     const rerankerScore = rerankerScores.get(row.id)
+    const similarity = hasQuery ? 1 - row.distance : 1
     return {
       embeddingId: row.id,
       knowledgeBaseId: row.knowledgeBaseId,
@@ -688,7 +698,9 @@ export async function runKnowledgeSearch({
       content: row.content,
       chunkIndex: row.chunkIndex,
       metadata,
-      similarity: hasQuery ? 1 - row.distance : 1,
+      similarity,
+      rankScore: rerankerScore ?? row.rankScore ?? similarity,
+      rank: index + 1,
       ...(rerankerScore !== undefined ? { rerankerScore } : {}),
     }
   })

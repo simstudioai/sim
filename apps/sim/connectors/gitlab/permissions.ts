@@ -35,14 +35,20 @@ export interface GitLabPermissionProject {
 /** CSV access is managed by Sim administrators, so only identity and project reads are needed. */
 export async function validateGitLabCsvToken(
   token: string,
-  sourceConfig: Record<string, unknown>
+  sourceConfig: Record<string, unknown>,
+  signal?: AbortSignal
 ): Promise<{ host: string; projectId: number; projectPath: string }> {
   const { base, project } = sourceAddress(sourceConfig)
-  const viewer = await read<GitLabPermissionUser>(`${base}/user`, token, true)
+  const viewer = await read<GitLabPermissionUser>(`${base}/user`, token, true, signal)
   if (viewer.state !== 'active' || viewer.locked === true || !Number.isSafeInteger(viewer.id)) {
     throw new Error('An active GitLab identity with read_api access is required')
   }
-  const record = await read<GitLabPermissionProject>(`${base}/projects/${project}`, token, true)
+  const record = await read<GitLabPermissionProject>(
+    `${base}/projects/${project}`,
+    token,
+    true,
+    signal
+  )
   if (!Number.isSafeInteger(record.id) || record.id <= 0 || !record.path_with_namespace) {
     throw new Error('GitLab did not return the project identity')
   }
@@ -104,14 +110,20 @@ function sourceAddress(sourceConfig: Record<string, unknown>) {
   }
 }
 
-async function read<T>(url: string, token: string, validating = false): Promise<T> {
+async function read<T>(
+  url: string,
+  token: string,
+  validating = false,
+  signal?: AbortSignal
+): Promise<T> {
   const response = await secureFetchWithRetry(
     url,
     {
       profile: 'configuredEndpoint',
+      signal,
       headers: { 'PRIVATE-TOKEN': token, Accept: 'application/json' },
     },
-    { ...(validating ? VALIDATE_RETRY_OPTIONS : {}), maxResponseBytes: MAX_RESPONSE_BYTES }
+    { ...(validating ? VALIDATE_RETRY_OPTIONS : {}), maxResponseBytes: MAX_RESPONSE_BYTES, signal }
   )
   if (!response.ok) throw new Error(`GitLab permission lookup failed (${response.status})`)
   return (await response.json()) as T
@@ -130,10 +142,11 @@ export async function validateGitLabPermissionToken(
 
 async function requireAdministrator(
   token: string,
-  sourceConfig: Record<string, unknown>
+  sourceConfig: Record<string, unknown>,
+  signal?: AbortSignal
 ): Promise<void> {
   const { base } = sourceAddress(sourceConfig)
-  const viewer = await read<GitLabPermissionUser>(`${base}/user`, token, true)
+  const viewer = await read<GitLabPermissionUser>(`${base}/user`, token, true, signal)
   if (viewer.is_admin !== true || viewer.state !== 'active' || viewer.locked === true) {
     throw new Error(
       'Mirror source permissions requires an active GitLab instance administrator token with read_api access'
@@ -142,7 +155,7 @@ async function requireAdministrator(
 }
 
 /** Bounded complete enumeration. Never accept a partial directory as authoritative membership. */
-async function listAll<T>(url: string, token: string): Promise<T[]> {
+async function listAll<T>(url: string, token: string, signal?: AbortSignal): Promise<T[]> {
   const initial = new URL(url)
   initial.searchParams.set('per_page', String(PAGE_SIZE))
   let next: URL | null = initial
@@ -156,9 +169,10 @@ async function listAll<T>(url: string, token: string): Promise<T[]> {
       next.href,
       {
         profile: 'configuredEndpoint',
+        signal,
         headers: { 'PRIVATE-TOKEN': token, Accept: 'application/json' },
       },
-      { maxResponseBytes: MAX_RESPONSE_BYTES }
+      { maxResponseBytes: MAX_RESPONSE_BYTES, signal }
     )
     if (!response.ok) throw new Error(`GitLab permission listing failed (${response.status})`)
     const body = (await response.json()) as T[]
@@ -275,14 +289,19 @@ function groupId(projectId: number, feature: Feature): string {
 
 async function loadSnapshot(
   token: string,
-  config: Record<string, unknown>
+  config: Record<string, unknown>,
+  signal?: AbortSignal
 ): Promise<PermissionSnapshot> {
-  await requireAdministrator(token, config)
+  await requireAdministrator(token, config, signal)
   const { base, project } = sourceAddress(config)
   const [record, users, members] = await Promise.all([
-    read<GitLabPermissionProject>(`${base}/projects/${project}`, token),
-    listAll<GitLabPermissionUser>(`${base}/users?pagination=keyset&order_by=id&sort=asc`, token),
-    listAll<GitLabPermissionMember>(`${base}/projects/${project}/members/all`, token),
+    read<GitLabPermissionProject>(`${base}/projects/${project}`, token, false, signal),
+    listAll<GitLabPermissionUser>(
+      `${base}/users?pagination=keyset&order_by=id&sort=asc`,
+      token,
+      signal
+    ),
+    listAll<GitLabPermissionMember>(`${base}/projects/${project}/members/all`, token, signal),
   ])
   if (
     !Number.isInteger(record.id) ||
@@ -290,7 +309,7 @@ async function loadSnapshot(
   ) {
     throw new Error('GitLab did not return an authoritative project identity and visibility')
   }
-  const policy = await discoverGitLabPermissionPolicy(token, config, record)
+  const policy = await discoverGitLabPermissionPolicy(token, config, record, false, signal)
   return { project: record, users, members, policy }
 }
 
@@ -298,14 +317,15 @@ function snapshot(
   token: string,
   config: Record<string, unknown>,
   context?: Record<string, unknown>,
-  refresh = false
+  refresh = false,
+  signal?: AbortSignal
 ) {
-  if (!context) return loadSnapshot(token, config)
+  if (!context) return loadSnapshot(token, config, signal)
   const source = sourceAddress(config)
   const address = `${source.base}/projects/${source.project}`
   const cached = snapshots.get(context)
   if (!refresh && cached?.token === token && cached.address === address) return cached.value
-  const value = loadSnapshot(token, config)
+  const value = loadSnapshot(token, config, signal)
   snapshots.set(context, { token, address, value })
   return value
 }
@@ -314,7 +334,8 @@ function snapshot(
 export async function openGitLabDirectory(
   token: string,
   config: Record<string, unknown>,
-  context?: Record<string, unknown>
+  context?: Record<string, unknown>,
+  signal?: AbortSignal
 ): Promise<ConnectorDirectory> {
   const csv = getGitLabCsvContext(context)
   if (csv) {
@@ -326,13 +347,13 @@ export async function openGitLabDirectory(
     }
   }
   const { tenant, base, project } = sourceAddress(config)
-  const identity = await read<{ id: number }>(`${base}/projects/${project}`, token)
+  const identity = await read<{ id: number }>(`${base}/projects/${project}`, token, false, signal)
   if (!Number.isInteger(identity.id)) throw new Error('GitLab did not return a project identity')
   const groups = FEATURES.map((feature) => ({ id: groupId(identity.id, feature) }))
   let pending: Promise<PermissionSnapshot> | undefined
   /** A new directory lease must never reuse an earlier content-ACL snapshot. */
   const currentSnapshot = () => {
-    pending ??= snapshot(token, config, context, true).then((state) => {
+    pending ??= snapshot(token, config, context, true, signal).then((state) => {
       if (state.project.id !== identity.id)
         throw new Error('GitLab project identity changed during directory sync')
       return state

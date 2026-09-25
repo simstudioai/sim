@@ -90,6 +90,14 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date('2026-01-15T12:00:00Z'))
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  )
   mocks.userId = 'reader'
   requests = []
   mocks.request.mockImplementation(
@@ -117,20 +125,30 @@ async function render({
   query = 'launch',
   params = '',
   organizationPage = false,
+  filters,
+  topK,
 }: {
   scope?: ResourceScope
   query?: string
   params?: string
   organizationPage?: boolean
+  filters?: import('@/lib/api/contracts/knowledge').WorkspaceSearchFilters
+  topK?: number
 } = {}) {
   await act(async () => {
     root.render(
       <QueryClientProvider client={client}>
         <NuqsTestingAdapter hasMemory searchParams={params} onUrlUpdate={mocks.urlUpdate}>
           {organizationPage ? (
-            <OrganizationSearch />
+            <OrganizationSearch userId='reader' />
           ) : (
-            <KnowledgeSearchResults scope={scope} query={query} onSummarize={mocks.summarize} />
+            <KnowledgeSearchResults
+              scope={scope}
+              query={query}
+              filters={filters}
+              topK={topK}
+              onSummarize={mocks.summarize}
+            />
           )}
         </NuqsTestingAdapter>
       </QueryClientProvider>
@@ -156,7 +174,7 @@ async function click(label: string) {
 
 async function complete(
   index: number,
-  { title = 'Release plan', partial = false, empty = false } = {}
+  { title = 'Release plan', partial = false, empty = false, count = 1 } = {}
 ) {
   await act(async () => {
     requests[index].resolve({
@@ -164,21 +182,22 @@ async function complete(
         query: requests[index].body.query,
         results: empty
           ? []
-          : [
-              {
-                documentId: title,
+          : Array.from({ length: count }, (_, n) => {
+              const name = n === 0 ? title : `${title} ${n + 1}`
+              return {
+                documentId: name,
                 knowledgeBaseId: 'index',
                 knowledgeBaseName: 'Search index',
-                documentName: title,
-                sourceUrl: 'https://example.com/release',
+                documentName: name,
+                sourceUrl: `https://example.com/release/${n}`,
                 connectorType: requests[index].body.filters?.source ?? 'slack',
                 sourceModifiedAt: null,
                 author: null,
                 content: 'launch details',
                 chunkIndex: 0,
                 similarity: 0.9,
-              },
-            ],
+              }
+            }),
         retrieval: {
           status: partial ? 'partial' : 'complete',
           timedOutLegs: partial ? ['vector'] : [],
@@ -194,10 +213,10 @@ describe('search refinement with the real query cache and URL state', () => {
     await render({ organizationPage: true, params: '?q=launch' })
     expect(container.querySelector('h1')).toBeNull()
     expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
-    const input = container.querySelector('input')
+    const input = container.querySelector('textarea')
     await complete(0)
     expect(container.querySelector('h1')).toBeNull()
-    expect(container.querySelector('input')).toBe(input)
+    expect(container.querySelector('textarea')).toBe(input)
     const filters = container.querySelector('[aria-label="Search filters"]')
 
     for (const [label, expectedFilters] of [
@@ -212,14 +231,16 @@ describe('search refinement with the real query cache and URL state', () => {
       expect(requests.at(-1)?.body).toEqual({
         organizationId: 'organization',
         query: 'launch',
-        topK: 20,
         filters: expectedFilters,
+        topK: 20,
       })
       expect(container.querySelector('h1')).toBeNull()
-      expect(container.querySelector('input')).toBe(input)
+      expect(container.querySelector('textarea')).toBe(input)
       expect(container.querySelector('[aria-label="Search filters"]')).toBe(filters)
       expect(document.activeElement).toBe(control)
-      expect(container.textContent).toContain('Updating results…')
+      expect(container.querySelector('[role="status"].sr-only')?.textContent).toBe(
+        'Updating results…'
+      )
       expect(
         container.querySelector('[aria-label="Search results"]')?.getAttribute('aria-busy')
       ).toBe('true')
@@ -256,6 +277,43 @@ describe('search refinement with the real query cache and URL state', () => {
     }
   )
 
+  it('honors an explicitly empty tool filter and limit instead of page filters', async () => {
+    await render({ params: '?source=gmail&updated=7d', filters: {}, topK: 5 })
+    expect(requests[0].body.filters).toEqual({})
+    expect(requests[0].body.topK).toBe(5)
+    expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
+    await complete(0)
+    await render({ params: '?source=gmail&updated=7d', filters: {}, topK: 10 })
+    expect(requests[1].body.topK).toBe(10)
+    expect(container.textContent).not.toContain('Release plan')
+  })
+
+  it('keeps the first page painted while Show more widens it, then while a filter narrows it', async () => {
+    await render()
+    await complete(0, { count: 20 })
+    await click('Show more')
+    expect(requests[1].body.topK).toBe(50)
+    expect(container.querySelector('[role="status"].sr-only')?.textContent).toBe(
+      'Updating results…'
+    )
+    expect(container.querySelector('[role="status"]:not(.sr-only)')?.textContent).not.toBe(
+      'Searching…'
+    )
+    expect(container.querySelectorAll('a[data-source-link]')).toHaveLength(20)
+    await complete(1, { title: 'Wider plan', count: 50 })
+    expect(container.querySelectorAll('a[data-source-link]')).toHaveLength(50)
+    await click('Gmail')
+    expect(requests[2].body).toMatchObject({ filters: { source: 'gmail' }, topK: 20 })
+    expect(container.querySelector('[role="status"].sr-only')?.textContent).toBe(
+      'Updating results…'
+    )
+    expect(container.querySelector('[role="status"]:not(.sr-only)')?.textContent).not.toBe(
+      'Searching…'
+    )
+    expect(container.querySelectorAll('a[data-source-link]')).toHaveLength(50)
+    expect(container.querySelector('a[data-source-link]')?.textContent).toBe('Wider plan')
+  })
+
   it('replaces filter URL state while preserving unrelated parameters', async () => {
     await render({ params: '?q=launch&panel=details' })
     await complete(0)
@@ -277,14 +335,18 @@ describe('search refinement with the real query cache and URL state', () => {
   it('keeps controls and focus while retaining only the preceding refinement results', async () => {
     await render()
     expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
-    expect(container.textContent).toContain('Searching…')
+    expect(container.querySelector('[role="status"]:not(.sr-only)')?.textContent).not.toBe(
+      'Searching…'
+    )
     await complete(0)
     const gmail = button('Gmail')
     await click('Gmail')
     expect(button('Gmail')).toBe(gmail)
     expect(document.activeElement).toBe(gmail)
     expect(gmail.getAttribute('aria-pressed')).toBe('true')
-    expect(container.textContent).toContain('Updating results…')
+    expect(container.querySelector('[role="status"].sr-only')?.textContent).toBe(
+      'Updating results…'
+    )
     expect(container.textContent).toContain('Release plan')
     expect(container.textContent).not.toContain('Summarize')
     expect(requests[1].body.filters).toMatchObject({ source: 'gmail' })
@@ -344,7 +406,9 @@ describe('search refinement with the real query cache and URL state', () => {
               : { kind: 'organization', organizationId: 'organization' },
       })
       expect(container.textContent).not.toContain('Release plan')
-      expect(container.textContent).toContain('Searching…')
+      expect(container.querySelector('[role="status"]:not(.sr-only)')?.textContent).not.toBe(
+        'Searching…'
+      )
       expect(container.querySelector('[aria-label="Search filters"]')).toBeNull()
       expect(requests).toHaveLength(2)
     }

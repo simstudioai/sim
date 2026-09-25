@@ -4,20 +4,34 @@ import { workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import { and, asc, count, eq, sql } from 'drizzle-orm'
+import { and, count, eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
+  byokProviderIdSchema,
+  byokWorkspaceParamsSchema,
   deleteByokKeyContract,
+  listByokKeysContract,
   MAX_BYOK_KEYS_PER_PROVIDER,
   upsertByokKeyContract,
 } from '@/lib/api/contracts/byok-keys'
 import { parseRequest } from '@/lib/api/server'
+import {
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { byokKeyOperations } from '@/lib/api-key/application/operations'
+import {
+  deleteWorkspaceByokKey,
+  listWorkspaceByokKeys,
+} from '@/lib/api-key/application/workspace-byok-keys'
+import { workspaceByokErrorPolicy } from '@/lib/api-key/byok-error-policy'
 import { getSession } from '@/lib/auth'
-import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
+import { encryptSecret } from '@/lib/core/security/encryption'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { getUserEntityPermissions, getWorkspaceById } from '@/lib/workspaces/permissions/utils'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceBYOKKeysAPI')
 
@@ -38,91 +52,23 @@ function maskApiKey(key: string): string {
   return `${key.slice(0, 6)}...${key.slice(-4)}`
 }
 
-export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-    const workspaceId = (await params).id
-
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized BYOK keys access attempt`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const userId = session.user.id
-
-      const ws = await getWorkspaceById(workspaceId)
-      if (!ws) {
-        return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
-      }
-
-      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-      if (!permission) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const byokKeys = await db
-        .select({
-          id: workspaceBYOKKeys.id,
-          providerId: workspaceBYOKKeys.providerId,
-          encryptedApiKey: workspaceBYOKKeys.encryptedApiKey,
-          name: workspaceBYOKKeys.name,
-          createdBy: workspaceBYOKKeys.createdBy,
-          createdAt: workspaceBYOKKeys.createdAt,
-          updatedAt: workspaceBYOKKeys.updatedAt,
-        })
-        .from(workspaceBYOKKeys)
-        .where(eq(workspaceBYOKKeys.workspaceId, workspaceId))
-        .orderBy(
-          asc(workspaceBYOKKeys.providerId),
-          asc(workspaceBYOKKeys.createdAt),
-          asc(workspaceBYOKKeys.id)
-        )
-
-      const formattedKeys = await Promise.all(
-        byokKeys.map(async (key) => {
-          try {
-            const { decrypted } = await decryptSecret(key.encryptedApiKey)
-            return {
-              id: key.id,
-              providerId: key.providerId,
-              name: key.name,
-              maskedKey: maskApiKey(decrypted),
-              createdBy: key.createdBy,
-              createdAt: key.createdAt,
-              updatedAt: key.updatedAt,
-            }
-          } catch (error) {
-            logger.error(
-              `[${requestId}] Failed to decrypt BYOK key for provider ${key.providerId}`,
-              {
-                error,
-              }
-            )
-            return {
-              id: key.id,
-              providerId: key.providerId,
-              name: key.name,
-              maskedKey: '••••••••',
-              createdBy: key.createdBy,
-              createdAt: key.createdAt,
-              updatedAt: key.updatedAt,
-            }
-          }
-        })
-      )
-
-      return NextResponse.json({ keys: formattedKeys })
-    } catch (error: unknown) {
-      logger.error(`[${requestId}] BYOK keys GET error`, error)
-      return NextResponse.json(
-        { error: getErrorMessage(error, 'Failed to load BYOK keys') },
-        { status: 500 }
-      )
-    }
-  }
-)
+export const GET = defineInternalJsonRoute({
+  contract: listByokKeysContract,
+  auth: internalSessionAuth,
+  operation: byokKeyOperations.listWorkspace,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing BYOK metadata admission' }),
+  errorPolicy: workspaceByokErrorPolicy('read'),
+  mapInput: ({ params }) => ({ workspaceId: params.id }),
+  useCase: listWorkspaceByokKeys,
+  present: ({ keys }) => ({
+    keys: keys.map((key) => ({
+      ...key,
+      providerId: byokProviderIdSchema.parse(key.providerId),
+      createdAt: key.createdAt.toISOString(),
+      updatedAt: key.updatedAt.toISOString(),
+    })),
+  }),
+})
 
 export const POST = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
@@ -306,75 +252,20 @@ export const POST = withRouteHandler(
   }
 )
 
-export const DELETE = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-    const workspaceId = (await context.params).id
-
-    try {
-      const session = await getSession()
-      if (!session?.user?.id) {
-        logger.warn(`[${requestId}] Unauthorized BYOK key deletion attempt`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const userId = session.user.id
-
-      const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-      if (permission !== 'admin') {
-        return NextResponse.json(
-          { error: 'Only workspace admins can manage BYOK keys' },
-          { status: 403 }
-        )
-      }
-
-      const parsed = await parseRequest(deleteByokKeyContract, request, context)
-      if (!parsed.success) return parsed.response
-      const { providerId, keyId } = parsed.data.body
-
-      const providerScope = and(
-        eq(workspaceBYOKKeys.workspaceId, workspaceId),
-        eq(workspaceBYOKKeys.providerId, providerId)
-      )
-
-      const deletedKeys = await db
-        .delete(workspaceBYOKKeys)
-        .where(keyId ? and(providerScope, eq(workspaceBYOKKeys.id, keyId)) : providerScope)
-        .returning({ id: workspaceBYOKKeys.id })
-
-      if (keyId && deletedKeys.length === 0) {
-        return NextResponse.json({ error: 'BYOK key not found' }, { status: 404 })
-      }
-
-      logger.info(`[${requestId}] Deleted BYOK key for ${providerId} from workspace ${workspaceId}`)
-
-      captureServerEvent(
-        userId,
-        'byok_key_removed',
-        { workspace_id: workspaceId, provider_id: providerId },
-        { groups: { workspace: workspaceId } }
-      )
-
-      recordAudit({
-        workspaceId,
-        actorId: userId,
-        actorName: session?.user?.name,
-        actorEmail: session?.user?.email,
-        action: AuditAction.BYOK_KEY_DELETED,
-        resourceType: AuditResourceType.BYOK_KEY,
-        resourceName: providerId,
-        description: `Removed BYOK key for ${providerId}`,
-        metadata: { providerId, deletedKeyIds: deletedKeys.map((key) => key.id) },
-        request,
-      })
-
-      return NextResponse.json({ success: true })
-    } catch (error: unknown) {
-      logger.error(`[${requestId}] BYOK key DELETE error`, error)
-      return NextResponse.json(
-        { error: getErrorMessage(error, 'Failed to delete BYOK key') },
-        { status: 500 }
-      )
-    }
-  }
-)
+export const DELETE = defineInternalJsonRoute({
+  contract: deleteByokKeyContract,
+  auth: internalSessionAuth,
+  operation: byokKeyOperations.deleteWorkspace,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing BYOK cleanup admission' }),
+  errorPolicy: workspaceByokErrorPolicy('write'),
+  beforeParse: async ({ principal, params }) => {
+    const scope = byokWorkspaceParamsSchema.parse(params)
+    await deleteWorkspaceByokKey.authorize({
+      principal,
+      input: { workspaceId: scope.id, providerId: 'openai' },
+    })
+  },
+  mapInput: ({ params, body }) => ({ workspaceId: params.id, ...body }),
+  useCase: deleteWorkspaceByokKey,
+  present: () => ({ success: true as const }),
+})

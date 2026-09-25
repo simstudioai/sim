@@ -45,6 +45,7 @@ export const listSelector: OperationUseCase<
   SelectorPage
 > = {
   operation: selectorOperations.execute,
+  delegationAudience: executeSelector.delegationAudience,
   async execute({ principal, input, ...rest }) {
     const scopeHash = workflowOperationFingerprint({
       workspaceId: input.workspaceId,

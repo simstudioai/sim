@@ -1,17 +1,15 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useMemo } from 'react'
 import { isPlainRecord } from '@sim/utils/object'
 import { ActivityStatus, type ActivityStatusProps } from '@/components/ui/activity-status'
 import {
   CallIntegrationTool,
-  PrepareFileEdit,
   Read as ReadTool,
   Terminal as TerminalTool,
-  Wait as WaitTool,
-} from '@/lib/copilot/generated/tool-catalog-v1'
-import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
-import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/copilot/tools/retired-tools'
-import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
-import { getToolStatusDisplayTitle, getWaitCountdownTitle } from '@/lib/copilot/tools/tool-display'
+} from '@/lib/mothership/generated/tool-catalog-v1'
+import { getReadTargetBlock } from '@/lib/mothership/tools/client/read-block'
+import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
+import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
+import { useToolCallTitle } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-title'
 import { ToolPermissionCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-permission-card'
 import {
   BrowserTakeoverQuestion,
@@ -67,39 +65,6 @@ function nestedStringParam(params: Record<string, unknown> | undefined, key: str
 }
 
 /**
- * How often the countdown re-reads the clock. Comfortably under a second so
- * the displayed number turns over close to when it actually should, rather
- * than drifting by most of a second against an interval that started late.
- */
-const COUNTDOWN_TICK_MS = 250
-
-/**
- * Milliseconds elapsed since the call started, while `active`.
- *
- * Anchors to `startedAt` so a row that mounts partway through a pause resumes
- * mid-countdown instead of restarting; falls back to activation time when the
- * caller has no start to give.
- */
-function useElapsedMs(
-  active: boolean,
-  startedAt: number | undefined,
-  toolCallId: string | undefined
-): number {
-  const [sample, setSample] = useState({ toolCallId, elapsedMs: 0 })
-
-  useEffect(() => {
-    if (!active) return
-    const anchor = startedAt ?? Date.now()
-    const tick = () => setSample({ toolCallId, elapsedMs: Date.now() - anchor })
-    tick()
-    const interval = setInterval(tick, COUNTDOWN_TICK_MS)
-    return () => clearInterval(interval)
-  }, [active, startedAt, toolCallId])
-
-  return active && sample.toolCallId === toolCallId ? sample.elapsedMs : 0
-}
-
-/**
  * Inline tool activity: shimmer while executing, a
  * static label once terminal. For `workspace_file` the title is derived live
  * from the streaming args; because that path bypasses the completed-title
@@ -111,6 +76,7 @@ function useElapsedMs(
  * An executing `browser_request_takeover` is lifted by AgentGroup into its
  * parent flow; this row remains the canonical completed-history entry after
  * the browser agent resumes.
+ * Rows are history and never shimmer; the lane decides which header is live.
  */
 export function ToolCallItem({
   toolName,
@@ -140,51 +106,20 @@ export function ToolCallItem({
     return typeof toolId === 'string' ? getBlockByToolName(toolId) : undefined
   }, [toolName, params, streamingArgs])
 
-  const liveWorkspaceFileTitle = useMemo(() => {
-    if (toolName !== PrepareFileEdit.id || !streamingArgs) return null
-    const titleMatch = streamingArgs.match(/"title"\s*:\s*"([^"]+)"/)
-    if (!titleMatch?.[1]) return null
-    const opMatch = streamingArgs.match(/"operation"\s*:\s*"(\w+)"/)
-    const op = opMatch?.[1] ?? ''
-    const verb =
-      op === 'create'
-        ? 'Creating'
-        : op === 'append'
-          ? 'Adding'
-          : op === 'patch'
-            ? 'Editing'
-            : op === 'update'
-              ? 'Writing'
-              : op === 'rename'
-                ? 'Renaming'
-                : op === 'delete'
-                  ? 'Deleting'
-                  : 'Writing'
-    const unescaped = titleMatch[1]
-      .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex: string) =>
-        String.fromCharCode(Number.parseInt(hex, 16))
-      )
-      .replace(/\\"/g, '"')
-      .replace(/\\\\/g, '\\')
-    return `${verb} ${unescaped}`
-  }, [toolName, streamingArgs])
-
   const displayState = resolveToolDisplayState(status)
   const isExecuting = displayState === 'spinner'
   const isBrowserTakeover = toolName === RETIRED_BROWSER_REQUEST_TAKEOVER_ID
 
-  const isCountingDown = toolName === WaitTool.id && isExecuting
-  const elapsedMs = useElapsedMs(isCountingDown, startedAt, toolCallId)
-
-  const liveTitle = isCountingDown
-    ? getWaitCountdownTitle(params, elapsedMs)
-    : liveWorkspaceFileTitle || displayTitle
-  const title = getToolStatusDisplayTitle(
-    liveTitle,
-    status,
+  const { label: title, activeLabel } = useToolCallTitle({
+    toolCallId,
     toolName,
-    isCountingDown ? undefined : activityDescription
-  )
+    displayTitle,
+    activityDescription,
+    status,
+    params,
+    streamingArgs,
+    startedAt,
+  }) ?? { label: displayTitle, activeLabel: displayTitle }
 
   // A waiting terminal handoff swaps its row for the hand-back chip, the same
   // way a browser takeover does: the row would otherwise spin with nothing
@@ -238,11 +173,8 @@ export function ToolCallItem({
 
   const activity: ToolActivityPresentation = {
     label: title,
-    activeLabel:
-      status === 'success'
-        ? getToolStatusDisplayTitle(liveTitle, 'executing', toolName, activityDescription)
-        : title,
-    isActive: isExecuting,
+    activeLabel,
+    isActive: false,
     icon: BlockIcon ? (
       <BrandIcon icon={BlockIcon} className='size-full' />
     ) : (

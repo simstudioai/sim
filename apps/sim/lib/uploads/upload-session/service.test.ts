@@ -6,6 +6,7 @@ import { sha256Hex } from '@sim/security/hash'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { eq, inArray, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'
 
 const {
   mockAbortProviderUpload,
@@ -86,6 +87,13 @@ import {
   type UploadSessionRecord,
   verifyUploadSessionToken,
 } from '@/lib/uploads/upload-session/service'
+import {
+  bindWorkspaceFileUploadProvenance,
+  readWorkspaceFileUploadProvenance,
+  WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY,
+} from '@/lib/uploads/upload-session/workspace-file-provenance'
+import { toInternalUploadSession } from '@/app/api/files/uploads/utils'
+import { toV2FileUpload } from '@/app/api/v2/files/uploads/utils'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 const FINAL_KEY = `workspace/${WORKSPACE_ID}/final-file.bin`
@@ -246,6 +254,7 @@ describe('upload sessions', () => {
             organizationId: 'org-1',
             userId: 'user-1',
             sessionId: 'session-1',
+            requestMode: 'assistant',
           },
         },
       })
@@ -272,6 +281,82 @@ describe('upload sessions', () => {
     ).rejects.toThrow('Assistant attachments must be')
     expect(mockCreatePutTransfer).not.toHaveBeenCalled()
     expect(dbChainMockFns.values).not.toHaveBeenCalled()
+  })
+
+  it('persists trusted source classification with the upload before issuing its transfer', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([uploadRow()])
+    const source = {
+      status: 'exact' as const,
+      entries: [{ encryptedValue: 'fixture-ciphertext', sourceUserId: 'user-1' }],
+    }
+    await createUploadSession({
+      id: 'upload-1',
+      workspaceId: WORKSPACE_ID,
+      userId: 'user-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      purpose: 'workspace_file',
+      fileName: 'file.bin',
+      contentType: 'application/octet-stream',
+      fileSize: 4,
+      secretProvenance: source,
+    })
+    const metadata = dbChainMockFns.values.mock.calls[0][0].metadata
+    expect(readWorkspaceFileUploadProvenance({ workspaceId: WORKSPACE_ID, metadata })).toEqual(
+      source
+    )
+    expect(metadata.authBinding.principal.userId).toBe('user-1')
+    expect(dbChainMockFns.values).toHaveBeenCalledBefore(mockCreatePutTransfer)
+    expect(JSON.stringify(mockCreatePutTransfer.mock.calls)).not.toContain('fixture-ciphertext')
+    source.entries.length = 0
+    expect(readWorkspaceFileUploadProvenance({ workspaceId: WORKSPACE_ID, metadata })).toEqual({
+      status: 'exact',
+      entries: [{ encryptedValue: 'fixture-ciphertext', sourceUserId: 'user-1' }],
+    })
+  })
+
+  it('does not accept source classification smuggled into generic session metadata', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([uploadRow()])
+    await createUploadSession({
+      id: 'upload-1',
+      workspaceId: WORKSPACE_ID,
+      userId: 'user-1',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      purpose: 'workspace_file',
+      fileName: 'file.bin',
+      contentType: 'application/octet-stream',
+      fileSize: 4,
+      metadata: {
+        folderId: 'folder',
+        [WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY]: {
+          version: 1,
+          workspaceId: WORKSPACE_ID,
+          provenance: { status: 'exact', entries: [] },
+        },
+      },
+    })
+    const metadata = dbChainMockFns.values.mock.calls[0][0].metadata
+    expect(metadata.folderId).toBe('folder')
+    expect(Object.hasOwn(metadata, WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY)).toBe(false)
+  })
+
+  it('keeps stored private classification out of both upload-session response presenters', async () => {
+    const session = sessionRecord({
+      metadata: {
+        [WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY]: bindWorkspaceFileUploadProvenance(WORKSPACE_ID, {
+          status: 'exact',
+          entries: [{ encryptedValue: 'fixture-ciphertext', sourceUserId: 'user-1' }],
+        }),
+      },
+    })
+    for (const response of [
+      await toV2FileUpload(session, null),
+      toInternalUploadSession(session, null),
+    ]) {
+      expect(response.id).toBe(session.id)
+      expect(response).not.toHaveProperty('metadata')
+      expect(JSON.stringify(response)).not.toContain('fixture-ciphertext')
+      expect(JSON.stringify(response)).not.toContain(WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY)
+    }
   })
 
   // Local storage stores an object's metadata sidecar beside it, under the
@@ -688,6 +773,44 @@ describe('upload sessions', () => {
     })
   })
 
+  it.each([
+    ['workspace_file', 'sim:workspace-files'],
+    ['knowledge_document', 'sim:knowledge'],
+    ['table_import', 'sim:tables'],
+  ] as const)(
+    'binds %s Copilot uploads to the actual subject/chat/workspace across refreshed calls',
+    (purpose, audience) => {
+      const caller = createCopilotChatPrincipal(
+        { userId: 'actor', workspaceId: WORKSPACE_ID, chatId: 'chat' },
+        audience
+      )
+      const session = sessionRecord({
+        purpose,
+        metadata: {
+          authBinding: createUploadSessionAuthBinding(caller, WORKSPACE_ID, {
+            copilotDelegationAudience: audience,
+          }),
+        },
+      })
+      expect(() =>
+        assertUploadSessionAuthBinding(session, { ...caller, delegationId: 'fresh-turn' })
+      ).not.toThrow()
+      for (const changed of [
+        { ...caller, subjectUserId: 'other' },
+        { ...caller, workspaceId: 'other' },
+        { ...caller, resourceScope: { chatId: 'other' } },
+        { ...caller, audience: 'other' },
+        { ...caller, expiresAt: new Date(0) },
+      ])
+        expect(() => assertUploadSessionAuthBinding(session, changed)).toThrow(
+          'Upload session not found'
+        )
+      expect(() => assertUploadSessionAuthBinding({ ...session, metadata: {} }, caller)).toThrow(
+        'Upload session not found'
+      )
+    }
+  )
+
   it('accepts refreshed executor tokens only for the same immutable upload binding', () => {
     const session = sessionRecord({
       purpose: 'table_import',
@@ -957,6 +1080,38 @@ describe('upload sessions', () => {
     expect(mockAbortProviderUpload).not.toHaveBeenCalled()
     expect(mockCompleteMultipart).not.toHaveBeenCalled()
   })
+
+  it.each(['uploading', 'finalizing'] as const)(
+    'retains private classification through a fresh %s completion claim',
+    async (status) => {
+      const metadata = {
+        [WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY]: bindWorkspaceFileUploadProvenance(WORKSPACE_ID, {
+          status: 'exact',
+          entries: [{ encryptedValue: 'fixture-ciphertext', sourceUserId: 'user-1' }],
+        }),
+      }
+      const session = sessionRecord({
+        status,
+        metadata,
+        providerObjectVersion: status === 'finalizing' ? 'version-1' : null,
+      })
+      mockHeadObject.mockResolvedValue(providerObject(session, 'version-1'))
+      queueCompletionRows(session, 'version-1')
+      const finalize = vi.fn(async (claimed: UploadSessionRecord) => {
+        expect(readWorkspaceFileUploadProvenance(claimed)).toEqual({
+          status: 'exact',
+          entries: [{ encryptedValue: 'fixture-ciphertext', sourceUserId: 'user-1' }],
+        })
+        return { value: 'classified-file', completedFileId: 'file-1' }
+      })
+      const result = await completeUploadSession({ session, finalize })
+      expect(result.value).toBe('classified-file')
+      expect(finalize).toHaveBeenCalledTimes(1)
+      expect(readWorkspaceFileUploadProvenance(result.session)).toEqual(
+        readWorkspaceFileUploadProvenance(session)
+      )
+    }
+  )
 
   it('allows a finalizing session to recover after its upload TTL', async () => {
     const session = sessionRecord({
@@ -1349,12 +1504,14 @@ function queueCompletionRows(session: UploadSessionRecord, version: string): voi
     .mockResolvedValueOnce([
       uploadRow({
         ...rowGeometry(session),
+        metadata: session.metadata,
         status: session.status === 'finalizing' ? 'finalizing' : 'completing',
       }),
     ])
     .mockResolvedValueOnce([
       uploadRow({
         ...rowGeometry(session),
+        metadata: session.metadata,
         status: 'finalizing',
         providerObjectVersion: version,
       }),
@@ -1362,6 +1519,7 @@ function queueCompletionRows(session: UploadSessionRecord, version: string): voi
     .mockResolvedValueOnce([
       uploadRow({
         ...rowGeometry(session),
+        metadata: session.metadata,
         status: 'completed',
         providerObjectVersion: version,
         completedFileId: 'file-1',

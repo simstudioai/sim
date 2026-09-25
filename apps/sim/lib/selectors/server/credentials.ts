@@ -1,3 +1,4 @@
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { account, credential } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
@@ -184,7 +185,7 @@ export async function authorizeSelectorCredential(input: {
   const access = await authorizeCredentialUseForAuth(
     {
       success: true,
-      userId: input.principal.userId,
+      userId: requirePrincipalSubjectUserId(input.principal),
     },
     {
       credentialId: suppliedId,

@@ -25,7 +25,9 @@ import { type ClonedSubflowInfo, ParallelExpander } from '@/executor/utils/paral
 import { isResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 import {
   computeExecutionSets,
+  overlayVariableInputs,
   type RunFromBlockContext,
+  RunFromBlockValidationError,
   resolveContainerToSentinelStart,
   validateRunFromBlock,
 } from '@/executor/utils/run-from-block'
@@ -129,8 +131,12 @@ export class DAGExecutor {
   async executeFromBlock(
     workflowId: string,
     startBlockId: string,
-    sourceSnapshot: SerializableExecutionState
+    sourceSnapshot: SerializableExecutionState,
+    variableInputs?: Record<string, unknown>
   ): Promise<ExecutionResult> {
+    if (variableInputs && Object.keys(variableInputs).length > 0) {
+      sourceSnapshot = overlayVariableInputs(this.workflow, sourceSnapshot, variableInputs)
+    }
     // Build full DAG with all blocks to compute upstream set for snapshot filtering
     // includeAllBlocks is needed because the startBlockId might be a trigger not reachable from the main trigger
     const dag = this.dagBuilder.build(this.workflow, { includeAllBlocks: true })
@@ -138,7 +144,9 @@ export class DAGExecutor {
     const executedBlocks = new Set(sourceSnapshot.executedBlocks)
     const validation = validateRunFromBlock(startBlockId, dag, executedBlocks)
     if (!validation.valid) {
-      throw new Error(validation.error)
+      throw new RunFromBlockValidationError(
+        validation.error ?? `Cannot run from block: ${startBlockId}`
+      )
     }
 
     const { dirtySet, upstreamSet, reachableUpstreamSet } = computeExecutionSets(dag, startBlockId)
@@ -375,6 +383,15 @@ export class DAGExecutor {
       snapshotState?.deactivatedEdges,
       snapshotState?.nodesWithActivatedEdge
     )
+    /**
+     * Run-from-block re-executes its dirty set from scratch, so the source execution's edge state
+     * for those nodes must not carry over: a stale activation runs an unselected branch, and a
+     * stale deactivation releases a join before its live input completes.
+     */
+    const dirtySet = context.runFromBlockContext?.dirtySet
+    if (dirtySet) {
+      edgeManager.clearDeactivatedEdgesForNodes(dirtySet)
+    }
     const nodeOrchestrator = new NodeExecutionOrchestrator(
       dag,
       state,

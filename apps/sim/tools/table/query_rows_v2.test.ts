@@ -91,6 +91,7 @@ describe('tableQueryRowsV2Tool response', () => {
     )
 
     expect(result.output).toEqual({
+      success: true,
       rows: responseBody.data.rows,
       rowCount: responseBody.data.rowCount,
       totalCount: responseBody.data.totalCount,

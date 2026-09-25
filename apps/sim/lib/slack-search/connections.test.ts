@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => ({ read: vi.fn(), send: vi.fn(), before: vi.fn(), origin: vi.fn() }))
-vi.mock('@/lib/copilot/application/execute-knowledge-use-case', () => ({
+vi.mock('@/lib/mothership/application/execute-knowledge-use-case', () => ({
   executeCopilotOrganizationKnowledgeUseCase: m.read,
 }))
 vi.mock('@/lib/knowledge/application/personal-search-integrations', () => ({

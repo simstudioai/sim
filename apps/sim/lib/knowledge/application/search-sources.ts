@@ -1,6 +1,7 @@
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document, embedding, knowledgeBase, knowledgeConnector, user } from '@sim/db/schema'
+import { toRecord } from '@sim/utils/object'
 import { and, desc, eq, exists, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
 import {
   listSearchSourcesContract,
@@ -17,6 +18,7 @@ import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/au
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { resolveViewerConnectorMemberships } from '@/lib/knowledge/connectors/member-provisioning'
+import { hasViewerMemberSyncError } from '@/lib/knowledge/connectors/viewer-member-sync-error'
 import { resolveViewerSourceAccounts } from '@/lib/knowledge/connectors/viewer-source-accounts'
 import {
   SEARCH_SOURCE_CANDIDATE_PAGE_SIZE,
@@ -84,6 +86,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
         memberSyncStatus: knowledgeConnector.memberSyncStatus,
         lastSyncAt: knowledgeConnector.lastSyncAt,
         hasRetainedSyncError: sql<boolean>`${knowledgeConnector.lastSyncError} IS NOT NULL`,
+        hasViewerMemberSyncError: hasViewerMemberSyncError(userId),
         lastMemberSyncAt: knowledgeConnector.lastMemberSyncAt,
         credentialGroupId: knowledgeConnector.credentialGroupId,
         credentialGroupOptionId: knowledgeConnector.credentialGroupOptionId,
@@ -256,6 +259,10 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
           connectorType: row.connectorType,
           sourceDescription: meta ? describeSearchSource(meta, row.sourceConfig) : '',
           accessMode: row.accessMode,
+          isGitHubInstallation:
+            row.connectorType === 'github' &&
+            row.accessMode === 'members' &&
+            typeof toRecord(row.sourceConfig).githubRepositoryId === 'string',
           availability: available ? ('available' as const) : ('unavailable' as const),
           enabled,
           ...(approvals ? { approved: approvals.get(row.connectorType) ?? true } : {}),
@@ -274,6 +281,7 @@ export const listSearchSources = defineAuthorizedKnowledgeUseCase({
           hasSyncError:
             row.status === 'error' ||
             row.hasRetainedSyncError === true ||
+            row.hasViewerMemberSyncError === true ||
             (row.accessMode === 'members' && row.memberSyncStatus === 'error'),
           hasViewerDocuments: available && state?.hasDocuments === true,
           viewerFailedDocumentCount: available ? (state?.failedCount ?? 0) : 0,

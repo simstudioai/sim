@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
-import { inter } from '@/app/_styles/fonts/inter/inter'
 
 /**
  * Redirects rather than 404s when Chat is disabled: this path is baked into
@@ -20,9 +19,5 @@ export default async function HomeLayout({
     redirect(`/workspace/${workspaceId}`)
   }
 
-  return (
-    <div className={`flex h-full flex-1 flex-col overflow-hidden ${inter.variable}`}>
-      {children}
-    </div>
-  )
+  return <div className='flex h-full flex-1 flex-col overflow-hidden'>{children}</div>
 }

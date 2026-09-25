@@ -77,6 +77,7 @@ describe('GET /api/v2/files/[fileId]/text', () => {
       data: {
         fileId: FILE_ID,
         name: 'notes.txt',
+        path: 'files/notes.txt',
         type: 'text/plain',
         text: 'hello there!',
         truncated: false,
@@ -133,9 +134,44 @@ describe('GET /api/v2/files/[fileId]/text', () => {
 
     expect(mocks.readText).toHaveBeenCalledWith(
       expect.objectContaining({
-        input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID, maxBytes: 4096 },
+        input: { workspaceId: WORKSPACE_ID, reference: FILE_ID, maxBytes: 4096 },
       })
     )
+  })
+
+  /**
+   * A Chat upload is absent from every listing, so the `uploads/<name>` path its
+   * upload notice names is the only handle the model has. The path parameter
+   * therefore carries a VFS reference, not only an id, and the response echoes
+   * the canonical path that was read so the model sees the name it was told.
+   */
+  it('accepts a VFS path as the file reference and echoes the path read', async () => {
+    mocks.readText.mockResolvedValueOnce(
+      result({
+        file: { id: 'wf_upload', name: 'face (2).png', type: 'image/png', vfsNamespace: 'uploads' },
+      })
+    )
+
+    const response = await GET(textRequest(), {
+      params: Promise.resolve({ fileId: 'uploads/face%20(2).png' }),
+    })
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(mocks.readText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: {
+          workspaceId: WORKSPACE_ID,
+          reference: 'uploads/face%20(2).png',
+          maxBytes: undefined,
+        },
+      })
+    )
+    expect(body.data).toMatchObject({
+      fileId: 'wf_upload',
+      name: 'face (2).png',
+      path: 'uploads/face%20(2).png',
+    })
   })
 
   it('rejects a query with an undeclared key', async () => {

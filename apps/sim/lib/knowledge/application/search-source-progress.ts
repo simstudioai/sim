@@ -1,3 +1,4 @@
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { document, knowledgeBase, knowledgeConnector } from '@sim/db/schema'
 import { and, eq, exists, inArray, isNull, type SQL, sql } from 'drizzle-orm'
@@ -9,6 +10,7 @@ import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeOwnerContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { hasViewerMemberSyncError } from '@/lib/knowledge/connectors/viewer-member-sync-error'
 import { MAX_SEARCH_SOURCE_PROGRESS_ITEMS } from '@/lib/knowledge/constants'
 import { failedDocumentCondition } from '@/lib/knowledge/documents/processing-status'
 import { searchIntegrationAccessCondition } from '@/lib/knowledge/search/integration-policy'
@@ -60,6 +62,9 @@ export const readSearchSourceProgress = defineAuthorizedKnowledgeUseCase({
         accessMode: knowledgeConnector.accessMode,
         memberSyncStatus: knowledgeConnector.memberSyncStatus,
         hasRetainedSyncError: sql<boolean>`${knowledgeConnector.lastSyncError} IS NOT NULL`,
+        hasViewerMemberSyncError: hasViewerMemberSyncError(
+          requirePrincipalSubjectUserId(principal)
+        ),
         approved: sql<boolean>`${searchIntegrationAccessCondition()}`,
         isIndexing: hasDocumentsInState(
           inArray(document.processingStatus, ['pending', 'processing'])
@@ -96,6 +101,7 @@ export const readSearchSourceProgress = defineAuthorizedKnowledgeUseCase({
         hasSyncError:
           row.status === 'error' ||
           row.hasRetainedSyncError === true ||
+          row.hasViewerMemberSyncError === true ||
           (row.accessMode === 'members' && row.memberSyncStatus === 'error'),
         hasIndexingError: row.hasIndexingError,
       })),

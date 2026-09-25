@@ -7,6 +7,7 @@ import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { resolveSubscriptionUsagePeriod } from '@/lib/billing/core/reporting-period'
+import { readSoftGateUsageCost } from '@/lib/billing/core/reporting-usage-cache'
 import { getUserUsageLimit, type UsageLimitSubscription } from '@/lib/billing/core/usage'
 import {
   type BillingContext,
@@ -44,6 +45,11 @@ interface UsageData {
   organizationId: string | null
 }
 
+/**
+ * The organization's pooled usage for an admission check. An enterprise reporting window is
+ * served through {@link readSoftGateUsageCost}; its weekly refresh is zero, so it always takes
+ * a plain-sum branch below.
+ */
 async function computePooledOrgUsage(
   organizationId: string,
   sub: UsageLimitSubscription,
@@ -58,12 +64,12 @@ async function computePooledOrgUsage(
     }
 
   if (!isPaid(sub.plan) || !sub.periodStart) {
-    return getBillingPeriodUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
+    return readSoftGateUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
   }
 
   const weeklyRefreshDollars = getPlanWeeklyRefreshDollars(sub.plan)
   if (weeklyRefreshDollars <= 0) {
-    return getBillingPeriodUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
+    return readSoftGateUsageCost({ type: 'organization', id: organizationId }, billingPeriod)
   }
 
   const { ledgerUsage, refreshConsumed } = await computeBillingPeriodUsageWithWeeklyRefresh({

@@ -11,13 +11,14 @@ vi.mock('@/blocks/integration-matcher', () => ({
   getIntegrationMatcher: () => ({ regex: null, byName: new Map() }),
 }))
 
-import { SIM_SELECTION_MIME } from '@/lib/copilot/chat/selection-clipboard'
+import { SIM_SELECTION_MIME } from '@/lib/mothership/chat/selection-clipboard'
 import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
 import {
   type UsePromptEditorProps,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/use-prompt-editor'
 import type { SkillsMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/skills-menu-dropdown'
+import { filterOutContext } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import type { ChatContext } from '@/stores/panel'
 
 function selectionPayload(context: ChatContext, sourceWorkspaceId = 'ws-1'): string {
@@ -480,4 +481,205 @@ describe('folder resource mention identity', () => {
       unmount()
     }
   })
+})
+
+it('addresses selected organization resources to their discovery workspace', () => {
+  const { result, unmount } = renderPromptEditor({ workspaceId: 'ws-1', organizationId: 'org-1' })
+  try {
+    act(() => result().insertResource({ type: 'table', id: 'table-1', title: 'Accounts' }))
+    expect(result().getActiveContexts()).toEqual([
+      { kind: 'table', tableId: 'table-1', label: 'Accounts', workspaceId: 'ws-1' },
+    ])
+  } finally {
+    unmount()
+  }
+})
+
+it('retains the explicitly selected skill workspace before the editor workspace changes', () => {
+  const { result, unmount } = renderPromptEditor({
+    workspaceId: 'previous-workspace',
+    organizationId: 'org-1',
+  })
+  try {
+    act(() =>
+      result().handleSkillSelect(
+        {
+          id: 'skill-1',
+          workspaceId: 'selected-workspace',
+          userId: null,
+          name: 'Review',
+          description: '',
+          content: '',
+          canEdit: false,
+          createdAt: '',
+          updatedAt: '',
+        },
+        'selected-workspace'
+      )
+    )
+    expect(result().getActiveContexts()).toEqual([
+      { kind: 'skill', skillId: 'skill-1', label: 'Review', workspaceId: 'selected-workspace' },
+    ])
+  } finally {
+    unmount()
+  }
+})
+
+it('preserves an explicit cross-workspace resource owner in the organization mention list', () => {
+  const { result, unmount } = renderPromptEditor({ workspaceId: '', organizationId: 'org-1' })
+  try {
+    act(() =>
+      result().insertResource({
+        type: 'file',
+        id: 'report.csv',
+        title: 'Report · Finance',
+        workspaceId: 'finance',
+      })
+    )
+    expect(result().getActiveContexts()).toEqual([
+      { kind: 'file', fileId: 'report.csv', label: 'Report · Finance', workspaceId: 'finance' },
+    ])
+  } finally {
+    unmount()
+  }
+})
+
+it('keeps duplicate built-in skills scoped and reuses the same chip when selected again', () => {
+  const { result, unmount } = renderPromptEditor({ workspaceId: '', organizationId: 'org-1' })
+  const skill = {
+    id: 'built-in',
+    workspaceId: null,
+    userId: null,
+    name: 'Review',
+    description: '',
+    content: '',
+    canEdit: false,
+    createdAt: '',
+    updatedAt: '',
+  }
+  try {
+    act(() => result().handleSkillSelect(skill, 'sales'))
+    act(() => result().handleSkillSelect(skill, 'finance'))
+    act(() => result().handleSkillSelect(skill, 'sales'))
+    expect(result().getActiveContexts()).toEqual([
+      { kind: 'skill', skillId: 'built-in', label: 'Review', workspaceId: 'sales' },
+      { kind: 'skill', skillId: 'built-in', label: 'Review (2)', workspaceId: 'finance' },
+    ])
+    expect(result().value).not.toContain('Review (3)')
+    expect(
+      filterOutContext(result().getActiveContexts(), {
+        kind: 'skill',
+        skillId: 'built-in',
+        label: 'Review',
+        workspaceId: 'sales',
+      })
+    ).toEqual([{ kind: 'skill', skillId: 'built-in', label: 'Review (2)', workspaceId: 'finance' }])
+  } finally {
+    unmount()
+  }
+})
+
+it('auto-registers unique organization skill names with their owner but leaves ambiguous names unresolved', () => {
+  const skill = {
+    id: 'built-in',
+    workspaceId: 'sales',
+    userId: null,
+    name: 'Review',
+    description: '',
+    content: '',
+    canEdit: false,
+    createdAt: '',
+    updatedAt: '',
+  }
+  const unique = renderPromptEditor({
+    workspaceId: '',
+    organizationId: 'org-1',
+    initialValue: '/Review ',
+    initialContexts: [{ kind: 'skill', skillId: skill.id, label: skill.name }],
+    availableSkills: [skill],
+  })
+  try {
+    expect(unique.result().getActiveContexts()).toEqual([
+      { kind: 'skill', skillId: 'built-in', label: 'Review', workspaceId: 'sales' },
+    ])
+  } finally {
+    unique.unmount()
+  }
+  const ambiguous = renderPromptEditor({
+    workspaceId: '',
+    organizationId: 'org-1',
+    initialValue: '/Review ',
+    availableSkills: [skill, { ...skill, workspaceId: 'finance' }],
+  })
+  try {
+    expect(ambiguous.result().getActiveContexts()).toEqual([])
+  } finally {
+    ambiguous.unmount()
+  }
+})
+
+it('inserts a canonical built-in skill globally without inheriting a workspace', () => {
+  const skill = {
+    id: 'builtin-research',
+    workspaceId: null,
+    userId: null,
+    name: 'research',
+    description: '',
+    content: '',
+    canEdit: false,
+    readOnly: true,
+    createdAt: '',
+    updatedAt: '',
+  }
+  const { result, unmount } = renderPromptEditor({
+    workspaceId: 'sales',
+    organizationId: 'org-1',
+    availableSkills: [skill],
+  })
+  try {
+    act(() => result().handleSkillSelect(skill, 'finance'))
+    expect(result().getActiveContexts()).toEqual([
+      { kind: 'skill', skillId: 'builtin-research', label: 'research' },
+    ])
+  } finally {
+    unmount()
+  }
+})
+
+it('tracks selection contraction on a replacement textarea without remounting the editor', () => {
+  vi.useFakeTimers()
+  const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
+  const replacement = document.createElement('textarea')
+  document.body.appendChild(replacement)
+  try {
+    act(() => {
+      result().setContexts([{ kind: 'table', tableId: 'table-1', label: 'Alpha' }])
+      result().setValue('@Alpha tail')
+    })
+    textarea.value = result().value
+    textarea.focus()
+    textarea.setSelectionRange(0, 0)
+    document.dispatchEvent(new Event('selectionchange'))
+
+    // Switching the host layout keeps the hook but replaces its textarea.
+    result().textareaRef.current = replacement
+    replacement.value = result().value
+    replacement.focus()
+    replacement.setSelectionRange(0, replacement.value.length)
+    document.dispatchEvent(new Event('selectionchange'))
+    replacement.setSelectionRange(2, replacement.value.length)
+    document.dispatchEvent(new Event('selectionchange'))
+    act(() => {
+      result().handleSelectAdjust()
+      vi.runOnlyPendingTimers()
+    })
+
+    // Shrinking the left edge releases the whole chip instead of expanding it.
+    expect(replacement.selectionStart).toBe('@Alpha '.length)
+    expect(replacement.selectionEnd).toBe('@Alpha tail'.length)
+  } finally {
+    unmount()
+    replacement.remove()
+    vi.useRealTimers()
+  }
 })
