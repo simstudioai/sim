@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { existsSync } from 'node:fs'
-import { statfs } from 'node:fs/promises'
+import { rename, rm, statfs, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
   BrowserDataKind,
@@ -23,7 +23,9 @@ import type {
 } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
+import { sleep } from '@sim/utils/helpers'
+import { generateId, generateShortId } from '@sim/utils/id'
+import { backoffWithJitter } from '@sim/utils/retry'
 import type {
   BrowserWindow,
   BrowserWindowConstructorOptions,
@@ -140,6 +142,10 @@ export interface BrowserDownloadSettings {
   getFreeDiskBytes?: (directory: string) => number | Promise<number>
   /** Overrides asynchronous destination collision checks. */
   pathExists?: (path: string) => boolean | Promise<boolean>
+  /** Overrides the move of a completed staging file to its final name. */
+  moveFile?: (from: string, to: string) => Promise<void>
+  /** Overrides the exclusive creation of a download's destination placeholder. */
+  claimFile?: (path: string) => Promise<void>
 }
 
 export interface AgentSessionEvents {
@@ -423,7 +429,29 @@ interface ActiveBrowserDownload {
   item: DownloadItem
   diskCheckInFlight: boolean
   lastDiskCheckAt: number
+  /**
+   * Electron's download delegate opens a native Save dialog unless a path is
+   * set before `will-download` returns, so bytes land in this randomly named
+   * dot-file (hidden on POSIX) and move to the asynchronously allocated
+   * `savePath` on completion.
+   */
+  stagingPath: string
+  /** The reserved final destination, once allocation has chosen one. */
   savePath?: string
+  /**
+   * The empty file claiming `savePath` on disk while bytes stage, as Firefox does, so another
+   * program choosing a name sees it taken; the completed file replaces it.
+   */
+  placeholderPath?: string
+  /**
+   * Set while the placeholder write is in flight. The name stays reserved in process until it
+   * settles, so teardown cannot hand the name to a newer download that the write then beats.
+   */
+  claimingDestination?: boolean
+  /** Settles with the final destination, or null when allocation failed. */
+  destination: Promise<string | null>
+  /** Set once Electron reports the item done, so a late disk check never resumes or cancels it. */
+  finished: boolean
   scopeId: string
   terminal: boolean
   limitReason?: string
@@ -635,12 +663,22 @@ function publishActiveBrowserDownload(active: ActiveBrowserDownload): void {
   publishBrowserDownloads(liveScopeId)
 }
 
+/** A disk probe that resolves after its download finished or stopped must not cancel it. */
+function isDiskCheckStale(active: ActiveBrowserDownload): boolean {
+  return (
+    active.terminal ||
+    active.finished ||
+    Boolean(active.limitReason) ||
+    !activeBrowserDownloads.has(active)
+  )
+}
+
 function checkBrowserDownloadDiskSpace(
   active: ActiveBrowserDownload,
   check: 'admission' | 'progress',
   now = Date.now()
 ): void {
-  if (active.terminal || active.limitReason || active.diskCheckInFlight) return
+  if (active.terminal || active.finished || active.limitReason || active.diskCheckInFlight) return
   if (
     check === 'progress' &&
     now - active.lastDiskCheckAt < BROWSER_DOWNLOAD_DISK_CHECK_INTERVAL_MS
@@ -652,9 +690,7 @@ function checkBrowserDownloadDiskSpace(
   active.diskCheckInFlight = true
   void browserDownloadFreeDiskBytes(active.directory)
     .then((freeDiskBytes) => {
-      if (active.terminal || active.limitReason || !activeBrowserDownloads.has(active)) {
-        return
-      }
+      if (isDiskCheckStale(active)) return
       const requiredFreeDiskBytes =
         MIN_BROWSER_DOWNLOAD_FREE_DISK_BYTES +
         activeDownloadReservations(check === 'admission' ? active : undefined)
@@ -671,7 +707,7 @@ function checkBrowserDownloadDiskSpace(
       if (check === 'admission' && active.download.state === 'progressing') active.item.resume()
     })
     .catch((error) => {
-      if (active.terminal || active.limitReason || !activeBrowserDownloads.has(active)) return
+      if (isDiskCheckStale(active)) return
       logger.warn('Could not complete an agent browser download disk-space check', {
         error: getErrorMessage(error),
       })
@@ -687,7 +723,9 @@ function releaseActiveBrowserDownload(active: ActiveBrowserDownload): void {
   if (active.terminal) return
   active.terminal = true
   activeBrowserDownloads.delete(active)
-  releaseActiveBrowserDownloadPath(active)
+  if (!active.claimingDestination) releaseActiveBrowserDownloadPath(active)
+  // Once Electron reports the item done, the move owns the placeholder until it settles.
+  if (!active.finished) removeBrowserDownloadPlaceholder(active)
 }
 
 function releaseActiveBrowserDownloadPath(
@@ -696,6 +734,110 @@ function releaseActiveBrowserDownloadPath(
 ): void {
   if (savePath && activeDownloadPaths.get(savePath) === active) {
     activeDownloadPaths.delete(savePath)
+  }
+}
+
+function removeBrowserDownloadFile(active: ActiveBrowserDownload, path: string): void {
+  void rm(path, { force: true }).catch((error) => {
+    logger.warn('Could not remove a staged agent browser download', {
+      error: getErrorMessage(error),
+      filename: active.download.filename,
+    })
+  })
+}
+
+/**
+ * Removes the destination placeholder at most once: after that the name is free, and a later
+ * download may already have claimed it.
+ */
+function removeBrowserDownloadPlaceholder(active: ActiveBrowserDownload): void {
+  const { placeholderPath } = active
+  if (!placeholderPath) return
+  active.placeholderPath = undefined
+  removeBrowserDownloadFile(active, placeholderPath)
+}
+
+/** Removes a failed download's staging file and its destination placeholder. */
+function discardStagedBrowserDownload(active: ActiveBrowserDownload): void {
+  removeBrowserDownloadFile(active, active.stagingPath)
+  removeBrowserDownloadPlaceholder(active)
+}
+
+function createEmptyFileExclusively(path: string): Promise<void> {
+  return writeFile(path, '', { flag: 'wx' })
+}
+
+/** Claims the allocated destination with an empty file; throws if anything already holds it. */
+async function claimBrowserDownloadDestination(
+  active: ActiveBrowserDownload,
+  savePath: string
+): Promise<void> {
+  await (browserDownloadSettings?.claimFile ?? createEmptyFileExclusively)(savePath)
+  active.placeholderPath = savePath
+}
+
+/**
+ * Errors a just-written file raises while antivirus or indexing briefly holds it open (Windows);
+ * Chromium retries its own final download rename on these too.
+ */
+const TRANSIENT_MOVE_ERROR_CODES = new Set(['EACCES', 'EBUSY', 'EPERM'])
+const STAGED_DOWNLOAD_MOVE_ATTEMPTS = 5
+
+/** Moves a completed staging file to its final name; resolves to that name. */
+async function moveStagedBrowserDownload(active: ActiveBrowserDownload): Promise<string> {
+  const destination = await active.destination
+  if (!destination || active.limitReason || active.terminal) {
+    throw new Error(
+      active.limitReason ?? 'Stopped: the download destination could not be prepared safely'
+    )
+  }
+  const moveFile = browserDownloadSettings?.moveFile ?? rename
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await moveFile(active.stagingPath, destination)
+      return destination
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (
+        attempt < STAGED_DOWNLOAD_MOVE_ATTEMPTS &&
+        code !== undefined &&
+        TRANSIENT_MOVE_ERROR_CODES.has(code)
+      ) {
+        await sleep(backoffWithJitter(attempt, null, { baseMs: 100, maxMs: 1_000 }))
+        continue
+      }
+      logger.warn('Could not move a finished agent browser download to its destination', {
+        error: getErrorMessage(error),
+        filename: active.download.filename,
+      })
+      throw new Error('Stopped: the finished download could not be moved to its destination')
+    }
+  }
+}
+
+function finishBrowserDownload(active: ActiveBrowserDownload): void {
+  const { download } = active
+  const liveScopeId = resolveBrowserScopeId(active.scopeId)
+  if (
+    suspendedBrowserScopes.has(liveScopeId) ||
+    !browserScopeStates.has(liveScopeId) ||
+    !browserDownloadsByScope.get(liveScopeId)?.includes(download)
+  ) {
+    return
+  }
+  trimBrowserDownloads(liveScopeId)
+  publishBrowserDownloads(liveScopeId)
+  withBrowserScope(liveScopeId, persistBrowserSession)
+  if (download.state === 'completed') {
+    logger.info('Agent browser download completed', { filename: download.filename })
+    if (process.platform === 'darwin' && download.savePath) {
+      app.dock?.downloadFinished(download.savePath)
+    }
+  } else if (download.state === 'interrupted') {
+    logger.warn('Agent browser download interrupted', {
+      filename: download.filename,
+      reason: download.interruptionReason,
+    })
   }
 }
 
@@ -1489,26 +1631,41 @@ function configureBrowserDownloads(ses: Session): void {
 
     const download = createTrackedBrowserDownload(item, 'progressing')
     const { filename } = download
-    try {
-      item.pause()
-    } catch (error) {
-      const reason = 'Stopped: the download could not be paused for a disk-space safety check'
+    const failDownloadSetup = (reason: string, message: string, error: unknown) => {
       download.interruptionReason = reason
       download.state = 'interrupted'
       try {
         item.cancel()
       } catch (cancelError) {
-        logger.warn('Could not cancel an agent browser download after pause failed', {
+        logger.warn('Could not cancel an agent browser download after setup failed', {
           error: getErrorMessage(cancelError),
           filename,
         })
       }
       recordBrowserDownload(scopeId, download)
       withBrowserScope(scopeId, persistBrowserSession)
-      logger.warn('Agent browser download could not be paused for admission', {
-        error: getErrorMessage(error),
-        filename,
-      })
+      logger.warn(message, { error: getErrorMessage(error), filename })
+    }
+    // Paused before the staging path is set, so a failure here leaves no file behind.
+    try {
+      item.pause()
+    } catch (error) {
+      failDownloadSetup(
+        'Stopped: the download could not be paused for a disk-space safety check',
+        'Agent browser download could not be paused for admission',
+        error
+      )
+      return
+    }
+    const stagingPath = join(directory, `.sim-download-${generateShortId()}`)
+    try {
+      item.setSavePath(stagingPath)
+    } catch (error) {
+      failDownloadSetup(
+        'Stopped: the download destination could not be prepared safely',
+        'Could not set the staging destination for an agent browser download',
+        error
+      )
       return
     }
     const active: ActiveBrowserDownload = {
@@ -1517,6 +1674,10 @@ function configureBrowserDownloads(ses: Session): void {
       item,
       diskCheckInFlight: false,
       lastDiskCheckAt: 0,
+      stagingPath,
+      /** Replaced below by the allocation, whose callbacks need this record to exist first. */
+      destination: Promise.resolve(null),
+      finished: false,
       scopeId,
       terminal: false,
     }
@@ -1547,31 +1708,33 @@ function configureBrowserDownloads(ses: Session): void {
       publishBrowserDownloads(liveScopeId)
     })
     item.once('done', (_doneEvent, state) => {
-      releaseActiveBrowserDownload(active)
-      const liveScopeId = resolveBrowserScopeId(scopeId)
-      if (
-        suspendedBrowserScopes.has(liveScopeId) ||
-        !browserScopeStates.has(liveScopeId) ||
-        !browserDownloadsByScope.get(liveScopeId)?.includes(download)
-      ) {
+      active.finished = true
+      updateDownloadProgress(download, item)
+      if (state !== 'completed' || active.limitReason || active.terminal) {
+        releaseActiveBrowserDownload(active)
+        discardStagedBrowserDownload(active)
+        download.savePath = active.savePath
+        download.state = active.limitReason ? 'interrupted' : state
+        finishBrowserDownload(active)
         return
       }
-      updateDownloadProgress(download, item)
-      download.state = active.limitReason ? 'interrupted' : state
-      trimBrowserDownloads(liveScopeId)
-      publishBrowserDownloads(liveScopeId)
-      withBrowserScope(liveScopeId, persistBrowserSession)
-      if (download.state === 'completed') {
-        logger.info('Agent browser download completed', { filename })
-        if (process.platform === 'darwin' && active.savePath) {
-          app.dock?.downloadFinished(active.savePath)
-        }
-      } else if (download.state === 'interrupted') {
-        logger.warn('Agent browser download interrupted', {
-          filename,
-          reason: download.interruptionReason,
+      void moveStagedBrowserDownload(active)
+        .then(
+          (savePath) => {
+            download.savePath = savePath
+            download.state = 'completed'
+          },
+          (error: unknown) => {
+            discardStagedBrowserDownload(active)
+            download.savePath = active.savePath
+            download.interruptionReason = getErrorMessage(error)
+            download.state = 'interrupted'
+          }
+        )
+        .finally(() => {
+          releaseActiveBrowserDownload(active)
+          finishBrowserDownload(active)
         })
-      }
     })
     let allocationExpired = false
     const allocation = uniqueDownloadPath(directory, filename, {
@@ -1596,7 +1759,7 @@ function configureBrowserDownloads(ses: Session): void {
         return true
       },
     })
-    void withBrowserDownloadTimeout(
+    active.destination = withBrowserDownloadTimeout(
       allocation,
       BROWSER_DOWNLOAD_PATH_ALLOCATION_TIMEOUT_MS,
       'Browser download path allocation timed out',
@@ -1604,10 +1767,10 @@ function configureBrowserDownloads(ses: Session): void {
         allocationExpired = true
       }
     )
-      .then((savePath) => {
+      .then(async (savePath) => {
         if (active.terminal || !activeBrowserDownloads.has(active)) {
           releaseActiveBrowserDownloadPath(active, savePath ?? undefined)
-          return
+          return null
         }
         if (!savePath) {
           cancelBrowserDownloadForLimit(
@@ -1615,30 +1778,24 @@ function configureBrowserDownloads(ses: Session): void {
             'Stopped: a safe non-conflicting download filename could not be allocated'
           )
           publishActiveBrowserDownload(active)
-          return
+          return null
         }
-        download.savePath = savePath
+        active.claimingDestination = true
         try {
-          item.setSavePath(savePath)
-        } catch (error) {
-          releaseActiveBrowserDownloadPath(active, savePath)
-          active.savePath = undefined
-          download.savePath = undefined
-          logger.warn('Could not set the destination for an agent browser download', {
-            error: getErrorMessage(error),
-            filename,
-          })
-          cancelBrowserDownloadForLimit(
-            active,
-            'Stopped: the download destination could not be prepared safely'
-          )
-          publishActiveBrowserDownload(active)
-          return
+          await claimBrowserDownloadDestination(active, savePath)
+        } finally {
+          active.claimingDestination = false
+          if (active.terminal || !activeBrowserDownloads.has(active)) {
+            removeBrowserDownloadPlaceholder(active)
+            releaseActiveBrowserDownloadPath(active, savePath)
+          }
         }
+        if (active.terminal || !activeBrowserDownloads.has(active)) return null
         checkBrowserDownloadDiskSpace(active, 'admission')
+        return savePath
       })
       .catch((error) => {
-        if (active.terminal || !activeBrowserDownloads.has(active)) return
+        if (active.terminal || !activeBrowserDownloads.has(active)) return null
         logger.warn('Could not allocate an agent browser download destination', {
           error: getErrorMessage(error),
           filename,
@@ -1648,6 +1805,7 @@ function configureBrowserDownloads(ses: Session): void {
           'Stopped: the download destination could not be prepared safely'
         )
         publishActiveBrowserDownload(active)
+        return null
       })
   })
 }

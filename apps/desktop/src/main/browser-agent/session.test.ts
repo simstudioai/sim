@@ -1,6 +1,13 @@
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import type { MenuItemConstructorOptions, WebContents } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -304,9 +311,30 @@ function mockDownloadItem({
       const handler = item.once.mock.calls.find(([eventName]) => eventName === 'done')?.[1] as
         | ((event: unknown, nextState: MockDownloadDoneState) => void)
         | undefined
+      const savePath = item.setSavePath.mock.calls.at(-1)?.[0] as string | undefined
+      if (state === 'completed' && savePath) writeFileSync(savePath, filename)
       handler?.({}, state)
     },
   }
+}
+
+/** Asserts Electron was only ever given the hidden staging file in `directory`. */
+function expectOnlyStagingSavePath(
+  item: { setSavePath: ReturnType<typeof vi.fn> },
+  directory: string
+) {
+  expect(item.setSavePath).toHaveBeenCalledOnce()
+  const savePath = item.setSavePath.mock.calls[0]?.[0] as string
+  expect(dirname(savePath)).toBe(directory)
+  expect(basename(savePath)).toMatch(/^\.sim-download-/)
+  return savePath
+}
+
+/** Visible files in a download directory, excluding in-flight staging files. */
+function finishedDownloadFiles(directory: string): string[] {
+  return readdirSync(directory)
+    .filter((name) => !name.startsWith('.'))
+    .sort()
 }
 
 function startMockDownload(contents: MockView['webContents'], download: MockDownloadHarness): void {
@@ -3357,7 +3385,7 @@ describe('browser-agent session', () => {
     expect(item.resume).not.toHaveBeenCalled()
     await vi.waitFor(() => expect(item.resume).toHaveBeenCalledOnce())
     expect(item.cancel).not.toHaveBeenCalled()
-    expect(item.setSavePath).toHaveBeenCalledWith(join(directory, 'report.csv'))
+    const stagingPath = expectOnlyStagingSavePath(item, directory)
     expect(item.once).toHaveBeenCalledWith('done', expect.any(Function))
     expect(onDownloadsChanged).toHaveBeenLastCalledWith({
       scopeId: 'chat-test',
@@ -3375,13 +3403,17 @@ describe('browser-agent session', () => {
     const done = item.once.mock.calls.find(([eventName]) => eventName === 'done')?.[1] as
       | ((event: unknown, state: 'completed') => void)
       | undefined
-    writeFileSync(join(directory, 'report.csv'), 'report')
+    writeFileSync(stagingPath, 'report')
     done?.({}, 'completed')
 
-    expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
-      filename: 'report.csv',
-      state: 'completed',
-    })
+    await vi.waitFor(() =>
+      expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
+        filename: 'report.csv',
+        state: 'completed',
+      })
+    )
+    expect(existsSync(stagingPath)).toBe(false)
+    expect(finishedDownloadFiles(directory)).toEqual(['report.csv'])
     expect(snapshots.get('chat-test')?.downloads[0]).toMatchObject({
       filename: 'report.csv',
       state: 'completed',
@@ -3408,6 +3440,230 @@ describe('browser-agent session', () => {
       filename: 'report.csv',
       state: 'completed',
     })
+  })
+
+  it('sets a staging save path before will-download returns so Electron never prompts', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+    session = freshSession(win, {}, undefined, {
+      getDirectory: () => directory,
+      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
+    })
+    const contents = (session.ensureTab().view as unknown as MockView).webContents
+    const download = mockDownloadItem({ filename: 'report.csv', totalBytes: 100 })
+
+    startMockDownload(contents, download)
+
+    const stagingPath = expectOnlyStagingSavePath(download.item, directory)
+    expect(stagingPath).not.toBe(join(directory, 'report.csv'))
+    expect(download.item.cancel).not.toHaveBeenCalled()
+  })
+
+  it('waits for a slow filename allocation before publishing the completed file', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+    const { persistence, snapshots } = memoryBrowserPersistence()
+    const pathProbe = deferred<boolean>()
+    session = freshSession(win, {}, persistence, {
+      getDirectory: () => directory,
+      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
+      pathExists: () => pathProbe.promise,
+    })
+    const contents = (session.ensureTab().view as unknown as MockView).webContents
+    const download = mockDownloadItem({ filename: 'slow.bin', totalBytes: 100 })
+
+    startMockDownload(contents, download)
+    const stagingPath = expectOnlyStagingSavePath(download.item, directory)
+    download.emitDone('completed')
+    await Promise.resolve()
+
+    expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
+      filename: 'slow.bin',
+      state: 'progressing',
+    })
+    expect(existsSync(stagingPath)).toBe(true)
+
+    pathProbe.resolve(false)
+
+    await vi.waitFor(() =>
+      expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
+        filename: 'slow.bin',
+        state: 'completed',
+      })
+    )
+    expect(existsSync(stagingPath)).toBe(false)
+    expect(finishedDownloadFiles(directory)).toEqual(['slow.bin'])
+    const { id } = session.getBrowserDownloadsState('chat-test').downloads[0]
+    expect(session.completedBrowserDownload('chat-test', id)).toEqual({
+      filename: 'slow.bin',
+      savePath: join(directory, 'slow.bin'),
+    })
+    expect(snapshots.get('chat-test')?.downloads[0]).toMatchObject({
+      state: 'completed',
+      savePath: join(directory, 'slow.bin'),
+    })
+  })
+
+  it('ignores a progress disk probe that resolves after the download completed', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+      const progressProbe = deferred<number>()
+      const getFreeDiskBytes = vi
+        .fn<(directory: string) => number | Promise<number>>()
+        .mockReturnValueOnce(Number.MAX_SAFE_INTEGER)
+        .mockReturnValueOnce(progressProbe.promise)
+      session = freshSession(win, {}, undefined, {
+        getDirectory: () => directory,
+        getFreeDiskBytes,
+      })
+      const contents = (session.ensureTab().view as unknown as MockView).webContents
+      const download = mockDownloadItem({ filename: 'late-probe.bin', totalBytes: 100 })
+
+      startMockDownload(contents, download)
+      await vi.waitFor(() => expect(download.item.resume).toHaveBeenCalledOnce())
+      vi.setSystemTime(Date.now() + 1_000)
+      download.emitUpdated()
+      expect(getFreeDiskBytes).toHaveBeenCalledTimes(2)
+
+      download.emitDone('completed')
+      progressProbe.resolve(0)
+
+      await vi.waitFor(() =>
+        expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
+          filename: 'late-probe.bin',
+          state: 'completed',
+        })
+      )
+      expect(download.item.cancel).not.toHaveBeenCalled()
+      expect(finishedDownloadFiles(directory)).toEqual(['late-probe.bin'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('retries moving a completed download while another process briefly holds the file', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+    try {
+      const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+      const busy = Object.assign(new Error('resource busy'), { code: 'EBUSY' })
+      const moveFile = vi
+        .fn<(from: string, to: string) => Promise<void>>()
+        .mockRejectedValueOnce(busy)
+        .mockRejectedValueOnce(busy)
+        .mockImplementation(async (from, to) => renameSync(from, to))
+      session = freshSession(win, {}, undefined, {
+        getDirectory: () => directory,
+        getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
+        moveFile,
+      })
+      const contents = (session.ensureTab().view as unknown as MockView).webContents
+      const download = mockDownloadItem({ filename: 'held.bin', totalBytes: 100 })
+
+      startMockDownload(contents, download)
+      await vi.waitFor(() => expect(download.item.resume).toHaveBeenCalledOnce())
+      download.emitDone('completed')
+      await vi.waitFor(() => expect(moveFile).toHaveBeenCalledOnce())
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      await vi.waitFor(() =>
+        expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
+          filename: 'held.bin',
+          state: 'completed',
+        })
+      )
+      expect(moveFile).toHaveBeenCalledTimes(3)
+      expect(finishedDownloadFiles(directory)).toEqual(['held.bin'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('never overwrites a file that takes the allocated name before the download claims it', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+    writeFileSync(join(directory, 'taken.bin'), 'user data')
+    session = freshSession(win, {}, undefined, {
+      getDirectory: () => directory,
+      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
+      pathExists: () => false,
+    })
+    const contents = (session.ensureTab().view as unknown as MockView).webContents
+    const download = mockDownloadItem({ filename: 'taken.bin', totalBytes: 100 })
+
+    startMockDownload(contents, download)
+
+    await vi.waitFor(() => expect(download.item.cancel).toHaveBeenCalledOnce())
+    expect(download.item.resume).not.toHaveBeenCalled()
+    expect(readFileSync(join(directory, 'taken.bin'), 'utf8')).toBe('user data')
+  })
+
+  it('interrupts a completed download whose staging file cannot be moved into place', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+    const moveFile = vi.fn(() =>
+      Promise.reject(Object.assign(new Error('cross-device link'), { code: 'EXDEV' }))
+    )
+    session = freshSession(win, {}, undefined, {
+      getDirectory: () => directory,
+      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
+      moveFile,
+    })
+    const contents = (session.ensureTab().view as unknown as MockView).webContents
+    const download = mockDownloadItem({ filename: 'blocked.bin', totalBytes: 100 })
+
+    startMockDownload(contents, download)
+    const stagingPath = expectOnlyStagingSavePath(download.item, directory)
+    await vi.waitFor(() => expect(download.item.resume).toHaveBeenCalledOnce())
+    expect(readFileSync(join(directory, 'blocked.bin'), 'utf8')).toBe('')
+    download.emitDone('completed')
+
+    await vi.waitFor(() =>
+      expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
+        filename: 'blocked.bin',
+        state: 'interrupted',
+      })
+    )
+    await vi.waitFor(() => expect(readdirSync(directory)).toEqual([]))
+    expect(existsSync(stagingPath)).toBe(false)
+    expect(moveFile).toHaveBeenCalledOnce()
+    const { id } = session.getBrowserDownloadsState('chat-test').downloads[0]
+    expect(session.completedBrowserDownload('chat-test', id)).toBeNull()
+
+    vi.mocked(Menu.buildFromTemplate).mockClear()
+    session.showBrowserDownloadsMenu('chat-test', win, { x: 10, y: 20 })
+    const template = vi.mocked(Menu.buildFromTemplate).mock.calls[0]?.[0] as
+      | MenuItemConstructorOptions[]
+      | undefined
+    expect(template?.[0]?.sublabel).toContain(
+      'the finished download could not be moved to its destination'
+    )
+  })
+
+  it('removes the staging file when a download is cancelled or interrupted', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+    session = freshSession(win, {}, undefined, {
+      getDirectory: () => directory,
+      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
+    })
+    const contents = (session.ensureTab().view as unknown as MockView).webContents
+    const cancelled = mockDownloadItem({ filename: 'cancelled.bin', totalBytes: 100 })
+    const interrupted = mockDownloadItem({ filename: 'interrupted.bin', totalBytes: 100 })
+
+    startMockDownload(contents, cancelled)
+    startMockDownload(contents, interrupted)
+    await vi.waitFor(() => expect(cancelled.item.resume).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(interrupted.item.resume).toHaveBeenCalledOnce())
+    const stagingPaths = [
+      expectOnlyStagingSavePath(cancelled.item, directory),
+      expectOnlyStagingSavePath(interrupted.item, directory),
+    ]
+    for (const stagingPath of stagingPaths) writeFileSync(stagingPath, 'partial')
+
+    cancelled.emitDone('cancelled')
+    interrupted.emitDone('interrupted')
+
+    await vi.waitFor(() => expect(readdirSync(directory)).toEqual([]))
+    expect(session.getBrowserDownloadsState('chat-test').downloads).toEqual([
+      expect.objectContaining({ filename: 'interrupted.bin', state: 'interrupted' }),
+      expect.objectContaining({ filename: 'cancelled.bin', state: 'cancelled' }),
+    ])
   })
 
   it('does not let a pre-allocation progress event consume the admission probe', async () => {
@@ -3610,8 +3866,8 @@ describe('browser-agent session', () => {
       firstProbe.resolve(false)
       secondProbe.reject(new Error('late path lookup failure'))
       await vi.advanceTimersByTimeAsync(0)
-      expect(first.item.setSavePath).not.toHaveBeenCalled()
-      expect(second.item.setSavePath).not.toHaveBeenCalled()
+      expectOnlyStagingSavePath(first.item, directory)
+      expectOnlyStagingSavePath(second.item, directory)
       expect(first.item.resume).not.toHaveBeenCalled()
       expect(second.item.resume).not.toHaveBeenCalled()
 
@@ -3619,10 +3875,9 @@ describe('browser-agent session', () => {
       second.emitDone('cancelled')
       const replacement = mockDownloadItem({ filename: 'hung-path.bin', totalBytes: 100 })
       startMockDownload(contents, replacement)
-      await vi.waitFor(() =>
-        expect(replacement.item.setSavePath).toHaveBeenCalledWith(join(directory, 'hung-path.bin'))
-      )
       await vi.waitFor(() => expect(replacement.item.resume).toHaveBeenCalledOnce())
+      replacement.emitDone('completed')
+      await vi.waitFor(() => expect(finishedDownloadFiles(directory)).toEqual(['hung-path.bin']))
     } finally {
       vi.useRealTimers()
     }
@@ -3694,7 +3949,7 @@ describe('browser-agent session', () => {
     startMockDownload(contents, download)
 
     await vi.waitFor(() => expect(download.item.cancel).toHaveBeenCalledOnce())
-    expect(download.item.setSavePath).not.toHaveBeenCalled()
+    expectOnlyStagingSavePath(download.item, notDirectory)
     expect(download.item.resume).not.toHaveBeenCalled()
     expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
       filename: 'cannot-save.bin',
@@ -3735,7 +3990,6 @@ describe('browser-agent session', () => {
 
     startMockDownload(contents, download)
     await vi.waitFor(() => expect(download.item.resume).toHaveBeenCalledOnce())
-    const firstSavePath = download.item.setSavePath.mock.calls[0]?.[0]
     download.setReceivedBytes(2 * 1024 ** 3 + 1)
     download.emitUpdated()
 
@@ -3747,10 +4001,13 @@ describe('browser-agent session', () => {
     })
 
     download.emitDone('cancelled')
+    await vi.waitFor(() => expect(readdirSync(directory)).toEqual([]))
     const replacement = mockDownloadItem({ filename: 'stream.bin', totalBytes: 100 })
     startMockDownload(contents, replacement)
     expect(replacement.item.cancel).not.toHaveBeenCalled()
-    await vi.waitFor(() => expect(replacement.item.setSavePath).toHaveBeenCalledWith(firstSavePath))
+    await vi.waitFor(() => expect(replacement.item.resume).toHaveBeenCalledOnce())
+    replacement.emitDone('completed')
+    await vi.waitFor(() => expect(finishedDownloadFiles(directory)).toEqual(['stream.bin']))
   })
 
   it('throttles free-disk checks while stopping promptly after the interval', async () => {
@@ -3878,12 +4135,6 @@ describe('browser-agent session', () => {
     startMockDownload(contents, first)
     startMockDownload(contents, second)
     await vi.waitFor(() => expect(getFreeDiskBytes).toHaveBeenCalledTimes(2))
-    const allocatedPaths = [
-      first.item.setSavePath.mock.calls[0]?.[0],
-      second.item.setSavePath.mock.calls[0]?.[0],
-    ]
-    expect(new Set(allocatedPaths).size).toBe(2)
-    expect(allocatedPaths).toContain(join(directory, 'same-name.bin'))
 
     await session.clearProfileStorage()
 
@@ -3899,13 +4150,11 @@ describe('browser-agent session', () => {
     expect(second.item.resume).not.toHaveBeenCalled()
     expect(session.getBrowserDownloadsState('chat-test').downloads).toEqual([])
     expect(snapshots.get('chat-test')?.downloads).toEqual([])
+    await vi.waitFor(() => expect(finishedDownloadFiles(directory)).toEqual([]))
 
     const nextContents = (session.ensureTab().view as unknown as MockView).webContents
     const replacement = mockDownloadItem({ filename: 'same-name.bin', totalBytes: 100 })
     startMockDownload(nextContents, replacement)
-    await vi.waitFor(() =>
-      expect(replacement.item.setSavePath).toHaveBeenCalledWith(join(directory, 'same-name.bin'))
-    )
     await vi.waitFor(() => expect(replacement.item.resume).toHaveBeenCalledOnce())
     expect(replacement.item.cancel).not.toHaveBeenCalled()
 
@@ -3913,8 +4162,23 @@ describe('browser-agent session', () => {
     second.emitDone('cancelled')
     const concurrent = mockDownloadItem({ filename: 'same-name.bin', totalBytes: 100 })
     startMockDownload(nextContents, concurrent)
-    await vi.waitFor(() => expect(concurrent.item.setSavePath).toHaveBeenCalledOnce())
-    expect(concurrent.item.setSavePath).not.toHaveBeenCalledWith(join(directory, 'same-name.bin'))
+    await vi.waitFor(() => expect(concurrent.item.resume).toHaveBeenCalledOnce())
+    concurrent.emitDone('completed')
+    // The torn-down downloads settling late must not remove the replacement's claimed name.
+    await vi.waitFor(() =>
+      expect(finishedDownloadFiles(directory)).toEqual([
+        expect.stringMatching(/^same-name \(.+\)\.bin$/),
+        'same-name.bin',
+      ])
+    )
+    expect(readFileSync(join(directory, 'same-name.bin'), 'utf8')).toBe('')
+    replacement.emitDone('completed')
+    await vi.waitFor(() =>
+      expect(readFileSync(join(directory, 'same-name.bin'), 'utf8')).toBe('same-name.bin')
+    )
+    await vi.waitFor(() =>
+      expect(readdirSync(directory).filter((name) => name.startsWith('.'))).toEqual([])
+    )
   })
 
   it('does not reserve a late filename after profile teardown starts', async () => {
@@ -3931,8 +4195,68 @@ describe('browser-agent session', () => {
     await Promise.resolve()
 
     expect(download.item.cancel).toHaveBeenCalledOnce()
-    expect(download.item.setSavePath).not.toHaveBeenCalled()
+    expectOnlyStagingSavePath(download.item, directory)
     expect(download.item.resume).not.toHaveBeenCalled()
+  })
+
+  it('cancels a download it cannot pause before giving it a staging file', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+    session = freshSession(win, {}, undefined, {
+      getDirectory: () => directory,
+      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
+    })
+    const contents = (session.ensureTab().view as unknown as MockView).webContents
+    const download = mockDownloadItem({ filename: 'unpausable.bin', totalBytes: 100 })
+    download.item.pause.mockImplementation(() => {
+      throw new Error('pause unavailable')
+    })
+
+    startMockDownload(contents, download)
+
+    expect(download.item.cancel).toHaveBeenCalledOnce()
+    expect(download.item.setSavePath).not.toHaveBeenCalled()
+    expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
+      filename: 'unpausable.bin',
+      state: 'interrupted',
+    })
+  })
+
+  it('keeps a torn-down download name reserved until its pending claim settles', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+    const claims: Array<{ path: string; gate: ReturnType<typeof deferred<void>> }> = []
+    session = freshSession(win, {}, undefined, {
+      getDirectory: () => directory,
+      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
+      claimFile: async (path) => {
+        const gate = deferred<void>()
+        claims.push({ path, gate })
+        await gate.promise
+        writeFileSync(path, '', { flag: 'wx' })
+      },
+    })
+    const firstContents = session.withBrowserScope(
+      'chat-first',
+      () => (session.ensureTab().view as unknown as MockView).webContents
+    )
+    const secondContents = session.withBrowserScope(
+      'chat-second',
+      () => (session.ensureTab().view as unknown as MockView).webContents
+    )
+    const first = mockDownloadItem({ filename: 'report.bin', totalBytes: 100 })
+    const second = mockDownloadItem({ filename: 'report.bin', totalBytes: 100 })
+
+    startMockDownload(firstContents, first)
+    await vi.waitFor(() => expect(claims).toHaveLength(1))
+    session.disposeBrowserScope('chat-first')
+    startMockDownload(secondContents, second)
+    await vi.waitFor(() => expect(claims).toHaveLength(2))
+
+    expect(claims[1].path).not.toBe(claims[0].path)
+    claims[0].gate.resolve()
+    claims[1].gate.resolve()
+    await vi.waitFor(() => expect(second.item.resume).toHaveBeenCalledOnce())
+    expect(second.item.cancel).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(existsSync(claims[0].path)).toBe(false))
   })
 
   it('does not let a cancelled allocation release another download path owner', async () => {
@@ -3970,15 +4294,24 @@ describe('browser-agent session', () => {
     queueMicrotask(() => session.disposeBrowserScope('chat-first'))
     secondPathProbe.resolve(false)
 
-    await vi.waitFor(() =>
-      expect(second.item.setSavePath).toHaveBeenCalledWith(join(directory, 'shared.bin'))
-    )
-    expect(first.item.setSavePath).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(second.item.resume).toHaveBeenCalledOnce())
+    expectOnlyStagingSavePath(first.item, directory)
+    expect(first.item.resume).not.toHaveBeenCalled()
 
     const third = mockDownloadItem({ filename: 'shared.bin', totalBytes: 100 })
     startMockDownload(thirdContents, third)
-    await vi.waitFor(() => expect(third.item.setSavePath).toHaveBeenCalledOnce())
-    expect(third.item.setSavePath).not.toHaveBeenCalledWith(join(directory, 'shared.bin'))
+    await vi.waitFor(() => expect(third.item.resume).toHaveBeenCalledOnce())
+    third.emitDone('completed')
+    await vi.waitFor(() =>
+      expect(finishedDownloadFiles(directory)).toEqual([
+        expect.stringMatching(/^shared \(.+\)\.bin$/),
+        'shared.bin',
+      ])
+    )
+    second.emitDone('completed')
+    await vi.waitFor(() =>
+      expect(readFileSync(join(directory, 'shared.bin'), 'utf8')).toBe('shared.bin')
+    )
   })
 
   it('cancels only the disposed scope and ignores its late download callbacks', async () => {
@@ -4017,7 +4350,7 @@ describe('browser-agent session', () => {
     disposedDownload.emitUpdated()
     disposedDownload.emitDone('cancelled')
 
-    expect(disposedDownload.item.setSavePath).not.toHaveBeenCalled()
+    expectOnlyStagingSavePath(disposedDownload.item, directory)
     expect(disposedDownload.item.resume).not.toHaveBeenCalled()
     expect(session.getBrowserDownloadsState('chat-disposed').downloads).toEqual([])
     expect(onDownloadsChanged).not.toHaveBeenCalledWith(
@@ -4101,10 +4434,13 @@ describe('browser-agent session', () => {
     expect(rejected.item.cancel).toHaveBeenCalledOnce()
 
     first.emitDone('completed')
+    await vi.waitFor(() =>
+      expect(readFileSync(join(directory, 'first.txt'), 'utf8')).toBe('first.txt')
+    )
     const replacement = mockDownloadItem({ filename: 'fourth.txt', totalBytes: 100 })
     startMockDownload(contents, replacement)
     expect(replacement.item.cancel).not.toHaveBeenCalled()
-    await vi.waitFor(() => expect(replacement.item.setSavePath).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(replacement.item.resume).toHaveBeenCalledOnce())
   })
 
   it('bounds active browser downloads across tasks', () => {

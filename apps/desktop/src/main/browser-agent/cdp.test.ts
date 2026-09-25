@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { toRecord } from '@sim/utils/object'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
@@ -13,9 +14,11 @@ import {
 import {
   captureScreenshot,
   clickAt,
+  consumeAgentContextMenu,
   ensureInstrumented,
   evaluateInIsolatedFrame,
   insertText,
+  PRIMARY_CLICK,
   releaseFileInput,
   resolveFileInput,
   setColorScheme,
@@ -253,6 +256,77 @@ describe('browser-agent CDP instrumentation', () => {
         },
       ],
     ])
+  })
+
+  it('holds the button down for holdMs before releasing it', async () => {
+    const contents = new WebContentsView().webContents
+    const types = () =>
+      vi.mocked(contents.debugger.sendCommand).mock.calls.map(([, params]) => toRecord(params).type)
+    vi.useFakeTimers()
+    try {
+      const click = clickAt(contents, 5, 6, false, { ...PRIMARY_CLICK, holdMs: 1500 })
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(types()).toEqual(['mousePressed'])
+
+      await vi.advanceTimersByTimeAsync(500)
+      await click
+      expect(types()).toEqual(['mousePressed', 'mouseReleased'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('presses nothing when its click was aborted before dispatch', async () => {
+    const contents = new WebContentsView().webContents
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(
+      clickAt(contents, 5, 6, false, PRIMARY_CLICK, controller.signal)
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(contents.debugger.sendCommand).not.toHaveBeenCalled()
+  })
+
+  it('releases a held button as soon as its click is aborted', async () => {
+    const contents = new WebContentsView().webContents
+    const types = () =>
+      vi.mocked(contents.debugger.sendCommand).mock.calls.map(([, params]) => toRecord(params).type)
+    vi.useFakeTimers()
+    try {
+      const controller = new AbortController()
+      const hold = { ...PRIMARY_CLICK, holdMs: 10_000 }
+      const click = clickAt(contents, 5, 6, false, hold, controller.signal)
+      await vi.advanceTimersByTimeAsync(100)
+      expect(types()).toEqual(['mousePressed'])
+
+      controller.abort()
+      await expect(click).rejects.toMatchObject({ name: 'AbortError' })
+      expect(types()).toEqual(['mousePressed', 'mouseReleased'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps a held right-click marked as the agent context menu until release', async () => {
+    const contents = new WebContentsView().webContents
+    vi.useFakeTimers()
+    try {
+      const rightHold = { ...PRIMARY_CLICK, button: 'right' as const, holdMs: 1500 }
+      await Promise.all([
+        clickAt(contents, 5, 6, false, rightHold),
+        vi.advanceTimersByTimeAsync(1500),
+      ])
+      expect(consumeAgentContextMenu(contents)).toBe(true)
+
+      const click = clickAt(contents, 5, 6, false, rightHold)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(consumeAgentContextMenu(contents)).toBe(true)
+      await vi.advanceTimersByTimeAsync(1500)
+      await click
+      expect(consumeAgentContextMenu(contents)).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('releases the mouse after a partial click failure', async () => {

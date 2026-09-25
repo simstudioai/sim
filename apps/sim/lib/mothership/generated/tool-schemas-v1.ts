@@ -218,6 +218,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
           description:
             "The element id to act on (from the current tab's most recent browser_snapshot). Treat refs as invalid across tab switches or later snapshots.",
         },
+        holdMs: {
+          type: 'integer',
+          description:
+            'Keep the button pressed this many milliseconds before releasing (0 to 10000, default 0), for press-and-hold controls. Single clicks only.',
+          minimum: 0,
+          maximum: 10000,
+        },
         modifiers: {
           type: 'array',
           description:
@@ -389,6 +396,13 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
             },
           },
           required: ['accept'],
+        },
+        holdMs: {
+          type: 'integer',
+          description:
+            'Keep the button pressed this many milliseconds before releasing (0 to 10000, default 0), for press-and-hold controls. Single clicks only.',
+          minimum: 0,
+          maximum: 10000,
         },
         modifiers: {
           type: 'array',

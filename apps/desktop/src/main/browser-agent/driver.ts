@@ -76,6 +76,7 @@ import {
   resolveFileInputTarget,
   scrollPage,
   selectOptionInElement,
+  serializePageCall,
   setFocusedInputValue,
   typeIntoElement,
 } from '@/main/browser-agent/page-functions'
@@ -186,6 +187,9 @@ function parseBatchActions(params: Record<string, unknown>): BatchAction[] {
     }
     if ('observe' in action.args) {
       throw new ToolError(`Batch action ${index} cannot observe; pass observe on the batch itself.`)
+    }
+    if (num(action.args, 'holdMs')) {
+      throw new ToolError(`Batch action ${index} cannot press and hold; run it as its own click.`)
     }
     return { tool: action.tool, args: action.args }
   })
@@ -1121,6 +1125,9 @@ const POINTER_BUTTONS: ReadonlySet<string> = new Set(['left', 'right', 'middle']
 /** Enough to walk a slider or list by keyboard in one call without flooding the page. */
 const MAX_KEY_REPEAT = 50
 
+/** Longest press-and-hold a click may request; well inside the click tool's watchdog. */
+const MAX_POINTER_HOLD_MS = 10_000
+
 /** The optional click gesture shared by `browser_click` and `browser_click_at`. */
 function pointerClick(params: Record<string, unknown>): cdp.PointerClick {
   const button = str(params, 'button') ?? 'left'
@@ -1133,10 +1140,20 @@ function pointerClick(params: Record<string, unknown>): cdp.PointerClick {
   if (!Array.isArray(names) || names.length > 4 || names.some((name) => typeof name !== 'string')) {
     throw new ToolError('modifiers must be a list of modifier names such as ["Shift"] or ["Mod"].')
   }
+  const holdMs = num(params, 'holdMs') ?? 0
+  if (!Number.isInteger(holdMs) || holdMs < 0 || holdMs > MAX_POINTER_HOLD_MS) {
+    throw new ToolError(
+      `holdMs must be a whole number of milliseconds from 0 to ${MAX_POINTER_HOLD_MS}.`
+    )
+  }
+  if (holdMs > 0 && clickCount !== 1) {
+    throw new ToolError('holdMs applies to a single press; use clickCount 1.')
+  }
   return {
     button: button as cdp.PointerClick['button'],
     clickCount,
     modifiers: cdpModifiers(parseModifiers(names)),
+    holdMs,
   }
 }
 
@@ -1163,7 +1180,9 @@ function uploadPaths(params: Record<string, unknown>): string[] {
 }
 
 function isPrimaryClick(click: cdp.PointerClick): boolean {
-  return click.button === 'left' && click.clickCount === 1 && click.modifiers === 0
+  return (
+    click.button === 'left' && click.clickCount === 1 && click.modifiers === 0 && click.holdMs === 0
+  )
 }
 
 const DIALOG_ANSWERING_TOOLS: ReadonlySet<BrowserToolName> = new Set([
@@ -1274,7 +1293,7 @@ async function execInPage<Args extends unknown[], Result>(
       'The active tab is blank. Call browser_navigate before using page inspection or interaction tools.'
     )
   }
-  const invocation = `(${String(fn)}).apply(null, ${JSON.stringify(args)})`
+  const invocation = serializePageCall(fn as (...args: never[]) => unknown, args)
   const expression =
     typeof notAfter === 'number'
       ? `(Date.now() >= ${Math.floor(notAfter)} ? ({error: "expired"}) : ${invocation})`
@@ -3204,7 +3223,10 @@ async function executeToolInner(
         try {
           assertCurrentExecution()
           assertElementActionCurrent(contents, elementId, target)
-          await cdp.clickAt(contents, x, y, false, click)
+          // A hold keeps the press in flight for seconds; cancelling it mid-gesture must read as
+          // an outcome that may have acted, never as a click that did not start.
+          if (click.holdMs > 0) onActionOutcome?.({ status: 'pending' })
+          await cdp.clickAt(contents, x, y, false, click, signal)
           trusted = true
           activation = 'native-pointer'
         } catch (error) {
@@ -3244,7 +3266,8 @@ async function executeToolInner(
           try {
             assertCurrentExecution()
             assertElementActionCurrent(contents, elementId, target)
-            await cdp.clickAt(contents, finalTopPoint.x, finalTopPoint.y, false, click)
+            if (click.holdMs > 0) onActionOutcome?.({ status: 'pending' })
+            await cdp.clickAt(contents, finalTopPoint.x, finalTopPoint.y, false, click, signal)
             trusted = true
             activation = 'native-pointer'
             prepared = finalSurface
@@ -3261,7 +3284,7 @@ async function executeToolInner(
         } else {
           if (!isPrimaryClick(click)) {
             throw new ToolError(
-              'This framed control has no reliable pointer position, so only a plain left click can activate it. Use browser_screenshot and browser_click_at for other buttons, click counts, or modifiers.'
+              'This framed control has no reliable pointer position, so only a plain left click can activate it. Use browser_screenshot and browser_click_at for other buttons, click counts, holds, or modifiers.'
             )
           }
           const activationKey = prepared.activationKey
@@ -4622,8 +4645,9 @@ async function executeToolInner(
       const beforeElement = await activeElementState(contents)
       assertCurrentExecution()
       assertActiveContents(contents, clickNavigationEpoch)
+      if (click.holdMs > 0) onActionOutcome?.({ status: 'pending' })
       try {
-        await cdp.clickAt(contents, x, y, true, click)
+        await cdp.clickAt(contents, x, y, true, click, signal)
       } catch (error) {
         const rescued = navigationRescue(contents, clickNavigationEpoch, urlAtDispatch, {
           trusted: true,

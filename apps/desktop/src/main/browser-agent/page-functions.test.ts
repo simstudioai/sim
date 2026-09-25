@@ -11,6 +11,7 @@ import {
   getElementScreenshotRect,
   getViewportInfo,
   hoverElement,
+  installPageHelpers,
   pageContainsText,
   pressKeyOnPage,
   readActiveElementState,
@@ -22,6 +23,7 @@ import {
   resolveFileInputTarget,
   scrollPage,
   selectOptionInElement,
+  serializePageCall,
   setFocusedInputValue,
   typeIntoElement,
 } from '@/main/browser-agent/page-functions'
@@ -60,8 +62,7 @@ function installDomShims(): void {
  * fails here exactly as it would in a real page.
  */
 function runSerialized(fn: (...args: never[]) => unknown, args: unknown[]): unknown {
-  const expression = `(${String(fn)}).apply(null, ${JSON.stringify(args)})`
-  return new Function(`return ${expression}`)()
+  return new Function(`return ${serializePageCall(fn, args)}`)()
 }
 
 function visible<T extends Element>(el: T): T {
@@ -115,6 +116,8 @@ beforeEach(() => {
   for (const state of window.__simAgentMutationStates ?? []) state.observer.disconnect()
   window.__simAgentMutationStates = undefined
   window.__simAgentNextElementId = 0
+  window.__simAgentShownElements = undefined
+  installPageHelpers()
   window.__simAgentResolveElement = undefined
   installDomShims()
   Reflect.deleteProperty(document, 'activeElement')
@@ -746,6 +749,23 @@ describe('collectSnapshot', () => {
     expect(outline).toContain('button "x\\" [ref\u200B=999]" [ref=')
     expect(outline.match(/\[ref=\d+\]/g)).toHaveLength(1)
     expect(outline).not.toContain('button "x" [ref=999]')
+  })
+
+  it('marks elements that appeared since the previous snapshot as new', () => {
+    document.body.innerHTML = '<button>Compose</button>'
+    visible(document.querySelector('button') as HTMLButtonElement)
+    expect(outlineOf(collectSnapshot())).not.toContain(' new')
+
+    const dialog = document.createElement('div')
+    dialog.innerHTML = '<input aria-label="Recipients"><button>Send</button>'
+    document.body.append(dialog)
+    dialog.querySelectorAll('*').forEach((el) => visible(el as HTMLElement))
+    const lines = outlineOf(collectSnapshot()).split('\n')
+
+    expect(lines.find((line) => line.includes('"Compose"'))).not.toMatch(/ new$/)
+    expect(lines.find((line) => line.includes('"Recipients"'))).toMatch(/ new$/)
+    expect(lines.find((line) => line.includes('"Send"'))).toMatch(/ new$/)
+    expect(outlineOf(collectSnapshot())).not.toContain(' new')
   })
 
   it('sanitizes a malicious role so it cannot forge a second snapshot line', () => {
@@ -2436,5 +2456,178 @@ describe('setFocusedInputValue', () => {
     expect(setFocusedInputValue(0, '2026-09-15')).toEqual({ error: 'password' })
     expect(input.value).toBe('')
     expect(other.value).toBe('')
+  })
+})
+
+describe('modal hidden together with its own app root', () => {
+  const showAll = (): void => {
+    for (const element of Array.from(document.body.querySelectorAll('*'))) visible(element)
+  }
+
+  it('reads, clicks, and reports a disablePortal dialog inside the aria-hidden root', () => {
+    document.body.innerHTML = `
+      <div id="__next" aria-hidden="true"><main>
+        <nav aria-label="Mailbox navigation"><button>Compose</button></nav>
+        <div role="presentation" class="MuiModal-root"><div role="presentation">
+          <div role="dialog" aria-modal="true" aria-label="New Message">
+            <input role="combobox" aria-label="Email input" placeholder="Recipients" />
+            <button>Send</button>
+            <span aria-hidden="true">icon</span>
+          </div>
+        </div></div>
+      </main></div>`
+    showAll()
+
+    const outline = outlineOf(runSerialized(collectSnapshot, []))
+
+    expect(outline).toContain('dialog')
+    expect(outline).toContain('Email input')
+    expect(outline).toContain('Send')
+    expect(outline).not.toContain('Compose')
+    expect(outline).not.toContain('icon')
+    const clicked = runSerialized(clickElement, [refFor(outline, 'Send'), false]) as {
+      error?: string
+    }
+    expect(clicked.error).toBeUndefined()
+    expect((runSerialized(readPageActionState, []) as { dialogs: string[] }).dialogs).toContain(
+      'New Message'
+    )
+  })
+
+  it('keeps a portaled modal scoped exactly as before', () => {
+    document.body.innerHTML = `
+      <div id="__next" aria-hidden="true"><button>Compose</button></div>
+      <div role="dialog" aria-modal="true" aria-label="New Message"><button>Send</button></div>`
+    showAll()
+
+    const outline = outlineOf(collectSnapshot())
+
+    expect(outline).toContain('Send')
+    expect(outline).not.toContain('Compose')
+  })
+
+  it('keeps an aria-hidden region hidden when no modal is open', () => {
+    document.body.innerHTML = `
+      <div aria-hidden="true"><button>Hidden action</button></div>
+      <button>Shown action</button>`
+    showAll()
+
+    const outline = outlineOf(collectSnapshot())
+
+    expect(outline).toContain('Shown action')
+    expect(outline).not.toContain('Hidden action')
+  })
+
+  it('exposes only the topmost of stacked disablePortal modals', () => {
+    document.body.innerHTML = `
+      <div id="__next" aria-hidden="true"><main>
+        <div class="MuiModal-root" aria-hidden="true">
+          <div role="dialog" aria-modal="true" aria-label="Lower"><button>Discard</button></div>
+        </div>
+        <div class="MuiModal-root">
+          <div role="dialog" aria-modal="true" aria-label="Upper"><button>Confirm</button></div>
+        </div>
+      </main></div>`
+    showAll()
+
+    const outline = outlineOf(collectSnapshot())
+
+    expect(outline).toContain('Confirm')
+    expect(outline).not.toContain('Discard')
+    expect((readPageActionState() as { dialogs: string[] }).dialogs).toEqual(['Upper'])
+  })
+
+  it('keeps a dialog the app aria-hid below its root hidden', () => {
+    document.body.innerHTML = `
+      <div id="__next"><main>
+        <button>Shown action</button>
+        <div class="carousel-slide" aria-hidden="true">
+          <div role="dialog" aria-modal="true" aria-label="Offscreen"><button>Ghost</button></div>
+        </div>
+      </main></div>`
+    showAll()
+
+    const outline = outlineOf(collectSnapshot())
+
+    expect(outline).toContain('Shown action')
+    expect(outline).not.toContain('Ghost')
+  })
+
+  it('reads a disablePortal dialog inside a same-origin iframe', () => {
+    const frame = visible(document.createElement('iframe'))
+    document.body.append(frame)
+    const inner = frame.contentDocument as Document
+    inner.body.innerHTML = `
+      <div id="root" aria-hidden="true">
+        <button>Framed compose</button>
+        <div role="dialog" aria-modal="true" aria-label="Framed"><button>Framed send</button></div>
+      </div>`
+    for (const element of Array.from(inner.body.querySelectorAll('*'))) visible(element)
+
+    const outline = outlineOf(collectSnapshot())
+
+    expect(outline).toContain('Framed send')
+    expect(outline).not.toContain('Framed compose')
+  })
+
+  it('does not carry a framed modal exemption into the host page', () => {
+    document.body.innerHTML = '<div id="app" aria-hidden="true"></div>'
+    const frame = visible(document.createElement('iframe'))
+    ;(document.getElementById('app') as HTMLElement).append(frame)
+    const inner = frame.contentDocument as Document
+    inner.body.innerHTML = `
+      <div id="root" aria-hidden="true">
+        <div role="dialog" aria-modal="true" aria-label="Framed"><button>Framed send</button></div>
+      </div>`
+    for (const element of Array.from(inner.body.querySelectorAll('*'))) visible(element)
+    register(inner.querySelector('button') as HTMLButtonElement)
+
+    expect(runSerialized(clickElement, [0, false])).toMatchObject({ error: 'not-visible' })
+  })
+
+  it('does not scroll a framed modal list whose host frame is hidden', () => {
+    document.body.innerHTML = '<div id="app" aria-hidden="true"></div>'
+    const frame = visible(document.createElement('iframe'))
+    ;(document.getElementById('app') as HTMLElement).append(frame)
+    const inner = frame.contentDocument as Document
+    inner.body.innerHTML = `
+      <div id="root" aria-hidden="true">
+        <div role="dialog" aria-modal="true" aria-label="Framed">
+          <div id="list" style="overflow-y: auto"><div>row</div></div>
+        </div>
+      </div>`
+    for (const element of Array.from(inner.body.querySelectorAll('*'))) visible(element)
+    const list = inner.getElementById('list') as HTMLDivElement
+    Object.defineProperties(list, {
+      clientHeight: { configurable: true, value: 200 },
+      scrollHeight: { configurable: true, value: 1_000 },
+      scrollTop: { configurable: true, writable: true, value: 0 },
+      scrollBy: {
+        configurable: true,
+        value: ({ top }: ScrollToOptions) => {
+          list.scrollTop += top || 0
+        },
+      },
+    })
+    register(list.firstElementChild as HTMLDivElement)
+
+    scrollPage('down', 100, 0)
+
+    expect(list.scrollTop).toBe(0)
+  })
+
+  it('exposes a disablePortal modal nested inside another open modal', () => {
+    document.body.innerHTML = `
+      <div id="__next" aria-hidden="true"><main>
+        <div role="dialog" aria-modal="true" aria-label="Outer"><button>Discard</button>
+          <div role="dialog" aria-modal="true" aria-label="Inner"><button>Confirm</button></div>
+        </div>
+      </main></div>`
+    showAll()
+
+    const outline = outlineOf(collectSnapshot())
+
+    expect(outline).toContain('Confirm')
+    expect(outline).not.toContain('Discard')
   })
 })

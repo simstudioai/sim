@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 import { Menu, WebContentsView } from 'electron'
-import { clickAt } from '@/main/browser-agent/cdp'
+import { clickAt, PRIMARY_CLICK } from '@/main/browser-agent/cdp'
 import {
   attachAgentContextMenu,
   BASE_ZOOM_FACTOR,
@@ -228,7 +228,7 @@ describe('attachAgentContextMenu', () => {
       ContextMenuListener,
     ][]
     const onContextMenu = listeners.find(([event]) => event === 'context-menu')![1]
-    await clickAt(contents, 10, 20, false, { button: 'right', clickCount: 1, modifiers: 0 })
+    await clickAt(contents, 10, 20, false, { ...PRIMARY_CLICK, button: 'right' })
     vi.mocked(Menu.buildFromTemplate).mockClear()
 
     onContextMenu({}, params())
@@ -252,7 +252,7 @@ describe('attachAgentContextMenu', () => {
       ][]
       const onInput = listeners.find(([event]) => event === 'input-event')?.[1]
       const onContextMenu = listeners.find(([event]) => event === 'context-menu')![1]
-      await clickAt(contents, 10, 20, false, { button: 'right', clickCount: 1, modifiers: 0 })
+      await clickAt(contents, 10, 20, false, { ...PRIMARY_CLICK, button: 'right' })
       vi.mocked(Menu.buildFromTemplate).mockClear()
 
       onInput?.({}, { type: inputEvent })
