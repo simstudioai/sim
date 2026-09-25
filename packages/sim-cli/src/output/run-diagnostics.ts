@@ -8,6 +8,10 @@ const MAX_DEPTH = 4
 const MAX_TEXT = 400
 const MAX_VALUES = 300
 
+function isMediaType(value: unknown): boolean {
+  return typeof value === 'string' && value.length <= 255 && /^[^\s/]+\/[^\s/]+$/.test(value)
+}
+
 /** Projects recorded evidence without inferring delivery from an execution status. */
 export function summarizeRun(log: unknown): Record<string, unknown> {
   if (!isRecordLike(log)) throw new Error('Run diagnostics expected a log record')
@@ -41,7 +45,8 @@ export function summarizeRun(log: unknown): Record<string, unknown> {
       const binary =
         key === 'data' &&
         ((typeof child === 'string' &&
-          ('mimeType' in value || 'type' in value || 'name' in value)) ||
+          (isMediaType(value.mimeType) ||
+            (typeof value.name === 'string' && isMediaType(value.type)))) ||
           (value.type === 'Buffer' && Array.isArray(child)))
       if (key.length > MAX_TEXT) truncated = true
       entries.push([

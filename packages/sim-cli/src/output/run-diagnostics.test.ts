@@ -26,7 +26,9 @@ describe('compact run diagnostics', () => {
               status: 'error',
               errorHandled: true,
               errorMessage: 'Invalid regular expression flags',
-              input: { file: { name: 'test.pdf', data: 'SECRET_BYTES' } },
+              input: {
+                file: { name: 'test.pdf', mimeType: 'application/pdf', data: 'SECRET_BYTES' },
+              },
               output: { base64: 'MORE_BYTES' },
             },
             { blockId: 'notify', name: 'Send failure', status: 'success' },
@@ -58,6 +60,27 @@ describe('compact run diagnostics', () => {
     expect(result.failures).toHaveLength(10)
     expect(result.observedBlocks).toHaveLength(100)
     expect(JSON.stringify(result).length).toBeLessThan(25000)
+  })
+
+  it.each([
+    { type: 'result', data: 'Customer notification delivered' },
+    { name: 'result', data: 'Customer notification delivered' },
+    { mimeType: 'unknown', data: 'Customer notification delivered' },
+  ])('retains ordinary string data in labeled records: %j', (finalOutput) => {
+    expect(summarizeRun({ status: 'completed', finalOutput })).toMatchObject({
+      finalOutput,
+      truncated: false,
+    })
+  })
+
+  it.each([
+    { mimeType: 'application/pdf', data: 'ENCODED_FILE_BYTES' },
+    { name: 'test.pdf', type: 'application/pdf', data: 'ENCODED_FILE_BYTES' },
+  ])('omits string file contents identified by MIME metadata: %j', (finalOutput) => {
+    expect(summarizeRun({ finalOutput }).finalOutput).toEqual({
+      ...finalOutput,
+      data: '[binary omitted]',
+    })
   })
 
   it('stops reading object values after the field limit and reports truncation', () => {

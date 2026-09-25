@@ -99,6 +99,7 @@ import {
   validateWorkspaceFileWriteTarget,
   writeWorkspaceFileByPath,
 } from '@/lib/mothership/vfs/resource-writer'
+import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
 import {
   createWorkspaceFileSecretProvenanceFromRegistry,
@@ -110,6 +111,7 @@ import {
   type WorkspaceFileSecretProvenanceIdentity,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { deleteFiles } from '@/lib/uploads/core/storage-service'
+import { deleteFileMetadata } from '@/lib/uploads/server/metadata'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { getWorkflowById } from '@/lib/workflows/utils'
 import { rebindWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
@@ -2079,13 +2081,25 @@ function collectedFileName(relativePath: string): string {
  * and the harvest is all-or-nothing by design. Best-effort on purpose: the
  * caller needs to hear why its export was refused, not that the tidy-up failed.
  */
-async function discardUploadedExecutionFiles(files: readonly UserFile[]): Promise<void> {
+async function discardUploadedSandboxFiles(files: readonly UserFile[]): Promise<void> {
   if (files.length === 0) return
   try {
-    await deleteFiles(
+    const context = files[0].context === 'copilot' ? 'copilot' : 'execution'
+    const result = await deleteFiles(
       files.map((file) => file.key),
-      'execution'
+      context
     )
+    if (context === 'copilot') {
+      const failedKeys = new Set(result.failed.map((failure) => failure.key))
+      for (const file of files) {
+        if (!failedKeys.has(file.key)) await deleteFileMetadata(file.key)
+      }
+    }
+    if (result.failed.length > 0) {
+      logger.warn('Could not remove some partially uploaded sandbox output files', {
+        fileCount: result.failed.length,
+      })
+    }
   } catch (error) {
     logger.warn('Could not remove partially uploaded sandbox output files', {
       fileCount: files.length,
@@ -2132,10 +2146,27 @@ async function collectSandboxOutputFiles(args: {
   const resolvedWorkspaceId =
     args.workspaceId ||
     (args.workflowId ? (await getWorkflowById(args.workflowId))?.workspaceId : undefined)
+  const personalOwnerId =
+    (routeContext.principal.kind === 'session' ||
+      routeContext.principal.kind === 'personal_api_key' ||
+      routeContext.principal.kind === 'oauth_access_token') &&
+    !args.workflowId &&
+    !args.executionId
+      ? routeContext.fileAccessUserId
+      : undefined
+  const storageTarget = personalOwnerId
+    ? { context: 'copilot' as const, userId: personalOwnerId }
+    : args.workflowId && args.executionId
+      ? {
+          context: 'execution' as const,
+          workflowId: args.workflowId,
+          executionId: args.executionId,
+        }
+      : undefined
 
   // Fails rather than returning an empty list: the code did produce files, and
   // reporting success without them would read as "your script wrote nothing".
-  if (!resolvedWorkspaceId || !args.workflowId || !args.executionId) {
+  if (!resolvedWorkspaceId || !storageTarget) {
     return {
       response: exportFailure(
         'Workspace, workflow, and execution context are required to return files from the sandbox.',
@@ -2158,15 +2189,24 @@ async function collectSandboxOutputFiles(args: {
       const mimeType = getMimeTypeFromExtension(getFileExtension(name))
 
       /** Literal secrets must be refused regardless of the export's name or encoding. */
-      const scannedProvenance = await getOutputFileSecretProvenance(buffer, false, routeContext, {
+      let scannedProvenance = await getOutputFileSecretProvenance(buffer, false, routeContext, {
         userId: args.authUserId,
         workspaceId: resolvedWorkspaceId,
       })
+      if (personalOwnerId) {
+        scannedProvenance = mergeWorkspaceFileSecretProvenance(
+          scannedProvenance,
+          await getOutputFileSecretProvenance(Buffer.from(name), false, routeContext, {
+            userId: personalOwnerId,
+            workspaceId: resolvedWorkspaceId,
+          })
+        )
+      }
       if (
         scannedProvenance.status === 'unknown' ||
         (scannedProvenance.status === 'exact' && scannedProvenance.entries.length > 0)
       ) {
-        await discardUploadedExecutionFiles(files)
+        await discardUploadedSandboxFiles(files)
         return {
           response: exportFailure(
             `Sandbox output file "${name}" contains a resolved secret value and was not returned. Write the file without embedding secret values, or export it to a workspace file where its provenance can be recorded.`,
@@ -2192,22 +2232,46 @@ async function collectSandboxOutputFiles(args: {
           })
         : scannedProvenance
 
-      const userFile = await uploadExecutionFile(
-        {
-          workspaceId: resolvedWorkspaceId,
-          workflowId: args.workflowId,
-          executionId: args.executionId,
-        },
-        buffer,
-        name,
-        mimeType,
-        args.authUserId,
-        secretProvenance
-      )
+      if (
+        personalOwnerId &&
+        (secretProvenance.status !== 'exact' || secretProvenance.entries.length > 0)
+      ) {
+        await discardUploadedSandboxFiles(files)
+        return {
+          response: exportFailure(
+            `Sandbox output file "${name}" cannot be returned because its secret provenance is uncertain. Return a text file without secret values, or export it from a workflow that records file provenance.`,
+            400,
+            args.stdout,
+            args.executionTime,
+            args.cost
+          ),
+        }
+      }
+
+      const userFile =
+        storageTarget.context === 'copilot'
+          ? await uploadCopilotFile({
+              buffer,
+              fileName: name,
+              contentType: mimeType,
+              userId: storageTarget.userId,
+            })
+          : await uploadExecutionFile(
+              {
+                workspaceId: resolvedWorkspaceId,
+                workflowId: storageTarget.workflowId,
+                executionId: storageTarget.executionId,
+              },
+              buffer,
+              name,
+              mimeType,
+              args.authUserId,
+              secretProvenance
+            )
       files.push(userFile)
     }
   } catch (error) {
-    await discardUploadedExecutionFiles(files)
+    await discardUploadedSandboxFiles(files)
     throw error
   }
 

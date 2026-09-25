@@ -1,7 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { omit } from '@sim/utils/object'
+import { isRecordLike, omit } from '@sim/utils/object'
+import { secretMountPolicyInputSchema } from '@/lib/api/contracts/secret-mount-policy'
 import { resolveBillingAttribution, toBillingContext } from '@/lib/billing/core/billing-attribution'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
@@ -18,9 +19,15 @@ import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { principalUserId } from '@/lib/integrations/principal-scope.server'
 import { ToolExecutionUsageLimitError } from '@/lib/tool-execution/application/errors'
 import { toolExecutionOperations } from '@/lib/tool-execution/application/operations'
+import { projectResolvedSecretModelJsonContent } from '@/executor/utils/resolved-secret-content-projection'
+import {
+  createResolvedSecretTraceRegistry,
+  type ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { executeTool as executeRegistryTool } from '@/tools'
 import { supportsSlackBotToken } from '@/tools/slack/auth'
 import type { ExecutableToolConfig } from '@/tools/types'
@@ -345,6 +352,27 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
       },
     }
 
+    let resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
+    if (toolId === 'function_execute' && principal.kind !== 'delegated') {
+      const selection = secretMountPolicyInputSchema.safeParse(callerParams)
+      if (!selection.success) {
+        throw new OrchestrationError('validation', selection.error.issues[0].message)
+      }
+      const environment = await getPersonalAndWorkspaceEnv(userId, context.workspaceId, {
+        ...(selection.data.secretScope === 'selected'
+          ? { requestedNames: selection.data.mountedSecrets ?? [] }
+          : {}),
+      })
+      resolvedSecretTraceRegistry = await createResolvedSecretTraceRegistry({
+        ...environment,
+        scope: { userId, workspaceId: context.workspaceId },
+      })
+      Object.assign(params, selection.data, {
+        envVars: { ...environment.personalDecrypted, ...environment.workspaceDecrypted },
+        unredactedSecretNames: [...resolvedSecretTraceRegistry.getUnredactedSecretNames()],
+      })
+    }
+
     /**
      * The ledger de-duplicates on `eventKey`, and the derived key is a hash of
      * actor, workspace, source and description — identical for every call to the
@@ -357,6 +385,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
 
     const result = await executeRegistryTool(toolId, params, {
       signal: AbortSignal.timeout((input.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS) * 1000),
+      ...(resolvedSecretTraceRegistry ? { resolvedSecretTraceRegistry } : {}),
       operationContext: {
         /**
          * No workflow owns this call. The empty string is what the Copilot
@@ -403,11 +432,29 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
       })
     }
 
+    let output = result.output
+    let error = result.error
+    if (resolvedSecretTraceRegistry) {
+      const projection = projectResolvedSecretModelJsonContent(
+        { output, error },
+        resolvedSecretTraceRegistry
+      )
+      if (
+        !projection.safe ||
+        !isRecordLike(projection.value) ||
+        !isRecordLike(projection.value.output)
+      ) {
+        throw new OrchestrationError('internal', 'Function output secret projection is unavailable')
+      }
+      output = projection.value.output
+      error = typeof projection.value.error === 'string' ? projection.value.error : undefined
+    }
+
     return {
       toolId,
       status: result.success ? 'succeeded' : 'failed',
-      output: result.output,
-      error: result.success ? null : { message: result.error ?? `${toolId} did not succeed` },
+      output,
+      error: result.success ? null : { message: error ?? `${toolId} did not succeed` },
     }
   },
 })

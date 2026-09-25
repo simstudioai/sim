@@ -122,13 +122,14 @@ export async function listWorkspaceWorkflows(input: ListWorkspaceWorkflowsInput)
 /**
  * Loads one consistent workflow record + normalized definition snapshot. Both
  * the editor route and public metadata route derive their own response from
- * this read rather than issuing independent block/workflow queries.
+ * this read rather than issuing independent block/workflow queries. Legacy
+ * blocks are normalized in memory; reads never schedule migration writes.
  */
 export async function loadWorkflowReadSnapshot(workflowId: string, workspaceId: string) {
   return db.transaction(async (tx) => {
     await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`)
     const [normalizedData, [workflowRecord]] = await Promise.all([
-      loadWorkflowFromNormalizedTables(workflowId, tx),
+      loadWorkflowFromNormalizedTables(workflowId, tx, { persistMigrations: false }),
       tx
         .select()
         .from(workflow)

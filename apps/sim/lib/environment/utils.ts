@@ -353,10 +353,36 @@ export async function resolveEffectiveEnvironmentVariables(
 export async function getPersonalAndWorkspaceEnv(
   userId: string,
   workspaceId?: string,
-  options?: { workspaceAccess?: WorkspaceAccess }
+  options?: { workspaceAccess?: WorkspaceAccess; requestedNames?: readonly string[] }
 ): Promise<EnvironmentResolutionSnapshot> {
-  const { personalEncrypted, workspaceEncrypted, personalOwners, workspaceUnredactedKeys } =
-    await loadAccessibleEncryptedEnvironment(userId, workspaceId, options)
+  if (options?.requestedNames?.length === 0) {
+    return {
+      personalEncrypted: {},
+      workspaceEncrypted: {},
+      personalDecrypted: {},
+      workspaceDecrypted: {},
+      personalOwners: {},
+      conflicts: [],
+      decryptionFailures: [],
+      workspaceUnredactedKeys: [],
+    }
+  }
+  const accessible = await loadAccessibleEncryptedEnvironment(userId, workspaceId, options)
+  const requestedNames = options?.requestedNames ? new Set(options.requestedNames) : undefined
+  const selectRequested = (values: Record<string, string>): Record<string, string> => {
+    if (!requestedNames) return values
+    return Object.fromEntries(
+      [...requestedNames].flatMap((name) =>
+        Object.hasOwn(values, name) ? [[name, values[name]]] : []
+      )
+    )
+  }
+  const personalEncrypted = selectRequested(accessible.personalEncrypted)
+  const workspaceEncrypted = selectRequested(accessible.workspaceEncrypted)
+  const personalOwners = selectRequested(accessible.personalOwners)
+  const workspaceUnredactedKeys = accessible.workspaceUnredactedKeys.filter(
+    (name) => !requestedNames || requestedNames.has(name)
+  )
 
   const decryptionFailures: string[] = []
 
