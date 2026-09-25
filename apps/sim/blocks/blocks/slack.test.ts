@@ -146,3 +146,35 @@ describe.each([SlackBlock, SlackV2Block])('$type Block Kit fallback text', (bloc
     }
   )
 })
+
+describe.each([SlackBlock, SlackV2Block])('$type channel target visibility', (block) => {
+  it.each(['update', 'react', 'archive_conversation', 'get_channel_history', 'ephemeral'])(
+    'keeps both channel inputs visible for %s after a DM action',
+    (operation) => {
+      for (const fieldId of ['channel', 'manualChannel']) {
+        const field = block.subBlocks.find((candidate) => candidate.id === fieldId)
+        if (!field) throw new Error(`Missing ${fieldId}`)
+        expect(
+          evaluateSubBlockCondition(field.condition, { operation, destinationType: 'dm' }),
+          fieldId
+        ).toBe(true)
+      }
+    }
+  )
+
+  it.each(['send', 'read', 'schedule_message'])(
+    'preserves the channel/DM switch for %s in both modes',
+    (operation) => {
+      for (const fieldId of ['channel', 'manualChannel']) {
+        const field = block.subBlocks.find((candidate) => candidate.id === fieldId)
+        if (!field) throw new Error(`Missing ${fieldId}`)
+        for (const destinationType of ['channel', 'dm']) {
+          expect(
+            evaluateSubBlockCondition(field.condition, { operation, destinationType }),
+            `${fieldId} ${destinationType}`
+          ).toBe(destinationType === 'channel')
+        }
+      }
+    }
+  )
+})

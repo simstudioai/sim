@@ -28,13 +28,17 @@ import {
   slackUpdateMessageBodySchema,
 } from '@/lib/api/contracts/tools/communication/slack'
 import { projectToolOutputs } from '@/lib/catalog/projection/tool'
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
   executeSlackDownload,
   executeSlackSendEphemeral,
   executeSlackSendMessage,
   executeSlackUpdateMessage,
 } from '@/lib/internal/slack/operations'
+import { executeSlackGetChannelHistoryOperation } from '@/lib/internal/slack/operations/get-channel-history'
+import { executeSlackGetThreadRepliesOperation } from '@/lib/internal/slack/operations/get-thread-replies'
 import { presentInternalToolOperationResult } from '@/lib/internal/tool-operations/file-result.server'
+import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 import type { UserFile } from '@/executor/types'
 import { slackDownloadTool } from '@/tools/slack/download'
@@ -252,4 +256,100 @@ describe('Slack operations', () => {
     expect(published.properties).not.toHaveProperty('data')
     expect(published.properties).not.toHaveProperty('mimeType')
   })
+
+  it.each([undefined, '1'])(
+    'cancels an oversized streamed history page with content-length %s',
+    async (contentLength) => {
+      const chunk = new TextEncoder().encode('x'.repeat(64 * 1024))
+      const totalChunks = MAX_TOOL_RESPONSE_BODY_BYTES / chunk.byteLength + 4
+      let chunksRead = 0
+      const cancel = vi.fn()
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('{"ok":true,"messages":[],"extra":"'))
+        },
+        pull(controller) {
+          if (chunksRead < totalChunks) {
+            chunksRead += 1
+            controller.enqueue(chunk)
+          } else {
+            controller.enqueue(new TextEncoder().encode('"}'))
+            controller.close()
+          }
+        },
+        cancel,
+      })
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        new Response(body, {
+          headers: contentLength ? { 'content-length': contentLength } : undefined,
+        })
+      )
+
+      await expect(
+        executeSlackGetChannelHistoryOperation({ accessToken: 'token', channel: 'C1' })
+      ).rejects.toBeInstanceOf(PayloadSizeLimitError)
+      expect(cancel).toHaveBeenCalledOnce()
+      expect(chunksRead).toBeLessThan(totalChunks)
+      expect(global.fetch).toHaveBeenCalledOnce()
+    }
+  )
+
+  it.each([
+    ['history', executeSlackGetChannelHistoryOperation],
+    ['thread replies', executeSlackGetThreadRepliesOperation],
+  ] as const)(
+    'rejects accumulated %s above the retained message limit before fetching another page',
+    async (_name, operation) => {
+      const text = 'x'.repeat(Math.ceil(MAX_TOOL_RESPONSE_BODY_BYTES * 0.6))
+      for (const ts of ['1.0', '2.0', '3.0']) {
+        vi.mocked(global.fetch).mockResolvedValueOnce(
+          slackResponse({
+            ok: true,
+            messages: [{ ts, text }],
+            response_metadata: { next_cursor: ts === '3.0' ? '' : ts },
+          })
+        )
+      }
+
+      await expect(
+        operation({ accessToken: 'token', channel: 'C1', threadTs: '1.0' })
+      ).rejects.toBeInstanceOf(PayloadSizeLimitError)
+      expect(global.fetch).toHaveBeenCalledTimes(2)
+    }
+  )
+
+  it.each([
+    ['history', executeSlackGetChannelHistoryOperation],
+    ['thread replies', executeSlackGetThreadRepliesOperation],
+  ] as const)(
+    'preserves bounded page ordering and continuation when maxPages stops %s',
+    async (_name, operation) => {
+      for (const ts of ['1.0', '2.0']) {
+        vi.mocked(global.fetch).mockResolvedValueOnce(
+          slackResponse({
+            ok: true,
+            messages: [{ ts, text: 'Release ✨\n"ready"' }],
+            response_metadata: { next_cursor: `after-${ts}` },
+          })
+        )
+      }
+      const result = await operation({
+        accessToken: 'token',
+        channel: 'C1',
+        threadTs: '1.0',
+        maxPages: 2,
+      })
+      expect(result).toMatchObject({
+        success: true,
+        output: { pages: 2, hasMore: true, nextCursor: 'after-2.0' },
+      })
+      expect(result.output.messages.map((message) => message.ts)).toEqual(['1.0', '2.0'])
+      expect(result.output.messages.map((message) => message.text)).toEqual([
+        'Release ✨\n"ready"',
+        'Release ✨\n"ready"',
+      ])
+      expect(global.fetch).toHaveBeenCalledTimes(2)
+      expect(String(vi.mocked(global.fetch).mock.calls[1]?.[0])).toContain('cursor=after-1.0')
+    }
+  )
 })

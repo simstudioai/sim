@@ -53,6 +53,25 @@ describe('embedded Function syntax checks', () => {
     expect(JSON.stringify(report)).not.toContain('PRIVATE-SECRET')
   })
 
+  it.each([
+    'return "value"PRIVATE_TOKEN',
+    'const PRIVATE_TOKEN = 1; const PRIVATE_TOKEN = 2',
+    'import path from "node:path";\nreturn "value"PRIVATE_TOKEN',
+    'import path from "node:path";\nconst PRIVATE_TOKEN = 1; const PRIVATE_TOKEN = 2',
+  ])('does not echo source tokens from native or import-parser diagnostics: %s', async (code) => {
+    const report = await collectWorkflowCodeSyntax({ renderer: block(code) })
+    expect(report.issues).toHaveLength(1)
+    expect(report.issues[0]).toMatchObject({
+      field: 'code',
+      language: 'javascript',
+      message: expect.stringContaining('Invalid JavaScript syntax'),
+      line: code.includes('\n') ? 2 : 1,
+      column: expect.any(Number),
+    })
+    expect(report.check.status).toBe('complete')
+    expect(JSON.stringify(report)).not.toContain('PRIVATE_TOKEN')
+  })
+
   it('reports the runtime placeholder limit without failing the lint operation', async () => {
     const report = await collectWorkflowCodeSyntax({
       renderer: block(`return "${'{{KEY}}'.repeat(10001)}"`),

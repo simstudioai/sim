@@ -343,7 +343,7 @@ Retrieve a specific message by its timestamp. Useful for getting a thread parent
 
 ### Slack Get Thread
 
-Retrieve an entire thread including the parent message and all replies. Useful for getting full conversation context.
+Retrieve the first page of a thread, including the parent message and replies. Check hasMore for additional replies; use Get Thread Replies for cursor-based pagination.
 
 #### Input
 
@@ -469,7 +469,7 @@ Retrieve an entire thread including the parent message and all replies. Useful f
 |   ↳ `edited` | object | Edit information if message was edited |
 |     ↳ `user` | string | User ID who edited the message |
 |     ↳ `ts` | string | Timestamp of the edit |
-| `messages` | array | All messages in the thread \(parent + replies\) in chronological order |
+| `messages` | array | Messages in this page \(parent + replies\) in chronological order |
 |   ↳ `type` | string | Message type \(usually "message"\) |
 |   ↳ `ts` | string | Message timestamp \(unique identifier\) |
 |   ↳ `text` | string | Message text content |

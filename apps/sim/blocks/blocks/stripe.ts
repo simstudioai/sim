@@ -1,6 +1,11 @@
 import { StripeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import {
+  parseOptionalBooleanInput,
+  parseOptionalJsonInput,
+  parseOptionalNumberInput,
+} from '@/blocks/utils'
 import type { StripeResponse } from '@/tools/stripe/types'
 import { getTrigger } from '@/triggers'
 
@@ -457,7 +462,7 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
       id: 'items',
       title: 'Items (JSON Array)',
       type: 'code',
-      placeholder: '[{"price": "price_1234567890", "quantity": 1}]',
+      placeholder: '[{"id": "si_1234567890", "price": "price_1234567890", "quantity": 1}]',
       condition: {
         field: 'operation',
         value: ['update_subscription'],
@@ -898,62 +903,30 @@ export const StripeBlock: BlockConfig<StripeResponse> = {
         return `stripe_${params.operation}`
       },
       params: (params) => {
-        const {
-          operation,
-          apiKey,
-          address,
-          metadata,
-          items,
-          images,
-          recurring,
-          cancel_at_period_end,
-          auto_advance,
-          capture,
-          active,
-          prorate,
-          invoice_now,
-          paid_out_of_band,
-          ...rest
-        } = params
-
-        // Parse JSON fields
-        let parsedAddress: any | undefined
-        let parsedMetadata: any | undefined
-        let parsedItems: any | undefined
-        let parsedImages: any | undefined
-        let parsedRecurring: any | undefined
-
-        try {
-          if (address) parsedAddress = JSON.parse(address)
-          if (metadata) parsedMetadata = JSON.parse(metadata)
-          if (items) parsedItems = JSON.parse(items)
-          if (images) parsedImages = JSON.parse(images)
-          if (recurring) parsedRecurring = JSON.parse(recurring)
-        } catch (error: any) {
-          throw new Error(`Invalid JSON input: ${error.message}`)
-        }
-
-        // Convert string booleans to actual booleans
-        const parsedBooleans: Record<string, boolean | undefined> = {}
-        if (cancel_at_period_end !== undefined)
-          parsedBooleans.cancel_at_period_end = cancel_at_period_end === 'true'
-        if (auto_advance !== undefined) parsedBooleans.auto_advance = auto_advance === 'true'
-        if (capture !== undefined) parsedBooleans.capture = capture === 'true'
-        if (active !== undefined) parsedBooleans.active = active === 'true'
-        if (prorate !== undefined) parsedBooleans.prorate = prorate === 'true'
-        if (invoice_now !== undefined) parsedBooleans.invoice_now = invoice_now === 'true'
-        if (paid_out_of_band !== undefined)
-          parsedBooleans.paid_out_of_band = paid_out_of_band === 'true'
+        const { operation, ...rest } = params
 
         return {
-          apiKey,
           ...rest,
-          ...(parsedAddress && { address: parsedAddress }),
-          ...(parsedMetadata && { metadata: parsedMetadata }),
-          ...(parsedItems && { items: parsedItems }),
-          ...(parsedImages && { images: parsedImages }),
-          ...(parsedRecurring && { recurring: parsedRecurring }),
-          ...parsedBooleans,
+          ...(operation === 'capture_payment_intent' && {
+            amount_to_capture:
+              parseOptionalNumberInput(params.amount_to_capture, 'Amount to capture') ??
+              parseOptionalNumberInput(params.amount, 'Amount'),
+          }),
+          ...(operation === 'capture_charge' && {
+            amount: parseOptionalNumberInput(params.amount, 'Amount'),
+          }),
+          address: parseOptionalJsonInput(params.address, 'Address'),
+          metadata: parseOptionalJsonInput(params.metadata, 'Metadata'),
+          items: parseOptionalJsonInput(params.items, 'Items'),
+          images: parseOptionalJsonInput(params.images, 'Images'),
+          recurring: parseOptionalJsonInput(params.recurring, 'Recurring'),
+          cancel_at_period_end: parseOptionalBooleanInput(params.cancel_at_period_end),
+          auto_advance: parseOptionalBooleanInput(params.auto_advance),
+          capture: parseOptionalBooleanInput(params.capture),
+          active: parseOptionalBooleanInput(params.active),
+          prorate: parseOptionalBooleanInput(params.prorate),
+          invoice_now: parseOptionalBooleanInput(params.invoice_now),
+          paid_out_of_band: parseOptionalBooleanInput(params.paid_out_of_band),
         }
       },
     },
@@ -1127,15 +1100,15 @@ export const StripeBlockMeta = {
     },
     {
       name: 'manage-subscription',
-      description: 'Create, update, pause, or cancel a Stripe subscription for a customer.',
+      description: 'Create, update, cancel, or resume a paused Stripe subscription for a customer.',
       content:
-        '# Manage Subscription\n\nHandle the lifecycle of a recurring subscription.\n\n## Steps\n1. To start a subscription, run Create Subscription with the customer and price items.\n2. To change a plan, run Update Subscription with the new items. To pause and later restart, use Cancel Subscription or Resume Subscription as appropriate.\n3. Confirm the current state with Retrieve Subscription.\n\n## Output\nReturn the subscription ID, its status, current period end, and the plan items, and note exactly what changed.',
+        '# Manage Subscription\n\nHandle the lifecycle of a recurring subscription.\n\n## Steps\n1. To start a subscription, run Create Subscription with the customer and price items.\n2. To change a plan, run Update Subscription with the existing subscription item ID and replacement price. Omitting the item ID adds another item.\n3. To schedule cancellation, use Update Subscription with cancel_at_period_end=true; set it to false before the period ends to undo that schedule. Cancel Subscription ends the subscription immediately and cannot be undone. Resume Subscription applies only to paused subscriptions, not canceled ones.\n4. Confirm the current state with Retrieve Subscription.\n\n## Output\nReturn the subscription ID, status, and plan items, and note exactly what changed.',
     },
     {
       name: 'issue-invoice',
       description: 'Create, finalize, and send a Stripe invoice to a customer, then track payment.',
       content:
-        '# Issue Invoice\n\nBill a customer with a Stripe invoice.\n\n## Steps\n1. Run Create Invoice for the customer with the line items.\n2. Run Finalize Invoice to lock it, then Send Invoice to deliver it to the customer.\n3. Track payment with Retrieve Invoice, or run Pay Invoice to charge a saved payment method. Use Void Invoice to cancel an unpaid invoice.\n\n## Output\nReturn the invoice ID, its status (draft, open, paid, or void), the amount due, and the hosted invoice URL when available.',
+        '# Issue Invoice\n\nBill a customer with a Stripe invoice.\n\n## Steps\n1. Run Create Invoice for the customer. This tool does not create line items; inspect the draft and any existing pending items with Retrieve Invoice.\n2. After verifying the amount and items, run Finalize Invoice to lock it, then Send Invoice to deliver it to the customer.\n3. Track payment with Retrieve Invoice, or run Pay Invoice to charge a saved payment method. Use Void Invoice to cancel an unpaid invoice.\n\n## Output\nReturn the invoice ID, its status (draft, open, paid, or void), the amount due, and the hosted invoice URL when available.',
     },
     {
       name: 'find-customer-activity',

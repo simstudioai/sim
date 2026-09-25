@@ -2,11 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { isAssistantIntegrationTool } from '@/lib/mothership/assistant/tool-policy'
 import metadata from '@/tools/generated/tool-metadata'
 import type { ToolMetadata } from '@/tools/metadata'
+import { slackSetStatusTool } from '@/tools/slack/set_status'
 
 const tools = metadata as Record<string, ToolMetadata>
 const slackTools = Object.values(tools).filter((tool) => tool.oauth?.provider === 'slack')
 
 describe('Slack personal-token scope policy', () => {
+  it('identifies the documented writing scope when assistant status lacks permission', async () => {
+    await expect(
+      slackSetStatusTool.transformResponse!(Response.json({ ok: false, error: 'missing_scope' }))
+    ).rejects.toThrow('necessary scopes (chat:write)')
+  })
+
   it('declares an operation scope policy instead of inheriting all installation scopes', () => {
     expect(slackTools.length).toBeGreaterThan(40)
     for (const tool of slackTools) {

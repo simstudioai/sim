@@ -90,7 +90,7 @@ export const stripeCreateSubscriptionTool: ToolConfig<
       if (params.items && Array.isArray(params.items)) {
         params.items.forEach((item, index) => {
           formData.append(`items[${index}][price]`, item.price)
-          if (item.quantity) {
+          if (item.quantity || item.quantity === 0) {
             formData.append(`items[${index}][quantity]`, Number(item.quantity).toString())
           }
         })

@@ -6,7 +6,7 @@ export const slackGetThreadTool: ToolConfig<SlackGetThreadParams, SlackGetThread
   id: 'slack_get_thread',
   name: 'Slack Get Thread',
   description:
-    'Retrieve an entire thread including the parent message and all replies. Useful for getting full conversation context.',
+    'Retrieve the first page of a thread, including the parent message and replies. Check hasMore for additional replies; use Get Thread Replies for cursor-based pagination.',
   version: '1.0.0',
 
   oauth: {
@@ -167,7 +167,7 @@ export const slackGetThreadTool: ToolConfig<SlackGetThreadParams, SlackGetThread
     },
     messages: {
       type: 'array',
-      description: 'All messages in the thread (parent + replies) in chronological order',
+      description: 'Messages in this page (parent + replies) in chronological order',
       items: {
         type: 'object',
         properties: MESSAGE_OUTPUT_PROPERTIES,

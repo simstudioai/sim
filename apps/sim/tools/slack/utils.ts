@@ -1,6 +1,12 @@
+import { Buffer } from 'node:buffer'
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import { parseRetryAfter } from '@sim/utils/retry'
+import {
+  assertKnownSizeWithinLimit,
+  readResponseJsonWithLimit,
+} from '@/lib/core/utils/stream-limits'
+import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
 import type {
   SlackAgentSessionStatus,
   SlackCanvasFile,
@@ -229,11 +235,19 @@ export interface SlackPaginateResult {
   pages: number
 }
 
+interface SlackMessagePage {
+  ok?: boolean
+  error?: string
+  messages?: Record<string, unknown>[]
+  response_metadata?: { next_cursor?: string }
+}
+
 /**
  * Fetches messages from a paginated Slack `conversations.*` method, following
  * `response_metadata.next_cursor` up to `maxPages`. Retries rate-limited pages
  * using the `Retry-After` header. Slack returns HTTP 200 for logical errors, so
- * the `ok` field is checked on every page.
+ * the `ok` field is checked on every page. Each page and the retained messages
+ * array are byte-bounded; final tool response admission bounds caller-specific output.
  */
 export async function fetchSlackMessagesPaginated(
   opts: SlackPaginateOptions
@@ -242,6 +256,7 @@ export async function fetchSlackMessagesPaginated(
   const perPage = Math.min(Math.max(Number(limit) || 0, 1), SLACK_PAGE_MAX)
 
   const messages: any[] = []
+  let messageBytes = 2
   let cursor = opts.cursor?.trim() || undefined
   let nextCursor: string | null = null
   let pages = 0
@@ -274,7 +289,11 @@ export async function fetchSlackMessagesPaginated(
       break
     }
 
-    const data = await response.json()
+    const data = await readResponseJsonWithLimit<SlackMessagePage>(response, {
+      maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES,
+      label: `Slack ${method} page`,
+      signal: opts.signal,
+    })
     opts.signal?.throwIfAborted()
 
     if (!data.ok) {
@@ -295,10 +314,20 @@ export async function fetchSlackMessagesPaginated(
       throw new Error(data.error || `Failed to call ${method}`)
     }
 
-    for (const msg of data.messages ?? []) messages.push(mapSlackMessage(msg))
+    nextCursor = data.response_metadata?.next_cursor || null
+    const pageMessages = data.messages ?? []
+    for (const msg of pageMessages) {
+      const mapped = mapSlackMessage(msg)
+      messageBytes += Buffer.byteLength(JSON.stringify(mapped)) + (messages.length > 0 ? 1 : 0)
+      assertKnownSizeWithinLimit(
+        messageBytes,
+        MAX_TOOL_RESPONSE_BODY_BYTES,
+        'Slack paginated messages'
+      )
+      messages.push(mapped)
+    }
 
     pages += 1
-    nextCursor = data.response_metadata?.next_cursor || null
     if (!nextCursor) break
     cursor = nextCursor
   }

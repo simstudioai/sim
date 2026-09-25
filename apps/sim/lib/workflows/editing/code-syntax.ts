@@ -49,7 +49,9 @@ export async function collectWorkflowCodeSyntax(blocks: Record<string, BlockStat
         ...collectCodePlaceholderOccurrences(code),
       ]
     } catch (error) {
-      issues.push(codeIssue(blockId, block, error))
+      issues.push(
+        codeIssue(blockId, block, error, getErrorMessage(error, 'Invalid variable placeholders'))
+      )
       continue
     }
     if (tokens.length) templated++
@@ -86,7 +88,7 @@ export async function collectWorkflowCodeSyntax(blocks: Record<string, BlockStat
           blockType: block.type,
           field: 'code',
           language: 'javascript',
-          message: ts.flattenDiagnosticMessageText(diagnostic.messageText, ' '),
+          message: `Invalid JavaScript syntax (TS${diagnostic.code})`,
           line: position.line + 1,
           column: position.character + 1,
         })
@@ -150,8 +152,21 @@ function compileBody(code: string): void {
   })
 }
 
-function codeIssue(blockId: string, block: BlockState, error: unknown): WorkflowLintCodeIssue {
-  const message = getErrorMessage(error, 'Invalid JavaScript syntax')
+function codeIssue(
+  blockId: string,
+  block: BlockState,
+  error: unknown,
+  placeholderMessage?: string
+): WorkflowLintCodeIssue {
+  const parserMessage = getErrorMessage(error)
+  /** Parser messages can interpolate arbitrary source; expose only fixed syntax categories. */
+  const message =
+    placeholderMessage ??
+    (parserMessage === 'Invalid regular expression flags'
+      ? parserMessage
+      : parserMessage.startsWith('Invalid regular expression')
+        ? 'Invalid regular expression literal'
+        : 'Invalid JavaScript syntax')
   const stack = error instanceof Error ? error.stack : undefined
   const line = /^workflow-code\.js:(\d+)/.exec(stack ?? '')?.[1]
   const caret = stack?.split('\n')[2]?.indexOf('^')
@@ -161,9 +176,7 @@ function codeIssue(blockId: string, block: BlockState, error: unknown): Workflow
     blockType: block.type,
     field: 'code',
     language: 'javascript',
-    message: message.startsWith('Invalid regular expression: /')
-      ? 'Invalid regular expression literal'
-      : message,
+    message,
     ...(line ? { line: Math.max(1, Number(line) - 1) } : {}),
     ...(caret !== undefined && caret >= 0 ? { column: caret + 1 } : {}),
   }

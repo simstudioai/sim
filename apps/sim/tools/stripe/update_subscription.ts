@@ -38,7 +38,8 @@ export const stripeUpdateSubscriptionTool: ToolConfig<
       type: 'json',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Updated array of items with price IDs',
+      description:
+        'Items with price IDs and optional quantities. Include the existing subscription item id to replace its price; omit id to add an item.',
     },
     cancel_at_period_end: {
       type: 'boolean',
@@ -75,8 +76,9 @@ export const stripeUpdateSubscriptionTool: ToolConfig<
 
       if (params.items && Array.isArray(params.items)) {
         params.items.forEach((item, index) => {
+          if (item.id) formData.append(`items[${index}][id]`, item.id)
           formData.append(`items[${index}][price]`, item.price)
-          if (item.quantity) {
+          if (item.quantity || item.quantity === 0) {
             formData.append(`items[${index}][quantity]`, String(item.quantity))
           }
         })

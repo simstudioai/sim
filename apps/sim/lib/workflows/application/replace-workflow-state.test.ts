@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),
   notify: vi.fn(),
   replace: vi.fn(),
+  realReplace: vi.fn(),
   replacementResult: vi.fn(),
   resolvedState: vi.fn(),
   prepare: vi.fn(),
@@ -45,11 +46,16 @@ vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notify })
 vi.mock('@/lib/workflows/persistence/prepare-state', () => ({
   prepareWorkflowStateForPersistence: mocks.prepare,
 }))
-vi.mock('@/lib/workflows/persistence/replace-normalized-state', () => ({
-  replaceWorkflowNormalizedState: mocks.replace,
-  collectWorkflowGraphIds: mocks.collectGraphIds,
-  assertWorkflowGraphIdsUnclaimed: mocks.assertIdsUnclaimed,
-}))
+vi.mock('@/lib/workflows/persistence/replace-normalized-state', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('@/lib/workflows/persistence/replace-normalized-state')>()
+  mocks.realReplace.mockImplementation(original.replaceWorkflowNormalizedState)
+  return {
+    replaceWorkflowNormalizedState: mocks.replace,
+    collectWorkflowGraphIds: mocks.collectGraphIds,
+    assertWorkflowGraphIdsUnclaimed: mocks.assertIdsUnclaimed,
+  }
+})
 vi.mock('@/lib/workflows/sanitization/validation', () => ({
   validateWorkflowState: mocks.validate,
 }))
@@ -185,13 +191,10 @@ describe('replaceWorkflowState', () => {
   )
 
   it('compares removals against the baseline read after the replacement acquires its row lock', async () => {
-    const { replaceWorkflowNormalizedState } = await vi.importActual<
-      typeof import('@/lib/workflows/persistence/replace-normalized-state')
-    >('@/lib/workflows/persistence/replace-normalized-state')
     resetDbChainMock()
     mocks.saveNormalized.mockResolvedValue({ success: true })
     mocks.extractCustomTools.mockResolvedValue({ saved: 0, errors: [] })
-    mocks.replace.mockImplementationOnce(replaceWorkflowNormalizedState)
+    mocks.replace.mockImplementationOnce(mocks.realReplace)
     vi.mocked(getBlock).mockImplementation((type) =>
       type === 'bound-test'
         ? ({

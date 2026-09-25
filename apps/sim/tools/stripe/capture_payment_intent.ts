@@ -63,7 +63,7 @@ export const stripeCapturePaymentIntentTool: ToolConfig<
     }),
     body: (params) => {
       const formData = new URLSearchParams()
-      if (params.amount_to_capture) {
+      if (params.amount_to_capture || params.amount_to_capture === 0) {
         formData.append('amount_to_capture', Number(params.amount_to_capture).toString())
       }
       return { body: formData.toString() }

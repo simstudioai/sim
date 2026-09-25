@@ -59,7 +59,7 @@ export const stripeCaptureChargeTool: ToolConfig<
     }),
     body: (params) => {
       const formData = new URLSearchParams()
-      if (params.amount) {
+      if (params.amount || params.amount === 0) {
         formData.append('amount', Number(params.amount).toString())
       }
       return { body: formData.toString() }

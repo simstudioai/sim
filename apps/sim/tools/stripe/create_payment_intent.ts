@@ -114,8 +114,14 @@ export const stripeCreatePaymentIntentTool: ToolConfig<
         })
       }
 
-      if (params.automatic_payment_methods?.enabled) {
-        formData.append('automatic_payment_methods[enabled]', 'true')
+      if (
+        params.automatic_payment_methods?.enabled ||
+        params.automatic_payment_methods?.enabled === false
+      ) {
+        formData.append(
+          'automatic_payment_methods[enabled]',
+          String(params.automatic_payment_methods.enabled)
+        )
       }
 
       return { body: formData.toString() }

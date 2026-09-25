@@ -1071,7 +1071,7 @@ Update an existing subscription
 | --------- | ---- | -------- | ----------- |
 | `apiKey` | string | Yes | Stripe API key \(secret key\) |
 | `id` | string | Yes | Subscription ID \(e.g., sub_1234567890\) |
-| `items` | json | No | Updated array of items with price IDs |
+| `items` | json | No | Items with price IDs and optional quantities. Include the existing subscription item id to replace its price; omit id to add an item. |
 | `cancel_at_period_end` | boolean | No | Cancel subscription at period end |
 | `metadata` | json | No | Updated metadata |
 
@@ -1222,7 +1222,7 @@ Cancel a subscription
 
 ### Stripe Resume Subscription
 
-Resume a subscription that was scheduled for cancellation
+Resume a paused subscription. To undo a scheduled cancellation, use Update Subscription with cancel_at_period_end=false before it ends.
 
 #### Input
 

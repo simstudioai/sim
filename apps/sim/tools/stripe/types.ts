@@ -1444,7 +1444,7 @@ export interface RetrieveSubscriptionParams {
 export interface UpdateSubscriptionParams {
   apiKey: string
   id: string
-  items?: Array<{ price: string; quantity?: number }>
+  items?: Array<{ id?: string; price: string; quantity?: number }>
   cancel_at_period_end?: boolean
   metadata?: StripeMetadata
 }
