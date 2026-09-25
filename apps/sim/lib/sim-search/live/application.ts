@@ -45,6 +45,7 @@ import {
   matchesSourceDates,
   sourceDate,
   sourceDateType,
+  withImpliedListingBound,
 } from '@/lib/sim-search/live/dates'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
 import { joinMessages } from '@/lib/sim-search/live/pages'
@@ -293,6 +294,11 @@ export const searchLiveKnowledge = defineAuthorizedKnowledgeUseCase({
     const queries = input.nativeQueries
       ? nativeSearchQueriesSchema.parse(input.nativeQueries)
       : undefined
+    if (
+      (!input.query.trim() && !queries?.some((query) => query.query)) ||
+      queries?.some((query) => !query.query)
+    )
+      input = { ...input, filters: withImpliedListingBound(input.filters, new Date()) }
     if (
       (!input.query.trim() &&
         !hasDateBounds(input.filters) &&

@@ -255,6 +255,36 @@ describe('authorized live retrieval', () => {
     })
     expect(result.retrieval.status).toBe('partial')
   })
+  it('lists newest first up to now when no terms or dates are given, and only then', async () => {
+    vi.useFakeTimers({ now: new Date('2026-09-25T02:00:00Z'), toFake: ['Date'] })
+    try {
+      await searchLiveKnowledge.execute({
+        principal,
+        input: { ...input, query: '', filters: { sortBy: 'newest' } },
+      })
+      expect(mocks.search).toHaveBeenLastCalledWith(
+        'google_drive',
+        expect.anything(),
+        expect.objectContaining({
+          filters: { sortBy: 'newest', endDate: '2026-09-25T02:00:00.000Z' },
+        })
+      )
+      await searchLiveKnowledge.execute({
+        principal,
+        input: { ...input, filters: { sortBy: 'newest' } },
+      })
+      expect(mocks.search).toHaveBeenLastCalledWith(
+        'google_drive',
+        expect.anything(),
+        expect.objectContaining({ filters: { sortBy: 'newest' } })
+      )
+      await expect(
+        searchLiveKnowledge.execute({ principal, input: { ...input, query: '' } })
+      ).rejects.toThrow('Invalid live search query')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
   it('reports candidates that could not be verified and keeps the verified ones', async () => {
     mocks.search.mockResolvedValue({
       documents: [document, { ...document, id: 'other', url: 'https://docs.google.com/other' }],

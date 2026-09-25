@@ -282,7 +282,7 @@ describe('browser-agent CDP instrumentation', () => {
     controller.abort()
 
     await expect(
-      clickAt(contents, 5, 6, false, PRIMARY_CLICK, controller.signal)
+      clickAt(contents, 5, 6, true, PRIMARY_CLICK, controller.signal)
     ).rejects.toMatchObject({ name: 'AbortError' })
     expect(contents.debugger.sendCommand).not.toHaveBeenCalled()
   })

@@ -2285,12 +2285,14 @@ function validateSnapshotRefs(
  * Captures the top page plus each cross-origin boundary frame in its own
  * isolated world. CDP is the privileged bridge the top document's same-origin
  * policy intentionally lacks; password redaction still runs inside every frame
- * before any result crosses back to the driver.
+ * before any result crosses back to the driver. `markNew` is false for reads the
+ * model never sees as an outline, so they neither carry nor consume `new` markers.
  */
 async function captureSnapshot(
   contents: WebContents,
   notAfter?: number,
-  elementId?: number
+  elementId?: number,
+  markNew = true
 ): Promise<unknown> {
   const state = driverScopeState()
   const tab = session.requireAutomationTab()
@@ -2326,7 +2328,7 @@ async function captureSnapshot(
     await execInPage(
       contents,
       collectSnapshot,
-      elementId === undefined ? [mainStartingElementId] : [mainStartingElementId, elementId],
+      [mainStartingElementId, elementId ?? null, markNew],
       false,
       notAfter
     )
@@ -2383,7 +2385,7 @@ async function captureSnapshot(
       const frameSnapshot = await execInPage(
         frame,
         collectSnapshot,
-        [frameStartingElementId],
+        [frameStartingElementId, null, markNew],
         false,
         notAfter
       )
@@ -2867,7 +2869,7 @@ async function executeToolInner(
       const maxResults = Math.min(50, Math.max(1, Math.floor(requestedMax ?? 20)))
       const contents = session.requireAutomationTab().view.webContents
       const snapshot = toRecord(
-        await captureSnapshot(contents, executionDeadline, num(params, 'elementId'))
+        await captureSnapshot(contents, executionDeadline, num(params, 'elementId'), false)
       )
       const outline = typeof snapshot.outline === 'string' ? snapshot.outline : ''
       const needle = query.toLowerCase()

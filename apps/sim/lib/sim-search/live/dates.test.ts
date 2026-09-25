@@ -4,7 +4,12 @@ import { searchWorkspaceInputSchema } from '@/lib/api/contracts/mothership-assis
 import { intersectWorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { searchAtlassian } from '@/lib/sim-search/live/atlassian'
 import { searchCoda } from '@/lib/sim-search/live/coda'
-import { matchesSourceDates, sourceDate, sourceDateType } from '@/lib/sim-search/live/dates'
+import {
+  matchesSourceDates,
+  sourceDate,
+  sourceDateType,
+  withImpliedListingBound,
+} from '@/lib/sim-search/live/dates'
 import { searchGitHub } from '@/lib/sim-search/live/github'
 import { searchGitLab } from '@/lib/sim-search/live/gitlab'
 import { searchCalendar, searchDrive, searchGmail } from '@/lib/sim-search/live/google'
@@ -29,6 +34,28 @@ const doc: NativeDocument = {
 }
 
 describe('generic live search dates', () => {
+  it('lists newest or oldest first up to now when no terms or dates are given', () => {
+    const now = new Date('2026-09-25T02:00:00Z')
+    for (const sortBy of ['newest', 'oldest'] as const) {
+      expect(searchWorkspaceInputSchema.safeParse({ sortBy }).success).toBe(true)
+      expect(
+        searchWorkspaceInputSchema.safeParse({
+          sortBy,
+          nativeQueries: [{ provider: 'slack', query: '', modifiers: 'in:<#D1>' }],
+        }).success
+      ).toBe(true)
+      expect(withImpliedListingBound({ sortBy }, now)).toEqual({
+        sortBy,
+        endDate: '2026-09-25T02:00:00.000Z',
+      })
+    }
+    expect(searchWorkspaceInputSchema.safeParse({ sortBy: 'relevance' }).success).toBe(false)
+    expect(withImpliedListingBound({ sortBy: 'relevance' }, now)).toEqual({ sortBy: 'relevance' })
+    expect(withImpliedListingBound(undefined, now)).toBeUndefined()
+    expect(
+      withImpliedListingBound({ sortBy: 'newest', startDate: filters.startDate }, now)
+    ).toEqual({ sortBy: 'newest', startDate: filters.startDate })
+  })
   it('accepts a date-only request and rejects invalid or unbounded listings', () => {
     expect(searchWorkspaceInputSchema.parse(filters)).toMatchObject({
       ...filters,
@@ -38,7 +65,7 @@ describe('generic live search dates', () => {
     for (const value of [
       {},
       { query: '' },
-      { sortBy: 'oldest' },
+      { sortBy: 'relevance' },
       { startDate: 'today' },
       { ...filters, endDate: filters.startDate },
       { ...filters, endDate: '2026-09-21T00:00:00Z' },

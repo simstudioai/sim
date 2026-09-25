@@ -195,19 +195,21 @@ export const workspaceKnowledgeSearchBodySchema = resourceOwnerSchema
     nativeQueries: nativeSearchQueriesSchema.optional(),
   })
   .superRefine((body, ctx) => {
-    const { modifiedAfter, modifiedBefore, startDate, endDate } = body.filters ?? {}
+    const { modifiedAfter, modifiedBefore, startDate, endDate, sortBy } = body.filters ?? {}
     if (
       !body.query &&
       !body.nativeQueries?.some((query) => query.query) &&
       !startDate &&
       !endDate &&
       !modifiedAfter &&
-      !modifiedBefore
+      !modifiedBefore &&
+      sortBy !== 'newest' &&
+      sortBy !== 'oldest'
     )
       ctx.addIssue({
         code: 'custom',
         path: ['query'],
-        message: 'A search query, native query, or date bound is required',
+        message: 'A search query, native query, date bound, or newest or oldest sort is required',
       })
     if (startDate && endDate && Date.parse(endDate) <= Date.parse(startDate))
       ctx.addIssue({

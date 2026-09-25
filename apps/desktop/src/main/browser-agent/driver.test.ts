@@ -4661,9 +4661,12 @@ describe('credential protection', () => {
     })
   })
 
-  it.each(['browser_snapshot', 'browser_find'] as const)(
-    'omits an absent scope from the serialized %s page call',
-    async (tool) => {
+  it.each([
+    ['browser_snapshot', 'true'],
+    ['browser_find', 'false'],
+  ] as const)(
+    'passes an absent scope as null to the serialized %s page call',
+    async (tool, markNew) => {
       const contents = await openPage()
       vi.mocked(contents.executeJavaScript).mockClear()
       await driver.executeTool('chat-test', tool, { query: 'Continue' })
@@ -4672,13 +4675,16 @@ describe('credential protection', () => {
         .mock.calls.map(([expression]) => expression)
         .filter((expression) => isPageCall(expression, 'collectSnapshot'))
       expect(expressions).toHaveLength(1)
-      expect(expressions[0]).toContain('.apply(null, [1])')
+      expect(expressions[0]).toContain(`.apply(null, [1,null,${markNew}])`)
     }
   )
 
-  it.each(['browser_snapshot', 'browser_find'] as const)(
+  it.each([
+    ['browser_snapshot', 'true'],
+    ['browser_find', 'false'],
+  ] as const)(
     'passes the current root ref to %s and invalidates previous refs',
-    async (tool) => {
+    async (tool, markNew) => {
       const contents = await openPage()
       respondWith(contents, {
         collectSnapshot: {
@@ -4700,7 +4706,7 @@ describe('credential protection', () => {
           .mock.calls.some(
             ([expression]) =>
               isPageCall(expression, 'collectSnapshot') &&
-              expression.includes('.apply(null, [1,0])')
+              expression.includes(`.apply(null, [1,0,${markNew}])`)
           )
       ).toBe(true)
       const stale = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })

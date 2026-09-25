@@ -4221,6 +4221,39 @@ describe('browser-agent session', () => {
     })
   })
 
+  it('stops a download whose placeholder claim hangs and removes the late placeholder', async () => {
+    vi.useFakeTimers()
+    try {
+      const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+      const gate = deferred<void>()
+      const claimFile = vi.fn(async (path: string) => {
+        await gate.promise
+        writeFileSync(path, '', { flag: 'wx' })
+      })
+      session = freshSession(win, {}, undefined, {
+        getDirectory: () => directory,
+        getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
+        pathExists: () => false,
+        claimFile,
+      })
+      const contents = (session.ensureTab().view as unknown as MockView).webContents
+      const download = mockDownloadItem({ filename: 'hung-claim.bin', totalBytes: 100 })
+
+      startMockDownload(contents, download)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(claimFile).toHaveBeenCalledOnce()
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      expect(download.item.cancel).toHaveBeenCalledOnce()
+      expect(download.item.resume).not.toHaveBeenCalled()
+      download.emitDone('cancelled')
+      gate.resolve()
+      await vi.waitFor(() => expect(readdirSync(directory)).toEqual([]))
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps a torn-down download name reserved until its pending claim settles', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
     const claims: Array<{ path: string; gate: ReturnType<typeof deferred<void>> }> = []
