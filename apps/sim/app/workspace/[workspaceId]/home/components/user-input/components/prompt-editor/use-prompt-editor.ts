@@ -448,15 +448,13 @@ export function usePromptEditor({
     }
   }, [textareaRef])
 
-  const insertResource = useCallback(
-    (resource: MothershipResource, selected = contextManagementRef.current.selectedContexts) => {
-      const mapped = mapResourceToContext(resource)
-      if (!mapped) return
-      const ownerWorkspaceId = resource.workspaceId ?? workspaceIdRef.current
-      const candidate =
-        organizationId && ownerWorkspaceId ? { ...mapped, workspaceId: ownerWorkspaceId } : mapped
+  const insertMentionContext = useCallback(
+    (candidate: ChatContext, selected = contextManagementRef.current.selectedContexts) => {
       const context =
-        organizationId || candidate.kind === 'folder' || candidate.kind === 'filefolder'
+        organizationId ||
+        candidate.kind === 'workspace' ||
+        candidate.kind === 'folder' ||
+        candidate.kind === 'filefolder'
           ? (selected.find(
               (current) => current.kind === candidate.kind && areContextsEqual(current, candidate)
             ) ?? { ...candidate, label: uniqueContextLabel(candidate.label, selected) })
@@ -500,6 +498,24 @@ export function usePromptEditor({
       return context
     },
     [textareaRef, addContextNotified, organizationId]
+  )
+
+  const insertResource = useCallback(
+    (resource: MothershipResource, selected = contextManagementRef.current.selectedContexts) => {
+      const mapped = mapResourceToContext(resource)
+      if (!mapped) return
+      const ownerWorkspaceId = resource.workspaceId ?? workspaceIdRef.current
+      const candidate =
+        organizationId && ownerWorkspaceId ? { ...mapped, workspaceId: ownerWorkspaceId } : mapped
+      return insertMentionContext(candidate, selected)
+    },
+    [insertMentionContext, organizationId]
+  )
+
+  const insertWorkspace = useCallback(
+    (workspace: { id: string; name: string }) =>
+      insertMentionContext({ kind: 'workspace', workspaceId: workspace.id, label: workspace.name }),
+    [insertMentionContext]
   )
 
   /**
@@ -1319,6 +1335,8 @@ export function usePromptEditor({
     pendingCursorRef,
     /** @internal */
     insertResource,
+    /** @internal */
+    insertWorkspace,
     /** @internal */
     handleSkillSelect,
     /** @internal */

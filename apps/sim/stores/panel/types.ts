@@ -32,6 +32,7 @@ export interface TerminalTextSelection {
 }
 
 export type ChatContext =
+  | { kind: 'workspace'; workspaceId: string; label: string }
   | { kind: 'past_chat'; chatId: string; label: string }
   | { kind: 'workflow'; workflowId: string; label: string }
   | { kind: 'current_workflow'; workflowId: string; label: string }

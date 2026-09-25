@@ -651,6 +651,67 @@ describe('handleUnifiedChatPost', () => {
     }
   )
 
+  it('validates workspace tags and forwards multiple IDs in an organization send', async () => {
+    const contexts = [
+      { kind: 'workspace', workspaceId: 'ws-a', label: 'Planning' },
+      { kind: 'workspace', workspaceId: 'ws-b', label: 'Operations' },
+    ]
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Review both workspaces',
+          organizationId: 'org-1',
+          mode: 'agent',
+          contexts,
+        }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(processContextsServer).toHaveBeenCalledWith(
+      contexts,
+      'user-1',
+      'Review both workspaces',
+      undefined,
+      'chat-1',
+      expect.any(ResolvedSecretTraceRegistry),
+      'org-1'
+    )
+
+    const invalid = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Review this workspace',
+          organizationId: 'org-1',
+          mode: 'agent',
+          contexts: [{ kind: 'workspace', label: 'Missing ID' }],
+        }),
+      })
+    )
+    expect(invalid.status).toBe(400)
+  })
+
+  it('refuses an unauthorized workspace tag before starting the agent', async () => {
+    processContextsServer.mockRejectedValueOnce(new OrchestrationError('not_found', 'Workspace'))
+    const response = await handleUnifiedChatPost(
+      new NextRequest('http://localhost/api/mothership/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: 'Review this workspace',
+          organizationId: 'org-1',
+          mode: 'agent',
+          contexts: [{ kind: 'workspace', workspaceId: 'foreign', label: 'Foreign' }],
+        }),
+      })
+    )
+
+    expect(response.status).toBe(403)
+    expect(buildCopilotRequestPayload).not.toHaveBeenCalled()
+    expect(createSSEStream).not.toHaveBeenCalled()
+  })
+
   it('builds Assistant from only personal accounts and the selected Search scope', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ model: null }])
     getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })

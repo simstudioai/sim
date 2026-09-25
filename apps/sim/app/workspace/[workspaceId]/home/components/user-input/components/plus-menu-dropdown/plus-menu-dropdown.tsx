@@ -5,17 +5,22 @@ import {
   cn,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuItemLabel,
   DropdownMenuLabel,
   DropdownMenuSearchInput,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   dropdownMenuRowClass,
 } from '@sim/emcn'
+import { Workspaces } from '@sim/emcn/icons'
 import {
   ResourceMenuSections,
   resourceFromItem,
   useAvailableResources,
   useResourceTreeSections,
-  WorkspaceResourceSubmenu,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown'
 import type { AvailableResources } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/available-resources'
 import {
@@ -30,6 +35,7 @@ import {
 import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
 import {
   buildMentionPreview,
+  type ResourceMentionCandidate,
   resourceMentionMatches,
   withBrowserTabMentions,
   withFolderMentions,
@@ -64,23 +70,16 @@ const MENTION_MAX_HEIGHT_CLASS = 'max-h-[min(280px,var(--radix-popper-available-
  */
 const MENTION_ONLY_RESOURCE_TYPES = new Set<MothershipResourceType>(['integration'])
 
-/**
- * Families an organization chat's workspace submenus leave out: the mention-only
- * ones, plus Browser and Terminal, which belong to this desktop rather than to a
- * workspace and so sit once after the workspaces.
- */
-const WORKSPACE_SUBMENU_EXCLUDED_TYPES: readonly MothershipResourceType[] = [
-  ...MENTION_ONLY_RESOURCE_TYPES,
-  'browser',
-  'terminal',
-]
-
 function isNativeResourceGroup({ type }: { type: MothershipResourceType }): boolean {
   return type === 'browser' || type === 'terminal'
 }
 
 const EMPTY_BROWSER_TABS = [] as const
 const EMPTY_TERMINAL_TABS = [] as const
+
+type PickerCandidate =
+  | ResourceMentionCandidate
+  | { type: 'workspace'; item: { id: string; name: string } }
 
 interface PlusMenuDropdownProps {
   workspaceId: string
@@ -94,6 +93,7 @@ interface PlusMenuDropdownProps {
    */
   warm?: boolean
   onResourceSelect: (resource: MothershipResource) => void
+  onWorkspaceSelect: (workspace: { id: string; name: string }) => void
   onClose: () => void
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
   pendingCursorRef: React.MutableRefObject<number | null>
@@ -108,6 +108,7 @@ export const PlusMenuDropdown = React.memo(
       organizationId,
       warm,
       onResourceSelect,
+      onWorkspaceSelect,
       onClose,
       textareaRef,
       pendingCursorRef,
@@ -197,31 +198,44 @@ export const PlusMenuDropdown = React.memo(
       terminalTabs,
     ])
 
-    /**
-     * Built from this workspace's own inventory, which has no foldered families in an
-     * organization chat: there each workspace submenu builds its own sections, because
-     * ids are only unique within a workspace.
-     */
+    /** Organization chat uses flat cross-workspace rows; workspace chat keeps its tree. */
     const treeSections = useResourceTreeSections({
       groups: workspaceInventory.groups,
       structureFolders: workspaceInventory.structureFolders,
       selectFolders: true,
     })
 
-    const filteredItems = useMemo(() => {
+    const filteredItems = useMemo<PickerCandidate[] | null>(() => {
       const rawQuery = isMention ? (mentionQuery ?? '') : search
       const q = rawQuery.toLowerCase().trim()
       if (!isMention && !q) return null
+      const workspaceMatches = organizationId
+        ? workspaces
+            .filter(
+              (workspace) =>
+                !q || workspace.name.toLowerCase().includes(q) || 'workspaces'.includes(q)
+            )
+            .map((workspace) => ({
+              type: 'workspace' as const,
+              item: { id: workspace.id, name: workspace.name },
+            }))
+        : []
       if (isMention && !q) {
-        return buildMentionPreview(
-          visibleResources,
-          (type) => getResourceConfig(type).mentionPreviewLimit ?? MENTION_PREVIEW_DEFAULT_LIMIT
-        )
+        return [
+          ...workspaceMatches.slice(0, MENTION_PREVIEW_DEFAULT_LIMIT),
+          ...buildMentionPreview(
+            visibleResources,
+            (type) => getResourceConfig(type).mentionPreviewLimit ?? MENTION_PREVIEW_DEFAULT_LIMIT
+          ),
+        ]
       }
-      return visibleResources.flatMap(({ type, items }) =>
-        items.filter((item) => resourceMentionMatches(item, q)).map((item) => ({ type, item }))
-      )
-    }, [isMention, mentionQuery, search, visibleResources])
+      return [
+        ...workspaceMatches,
+        ...visibleResources.flatMap(({ type, items }) =>
+          items.filter((item) => resourceMentionMatches(item, q)).map((item) => ({ type, item }))
+        ),
+      ]
+    }, [isMention, mentionQuery, search, visibleResources, organizationId, workspaces])
 
     const filteredItemsRef = useRef(filteredItems)
     filteredItemsRef.current = filteredItems
@@ -238,15 +252,29 @@ export const PlusMenuDropdown = React.memo(
       if (isMention) setActiveIndex(0)
     }, [isMention, mentionQuery])
 
-    const handleSelect = (resource: MothershipResource) => {
-      onResourceSelect(resource)
+    const closeAfterSelect = () => {
       setOpen(false)
       setSearch('')
       setActiveIndex(0)
     }
 
-    const handleSelectRef = useRef(handleSelect)
-    handleSelectRef.current = handleSelect
+    const handleSelect = (resource: MothershipResource) => {
+      onResourceSelect(resource)
+      closeAfterSelect()
+    }
+
+    const handleWorkspaceSelect = (workspace: { id: string; name: string }) => {
+      onWorkspaceSelect(workspace)
+      closeAfterSelect()
+    }
+
+    const handleCandidateSelect = (candidate: PickerCandidate) => {
+      if (candidate.type === 'workspace') handleWorkspaceSelect(candidate.item)
+      else handleSelect(resourceFromItem(candidate.type, candidate.item))
+    }
+
+    const handleSelectRef = useRef(handleCandidateSelect)
+    handleSelectRef.current = handleCandidateSelect
 
     React.useImperativeHandle(
       ref,
@@ -267,7 +295,7 @@ export const PlusMenuDropdown = React.memo(
           const items = filteredItemsRef.current
           const target = items?.length ? (items[activeIndexRef.current] ?? items[0]) : undefined
           if (!target) return isHydratingRef.current ? 'hydrating' : 'empty'
-          handleSelectRef.current(resourceFromItem(target.type, target.item))
+          handleSelectRef.current(target)
           return 'selected'
         },
       }),
@@ -306,7 +334,7 @@ export const PlusMenuDropdown = React.memo(
       } else if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
         e.preventDefault()
         const target = filteredItems[activeIndex] ?? filteredItems[0]
-        if (target) handleSelect(resourceFromItem(target.type, target.item))
+        if (target) handleCandidateSelect(target)
       }
     }
 
@@ -405,21 +433,36 @@ export const PlusMenuDropdown = React.memo(
             {/* Always-mounted; swapping this subtree with filtered results makes Radix's
                   menu FocusScope steal focus from the search input back to the content root. */}
             <div hidden={filteredItems !== null}>
-              {organizationId &&
-                workspaces.map((workspace) => (
-                  <WorkspaceResourceSubmenu
-                    key={workspace.id}
-                    workspace={workspace}
-                    excludeTypes={WORKSPACE_SUBMENU_EXCLUDED_TYPES}
-                    selectFolders
-                    onSelect={handleSelect}
-                  />
-                ))}
+              {organizationId && (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Workspaces className='size-[14px]' />
+                    <DropdownMenuItemLabel label='Workspaces' />
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className='max-w-[min(300px,calc(100vw-32px))]'>
+                    {workspaces.length ? (
+                      workspaces.map((workspace) => (
+                        <DropdownMenuItem
+                          key={workspace.id}
+                          onClick={() => handleWorkspaceSelect(workspace)}
+                        >
+                          <Workspaces className='size-[14px]' />
+                          <DropdownMenuItemLabel label={workspace.name} />
+                        </DropdownMenuItem>
+                      ))
+                    ) : (
+                      <DropdownMenuItem disabled>
+                        {workspacesPending ? 'Loading workspaces…' : 'No accessible workspaces'}
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
               <ResourceMenuSections
-                sections={treeSections}
-                groups={
-                  organizationId ? visibleResources.filter(isNativeResourceGroup) : visibleResources
-                }
+                flat={Boolean(organizationId)}
+                combineFileFolders={Boolean(organizationId)}
+                sections={organizationId ? [] : treeSections}
+                groups={visibleResources}
                 onSelect={handleSelect}
                 subContentClassName='max-w-[min(300px,calc(100vw-32px))]'
               />
@@ -428,24 +471,37 @@ export const PlusMenuDropdown = React.memo(
                   menu Collection, or FocusScope restores focus to the content root. */}
             {filteredItems !== null &&
               (filteredItems.length > 0 ? (
-                filteredItems.map(({ type, item }, index) => {
-                  const config = getResourceConfig(type)
+                filteredItems.map((candidate, index) => {
+                  const { type, item } = candidate
+                  const config = type === 'workspace' ? null : getResourceConfig(type)
                   const isActive = index === activeIndex
-                  /* Items arrive grouped by family (one group per type, ordered by
-                     RESOURCE_MENU_ORDER), so a type change marks a section boundary.
-                     Deriving the heading from the flat list keeps `activeIndex` — and
-                     therefore every keyboard path — indexing exactly what it did. */
-                  const startsSection = index === 0 || filteredItems[index - 1]?.type !== type
+                  const sectionLabel =
+                    type === 'workspace'
+                      ? 'Workspaces'
+                      : organizationId && type === 'filefolder'
+                        ? 'Files'
+                        : (config?.label ?? 'Workspaces')
+                  const previous = filteredItems[index - 1]
+                  const previousSection = previous
+                    ? previous.type === 'workspace'
+                      ? 'Workspaces'
+                      : organizationId && previous.type === 'filefolder'
+                        ? 'Files'
+                        : getResourceConfig(previous.type).label
+                    : null
+                  const startsSection = sectionLabel !== previousSection
                   return (
-                    <React.Fragment key={`${type}:${item.workspaceId ?? ''}:${item.id}`}>
-                      {startsSection && <DropdownMenuLabel>{config.label}</DropdownMenuLabel>}
+                    <React.Fragment
+                      key={`${type}:${'workspaceId' in item ? item.workspaceId : ''}:${item.id}`}
+                    >
+                      {startsSection && <DropdownMenuLabel>{sectionLabel}</DropdownMenuLabel>}
                       <button
                         type='button'
                         role='menuitem'
                         data-filtered-idx={index}
                         onMouseEnter={() => setActiveIndex(index)}
                         onClick={() => {
-                          handleSelect(resourceFromItem(type, item))
+                          handleCandidateSelect(candidate)
                         }}
                         className={cn(
                           dropdownMenuRowClass,
@@ -454,8 +510,15 @@ export const PlusMenuDropdown = React.memo(
                           isActive && 'bg-[var(--surface-hover)]'
                         )}
                       >
-                        {config.renderDropdownItem({ item })}
-                        {typeof item.workspaceName === 'string' && (
+                        {config ? (
+                          config.renderDropdownItem({ item })
+                        ) : (
+                          <>
+                            <Workspaces className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+                            <span className='truncate'>{item.name}</span>
+                          </>
+                        )}
+                        {'workspaceName' in item && typeof item.workspaceName === 'string' && (
                           <span className='ml-auto text-[var(--text-muted)] text-xs'>
                             {item.workspaceName}
                           </span>

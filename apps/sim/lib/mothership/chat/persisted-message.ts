@@ -37,6 +37,7 @@ export interface PersistedFileAttachment {
 interface PersistedMessageContext {
   kind: string
   label: string
+  workspaceId?: string
   workflowId?: string
   knowledgeId?: string
   tableId?: string
@@ -438,6 +439,7 @@ export function buildPersistedUserMessage(params: UserMessageParams): PersistedM
     message.contexts = params.contexts.map((c) => ({
       kind: c.kind,
       label: c.label,
+      ...(c.workspaceId ? { workspaceId: c.workspaceId } : {}),
       ...(c.workflowId ? { workflowId: c.workflowId } : {}),
       ...(c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
       ...(c.tableId ? { tableId: c.tableId } : {}),
@@ -789,6 +791,7 @@ export function normalizeMessage(raw: Record<string, unknown>): PersistedMessage
     msg.contexts = rawContexts.map((c) => ({
       kind: c.kind,
       label: c.label,
+      ...(c.workspaceId ? { workspaceId: c.workspaceId } : {}),
       ...(c.workflowId ? { workflowId: c.workflowId } : {}),
       ...(c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
       ...(c.tableId ? { tableId: c.tableId } : {}),

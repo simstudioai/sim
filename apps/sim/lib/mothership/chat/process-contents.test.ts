@@ -1847,6 +1847,70 @@ describe('table view context', () => {
   })
 })
 
+describe('organization workspace tags', () => {
+  it('uses authorized IDs and current names for multiple focus cues', async () => {
+    resolveInvocationWorkspace.mockImplementation(async (_owner, workspaceId) => ({ workspaceId }))
+    dbChainMockFns.limit.mockResolvedValueOnce([{ name: 'Current name' }])
+    dbChainMockFns.limit.mockResolvedValueOnce([{ name: 'Current name' }])
+
+    const result = await processContextsServer(
+      [
+        { kind: 'workspace', workspaceId: 'workspace-a', label: 'Old name' },
+        { kind: 'workspace', workspaceId: 'workspace-b', label: 'Second' },
+      ],
+      'user',
+      'Review both',
+      undefined,
+      'chat',
+      undefined,
+      'org'
+    )
+
+    expect(result).toHaveLength(2)
+    expect(result.map(({ type }) => type)).toEqual(['workspace', 'workspace'])
+    expect(result[0]?.content).toContain('"id":"workspace-a","name":"Current name"')
+    expect(result[1]?.content).toContain('"id":"workspace-b","name":"Current name"')
+    expect(result[0]?.content).not.toContain('Old name')
+    expect(resolveInvocationWorkspace).toHaveBeenCalledWith(
+      { userId: 'user', organizationId: 'org', chatId: 'chat' },
+      'workspace-a'
+    )
+    expect(resolveInvocationWorkspace).toHaveBeenCalledWith(
+      { userId: 'user', organizationId: 'org', chatId: 'chat' },
+      'workspace-b'
+    )
+  })
+
+  it('rejects an inaccessible or stale workspace instead of dropping its tag', async () => {
+    resolveInvocationWorkspace.mockRejectedValueOnce(new Error('Workspace not found'))
+    await expect(
+      processContextsServer(
+        [{ kind: 'workspace', workspaceId: 'foreign', label: 'Foreign' }],
+        'user',
+        'Review this',
+        undefined,
+        'chat',
+        undefined,
+        'org'
+      )
+    ).rejects.toThrow('Workspace not found')
+
+    resolveInvocationWorkspace.mockResolvedValueOnce({ workspaceId: 'removed' })
+    dbChainMockFns.limit.mockResolvedValueOnce([])
+    await expect(
+      processContextsServer(
+        [{ kind: 'workspace', workspaceId: 'removed', label: 'Removed' }],
+        'user',
+        'Review this',
+        undefined,
+        'chat',
+        undefined,
+        'org'
+      )
+    ).rejects.toThrow('Tagged workspace is unavailable')
+  })
+})
+
 describe('organization skill mention targets', () => {
   beforeEach(() => {
     resolveInvocationWorkspace.mockImplementation(async (_owner, workspaceId) => {

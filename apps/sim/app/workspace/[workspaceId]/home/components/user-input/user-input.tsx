@@ -252,6 +252,8 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
     const curr = editor.contexts
     const contextId = (ctx: ChatContext): string => {
       switch (ctx.kind) {
+        case 'workspace':
+          return `workspace:${ctx.workspaceId}`
         case 'workflow':
         case 'current_workflow':
           return `${ctx.kind}:${ctx.workflowId}`

@@ -204,6 +204,9 @@ export function useResourceTreeSections({
 }
 
 interface ResourceMenuSectionsProps {
+  flat?: boolean
+  /** Organization chat combines two selectable resource kinds under Files. */
+  combineFileFolders?: boolean
   /** Foldered families, from {@link useResourceTreeSections}. */
   sections: ResourceTreeSection[]
   /** Every available family. Foldered ones are taken from `sections` instead. */
@@ -225,16 +228,21 @@ interface ResourceMenuSectionsProps {
  * canonical order.
  */
 export function ResourceMenuSections({
+  flat = false,
+  combineFileFolders = false,
   sections,
   groups,
   onSelect,
   subContentClassName,
 }: ResourceMenuSectionsProps) {
   const sectionByType = new Map(sections.map((section) => [section.type, section]))
+  const fileFolderItems = groups.find((group) => group.type === 'filefolder')?.items ?? []
   const entries = groups
-    .filter(({ type, items }) =>
-      FOLDERED_RESOURCE_TYPES.has(type) ? sectionByType.has(type) : items.length > 0
-    )
+    .filter(({ type, items }) => {
+      if (combineFileFolders && type === 'filefolder') return false
+      if (combineFileFolders && type === 'file') return items.length + fileFolderItems.length > 0
+      return !flat && FOLDERED_RESOURCE_TYPES.has(type) ? sectionByType.has(type) : items.length > 0
+    })
     .sort(byResourceMenuOrder)
 
   return (
@@ -243,6 +251,13 @@ export function ResourceMenuSections({
         const config = getResourceConfig(type)
         const Icon = config.icon
         const section = sectionByType.get(type)
+        const rows =
+          combineFileFolders && type === 'file'
+            ? [
+                ...fileFolderItems.map((item) => ({ type: 'filefolder' as const, item })),
+                ...items.map((item) => ({ type: 'file' as const, item })),
+              ]
+            : items.map((item) => ({ type, item }))
 
         // The Browser and Terminal launchers are flat rows that open a new page
         // or shell. Live pages and shells offered as context are an ordinary
@@ -275,12 +290,12 @@ export function ResourceMenuSections({
                   onSelect={onSelect}
                 />
               ) : (
-                items.map((item) => (
+                rows.map(({ type: itemType, item }) => (
                   <DropdownMenuItem
-                    key={`${item.workspaceId ?? ''}:${item.id}`}
-                    onClick={() => onSelect(resourceFromItem(type, item))}
+                    key={`${itemType}:${item.workspaceId ?? ''}:${item.id}`}
+                    onClick={() => onSelect(resourceFromItem(itemType, item))}
                   >
-                    {config.renderDropdownItem({ item })}
+                    {getResourceConfig(itemType).renderDropdownItem({ item })}
                     {typeof item.workspaceName === 'string' && (
                       <span className='ml-auto text-[var(--text-muted)] text-xs'>
                         {item.workspaceName}

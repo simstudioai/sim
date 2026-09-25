@@ -8,6 +8,7 @@ import {
   Task,
   TerminalWindow,
   Workflow,
+  Workspaces,
 } from '@sim/emcn/icons'
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
@@ -54,6 +55,10 @@ function renderIntegrationTile({ context, className }: RenderIconArgs): ReactNod
  * without an icon.
  */
 export const CHAT_CONTEXT_KIND_REGISTRY: Record<ChatContextKind, ChatContextKindConfig> = {
+  workspace: {
+    label: 'Workspace',
+    renderIcon: ({ className }) => <Workspaces className={className} />,
+  },
   browser_tab: {
     label: 'Browser tab',
     renderIcon: ({ className }) => <Globe className={className} />,

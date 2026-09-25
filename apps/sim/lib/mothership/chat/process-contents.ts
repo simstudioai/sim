@@ -1,4 +1,5 @@
 import { db } from '@sim/db'
+import { workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import {
   authorizeWorkflowByWorkspacePermission,
@@ -9,6 +10,7 @@ import { eq } from 'drizzle-orm'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
@@ -57,6 +59,7 @@ import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secr
 import type { BrowserTextSelection, ChatContext, TerminalTextSelection } from '@/stores/panel'
 
 type AgentContextType =
+  | 'workspace'
   | 'past_chat'
   | 'workflow'
   | 'current_workflow'
@@ -134,6 +137,25 @@ export async function processContextsServer(
     : undefined
   const resolveContext = async (ctx: ChatContext) => {
     try {
+      if (ctx.kind === 'workspace') {
+        if (!organizationId || !chatId)
+          throw new OrchestrationError('validation', 'Workspace tags require an organization chat')
+        const target = await resolveInvocationWorkspace(
+          { userId, organizationId, chatId },
+          ctx.workspaceId
+        )
+        const [row] = await db
+          .select({ name: workspace.name })
+          .from(workspace)
+          .where(eq(workspace.id, target.workspaceId))
+          .limit(1)
+        if (!row) throw new OrchestrationError('not_found', 'Tagged workspace is unavailable')
+        return {
+          type: 'workspace' as const,
+          tag: ctx.label ? `@${ctx.label}` : '@',
+          content: `The user tagged workspace ${JSON.stringify({ id: target.workspaceId, name: row.name })}. Focus this request on that workspace. Use its ID for workspace-specific operations.`,
+        }
+      }
       if (ctx.kind === 'skill' && ctx.skillId) {
         // Global code-owned templates do not require an arbitrary workspace.
         const builtin = organizationId ? getBuiltinSkillById(ctx.skillId) : undefined
@@ -348,6 +370,7 @@ export async function processContextsServer(
       return null
     } catch (error) {
       logger.error('Failed processing context (server)', { ctx, error })
+      if (ctx.kind === 'workspace') throw error
       return null
     }
   }

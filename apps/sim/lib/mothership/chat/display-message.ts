@@ -135,6 +135,7 @@ function toDisplayContexts(
   return contexts.map((c) => ({
     kind: c.kind as ChatContextKind,
     label: c.label,
+    ...(c.workspaceId ? { workspaceId: c.workspaceId } : {}),
     ...(c.workflowId ? { workflowId: c.workflowId } : {}),
     ...(c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
     ...(c.tableId ? { tableId: c.tableId } : {}),

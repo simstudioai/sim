@@ -161,6 +161,7 @@ export interface ChatMessageAttachment {
 export interface ChatMessageContext {
   kind: ChatContextKind
   label: string
+  workspaceId?: string
   workflowId?: string
   knowledgeId?: string
   tableId?: string

@@ -3386,6 +3386,7 @@ export function useChat(
       const messageContexts: ChatMessageContext[] | undefined = contexts?.map((c) => ({
         kind: c.kind,
         label: c.label,
+        ...(c.kind === 'workspace' ? { workspaceId: c.workspaceId } : {}),
         ...('workflowId' in c && c.workflowId ? { workflowId: c.workflowId } : {}),
         ...('knowledgeId' in c && c.knowledgeId ? { knowledgeId: c.knowledgeId } : {}),
         ...('tableId' in c && c.tableId ? { tableId: c.tableId } : {}),

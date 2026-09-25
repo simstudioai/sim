@@ -459,6 +459,20 @@ describe('persisted-message', () => {
     expect(msg.contexts).toBeUndefined()
   })
 
+  it('keeps the stable workspace address through storage and display', () => {
+    const persisted = buildPersistedUserMessage({
+      id: 'user-workspace',
+      content: '@Planning Review the plan',
+      contexts: [{ kind: 'workspace', label: 'Planning', workspaceId: 'ws-planning' }],
+    })
+    const normalized = normalizeMessage(persisted as unknown as Record<string, unknown>)
+
+    expect(normalized.contexts).toEqual([
+      { kind: 'workspace', label: 'Planning', workspaceId: 'ws-planning' },
+    ])
+    expect(toDisplayMessage(normalized).contexts).toEqual(normalized.contexts)
+  })
+
   it('persists the source names a selection chip renders from, but not its payload', () => {
     const contexts = [
       {

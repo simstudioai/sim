@@ -23,6 +23,7 @@ const CHIP_LINK_SCHEME = 'sim'
  * no single portable id (an array / two ids / none) and degrade to plain text.
  */
 const PORTABLE_KIND_TO_ID_FIELD = {
+  workspace: 'workspaceId',
   table: 'tableId',
   file: 'fileId',
   folder: 'folderId',
@@ -235,6 +236,8 @@ export function parseChipLinks(text: string): ParsedChipLink[] {
  */
 export function chipLinkToContext(link: ParsedChipLink): ChatContext {
   switch (link.kind) {
+    case 'workspace':
+      return { kind: 'workspace', workspaceId: link.id, label: link.label }
     case 'table':
       return { kind: 'table', tableId: link.id, label: link.label }
     case 'file':

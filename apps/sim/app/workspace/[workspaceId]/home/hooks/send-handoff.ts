@@ -66,6 +66,8 @@ function isChatContext(value: unknown): value is ChatContext {
   }
 
   switch (value.kind) {
+    case 'workspace':
+      return typeof value.workspaceId === 'string'
     case 'past_chat':
       return typeof value.chatId === 'string'
     case 'workflow':
