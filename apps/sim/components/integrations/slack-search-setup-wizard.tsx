@@ -206,28 +206,26 @@ export function SlackSearchSetupWizard({
       <ChipModalBody>
         {step === 'manifest' && (
           <ChipModalField type='custom' title='App manifest'>
-            <SlackAppManifest manifest={prepare.data.manifest} disabled={Boolean(prepare.error)} />
+            <SlackAppManifest
+              manifest={prepare.data.manifest}
+              createAppUrl={configuredAppId ? undefined : prepare.data.createAppUrl}
+              disabled={Boolean(prepare.error)}
+            />
             <p className='text-[var(--text-secondary)] text-sm'>
               {configuredAppId
                 ? 'In your Slack app, open App Manifest, replace the JSON, and save changes.'
-                : 'In Slack, choose Create New App → From a manifest, select your workspace, and paste the JSON. Review it and click Create.'}
+                : 'Create Slack app opens Slack with this manifest already filled in. Select your workspace, review the configuration, and click Create.'}
             </p>
-            <p className='text-[var(--text-secondary)] text-sm'>
-              In App Manifest, verify the event Request URL before continuing. You can verify it
-              before connecting the app.
-            </p>
-            <ChipLink
-              className='w-fit'
-              href={
-                configuredAppId
-                  ? `https://api.slack.com/apps/${encodeURIComponent(configuredAppId)}`
-                  : 'https://api.slack.com/apps'
-              }
-              target='_blank'
-              rel='noopener noreferrer'
-            >
-              {configuredAppId ? 'Open app settings' : 'Open Slack Apps'}
-            </ChipLink>
+            {configuredAppId && (
+              <ChipLink
+                className='w-fit'
+                href={`https://api.slack.com/apps/${encodeURIComponent(configuredAppId)}`}
+                target='_blank'
+                rel='noopener noreferrer'
+              >
+                Open app settings
+              </ChipLink>
+            )}
           </ChipModalField>
         )}
         {step === 'credentials' && (

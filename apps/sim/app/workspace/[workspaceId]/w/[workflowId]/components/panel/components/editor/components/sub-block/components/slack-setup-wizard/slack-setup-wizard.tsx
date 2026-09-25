@@ -5,6 +5,7 @@ import { Checkbox, Chip, ChipModalField, cn, Label, Tooltip, Wizard } from '@sim
 import { Check, ChevronRight, CircleInfo } from '@sim/emcn/icons'
 import { useShallow } from 'zustand/react/shallow'
 import { SlackAppManifest } from '@/components/integrations/slack-app-manifest'
+import { buildSlackAppCreationUrl, getSlackAppNameError } from '@/lib/integrations/slack-manifest'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { useWebhookManagement } from '@/hooks/use-webhook-management'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -97,6 +98,7 @@ function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: Wizar
   const selected = useCapabilitySelection(blockId)
 
   const displayAppName = appName ?? DEFAULT_APP_NAME
+  const nameError = getSlackAppNameError(displayAppName.trim() || DEFAULT_APP_NAME)
   const effectiveWebhookUrl = !isLoading && webhookUrl ? webhookUrl : null
   const canCopy = effectiveWebhookUrl !== null
   const controlsDisabled = isPreview || disabled
@@ -106,7 +108,7 @@ function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: Wizar
       appName: displayAppName.trim() || DEFAULT_APP_NAME,
       webhookUrl: effectiveWebhookUrl,
     })
-    return JSON.stringify(manifest, null, 2)
+    return JSON.stringify(manifest)
   }, [selected, displayAppName, effectiveWebhookUrl])
 
   const handleOpenChange = useCallback(
@@ -126,10 +128,11 @@ function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: Wizar
       size='lg'
       height={MODAL_HEIGHT_CLASS}
     >
-      <Wizard.Step title='Configure your bot'>
+      <Wizard.Step title='Configure your bot' canAdvance={!nameError}>
         <StepConfigure
           blockId={blockId}
           appName={displayAppName}
+          nameError={nameError}
           onAppNameChange={(v) => {
             if (!controlsDisabled) setAppName(v)
           }}
@@ -192,6 +195,7 @@ function SubStep({ n, children }: SubStepProps) {
 interface StepConfigureProps {
   blockId: string
   appName: string
+  nameError: string | null
   onAppNameChange: (next: string) => void
   selected: ReadonlySet<string>
   disabled: boolean
@@ -200,6 +204,7 @@ interface StepConfigureProps {
 function StepConfigure({
   blockId,
   appName,
+  nameError,
   onAppNameChange,
   selected,
   disabled,
@@ -213,6 +218,7 @@ function StepConfigure({
         onChange={onAppNameChange}
         disabled={disabled}
         placeholder={DEFAULT_APP_NAME}
+        error={nameError}
       />
       <div className='grid grid-cols-2 gap-x-4 gap-y-4'>
         {GROUP_ORDER.map((group) => {
@@ -245,7 +251,14 @@ function StepCreate({ manifestJson, canCopy, isLoading }: StepCreateProps) {
     <div className='space-y-4'>
       <SubStepList>
         <SubStep n={1}>
-          <SlackAppManifest manifest={manifestJson} disabled={!canCopy} />
+          <div>Open Slack with your manifest already filled in:</div>
+          <div className='mt-2'>
+            <SlackAppManifest
+              manifest={manifestJson}
+              createAppUrl={buildSlackAppCreationUrl(manifestJson)}
+              disabled={!canCopy}
+            />
+          </div>
           {!canCopy && (
             <p role='status' className='mt-2 text-[var(--text-secondary)] text-sm'>
               {isLoading
@@ -255,24 +268,7 @@ function StepCreate({ manifestJson, canCopy, isLoading }: StepCreateProps) {
           )}
         </SubStep>
         <SubStep n={2}>
-          Open the{' '}
-          <a
-            href='https://api.slack.com/apps'
-            target='_blank'
-            rel='noopener noreferrer'
-            className='text-[var(--brand-secondary)] underline underline-offset-2'
-          >
-            Slack Apps page
-          </a>
-          .
-        </SubStep>
-        <SubStep n={3}>
-          Click <strong>Create New App</strong> → <strong>From a manifest</strong> and pick your
-          workspace.
-        </SubStep>
-        <SubStep n={4}>
-          Select <strong>JSON</strong>, paste your manifest, then click <strong>Next</strong> →{' '}
-          <strong>Create</strong>.
+          Select your workspace, review the configuration, then click <strong>Create</strong>.
         </SubStep>
       </SubStepList>
     </div>

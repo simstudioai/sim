@@ -3,6 +3,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SlackAppManifest } from '@/components/integrations/slack-app-manifest'
+import { buildSlackAppCreationUrl } from '@/lib/integrations/slack-manifest'
 import { createSlackSearchManifest } from '@/lib/slack-search/manifest'
 
 const writeText = vi.fn()
@@ -10,6 +11,7 @@ let root: Root
 let container: HTMLDivElement
 
 beforeEach(() => {
+  vi.useFakeTimers()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   vi.stubGlobal('navigator', { clipboard: { writeText } })
   writeText.mockReset().mockResolvedValue(undefined)
@@ -21,33 +23,34 @@ afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
-async function render(manifest: string, disabled = false) {
-  await act(async () => root.render(<SlackAppManifest manifest={manifest} disabled={disabled} />))
+async function render(manifest: string, disabled = false, createAppUrl?: string) {
+  await act(async () =>
+    root.render(
+      <SlackAppManifest manifest={manifest} disabled={disabled} createAppUrl={createAppUrl} />
+    )
+  )
 }
 async function copy() {
   await act(async () => container.querySelector('button')!.click())
 }
 
 describe('Slack manifest copying', () => {
-  it('copies the current generated manifest, including its name, scopes, and environment', async () => {
-    const original = JSON.stringify(
-      createSlackSearchManifest('First app', 'Search', 'https://first.sim.test')
-    )
-    const updated = JSON.stringify(
-      createSlackSearchManifest('Second app', 'Search', 'https://second.sim.test', ['files:write'])
-    )
-    await render(original)
-    await copy()
-    expect(writeText).toHaveBeenLastCalledWith(original)
-    expect(container.querySelector('[role="status"]')).toHaveTextContent('Manifest copied')
-    await render(updated)
-    expect(container.querySelector('[role="status"]')).toBeNull()
-    await copy()
-    expect(writeText).toHaveBeenLastCalledWith(updated)
-    expect(container.querySelector('button')).toHaveTextContent('Copy manifest')
-    expect(container.querySelector('details')).not.toHaveAttribute('open')
+  it('opens the current manifest directly in Slack without requiring clipboard access', async () => {
+    for (const description of ['Research & support #1', 'Updated app % / 日本語']) {
+      const manifest = JSON.stringify(
+        createSlackSearchManifest('Research app', description, 'https://sim.test')
+      )
+      await render(manifest, false, buildSlackAppCreationUrl(manifest))
+      const link = container.querySelector('a')!
+      const url = new URL(link.href)
+      expect(url.origin).toBe('https://api.slack.com')
+      expect(url.searchParams.get('new_app')).toBe('1')
+      expect(url.searchParams.get('manifest_json')).toBe(manifest)
+      expect(writeText).not.toHaveBeenCalled()
+    }
   })
 
   it('reports a failed repeat copy without stale success and allows retry', async () => {
@@ -60,13 +63,5 @@ describe('Slack manifest copying', () => {
     await copy()
     expect(container.querySelector('[role="alert"]')).toBeNull()
     expect(writeText).toHaveBeenCalledTimes(3)
-  })
-
-  it('does not copy an unavailable or empty manifest', async () => {
-    await render('{}', true)
-    await copy()
-    await render('')
-    await copy()
-    expect(writeText).not.toHaveBeenCalled()
   })
 })

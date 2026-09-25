@@ -18,6 +18,7 @@ import { SlackIcon } from '@/components/icons'
 import { SlackAppManifest } from '@/components/integrations/slack-app-manifest'
 import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { buildSlackAppCreationUrl, getSlackAppNameError } from '@/lib/integrations/slack-manifest'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import {
   useCreateScopedCredential,
@@ -166,6 +167,7 @@ export function ConnectSlackBotModal({
   // window.location.origin) so Slack's servers can reach it.
   const requestUrl = buildSlackCustomBotRequestUrl(credentialId)
 
+  const nameError = isReconnect ? null : getSlackAppNameError(appName)
   const descriptionError = getAgentDescriptionError(appDescription)
   const slashCommandsError = searchOnly || isReconnect ? null : getSlashCommandsError(slashCommands)
   const manifestConfigurationError = descriptionError ?? slashCommandsError
@@ -191,7 +193,7 @@ export function ConnectSlackBotModal({
       ),
       ...(managedUserAuthorization ? { managedUserAuthorization } : {}),
     })
-    return JSON.stringify(manifest, null, 2)
+    return JSON.stringify(manifest)
   }, [
     isReconnect,
     manifestConfigurationError,
@@ -269,12 +271,13 @@ export function ConnectSlackBotModal({
           fallback, which collides for a second bot in the same workspace. */}
       <Wizard.Step
         title={searchOnly ? 'Name your Slack app' : 'Configure your bot'}
-        canAdvance={appName.trim().length > 0 && !descriptionError && !slashCommandsError}
+        canAdvance={appName.trim().length > 0 && !nameError && !manifestConfigurationError}
       >
         <StepConfigure
           searchOnly={searchOnly}
           reconnect={isReconnect}
           appName={appName}
+          nameError={appName ? nameError : null}
           onAppNameChange={setAppName}
           appDescription={appDescription}
           onAppDescriptionChange={setAppDescription}
@@ -336,6 +339,7 @@ interface StepConfigureProps {
   searchOnly: boolean
   reconnect: boolean
   appName: string
+  nameError: string | null
   onAppNameChange: (next: string) => void
   appDescription: string
   onAppDescriptionChange: (next: string) => void
@@ -350,6 +354,7 @@ function StepConfigure({
   searchOnly,
   reconnect,
   appName,
+  nameError,
   onAppNameChange,
   appDescription,
   onAppDescriptionChange,
@@ -371,6 +376,7 @@ function StepConfigure({
         value={appName}
         onChange={onAppNameChange}
         placeholder={DEFAULT_APP_NAME}
+        error={nameError}
       />
       <ChipModalField
         type='input'
@@ -520,34 +526,16 @@ function StepCreate({ manifestJson, reconnect }: StepCreateProps) {
     <div className='space-y-4'>
       <SubStepList>
         <SubStep n={1}>
-          <div>Copy the manifest for your selected permissions:</div>
+          <div>Open Slack with the manifest for your selected permissions already filled in:</div>
           <div className='mt-2'>
-            <SlackAppManifest manifest={manifestJson} />
+            <SlackAppManifest
+              manifest={manifestJson}
+              createAppUrl={buildSlackAppCreationUrl(manifestJson)}
+            />
           </div>
         </SubStep>
         <SubStep n={2}>
-          Open the{' '}
-          <a
-            href='https://api.slack.com/apps'
-            target='_blank'
-            rel='noopener noreferrer'
-            className='text-[var(--brand-secondary)] underline underline-offset-2'
-          >
-            Slack Apps page
-          </a>
-          .
-        </SubStep>
-        <SubStep n={3}>
-          Click <strong>Create New App</strong> → <strong>From a manifest</strong> and pick your
-          workspace.
-        </SubStep>
-        <SubStep n={4}>
-          Select <strong>JSON</strong>, paste the manifest, then click <strong>Next</strong> →{' '}
-          <strong>Create</strong>.
-        </SubStep>
-        <SubStep n={5}>
-          In <strong>App Manifest</strong>, verify the event <strong>Request URL</strong> if shown.
-          You can verify it before connecting the bot.
+          Select your workspace, review the configuration, then click <strong>Create</strong>.
         </SubStep>
       </SubStepList>
     </div>

@@ -1,16 +1,33 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, Code, useCopyToClipboard } from '@sim/emcn'
+import { Chip, ChipLink, Code, useCopyToClipboard } from '@sim/emcn'
 import { Check, Clipboard } from '@sim/emcn/icons'
 
 interface SlackAppManifestProps {
   manifest: string
+  createAppUrl?: string
   disabled?: boolean
 }
 
-/** Shared copy action and optional preview for Slack app setup flows. */
-export function SlackAppManifest({ manifest, disabled }: SlackAppManifestProps) {
+/** Opens new app creation or provides the manifest for updating an existing app. */
+export function SlackAppManifest({ manifest, createAppUrl, disabled }: SlackAppManifestProps) {
+  if (createAppUrl) {
+    return disabled || !manifest ? (
+      <Chip variant='primary' disabled>
+        Create Slack app
+      </Chip>
+    ) : (
+      <ChipLink variant='primary' href={createAppUrl} target='_blank' rel='noopener noreferrer'>
+        Create Slack app
+      </ChipLink>
+    )
+  }
+
+  return <SlackManifestUpdate manifest={manifest} disabled={disabled} />
+}
+
+function SlackManifestUpdate({ manifest, disabled }: Omit<SlackAppManifestProps, 'createAppUrl'>) {
   const { copied, copy } = useCopyToClipboard()
   const [copiedManifest, setCopiedManifest] = useState<string | null>(null)
   const [copyFailed, setCopyFailed] = useState(false)
@@ -28,7 +45,7 @@ export function SlackAppManifest({ manifest, disabled }: SlackAppManifestProps) 
 
   return (
     <div className='space-y-2'>
-      <div className='flex items-center gap-2'>
+      <div className='flex flex-wrap items-center gap-2'>
         <Chip
           variant='primary'
           leftIcon={showCopied ? Check : Clipboard}

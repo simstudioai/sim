@@ -5,7 +5,6 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   loading: true,
-  copy: vi.fn(),
 }))
 vi.mock('@/hooks/use-webhook-management', () => ({
   useWebhookManagement: () => ({
@@ -31,10 +30,9 @@ import { SlackSetupWizard } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
+  vi.useFakeTimers()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  vi.stubGlobal('navigator', { clipboard: { writeText: mocks.copy } })
   mocks.loading = true
-  mocks.copy.mockReset().mockResolvedValue(undefined)
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -43,6 +41,7 @@ afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 async function render() {
   await act(async () => root.render(<SlackSetupWizard blockId='block-1' />))
@@ -66,48 +65,6 @@ async function fill(placeholder: string, value: string) {
   })
 }
 
-it('waits for the webhook URL without requiring an early deployment, then copies the current manifest', async () => {
-  await render()
-  await click('Set up Slack app')
-  await click('Next')
-  expect(button('Copy manifest')).toBeDisabled()
-  expect(button('Next')).toBeDisabled()
-  expect(document.body).toHaveTextContent('Loading the webhook URL')
-  expect(document.body).not.toHaveTextContent('Deploy once')
-  mocks.loading = false
-  await render()
-  await click('Copy manifest')
-  const manifest = JSON.parse(mocks.copy.mock.calls[0][0])
-  expect(manifest.display_information.name).toBe('Test workflow bot')
-  expect(manifest.settings.event_subscriptions.request_url).toBe(
-    'https://sim.test/api/webhooks/trigger/block-1'
-  )
-})
-
-it('collects the token before the signing secret and retains both when going back', async () => {
-  mocks.loading = false
-  await render()
-  await click('Set up Slack app')
-  await click('Next')
-  await click('Next')
-  expect(button('Next')).toBeDisabled()
-  expect(document.querySelector('input[placeholder="xoxb-..."]')).toHaveAccessibleName('Bot Token')
-  await fill('xoxb-...', 'xoxb-test-token')
-  await click('Next')
-  expect(button('Next')).toBeDisabled()
-  expect(
-    document.querySelector('input[placeholder="Paste your signing secret"]')
-  ).toHaveAccessibleName('Signing Secret')
-  await fill('Paste your signing secret', 'test-secret')
-  await click('Back')
-  await click('Next')
-  expect(button('Next')).not.toBeDisabled()
-  await click('Next')
-  expect(document.body).toHaveTextContent('save and deploy the workflow with these credentials')
-  expect(document.body).toHaveTextContent('verify the event Request URL')
-  expect(document.body).not.toHaveTextContent('automatically')
-})
-
 it('uses the existing default name when the bot name is cleared', async () => {
   mocks.loading = false
   await render()
@@ -115,6 +72,7 @@ it('uses the existing default name when the bot name is cleared', async () => {
   await fill('Sim Workflow Bot', '')
   expect(button('Next')).not.toBeDisabled()
   await click('Next')
-  await click('Copy manifest')
-  expect(JSON.parse(mocks.copy.mock.calls[0][0]).display_information.name).toBe('Sim Workflow Bot')
+  const link = document.querySelector<HTMLAnchorElement>('a[href*="manifest_json"]')!
+  const manifest = JSON.parse(new URL(link.href).searchParams.get('manifest_json')!)
+  expect(manifest.display_information.name).toBe('Sim Workflow Bot')
 })
