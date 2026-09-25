@@ -10,6 +10,10 @@ import {
 import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { mcpUseCasesMock, mcpUseCasesMockFns } from '@sim/testing/mocks/mcp-use-cases.mock'
 import {
+  mothershipChatWorkspaceContextMock,
+  mothershipChatWorkspaceContextMockFns,
+} from '@sim/testing/mocks/mothership-chat-workspace-context.mock'
+import {
   mothershipWorkspaceTargetMock,
   mothershipWorkspaceTargetMockFns,
 } from '@sim/testing/mocks/mothership-workspace-target.mock'
@@ -57,6 +61,7 @@ const readTableUseCase = tableApplicationTablesMockFns.mockReadTableUseCase
 const isIntegrationDeploymentAvailable =
   integrationsAvailabilityMockFns.mockIsIntegrationDeploymentAvailableForVisibility
 const resolveInvocationWorkspace = mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace
+const readWorkspaceContext = mothershipChatWorkspaceContextMockFns.mockReadWorkspaceContextExecute
 
 const {
   getSkillUseCase,
@@ -95,6 +100,10 @@ const {
 }))
 
 vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
+vi.mock(
+  '@/lib/mothership/chat/application/workspace-context',
+  () => mothershipChatWorkspaceContextMock
+)
 
 vi.mock('@/lib/mothership/block-visibility', () => ({ getBlockVisibilityForCopilot }))
 vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
@@ -1961,4 +1970,114 @@ it('does not treat a forged built-in identifier as a global template', async () 
   )
   expect(result).toEqual([])
   expect(getSkillUseCase).not.toHaveBeenCalled()
+})
+
+describe('organization resource mention targets', () => {
+  beforeEach(() => {
+    resolveInvocationWorkspace.mockReset()
+    resolveInvocationWorkspace.mockImplementation(async (_owner, workspaceId) => {
+      if (workspaceId !== 'workspace-a') throw new Error('denied')
+      return { workspaceId }
+    })
+    readWorkflowMetadata.mockReset()
+    readWorkflowMetadata.mockResolvedValue({
+      workflow: { id: 'workflow-1', workspaceId: 'workspace-a', name: 'Lead intake' },
+      folderPath: '/',
+    })
+    listWorkflowFolders.mockClear()
+    listWorkflowFolders.mockResolvedValue({
+      folders: [{ id: 'folder-1', name: 'Leads', parentId: null }],
+    })
+  })
+
+  it('reads each tagged resource in its authorized owner workspace', async () => {
+    const result = await processContextsServer(
+      [
+        { kind: 'workflow', workflowId: 'workflow-1', label: 'Intake', workspaceId: 'workspace-a' },
+        { kind: 'folder', folderId: 'folder-1', label: 'Leads', workspaceId: 'workspace-a' },
+      ],
+      'user',
+      '',
+      undefined,
+      'chat',
+      undefined,
+      'org'
+    )
+    expect(result.map((context) => context.content.split('\n')[0])).toEqual([
+      'Workspace workspace-a:',
+      'Workspace workspace-a:',
+    ])
+    expect(readWorkflowMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: { workflowId: 'workflow-1', assertedWorkspaceId: 'workspace-a' },
+      })
+    )
+    expect(listWorkflowFolders).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ workspaceId: 'workspace-a' }) })
+    )
+  })
+
+  it('reads nothing for a resource whose owner workspace is not authorized for the chat', async () => {
+    const result = await processContextsServer(
+      [{ kind: 'workflow', workflowId: 'workflow-1', label: 'Foreign', workspaceId: 'foreign' }],
+      'user',
+      '',
+      undefined,
+      'chat',
+      undefined,
+      'org'
+    )
+    expect(result).toEqual([])
+    expect(readWorkflowMetadata).not.toHaveBeenCalled()
+  })
+})
+
+describe('workspace mentions', () => {
+  const workspaceMention: ChatContext = {
+    kind: 'workspace',
+    workspaceId: 'workspace-a',
+    label: 'Sales',
+  }
+
+  beforeEach(() => {
+    readWorkspaceContext.mockReset()
+  })
+
+  it('describes the workspace through the authorized organization discovery', async () => {
+    readWorkspaceContext.mockResolvedValue({
+      success: true,
+      workspaces: [{ id: 'workspace-a', name: 'Sales', role: 'write' }],
+      nextCursor: null,
+    })
+    const [context] = await processContextsServer(
+      [workspaceMention],
+      'user',
+      '',
+      undefined,
+      'chat',
+      undefined,
+      'org'
+    )
+    expect(context?.type).toBe('workspace')
+    expect(context?.tag).toBe('@Sales')
+    expect(context?.content).toContain('{"id":"workspace-a","name":"Sales","role":"write"}')
+    expect(readWorkspaceContext).toHaveBeenCalledWith(
+      expect.objectContaining({ input: { workspaceId: 'workspace-a' } })
+    )
+  })
+
+  it('drops a workspace that organization discovery does not return', async () => {
+    readWorkspaceContext.mockResolvedValue({ success: true, workspaces: [], nextCursor: null })
+    expect(
+      await processContextsServer(
+        [workspaceMention],
+        'user',
+        '',
+        undefined,
+        'chat',
+        undefined,
+        'org'
+      )
+    ).toEqual([])
+  })
 })

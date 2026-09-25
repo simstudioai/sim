@@ -39,7 +39,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { useWorkspacesQuery } from '@/hooks/queries/workspace'
+import { useOrderedWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSettledTerminalCommands } from '@/hooks/use-settled-terminal-commands'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'
@@ -94,6 +94,8 @@ interface PlusMenuDropdownProps {
    */
   warm?: boolean
   onResourceSelect: (resource: MothershipResource) => void
+  /** Tags a whole workspace; offered only in organization chats. */
+  onWorkspaceSelect: (workspace: { id: string; name: string }) => void
   onClose: () => void
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
   pendingCursorRef: React.MutableRefObject<number | null>
@@ -108,6 +110,7 @@ export const PlusMenuDropdown = React.memo(
       organizationId,
       warm,
       onResourceSelect,
+      onWorkspaceSelect,
       onClose,
       textareaRef,
       pendingCursorRef,
@@ -138,7 +141,7 @@ export const PlusMenuDropdown = React.memo(
       enabled: inventoryEnabled,
       includeFolderMentions: true,
     })
-    const { data: allWorkspaces = [], isPending: workspacesPending } = useWorkspacesQuery(
+    const { data: allWorkspaces = [], isPending: workspacesPending } = useOrderedWorkspacesQuery(
       Boolean(organizationId) && inventoryEnabled
     )
     const workspaces = allWorkspaces.filter(
@@ -238,11 +241,20 @@ export const PlusMenuDropdown = React.memo(
       if (isMention) setActiveIndex(0)
     }, [isMention, mentionQuery])
 
-    const handleSelect = (resource: MothershipResource) => {
-      onResourceSelect(resource)
+    const closeAfterSelect = () => {
       setOpen(false)
       setSearch('')
       setActiveIndex(0)
+    }
+
+    const handleSelect = (resource: MothershipResource) => {
+      onResourceSelect(resource)
+      closeAfterSelect()
+    }
+
+    const handleWorkspaceSelect = (workspace: { id: string; name: string }) => {
+      onWorkspaceSelect(workspace)
+      closeAfterSelect()
     }
 
     const handleSelectRef = useRef(handleSelect)
@@ -413,6 +425,7 @@ export const PlusMenuDropdown = React.memo(
                     excludeTypes={WORKSPACE_SUBMENU_EXCLUDED_TYPES}
                     selectFolders
                     onSelect={handleSelect}
+                    onSelectWorkspace={handleWorkspaceSelect}
                   />
                 ))}
               <ResourceMenuSections

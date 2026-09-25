@@ -27,6 +27,7 @@ const PORTABLE_KIND_TO_ID_FIELD = {
   file: 'fileId',
   folder: 'folderId',
   filefolder: 'fileFolderId',
+  workspace: 'workspaceId',
   knowledge: 'knowledgeId',
   past_chat: 'chatId',
   workflow: 'workflowId',
@@ -243,6 +244,8 @@ export function chipLinkToContext(link: ParsedChipLink): ChatContext {
       return { kind: 'folder', folderId: link.id, label: link.label }
     case 'filefolder':
       return { kind: 'filefolder', fileFolderId: link.id, label: link.label }
+    case 'workspace':
+      return { kind: 'workspace', workspaceId: link.id, label: link.label }
     case 'knowledge':
       return { kind: 'knowledge', knowledgeId: link.id, label: link.label }
     case 'past_chat':

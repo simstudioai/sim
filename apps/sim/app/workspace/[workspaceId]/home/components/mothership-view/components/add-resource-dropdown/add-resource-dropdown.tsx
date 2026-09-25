@@ -17,8 +17,10 @@ import {
   Tooltip,
 } from '@sim/emcn'
 import { Folder, Plus } from '@sim/emcn/icons'
+import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { isTerminalAvailable } from '@/lib/terminal/transport'
+import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import {
   type AvailableItemsByType,
   type AvailableResources,
@@ -45,7 +47,7 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { useWorkspacesQuery } from '@/hooks/queries/workspace'
+import { useOrderedWorkspacesQuery, type Workspace } from '@/hooks/queries/workspace'
 
 export interface AddResourceDropdownProps {
   workspaceId?: string
@@ -437,11 +439,16 @@ function WorkspaceResourceMenuContent({
 }
 
 interface WorkspaceResourceSubmenuProps {
-  workspace: { id: string; name: string }
+  workspace: Pick<Workspace, 'id' | 'name' | 'logoUrl'>
   /** Must be referentially stable (a module constant) — it keys the group memo. */
   excludeTypes?: readonly MothershipResourceType[]
   selectFolders?: boolean
   onSelect: (resource: MothershipResource) => void
+  /**
+   * Offers the workspace itself as the first entry, the way a folder submenu
+   * offers its folder, for pickers that can attach a whole workspace.
+   */
+  onSelectWorkspace?: (workspace: Pick<Workspace, 'id' | 'name'>) => void
 }
 
 /**
@@ -453,14 +460,25 @@ export function WorkspaceResourceSubmenu({
   excludeTypes,
   selectFolders,
   onSelect,
+  onSelectWorkspace,
 }: WorkspaceResourceSubmenuProps) {
   const [open, setOpen] = useState(false)
+  const icon = (
+    <IdentityTile initial={getWorkspaceInitial(workspace.name)} logoUrl={workspace.logoUrl} />
+  )
   return (
     <DropdownMenuSub open={open} onOpenChange={setOpen}>
       <DropdownMenuSubTrigger>
+        {icon}
         <DropdownMenuItemLabel label={workspace.name} />
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className='flex w-[320px] flex-col overflow-hidden'>
+        {onSelectWorkspace && (
+          <DropdownMenuItem onClick={() => onSelectWorkspace(workspace)}>
+            {icon}
+            <DropdownMenuItemLabel label={workspace.name} />
+          </DropdownMenuItem>
+        )}
         <WorkspaceResourceMenuContent
           workspaceId={workspace.id}
           enabled={open}
@@ -485,7 +503,7 @@ export function AddResourceDropdown({
   onClose,
 }: AddResourceDropdownProps) {
   const [open, setOpen] = useState(false)
-  const { data: allWorkspaces = [] } = useWorkspacesQuery(open && Boolean(organizationId))
+  const { data: allWorkspaces = [] } = useOrderedWorkspacesQuery(open && Boolean(organizationId))
   const workspaces = allWorkspaces.filter(
     (workspace) => workspace.organizationId === organizationId
   )
