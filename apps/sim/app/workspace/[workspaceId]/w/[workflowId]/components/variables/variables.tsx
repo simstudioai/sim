@@ -133,7 +133,7 @@ function VariableHeader({
           e.stopPropagation()
           onRemove()
         }}
-        className='h-auto p-0'
+        size='bare'
         disabled={readOnly}
         aria-label={`Delete ${variable.name || `variable ${index + 1}`}`}
       >

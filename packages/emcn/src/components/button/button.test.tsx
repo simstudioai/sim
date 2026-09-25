@@ -70,6 +70,16 @@ describe('Button iconSize', () => {
 })
 
 describe('Button shared action geometry', () => {
+  it('keeps the existing zero-padding workflow action geometry', () => {
+    const before = renderToStaticMarkup(
+      <Button variant='ghost-destructive' className='h-auto p-0' aria-label='Delete condition' />
+    )
+    const after = renderToStaticMarkup(
+      <Button variant='ghost-destructive' size='bare' aria-label='Delete condition' />
+    )
+    expect(normalizeClasses(after)).toBe(normalizeClasses(before))
+  })
+
   it('composes responsive geometry, explicit padding and round shape without changing icon treatment', () => {
     const markup = renderToStaticMarkup(
       <Button

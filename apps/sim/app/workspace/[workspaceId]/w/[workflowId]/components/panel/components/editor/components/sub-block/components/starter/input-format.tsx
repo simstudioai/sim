@@ -412,7 +412,7 @@ export function FieldFormat({
         className='flex items-center gap-2 pl-2'
         onClick={(e) => e.stopPropagation()}
       >
-        <Button variant='ghost' onClick={addField} disabled={isReadOnly} className='h-auto p-0'>
+        <Button variant='ghost' onClick={addField} disabled={isReadOnly} size='bare'>
           <Plus className='size-[14px]' />
           <span className='sr-only'>Add {title}</span>
         </Button>

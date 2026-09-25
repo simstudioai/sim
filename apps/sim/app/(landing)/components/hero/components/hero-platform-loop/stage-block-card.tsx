@@ -373,7 +373,7 @@ export function StageBlockCard({
             hasContentBelowHeader ? 'h-[40px]' : 'h-[48px]'
           )}
         >
-          <span className='min-w-0 flex-1 truncate text-[var(--text-primary)] text-md'>
+          <span className='min-w-0 flex-1 truncate text-[17px] text-[var(--text-primary)]'>
             {block.name}
           </span>
           <WorkflowTypeTag

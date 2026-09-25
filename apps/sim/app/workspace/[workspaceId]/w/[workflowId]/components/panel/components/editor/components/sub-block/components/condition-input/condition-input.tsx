@@ -966,7 +966,7 @@ export function ConditionInput({
                         disabled ||
                         (!isRouterMode && isElseConditionTitle(block.title))
                       }
-                      className='h-auto p-0'
+                      size='bare'
                     >
                       <Plus className='size-[14px]' />
                       <span className='sr-only'>Add Block</span>
@@ -986,7 +986,7 @@ export function ConditionInput({
                         disabled ||
                         (!isRouterMode && isElseConditionTitle(block.title))
                       }
-                      className='h-auto p-0'
+                      size='bare'
                     >
                       <ChevronUp className='size-[14px]' />
                       <span className='sr-only'>Move Up</span>
@@ -1008,7 +1008,7 @@ export function ConditionInput({
                           isElseConditionTitle(conditionalBlocks[index + 1]?.title)) ||
                         (!isRouterMode && isElseConditionTitle(block.title))
                       }
-                      className='h-auto p-0'
+                      size='bare'
                     >
                       <ChevronDown className='size-[14px]' />
                       <span className='sr-only'>Move Down</span>
@@ -1025,7 +1025,7 @@ export function ConditionInput({
                       disabled={
                         isPreview || disabled || conditionalBlocks.length <= (isRouterMode ? 1 : 2)
                       }
-                      className='h-auto p-0'
+                      size='bare'
                     >
                       <Trash className='size-[14px]' />
                       <span className='sr-only'>Delete Block</span>

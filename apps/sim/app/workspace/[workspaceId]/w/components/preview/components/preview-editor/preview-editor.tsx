@@ -582,7 +582,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
     <div className='flex-1 overflow-y-auto overflow-x-hidden pt-2 pb-2'>
       {/* Type Selection - matches SubflowEditor */}
       <div data-preview-readonly>
-        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
+        <Label className='mb-[6.5px] block pl-0.5 text-small'>
           {isLoop ? 'Loop Type' : 'Parallel Type'}
         </Label>
         <Combobox

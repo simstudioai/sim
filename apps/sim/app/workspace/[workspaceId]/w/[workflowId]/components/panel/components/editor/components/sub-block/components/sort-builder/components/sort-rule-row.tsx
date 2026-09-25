@@ -88,7 +88,7 @@ export function SortRuleRow({
 
   const renderActions = () => (
     <>
-      <Button variant='ghost' onClick={onAdd} disabled={isReadOnly} className='h-auto p-0'>
+      <Button variant='ghost' onClick={onAdd} disabled={isReadOnly} size='bare'>
         <Plus className='size-[14px]' />
         <span className='sr-only'>Add Sort</span>
       </Button>
@@ -96,7 +96,7 @@ export function SortRuleRow({
         variant='ghost-destructive'
         onClick={() => onRemove(rule.id)}
         disabled={isReadOnly}
-        className='h-auto p-0'
+        size='bare'
       >
         <Trash className='size-[14px]' />
         <span className='sr-only'>Delete Sort</span>

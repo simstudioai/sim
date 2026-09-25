@@ -257,7 +257,7 @@ export function KnowledgeTagFilters({
           addFilter()
         }}
         disabled={isReadOnly}
-        className='h-auto p-0'
+        size='bare'
       >
         <Plus className='size-[14px]' />
         <span className='sr-only'>Add Filter</span>
@@ -269,7 +269,7 @@ export function KnowledgeTagFilters({
           removeFilter(filter.id)
         }}
         disabled={isReadOnly}
-        className='h-auto p-0'
+        size='bare'
       >
         <Trash className='size-[14px]' />
         <span className='sr-only'>Delete Filter</span>

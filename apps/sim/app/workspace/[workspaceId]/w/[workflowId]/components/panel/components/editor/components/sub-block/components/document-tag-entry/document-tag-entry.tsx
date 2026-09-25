@@ -257,12 +257,7 @@ export function DocumentTagEntry({
 
   const renderActions = (tag: DocumentTag) => (
     <>
-      <Button
-        variant='ghost'
-        onClick={addTag}
-        disabled={isReadOnly || !canAddMoreTags}
-        className='h-auto p-0'
-      >
+      <Button variant='ghost' onClick={addTag} disabled={isReadOnly || !canAddMoreTags} size='bare'>
         <Plus className='size-[14px]' />
         <span className='sr-only'>Add Tag</span>
       </Button>
@@ -270,7 +265,7 @@ export function DocumentTagEntry({
         variant='ghost-destructive'
         onClick={() => removeTag(tag.id)}
         disabled={isReadOnly}
-        className='h-auto p-0'
+        size='bare'
       >
         <Trash className='size-[14px]' />
         <span className='sr-only'>Delete Tag</span>

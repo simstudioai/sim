@@ -422,7 +422,7 @@ export function VariablesInput({
                         addAssignment()
                       }}
                       disabled={isReadOnly || allVariablesAssigned}
-                      className='h-auto p-0'
+                      size='bare'
                     >
                       <Plus className='size-[14px]' />
                       <span className='sr-only'>Add Variable</span>
@@ -434,7 +434,7 @@ export function VariablesInput({
                         removeAssignment(assignment.id)
                       }}
                       disabled={isReadOnly}
-                      className='h-auto p-0'
+                      size='bare'
                     >
                       <Trash className='size-[14px]' />
                       <span className='sr-only'>Delete Variable</span>

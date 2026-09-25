@@ -61,6 +61,7 @@ const buttonVariants = cva(
         md: 'px-2 py-1.5 text-[length:12px]',
         icon: 'size-[20px] rounded-sm p-0 [&_svg]:[stroke-width:1.25]',
         inline: 'h-[20px] px-1.5 py-0 text-caption',
+        bare: 'h-auto p-0 text-[length:12px]',
       },
       iconSize: {
         compact: 'size-6 p-0',

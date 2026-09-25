@@ -381,9 +381,7 @@ export function ChatDeploy({
           </ChipModalField>
 
           <div className='px-2'>
-            <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-              Output
-            </Label>
+            <Label className='mb-[6.5px] block pl-0.5 text-small'>Output</Label>
             <OutputSelect
               workflowId={workflowId}
               selectedOutputs={formData.selectedOutputBlocks}
@@ -573,10 +571,7 @@ export function IdentifierInput({
 
   return (
     <div className='px-2'>
-      <Label
-        htmlFor='chat-url'
-        className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'
-      >
+      <Label htmlFor='chat-url' className='mb-[6.5px] block pl-0.5 text-small'>
         URL
       </Label>
       <div
