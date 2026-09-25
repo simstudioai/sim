@@ -15,11 +15,19 @@ import {
  * `setContent`. Both are safe because all access is synchronous and single-threaded — each call fully
  * completes before the next — so no call ever observes another's partial state. One bounded instance
  * for the session, not a per-call allocation.
+ *
+ * It is never mounted: a mounted view renders every document into the DOM and its mutation observer
+ * schedules flush timers nothing can cancel, which fire after a jsdom test environment is torn down.
+ * TipTap installs extension plugins only when it mounts, so they are installed here the same way, keeping
+ * normalization such as the trailing paragraph identical to the live editor.
  */
 let parser: Editor | null = null
 
 function parserEditor(): Editor {
-  if (!parser) parser = new Editor({ extensions: createMarkdownContentExtensions() })
+  if (!parser) {
+    parser = new Editor({ element: null, extensions: createMarkdownContentExtensions() })
+    parser.view.updateState(parser.state.reconfigure({ plugins: parser.extensionManager.plugins }))
+  }
   return parser
 }
 
