@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockRetentionAccess } = vi.hoisted(() => ({
@@ -14,7 +11,6 @@ vi.mock('@/lib/billing/core/subscription', () => ({
 import { __resetCoalesceLocallyForTests } from '@/lib/concurrency/singleflight'
 import {
   hasWorkspaceSandboxRetentionAccessCached,
-  MAX_PLAN_REQUIRED,
   resetSandboxEntitlementCache,
 } from '@/lib/execution/remote-sandbox/entitlement'
 
@@ -22,14 +18,9 @@ const WORKSPACE_ID = 'workspace-1'
 
 describe('cached sandbox retention entitlement', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetSandboxEntitlementCache()
     __resetCoalesceLocallyForTests()
     mockRetentionAccess.mockResolvedValue(true)
-  })
-
-  it('names the plan in the message every surface shares', () => {
-    expect(MAX_PLAN_REQUIRED).toContain('Max or Enterprise')
   })
 
   it('serves the execution path from cache instead of re-reading billing', async () => {

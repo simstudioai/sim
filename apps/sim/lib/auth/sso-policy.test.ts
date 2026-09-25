@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { organization } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -35,7 +32,6 @@ beforeAll(() => {
 afterAll(resetEnvFlagsMock)
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   invalidateSsoPolicyCache(ORG_ID)
   invalidateSsoPolicyCache('org-owned')

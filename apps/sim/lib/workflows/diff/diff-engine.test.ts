@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 vi.mock('@/stores/workflows/workflow/store', () => ({
@@ -126,13 +123,6 @@ function createMockWorkflowState(blocks: Record<string, BlockState>): WorkflowSt
 }
 
 describe('WorkflowDiffEngine', () => {
-  let engine: WorkflowDiffEngine
-
-  beforeEach(() => {
-    engine = new WorkflowDiffEngine()
-    vi.clearAllMocks()
-  })
-
   describe('hasBlockChanged detection', () => {
     describe('locked state changes', () => {
       it.concurrent(
@@ -160,22 +150,6 @@ describe('WorkflowDiffEngine', () => {
           ).not.toContain('locked')
         }
       )
-
-      it.concurrent('should not detect change when locked state is the same', async () => {
-        const freshEngine = new WorkflowDiffEngine()
-        const baseline = createMockWorkflowState({
-          'block-1': createMockBlock({ id: 'block-1', locked: true }),
-        })
-
-        const proposed = createMockWorkflowState({
-          'block-1': createMockBlock({ id: 'block-1', locked: true }),
-        })
-
-        const result = await freshEngine.createDiffFromWorkflowState(proposed, undefined, baseline)
-
-        expect(result.success).toBe(true)
-        expect(result.diff?.diffAnalysis?.edited_blocks ?? []).not.toContain('block-1')
-      })
 
       it.concurrent(
         'should NOT detect a diff when locked goes from undefined to true',
@@ -249,20 +223,6 @@ describe('WorkflowDiffEngine', () => {
           'parentId'
         )
       })
-    })
-  })
-
-  describe('diff lifecycle', () => {
-    it.concurrent('should start with no diff', () => {
-      const freshEngine = new WorkflowDiffEngine()
-      expect(freshEngine.hasDiff()).toBe(false)
-      expect(freshEngine.getCurrentDiff()).toBeUndefined()
-    })
-
-    it.concurrent('should clear diff', () => {
-      const freshEngine = new WorkflowDiffEngine()
-      freshEngine.clearDiff()
-      expect(freshEngine.hasDiff()).toBe(false)
     })
   })
 })

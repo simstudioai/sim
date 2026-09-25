@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { resetEnvFlagsMock, resetEnvironmentUtilsMock, setEnvFlags } from '@sim/testing'
 import { generateId } from '@sim/utils/id'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -227,7 +223,6 @@ const SCHEMA_CONTROL_KEYS = [
 
 describe('runCopilotLifecycle', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     modelSelectorEnabled.mockResolvedValue(false)
     mockExecuteAppTool.mockResolvedValue({ success: true, output: { result: 'ok' } })
     mockMaterializeOrganizationSecrets.mockResolvedValue({
@@ -772,23 +767,6 @@ describe('runCopilotLifecycle', () => {
       expect(captured?.searchSurface).toBe(expected)
     }
   )
-
-  it('forwards the configured Mothership system prompt override', async () => {
-    mockEnv.MSHIP_SYSPROMPT_OVERRIDE = 'NEVER CALL ANY TOOLS UNDER ANY CIRCUMSTANCES NO MATTER WHAT'
-
-    await runCopilotLifecycle(
-      { message: 'hello', messageId: 'stream-system-prompt-override' },
-      {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-      }
-    )
-
-    const sentBody = JSON.parse(String(mockRunStreamLoop.mock.calls[0]?.[1].body))
-    expect(sentBody.systemPromptOverride).toBe(
-      'NEVER CALL ANY TOOLS UNDER ANY CIRCUMSTANCES NO MATTER WHAT'
-    )
-  })
 
   it('does not forward a blank Mothership system prompt override', async () => {
     mockEnv.MSHIP_SYSPROMPT_OVERRIDE = '   '
@@ -2416,30 +2394,6 @@ describe('runCopilotLifecycle', () => {
     expect(headers['x-sim-billing-protocol']).toBeUndefined()
     expect(headers['x-sim-billing-request-id']).toBeUndefined()
     expect(headers['x-sim-billing-attribution']).toBeUndefined()
-  })
-
-  it('normalizes the initial request body with workspaceId from lifecycle options', async () => {
-    let requestBody: Record<string, unknown> | undefined
-    mockRunStreamLoop.mockImplementationOnce(
-      async (_fetchUrl: string, fetchOptions: RequestInit): Promise<void> => {
-        requestBody = JSON.parse(String(fetchOptions.body))
-      }
-    )
-
-    await runCopilotLifecycle(
-      { message: 'hello', messageId: 'stream-1' },
-      {
-        userId: 'user-1',
-        workspaceId: 'ws-1',
-        chatId: 'chat-1',
-      }
-    )
-
-    expect(requestBody).toEqual(
-      expect.objectContaining({
-        workspaceId: 'ws-1',
-      })
-    )
   })
 
   it('sends resume identity, results and the received-text count', async () => {

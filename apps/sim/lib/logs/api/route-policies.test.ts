@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { resetEnvMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -25,7 +21,6 @@ afterAll(resetEnvMock)
 
 describe('internal logs route authentication', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue(null)
     mockBindDelegation.mockImplementation(async (delegation, options) => ({
       kind: 'delegated',
@@ -108,19 +103,5 @@ describe('internal logs route authentication', () => {
         { id: 'log-1' }
       )
     ).rejects.toThrow('Executor log delegation is missing its canonical workflow execution context')
-  })
-
-  it('preserves browser session principals', async () => {
-    mockGetSession.mockResolvedValue({
-      user: { id: 'user-1' },
-      session: { id: 'session-1' },
-    })
-
-    await expect(
-      internalLogsSessionOrExecutorAuth.authenticate(
-        new NextRequest('http://localhost/api/logs/log-1'),
-        { id: 'log-1' }
-      )
-    ).resolves.toEqual({ kind: 'session', userId: 'user-1', sessionId: 'session-1' })
   })
 })

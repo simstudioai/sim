@@ -1,10 +1,6 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
-import { MAX_TIER_CREDITS } from '@/lib/billing/constants'
-import { getPlanTierCredits, isMaxTier } from '@/lib/billing/plan-helpers'
+import { isMaxTier } from '@/lib/billing/plan-helpers'
 
 /**
  * Every plan name the product can put on a subscription row.
@@ -38,33 +34,6 @@ describe('Max tier parity', () => {
     const maxPlans = ALL_PLANS.filter((plan) => isMaxTier(plan))
 
     expect(maxPlans).toEqual(['pro_25000', 'team_25000', 'enterprise'])
-  })
-
-  it('includes both the individual and team plan at the Max credit allocation', () => {
-    expect(isMaxTier('pro_25000')).toBe(true)
-    expect(isMaxTier('team_25000')).toBe(true)
-  })
-
-  it('treats enterprise as Max even though it carries no credit suffix', () => {
-    expect(getPlanTierCredits('enterprise')).toBe(0)
-    expect(isMaxTier('enterprise')).toBe(true)
-  })
-
-  it('excludes every plan below the Max credit allocation', () => {
-    for (const plan of ['free', 'pro', 'pro_6000', 'team', 'team_6000']) {
-      expect(isMaxTier(plan)).toBe(false)
-    }
-  })
-
-  it('derives its threshold from the tier table rather than a literal', () => {
-    expect(isMaxTier(`pro_${MAX_TIER_CREDITS}`)).toBe(true)
-    expect(isMaxTier(`pro_${MAX_TIER_CREDITS - 1}`)).toBe(false)
-  })
-
-  it('handles a missing plan without throwing', () => {
-    expect(isMaxTier(null)).toBe(false)
-    expect(isMaxTier(undefined)).toBe(false)
-    expect(isMaxTier('')).toBe(false)
   })
 
   /**

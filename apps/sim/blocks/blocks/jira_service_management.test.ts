@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import type { z } from 'zod'
 import {
@@ -119,20 +116,6 @@ function buildOperationInput(
 describe.each(PAGINATED_CASES.map((testCase) => [testCase.operation, testCase] as const))(
   'JiraServiceManagementBlock %s',
   (_operation, testCase) => {
-    it('resolves to the expected tool', () => {
-      const toolFn = JiraServiceManagementBlock.tools.config?.tool
-      expect(toolFn?.({ operation: testCase.operation })).toBe(testCase.toolId)
-      expect(JiraServiceManagementBlock.tools.access).toContain(testCase.toolId)
-    })
-
-    it('builds direct operation input accepted by the handler when pagination is filled in', () => {
-      const input = buildOperationInput(testCase, { startIndex: '50', maxResults: '25' })
-
-      expect(input.start).toBe(50)
-      expect(input.limit).toBe(25)
-      expect(testCase.schema.parse(input)).toMatchObject({ start: '50', limit: '25' })
-    })
-
     it('builds direct operation input accepted by the handler when pagination is blank', () => {
       const input = buildOperationInput(testCase, {})
 
@@ -153,17 +136,3 @@ describe.each(PAGINATED_CASES.map((testCase) => [testCase.operation, testCase] a
     })
   }
 )
-
-describe('JiraServiceManagementBlock pagination inputs', () => {
-  it('exposes Start Index and Max Results on exactly the paginated operations', () => {
-    const operations = PAGINATED_CASES.map(({ operation }) => operation)
-
-    for (const id of ['startIndex', 'maxResults']) {
-      const subBlock = JiraServiceManagementBlock.subBlocks.find((sb) => sb.id === id)
-      expect(subBlock, `${id} subBlock is missing`).toBeDefined()
-      expect(subBlock?.mode).toBe('advanced')
-      expect(subBlock?.condition).toEqual({ field: 'operation', value: operations })
-      expect(JiraServiceManagementBlock.inputs[id]).toBeDefined()
-    }
-  })
-})

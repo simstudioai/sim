@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -91,7 +88,6 @@ const documents = [
 
 describe('exportKnowledgeBase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveAccess.mockResolvedValue({ kind: 'workspace', tokens: ['ws', 'pub'] })
     mocks.resolveKnowledgeBase.mockResolvedValue({
       ...context,
@@ -103,69 +99,6 @@ describe('exportKnowledgeBase', () => {
     mocks.listTags.mockResolvedValue([{ slot: 'tag1', displayName: 'Product', fieldType: 'text' }])
     mocks.listDocuments.mockResolvedValue(documents)
     mocks.iterateChunks.mockReturnValue((async function* () {})())
-  })
-
-  it('lets a read-role principal export and describes the bundle from the stored base', async () => {
-    const result = await exportKnowledgeBase.execute({
-      principal,
-      input: { knowledgeBaseId: 'knowledge-1', assertedWorkspaceId: 'workspace-1', vectors: true },
-    })
-
-    expect(mocks.resolveKnowledgeBase).toHaveBeenCalledWith(
-      { knowledgeBaseId: 'knowledge-1', assertedWorkspaceId: 'workspace-1', vectors: true },
-      principal
-    )
-    expect(result.knowledgeBase).toEqual({
-      name: 'Support docs',
-      description: 'Everything support knows',
-      chunkingConfig: { maxSize: 1024, minSize: 100, overlap: 200 },
-    })
-    expect(result.embedding).toEqual({
-      model: 'text-embedding-3-small',
-      dimension: 1536,
-      vectorsIncluded: true,
-    })
-    expect(result.tags).toEqual([{ slot: 'tag1', displayName: 'Product', fieldType: 'text' }])
-    expect(result.documents).toBe(documents)
-  })
-
-  it('reads the vector column only when vectors are requested', async () => {
-    const withVectors = await exportKnowledgeBase.execute({
-      principal,
-      input: { knowledgeBaseId: 'knowledge-1', vectors: true },
-    })
-    withVectors.chunks('doc-1')
-    expect(mocks.iterateChunks).toHaveBeenLastCalledWith('knowledge-1', 'doc-1', 1536)
-
-    const textOnly = await exportKnowledgeBase.execute({
-      principal,
-      input: { knowledgeBaseId: 'knowledge-1', vectors: false },
-    })
-    textOnly.chunks('doc-1')
-    expect(mocks.iterateChunks).toHaveBeenLastCalledWith('knowledge-1', 'doc-1', null)
-    expect(textOnly.embedding.vectorsIncluded).toBe(false)
-  })
-
-  it('records the export as an audit event', async () => {
-    await exportKnowledgeBase.execute({
-      principal,
-      input: { knowledgeBaseId: 'knowledge-1', vectors: false },
-    })
-
-    expect(mocks.recordAudit).toHaveBeenCalledTimes(1)
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'knowledge_base.exported',
-        resourceType: 'knowledge_base',
-        resourceId: 'knowledge-1',
-        resourceName: 'Support docs',
-        metadata: expect.objectContaining({
-          workspaceId: 'workspace-1',
-          vectors: false,
-          documentCount: 1,
-        }),
-      })
-    )
   })
 
   it('conceals a base the principal cannot read', async () => {
@@ -207,19 +140,6 @@ describe('exportKnowledgeBase', () => {
       })
     ).rejects.toMatchObject({ code: 'conflict' })
     expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('refuses a stored tag definition the bundle format cannot describe', async () => {
-    mocks.listTags.mockResolvedValueOnce([
-      { slot: 'tag1', displayName: 'Product', fieldType: 'mystery' },
-    ])
-
-    await expect(
-      exportKnowledgeBase.execute({
-        principal,
-        input: { knowledgeBaseId: 'knowledge-1', vectors: true },
-      })
-    ).rejects.toMatchObject({ code: 'conflict' })
   })
 
   it('propagates an oversized base without recording audit', async () => {

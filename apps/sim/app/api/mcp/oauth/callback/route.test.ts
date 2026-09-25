@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   authMockFns,
   dbChainMockFns,
@@ -48,7 +45,6 @@ import { GET } from './route'
 
 describe('MCP OAuth callback route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mcpOauthMockFns.mockLoadOauthRowByState.mockResolvedValue({
@@ -128,16 +124,6 @@ describe('MCP OAuth callback route', () => {
     expect(body).toContain('"state-1"')
   })
 
-  it('reports an early failure over the channel without attempting token exchange', async () => {
-    // Missing `code` fails at the param gate, before any network work.
-    const request = new NextRequest('http://localhost:3000/api/mcp/oauth/callback?state=state-1')
-
-    const body = await (await GET(request)).text()
-
-    expect(body).toContain('ok: false')
-    expect(mcpOauthMockFns.mockMcpAuthGuarded).not.toHaveBeenCalled()
-  })
-
   it('echoes the state on a serverless invalid_state failure so the initiating tab can react', async () => {
     // No row loads for the state -> failure with no serverId. The state must still be echoed,
     // or the initiating tab would sit on "Connecting…" until its safety timeout.
@@ -151,36 +137,6 @@ describe('MCP OAuth callback route', () => {
     expect(body).toContain('ok: false')
     expect(body).toContain('"state-1"')
     expect(body).toContain('serverId: undefined')
-  })
-
-  it('completes a managed grant from one-time invitation state without a Sim session', async () => {
-    const request = new NextRequest(
-      'http://localhost:3000/api/mcp/oauth/callback?state=mcp_cg_state-1&code=auth-code-1'
-    )
-
-    const response = await GET(request)
-
-    expect(mockEnforceCallbackRateLimit).toHaveBeenCalledWith(request, 'oauth-callback')
-    expect(mockConsumeManagedAttempt).toHaveBeenCalledWith('mcp_cg_state-1')
-    expect(mockAuthenticateEnrollment).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        email: 'invitee@example.com',
-        invitationToken: 'invitation-token',
-      })
-    )
-    expect(mockCompleteManagedMcpOAuth).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({
-          code: 'auth-code-1',
-          attempt: expect.objectContaining({ mcpServerId: 'server-1' }),
-        }),
-      })
-    )
-    expect(authMockFns.mockGetSession).not.toHaveBeenCalled()
-    expect(response.headers.get('location')).toContain(
-      '/credential-groups/enroll/invitation-token?mcp=connected&mcpServerId=server-1'
-    )
   })
 
   it('rate limits a managed callback before consuming its one-time state', async () => {

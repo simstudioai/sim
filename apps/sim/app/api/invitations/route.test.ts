@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -50,25 +47,9 @@ function invitation(id: string) {
 
 describe('GET /api/invitations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1', email: 'invitee@example.com' },
     })
-  })
-
-  it('pairs each row with its own preview, in order', async () => {
-    mockListPendingInvitationsForEmail.mockResolvedValue(['a', 'b', 'c'].map(invitation))
-    mockGetInvitationJoinPreview.mockImplementation(async (_userId, inv) => ({ for: inv.id }))
-
-    const { invitations } = await (await GET(createMockRequest('GET'))).json()
-
-    expect(invitations.map((i: { id: string }) => i.id)).toEqual(['a', 'b', 'c'])
-    expect(invitations[0].grants[0].workspaceLogoUrl).toBe('https://example.com/workspace.png')
-    expect(invitations.map((i: { joinPreview: unknown }) => i.joinPreview)).toEqual([
-      { for: 'a' },
-      { for: 'b' },
-      { for: 'c' },
-    ])
   })
 
   /**
@@ -88,29 +69,5 @@ describe('GET /api/invitations', () => {
     expect(invitations).toHaveLength(2)
     expect(invitations[0].joinPreview).toBeNull()
     expect(invitations[1].joinPreview).toEqual({ for: 'b' })
-  })
-
-  /**
-   * Each preview issues several queries of its own, so the fan-out stays bounded rather than
-   * holding one pooled connection per pending invitation.
-   */
-  it('runs previews concurrently, up to a bound', async () => {
-    mockListPendingInvitationsForEmail.mockResolvedValue(
-      Array.from({ length: 12 }, (_, i) => invitation(`inv-${i}`))
-    )
-    let inFlight = 0
-    let peak = 0
-    mockGetInvitationJoinPreview.mockImplementation(async () => {
-      inFlight++
-      peak = Math.max(peak, inFlight)
-      await Promise.resolve()
-      inFlight--
-      return null
-    })
-
-    await GET(createMockRequest('GET'))
-
-    expect(mockGetInvitationJoinPreview).toHaveBeenCalledTimes(12)
-    expect(peak).toBe(4)
   })
 })

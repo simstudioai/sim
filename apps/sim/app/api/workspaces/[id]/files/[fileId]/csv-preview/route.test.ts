@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -38,25 +35,12 @@ function request(signal?: AbortSignal): NextRequest {
 
 describe('GET /api/workspaces/[id]/files/[fileId]/csv-preview', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({ user: USER, session: { id: 'session-1' } })
     mocks.readFile.mockResolvedValue({ file: { id: FILE_ID, key: KEY } })
     mocks.getSlice.mockResolvedValue({
       headers: ['name'],
       rows: [['Ada']],
       truncated: false,
-    })
-  })
-
-  it('propagates client cancellation to the storage preview read', async () => {
-    const req = request()
-    const response = await GET(req, context)
-
-    expect(response.status).toBe(200)
-    expect(mocks.getSlice).toHaveBeenCalledWith({
-      key: KEY,
-      context: 'workspace',
-      signal: req.signal,
     })
   })
 

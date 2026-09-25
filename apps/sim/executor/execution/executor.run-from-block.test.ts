@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { createSerializedBlock, createSerializedWorkflow } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

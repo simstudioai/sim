@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -39,7 +36,6 @@ import {
 
 describe('Admin invitation operation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

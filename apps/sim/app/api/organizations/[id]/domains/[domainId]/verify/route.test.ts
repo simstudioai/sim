@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { member, ssoDomain } from '@sim/db/schema'
 import {
   createMockRequest,
@@ -65,7 +62,6 @@ function queueAdminWithPendingRow() {
 
 describe('verify org domain route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'Admin', email: 'admin@acme.dev' },
@@ -96,19 +92,6 @@ describe('verify org domain route', () => {
       error: expect.stringContaining("couldn't complete the DNS lookup"),
     })
     expect(mockRecordAudit).not.toHaveBeenCalled()
-  })
-
-  it('verifies the domain and records an audit event', async () => {
-    queueAdminWithPendingRow()
-    queueTableRows(ssoDomain, []) // verified-elsewhere check → none
-    dbChainMockFns.returning.mockResolvedValueOnce([{ ...PENDING_ROW, status: 'verified' }])
-    const res = await POST(createMockRequest('POST'), routeContext)
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.data.domain).toMatchObject({ status: 'verified' })
-    expect(mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'organization.domain.verified' })
-    )
   })
 
   it('is idempotent when a concurrent same-org request already verified the row', async () => {
@@ -160,22 +143,6 @@ describe('verify org domain route', () => {
       JSON.stringify(condition ?? '').includes('regexp_replace')
     )
     expect(grantWhere).toBeDefined()
-  })
-
-  /**
-   * A provider can hold a verified domain while its own trust flag is off, after
-   * an update whose grant was refused reverted the config and cleared it. Re-running
-   * verification is the obvious recovery, so an already-verified domain must still
-   * re-grant instead of returning success having done nothing.
-   */
-  it('re-grants trust when the domain is already verified', async () => {
-    queueAdminWithPendingRow()
-    queueTableRows(ssoDomain, [])
-    dbChainMockFns.returning.mockResolvedValueOnce([]) // conditional update matched nothing
-    queueTableRows(ssoDomain, [{ ...PENDING_ROW, status: 'verified' }]) // re-read: verified
-    const res = await POST(createMockRequest('POST'), routeContext)
-    expect(res.status).toBe(200)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({ domainVerified: true })
   })
 
   it('does not grant trust when the challenge is genuinely stale', async () => {

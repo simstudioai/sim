@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch, mockResolveCredentialBundle } = vi.hoisted(() => ({
@@ -33,7 +30,6 @@ function detailArgs(id: string): ExecuteServerSelectorArgs {
 
 describe('Harmonic server selector adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveCredentialBundle.mockResolvedValue({ accessToken: 'server-only-token' })
   })

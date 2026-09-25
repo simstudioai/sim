@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { Readable } from 'node:stream'
 import { workspaceFiles } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
@@ -117,7 +116,6 @@ function fileRequest(suffix = '', signal?: AbortSignal) {
 
 describe('file provenance at the actual CLI and model-result boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.permission.mockResolvedValue('read')
     mocks.authenticate.mockResolvedValue({ principal })

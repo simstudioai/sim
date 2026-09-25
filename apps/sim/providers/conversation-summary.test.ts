@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -107,7 +104,6 @@ function summarySource(test: ReturnType<typeof fixture>, callIndex: number): Mes
 
 describe('bounded derived conversation summaries', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.read.mockResolvedValue(undefined)
     mocks.save.mockResolvedValue(undefined)
     mocks.principal.mockResolvedValue({ kind: 'delegated' })

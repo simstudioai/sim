@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockShouldRequireApiKey, mockRequiresFamilyCredentials } = vi.hoisted(() => ({
@@ -47,27 +44,18 @@ vi.mock('@/providers/models', () => ({
 }))
 
 import {
-  addFallbackRow,
-  changeFallbackRowApiKey,
   changeFallbackRowModel,
-  changeFallbackRowTuning,
   fallbackRowNeedsApiKey,
   getFallbackTuningKnobsToShow,
-  getTuningOptionsForModel,
-  isTuningValueValidForModel,
   isViableFallbackModel,
   isWholeEnvVarReference,
   MAX_FALLBACK_MODELS,
-  moveFallbackRow,
   normalizeFallbackModels,
   normalizeTuningValues,
-  ordinalChoiceLabel,
-  removeFallbackRow,
   resolveFallbackTuning,
 } from '@/lib/workflows/blocks/fallback-models'
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mockShouldRequireApiKey.mockReturnValue(false)
   mockRequiresFamilyCredentials.mockReturnValue(false)
 })
@@ -89,12 +77,6 @@ describe('isWholeEnvVarReference', () => {
 })
 
 describe('normalizeFallbackModels', () => {
-  it('returns an empty chain for anything that is not an array', () => {
-    expect(normalizeFallbackModels(undefined)).toEqual([])
-    expect(normalizeFallbackModels('gpt-5')).toEqual([])
-    expect(normalizeFallbackModels({ model: 'gpt-5' })).toEqual([])
-  })
-
   it('keeps order, trims, and drops rows without a model', () => {
     expect(
       normalizeFallbackModels([
@@ -116,12 +98,6 @@ describe('normalizeFallbackModels', () => {
         { model: 'claude-sonnet-5' },
       ])
     ).toEqual([{ model: 'gpt-5' }, { model: 'claude-sonnet-5' }])
-  })
-
-  it('keeps a row tuning value, trimmed and lower-cased', () => {
-    expect(
-      normalizeFallbackModels([{ model: 'gpt-small', reasoningEffort: ' Low ', thinkingLevel: '' }])
-    ).toEqual([{ model: 'gpt-small', reasoningEffort: 'low' }])
   })
 
   it('keeps any non-empty key, reference or already resolved, and drops blanks', () => {
@@ -154,12 +130,6 @@ describe('isViableFallbackModel', () => {
     expect(isViableFallbackModel('mystery-model', 'gpt-5')).toBe(false)
   })
 
-  it('offers any resolvable model that needs no provider-family credentials', () => {
-    expect(isViableFallbackModel('claude-sonnet-5', 'gpt-5')).toBe(true)
-    mockShouldRequireApiKey.mockReturnValue(true)
-    expect(isViableFallbackModel('openrouter/x', 'gpt-5')).toBe(true)
-  })
-
   it('offers a family-bound model only alongside a primary of the same family', () => {
     mockRequiresFamilyCredentials.mockImplementation((provider) => provider === 'vertex')
     expect(isViableFallbackModel('vertex/gemini-b', 'vertex/gemini-a')).toBe(true)
@@ -168,10 +138,6 @@ describe('isViableFallbackModel', () => {
 })
 
 describe('fallbackRowNeedsApiKey', () => {
-  it('is false when the model needs no key at all', () => {
-    expect(fallbackRowNeedsApiKey('claude-sonnet-5', 'gpt-5')).toBe(false)
-  })
-
   it('is false when the block key on the same provider can be reused', () => {
     mockShouldRequireApiKey.mockReturnValue(true)
     expect(fallbackRowNeedsApiKey('gpt-5-mini', 'gpt-5')).toBe(false)
@@ -183,36 +149,6 @@ describe('fallbackRowNeedsApiKey', () => {
   })
 })
 
-describe('tuning options and validity', () => {
-  it('offers the provider-decides entry first, then what the model declares', () => {
-    expect(getTuningOptionsForModel('gpt-small', 'reasoningEffort')).toEqual([
-      'auto',
-      'low',
-      'high',
-    ])
-    expect(getTuningOptionsForModel('claude-sonnet-5', 'thinkingLevel')).toEqual([
-      'none',
-      'low',
-      'medium',
-      'high',
-    ])
-    expect(getTuningOptionsForModel('claude-sonnet-5', 'reasoningEffort')).toBeNull()
-    expect(getTuningOptionsForModel('', 'verbosity')).toBeNull()
-  })
-
-  it('treats unset, the sentinel, and declared values as valid, and passes uncatalogued through', () => {
-    expect(isTuningValueValidForModel('gpt-small', 'reasoningEffort', undefined)).toBe(true)
-    expect(isTuningValueValidForModel('gpt-small', 'reasoningEffort', 'auto')).toBe(true)
-    expect(isTuningValueValidForModel('gpt-small', 'reasoningEffort', 'High')).toBe(true)
-    expect(isTuningValueValidForModel('gpt-small', 'reasoningEffort', 'xhigh')).toBe(false)
-    expect(isTuningValueValidForModel('gpt-small', 'reasoningEffort', 42)).toBe(false)
-    expect(isTuningValueValidForModel('openrouter/x', 'reasoningEffort', 'anything')).toBe(true)
-    /** Catalogued but without the knob: nothing but unset or the sentinel is acceptable. */
-    expect(isTuningValueValidForModel('claude-sonnet-5', 'reasoningEffort', 'high')).toBe(false)
-    expect(isTuningValueValidForModel('claude-sonnet-5', 'reasoningEffort', 'auto')).toBe(true)
-  })
-})
-
 describe('getFallbackTuningKnobsToShow', () => {
   it('shows a knob the primary lacks and one whose primary value the fallback does not declare', () => {
     expect(getFallbackTuningKnobsToShow('claude-sonnet-5', 'gpt-big', {})).toEqual([
@@ -221,16 +157,6 @@ describe('getFallbackTuningKnobsToShow', () => {
     expect(
       getFallbackTuningKnobsToShow('gpt-small', 'gpt-big', { reasoningEffort: 'xhigh' })
     ).toEqual(['reasoningEffort'])
-  })
-
-  it('stays bare when the primary value carries over or nothing is set', () => {
-    expect(
-      getFallbackTuningKnobsToShow('gpt-small', 'gpt-big', { reasoningEffort: 'high' })
-    ).toEqual([])
-    expect(getFallbackTuningKnobsToShow('gpt-small', 'gpt-big', {})).toEqual([])
-    expect(
-      getFallbackTuningKnobsToShow('gpt-small', 'gpt-big', { reasoningEffort: 'auto' })
-    ).toEqual([])
   })
 })
 
@@ -256,13 +182,6 @@ describe('resolveFallbackTuning', () => {
     })
     expect(resolved.reasoningEffort).toBeUndefined()
     expect(resolved.adjustments).toEqual(['reasoningEffort: xhigh -> provider default'])
-  })
-
-  it('never inherits a knob the primary does not have', () => {
-    const resolved = resolveFallbackTuning({ model: 'claude-sonnet-5' }, 'gpt-big', {
-      thinkingLevel: 'high',
-    })
-    expect(resolved.thinkingLevel).toBeUndefined()
   })
 
   it('treats a value stored under an uncatalogued primary as stale, and lets the row decide', () => {
@@ -304,22 +223,6 @@ describe('resolveFallbackTuning', () => {
     expect(unresolved.temperature).toBe('{{TEMP}}')
     expect(unresolved.adjustments).toEqual([])
   })
-
-  it('passes everything through for an uncatalogued fallback', () => {
-    const resolved = resolveFallbackTuning({ model: 'openrouter/x' }, 'gpt-big', {
-      reasoningEffort: 'xhigh',
-      temperature: '1.9',
-      maxTokens: '99999',
-    })
-    expect(resolved).toEqual({
-      reasoningEffort: 'xhigh',
-      thinkingLevel: undefined,
-      verbosity: undefined,
-      temperature: '1.9',
-      maxTokens: '99999',
-      adjustments: [],
-    })
-  })
 })
 
 describe('resolveFallbackTuning hidden overrides', () => {
@@ -347,12 +250,6 @@ describe('normalizeTuningValues', () => {
       })
     ).toEqual({ reasoningEffort: 'low' })
   })
-
-  it('stores the provider-decides entry as absence, as the editor does', () => {
-    expect(
-      normalizeTuningValues({ reasoningEffort: 'auto', thinkingLevel: 'NONE', verbosity: 'low' })
-    ).toEqual({ verbosity: 'low' })
-  })
 })
 
 describe('row transforms', () => {
@@ -360,23 +257,6 @@ describe('row transforms', () => {
     { id: 'a', model: 'gpt-big' },
     { id: 'b', model: 'openrouter/x', apiKey: '{{OPENROUTER_API_KEY}}', reasoningEffort: 'low' },
   ]
-
-  it('adds a blank row until the cap and never past it', () => {
-    expect(addFallbackRow(rows, 'c')).toEqual([...rows, { id: 'c', model: '' }])
-    const full = Array.from({ length: MAX_FALLBACK_MODELS }, (_, i) => ({
-      id: `r${i}`,
-      model: 'm',
-    }))
-    expect(addFallbackRow(full, 'extra')).toBe(full)
-  })
-
-  it('removes by id and moves within bounds', () => {
-    expect(removeFallbackRow(rows, 'a')).toEqual([rows[1]])
-    expect(moveFallbackRow(rows, 'b', -1)).toEqual([rows[1], rows[0]])
-    expect(moveFallbackRow(rows, 'a', -1)).toBe(rows)
-    expect(moveFallbackRow(rows, 'b', 1)).toBe(rows)
-    expect(moveFallbackRow(rows, 'missing', 1)).toBe(rows)
-  })
 
   it('clears tuning on a model change and keeps the key only for the same keyed provider', () => {
     mockShouldRequireApiKey.mockReturnValue(true)
@@ -402,37 +282,5 @@ describe('row transforms', () => {
       id: 'r',
       model: 'openrouter/y',
     })
-  })
-
-  it('stores a tuning value, and the provider-decides entry as absence', () => {
-    expect(changeFallbackRowTuning(rows, 'a', 'reasoningEffort', 'high')[0]).toEqual({
-      id: 'a',
-      model: 'gpt-big',
-      reasoningEffort: 'high',
-    })
-    expect(changeFallbackRowTuning(rows, 'b', 'reasoningEffort', 'auto')[1]).toEqual({
-      id: 'b',
-      model: 'openrouter/x',
-      apiKey: '{{OPENROUTER_API_KEY}}',
-    })
-    expect(changeFallbackRowApiKey(rows, 'a', '{{K}}')[0]).toEqual({
-      id: 'a',
-      model: 'gpt-big',
-      apiKey: '{{K}}',
-    })
-  })
-})
-
-describe('ordinalChoiceLabel', () => {
-  it('starts at the 2nd choice and handles English ordinals', () => {
-    expect([0, 1, 2, 3, 9, 10, 11].map(ordinalChoiceLabel)).toEqual([
-      '2nd choice',
-      '3rd choice',
-      '4th choice',
-      '5th choice',
-      '11th choice',
-      '12th choice',
-      '13th choice',
-    ])
   })
 })

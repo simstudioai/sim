@@ -54,7 +54,6 @@ import {
 
 describe('resource writer', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.ensureWorkspaceFileFolderPath.mockResolvedValue({
       folderId: 'folder-id',
       createdFolderIds: [],

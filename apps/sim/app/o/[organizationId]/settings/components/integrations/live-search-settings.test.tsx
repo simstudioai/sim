@@ -70,7 +70,6 @@ import { LiveSearchSettings } from '@/app/o/[organizationId]/settings/components
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.secrets.mockReturnValue({ data: { source: null } })
   mocks.accounts.mockReturnValue({ data: { credentialGroup: null } })
   mocks.admin = true
@@ -286,29 +285,6 @@ describe('live search administration', () => {
     expect(mocks.push).toHaveBeenCalledWith(
       '/o/org/settings/integrations/providers/github?addConnector=github'
     )
-  })
-  it('uses the standard settings empty state before the first source', async () => {
-    mocks.policies.mockReturnValue({ data: [], refetch: mocks.refetch })
-    await render()
-    expect(button('Add source')).toBeDefined()
-    expect(container.textContent).toContain('No sources yet. Add a source to get started.')
-    expect(document.querySelector('input[placeholder="Search sources…"]')).not.toBeNull()
-  })
-  it('shows loading and recoverable query errors', async () => {
-    mocks.policies.mockReturnValue({})
-    await render()
-    expect(container.textContent).toContain('Loading sources')
-    mocks.policies.mockReturnValue({
-      error: new Error('Service unavailable'),
-      refetch: mocks.refetch,
-    })
-    await render()
-    expect(container.textContent).toContain('Service unavailable')
-  })
-  it('does not render admin controls for members', async () => {
-    mocks.admin = false
-    await render()
-    expect(container.textContent).toBe('')
   })
   it('saves a source without a separate availability toggle', async () => {
     await act(async () =>

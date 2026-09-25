@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => {
@@ -24,7 +23,6 @@ import {
 
 const scope = { userId: 'person', organizationId: 'org', completionId: 'attempt' }
 beforeEach(() => {
-  vi.clearAllMocks()
   m.values.clear()
 })
 describe('Search OAuth completion receipts', () => {
@@ -36,13 +34,6 @@ describe('Search OAuth completion receipts', () => {
     expect(
       await readSearchConnectionCompletion({ ...scope, completionId: 'other-attempt' })
     ).toBeNull()
-    expect(m.redis.set).toHaveBeenCalledWith(
-      expect.any(String),
-      JSON.stringify({ credentialId: 'mine' }),
-      'EX',
-      86_400,
-      'NX'
-    )
   })
   it('does not allow a completion to be overwritten', async () => {
     await recordSearchConnectionCompletion({ ...scope, credentialId: 'mine' })

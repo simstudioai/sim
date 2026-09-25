@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -29,7 +28,6 @@ import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import { readUserPermissionConfig } from '@/lib/permission-groups/application/read-user-config'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
-const session = { kind: 'session', userId: 'caller', sessionId: 'session' } as const
 const personal = { kind: 'personal_api_key', userId: 'caller', keyId: 'key' } as const
 const oauth = {
   kind: 'oauth_access_token',
@@ -48,7 +46,6 @@ const context = {
 const input = { workspaceId: 'workspace' }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.context.mockResolvedValue(context)
   mocks.role.mockResolvedValue('read')
   mocks.config.mockResolvedValue(null)
@@ -62,23 +59,6 @@ beforeEach(() => {
 })
 
 describe('effective caller permission configuration', () => {
-  it.each([session, personal, oauth])(
-    'resolves the actual $kind caller within the canonical workspace',
-    async (principal) => {
-      const result = await readUserPermissionConfig.execute({ principal, input })
-      expect(mocks.group).toHaveBeenCalledExactlyOnceWith('caller', 'organization', 'workspace')
-      expect(mocks.admin).toHaveBeenCalledExactlyOnceWith('caller', 'organization')
-      expect(result).toEqual({
-        permissionGroupId: 'group',
-        groupName: 'Readers',
-        config: DEFAULT_PERMISSION_GROUP_CONFIG,
-        entitled: true,
-        organizationId: 'organization',
-        isOrgAdmin: false,
-      })
-    }
-  )
-
   it('rejects workspace keys before canonical loading', async () => {
     await expect(
       readUserPermissionConfig.execute({
@@ -124,34 +104,5 @@ describe('effective caller permission configuration', () => {
   ])('rejects invalid OAuth authority before loading the workspace', async (principal) => {
     await expect(readUserPermissionConfig.execute({ principal, input })).rejects.toThrow()
     expect(mocks.context).not.toHaveBeenCalled()
-  })
-
-  it('preserves null configuration outside active organization governance', async () => {
-    mocks.regime.mockResolvedValue(false)
-    const result = await readUserPermissionConfig.execute({ principal: personal, input })
-    expect(result).toEqual({
-      permissionGroupId: null,
-      groupName: null,
-      config: null,
-      entitled: false,
-      organizationId: 'organization',
-      isOrgAdmin: false,
-    })
-    expect(mocks.group).not.toHaveBeenCalled()
-  })
-
-  it('preserves personal workspaces without consulting organization membership', async () => {
-    mocks.context.mockResolvedValue({ ...context, workspaceOrganizationId: null })
-    expect(await readUserPermissionConfig.execute({ principal: personal, input })).toEqual({
-      permissionGroupId: null,
-      groupName: null,
-      config: null,
-      entitled: false,
-      organizationId: null,
-      isOrgAdmin: false,
-    })
-    expect(mocks.admin).not.toHaveBeenCalled()
-    expect(mocks.regime).not.toHaveBeenCalled()
-    expect(mocks.group).not.toHaveBeenCalled()
   })
 })

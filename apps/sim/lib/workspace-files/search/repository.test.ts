@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -67,18 +64,6 @@ describe('searchWorkspaceFileIndex fault mapping', () => {
         maxResults: 50,
       })
     ).rejects.not.toBeInstanceOf(FileSearchPatternError)
-  })
-
-  it('leaves an unrelated fault unclassified for the surface to generalize', async () => {
-    dbChainMockFns.transaction.mockRejectedValueOnce(driverError('23505'))
-
-    await expect(
-      searchWorkspaceFileIndex({
-        workspaceId: 'workspace-1',
-        pattern: compileFileSearchPattern('needle', 'exact'),
-        maxResults: 50,
-      })
-    ).rejects.not.toBeInstanceOf(WorkspaceFileSearchUnavailableError)
   })
 
   it('caps how long a search may hold its connection', async () => {

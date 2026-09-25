@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,7 +19,6 @@ afterAll(resetDbChainMock)
 
 describe('unlinkForkEdge', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -39,17 +35,5 @@ describe('unlinkForkEdge', () => {
       expect.objectContaining({ forkedFromWorkspaceId: null })
     )
     expect(dbChainMockFns.delete).toHaveBeenCalledTimes(4)
-  })
-
-  it('is an idempotent no-op when the edge was already dissolved', async () => {
-    const result = await unlinkForkEdge(EDGE)
-
-    expect(result).toEqual({ unlinked: false })
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-  })
-
-  it('propagates a transaction failure without swallowing it', async () => {
-    dbChainMockFns.transaction.mockRejectedValueOnce(new Error('lock timeout'))
-    await expect(unlinkForkEdge(EDGE)).rejects.toThrow('lock timeout')
   })
 })

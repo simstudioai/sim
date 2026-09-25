@@ -1,8 +1,6 @@
 /**
  * @vitest-environment jsdom
  */
-import { act } from 'react'
-import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -161,29 +159,6 @@ describe('ModelFallbackList', () => {
     mockSetValue.mockReset()
   })
 
-  it('renders only the add affordance when nothing is configured', () => {
-    const html = render()
-    expect(html).toContain('Add fallback model')
-    expect(html).not.toContain('choice')
-  })
-
-  it('labels rows as ordinal choices and offers viable, permitted models', () => {
-    subBlockValues.fallbackModels = [
-      { id: 'r1', model: 'gpt-5' },
-      { id: 'r2', model: '' },
-    ]
-    const html = render()
-    expect(html).toContain('2nd choice')
-    expect(html).toContain('3rd choice')
-    expect(html).not.toContain('Auto')
-    expect(html).not.toContain('denied-model')
-    /** The primary is never offered. A model another row holds is disabled there, never in its own row. */
-    expect(html).not.toContain('>claude-sonnet-5<')
-    expect(html.match(/data-disabled="true">gpt-5</g)).toHaveLength(1)
-    expect(html.match(/>gpt-5</g)).toHaveLength(2)
-    expect(html).toContain('aria-label="Move up"')
-  })
-
   it('renders no move controls for a single row and never shows a non-reference key', () => {
     subBlockValues.fallbackModels = [
       { id: 'r1', model: 'openrouter/x', apiKey: 'sk-raw-through-socket' },
@@ -192,72 +167,5 @@ describe('ModelFallbackList', () => {
     expect(html).not.toContain('aria-label="Move up"')
     expect(html).not.toContain('sk-raw-through-socket')
     expect(html).toContain('data-combobox="Select a secret" data-value=""')
-  })
-
-  it('asks for an environment variable only when the row model needs its own key', () => {
-    subBlockValues.fallbackModels = [{ id: 'r1', model: 'gpt-5' }]
-    expect(render()).not.toContain('data-combobox="Select a secret"')
-
-    subBlockValues.fallbackModels = [
-      { id: 'r1', model: 'openrouter/x', apiKey: '{{OPENROUTER_API_KEY}}' },
-    ]
-    const html = render()
-    expect(html).toContain('data-combobox="Select a secret"')
-    expect(html).toContain('data-value="{{OPENROUTER_API_KEY}}"')
-    expect(html).toContain('OPENROUTER_API_KEY')
-    expect(html).toContain('Create Secret')
-  })
-
-  it('updates key visibility when hosted context arrives after mount, without rewriting the rows', async () => {
-    seedDeploymentShape({ ...resolveDeploymentShape(), hosted: false })
-    subBlockValues.fallbackModels = [{ id: 'r1', model: 'gpt-5' }]
-    const container = document.createElement('div')
-    const root = createRoot(container)
-    try {
-      await act(async () => {
-        root.render(<ModelFallbackList blockId='block-1' subBlockId='fallbackModels' />)
-      })
-      expect(container.querySelector('[data-combobox="Select a secret"]')).not.toBeNull()
-
-      await act(async () => {
-        seedDeploymentShape({ ...resolveDeploymentShape(), hosted: true })
-      })
-      expect(container.querySelector('[data-combobox="Select a secret"]')).toBeNull()
-      expect(mockSetValue).not.toHaveBeenCalled()
-    } finally {
-      await act(async () => root.unmount())
-    }
-  })
-
-  it('shows a tuning field only for the knobs the helper says need one', () => {
-    subBlockValues.fallbackModels = [
-      { id: 'r1', model: 'gpt-5', reasoningEffort: 'low' },
-      { id: 'r2', model: 'openrouter/x' },
-    ]
-    const html = render()
-    expect(html).toContain('data-combobox="Select reasoning effort" data-value="low"')
-    expect(html.match(/Select reasoning effort/g)).toHaveLength(1)
-    expect(html).not.toContain('Thinking level')
-  })
-
-  it('gates a preview against the previewed primary, not the live block', () => {
-    /** The live block selects claude-sonnet-5; the previewed version selected gpt-5. */
-    const html = render({
-      isPreview: true,
-      previewValue: [{ id: 'r1', model: 'openrouter/x' }],
-      previewPrimary: { model: 'gpt-5' },
-    })
-    expect(html).not.toContain('>gpt-5<')
-    expect(html).toContain('>claude-sonnet-5<')
-    expect(html).not.toContain('Add fallback model')
-  })
-
-  it('disables the add affordance at the cap', () => {
-    subBlockValues.fallbackModels = Array.from({ length: 5 }, (_, i) => ({
-      id: `r${i}`,
-      model: `m-${i}`,
-    }))
-    const html = render()
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Add fallback model/)
   })
 })

@@ -6,7 +6,7 @@ Run from the repository root:
 bun run test:workflow-sync
 ```
 
-Requires Bun, installed workspace dependencies, and a running Docker daemon. The runner starts PostgreSQL 17 with pgvector on a random loopback port, applies the current schema, runs the tests, and removes the container. It never reads the application's database connection or mounts a database volume. Integration setup rejects nonlocal and nonfixture database names and enables the transaction tripwire.
+Requires Bun, installed workspace dependencies, and a running Docker daemon. The runner starts PostgreSQL 17 with pgvector on a random loopback port, applies the current schema, runs the tests, and removes the container. It never reads the application's database connection or mounts a database volume. These suites are part of the integration layer (`vitest run --mode integration`), so CI runs them with every other `*.integration.ts`. Integration setup rejects nonlocal and nonfixture database names and enables the transaction tripwire.
 
 The tests exercise real PostgreSQL transactions, locks, application authorization, v2 route adapters, API-key authentication, CLI subprocesses, and deployment outbox workers. HTTP callbacks to the separate realtime process use an authenticated local fixture. Provider discovery and failure cases have focused Vitest tests with controlled provider responses.
 

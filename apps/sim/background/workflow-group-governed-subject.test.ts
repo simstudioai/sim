@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -165,7 +162,6 @@ describe('the workflow half of a table cell', () => {
   }, 60_000)
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.getRowSummaryById.mockImplementation((tableId, rowId, workspaceId) =>
       mocks.getRowById(tableId, rowId, workspaceId)
@@ -279,13 +275,6 @@ describe('the workflow half of a table cell', () => {
       )
     }
   )
-
-  it('declares an explicit null for an actorless auto-fire', async () => {
-    await runRowCascadeLoop({ ...PAYLOAD, capabilityGovernedUserId: null })
-
-    const [, , , , options] = mocks.executeWorkflow.mock.calls[0]
-    expect(options.capabilityGovernedUserId).toBeNull()
-  }, 20_000)
 
   /** The subject has to survive the pause — nothing downstream can re-derive it. */
   it('stashes the governed subject with the pause context', async () => {

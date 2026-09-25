@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { knowledgeBase } from '@sim/db/schema'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { eq } from 'drizzle-orm'

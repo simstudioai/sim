@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { member, session, user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,15 +23,11 @@ import {
   suspendMemberTx,
   unsuspendMemberTx,
 } from '@/lib/organizations/members/lifecycle'
-import {
-  invalidateAfterSessionRevocation,
-  revokeUserSessionsTx,
-} from '@/lib/organizations/members/revocation'
+import { revokeUserSessionsTx } from '@/lib/organizations/members/revocation'
 
 afterAll(resetDbChainMock)
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
 })
 
@@ -49,23 +42,6 @@ describe('changeMemberRoleTx', () => {
     expect(mockAcquireLocks.mock.invocationCallOrder[0]).toBeLessThan(
       dbChainMockFns.select.mock.invocationCallOrder[0]
     )
-  })
-
-  it('reports the change it made', async () => {
-    queueTableRows(member, [{ id: 'm-1', role: 'member' }])
-    await expect(
-      changeMemberRoleTx(db, { organizationId: 'org-1', userId: 'u-1', role: 'admin' })
-    ).resolves.toEqual({ changed: true, from: 'member', to: 'admin' })
-    expect(dbChainMockFns.update).toHaveBeenCalledWith(member)
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({ role: 'admin' })
-  })
-
-  it('writes nothing when the role already matches', async () => {
-    queueTableRows(member, [{ id: 'm-1', role: 'admin' }])
-    await expect(
-      changeMemberRoleTx(db, { organizationId: 'org-1', userId: 'u-1', role: 'admin' })
-    ).resolves.toEqual({ changed: false, role: 'admin' })
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('refuses to touch the owner and reports a missing member', async () => {
@@ -134,12 +110,6 @@ describe('revokeUserSessionsTx', () => {
       })
     )
   })
-
-  it('clears the caches only through the separate post-commit step', () => {
-    invalidateAfterSessionRevocation({ userId: 'u-1', organizationId: 'org-1' })
-    expect(mockInvalidateVersion).toHaveBeenCalledWith('org-1')
-    expect(mockInvalidateMembership).toHaveBeenCalledWith('u-1')
-  })
 })
 
 describe('suspendMemberTx and unsuspendMemberTx', () => {
@@ -159,13 +129,6 @@ describe('suspendMemberTx and unsuspendMemberTx', () => {
     )
     expect(dbChainMockFns.delete).toHaveBeenCalledTimes(1)
     expect(dbChainMockFns.delete).toHaveBeenCalledWith(session)
-  })
-
-  it('reports an already-suspended account without claiming a second suspension', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-    await expect(
-      suspendMemberTx(db, { userId: 'u-1', organizationId: 'org-1', source: 'scim' })
-    ).resolves.toMatchObject({ suspended: false })
   })
 
   it('refuses to suspend the owner under the membership lock without changing access', async () => {

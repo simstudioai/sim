@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Covers the phase annotation that separates "never answered" from "answered, but the
  * body never arrived" — the runtime reports both as a bare `TimeoutError`.
  */
@@ -53,7 +51,6 @@ describe('OpenAI transport phase annotation', () => {
   const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockSupportsReasoningEffort.mockReturnValue(false)
   })
 

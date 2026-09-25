@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import { createReadableStreamFromResponses } from '@/providers/openai/utils'
 import type { AgentStreamEvent } from '@/providers/stream-events'

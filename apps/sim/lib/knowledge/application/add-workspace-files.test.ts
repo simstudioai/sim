@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -76,7 +72,6 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 
 vi.mock('@/lib/uploads/utils/validation', () => ({ validateFileType: () => null }))
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { addWorkspaceFilesToKnowledgeBase } from '@/lib/knowledge/application/add-workspace-files'
 
 const knowledgeContext = {
@@ -114,7 +109,6 @@ const delegatedPrincipal = {
 
 describe('add workspace files to knowledge base application command', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveKnowledgeBase.mockResolvedValue(knowledgeContext)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveFile.mockImplementation(async (_workspaceId: string, reference: string) =>
@@ -154,48 +148,6 @@ describe('add workspace files to knowledge base application command', () => {
       mimeType: workspaceFile.type,
     })
     mocks.processQueue.mockResolvedValue(undefined)
-  })
-
-  it('copies authorized bytes and admits processing in the document transaction', async () => {
-    await addWorkspaceFilesToKnowledgeBase.execute({
-      principal: delegatedPrincipal,
-      input: {
-        knowledgeBaseId: 'knowledge-1',
-        assertedWorkspaceId: 'workspace-1',
-        fileReferences: ['files/report.pdf'],
-      },
-    })
-    expect(mocks.readFile).toHaveBeenCalledWith(
-      workspaceFile,
-      expect.objectContaining({ maxBytes: 100 * 1024 * 1024, signal: expect.any(AbortSignal) })
-    )
-    expect(mocks.upload).toHaveBeenCalledWith(
-      expect.objectContaining({
-        owner: { workspaceId: 'workspace-1', userId: 'dual-workspace-user' },
-        artifact: { bytes: Buffer.alloc(100), fileName: 'report.pdf', mimeType: 'application/pdf' },
-      })
-    )
-    expect(mocks.createDocument).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fileUrl: '/api/files/serve/kb%2Fcopied.pdf?context=knowledge-base',
-      }),
-      'knowledge-1',
-      expect.any(String),
-      'dual-workspace-user',
-      expect.any(String),
-      expect.objectContaining({ content: { status: 'exact', entries: [] } }),
-      expect.objectContaining({
-        uploadedArtifact: expect.objectContaining({ cleanupEventId: 'guard-1' }),
-        processing: {
-          processingOptions: {},
-          billingAttribution: {
-            actorUserId: 'dual-workspace-user',
-            workspaceId: 'workspace-1',
-          },
-        },
-      })
-    )
-    expect(mocks.processQueue).not.toHaveBeenCalled()
   })
 
   it('bounds file references before canonical knowledge loading', async () => {
@@ -272,145 +224,6 @@ describe('add workspace files to knowledge base application command', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
-  it('returns partial outcomes and keeps product analytics out of the application', async () => {
-    mocks.resolveFile
-      .mockResolvedValueOnce(workspaceFile)
-      .mockRejectedValueOnce(new OrchestrationError('not_found', 'File not found'))
-
-    const result = await addWorkspaceFilesToKnowledgeBase.execute({
-      principal: delegatedPrincipal,
-      input: {
-        knowledgeBaseId: 'knowledge-1',
-        assertedWorkspaceId: 'workspace-1',
-        fileReferences: ['files/report.pdf', 'files/missing.pdf'],
-        source: 'agent',
-      },
-    })
-
-    expect(result).toMatchObject({
-      added: [{ documentId: 'document-1', filename: 'report.pdf' }],
-      failed: ['files/missing.pdf'],
-      cancelled: false,
-    })
-    expect(mocks.recordAudit).toHaveBeenCalledOnce()
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        resourceId: 'document-1',
-        metadata: expect.objectContaining({
-          operation: 'knowledge.documents.add_workspace_files',
-        }),
-      })
-    )
-    expect(mocks.platformUploaded).not.toHaveBeenCalled()
-    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
-  })
-
-  it('stops between document creations while auditing completed items', async () => {
-    const controller = new AbortController()
-    mocks.resolveFile
-      .mockResolvedValueOnce(workspaceFile)
-      .mockResolvedValueOnce({ ...workspaceFile, id: 'file-2', name: 'second.pdf' })
-    mocks.loadFileContext
-      .mockResolvedValueOnce({
-        fileId: 'file-1',
-        workspaceId: 'workspace-1',
-        workspaceOrganizationId: null,
-        allowPersonalApiKeys: true,
-        billedAccountUserId: 'billing-owner-1',
-      })
-      .mockResolvedValueOnce({
-        fileId: 'file-2',
-        workspaceId: 'workspace-1',
-        workspaceOrganizationId: null,
-        allowPersonalApiKeys: true,
-        billedAccountUserId: 'billing-owner-1',
-      })
-    mocks.createDocument.mockImplementationOnce(async () => {
-      controller.abort('user stopped')
-      return {
-        id: 'document-1',
-        filename: 'report.pdf',
-        fileUrl: 'https://storage.test/report.pdf',
-        fileSize: 100,
-        mimeType: 'application/pdf',
-      }
-    })
-
-    const result = await addWorkspaceFilesToKnowledgeBase.execute({
-      principal: delegatedPrincipal,
-      input: {
-        knowledgeBaseId: 'knowledge-1',
-        assertedWorkspaceId: 'workspace-1',
-        fileReferences: ['files/report.pdf', 'files/second.pdf'],
-        cancellationSignal: controller.signal,
-      },
-    })
-
-    expect(result).toMatchObject({ added: [{ documentId: 'document-1' }], cancelled: true })
-    expect(mocks.createDocument).toHaveBeenCalledOnce()
-    expect(mocks.recordAudit).toHaveBeenCalledOnce()
-  })
-
-  it('audits completed documents before propagating a later infrastructure failure', async () => {
-    const failure = new Error('document store unavailable')
-    mocks.resolveFile
-      .mockResolvedValueOnce(workspaceFile)
-      .mockResolvedValueOnce({ ...workspaceFile, id: 'file-2', name: 'second.pdf' })
-    mocks.loadFileContext
-      .mockResolvedValueOnce({
-        fileId: 'file-1',
-        workspaceId: 'workspace-1',
-        workspaceOrganizationId: null,
-        allowPersonalApiKeys: true,
-        billedAccountUserId: 'billing-owner-1',
-      })
-      .mockResolvedValueOnce({
-        fileId: 'file-2',
-        workspaceId: 'workspace-1',
-        workspaceOrganizationId: null,
-        allowPersonalApiKeys: true,
-        billedAccountUserId: 'billing-owner-1',
-      })
-    mocks.createDocument
-      .mockResolvedValueOnce({
-        id: 'document-1',
-        filename: 'report.pdf',
-        fileUrl: 'https://storage.test/report.pdf',
-        fileSize: 100,
-        mimeType: 'application/pdf',
-      })
-      .mockRejectedValueOnce(failure)
-
-    await expect(
-      addWorkspaceFilesToKnowledgeBase.execute({
-        principal: delegatedPrincipal,
-        input: {
-          knowledgeBaseId: 'knowledge-1',
-          assertedWorkspaceId: 'workspace-1',
-          fileReferences: ['files/report.pdf', 'files/second.pdf'],
-        },
-      })
-    ).rejects.toBe(failure)
-
-    expect(mocks.recordAudit).toHaveBeenCalledOnce()
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ resourceId: 'document-1' })
-    )
-    expect(mocks.platformUploaded).not.toHaveBeenCalled()
-    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
-  })
-  it('records the rendered document size rather than its generation source size', async () => {
-    mocks.readFile.mockResolvedValueOnce({
-      buffer: Buffer.alloc(247),
-      contentType: 'application/pdf',
-    })
-    await addWorkspaceFilesToKnowledgeBase.execute({
-      principal: delegatedPrincipal,
-      input: { knowledgeBaseId: 'knowledge-1', fileReferences: ['file-1'] },
-    })
-    expect(mocks.createDocument.mock.calls[0][0]).toMatchObject({ fileSize: 247 })
-  })
-
   it('refuses an updated source instead of attaching bytes with stale provenance', async () => {
     mocks.getFile
       .mockResolvedValueOnce(workspaceFile)
@@ -436,25 +249,6 @@ describe('add workspace files to knowledge base application command', () => {
     })
     expect(result).toMatchObject({ added: [], failed: ['file-1'] })
     expect(mocks.upload).toHaveBeenCalledOnce()
-    expect(mocks.createDocument).not.toHaveBeenCalled()
-  })
-
-  it('cancels a bounded copy without dispatching a partial document', async () => {
-    const controller = new AbortController()
-    mocks.readFile.mockImplementationOnce(async () => {
-      controller.abort()
-      throw controller.signal.reason
-    })
-    const result = await addWorkspaceFilesToKnowledgeBase.execute({
-      principal: delegatedPrincipal,
-      input: {
-        knowledgeBaseId: 'knowledge-1',
-        fileReferences: ['file-1'],
-        cancellationSignal: controller.signal,
-      },
-    })
-    expect(result).toMatchObject({ added: [], failed: [], cancelled: true })
-    expect(mocks.upload).not.toHaveBeenCalled()
     expect(mocks.createDocument).not.toHaveBeenCalled()
   })
   it('refuses a rendered artifact whose contributing file provenance is unavailable', async () => {

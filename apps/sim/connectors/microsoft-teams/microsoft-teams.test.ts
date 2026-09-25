@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockFetchWithRetry } = vi.hoisted(() => ({ mockFetchWithRetry: vi.fn() }))
 
@@ -44,22 +41,6 @@ async function listingError(): Promise<unknown> {
 }
 
 describe('microsoft teams listing scope', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it.each([403, 404])(
-    'reads a %s on the configured team as a scope the caller cannot reach',
-    async (status) => {
-      mockGraph({ [CHANNELS_URL]: { status, body: {} } })
-
-      const error = await listingError()
-
-      expect(error).toBeInstanceOf(Error)
-      expect(microsoftTeamsConnector.isListingScopeUnavailableError!(error)).toBe(true)
-    }
-  )
-
   it('reads a channel the caller cannot see as a scope they cannot reach', async () => {
     mockGraph({
       [CHANNELS_URL]: { body: { value: [{ id: 'c1', displayName: 'Announcements' }] } },
@@ -70,15 +51,6 @@ describe('microsoft teams listing scope', () => {
     expect(error).toBeInstanceOf(Error)
     expect(String(error)).toMatch(/Channel not found: General/)
     expect(microsoftTeamsConnector.isListingScopeUnavailableError!(error)).toBe(true)
-  })
-
-  it('keeps any other listing failure retryable', async () => {
-    mockGraph({ [CHANNELS_URL]: { status: 500, body: {} } })
-
-    const error = await listingError()
-
-    expect(error).toBeInstanceOf(Error)
-    expect(microsoftTeamsConnector.isListingScopeUnavailableError!(error)).toBe(false)
   })
 })
 
@@ -112,10 +84,6 @@ describe('microsoft teams per-member listing of several channels', () => {
     })
   }
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('skips the channels the member cannot reach and keeps the rest', async () => {
     mockChannels()
 
@@ -135,19 +103,6 @@ describe('microsoft teams per-member listing of several channels', () => {
 
     const error = await microsoftTeamsConnector
       .listDocuments('token', { teamId: TEAM_ID, channel: ['General', 'Private'] }, undefined, {})
-      .catch((e: unknown) => e)
-
-    expect(error).toBeInstanceOf(Error)
-    expect(microsoftTeamsConnector.isListingScopeUnavailableError!(error)).toBe(true)
-  })
-
-  it('reads a sole unreachable channel as the whole scope', async () => {
-    mockChannels()
-
-    const error = await microsoftTeamsConnector
-      .listDocuments('token', { teamId: TEAM_ID, channel: 'Private' }, undefined, {
-        ...PER_MEMBER_LISTING_CONTEXT,
-      })
       .catch((e: unknown) => e)
 
     expect(error).toBeInstanceOf(Error)

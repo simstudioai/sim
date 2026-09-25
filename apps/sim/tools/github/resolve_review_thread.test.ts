@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { resolveReviewThreadTool } from '@/tools/github/resolve_review_thread'
 import type { ResolveReviewThreadParams } from '@/tools/github/types'

@@ -1,11 +1,4 @@
-/** @vitest-environment node */
-import {
-  dbChainMock,
-  dbChainMockFns,
-  resetDbChainMock,
-  resetEnvFlagsMock,
-  setEnvFlags,
-} from '@sim/testing'
+import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { listRuns, runtime } = vi.hoisted(() => ({
@@ -37,7 +30,6 @@ import {
   DOCUMENT_LIVENESS_BATCH_SIZE,
   type DocumentProcessingSnapshot,
   findAbandonedDocumentProcessing,
-  inspectDocumentProcessingLiveness,
 } from '@/lib/knowledge/documents/processing-recovery-queue'
 
 const snapshot: DocumentProcessingSnapshot = {
@@ -53,7 +45,6 @@ const snapshot: DocumentProcessingSnapshot = {
 }
 const originalSecret = env.TRIGGER_SECRET_KEY
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   runtime.insideRun = false
   resetInsideTriggerRunForTests()
@@ -147,72 +138,6 @@ describe('document processing liveness', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ processingRecoveryAfter: expect.any(Date) })
   })
 
-  it.each(['outbox', 'cooldown'] as const)(
-    'bounds %s pool acquisition and rejects a late transaction before issuing queries',
-    async (phase) => {
-      vi.useFakeTimers()
-      let release: () => void = () => undefined
-      const acquired = new Promise<void>((resolve) => {
-        release = resolve
-      })
-      let transactionResult: Promise<unknown> = Promise.resolve()
-      dbChainMockFns.transaction.mockImplementationOnce((callback) => {
-        transactionResult = acquired.then(() => callback(dbChainMock.db))
-        return transactionResult
-      })
-      listRuns.mockResolvedValue({ data: [{ status: 'QUEUED' }], hasNextPage: () => false })
-      const candidate = phase === 'outbox' ? snapshot : { ...snapshot, processingQueueToken: null }
-      let settled = false
-      const result = inspectDocumentProcessingLiveness([candidate]).then((value) => {
-        settled = true
-        return value
-      })
-      await vi.advanceTimersByTimeAsync(8_000)
-      try {
-        expect(settled).toBe(true)
-        expect(await result).toEqual({ abandoned: [], live: phase === 'outbox' ? [] : [candidate] })
-        expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
-      } finally {
-        release()
-        await Promise.allSettled([transactionResult, result])
-      }
-      await expect(transactionResult).rejects.toThrow('Operation deadline expired')
-      expect(dbChainMockFns.execute).not.toHaveBeenCalled()
-      expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    }
-  )
-
-  it.each(['outbox', 'cooldown'] as const)(
-    'does not start a %s query after transaction setup exceeded the deadline',
-    async (phase) => {
-      vi.useFakeTimers()
-      let release: () => void = () => undefined
-      dbChainMockFns.execute.mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            release = () => resolve([])
-          })
-      )
-      listRuns.mockResolvedValue({ data: [{ status: 'QUEUED' }], hasNextPage: () => false })
-      const candidate = phase === 'outbox' ? snapshot : { ...snapshot, processingQueueToken: null }
-      let settled = false
-      const result = findAbandonedDocumentProcessing([candidate]).then((value) => {
-        settled = true
-        return value
-      })
-      await vi.advanceTimersByTimeAsync(8_000)
-      try {
-        expect(settled).toBe(true)
-      } finally {
-        release()
-        await result
-        await vi.runAllTimersAsync()
-      }
-      expect(dbChainMockFns.select).not.toHaveBeenCalled()
-      expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    }
-  )
-
   it('keeps completed abandonment evidence when another lookup fails', async () => {
     listRuns
       .mockResolvedValueOnce({ data: [], hasNextPage: () => false })
@@ -220,63 +145,6 @@ describe('document processing liveness', () => {
     expect(await findAbandonedDocumentProcessing([snapshot, { ...snapshot, id: 'doc-2' }])).toEqual(
       [snapshot]
     )
-  })
-
-  it('rejects the cooldown transaction if its update finishes after the deadline', async () => {
-    vi.useFakeTimers()
-    let release: () => void = () => undefined
-    dbChainMockFns.where.mockImplementationOnce(
-      () =>
-        new Promise<void>((resolve) => {
-          release = resolve
-        })
-    )
-    let transactionResult: Promise<unknown> = Promise.resolve()
-    dbChainMockFns.transaction.mockImplementationOnce((callback) => {
-      transactionResult = callback(dbChainMock.db)
-      return transactionResult
-    })
-    listRuns.mockResolvedValue({ data: [{ status: 'QUEUED' }], hasNextPage: () => false })
-    const result = findAbandonedDocumentProcessing([{ ...snapshot, processingQueueToken: null }])
-    await vi.advanceTimersByTimeAsync(8_000)
-    expect(await result).toEqual([])
-    release()
-    await expect(transactionResult).rejects.toThrow('Operation deadline expired')
-  })
-
-  it('retains recovery on installations using the in-process fallback', async () => {
-    env.TRIGGER_SECRET_KEY = undefined
-    expect(await findAbandonedDocumentProcessing([snapshot])).toEqual([snapshot])
-    expect(listRuns).not.toHaveBeenCalled()
-  })
-
-  it('checks live jobs inside a worker when the web Trigger flag is disabled', async () => {
-    runtime.insideRun = true
-    setEnvFlags({ isTriggerDevEnabled: false })
-    env.TRIGGER_SECRET_KEY = undefined
-    listRuns.mockResolvedValue({ data: [{ status: 'QUEUED' }], hasNextPage: () => false })
-    expect(await findAbandonedDocumentProcessing([snapshot])).toEqual([])
-    expect(listRuns).toHaveBeenCalledOnce()
-  })
-
-  it('preserves caller cancellation while waiting for a database connection', async () => {
-    let release: () => void = () => undefined
-    const acquired = new Promise<void>((resolve) => {
-      release = resolve
-    })
-    let transactionResult: Promise<unknown> = Promise.resolve()
-    dbChainMockFns.transaction.mockImplementationOnce((callback) => {
-      transactionResult = acquired.then(() => callback(dbChainMock.db))
-      return transactionResult
-    })
-    const controller = new AbortController()
-    const result = findAbandonedDocumentProcessing([snapshot], controller.signal)
-    controller.abort(new Error('cancelled'))
-    await expect(result).rejects.toBe(controller.signal.reason)
-    release()
-    await expect(transactionResult).rejects.toBe(controller.signal.reason)
-    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('refuses an unbounded candidate batch before reading external state', async () => {

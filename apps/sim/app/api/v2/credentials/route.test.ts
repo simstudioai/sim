@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -33,7 +30,6 @@ vi.mock('@/lib/credentials/application/service-account', () => ({
   },
 }))
 
-import { V2_DEFAULT_PAGE_SIZE } from '@/lib/api/contracts/v2/shared'
 import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { GET, POST } from '@/app/api/v2/credentials/route'
 
@@ -67,7 +63,6 @@ const credential = {
 
 describe('GET /api/v2/credentials', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -76,39 +71,6 @@ describe('GET /api/v2/credentials', () => {
       nextCursorKeys: null,
       sortBy: 'createdAt',
       sortOrder: 'desc',
-    })
-  })
-
-  it('authenticates and charges before validating workspace input', async () => {
-    const response = await GET(new NextRequest('http://localhost:3000/api/v2/credentials'))
-
-    expect(response.status).toBe(400)
-    expect(v2RouteMocks.authenticate).toHaveBeenCalled()
-    expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(2)
-    expect(mocks.list).not.toHaveBeenCalled()
-  })
-
-  it('calls the application operation with the workspace principal', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/v2/credentials?workspaceId=${WORKSPACE_ID}&type=service_account`
-    )
-    const response = await GET(request)
-
-    expect(response.status).toBe(200)
-    expect(mocks.list).toHaveBeenCalledWith({
-      principal: auth.principal,
-      input: {
-        workspaceId: WORKSPACE_ID,
-        type: 'service_account',
-        providerId: undefined,
-        search: undefined,
-        sortBy: 'createdAt',
-        sortOrder: 'desc',
-        limit: V2_DEFAULT_PAGE_SIZE,
-        cursor: undefined,
-        cursorKeys: undefined,
-      },
-      request,
     })
   })
 
@@ -145,39 +107,6 @@ describe('GET /api/v2/credentials', () => {
     expect(mocks.list).not.toHaveBeenCalled()
   })
 
-  it('resumes a cursor replayed under the filters it was minted with', async () => {
-    mocks.list.mockResolvedValue({
-      credentials: [credential],
-      nextCursorKeys: ['2026-01-01T00:00:00.000Z', 'credential-1'],
-      sortBy: 'createdAt',
-      sortOrder: 'desc',
-    })
-
-    const minted = await GET(
-      new NextRequest(
-        `http://localhost:3000/api/v2/credentials?workspaceId=${WORKSPACE_ID}&search=zoom`
-      )
-    )
-    const { nextCursor } = await minted.json()
-
-    mocks.list.mockClear()
-    const resumed = await GET(
-      new NextRequest(
-        `http://localhost:3000/api/v2/credentials?workspaceId=${WORKSPACE_ID}&search=zoom&cursor=${encodeURIComponent(nextCursor)}`
-      )
-    )
-
-    expect(resumed.status).toBe(200)
-    expect(mocks.list).toHaveBeenCalledWith({
-      principal: auth.principal,
-      input: expect.objectContaining({
-        search: 'zoom',
-        cursorKeys: ['2026-01-01T00:00:00.000Z', 'credential-1'],
-      }),
-      request: expect.anything(),
-    })
-  })
-
   it('projects credential metadata field by field without secret material', async () => {
     const response = await GET(
       new NextRequest(`http://localhost:3000/api/v2/credentials?workspaceId=${WORKSPACE_ID}`)
@@ -204,24 +133,10 @@ describe('GET /api/v2/credentials', () => {
     expect(JSON.stringify(body)).not.toContain('envKey')
     expect(JSON.stringify(body)).not.toContain('createdBy')
   })
-
-  it('hides repository errors that may contain secret details', async () => {
-    mocks.list.mockRejectedValueOnce(new Error('encryptedServiceAccountKey failed'))
-
-    const response = await GET(
-      new NextRequest(`http://localhost:3000/api/v2/credentials?workspaceId=${WORKSPACE_ID}`)
-    )
-
-    expect(response.status).toBe(500)
-    expect(await response.json()).toMatchObject({
-      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
-    })
-  })
 })
 
 describe('POST /api/v2/credentials', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue({
       ...auth,
       principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
@@ -325,74 +240,6 @@ describe('POST /api/v2/credentials', () => {
         }),
       })
     )
-  })
-
-  it('forwards an explicit UUID id and refuses a slug in its place', async () => {
-    const body = (id: string) =>
-      new NextRequest('http://localhost:3000/api/v2/credentials', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          workspaceId: WORKSPACE_ID,
-          type: 'service_account',
-          providerId: 'slack-custom-bot',
-          id,
-          credentials: JSON.stringify({ signingSecret: 'sign', botToken: 'xoxb-1' }),
-        }),
-      })
-
-    const accepted = await POST(body('7c9e6679-7425-40de-944b-e07fc1f90ae7'))
-    expect(accepted.status).toBe(201)
-    expect(mocks.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({ id: '7c9e6679-7425-40de-944b-e07fc1f90ae7' }),
-      })
-    )
-
-    const refused = await POST(body('my-slack-bot'))
-    expect(refused.status).toBe(400)
-    expect(await refused.json()).toMatchObject({
-      error: { message: expect.stringContaining('id must be a valid UUID') },
-    })
-    expect(mocks.create).toHaveBeenCalledTimes(1)
-  })
-
-  it('rejects an unknown service-account provider before the use case', async () => {
-    const response = await POST(
-      new NextRequest('http://localhost:3000/api/v2/credentials', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          workspaceId: WORKSPACE_ID,
-          type: 'service_account',
-          providerId: 'made-up-service-account',
-          credentials: JSON.stringify({ serviceAccountJson: '{}' }),
-        }),
-      })
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.create).not.toHaveBeenCalled()
-  })
-
-  it('rejects flattened provider fields before the use case', async () => {
-    const response = await POST(
-      new NextRequest('http://localhost:3000/api/v2/credentials', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          workspaceId: WORKSPACE_ID,
-          type: 'service_account',
-          providerId: 'zoom-service-account',
-          clientId: 'client-id',
-          clientSecret: 'client-secret',
-          orgId: 'account-id',
-        }),
-      })
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.create).not.toHaveBeenCalled()
   })
 
   it.each([

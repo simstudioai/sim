@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -50,7 +47,6 @@ function inserted(): Record<string, unknown> {
 
 describe('runWorkflowColumn governed subject', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getTableById.mockResolvedValue(TABLE)
     mocks.insertDispatch.mockResolvedValue('tdsp_1')
     mocks.readDispatch.mockResolvedValue(null)

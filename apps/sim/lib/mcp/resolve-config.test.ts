@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetEffectiveEnvironmentSnapshot } = vi.hoisted(() => ({
@@ -26,7 +23,6 @@ const BASE_CONFIG = {
 
 describe('resolveMcpConfigEnvVars secret provenance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetEffectiveEnvironmentSnapshot.mockResolvedValue({
       personalEncrypted: {
         MCP_HOST: 'personal-host-encrypted',

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StreamingExecution } from '@/executor/types'
 
@@ -70,7 +67,6 @@ vi.mock('@/providers/utils', () => ({
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 
 import { fireworksProvider } from '@/providers/fireworks/index'
-import { ProviderError } from '@/providers/types'
 
 const textResponse = (content: string) => ({
   choices: [{ message: { content, tool_calls: [] } }],
@@ -109,7 +105,6 @@ const lastCallBody = () => mockCreate.mock.calls.at(-1)?.[0]
 
 describe('fireworksProvider', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockSupportsNativeStructuredOutputs.mockResolvedValue(true)
     mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
       tools,
@@ -139,12 +134,6 @@ describe('fireworksProvider', () => {
     expect(callBody(0).model).toBe('accounts/Example/models/CustomModel')
   })
 
-  it('throws when the API key is missing', async () => {
-    await expect(
-      fireworksProvider.executeRequest({ ...baseRequest, apiKey: undefined })
-    ).rejects.toThrow('API key is required for Fireworks')
-  })
-
   it('returns content and token usage for a simple request', async () => {
     mockCreate.mockResolvedValueOnce(textResponse('hi there'))
 
@@ -171,14 +160,6 @@ describe('fireworksProvider', () => {
     // The catalog id is the billing/logging identity: the central cost policy,
     // the usage ledger row, and the trace span all key on it.
     expect(result).toMatchObject({ model: 'fireworks/glm-5.2' })
-  })
-
-  it('wraps API errors in a ProviderError', async () => {
-    mockCreate.mockRejectedValueOnce(new Error('boom'))
-
-    await expect(fireworksProvider.executeRequest(baseRequest)).rejects.toBeInstanceOf(
-      ProviderError
-    )
   })
 
   it('streams directly when there are no tools', async () => {

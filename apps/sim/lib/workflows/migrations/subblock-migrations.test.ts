@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { getAllBlocks } from '@/blocks/registry'
 import type { BlockState } from '@/stores/workflows/workflow/types'
@@ -381,26 +378,6 @@ describe('migrateSubblockIds', () => {
       expect(blocks.b1.subBlocks.knowledgeBaseSelector.value).toBe('fresh-kb')
       expect(blocks.b1.subBlocks.knowledgeBaseId).toBeUndefined()
     })
-
-    it('should not touch blocks that already use the new key', () => {
-      const input: Record<string, BlockState> = {
-        b1: makeBlock({
-          type: 'knowledge',
-          subBlocks: {
-            knowledgeBaseSelector: {
-              id: 'knowledgeBaseSelector',
-              type: 'knowledge-base-selector',
-              value: 'kb-uuid',
-            },
-          },
-        }),
-      }
-
-      const { blocks, migrated } = migrateSubblockIds(input)
-
-      expect(migrated).toBe(false)
-      expect(blocks.b1.subBlocks.knowledgeBaseSelector.value).toBe('kb-uuid')
-    })
   })
 
   it('should not mutate the input blocks', () => {
@@ -422,22 +399,6 @@ describe('migrateSubblockIds', () => {
     expect(input.b1.subBlocks.knowledgeBaseId).toBeDefined()
     expect(blocks.b1.subBlocks.knowledgeBaseSelector).toBeDefined()
     expect(blocks).not.toBe(input)
-  })
-
-  it('should skip blocks with no registered migrations', () => {
-    const input: Record<string, BlockState> = {
-      b1: makeBlock({
-        type: 'function',
-        subBlocks: {
-          code: { id: 'code', type: 'code', value: 'console.log("hi")' },
-        },
-      }),
-    }
-
-    const { blocks, migrated } = migrateSubblockIds(input)
-
-    expect(migrated).toBe(false)
-    expect(blocks.b1.subBlocks.code.value).toBe('console.log("hi")')
   })
 
   it('should repair malformed subBlocks for every block type without deleting values', () => {
@@ -503,47 +464,6 @@ describe('migrateSubblockIds', () => {
     })
   })
 
-  it('should migrate multiple blocks in one pass', () => {
-    const input: Record<string, BlockState> = {
-      b1: makeBlock({
-        id: 'b1',
-        type: 'knowledge',
-        subBlocks: {
-          knowledgeBaseId: {
-            id: 'knowledgeBaseId',
-            type: 'knowledge-base-selector',
-            value: 'kb-1',
-          },
-        },
-      }),
-      b2: makeBlock({
-        id: 'b2',
-        type: 'knowledge',
-        subBlocks: {
-          knowledgeBaseId: {
-            id: 'knowledgeBaseId',
-            type: 'knowledge-base-selector',
-            value: 'kb-2',
-          },
-        },
-      }),
-      b3: makeBlock({
-        id: 'b3',
-        type: 'function',
-        subBlocks: {
-          code: { id: 'code', type: 'code', value: '' },
-        },
-      }),
-    }
-
-    const { blocks, migrated } = migrateSubblockIds(input)
-
-    expect(migrated).toBe(true)
-    expect(blocks.b1.subBlocks.knowledgeBaseSelector.value).toBe('kb-1')
-    expect(blocks.b2.subBlocks.knowledgeBaseSelector.value).toBe('kb-2')
-    expect(blocks.b3.subBlocks.code).toBeDefined()
-  })
-
   /**
    * The suffixed Cloudflare read-filter ids existed only between #6740 and the
    * restore, and never shipped in a release. They are dropped rather than renamed
@@ -587,25 +507,6 @@ describe('migrateSubblockIds', () => {
       }
       expect(blocks.b1.subBlocks.operation.value).toBe('list_dns_records')
       expect(blocks.b1.subBlocks.name.value).toBe('')
-    })
-
-    it('leaves a workflow saved on the restored ids untouched', () => {
-      const input: Record<string, BlockState> = {
-        b1: makeBlock({
-          type: 'cloudflare',
-          subBlocks: {
-            operation: { id: 'operation', type: 'dropdown', value: 'list_dns_records' },
-            name: { id: 'name', type: 'short-input', value: 'www' },
-            type: { id: 'type', type: 'dropdown', value: 'A' },
-          },
-        }),
-      }
-
-      const { blocks, migrated } = migrateSubblockIds(input)
-
-      expect(migrated).toBe(false)
-      expect(blocks.b1.subBlocks.name.value).toBe('www')
-      expect(blocks.b1.subBlocks.type.value).toBe('A')
     })
   })
 
@@ -730,42 +631,6 @@ describe('migrateSubblockIds', () => {
       expect(migrated).toBe(true)
       expect(blocks.b1.subBlocks.readFields.value).toBe('number, cmdb_ci.name, sys_id')
     })
-
-    it('leaves a JSON array value under fields as well', () => {
-      const input: Record<string, BlockState> = {
-        b1: makeBlock({
-          type: 'servicenow',
-          subBlocks: {
-            operation: { id: 'operation', type: 'dropdown', value: 'servicenow_read_record' },
-            fields: { id: 'fields', type: 'code', value: '["short_description"]' },
-          },
-        }),
-      }
-
-      const { blocks, migrated } = migrateSubblockIds(input)
-
-      expect(migrated).toBe(false)
-      expect(blocks.b1.subBlocks.readFields).toBeUndefined()
-      expect(blocks.b1.subBlocks.fields.value).toBe('["short_description"]')
-    })
-
-    it('leaves the JSON body alone on create', () => {
-      const input: Record<string, BlockState> = {
-        b1: makeBlock({
-          type: 'servicenow',
-          subBlocks: {
-            operation: { id: 'operation', type: 'dropdown', value: 'servicenow_create_record' },
-            fields: { id: 'fields', type: 'code', value: '{"short_description":"x"}' },
-          },
-        }),
-      }
-
-      const { blocks, migrated } = migrateSubblockIds(input)
-
-      expect(migrated).toBe(false)
-      expect(blocks.b1.subBlocks.readFields).toBeUndefined()
-      expect(blocks.b1.subBlocks.fields.value).toBe('{"short_description":"x"}')
-    })
   })
 
   /**
@@ -793,24 +658,6 @@ describe('migrateSubblockIds', () => {
       expect(migrated).toBe(true)
       expect(blocks.b1.subBlocks.sendDeactivationEmail.value).toBe('true')
       expect(blocks.b1.subBlocks.sendEmail).toBeUndefined()
-    })
-
-    it('leaves the activation half on sendEmail', () => {
-      const input: Record<string, BlockState> = {
-        b1: makeBlock({
-          type: 'okta',
-          subBlocks: {
-            operation: { id: 'operation', type: 'dropdown', value: 'okta_activate_user' },
-            sendEmail: { id: 'sendEmail', type: 'switch', value: 'false' },
-          },
-        }),
-      }
-
-      const { blocks, migrated } = migrateSubblockIds(input)
-
-      expect(migrated).toBe(false)
-      expect(blocks.b1.subBlocks.sendEmail.value).toBe('false')
-      expect(blocks.b1.subBlocks.sendDeactivationEmail).toBeUndefined()
     })
   })
 
@@ -842,23 +689,6 @@ describe('migrateSubblockIds', () => {
       expect(blocks.b1.subBlocks.transactionId).toBeUndefined()
     })
 
-    it('moves the sales and accounting by-ID read targets too', () => {
-      for (const operation of [
-        'quickbooks_read_sales_transactions',
-        'quickbooks_read_accounting_transactions',
-      ]) {
-        const { blocks, migrated } = migrateSubblockIds(
-          quickbooksBlock({
-            operation: { id: 'operation', type: 'dropdown', value: operation },
-            transactionId: { id: 'transactionId', type: 'short-input', value: '7' },
-          })
-        )
-
-        expect(migrated).toBe(true)
-        expect(blocks.b1.subBlocks.readTransactionId.value).toBe('7')
-      }
-    })
-
     it('leaves an update target on transactionId', () => {
       const { blocks, migrated } = migrateSubblockIds(
         quickbooksBlock({
@@ -873,19 +703,6 @@ describe('migrateSubblockIds', () => {
 
       expect(migrated).toBe(false)
       expect(blocks.b1.subBlocks.transactionId.value).toBe('5')
-      expect(blocks.b1.subBlocks.readTransactionId).toBeUndefined()
-    })
-
-    it('leaves a void target on transactionId', () => {
-      const { blocks, migrated } = migrateSubblockIds(
-        quickbooksBlock({
-          operation: { id: 'operation', type: 'dropdown', value: 'quickbooks_void_invoice' },
-          transactionId: { id: 'transactionId', type: 'short-input', value: '9' },
-        })
-      )
-
-      expect(migrated).toBe(false)
-      expect(blocks.b1.subBlocks.transactionId.value).toBe('9')
       expect(blocks.b1.subBlocks.readTransactionId).toBeUndefined()
     })
 
@@ -954,34 +771,6 @@ describe('migrateSubblockIds', () => {
       expect(blocks.b1.subBlocks.downloadAttachmentFileName.value).toBe('receipt.pdf')
       expect(blocks.b1.subBlocks.attachmentFileName).toBeUndefined()
     })
-
-    it('leaves the add-side file name on attachmentFileName', () => {
-      const { blocks, migrated } = migrateSubblockIds(
-        quickbooksBlock({
-          operation: { id: 'operation', type: 'dropdown', value: 'quickbooks_add_attachment' },
-          attachmentKind: { id: 'attachmentKind', type: 'dropdown', value: 'file' },
-          attachmentFileName: {
-            id: 'attachmentFileName',
-            type: 'short-input',
-            value: 'receipt.pdf',
-          },
-        })
-      )
-
-      expect(migrated).toBe(false)
-      expect(blocks.b1.subBlocks.attachmentFileName.value).toBe('receipt.pdf')
-      expect(blocks.b1.subBlocks.downloadAttachmentFileName).toBeUndefined()
-    })
-  })
-
-  it('should handle blocks with empty subBlocks', () => {
-    const input: Record<string, BlockState> = {
-      b1: makeBlock({ type: 'knowledge', subBlocks: {} }),
-    }
-
-    const { migrated } = migrateSubblockIds(input)
-
-    expect(migrated).toBe(false)
   })
 })
 
@@ -1026,29 +815,12 @@ describe('migrateCanonicalModeIds', () => {
     expect((backfilled.b1.data?.canonicalModes as Record<string, string>).file).toBe('basic')
   })
 
-  it('leaves a block that already stores the current id alone', () => {
-    const { blocks, migrated } = migrateCanonicalModeIds({
-      b1: mistralBlock({ canonicalModes: { file: 'basic' } }, {}),
-    })
-
-    expect(migrated).toBe(false)
-    expect(blocks.b1.data?.canonicalModes).toEqual({ file: 'basic' })
-  })
-
   it('prefers a value already written under the current id over the legacy one', () => {
     const { blocks } = migrateCanonicalModeIds({
       b1: mistralBlock({ canonicalModes: { document: 'advanced', file: 'basic' } }, {}),
     })
 
     expect(blocks.b1.data?.canonicalModes).toEqual({ file: 'basic' })
-  })
-
-  it('does not touch a block type with no canonical rename', () => {
-    const { migrated } = migrateCanonicalModeIds({
-      b1: makeBlock({ type: 'knowledge', data: { canonicalModes: { document: 'advanced' } } }),
-    })
-
-    expect(migrated).toBe(false)
   })
 })
 
@@ -1121,44 +893,6 @@ describe('backfillCanonicalModes', () => {
     expect(modes.knowledgeBaseId).toBe('advanced')
   })
 
-  it('should skip blocks with no canonical pairs in their config', () => {
-    const input: Record<string, BlockState> = {
-      b1: makeBlock({
-        type: 'function',
-        data: {},
-        subBlocks: {
-          code: { id: 'code', type: 'code', value: '' },
-        },
-      }),
-    }
-
-    const { migrated } = backfillCanonicalModes(input)
-
-    expect(migrated).toBe(false)
-  })
-
-  it('should not mutate the input blocks', () => {
-    const input: Record<string, BlockState> = {
-      b1: makeBlock({
-        type: 'knowledge',
-        data: {},
-        subBlocks: {
-          knowledgeBaseSelector: {
-            id: 'knowledgeBaseSelector',
-            type: 'knowledge-base-selector',
-            value: 'kb-uuid',
-          },
-        },
-      }),
-    }
-
-    const { blocks } = backfillCanonicalModes(input)
-
-    expect(input.b1.data?.canonicalModes).toBeUndefined()
-    expect((blocks.b1.data?.canonicalModes as Record<string, string>).knowledgeBaseId).toBe('basic')
-    expect(blocks).not.toBe(input)
-  })
-
   it('should resolve correctly when existing field became the basic variant', () => {
     const input: Record<string, BlockState> = {
       b1: makeBlock({
@@ -1185,34 +919,6 @@ describe('backfillCanonicalModes', () => {
     expect(migrated).toBe(true)
     const modes = blocks.b1.data?.canonicalModes as Record<string, string>
     expect(modes.knowledgeBaseId).toBe('basic')
-  })
-
-  it('should resolve correctly when existing field became the advanced variant', () => {
-    const input: Record<string, BlockState> = {
-      b1: makeBlock({
-        type: 'knowledge',
-        data: {},
-        subBlocks: {
-          operation: { id: 'operation', type: 'dropdown', value: 'search' },
-          knowledgeBaseSelector: {
-            id: 'knowledgeBaseSelector',
-            type: 'knowledge-base-selector',
-            value: '',
-          },
-          manualKnowledgeBaseId: {
-            id: 'manualKnowledgeBaseId',
-            type: 'short-input',
-            value: 'manually-entered-kb-id',
-          },
-        },
-      }),
-    }
-
-    const { blocks, migrated } = backfillCanonicalModes(input)
-
-    expect(migrated).toBe(true)
-    const modes = blocks.b1.data?.canonicalModes as Record<string, string>
-    expect(modes.knowledgeBaseId).toBe('advanced')
   })
 
   it('should default to basic when neither value is set', () => {

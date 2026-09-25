@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockMaterializeLargeValueRef } = vi.hoisted(() => ({
   mockMaterializeLargeValueRef: vi.fn(),
@@ -14,10 +11,6 @@ vi.mock('@/lib/execution/payloads/store', () => ({
 import { warmLargeValueRefs } from '@/lib/execution/payloads/hydration'
 
 describe('warmLargeValueRefs', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('does not warm manifest chunks before explicit navigation', async () => {
     const chunkRef = {
       __simLargeValueRef: true,

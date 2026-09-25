@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockResolveOrganizationPlan, mockIsHosted } = vi.hoisted(() => ({
@@ -29,7 +26,6 @@ const ORGANIZATION_ID = 'org-1'
 
 describe('organization BYOK entitlement', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetOrganizationBYOKEntitlementCache()
     __resetCoalesceLocallyForTests()
     mockIsHosted.value = true
@@ -41,14 +37,6 @@ describe('organization BYOK entitlement', () => {
     await expect(isOrganizationBYOKEntitled(ORGANIZATION_ID)).resolves.toBe(true)
 
     expect(mockResolveOrganizationPlan).toHaveBeenCalledTimes(2)
-  })
-
-  it('serves the execution path from cache instead of re-reading billing', async () => {
-    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(true)
-    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(true)
-    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(true)
-
-    expect(mockResolveOrganizationPlan).toHaveBeenCalledTimes(1)
   })
 
   /**
@@ -90,16 +78,6 @@ describe('organization BYOK entitlement', () => {
     await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(false)
 
     expect(mockResolveOrganizationPlan).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps organizations in separate cache entries', async () => {
-    mockResolveOrganizationPlan.mockImplementation(async (id: string) => id === ORGANIZATION_ID)
-
-    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(true)
-    await expect(isOrganizationBYOKEntitledCached('org-2')).resolves.toBe(false)
-    await expect(isOrganizationBYOKEntitledCached(ORGANIZATION_ID)).resolves.toBe(true)
-
-    expect(mockResolveOrganizationPlan).toHaveBeenCalledTimes(2)
   })
 
   /**

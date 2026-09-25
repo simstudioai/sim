@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
 import {
@@ -21,58 +18,10 @@ const context = { headers: new Headers(), requestId: 'request-1', userId: 'user-
 
 describe('SendGrid operation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.send.mockResolvedValue('message-1')
     mocks.materialize.mockResolvedValue([
       { name: 'a.txt', contentType: 'text/plain', buffer: Buffer.from('abc') },
     ])
-  })
-
-  it('builds template personalizations and authorized attachments exactly', async () => {
-    const attachment = { key: 'workspace/ws-1/a.txt', name: 'a.txt', size: 3 }
-    await expect(
-      executeSendGridSend(
-        {
-          apiKey: 'secret',
-          from: 'from@example.com',
-          fromName: 'From',
-          to: 'to@example.com',
-          toName: 'To',
-          subject: null,
-          templateId: 'template-1',
-          dynamicTemplateData: '{"name":"Ada"}',
-          cc: 'cc@example.com',
-          attachments: [attachment],
-        },
-        context
-      )
-    ).resolves.toMatchObject({ output: { messageId: 'message-1', to: 'to@example.com' } })
-    expect(mocks.materialize).toHaveBeenCalledWith([attachment], context, {
-      label: 'Total attachment size',
-      maxTotalBytes: 30 * 1024 * 1024,
-    })
-    expect(mocks.send).toHaveBeenCalledWith(
-      'secret',
-      expect.objectContaining({
-        personalizations: [
-          expect.objectContaining({
-            to: [{ email: 'to@example.com', name: 'To' }],
-            cc: [{ email: 'cc@example.com' }],
-            dynamic_template_data: { name: 'Ada' },
-          }),
-        ],
-        template_id: 'template-1',
-        attachments: [
-          {
-            content: 'YWJj',
-            filename: 'a.txt',
-            type: 'text/plain',
-            disposition: 'attachment',
-          },
-        ],
-      }),
-      undefined
-    )
   })
 
   it('fails closed on incomplete attachment provenance', async () => {

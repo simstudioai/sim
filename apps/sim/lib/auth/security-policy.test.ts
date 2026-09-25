@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -33,7 +30,6 @@ describe('membershipCacheTtlMs', () => {
 
 describe('getMemberOrganizationId', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     invalidateMembershipCache('user-1')
   })
@@ -84,7 +80,6 @@ describe('getMemberOrganizationId', () => {
 
 describe('getSecurityPolicyVersion', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     invalidateSecurityPolicyVersionCache('org-1')
   })

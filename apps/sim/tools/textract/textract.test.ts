@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { textractAnalyzeExpenseTool } from '@/tools/textract/analyze-expense'
 import { textractAnalyzeIdTool } from '@/tools/textract/analyze-id'

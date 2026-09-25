@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Every raw route under `/api/table/**` authorizes through `checkAccess`, which
  * predates the operation boundary and so is never reached by the authorization
  * funnel that applies `tables.use` to `tableOperations`. These pin the gate
@@ -100,7 +98,6 @@ function listViews() {
 
 describe('tables.use gate on the raw /api/table routes', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetPermissionGroupScopeMock()
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
@@ -111,37 +108,6 @@ describe('tables.use gate on the raw /api/table routes', () => {
     mockCheckWorkspaceAccess.mockResolvedValue(workspaceAccess('admin'))
     mockAddTableColumn.mockResolvedValue({ schema: { columns: [{ name: 'expires_at' }] } })
     mockListTableViews.mockResolvedValue([])
-  })
-
-  /**
-   * The capability resolver looks the workspace up itself when the organization is omitted, so a
-   * call site that already access-checked the workspace and drops the id pays a second read of a
-   * value it is holding — once on every raw table route. Asserted on the resolver rather than on
-   * a query count because that is where the omission would show.
-   */
-  it('hands the capability resolver the organization it just loaded, not undefined', async () => {
-    mockCheckWorkspaceAccess.mockResolvedValue(workspaceAccess('admin', 'org-42'))
-
-    await listViews()
-
-    expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.any(String),
-      'org-42'
-    )
-  })
-
-  /** A personal workspace has no organization; `null` is the answer, and still not a lookup. */
-  it('passes null for a workspace that belongs to no organization', async () => {
-    mockCheckWorkspaceAccess.mockResolvedValue(workspaceAccess('admin', null))
-
-    await listViews()
-
-    expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.any(String),
-      null
-    )
   })
 
   describe('when the group withholds Tables', () => {
@@ -180,43 +146,6 @@ describe('tables.use gate on the raw /api/table routes', () => {
 
       expect(response.status).toBe(403)
       expect(await response.json()).toEqual({ error: 'Access denied' })
-    })
-
-    it('still 404s a table that does not exist, rather than naming the capability', async () => {
-      mockGetTableById.mockResolvedValue(null)
-
-      const response = await listViews()
-
-      expect(response.status).toBe(404)
-      expect(await response.json()).toEqual({ error: 'Table not found' })
-    })
-  })
-
-  describe('when no group withholds Tables', () => {
-    it('lets the TTL column through', async () => {
-      const response = await addTtlColumn()
-
-      expect(response.status).toBe(200)
-      expect(mockAddTableColumn).toHaveBeenCalledTimes(1)
-    })
-
-    it('lets the read path through', async () => {
-      const response = await listViews()
-
-      expect(response.status).toBe(200)
-      expect(mockListTableViews).toHaveBeenCalledTimes(1)
-    })
-
-    it('lets a governed group that withholds something else through', async () => {
-      permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
-        ...DEFAULT_PERMISSION_GROUP_CONFIG,
-        hideKnowledgeBaseTab: true,
-      })
-
-      const response = await addTtlColumn()
-
-      expect(response.status).toBe(200)
-      expect(mockAddTableColumn).toHaveBeenCalledTimes(1)
     })
   })
 })

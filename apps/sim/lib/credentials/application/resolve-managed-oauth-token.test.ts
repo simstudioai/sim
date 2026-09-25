@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import type { SessionPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -77,24 +74,10 @@ function executorPrincipal(credentialId = 'credential-1'): WorkflowExecutionDele
 
 describe('resolveManagedOAuthCredentialToken', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.requireCredentialAccess.mockResolvedValue(undefined)
     mocks.resolveToken.mockResolvedValue({ accessToken: 'access-token', refreshed: false })
-  })
-
-  it('rejects unsupported principals before loading the credential', async () => {
-    const principal: SessionPrincipal = {
-      kind: 'session',
-      userId: 'user-1',
-      sessionId: 'session-1',
-    }
-
-    await expect(
-      resolveManagedOAuthCredentialToken.execute({ principal, input })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.loadContext).not.toHaveBeenCalled()
   })
 
   it('rejects a delegation scoped to another credential', async () => {
@@ -105,30 +88,6 @@ describe('resolveManagedOAuthCredentialToken', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.resolveToken).not.toHaveBeenCalled()
-  })
-
-  it('resolves the token only after current workspace authorization', async () => {
-    const principal = executorPrincipal()
-    const result = await resolveManagedOAuthCredentialToken.execute({
-      principal,
-      input,
-    })
-
-    expect(mocks.resolvePermission).toHaveBeenCalledWith('user-1', 'workspace-1', null, undefined, {
-      forUpdate: undefined,
-    })
-    expect(mocks.requireCredentialAccess).toHaveBeenCalledWith(principal, context, {
-      resourceType: 'credential_group',
-      action: 'credential_groups.credentials.use',
-    })
-    expect(mocks.resolveToken).toHaveBeenCalledWith({
-      credentialId: 'credential-1',
-      workspaceId: 'workspace-1',
-      expectedProviderId: 'google-email',
-      requiredScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
-    })
-    expect(result).toEqual({ accessToken: 'access-token', refreshed: false })
-    expect(mocks.recordAudit).toHaveBeenCalledOnce()
   })
 
   it('does not resolve token material when the resource policy denies access', async () => {

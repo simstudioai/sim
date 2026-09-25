@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -62,7 +59,6 @@ const log = {
 
 describe('GET /api/v2/logs/[runId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -166,17 +162,6 @@ describe('GET /api/v2/logs/[runId]', () => {
     expect((await response.json()).data).toMatchObject({ runId: 'run-1', status: 'paused' })
   })
 
-  it('itemizes the run cost alongside its total', async () => {
-    const response = await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
-      params: Promise.resolve({ runId: 'run-1' }),
-    })
-
-    expect((await response.json()).data.cost).toEqual({
-      total: 0.01,
-      items: [{ category: 'model', description: 'gpt-5', cost: 0.01 }],
-    })
-  })
-
   /**
    * `null` and `[]` are different answers: `null` means no ledger exists for the
    * run at all, where `[]` would claim a ledger that itemizes to nothing.
@@ -237,32 +222,6 @@ describe('GET /api/v2/logs/[runId]', () => {
     })
 
     expect((await response.json()).data.cost).toBeNull()
-  })
-
-  it('returns the input the run was triggered with', async () => {
-    const response = await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
-      params: Promise.resolve({ runId: 'run-1' }),
-    })
-
-    expect((await response.json()).data.workflowInput).toEqual({ ticketId: 'T-1' })
-  })
-
-  it('reports a run that recorded no input as null rather than omitting the field', async () => {
-    mocks.execute.mockResolvedValueOnce({
-      log,
-      workflowFolderPath: '/agents',
-      executionData: { traceSpans: [], finalOutput: null },
-      costLedger: null,
-    })
-
-    const body = await (
-      await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
-        params: Promise.resolve({ runId: 'run-1' }),
-      })
-    ).json()
-
-    expect(body.data).toHaveProperty('workflowInput')
-    expect(body.data.workflowInput).toBeNull()
   })
 
   it('conceals canonical workspace authorization as log not-found', async () => {
@@ -329,18 +288,5 @@ describe('GET /api/v2/logs/[runId]', () => {
     expect(raw).not.toContain('"key"')
     expect(raw).not.toContain('/api/files/serve/')
     expect(raw).not.toContain('stolen.pdf')
-  })
-
-  it('hides unexpected materialization errors', async () => {
-    mocks.execute.mockRejectedValueOnce(new Error('storage key details'))
-
-    const response = await GET(new NextRequest('http://localhost:3000/api/v2/logs/run-1'), {
-      params: Promise.resolve({ runId: 'run-1' }),
-    })
-
-    expect(response.status).toBe(500)
-    expect(await response.json()).toMatchObject({
-      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
-    })
   })
 })

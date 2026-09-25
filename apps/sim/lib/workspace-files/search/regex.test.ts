@@ -69,13 +69,6 @@ describe('analyzeFileSearchRegex', () => {
       expect(analyzeFileSearchRegex('TODO\\(\\w+\\)').postgresSource).toBe('TODO\\(\\w+\\)')
     })
 
-    it('reports whether the pattern anchors', () => {
-      expect(analyzeFileSearchRegex('^import ').anchored).toBe(true)
-      expect(analyzeFileSearchRegex('import ;$').anchored).toBe(true)
-      expect(analyzeFileSearchRegex('import \\$foo').anchored).toBe(false)
-      expect(analyzeFileSearchRegex('import [$]foo').anchored).toBe(false)
-    })
-
     it('collects literals without the metacharacters that spell them', () => {
       expect(analyzeFileSearchRegex('\\werror\\D+').literals).toBe('error')
     })

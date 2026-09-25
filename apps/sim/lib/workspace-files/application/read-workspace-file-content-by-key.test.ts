@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -55,7 +52,6 @@ const file = {
 
 describe('readWorkspaceFileContentByKey', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getMetadata.mockResolvedValue({
       id: file.id,
       workspaceId: file.workspaceId,

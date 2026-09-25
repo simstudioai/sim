@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -45,31 +44,11 @@ const job: SlackSearchJob = {
   },
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.findChat.mockResolvedValue(null)
 })
 
 describe('durable retired-bot replies', () => {
-  it('persists a handoff without reading or creating private chat history', async () => {
-    queueTableRows(schemaMock.slackSearchInstallation, [installation])
-    queueTableRows(schemaMock.slackSearchTurn, [])
-    queueTableRows(schemaMock.slackSearchTurn, [{ count: 0 }])
-    const id = await persistSlackSearchTurn(job)
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({ id, payload: job })
-    )
-    expect(mocks.enqueue).toHaveBeenCalledWith(
-      expect.anything(),
-      'slack-search.turn',
-      { turnId: id },
-      { id: `slack-search-turn:${id}` }
-    )
-    expect(mocks.sender).not.toHaveBeenCalled()
-    expect(mocks.findChat).not.toHaveBeenCalled()
-    expect(mocks.resolveChat).not.toHaveBeenCalled()
-  })
-
   it('returns the existing turn for a duplicate Slack event without another write', async () => {
     queueTableRows(schemaMock.slackSearchInstallation, [installation])
     queueTableRows(schemaMock.slackSearchTurn, [

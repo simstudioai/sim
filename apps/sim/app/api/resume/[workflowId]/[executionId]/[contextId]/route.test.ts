@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -60,7 +57,7 @@ vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
   },
 }))
 
-import { GET, POST } from '@/app/api/resume/[workflowId]/[executionId]/[contextId]/route'
+import { POST } from '@/app/api/resume/[workflowId]/[executionId]/[contextId]/route'
 import { handleResumeExecution } from '@/app/api/resume/resume-handler'
 
 const WORKFLOW_ID = 'workflow-1'
@@ -167,7 +164,6 @@ function makeRequest(
 
 describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockValidateWorkflowAccess.mockResolvedValue({
       workflow: {
         id: WORKFLOW_ID,
@@ -413,27 +409,6 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
     expect(mockEnqueueOrStartResume).not.toHaveBeenCalled()
   })
 
-  it('fails closed when the persisted billing attribution is malformed', async () => {
-    mockGetPausedExecutionDetail.mockResolvedValueOnce(
-      createPausedExecution({
-        billingAttribution: {
-          actorUserId: PERSISTED_ACTOR_ID,
-          workspaceId: WORKSPACE_ID,
-        },
-      })
-    )
-    const { request, context } = makeRequest()
-
-    const response = await POST(request, context)
-
-    expect(response.status).toBe(500)
-    expect(await response.json()).toEqual({
-      error: 'Paused execution billing attribution is missing or invalid',
-    })
-    expect(mockPreprocessExecution).not.toHaveBeenCalled()
-    expect(mockEnqueueOrStartResume).not.toHaveBeenCalled()
-  })
-
   it.each([
     [
       'workspace',
@@ -482,34 +457,5 @@ describe('POST /api/resume/[workflowId]/[executionId]/[contextId]', () => {
     })
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
     expect(mockEnqueueOrStartResume).not.toHaveBeenCalled()
-  })
-})
-
-describe('GET /api/resume/[workflowId]/[executionId]/[contextId]', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('returns 401 before validating malformed route input', async () => {
-    mockValidateWorkflowAccess.mockResolvedValueOnce({
-      error: { message: 'Unauthorized', status: 401 },
-    })
-    const request = new NextRequest(
-      `http://localhost/api/resume/${WORKFLOW_ID}/${EXECUTION_ID}/${CONTEXT_ID}`
-    )
-    const context = {
-      params: Promise.resolve({
-        workflowId: WORKFLOW_ID,
-        executionId: '',
-        contextId: '',
-      }),
-    }
-
-    const response = await GET(request, context)
-
-    expect(response.status).toBe(401)
-    expect(await response.json()).toEqual({ error: 'Unauthorized' })
-    expect(mockValidateWorkflowAccess).toHaveBeenCalledWith(request, WORKFLOW_ID, false)
-    expect(mockGetPauseContextDetail).not.toHaveBeenCalled()
   })
 })

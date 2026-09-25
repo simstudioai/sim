@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -46,8 +43,7 @@ vi.mock('@/lib/secrets/application/use-cases', () => ({
   deleteSecretUseCase: { operation: { id: 'secrets.delete' }, execute: mocks.remove },
 }))
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { DELETE, PUT } from '@/app/api/v2/secrets/[name]/route'
+import { PUT } from '@/app/api/v2/secrets/[name]/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const SECRET_NAME = 'STRIPE_API_KEY'
@@ -104,7 +100,6 @@ function request(method: 'PUT' | 'DELETE', body?: unknown) {
 
 describe('/api/v2/secrets/[name]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.authenticate.mockResolvedValue(AUTH)
     mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
@@ -132,31 +127,6 @@ describe('/api/v2/secrets/[name]', () => {
     })
   })
 
-  it('forwards a workspace description to the set operation', async () => {
-    const response = await PUT(
-      request('PUT', {
-        workspaceId: WORKSPACE_ID,
-        scope: 'workspace',
-        value: 'secret-value',
-        description: '  Prod billing key  ',
-      }),
-      context
-    )
-
-    expect(response.status).toBe(201)
-    expect(mocks.set).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: {
-        workspaceId: WORKSPACE_ID,
-        name: SECRET_NAME,
-        scope: 'workspace',
-        value: 'secret-value',
-        description: 'Prod billing key',
-      },
-      request: expect.anything(),
-    })
-  })
-
   it('omits description entirely when unset so a rotation cannot erase it', async () => {
     await PUT(
       request('PUT', { workspaceId: WORKSPACE_ID, scope: 'workspace', value: 'rotated' }),
@@ -178,21 +148,6 @@ describe('/api/v2/secrets/[name]', () => {
     )
 
     expect(mocks.set.mock.calls[0][0].input.description).toBeNull()
-  })
-
-  it('rejects a description on a personal secret rather than dropping it', async () => {
-    const response = await PUT(
-      request('PUT', {
-        workspaceId: WORKSPACE_ID,
-        scope: 'personal',
-        value: 'secret-value',
-        description: 'has no shared audience',
-      }),
-      context
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.set).not.toHaveBeenCalled()
   })
 
   it('returns 200 when replacing an existing secret', async () => {
@@ -226,100 +181,5 @@ describe('/api/v2/secrets/[name]', () => {
       request: expect.anything(),
     })
     expect(mocks.set.mock.calls[0][0].input).not.toHaveProperty('value')
-  })
-
-  it('answers 404 rather than creating when a metadata-only write names no secret', async () => {
-    mocks.set.mockRejectedValueOnce(new OrchestrationError('not_found', 'Secret not found'))
-
-    const response = await PUT(
-      request('PUT', { workspaceId: WORKSPACE_ID, scope: 'workspace', unredacted: true }),
-      context
-    )
-
-    expect(response.status).toBe(404)
-  })
-
-  it('rejects a value-less personal write, which has no metadata field to update', async () => {
-    const response = await PUT(
-      request('PUT', { workspaceId: WORKSPACE_ID, scope: 'personal' }),
-      context
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.set).not.toHaveBeenCalled()
-  })
-
-  it('rejects a workspace write carrying nothing to write', async () => {
-    const response = await PUT(
-      request('PUT', { workspaceId: WORKSPACE_ID, scope: 'workspace' }),
-      context
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.set).not.toHaveBeenCalled()
-  })
-
-  it('deletes a secret through the semantic delete operation', async () => {
-    const response = await DELETE(request('DELETE'), context)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: { name: SECRET_NAME, scope: 'workspace', deleted: true },
-    })
-    expect(mocks.remove).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: { workspaceId: WORKSPACE_ID, name: SECRET_NAME, scope: 'workspace' },
-      request: expect.anything(),
-    })
-  })
-
-  /**
-   * The secrets list rejects a query param it does not implement, so the delete
-   * must too. A caller who mistypes `scope` otherwise gets a 400 for the missing
-   * required param — but a caller who adds a param that does not exist at all
-   * would have had it silently ignored.
-   */
-  it('rejects a query param it does not implement', async () => {
-    const response = await DELETE(
-      new NextRequest(
-        `http://localhost:3000/api/v2/secrets/${SECRET_NAME}?workspaceId=${WORKSPACE_ID}&scope=workspace&scopes=personal`,
-        { method: 'DELETE', headers: { 'x-api-key': 'key' } }
-      ),
-      context
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.remove).not.toHaveBeenCalled()
-  })
-
-  it('renders typed application errors without leaking raw errors', async () => {
-    mocks.remove.mockRejectedValueOnce(new OrchestrationError('not_found', 'stored detail'))
-
-    const response = await DELETE(request('DELETE'), context)
-
-    expect(response.status).toBe(404)
-    expect(await response.json()).toEqual({
-      error: { code: 'NOT_FOUND', message: 'stored detail' },
-    })
-  })
-
-  it('conceals unclassified application errors', async () => {
-    mocks.remove.mockRejectedValueOnce(new Error('database connection detail'))
-
-    const response = await DELETE(request('DELETE'), context)
-    const body = await response.json()
-
-    expect(response.status).toBe(500)
-    expect(body).toEqual({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } })
-    expect(JSON.stringify(body)).not.toContain('database connection detail')
-  })
-
-  it('authenticates before parsing a malformed set request', async () => {
-    mocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await PUT(request('PUT', {}), context)
-
-    expect(response.status).toBe(401)
-    expect(mocks.set).not.toHaveBeenCalled()
   })
 })

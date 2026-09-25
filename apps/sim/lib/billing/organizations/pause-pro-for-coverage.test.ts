@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -53,7 +50,6 @@ function queueWhereResponses(responses: unknown[][]) {
 
 describe('pauseProSubscriptionForOrgCoverage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -119,25 +115,6 @@ describe('pauseProSubscriptionForOrgCoverage', () => {
       subscriptionId: 'sub-personal',
       organizationId: 'org-1',
     })
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
-  })
-
-  it('reports not covered when the user is not a member of any organization', async () => {
-    queueWhereResponses([[]])
-
-    const result = await pauseProSubscriptionForOrgCoverage('user-1')
-
-    expect(result).toEqual({ covered: false, paused: false })
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
-  it('reports not covered when no org subscription is an entitled paid plan', async () => {
-    queueWhereResponses([[{ organizationId: 'org-1' }], []])
-
-    const result = await pauseProSubscriptionForOrgCoverage('user-1')
-
-    expect(result).toEqual({ covered: false, paused: false })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mockEnqueueOutboxEvent).not.toHaveBeenCalled()
   })

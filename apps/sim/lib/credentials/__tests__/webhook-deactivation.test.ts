@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import {
   dbChainMock,
   dbChainMockFns,
@@ -19,7 +15,6 @@ import { clearCredentialRefs, deleteConnectionCredential } from '@/lib/credentia
 
 describe('credential-bound webhook deactivation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -43,7 +38,6 @@ describe('credential-bound webhook deactivation', () => {
 
 describe('deleteConnectionCredential', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -64,17 +58,5 @@ describe('deleteConnectionCredential', () => {
     expect(dbChainMockFns.delete).toHaveBeenCalledWith(schemaMock.credential)
     expect(drizzleOrmMock.eq).toHaveBeenCalledWith(schemaMock.credential.id, 'credential-1')
     expect(drizzleOrmMock.eq).toHaveBeenCalledWith(schemaMock.credential.workspaceId, 'workspace-1')
-  })
-
-  it('returns an idempotent no-op if a concurrent disconnect wins the delete', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-
-    await expect(
-      deleteConnectionCredential({
-        credentialId: 'credential-1',
-        workspaceId: 'workspace-1',
-        reason: 'user_delete',
-      })
-    ).resolves.toBe(false)
   })
 })

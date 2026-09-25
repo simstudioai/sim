@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SLACK_SHARED_SEARCH_BOT_SCOPES } from '@/lib/slack-search/constants'
 
@@ -28,7 +27,6 @@ const grant = {
   team: { id: 'T1', name: 'Test' },
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   m.hosted = true
   m.app.mockReturnValue({ id: 'A1', clientId: 'client', clientSecret: 'secret', revision: 'r1' })
   m.exchange.mockResolvedValue(grant)

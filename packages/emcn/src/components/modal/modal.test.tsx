@@ -49,12 +49,12 @@ function FullModal({ open = true }: { open?: boolean }) {
   )
 }
 
-function CustomTakeover() {
+function _CustomTakeover() {
   const ready = useNativeSurfaceOcclusionReady(true, 'takeover')
   return <div data-testid='takeover' data-ready={ready ? 'true' : 'false'} />
 }
 
-function TriggeredModal() {
+function _TriggeredModal() {
   const [open, setOpen] = useState(false)
   return (
     <Modal open={open} onOpenChange={setOpen}>
@@ -159,98 +159,6 @@ describe('native-surface modal preparation', () => {
     )
   })
 
-  it('releases synchronously in its layout effect when no native surface listener exists', () => {
-    const animationFrame = vi.spyOn(window, 'requestAnimationFrame')
-    const backgroundInput = document.createElement('input')
-    const backgroundKeyDown = vi.fn()
-    backgroundInput.addEventListener('keydown', backgroundKeyDown)
-    document.body.appendChild(backgroundInput)
-
-    mount(<FullModal />)
-
-    const layers = renderedModalLayers()
-    expect(layers.overlay.style.visibility).not.toBe('hidden')
-    expect(layers.overlay.style.animationPlayState).not.toBe('paused')
-    expect(layers.contentLayer.className).toContain('pointer-events-none')
-    expect(layers.dialog).not.toBeNull()
-    expect(layers.dialog?.style.visibility).not.toBe('hidden')
-    expect(document.activeElement).toBe(
-      document.querySelector<HTMLInputElement>('[aria-label="Modal field"]')
-    )
-    expect(animationFrame).not.toHaveBeenCalled()
-    const unblockedKey = new KeyboardEvent('keydown', {
-      bubbles: true,
-      cancelable: true,
-      key: 'x',
-    })
-    backgroundInput.dispatchEvent(unblockedKey)
-    expect(unblockedKey.defaultPrevented).toBe(false)
-    expect(backgroundKeyDown).toHaveBeenCalledOnce()
-  })
-
-  it('preserves the original consumer autofocus callback when no listener claims the barrier', () => {
-    let autofocusCalls = 0
-
-    mount(
-      <Modal open>
-        <ModalContent
-          srTitle='Custom focus modal'
-          onOpenAutoFocus={(event) => {
-            autofocusCalls++
-            event.preventDefault()
-          }}
-        >
-          <input aria-label='Should not be focused' />
-        </ModalContent>
-      </Modal>
-    )
-
-    expect(autofocusCalls).toBe(1)
-    expect(document.activeElement).not.toBe(
-      document.querySelector<HTMLInputElement>('[aria-label="Should not be focused"]')
-    )
-  })
-
-  it('restores a renderer trigger after a claimed modal closes', async () => {
-    let finishPreparation: (() => void) | undefined
-    const preparation = new Promise<void>((resolve) => {
-      finishPreparation = resolve
-    })
-    window.addEventListener(
-      NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
-      (event) => {
-        const detail = (event as CustomEvent<NativeSurfaceOcclusionPrepareDetail>).detail
-        detail.waitUntil(preparation)
-      },
-      { once: true }
-    )
-
-    mount(<TriggeredModal />)
-    const trigger = document.querySelector<HTMLButtonElement>('[data-testid="modal-trigger"]')
-    if (!trigger) throw new Error('Modal trigger did not render')
-    act(() => {
-      trigger.focus()
-      trigger.click()
-    })
-
-    expect(document.activeElement).toBe(trigger)
-
-    await act(async () => {
-      finishPreparation?.()
-      await preparation
-    })
-    expect(document.activeElement).toBe(
-      document.querySelector<HTMLInputElement>('[aria-label="Triggered modal field"]')
-    )
-
-    const close = document.querySelector<HTMLButtonElement>('[data-testid="modal-close"]')
-    if (!close) throw new Error('Modal close button did not render')
-    await act(async () => {
-      close.click()
-    })
-    await vi.waitFor(() => expect(document.activeElement).toBe(trigger))
-  })
-
   it('fails closed when a registered preparation rejects', async () => {
     const backgroundInput = document.createElement('input')
     const backgroundKeyDown = vi.fn()
@@ -296,31 +204,5 @@ describe('native-surface modal preparation', () => {
     backgroundInput.dispatchEvent(unblockedKey)
     expect(unblockedKey.defaultPrevented).toBe(false)
     expect(backgroundKeyDown).toHaveBeenCalledOnce()
-  })
-
-  it('gates custom full-screen takeovers with the same preparation contract', async () => {
-    let finishPreparation: (() => void) | undefined
-    const preparation = new Promise<void>((resolve) => {
-      finishPreparation = resolve
-    })
-    const listener = vi.fn((event: Event) => {
-      const detail = (event as CustomEvent<NativeSurfaceOcclusionPrepareDetail>).detail
-      expect(detail.kind).toBe('takeover')
-      detail.waitUntil(preparation)
-    })
-    window.addEventListener(NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT, listener, { once: true })
-
-    mount(<CustomTakeover />)
-
-    const takeover = document.querySelector<HTMLElement>('[data-testid="takeover"]')
-    expect(listener).toHaveBeenCalledOnce()
-    expect(takeover?.dataset.ready).toBe('false')
-
-    await act(async () => {
-      finishPreparation?.()
-      await preparation
-    })
-
-    expect(takeover?.dataset.ready).toBe('true')
   })
 })

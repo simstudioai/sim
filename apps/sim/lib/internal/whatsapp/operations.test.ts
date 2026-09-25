@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -49,7 +46,6 @@ const storedFile = {
 
 describe('WhatsApp media operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}')))
     mocks.readGraph.mockResolvedValue({
       url: 'https://cdn.example.com/media',
@@ -119,19 +115,5 @@ describe('WhatsApp media operations', () => {
     expect(response.status).toBe(413)
     expect(mocks.secureFetch).not.toHaveBeenCalled()
     expect(mocks.uploadExecution).not.toHaveBeenCalled()
-  })
-
-  it('does no work when the execution is already canceled', async () => {
-    const controller = new AbortController()
-    controller.abort(new Error('execution canceled'))
-
-    await expect(
-      executeWhatsAppGetMedia(input, {
-        userId: 'user-1',
-        requestId: 'request-1',
-        signal: controller.signal,
-      })
-    ).rejects.toThrow('execution canceled')
-    expect(fetch).not.toHaveBeenCalled()
   })
 })

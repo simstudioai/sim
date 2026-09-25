@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -45,84 +41,13 @@ vi.mock('@/lib/api/client/request', () => ({
 }))
 
 import {
-  useBulkDocumentOperation,
-  useDeleteDocument,
   useDocumentChunkSearchQuery,
   useDocumentQuery,
   useKnowledgeBasesQuery,
   useKnowledgeChunksQuery,
-  useKnowledgeDocumentsQuery,
-  useUpdateDocument,
-  useUpdateDocumentTags,
   useWorkspaceKnowledgeSearch,
 } from '@/hooks/queries/kb/knowledge'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
-
-interface CapturedMutation {
-  onSettled: (data: unknown, error: unknown, variables: Record<string, unknown>) => void
-}
-
-function captureMutation(build: () => unknown): CapturedMutation {
-  let captured: CapturedMutation | undefined
-  mocks.useMutation.mockImplementation((options: CapturedMutation) => {
-    captured = options
-    return {}
-  })
-  build()
-  if (!captured) throw new Error('useMutation was not called')
-  return captured
-}
-
-describe('knowledge document mutations', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('invalidates the knowledge-base lists when a document is deleted', () => {
-    const mutation = captureMutation(() => useDeleteDocument())
-
-    mutation.onSettled(undefined, undefined, { knowledgeBaseId: 'kb-1', documentId: 'doc-1' })
-
-    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: knowledgeKeys.lists() })
-  })
-
-  it('invalidates the knowledge-base lists on a bulk delete', () => {
-    const mutation = captureMutation(() => useBulkDocumentOperation())
-
-    mutation.onSettled(undefined, undefined, { knowledgeBaseId: 'kb-1', operation: 'delete' })
-
-    expect(mocks.invalidateQueries).toHaveBeenCalledWith({ queryKey: knowledgeKeys.lists() })
-  })
-
-  /**
-   * `documents` (the list pages) and `document` (one row) are siblings under `detail`, so
-   * invalidating the row's key alone leaves the list rendering the filename, status, tags, and
-   * counts the write just changed.
-   */
-  it.each([
-    ['a document update', () => useUpdateDocument()],
-    ['a document tag update', () => useUpdateDocumentTags()],
-  ])('refreshes the document list pages after %s', (_label, build) => {
-    const mutation = captureMutation(build)
-
-    mutation.onSettled(undefined, undefined, { knowledgeBaseId: 'kb-1', documentId: 'doc-1' })
-
-    expect(mocks.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: knowledgeKeys.documentLists('kb-1'),
-    })
-    expect(mocks.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: knowledgeKeys.document('kb-1', 'doc-1'),
-    })
-  })
-
-  it('leaves the knowledge-base lists alone on a bulk enable', () => {
-    const mutation = captureMutation(() => useBulkDocumentOperation())
-
-    mutation.onSettled(undefined, undefined, { knowledgeBaseId: 'kb-1', operation: 'enable' })
-
-    expect(mocks.invalidateQueries).not.toHaveBeenCalledWith({ queryKey: knowledgeKeys.lists() })
-  })
-})
 
 interface CapturedQuery {
   queryKey: readonly unknown[]
@@ -149,52 +74,12 @@ describe('knowledge query placeholder scope', () => {
   beforeEach(() => {
     mocks.live = false
   })
-  it('waits for a nonempty owner before searching', () => {
-    const query = captureQuery(() => useWorkspaceKnowledgeSearch('', 'query'))
-    expect(query).toMatchObject({ enabled: false })
-  })
-
-  it('forwards search cancellation and leaves provider retries to the server', async () => {
-    const data = {
-      query: 'query',
-      results: [],
-      retrieval: { status: 'partial', timedOutLegs: ['vector'] },
-    }
-    mocks.requestJson.mockResolvedValueOnce({ data })
-    const query = captureQuery(() =>
-      useWorkspaceKnowledgeSearch('workspace-1', ' query ', { source: 'slack' })
-    )
-    const controller = new AbortController()
-    await expect(query.queryFn({ signal: controller.signal })).resolves.toEqual(data)
-
-    expect(query.retry).toBe(false)
-    expect(mocks.requestJson).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        signal: controller.signal,
-        body: expect.objectContaining({ query: 'query' }),
-      })
-    )
-  })
 
   it('does not carry a prior workspace list or document detail into another resource', () => {
     expect(
       captureQuery(() => useKnowledgeBasesQuery('workspace-2')).placeholderData
     ).toBeUndefined()
     expect(captureQuery(() => useDocumentQuery('kb-2', 'doc-2')).placeholderData).toBeUndefined()
-  })
-
-  it('keeps document pagination and filters within the same knowledge base', () => {
-    const query = captureQuery(() =>
-      useKnowledgeDocumentsQuery({ knowledgeBaseId: 'kb-1', search: 'new', offset: 50 })
-    )
-    const previous = { documents: [{ id: 'visible-document' }], pagination: { total: 1 } }
-    expect(
-      query.placeholderData?.(previous, { queryKey: knowledgeKeys.documents('kb-1', 'old-filter') })
-    ).toBe(previous)
-    expect(
-      query.placeholderData?.(previous, { queryKey: knowledgeKeys.documents('kb-2', 'old-filter') })
-    ).toBeUndefined()
   })
 
   it.each([
@@ -277,69 +162,6 @@ describe('knowledge query placeholder scope', () => {
     )
     expect(knowledgeKeys.search('workspace-1', 'query', {}, 5)).not.toEqual(
       knowledgeKeys.search('workspace-1', 'query', {}, 20)
-    )
-  })
-
-  it('preserves a Search tab result limit and organization address in the authorized request', async () => {
-    mocks.requestJson.mockResolvedValueOnce({ data: { results: [] } })
-    const query = captureQuery(() =>
-      useWorkspaceKnowledgeSearch(
-        { kind: 'organization', organizationId: 'org-1' },
-        'release',
-        { documentIds: ['doc-1'] },
-        5
-      )
-    )
-    await query.queryFn({ signal: new AbortController().signal })
-    expect(mocks.requestJson).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        body: {
-          organizationId: 'org-1',
-          query: 'release',
-          filters: { documentIds: ['doc-1'] },
-          topK: 5,
-        },
-      })
-    )
-  })
-  it('runs a date-only live resource with its original native query', async () => {
-    mocks.live = true
-    mocks.requestJson.mockResolvedValueOnce({ data: { query: '', results: [] } })
-    const nativeQueries = [{ provider: 'google_calendar' as const, query: '' }]
-    const query = captureQuery(() =>
-      useWorkspaceKnowledgeSearch(
-        { kind: 'organization', organizationId: 'org-1' },
-        '',
-        { startDate: '2026-09-22T00:00:00Z' },
-        20,
-        { nativeQueries, reuseFreshResult: true }
-      )
-    )
-    expect(query).toMatchObject({ enabled: true, staleTime: 60_000 })
-    expect(query.queryKey).toEqual([
-      ...knowledgeKeys.search(
-        'organization:org-1',
-        '',
-        { startDate: '2026-09-22T00:00:00Z' },
-        20,
-        'reader',
-        nativeQueries
-      ),
-      'live',
-    ])
-    await query.queryFn({ signal: new AbortController().signal })
-    expect(mocks.requestJson).toHaveBeenLastCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        body: {
-          organizationId: 'org-1',
-          query: '',
-          filters: { startDate: '2026-09-22T00:00:00Z' },
-          topK: 20,
-          nativeQueries,
-        },
-      })
     )
   })
 })

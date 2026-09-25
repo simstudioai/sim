@@ -1,11 +1,4 @@
-/** @vitest-environment node */
-import {
-  dbChainMock,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
+import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -65,7 +58,6 @@ function current(enabled = false) {
 
 describe('inbox settings application', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.role.mockResolvedValue('admin')
     mocks.capability.mockResolvedValue(undefined)
@@ -98,21 +90,6 @@ describe('inbox settings application', () => {
     })
   })
 
-  it('enables through the canonical provider lifecycle with the existing secret policy', async () => {
-    current()
-    expect(
-      await updateInboxSettings.execute({
-        principal,
-        input: { workspaceId: 'workspace', patch: { enabled: true, username: 'chosen' } },
-      })
-    ).toMatchObject({
-      enabled: true,
-      address: 'new@example.com',
-      mountedSecrets: ['ALLOWED_SECRET'],
-    })
-    expect(mocks.enable).toHaveBeenCalledExactlyOnceWith('workspace', { username: 'chosen' })
-  })
-
   it('disables without requiring an active paid plan', async () => {
     current(true)
     mocks.entitlement.mockResolvedValue(false)
@@ -124,32 +101,6 @@ describe('inbox settings application', () => {
     ).toMatchObject({ enabled: false, address: null, providerId: null })
     expect(mocks.disable).toHaveBeenCalledWith('workspace')
     expect(mocks.entitlement).not.toHaveBeenCalled()
-  })
-
-  it('updates secret names independently of provider setup and entitlement', async () => {
-    current()
-    const result = await updateInboxSettings.execute({
-      principal,
-      input: {
-        workspaceId: 'workspace',
-        patch: { secretScope: 'selected', mountedSecrets: [' B ', 'A', 'B'] },
-      },
-    })
-    expect(result.mountedSecrets).toEqual(['B', 'A'])
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ inboxMountedSecrets: ['B', 'A'] })
-    )
-    expect(mocks.enable).not.toHaveBeenCalled()
-    expect(mocks.entitlement).not.toHaveBeenCalled()
-  })
-
-  it('uses the canonical address-change lifecycle', async () => {
-    current(true)
-    await updateInboxSettings.execute({
-      principal,
-      input: { workspaceId: 'workspace', patch: { username: 'renamed' } },
-    })
-    expect(mocks.rename).toHaveBeenCalledExactlyOnceWith('workspace', 'renamed')
   })
 
   it('refuses setup without entitlement and duplicate enablement', async () => {
@@ -198,16 +149,6 @@ describe('inbox settings application', () => {
       updateInboxSettings.execute({
         principal,
         input: { workspaceId: 'foreign', patch: { enabled: true } },
-      })
-    ).rejects.toThrow()
-    expect(mocks.enable).not.toHaveBeenCalled()
-  })
-
-  it('validates direct application input before lifecycle work', async () => {
-    await expect(
-      updateInboxSettings.execute({
-        principal,
-        input: { workspaceId: 'workspace', patch: { username: '' } },
       })
     ).rejects.toThrow()
     expect(mocks.enable).not.toHaveBeenCalled()

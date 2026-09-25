@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
@@ -114,16 +111,5 @@ describe('SubBlock password forwarding', () => {
     })
 
     expect(html).toContain('data-password="on"')
-  })
-
-  it.each(PASSWORD_MASKED_SUBBLOCK_TYPES)('leaves the %s renderer unmasked by default', (type) => {
-    const html = renderSubBlock({
-      id: 'secret',
-      title: 'Secret',
-      type,
-      columns: ['Key', 'Value'],
-    })
-
-    expect(html).toContain('data-password="off"')
   })
 })

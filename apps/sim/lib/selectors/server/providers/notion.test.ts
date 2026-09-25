@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch, mockResolveSelectorOAuthAccessToken } = vi.hoisted(() => ({
@@ -33,7 +30,6 @@ function detailArgs(): ExecuteServerSelectorArgs {
 
 describe('Notion server selector adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveSelectorOAuthAccessToken.mockResolvedValue('server-only-token')
   })

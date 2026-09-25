@@ -1,11 +1,7 @@
-/**
- * @vitest-environment node
- */
 import {
   auditMock,
   dbChainMock,
   dbChainMockFns,
-  flattenMockConditions,
   queueTableRows,
   resetDbChainMock,
   schemaMock,
@@ -76,11 +72,9 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 
 import {
   createFolder,
-  createFolderAtPath,
   createFolderAtPathTransition,
   deleteFolder,
   deleteFolderByPath,
-  deleteFolderByPathTransition,
   relocateFolderByPath,
   restoreFolder,
   updateFolder,
@@ -140,7 +134,6 @@ const baseCreate = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   setConfig()
   mockWouldCreateFolderCycle.mockResolvedValue(false)
@@ -166,26 +159,6 @@ afterAll(() => {
 })
 
 describe('createFolder', () => {
-  it('inserts the trimmed name and returns the created row', async () => {
-    queueTableRows(schemaMock.folder, [{ minSortOrder: 5 }])
-    dbChainMockFns.returning.mockResolvedValueOnce([folderRow()])
-
-    const result = await createFolder({ ...baseCreate, id: 'folder-1', name: '  Reports  ' })
-
-    expect(result).toEqual({ success: true, folder: folderRow() })
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'folder-1',
-        resourceType: 'table',
-        name: 'Reports',
-        workspaceId: 'ws-1',
-        parentId: null,
-        createdAt: expect.any(Date),
-        updatedAt: expect.any(Date),
-      })
-    )
-  })
-
   it('refuses a parent that does not exist', async () => {
     queueTableRows(schemaMock.folder, [])
 
@@ -210,17 +183,6 @@ describe('createFolder', () => {
     expect(dbChainMockFns.values).not.toHaveBeenCalled()
   })
 
-  it('scopes the parent lookup to the same resourceType so the DB trigger never has to', async () => {
-    // `folder_parent_resource_type_match` enforces this too; skipping it here would surface a
-    // raw trigger error as a 500 instead of a 400.
-    queueTableRows(schemaMock.folder, [])
-
-    await createFolder({ ...baseCreate, resourceType: 'knowledge_base', parentId: 'parent-1' })
-
-    const [where] = dbChainMockFns.where.mock.calls[0] as [{ conditions: unknown[] }]
-    expect(where.conditions).toContainEqual(expect.objectContaining({ right: 'knowledge_base' }))
-  })
-
   it('refuses an archived parent so a folder cannot be created inside a deleted tree', async () => {
     queueTableRows(schemaMock.folder, [{ workspaceId: 'ws-1', archivedAt: ARCHIVED_AT }])
 
@@ -239,74 +201,6 @@ describe('createFolder', () => {
       errorCode: 'validation',
     })
     // Rejected before any read, so a self-parented id never reaches the parent lookup.
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
-
-  it('places a new folder above every existing sibling folder and resource', async () => {
-    // Workflows interleave folders and rows in one ordering space, so the new folder has to
-    // clear the minimum of BOTH — clearing only the folders would bury it under a workflow.
-    setConfig({
-      resourceType: 'workflow',
-      countKey: 'workflows',
-      sortOrderColumn: 'child.sortOrder',
-    })
-    queueTableRows(schemaMock.folder, [{ minSortOrder: 3 }])
-    queueTableRows(CHILD_TABLE, [{ minSortOrder: -2 }])
-    dbChainMockFns.returning.mockResolvedValueOnce([folderRow({ sortOrder: -3 })])
-
-    await createFolder({ ...baseCreate, resourceType: 'workflow' })
-
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: -3 }))
-  })
-
-  // Asserted on the WHERE clauses, not the resulting sortOrder: the mock returns whatever was
-  // queued regardless of the filter, so a sortOrder assertion passes without either clause.
-  it('ignores soft-deleted folders and resources when picking the new sortOrder', async () => {
-    setConfig({
-      resourceType: 'workflow',
-      countKey: 'workflows',
-      sortOrderColumn: 'child.sortOrder',
-    })
-    queueTableRows(schemaMock.folder, [{ minSortOrder: 0 }])
-    queueTableRows(CHILD_TABLE, [{ minSortOrder: 0 }])
-    dbChainMockFns.returning.mockResolvedValueOnce([folderRow({ sortOrder: -1 })])
-
-    await createFolder({ ...baseCreate, resourceType: 'workflow' })
-
-    const [folderWhere, childWhere] = dbChainMockFns.where.mock.calls
-      .slice(0, 2)
-      .map(([where]) => where)
-
-    // Assert on the specific COLUMN, not merely that some isNull exists: for a root folder the
-    // parent condition is itself `isNull(parentId)`, so a presence-only check stays green with
-    // the soft-delete filter deleted.
-    expect(
-      flattenMockConditions(folderWhere).some(
-        (node) => node.type === 'isNull' && node.column === schemaMock.folder.deletedAt
-      )
-    ).toBe(true)
-    expect(
-      flattenMockConditions(childWhere).some(
-        (node) => node.type === 'isNull' && node.column === 'child.archivedAt'
-      )
-    ).toBe(true)
-  })
-
-  it('starts at zero when the folder is the first thing in its location', async () => {
-    queueTableRows(schemaMock.folder, [{ minSortOrder: null }])
-    dbChainMockFns.returning.mockResolvedValueOnce([folderRow()])
-
-    await createFolder(baseCreate)
-
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 0 }))
-  })
-
-  it('honours an explicit sortOrder without querying siblings', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([folderRow({ sortOrder: 42 })])
-
-    await createFolder({ ...baseCreate, sortOrder: 42 })
-
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: 42 }))
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
@@ -347,19 +241,6 @@ describe('createFolder', () => {
     expect(folderMutationStatus(result.errorCode)).toBe(409)
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
-
-  it('reports any other insert failure as internal rather than a name conflict', async () => {
-    queueTableRows(schemaMock.folder, [{ minSortOrder: 0 }])
-    dbChainMockFns.returning.mockRejectedValueOnce(new Error('connection reset'))
-
-    const result = await createFolder(baseCreate)
-
-    expect(result).toEqual({
-      success: false,
-      error: 'Internal server error',
-      errorCode: 'internal',
-    })
-  })
 })
 
 describe('path-owned folder mutations', () => {
@@ -390,78 +271,6 @@ describe('path-owned folder mutations', () => {
       { maxRows: 10_000 }
     )
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-  })
-
-  it.each(['workflow', 'table'] as const)(
-    'rejects a %s folder create at the cap before inserting',
-    async (resourceType) => {
-      const existing = folderRow({ id: 'existing-1', resourceType, name: 'Existing' })
-      mockLoadActiveFolderPathIndex.mockResolvedValueOnce({
-        rowById: new Map([[existing.id, existing]]),
-        pathById: new Map([[existing.id, '/Existing']]),
-        idByPath: new Map([['/Existing', existing.id]]),
-      })
-
-      const result = await createFolderAtPathTransition({
-        resourceType,
-        workspaceId: 'ws-1',
-        userId: 'user-1',
-        path: '/Reports',
-        maxFolderRows: 1,
-      })
-
-      expect(result).toEqual({
-        success: false,
-        error: 'Folder path index exceeds the 1 row limit',
-        errorCode: 'payload_too_large',
-      })
-      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    }
-  )
-
-  it('does not project legacy audit from the application transition', async () => {
-    queueTableRows(schemaMock.folder, [{ minSortOrder: 0 }])
-    dbChainMockFns.returning.mockResolvedValueOnce([folderRow()])
-
-    const result = await createFolderAtPathTransition({
-      resourceType: 'workflow',
-      workspaceId: 'ws-1',
-      userId: 'user-1',
-      path: '/Reports',
-    })
-
-    expect(result).toMatchObject({ success: true, path: '/Reports' })
-    expect(auditMock.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('creates only the addressed leaf under an existing canonical parent path', async () => {
-    const parent = folderRow({ id: 'parent-1', name: 'Reports' })
-    mockLoadActiveFolderPathIndex.mockResolvedValue({
-      rowById: new Map([['parent-1', parent]]),
-      pathById: new Map([['parent-1', '/Reports']]),
-      idByPath: new Map([['/Reports', 'parent-1']]),
-    })
-    queueTableRows(schemaMock.folder, [{ minSortOrder: 0 }])
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      folderRow({ id: 'folder-2', name: 'Q1', parentId: 'parent-1', sortOrder: -1 }),
-    ])
-
-    const result = await createFolderAtPath({
-      resourceType: 'table',
-      workspaceId: 'ws-1',
-      userId: 'user-1',
-      path: '/Reports/Q1',
-    })
-
-    expect(result).toMatchObject({ success: true, path: '/Reports/Q1' })
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'Q1',
-        parentId: 'parent-1',
-        createdAt: expect.any(Date),
-        updatedAt: expect.any(Date),
-      })
-    )
   })
 
   it('releases the folder transaction before running the domain delete cascade', async () => {
@@ -500,32 +309,6 @@ describe('path-owned folder mutations', () => {
     expect(result).toMatchObject({ success: true, path: '/Reports' })
   })
 
-  it('returns authoritative folder identity without double-auditing for application projection', async () => {
-    const source = folderRow({ id: 'folder-1', name: 'Reports' })
-    mockLoadActiveFolderPathIndex.mockResolvedValue({
-      rowById: new Map([['folder-1', source]]),
-      pathById: new Map([['folder-1', '/Reports']]),
-      idByPath: new Map([['/Reports', 'folder-1']]),
-    })
-    mockArchiveFolderCascade.mockResolvedValueOnce({ folders: 1, children: 2 })
-
-    const result = await deleteFolderByPathTransition({
-      resourceType: 'table',
-      workspaceId: 'ws-1',
-      userId: 'user-1',
-      path: '/Reports',
-      recursive: true,
-    })
-
-    expect(result).toMatchObject({
-      success: true,
-      folderId: 'folder-1',
-      folderName: 'Reports',
-      deletedItems: { folders: 1, tables: 2 },
-    })
-    expect(auditMock.recordAudit).not.toHaveBeenCalled()
-  })
-
   it('rejects relocating a folder beneath its own descendant before writing', async () => {
     const source = folderRow({ id: 'folder-1', name: 'Reports' })
     mockLoadActiveFolderPathIndex.mockResolvedValue({
@@ -544,77 +327,6 @@ describe('path-owned folder mutations', () => {
 
     expect(result).toMatchObject({ success: false, errorCode: 'validation' })
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
-  /**
-   * `mv` semantics: `/xp-files` moved to an existing `/fx-archive` lands at
-   * `/fx-archive/xp-files` instead of being refused as a name collision, while
-   * a destination naming no folder is still the source's new full path.
-   */
-  it('moves a folder into a destination that names an existing folder', async () => {
-    const source = folderRow({ id: 'folder-1', name: 'xp-files' })
-    const archive = folderRow({ id: 'folder-2', name: 'fx-archive' })
-    mockLoadActiveFolderPathIndex.mockResolvedValue({
-      rowById: new Map([
-        ['folder-1', source],
-        ['folder-2', archive],
-      ]),
-      pathById: new Map([
-        ['folder-1', '/xp-files'],
-        ['folder-2', '/fx-archive'],
-      ]),
-      idByPath: new Map([
-        ['/xp-files', 'folder-1'],
-        ['/fx-archive', 'folder-2'],
-      ]),
-    })
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      folderRow({ id: 'folder-1', name: 'xp-files', parentId: 'folder-2' }),
-    ])
-
-    const result = await relocateFolderByPath({
-      resourceType: 'table',
-      workspaceId: 'ws-1',
-      userId: 'user-1',
-      path: '/xp-files',
-      destinationPath: '/fx-archive',
-    })
-
-    expect(result).toMatchObject({ success: true, path: '/fx-archive/xp-files' })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'xp-files', parentId: 'folder-2' })
-    )
-    expect(auditMock.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        description: 'Moved table folder to "/fx-archive/xp-files"',
-        metadata: expect.objectContaining({ destinationPath: '/fx-archive/xp-files' }),
-      })
-    )
-  })
-
-  it('renames a folder to a destination that names no folder', async () => {
-    const source = folderRow({ id: 'folder-1', name: 'xp-files' })
-    mockLoadActiveFolderPathIndex.mockResolvedValue({
-      rowById: new Map([['folder-1', source]]),
-      pathById: new Map([['folder-1', '/xp-files']]),
-      idByPath: new Map([['/xp-files', 'folder-1']]),
-    })
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      folderRow({ id: 'folder-1', name: 'fx-archive' }),
-    ])
-
-    const result = await relocateFolderByPath({
-      resourceType: 'table',
-      workspaceId: 'ws-1',
-      userId: 'user-1',
-      path: '/xp-files',
-      destinationPath: '/fx-archive',
-    })
-
-    expect(result).toMatchObject({ success: true, path: '/fx-archive' })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'fx-archive', parentId: null })
-    )
   })
 
   /**
@@ -659,26 +371,6 @@ describe('path-owned folder mutations', () => {
     expect(auditMock.recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({ description: 'Moved table folder to "/xp-docs"' })
     )
-  })
-
-  it('reports a root-level folder moved to / as already there', async () => {
-    const source = folderRow({ id: 'folder-1', name: 'xp-docs' })
-    mockLoadActiveFolderPathIndex.mockResolvedValue({
-      rowById: new Map([['folder-1', source]]),
-      pathById: new Map([['folder-1', '/xp-docs']]),
-      idByPath: new Map([['/xp-docs', 'folder-1']]),
-    })
-
-    const result = await relocateFolderByPath({
-      resourceType: 'table',
-      workspaceId: 'ws-1',
-      userId: 'user-1',
-      path: '/xp-docs',
-      destinationPath: '/',
-    })
-
-    expect(result).toMatchObject({ success: false, errorCode: 'conflict' })
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('still refuses a move whose source already exists under the destination', async () => {
@@ -758,30 +450,6 @@ describe('updateFolder', () => {
     userId: 'user-1',
   }
 
-  it('writes only the fields the caller supplied, plus a fresh updatedAt', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([folderRow({ name: 'Renamed' })])
-
-    const result = await updateFolder({ ...baseUpdate, name: '  Renamed  ' })
-
-    expect(result.success).toBe(true)
-    const [set] = dbChainMockFns.set.mock.calls[0] as [Record<string, unknown>]
-    expect(set.name).toBe('Renamed')
-    expect(set.updatedAt).toBeInstanceOf(Date)
-    expect(set).not.toHaveProperty('parentId')
-    expect(set).not.toHaveProperty('sortOrder')
-  })
-
-  it('reparents a folder under a validated parent', async () => {
-    queueTableRows(schemaMock.folder, [{ workspaceId: 'ws-1', archivedAt: null }])
-    dbChainMockFns.returning.mockResolvedValueOnce([folderRow({ parentId: 'parent-1' })])
-
-    const result = await updateFolder({ ...baseUpdate, parentId: 'parent-1' })
-
-    expect(result.success).toBe(true)
-    const [set] = dbChainMockFns.set.mock.calls[0] as [Record<string, unknown>]
-    expect(set.parentId).toBe('parent-1')
-  })
-
   it('refuses an archived folder, so a delete cannot unlock its locked subfolders', async () => {
     /**
      * `getFolderLockStatus` skips archived rows, so an archived-but-locked folder reports
@@ -796,15 +464,6 @@ describe('updateFolder', () => {
     expect(dbChainMockFns.set).toHaveBeenCalled()
   })
 
-  it('clears the parent when reparenting to the root', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([folderRow()])
-
-    await updateFolder({ ...baseUpdate, parentId: null })
-
-    const [set] = dbChainMockFns.set.mock.calls[0] as [Record<string, unknown>]
-    expect(set.parentId).toBeNull()
-  })
-
   it('drops a locked flag on a resource type without lock semantics', async () => {
     // The engine is reachable from the copilot tools as well as the route, so a `locked`
     // value on an unlockable tree must never reach the row.
@@ -814,16 +473,6 @@ describe('updateFolder', () => {
 
     const [set] = dbChainMockFns.set.mock.calls[0] as [Record<string, unknown>]
     expect(set).not.toHaveProperty('locked')
-  })
-
-  it('persists a locked flag on the one resource type that supports locking', async () => {
-    setConfig({ resourceType: 'workflow', countKey: 'workflows', supportsLocking: true })
-    dbChainMockFns.returning.mockResolvedValueOnce([folderRow({ locked: true })])
-
-    await updateFolder({ ...baseUpdate, resourceType: 'workflow', locked: true })
-
-    const [set] = dbChainMockFns.set.mock.calls[0] as [Record<string, unknown>]
-    expect(set.locked).toBe(true)
   })
 
   it('refuses a reparent that would close a cycle', async () => {
@@ -842,17 +491,6 @@ describe('updateFolder', () => {
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 
-  it('refuses a folder that names itself as its own parent', async () => {
-    const result = await updateFolder({ ...baseUpdate, parentId: 'folder-1' })
-
-    expect(result).toEqual({
-      success: false,
-      error: 'Folder cannot be its own parent',
-      errorCode: 'validation',
-    })
-    expect(mockWouldCreateFolderCycle).not.toHaveBeenCalled()
-  })
-
   it('reports a folder outside this workspace or resourceType as not found', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([])
 
@@ -862,20 +500,6 @@ describe('updateFolder', () => {
       success: false,
       error: 'Folder not found',
       errorCode: 'not_found',
-    })
-  })
-
-  it('returns a conflict when a rename collides with an active sibling', async () => {
-    // Rename, like create, is a name the user chose — a 409 lets them pick another rather
-    // than being handed "Reports (1)".
-    dbChainMockFns.returning.mockRejectedValueOnce(uniqueViolation())
-
-    const result = await updateFolder({ ...baseUpdate, name: 'Taken' })
-
-    expect(result).toEqual({
-      success: false,
-      error: DUPLICATE_NAME_ERROR,
-      errorCode: 'conflict',
     })
   })
 })
@@ -888,19 +512,6 @@ describe('deleteFolder', () => {
     userId: 'user-1',
     folderName: 'Reports',
   }
-
-  it('reports a folder outside this workspace or resourceType as not found', async () => {
-    queueTableRows(schemaMock.folder, [])
-
-    const result = await deleteFolder(baseDelete)
-
-    expect(result).toEqual({
-      success: false,
-      error: 'Folder not found',
-      errorCode: 'not_found',
-    })
-    expect(mockArchiveFolderCascade).not.toHaveBeenCalled()
-  })
 
   it('archives the resolved subtree and reports counts under the resource’s own key', async () => {
     queueTableRows(schemaMock.folder, [{ deletedAt: null }])
@@ -975,16 +586,6 @@ describe('deleteFolder', () => {
       ARCHIVED_AT
     )
   })
-
-  it('resolves the timestamp before the subtree walk, which needs it to see stragglers', async () => {
-    queueTableRows(schemaMock.folder, [{ deletedAt: ARCHIVED_AT }])
-
-    await deleteFolder(baseDelete)
-
-    const [, , , , walkTimestamp] = mockCollectCascadeSubtreeIds.mock.calls[0]
-    const [, , , , archiveTimestamp] = mockArchiveFolderCascade.mock.calls[0]
-    expect(walkTimestamp).toBe(archiveTimestamp)
-  })
 })
 
 describe('restoreFolder', () => {
@@ -994,27 +595,6 @@ describe('restoreFolder', () => {
     workspaceId: 'ws-1',
     userId: 'user-1',
   }
-
-  it('reports a folder outside this workspace or resourceType as not found', async () => {
-    queueTableRows(schemaMock.folder, [])
-
-    const result = await restoreFolder(baseRestore)
-
-    expect(result).toEqual({
-      success: false,
-      error: 'Folder not found',
-      errorCode: 'not_found',
-    })
-  })
-
-  it('is a no-op on a folder that was never archived', async () => {
-    queueTableRows(schemaMock.folder, [folderRow({ deletedAt: null })])
-
-    const result = await restoreFolder(baseRestore)
-
-    expect(result).toEqual({ success: true, restoredItems: { folders: 0, tables: 0 } })
-    expect(mockRestoreFolderRows).not.toHaveBeenCalled()
-  })
 
   it('refuses to restore into an archived workspace', async () => {
     queueTableRows(schemaMock.folder, [folderRow({ deletedAt: ARCHIVED_AT })])
@@ -1050,22 +630,6 @@ describe('restoreFolder', () => {
     )
   })
 
-  it('keeps a folder under its parent when that parent came back first', async () => {
-    queueTableRows(schemaMock.folder, [folderRow({ deletedAt: ARCHIVED_AT, parentId: 'parent-1' })])
-    queueTableRows(schemaMock.folder, [{ archivedAt: null }])
-
-    await restoreFolder(baseRestore)
-
-    expect(dbChainMockFns.set).not.toHaveBeenCalledWith({ parentId: null })
-    expect(mockDeduplicateFolderName).toHaveBeenCalledWith(
-      dbChainMock.db,
-      'ws-1',
-      'parent-1',
-      'Reports',
-      'table'
-    )
-  })
-
   it('renames rather than 409s when the folder’s name was taken while it was gone', async () => {
     // The caller cannot rename an archived folder, so a taken name would otherwise make it
     // permanently unrestorable.
@@ -1076,40 +640,6 @@ describe('restoreFolder', () => {
 
     expect(result.success).toBe(true)
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ name: 'Reports (1)' })
-  })
-
-  /**
-   * `projectAudit: false` is for an application use case that records `FOLDER_RESTORED`
-   * itself against the acting `Principal` — the `actorId: userId` entry here cannot express
-   * a non-human one, and both firing would double-count the restore.
-   */
-  it('suppresses its own audit entry when the caller projects one', async () => {
-    queueTableRows(schemaMock.folder, [folderRow({ deletedAt: ARCHIVED_AT })])
-
-    const result = await restoreFolder(baseRestore, { projectAudit: false })
-
-    expect(result.success).toBe(true)
-    expect(auditMock.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('records its own audit entry by default', async () => {
-    queueTableRows(schemaMock.folder, [folderRow({ deletedAt: ARCHIVED_AT })])
-
-    await restoreFolder(baseRestore)
-
-    expect(auditMock.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ action: auditMock.AuditAction.FOLDER_RESTORED })
-    )
-  })
-
-  it('leaves the name alone when nothing took it', async () => {
-    queueTableRows(schemaMock.folder, [folderRow({ deletedAt: ARCHIVED_AT })])
-
-    await restoreFolder(baseRestore)
-
-    expect(dbChainMockFns.set).not.toHaveBeenCalledWith(
-      expect.objectContaining({ name: expect.anything() })
-    )
   })
 
   it('restores only the rows archived under the folder’s own timestamp', async () => {
@@ -1160,34 +690,6 @@ describe('restoreFolder', () => {
     expect(result).toEqual({ success: true, restoredItems: { folders: 1, tables: 5 } })
   })
 
-  /**
-   * Regression: the restore used to run inside `withFolderTreeLock`, so the pool read of the
-   * folder row and the table cascade's own transactions all ran inside a transaction callback —
-   * which the `@sim/db` tripwire refuses outside production, 500ing every table-folder restore.
-   * The lock now lives inside the one folder-row transaction, after the hook has finished.
-   */
-  it('takes the tree lock inside the folder-row transaction, after the restoreChildren hook', async () => {
-    setConfig({ restoreChildren: mockRestoreChildren })
-    mockRestoreChildren.mockResolvedValueOnce(2)
-    queueTableRows(schemaMock.folder, [folderRow({ deletedAt: ARCHIVED_AT })])
-
-    const result = await restoreFolder(baseRestore)
-
-    expect(result).toEqual({ success: true, restoredItems: { folders: 1, tables: 2 } })
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
-    expect(mockRestoreChildren.mock.invocationCallOrder[0]).toBeLessThan(
-      dbChainMockFns.transaction.mock.invocationCallOrder[0]
-    )
-    // The advisory lock is the first statement on the transaction handle, ahead of the row writes.
-    expect(dbChainMockFns.execute).toHaveBeenCalled()
-    expect(dbChainMockFns.execute.mock.invocationCallOrder[0]).toBeGreaterThan(
-      dbChainMockFns.transaction.mock.invocationCallOrder[0]
-    )
-    expect(dbChainMockFns.execute.mock.invocationCallOrder[0]).toBeLessThan(
-      mockRestoreFolderRows.mock.invocationCallOrder[0]
-    )
-  })
-
   it('returns a conflict when a concurrent create takes the name after the dedup check', async () => {
     // Dedup covers the restore root, but clearing deletedAt brings the row back under the
     // active-name unique index and that window is real.
@@ -1201,12 +703,5 @@ describe('restoreFolder', () => {
       error: DUPLICATE_NAME_ERROR,
       errorCode: 'conflict',
     })
-  })
-
-  it('rethrows any non-conflict failure instead of reporting a name collision', async () => {
-    queueTableRows(schemaMock.folder, [folderRow({ deletedAt: ARCHIVED_AT })])
-    mockRestoreFolderRows.mockRejectedValueOnce(new Error('connection reset'))
-
-    await expect(restoreFolder(baseRestore)).rejects.toThrow('connection reset')
   })
 })

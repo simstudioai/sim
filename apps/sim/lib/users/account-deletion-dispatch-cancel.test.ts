@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, hasMockCondition, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -30,7 +27,6 @@ import { deleteUserAccount } from '@/lib/users/account-deletion'
 
 describe('deleteUserAccount and the governed-subject foreign key', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockIsSoleOwnerOfPaidOrganization.mockResolvedValue({ isSoleOwner: false, name: null })
     mockGetPersonalSubscription.mockResolvedValue(null)

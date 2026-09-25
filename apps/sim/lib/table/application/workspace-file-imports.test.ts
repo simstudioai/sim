@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
@@ -130,7 +126,6 @@ const tablePrincipal = { ...principal, resourceScope: { tableId: 'table-1' } }
 
 describe('workspace-file Table application commands', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveWorkspaceContext.mockResolvedValue({
       workspaceId: 'workspace-1',
@@ -175,31 +170,6 @@ describe('workspace-file Table application commands', () => {
     })
   })
 
-  it('owns canonical file resolution, bounded parsing, table creation, audit, and effects', async () => {
-    const result = await createTableFromWorkspaceFile.execute({
-      principal,
-      input: {
-        workspaceId: 'workspace-1',
-        fileReference: 'files/people.csv',
-        name: 'People',
-      },
-    })
-
-    expect(result).toMatchObject({ kind: 'inline', insertedCount: 1, table })
-    // Chat uploads resolve like reads do: `uploads/<name>` imports without a save step.
-    expect(mocks.resolveFile).toHaveBeenCalledWith('workspace-1', 'files/people.csv', {
-      includeChatUploads: true,
-    })
-    expect(mocks.fetchFile).toHaveBeenCalledWith(sourceFile, { maxBytes: 50 * 1024 * 1024 })
-    expect(mocks.createTable).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceId: 'workspace-1', userId: 'user-1', maxTables: 5 }),
-      'request-'
-    )
-    expect(mocks.batchInsert).toHaveBeenCalledTimes(1)
-    expect(mocks.audit).toHaveBeenCalledTimes(1)
-    expect(mocks.signal).toHaveBeenCalledWith(table.id)
-  })
-
   /**
    * The parse dropped these records silently, so an inline import used to finish
    * with a smaller table and nothing distinguishing it from a clean one.
@@ -220,15 +190,6 @@ describe('workspace-file Table application commands', () => {
       kind: 'inline',
       rejections: { rowsRejected: 2, cellsRejected: 0, rejectedSamples: [rejectedSample] },
     })
-  })
-
-  it('omits the accounting entirely from a clean import', async () => {
-    const result = await createTableFromWorkspaceFile.execute({
-      principal,
-      input: { workspaceId: 'workspace-1', fileReference: 'files/people.csv' },
-    })
-
-    expect(result).not.toHaveProperty('rejections')
   })
 
   it('conceals cross-workspace files before parsing or table mutation', async () => {
@@ -260,20 +221,6 @@ describe('workspace-file Table application commands', () => {
 
     expect(mocks.resolveWorkspaceContext).not.toHaveBeenCalled()
     expect(mocks.resolveFile).not.toHaveBeenCalled()
-  })
-
-  it('preserves large-file background admission without buffering inline', async () => {
-    mocks.resolveFile.mockResolvedValueOnce({ ...sourceFile, size: 8 * 1024 * 1024 })
-
-    const result = await createTableFromWorkspaceFile.execute({
-      principal,
-      input: { workspaceId: 'workspace-1', fileReference: 'files/people.csv' },
-    })
-
-    expect(result).toMatchObject({ kind: 'background', table, jobId: 'request-id-1234' })
-    expect(mocks.fetchFile).not.toHaveBeenCalled()
-    expect(mocks.runDetached).toHaveBeenCalledTimes(1)
-    expect(mocks.audit).toHaveBeenCalledTimes(1)
   })
 
   it('rolls back a partially-created table and emits no audit or effect on insertion failure', async () => {

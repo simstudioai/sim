@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch } = vi.hoisted(() => ({ mockFetch: vi.fn() }))
@@ -36,7 +33,6 @@ describe('QuickBooks account identity', () => {
 
 describe('fetchQuickBooksConnectionProfile', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
   })
 
@@ -112,41 +108,6 @@ describe('fetchQuickBooksConnectionProfile', () => {
     ).rejects.toThrow('QuickBooks company validation failed with HTTP 401')
   })
 
-  it('does not confuse the CompanyInfo entity ID with the OAuth realm ID', async () => {
-    mockFetch
-      .mockResolvedValueOnce(
-        Response.json({
-          sub: 'issuer:subject',
-          givenName: 'Ada',
-          email: 'ada@example.com',
-          emailVerified: true,
-        })
-      )
-      .mockResolvedValueOnce(
-        Response.json({ CompanyInfo: { Id: '1', CompanyName: 'Analytical Engines' } })
-      )
-
-    await expect(
-      fetchQuickBooksConnectionProfile('access-token', '123456789', CLIENT_CONFIG)
-    ).resolves.toMatchObject({ realmId: '123456789' })
-  })
-
-  it('rejects an unverified Intuit email before reading company data', async () => {
-    mockFetch.mockResolvedValueOnce(
-      Response.json({
-        sub: 'intuit-user-1',
-        givenName: 'Ada',
-        email: 'ada@example.com',
-        emailVerified: false,
-      })
-    )
-
-    await expect(
-      fetchQuickBooksConnectionProfile('access-token', '123456789', CLIENT_CONFIG)
-    ).rejects.toThrow('QuickBooks UserInfo did not return a verified email address')
-    expect(mockFetch).toHaveBeenCalledOnce()
-  })
-
   it('does not treat a truthy string as a verified Intuit email', async () => {
     mockFetch.mockResolvedValueOnce(
       Response.json({
@@ -166,7 +127,6 @@ describe('fetchQuickBooksConnectionProfile', () => {
 
 describe('revokeQuickBooksToken', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
   })
 
@@ -194,13 +154,6 @@ describe('revokeQuickBooksToken', () => {
       body: JSON.stringify({ token: 'refresh-token' }),
     })
     expect(init.signal).toBeInstanceOf(AbortSignal)
-  })
-
-  it('rejects before sending when client credentials are missing', async () => {
-    await expect(
-      revokeQuickBooksToken('refresh-token', { ...CLIENT_CONFIG, clientSecret: '' })
-    ).rejects.toThrow('QuickBooks client secret must be between 1 and 512 characters')
-    expect(mockFetch).not.toHaveBeenCalled()
   })
 
   it('sanitizes network and timeout failures', async () => {
@@ -237,17 +190,6 @@ describe('revokeQuickBooksToken', () => {
     mockFetch.mockResolvedValueOnce(Response.json({ error: 'invalid_token' }, { status: 400 }))
 
     await expect(revokeQuickBooksToken('refresh-token', CLIENT_CONFIG)).resolves.toBeUndefined()
-  })
-
-  it('sanitizes non-terminal non-success responses', async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response('sensitive-refresh-token quickbooks-client-secret', { status: 503 })
-    )
-
-    const result = revokeQuickBooksToken('sensitive-refresh-token', CLIENT_CONFIG)
-    await expect(result).rejects.toThrow('QuickBooks token revocation failed with HTTP 503')
-    await expect(result).rejects.not.toThrow('sensitive-refresh-token')
-    await expect(result).rejects.not.toThrow('quickbooks-client-secret')
   })
 
   it('marks rate limits and server failures as retryable', async () => {

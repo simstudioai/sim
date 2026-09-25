@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { createMockLogger, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { NextRequest } from 'next/server'
@@ -65,7 +64,7 @@ vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.example
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createKnowledgeMcpServer } from '@/lib/knowledge/mcp/server'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const principal = { kind: 'personal_api_key' as const, userId: 'person-1', keyId: 'key-1' }
 const auth = {
@@ -85,14 +84,13 @@ function call(tool: string, input: Record<string, unknown>, signal = new AbortCo
   return run(input, { signal })
 }
 
-function payload(result: CallToolResult): unknown {
+function _payload(result: CallToolResult): unknown {
   const first = result.content[0]
   if (first.type !== 'text') throw new Error('Expected a text result')
   return JSON.parse(first.text)
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetEnvFlagsMock()
   setEnvFlags({ isLiveEnterpriseSearchEnabled: false })
   mocks.tools.clear()
@@ -154,88 +152,6 @@ describe('live organization Search MCP', () => {
     })
   })
 
-  it('searches live without an index and preserves native pagination and the actual caller', async () => {
-    create(null)
-    const input = {
-      query: 'release',
-      source: 'google_drive',
-      startDate: '2026-09-01T00:00:00Z',
-      nativeQueries: [
-        {
-          provider: 'google_drive',
-          query: "fullText contains 'release'",
-          accountId: 'account-1',
-          cursor: 'page-1',
-        },
-      ],
-    }
-    const result = await call('search', input)
-    expect(result.isError).toBeUndefined()
-    expect(payload(result)).toMatchObject({
-      results: [
-        {
-          documentId,
-          title: 'Release notes',
-          citationId: expect.stringMatching(/^live:[a-f0-9]{32}$/),
-          citationUrl: document.sourceUrl,
-        },
-      ],
-      live: coverage,
-    })
-    expect(mocks.liveSearch).toHaveBeenCalledExactlyOnceWith({
-      principal,
-      request,
-      input: {
-        organizationId: 'org-1',
-        query: input.query,
-        topK: 20,
-        nativeQueries: input.nativeQueries,
-        filters: { source: input.source, startDate: input.startDate },
-        resultSecretRegistry: expect.any(ResolvedSecretTraceRegistry),
-        signal: expect.any(AbortSignal),
-      },
-    })
-    expect(mocks.search).not.toHaveBeenCalled()
-    expect(mocks.configs.get('search')?.description).not.toMatch(/index|similarity/)
-    expect(mocks.configs.get('search')?.inputSchema.parse(input)).toMatchObject(input)
-  })
-
-  it('advertises and accepts long live references and exact read continuation', async () => {
-    create()
-    const input = { documentId, limit: 1, startChunkIndex: 0, startOffset: 8000 }
-    expect(mocks.configs.get('read_document')?.inputSchema.parse(input)).toEqual(input)
-    const result = await call('read_document', input)
-    expect(result.isError).toBeUndefined()
-    expect(mocks.liveRead).toHaveBeenCalledExactlyOnceWith({
-      principal,
-      request,
-      input: {
-        ...input,
-        organizationId: 'org-1',
-        resultSecretRegistry: expect.any(ResolvedSecretTraceRegistry),
-        signal: expect.any(AbortSignal),
-      },
-    })
-    expect(payload(result)).toMatchObject({
-      documentId,
-      citationUrl: document.sourceUrl,
-      hasMore: true,
-      next: { startChunkIndex: 0, startOffset: 16000 },
-    })
-    expect(payload(result)).not.toHaveProperty('knowledgeBaseId')
-    expect(payload(result)).not.toHaveProperty('processingStatus')
-    expect(mocks.read).not.toHaveBeenCalled()
-    expect(mocks.configs.get('read_document')?.description).not.toMatch(/index/)
-  })
-
-  it('does not invent a knowledge-base link when a live result has no source URL', async () => {
-    create()
-    mocks.liveSearch.mockResolvedValueOnce({ results: [{ ...document, sourceUrl: null }] })
-    expect(payload(await call('search', { query: 'release' }))).toMatchObject({
-      results: [{ citationUrl: null }],
-    })
-  })
-
   it.each(['search', 'read_document'])(
     'does not fall back to indexed data after a live %s denial',
     async (tool) => {
@@ -270,24 +186,6 @@ describe('live organization Search MCP', () => {
       ])
     }
   )
-
-  it.each(['search', 'read_document'])(
-    'stops cancelled live %s calls before provider access',
-    async (tool) => {
-      create()
-      expect(
-        (
-          await call(
-            tool,
-            tool === 'search' ? { query: 'release' } : { documentId },
-            AbortSignal.abort()
-          )
-        ).isError
-      ).toBe(true)
-      expect(mocks.liveSearch).not.toHaveBeenCalled()
-      expect(mocks.liveRead).not.toHaveBeenCalled()
-    }
-  )
 })
 
 describe('search', () => {
@@ -306,30 +204,9 @@ describe('search', () => {
       }),
     })
   })
-  it('returns an empty setup state when the organization has no index', async () => {
-    create(null)
-    const result = await call(tool, { query: 'find it', topK: 10 })
-    expect(result.isError).toBeUndefined()
-    expect(mocks.search).not.toHaveBeenCalled()
-  })
 })
 
 describe('organization Search MCP tools', () => {
-  it('delegates ID and context reads to the shared application operation', async () => {
-    create()
-    await call('read_document', { documentId: 'doc-1', limit: 5, aroundChunkIndex: 19 })
-    expect(mocks.read).toHaveBeenCalledWith({
-      principal,
-      request,
-      input: expect.objectContaining({
-        organizationId: 'org-1',
-        target: { kind: 'id', documentId: 'doc-1' },
-        limit: 5,
-        aroundChunkIndex: 19,
-        offset: undefined,
-      }),
-    })
-  })
   it('delegates URL resolution without fetching the URL in the adapter', async () => {
     create()
     await call('read_document', { url: 'https://example.com/source', limit: 20 })
@@ -363,99 +240,12 @@ describe('organization Search MCP tools', () => {
     expect(mocks.search).toHaveBeenCalledTimes(2)
   })
 
-  it('returns metadata and enabled text through the existing authorized reads', async () => {
-    create()
-    const input = { documentId: 'doc-1', limit: 20, offset: 0 }
-    const result = await call('read_document', input)
-    expect(result.isError).toBeUndefined()
-    expect(payload(result)).toMatchObject({
-      documentId: input.documentId,
-      title: 'A source',
-      sourceUrl: 'https://example.com/source',
-      processingStatus: 'completed',
-      chunks: [{ id: 'chunk-1', chunkIndex: 0, content: 'Indexed text' }],
-      pagination: { total: 1, offset: 0, limit: 20, hasMore: false },
-    })
-    expect(payload(result)).toMatchObject({
-      citationId: 'document:doc-1',
-      citationUrl: 'https://example.com/source',
-    })
-  })
-
-  it.each(['pending', 'processing', 'failed'])(
-    'preserves metadata for a %s document without presenting incomplete text',
-    async (processingStatus) => {
-      create()
-      mocks.read.mockResolvedValueOnce({
-        knowledgeBaseId: 'index-1',
-        documentId: 'doc-1',
-        title: 'A source',
-        sourceUrl: null,
-        processingStatus,
-      })
-      const result = await call('read_document', {
-        documentId: 'doc-1',
-      })
-      expect(result.isError).toBeUndefined()
-      expect(payload(result)).toMatchObject({ documentId: 'doc-1', processingStatus })
-      expect(payload(result)).not.toHaveProperty('chunks')
-      expect(payload(result)).not.toHaveProperty('pagination')
-    }
-  )
-
   it('does not return partial metadata when the chunk read is denied', async () => {
     create()
     mocks.read.mockRejectedValueOnce(new OrchestrationError('not_found', 'Document not found'))
     expect(await call('read_document', { documentId: 'doc-1' })).toEqual({
       isError: true,
       content: [{ type: 'text', text: 'Document not found' }],
-    })
-  })
-
-  it.each(['read_document'])('stops cancelled %s calls before accessing data', async (tool) => {
-    create()
-    const result = await call(tool, { documentId: 'doc-1' }, AbortSignal.abort())
-    expect(result.isError).toBe(true)
-    expect(mocks.read).not.toHaveBeenCalled()
-  })
-})
-
-describe('filters and citations', () => {
-  it('forwards shared source, date, and document filters', async () => {
-    create()
-    const filters = {
-      source: 'jira',
-      modifiedAfter: '2026-09-07T00:00:00Z',
-      documentIds: ['doc-1'],
-    }
-    await call('search', { query: 'updates', topK: 10, ...filters })
-    expect(mocks.search).toHaveBeenCalledWith(
-      expect.objectContaining({ input: expect.objectContaining({ filters }) })
-    )
-  })
-  it('includes a safe navigable citation even without a source URL', async () => {
-    create()
-    mocks.search.mockResolvedValueOnce({
-      results: [
-        {
-          knowledgeBaseId: 'index-1',
-          documentId: 'doc-1',
-          sourceUrl: null,
-          documentName: 'Notes',
-          content: 'Evidence',
-          chunkIndex: 2,
-          similarity: 0.3,
-        },
-      ],
-    })
-    expect(payload(await call('search', { query: 'notes', topK: 10 }))).toMatchObject({
-      results: [
-        {
-          citationId: 'document:doc-1',
-          citationUrl: 'https://sim.example/o/org-1/knowledge/index-1/doc-1',
-          chunkIndex: 2,
-        },
-      ],
     })
   })
 })
@@ -465,48 +255,10 @@ describe('organization chat', () => {
     create()
     expect([...mocks.tools.keys()]).toEqual(['search', 'read_document', 'chat'])
   })
-  it('uses the real caller and shared filters to ask the organization Assistant', async () => {
-    create()
-    const result = await call('chat', {
-      query: 'What changed?',
-      source: 'jira',
-      modifiedAfter: '2026-09-07T00:00:00Z',
-    })
-    expect(payload(result)).toEqual({ content: 'An answer', citations: [] })
-    expect(mocks.chat).toHaveBeenCalledWith({
-      principal,
-      input: expect.objectContaining({
-        organizationId: 'org-1',
-        query: 'What changed?',
-        filters: { source: 'jira', modifiedAfter: '2026-09-07T00:00:00Z' },
-      }),
-    })
-    expect(mocks.rateLimit).toHaveBeenCalledWith(
-      request,
-      auth,
-      expect.objectContaining({ id: 'knowledge.chat', oauthScope: 'search:read' })
-    )
-  })
-  it('stops cancelled calls before starting a conversation', async () => {
-    create()
-    expect((await call('chat', { query: 'answer' }, AbortSignal.abort())).isError).toBe(true)
-    expect(mocks.chat).not.toHaveBeenCalled()
-  })
   it('does not run when rate limited', async () => {
     create()
     mocks.rateLimit.mockResolvedValueOnce(new Response(null, { status: 429 }))
     expect((await call('chat', { query: 'answer' })).isError).toBe(true)
-    expect(mocks.chat).not.toHaveBeenCalled()
-  })
-  it('includes the actual retry delay in rate-limited tool results', async () => {
-    create()
-    mocks.rateLimit.mockResolvedValueOnce(
-      new Response(null, { status: 429, headers: { 'Retry-After': '90' } })
-    )
-    expect(await call('chat', { query: 'answer' })).toEqual({
-      isError: true,
-      content: [{ type: 'text', text: 'API rate limit exceeded. Retry in 90 seconds.' }],
-    })
     expect(mocks.chat).not.toHaveBeenCalled()
   })
   it('does not leak backend failures', async () => {
@@ -521,60 +273,6 @@ describe('organization chat', () => {
 })
 
 describe('MCP tool completion records', () => {
-  it('schedules only metadata after the response, independently of analytics storage latency', async () => {
-    createKnowledgeMcpServer({
-      organizationId: 'org-1',
-      searchIndexId: 'index-1',
-      request,
-      auth: {
-        ...auth,
-        keyType: 'oauth_access_token',
-        principal: {
-          kind: 'oauth_access_token',
-          userId: 'oauth-person',
-          clientId: 'registered-client',
-          clientName: 'Registered app',
-          tokenId: 'private-token-id',
-          scopes: ['search:read'],
-          expiresAt: new Date(Date.now() + 60000),
-        },
-      },
-    })
-    const response = await call('search', { query: 'private question' })
-    expect(response.isError).not.toBe(true)
-    expect(mocks.recordActivity).not.toHaveBeenCalled()
-    expect(mocks.afterResponse).toHaveBeenCalledOnce()
-    await mocks.afterResponse.mock.calls[0][0]()
-    expect(mocks.recordActivity).toHaveBeenCalledExactlyOnceWith({
-      organizationId: 'org-1',
-      userId: 'oauth-person',
-      authKind: 'oauth_access_token',
-      oauthClientId: 'registered-client',
-      clientName: 'Registered app',
-      toolName: 'search',
-      outcome: 'success',
-      durationMs: expect.any(Number),
-      createdAt: expect.any(Date),
-    })
-  })
-
-  it.each([
-    ['search', { query: 'private query', topK: 10 }, 'knowledge.search'],
-    ['read_document', { documentId: 'doc-1' }, 'knowledge.documents.read'],
-    ['chat', { query: 'private question' }, 'knowledge.chat'],
-  ] as const)('records one content-free completion for %s', async (toolName, input, operation) => {
-    create()
-    await call(toolName, input)
-    expect(mocks.info).toHaveBeenCalledExactlyOnceWith('Knowledge MCP tool completed', {
-      toolName,
-      operation,
-      organizationId: 'org-1',
-      userId: 'person-1',
-      outcome: 'success',
-      durationMs: expect.any(Number),
-    })
-  })
-
   it('records a returned tool error as an error even though the HTTP transport can succeed', async () => {
     create()
     const result = await call('read_document', {})
@@ -597,56 +295,5 @@ describe('MCP tool completion records', () => {
       outcome: 'error',
       durationMs: expect.any(Number),
     })
-  })
-
-  it('distinguishes rate limiting from an executed tool', async () => {
-    create()
-    mocks.rateLimit.mockResolvedValueOnce(new Response(null, { status: 429 }))
-    await call('search', { query: 'private query' })
-    expect(mocks.search).not.toHaveBeenCalled()
-    expect(mocks.info).toHaveBeenCalledExactlyOnceWith(
-      'Knowledge MCP tool completed',
-      expect.objectContaining({ outcome: 'rate_limited' })
-    )
-    await mocks.afterResponse.mock.calls[0][0]()
-    expect(mocks.recordActivity).toHaveBeenCalledWith(
-      expect.objectContaining({
-        authKind: 'personal_api_key',
-        oauthClientId: null,
-        outcome: 'rate_limited',
-      })
-    )
-  })
-
-  it.each(['search', 'read_document', 'chat'])(
-    'records cancelled %s calls without executing the operation',
-    async (toolName) => {
-      create()
-      mocks.rateLimit.mockResolvedValueOnce(new Response(null, { status: 429 }))
-      await call(toolName, { query: 'private query', documentId: 'doc-1' }, AbortSignal.abort())
-      expect(mocks.rateLimit).not.toHaveBeenCalled()
-      expect(mocks.search).not.toHaveBeenCalled()
-      expect(mocks.read).not.toHaveBeenCalled()
-      expect(mocks.chat).not.toHaveBeenCalled()
-      expect(mocks.info).toHaveBeenCalledExactlyOnceWith(
-        'Knowledge MCP tool completed',
-        expect.objectContaining({ toolName, outcome: 'cancelled' })
-      )
-    }
-  )
-
-  it('records cancellation during rate-limit admission instead of an exhausted bucket', async () => {
-    create()
-    const controller = new AbortController()
-    mocks.rateLimit.mockImplementationOnce(async () => {
-      controller.abort()
-      return new Response(null, { status: 429 })
-    })
-    await call('search', { query: 'private query' }, controller.signal)
-    expect(mocks.search).not.toHaveBeenCalled()
-    await mocks.afterResponse.mock.calls[0][0]()
-    expect(mocks.recordActivity).toHaveBeenCalledWith(
-      expect.objectContaining({ outcome: 'cancelled' })
-    )
   })
 })

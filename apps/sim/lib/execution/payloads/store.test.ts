@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import {
@@ -69,7 +66,6 @@ vi.mock('@/lib/uploads/server/metadata', () => ({
 
 describe('large execution payload store', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearLargeValueCacheForTests()
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
     mockAddLargeValueReference.mockResolvedValue(undefined)

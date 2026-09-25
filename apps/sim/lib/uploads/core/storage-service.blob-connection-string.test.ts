@@ -4,7 +4,6 @@
  * is the connection-string auth mode documented as a standalone alternative
  * across .env.example, helm/sim/values.yaml, and env.ts.
  *
- * @vitest-environment node
  *
  * Under `isolate: false` the storage-service module may already be cached from
  * another test file, bound to the real `@/lib/uploads/config` namespace, so a
@@ -70,7 +69,6 @@ afterAll(() => {
 
 describe('Azure Blob storage — connection-string-only auth', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     getStorageConfigSpy.mockReturnValue({
       containerName: 'workspace-files',
       accountName: undefined,

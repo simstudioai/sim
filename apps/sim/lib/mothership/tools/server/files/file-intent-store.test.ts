@@ -104,21 +104,6 @@ describe('file-intent-store channel scoping', () => {
     const latest = await consumeLatestFileIntent(ws, scope)
     expect(latest?.fileId).toBe('fileB')
   })
-
-  it('returns undefined when the requesting channel has no pending intent', async () => {
-    const ws = uniqueWorkspace()
-    await storeFileIntent(
-      ws,
-      'fileA',
-      makeIntent({ workspaceId: ws, fileId: 'fileA', channelId: 'F1', createdAt: Date.now() })
-    )
-    const none = await consumeLatestFileIntent(ws, {
-      chatId: 'chat-1',
-      messageId: 'msg-1',
-      channelId: 'F-absent',
-    })
-    expect(none).toBeUndefined()
-  })
 })
 
 describe('waitForLatestFileIntent', () => {

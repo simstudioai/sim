@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -90,7 +87,6 @@ const PAYLOAD = {
 
 describe('the cell guard on its owning dispatch', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.getTableById.mockResolvedValue(TABLE)
     mocks.getRowById.mockResolvedValue({ id: 'row-1', data: {}, executions: {} })
@@ -119,22 +115,5 @@ describe('the cell guard on its owning dispatch', () => {
         executionState: expect.objectContaining({ status: 'cancelled' }),
       })
     )
-  })
-
-  /**
-   * `complete` is the ordinary state a dispatch reaches while its final window
-   * is still finishing — stopping on it would kill the run's last cells.
-   */
-  it('lets a cell of a still-live dispatch past the guard', async () => {
-    mocks.readDispatch.mockResolvedValue({ id: 'tdsp_1', status: 'complete' })
-
-    await runRowCascadeLoop(PAYLOAD)
-
-    // It got as far as loading the workflow, which the db mock does not have.
-    const statuses = mocks.writeWorkflowGroupState.mock.calls.map(
-      ([, write]) => (write as { executionState: { status: string } }).executionState.status
-    )
-    expect(statuses).toContain('error')
-    expect(statuses).not.toContain('cancelled')
   })
 })

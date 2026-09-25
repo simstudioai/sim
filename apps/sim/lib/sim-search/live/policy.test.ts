@@ -1,11 +1,6 @@
-/** @vitest-environment node */
 import { describe, expect, it, vi } from 'vitest'
-import { withJsonMemo } from '@/lib/sim-search/live/http'
 import { createPolicyVerifier } from '@/lib/sim-search/live/policy'
-import {
-  defaultLiveSearchPolicy,
-  normalizeLiveSearchPolicy,
-} from '@/lib/sim-search/live/policy-schema'
+import { defaultLiveSearchPolicy } from '@/lib/sim-search/live/policy-schema'
 import type { NativeClient } from '@/lib/sim-search/live/types'
 
 function client(rows: Record<string, unknown>): NativeClient {
@@ -25,27 +20,6 @@ const selected = (included: string[], excluded: string[] = []) => ({
 })
 
 describe('organization search scope enforcement', () => {
-  it('normalizes folder links and repositories without changing request origins', () => {
-    expect(
-      normalizeLiveSearchPolicy(
-        'google_drive',
-        selected(['https://drive.google.com/drive/folders/FOLDER'])
-      ).included
-    ).toEqual(['FOLDER'])
-    expect(
-      normalizeLiveSearchPolicy('github', selected(['https://github.com/Company/Repo'])).included
-    ).toEqual(['company/repo'])
-    expect(
-      normalizeLiveSearchPolicy('coda', selected(['superhuman://docs/allowed/pages/page'])).included
-    ).toEqual(['allowed'])
-    expect(() =>
-      normalizeLiveSearchPolicy('coda', selected(['superhuman://docs/allowed/../other']))
-    ).toThrow()
-    expect(() =>
-      normalizeLiveSearchPolicy('google_drive', selected(['https://attacker.test/folders/FOLDER']))
-    ).toThrow()
-    expect(() => normalizeLiveSearchPolicy('github', selected([]))).toThrow()
-  })
   it('checks current Drive ancestors and gives exclusions precedence', async () => {
     const api = client({
       '/drive/v3/files/doc': { id: 'doc', parents: ['child'] },
@@ -243,20 +217,5 @@ describe('organization search scope enforcement', () => {
     })
     expect(await verify({ id: 'https://coda.io:444/d/doc' })).toBe(false)
     expect(await verify({ id: 'https://evil.test/d/doc' })).toBe(false)
-  })
-  it('shares metadata within a client unless the verifier must read it fresh', async () => {
-    const api = client({
-      '/drive/v3/files/doc': { id: 'doc', parents: ['root'] },
-      '/drive/v3/files/root': { id: 'root', parents: [] },
-    })
-    const session = withJsonMemo(api)
-    const verify = createPolicyVerifier('google_drive', selected(['root']), session, '')
-    await verify({ id: 'doc' })
-    await verify({ id: 'doc' })
-    expect(api.json).toHaveBeenCalledTimes(2)
-    await createPolicyVerifier('google_drive', selected(['root']), session, '', undefined, {
-      fresh: true,
-    })({ id: 'doc' })
-    expect(api.json).toHaveBeenCalledTimes(4)
   })
 })

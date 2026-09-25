@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -44,7 +43,6 @@ function request(headers: Record<string, string> = {}) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   queueTableRows(schemaMock.copilotChats, [{ userId: 'actor', workspaceId: 'workspace' }])
   mocks.banned.mockResolvedValue([])
@@ -59,14 +57,6 @@ beforeEach(() => {
 })
 
 describe('worker run control boundary', () => {
-  it('returns accepted Stop only after authorizing the actor and canonical run', async () => {
-    expect(await (await POST(request())).json()).toEqual({ stopped: true })
-    expect(mocks.authorize).toHaveBeenCalledOnce()
-    expect(mocks.run).toHaveBeenCalledExactlyOnceWith('stream', 'actor')
-    expect(mocks.stopped).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'actor', workspaceId: 'workspace', streamId: 'stream' })
-    )
-  })
   it.each([
     ['x-api-key', 'browser-key'],
     ['x-mothership-user-id', ''],

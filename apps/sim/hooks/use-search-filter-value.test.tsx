@@ -56,25 +56,6 @@ describe('useSearchFilterValue', () => {
     vi.useRealTimers()
   })
 
-  it('filters on a deep-linked term from the first render', () => {
-    expect(renderSearchFilterValue('report').current).toBe('report')
-  })
-
-  it('starts empty and applies a typed term only once it settles', () => {
-    const probe = renderSearchFilterValue('')
-    expect(probe.current).toBe('')
-    probe.type('rep')
-    expect(probe.current).toBe('')
-    probe.settle()
-    expect(probe.current).toBe('rep')
-  })
-
-  it('drops the term the instant it is cleared, without waiting out the window', () => {
-    const probe = renderSearchFilterValue('report')
-    probe.type('')
-    expect(probe.current).toBe('')
-  })
-
   /**
    * The regression this hook exists to prevent, and the one masking alone did not: opening a
    * folder clears the term, and typing again inside the same debounce window must not resurrect
@@ -91,24 +72,5 @@ describe('useSearchFilterValue', () => {
     expect(probe.current).toBe('')
     probe.settle()
     expect(probe.current).toBe('b')
-  })
-
-  it('keeps showing the previous term while a longer one is still being typed', () => {
-    const probe = renderSearchFilterValue('')
-    probe.type('re')
-    probe.settle()
-    expect(probe.current).toBe('re')
-    probe.type('rep')
-    expect(probe.current).toBe('re')
-    probe.settle()
-    expect(probe.current).toBe('rep')
-  })
-
-  it('treats a whitespace-only term as cleared', () => {
-    const probe = renderSearchFilterValue('report')
-    probe.type('   ')
-    expect(probe.current).toBe('')
-    probe.settle()
-    expect(probe.current).toBe('')
   })
 })

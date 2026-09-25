@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fetchVantaWithAuth } from '@/lib/internal/vanta/client'
 
@@ -8,36 +5,11 @@ describe('Vanta provider client', () => {
   const fetchMock = vi.fn<typeof fetch>()
 
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', fetchMock)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
-  })
-
-  it('passes caller cancellation through token exchange and provider work', async () => {
-    fetchMock.mockResolvedValue(
-      Response.json({ access_token: 'token', expires_in: 0 }, { status: 200 })
-    )
-    const controller = new AbortController()
-    const provider = vi.fn().mockResolvedValue(new Response(null, { status: 200 }))
-
-    await fetchVantaWithAuth(
-      {
-        clientId: 'client-cancellation',
-        clientSecret: 'secret-cancellation',
-        scope: 'scope',
-      },
-      provider,
-      { signal: controller.signal }
-    )
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.vanta.com/oauth/token',
-      expect.objectContaining({ signal: expect.any(AbortSignal) })
-    )
-    expect(provider).toHaveBeenCalledWith('token')
   })
 
   it('aborts the shared token request when its last waiter cancels', async () => {

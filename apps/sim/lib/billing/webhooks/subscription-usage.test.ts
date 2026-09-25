@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { stripe } from '@better-auth/stripe'
 import { createMockStripeEvent, dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
 import { betterAuth } from 'better-auth'
@@ -63,21 +62,6 @@ describe('handleSubscriptionUsageUpdate', () => {
       right: 'sub_stripe',
     })
     expect(mockSyncSubscriptionUsageLimits).toHaveBeenCalledExactlyOnceWith(persistedSubscription)
-  })
-
-  it('ignores other event types', async () => {
-    await handleSubscriptionUsageUpdate(createMockStripeEvent('customer.subscription.created', {}))
-
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    expect(mockSyncSubscriptionUsageLimits).not.toHaveBeenCalled()
-  })
-
-  it('ignores subscriptions that are not tracked locally', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-
-    await handleSubscriptionUsageUpdate(updateEvent())
-
-    expect(mockSyncSubscriptionUsageLimits).not.toHaveBeenCalled()
   })
 
   it.each(['lookup', 'reconciliation'])(

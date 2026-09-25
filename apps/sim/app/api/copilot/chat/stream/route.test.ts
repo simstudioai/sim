@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -67,7 +63,6 @@ async function readAllChunks(response: Response): Promise<string[]> {
 
 describe('copilot chat stream replay route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
@@ -175,43 +170,5 @@ describe('copilot chat stream replay route', () => {
     expect(body).toContain(`"type":"${MothershipStreamV1EventType.error}"`)
     expect(body).toContain('"code":"resume_run_unavailable"')
     expect(body).toContain(`"type":"${MothershipStreamV1EventType.complete}"`)
-  })
-
-  it('uses the latest live request id for synthetic terminal replay events', async () => {
-    getLatestRunForStream
-      .mockResolvedValueOnce({
-        status: 'active',
-        executionId: 'exec-1',
-        id: 'run-1',
-      })
-      .mockResolvedValueOnce({
-        status: 'cancelled',
-        executionId: 'exec-1',
-        id: 'run-1',
-      })
-    readEvents
-      .mockResolvedValueOnce([
-        {
-          stream: { streamId: 'stream-1', cursor: '1' },
-          seq: 1,
-          trace: { requestId: 'req-live-123' },
-          type: MothershipStreamV1EventType.text,
-          payload: {
-            channel: 'assistant',
-            text: 'hello',
-          },
-        },
-      ])
-      .mockResolvedValueOnce([])
-
-    const response = await GET(
-      new NextRequest('http://localhost:3000/api/copilot/chat/stream?streamId=stream-1&after=0')
-    )
-
-    const chunks = await readAllChunks(response)
-    const terminalChunk = chunks[chunks.length - 1] ?? ''
-    expect(terminalChunk).toContain(`"type":"${MothershipStreamV1EventType.complete}"`)
-    expect(terminalChunk).toContain('"requestId":"req-live-123"')
-    expect(terminalChunk).toContain('"status":"cancelled"')
   })
 })

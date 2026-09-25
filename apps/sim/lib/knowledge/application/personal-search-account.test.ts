@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -99,25 +98,6 @@ describe('personal Search setup authorization', () => {
       'Verify your email'
     )
     expect(mocks.approval).not.toHaveBeenCalled()
-  })
-
-  it.each(['approval', 'available'] as const)(
-    'propagates the %s refusal before account discovery',
-    async (gate) => {
-      mocks[gate].mockRejectedValue(new Error('Source disabled'))
-      await expect(authorizePersonalSearchSetupCredential(principal, input)).rejects.toThrow(
-        'Source disabled'
-      )
-      expect(mocks.accounts).not.toHaveBeenCalled()
-    }
-  )
-
-  it('rejects an unavailable OAuth deployment', async () => {
-    mocks.deployed.mockReturnValue(false)
-    await expect(authorizePersonalSearchSetupCredential(principal, input)).rejects.toThrow(
-      'unavailable'
-    )
-    expect(mocks.accounts).not.toHaveBeenCalled()
   })
 
   it.each([

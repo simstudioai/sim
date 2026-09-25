@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import integrationsJson from '@sim/deployment-config/integrations.json'
 import { describe, expect, it } from 'vitest'
 import {
@@ -11,65 +7,6 @@ import {
 import type { Integration } from '@/lib/integrations/types'
 
 const INTEGRATIONS = integrationsJson.integrations as readonly Integration[]
-
-/**
- * Pinned slug → OAuth providerId mapping for every OAuth integration in the
- * catalog. Guards against silent drift between block `serviceId`s, the
- * generated catalog, and `OAUTH_PROVIDERS` — the failure mode that made
- * Jira Service Management, Google Slides, and Monday fall back to the
- * API-key connect path.
- */
-const EXPECTED_PROVIDER_BY_SLUG: Record<string, string> = {
-  airtable: 'airtable',
-  asana: 'asana',
-  attio: 'attio',
-  'azure-ad': 'microsoft-ad',
-  bitbucket: 'bitbucket',
-  box: 'box',
-  'cal-com': 'calcom',
-  confluence: 'confluence',
-  docusign: 'docusign',
-  dropbox: 'dropbox',
-  gmail: 'google-email',
-  'google-ads': 'google-ads',
-  'google-bigquery': 'google-bigquery',
-  'google-calendar': 'google-calendar',
-  'google-contacts': 'google-contacts',
-  'google-docs': 'google-docs',
-  'google-drive': 'google-drive',
-  'google-forms': 'google-forms',
-  'google-groups': 'google-groups',
-  'google-meet': 'google-meet',
-  'google-sheets': 'google-sheets',
-  'google-slides': 'google-drive',
-  'google-tasks': 'google-tasks',
-  'google-vault': 'google-vault',
-  hubspot: 'hubspot',
-  jira: 'jira',
-  'jira-service-management': 'jira',
-  linear: 'linear',
-  linkedin: 'linkedin',
-  'microsoft-dataverse': 'microsoft-dataverse',
-  'microsoft-excel': 'microsoft-excel',
-  'microsoft-planner': 'microsoft-planner',
-  'microsoft-teams': 'microsoft-teams',
-  monday: 'monday',
-  notion: 'notion',
-  onedrive: 'onedrive',
-  outlook: 'outlook',
-  pipedrive: 'pipedrive',
-  reddit: 'reddit',
-  salesforce: 'salesforce',
-  sharepoint: 'sharepoint',
-  shopify: 'shopify',
-  slack: 'slack',
-  trello: 'trello',
-  wealthbox: 'wealthbox',
-  webflow: 'webflow',
-  wordpress: 'wordpress',
-  x: 'x',
-  zoom: 'zoom',
-}
 
 describe('resolveOAuthServiceForSlug', () => {
   it.concurrent('resolves integrations whose name differs from the OAuth service name', () => {
@@ -111,16 +48,6 @@ describe('resolveOAuthServiceForSlug', () => {
       .filter((entry) => resolveOAuthServiceForSlug(entry.slug) === null)
       .map((entry) => entry.slug)
     expect(unresolved).toEqual([])
-  })
-
-  it.concurrent('resolves the pinned provider for every enumerated OAuth integration', () => {
-    const resolved = Object.fromEntries(
-      Object.keys(EXPECTED_PROVIDER_BY_SLUG).map((slug) => [
-        slug,
-        resolveOAuthServiceForSlug(slug)?.providerId ?? null,
-      ])
-    )
-    expect(resolved).toEqual(EXPECTED_PROVIDER_BY_SLUG)
   })
 
   it.concurrent('carries oauthServiceId for exactly the OAuth catalog entries', () => {

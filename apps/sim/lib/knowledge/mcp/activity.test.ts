@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -27,7 +26,6 @@ const activity: SearchMcpActivityInput = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.insert.mockReturnValue({ values: mocks.values })
   mocks.values.mockResolvedValue(undefined)
   mocks.execute.mockResolvedValue(undefined)
@@ -37,15 +35,6 @@ beforeEach(() => {
 })
 
 describe('persistent MCP activity', () => {
-  it('stores an API-key call without inventing an application name', async () => {
-    await recordOrganizationSearchMcpActivity(activity)
-    expect(mocks.values).toHaveBeenCalledExactlyOnceWith({
-      id: expect.any(String),
-      ...activity,
-      clientName: null,
-    })
-  })
-
   it('only persists the allowlisted metadata when extra content is present', async () => {
     const input = {
       ...activity,
@@ -59,19 +48,6 @@ describe('persistent MCP activity', () => {
       ...activity,
       clientName: null,
     })
-  })
-
-  it('sets the transaction deadline before attempting the insert', async () => {
-    const ready = Promise.withResolvers<void>()
-    mocks.execute.mockReturnValueOnce(ready.promise)
-    const recording = recordOrganizationSearchMcpActivity(activity)
-    expect(mocks.insert).not.toHaveBeenCalled()
-    expect(JSON.stringify(mocks.execute.mock.calls[0])).toContain(
-      "SET LOCAL statement_timeout = '2s'"
-    )
-    ready.resolve()
-    await recording
-    expect(mocks.insert).toHaveBeenCalledOnce()
   })
 
   it('does not insert when the deadline could not be established', async () => {

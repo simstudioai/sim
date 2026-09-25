@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { Principal, SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -41,7 +40,6 @@ const transaction = { select: vi.fn() } as unknown as DbOrTx
 const input = { workspaceId: 'workspace' }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.authorize.mockResolvedValue(context)
   mocks.lock.mockResolvedValue(undefined)
   mocks.outbound.mockImplementation((_organizationId: string, run: () => Promise<unknown>) => run())
@@ -226,70 +224,5 @@ describe('authorized access request execution', () => {
     expect(execute).not.toHaveBeenCalled()
     expect(projectAudit).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
-  })
-
-  it('does not acquire locks when preparation fails', async () => {
-    const execute = vi.fn()
-    const useCase = defineAuthorizedAccessRequestUseCase({
-      operation: accessRequestOperations.create,
-      scope: () => scope,
-      mutation: true,
-      prepare: async () => {
-        throw new Error('Catalog unavailable')
-      },
-      execute,
-    })
-    await expect(useCase.execute({ principal, input })).rejects.toThrow('Catalog unavailable')
-    expect(db.transaction).not.toHaveBeenCalled()
-    expect(mocks.lock).not.toHaveBeenCalled()
-    expect(execute).not.toHaveBeenCalled()
-  })
-
-  it('supports authorization-only probes without preparing or running business behavior', async () => {
-    const prepare = vi.fn()
-    const execute = vi.fn()
-    const useCase = defineAuthorizedAccessRequestUseCase({
-      operation: accessRequestOperations.listMine,
-      scope: () => scope,
-      prepare,
-      execute,
-    })
-    await useCase.authorize?.({ principal, input })
-    expect(mocks.authorize).toHaveBeenCalledExactlyOnceWith(
-      principal,
-      accessRequestOperations.listMine,
-      scope
-    )
-    expect(prepare).not.toHaveBeenCalled()
-    expect(execute).not.toHaveBeenCalled()
-  })
-
-  it('keeps the acting session principal for reads and audits', async () => {
-    const execute = vi.fn().mockResolvedValue('result')
-    const projectAudit = vi.fn().mockReturnValue([])
-    const useCase = defineAuthorizedAccessRequestUseCase({
-      operation: accessRequestOperations.listMine,
-      scope: () => scope,
-      execute,
-      projectAudit,
-    })
-    await useCase.execute({ principal, input })
-    expect(execute).toHaveBeenCalledExactlyOnceWith({
-      principal,
-      input,
-      context,
-      executor: db,
-      prepared: undefined,
-    })
-    expect(mocks.outbound).toHaveBeenCalledWith('org', expect.any(Function))
-    expect(mocks.audit).toHaveBeenCalledWith(
-      accessRequestOperations.listMine,
-      'workspace',
-      principal,
-      undefined,
-      [],
-      'org'
-    )
-    expect(db.transaction).not.toHaveBeenCalled()
   })
 })

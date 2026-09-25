@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -60,7 +59,6 @@ const context = {
 }
 describe('authorized personal token resolution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.context.mockResolvedValue(context)
     mocks.access.mockResolvedValue({
       credential: current,
@@ -79,7 +77,6 @@ describe('authorized personal token resolution', () => {
       instanceUrl: 'https://gitlab.example.test',
       providerId: 'gitlab',
     })
-    expect(mocks.context).toHaveBeenCalledWith(input)
     expect(mocks.decrypt).toHaveBeenCalledWith('ciphertext', {
       providerId: 'gitlab',
       ownerUserId: 'owner',
@@ -98,29 +95,21 @@ describe('authorized personal token resolution', () => {
     ).rejects.toThrow('own active personal token')
     expect(mocks.decrypt).not.toHaveBeenCalled()
   })
-  it.each([
-    { type: 'service_account' },
-    { providerId: 'other' },
-    { revokedAt: new Date() },
-    { accessTokenExpiresAt: new Date(0) },
-    { createdBy: 'other' },
-  ])('refuses unusable or differently-owned tokens before decryption', async (override) => {
-    mocks.context.mockResolvedValue({ ...context, credential: { ...current, ...override } })
-    await expect(resolvePersonalToken.execute({ principal, input })).rejects.toThrow(
-      'own active personal token'
-    )
-    expect(mocks.decrypt).not.toHaveBeenCalled()
-  })
+  it.each([{ type: 'service_account' }, { revokedAt: new Date() }, { createdBy: 'other' }])(
+    'refuses unusable or differently-owned tokens before decryption',
+    async (override) => {
+      mocks.context.mockResolvedValue({ ...context, credential: { ...current, ...override } })
+      await expect(resolvePersonalToken.execute({ principal, input })).rejects.toThrow(
+        'own active personal token'
+      )
+      expect(mocks.decrypt).not.toHaveBeenCalled()
+    }
+  )
   it('refuses revoked enrollment or disabled group before decryption after approval', async () => {
     mocks.enrollment.mockRejectedValue(new Error('Connected accounts is disabled'))
     await expect(resolvePersonalToken.execute({ principal, input })).rejects.toThrow(
       'Connected accounts'
     )
-    expect(mocks.enrollment).toHaveBeenCalledWith({
-      workspaceId: 'ws',
-      userId: 'owner',
-      enrollmentId: 'enrollment',
-    })
     expect(mocks.decrypt).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
   })

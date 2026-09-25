@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCheckAttributedUsageLimits, mockResolveBillingAttribution } = vi.hoisted(() => ({
@@ -20,7 +17,6 @@ import {
 
 describe('getWorkspaceCreditAvailability', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveBillingAttribution.mockImplementation(
       ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) => ({
         actorUserId,
@@ -128,7 +124,6 @@ describe('getWorkspaceCreditAvailability', () => {
 
 describe('checkWorkspaceUsageGate', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveBillingAttribution.mockImplementation(
       ({ actorUserId, workspaceId }: { actorUserId: string; workspaceId: string }) => ({
         actorUserId,

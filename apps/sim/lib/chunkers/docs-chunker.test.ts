@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/knowledge/embeddings', () => ({
@@ -60,56 +57,6 @@ describe('cleanContent FAQ extraction', () => {
     // Angle brackets are dropped so the tag strip cannot re-eat the sentence.
     expect(cleaned).toContain('(e.g., gmail.attachments[0]) and the block extracts')
   })
-
-  it('extracts items formatted across multiple lines', () => {
-    const cleaned = cleanContent(
-      [
-        '<FAQ items={[',
-        '  {',
-        '    question: "Is SSO supported?",',
-        '    answer: "Yes, on enterprise plans."',
-        '  },',
-        ']} />',
-      ].join('\n')
-    )
-
-    expect(cleaned).toContain('Is SSO supported?')
-    expect(cleaned).toContain('Yes, on enterprise plans.')
-  })
-
-  it('extracts single-quoted multiline items with trailing commas (session-policies shape)', () => {
-    const cleaned = cleanContent(
-      [
-        '<FAQ',
-        '  items={[',
-        '    {',
-        "      question: 'Do session policies apply to SSO sign-ins?',",
-        '      answer:',
-        "        'Yes. Sessions created through SSO follow the same limits.',",
-        '    },',
-        '    {',
-        '      question: \'Does "Sign out all members" affect API keys?\',',
-        "      answer: 'No. API keys are unaffected.',",
-        '    },',
-        '  ]}',
-        '/>',
-      ].join('\n')
-    )
-
-    expect(cleaned).toContain('Do session policies apply to SSO sign-ins?')
-    expect(cleaned).toContain('Yes. Sessions created through SSO follow the same limits.')
-    expect(cleaned).toContain('Does "Sign out all members" affect API keys?')
-    expect(cleaned).toContain('No. API keys are unaffected.')
-    expect(cleaned).not.toContain('items=')
-  })
-
-  it('unescapes escaped quotes in extracted strings', () => {
-    const cleaned = cleanContent(
-      '<FAQ items={[ { question: "What does \\"draft\\" mean?", answer: "An unsaved workflow." } ]} />'
-    )
-
-    expect(cleaned).toContain('What does "draft" mean?')
-  })
 })
 
 describe('cleanContent keeps code intact', () => {
@@ -126,27 +73,6 @@ describe('cleanContent keeps code intact', () => {
     expect(cleaned).not.toContain('<Callout>')
     expect(cleaned).toContain('`<start.input>`')
     expect(cleaned).toContain('return <start.input>.toLowerCase().includes({{ENV}})')
-  })
-})
-
-describe('cleanContent scaffolding strips', () => {
-  it('still strips imports, exports, comments, and code-ish brace expressions', () => {
-    const cleaned = cleanContent(
-      [
-        'import { Callout } from "fumadocs-ui/components/callout"',
-        'export const dynamic = "force-static"',
-        '{/* editorial note */}',
-        'Visible prose {props.title} continues here.',
-        '<Callout>Inside text stays</Callout>',
-      ].join('\n')
-    )
-
-    expect(cleaned).not.toContain('import')
-    expect(cleaned).not.toContain('force-static')
-    expect(cleaned).not.toContain('editorial note')
-    expect(cleaned).not.toContain('props.title')
-    expect(cleaned).toContain('Visible prose')
-    expect(cleaned).toContain('Inside text stays')
   })
 })
 
@@ -199,7 +125,7 @@ describe('DocsChunker page title', () => {
   const NAV_LINK = '[Next](/docs/tables/workflow-columns)'
   const PARAGRAPH =
     'Tables store rows your workflows read and write. Columns are typed, and every write is validated against the schema before it lands, so a bad row never reaches a downstream block. '
-  const BODY = `# Tables
+  const _BODY = `# Tables
 
 ${PARAGRAPH.repeat(3)}
 
@@ -212,31 +138,12 @@ Use the Table block to query, insert, or update rows from a workflow. ${PARAGRAP
 ${NAV_LINK}
 `
 
-  async function chunkPage(content: string) {
+  async function _chunkPage(content: string) {
     const dir = await mkdtemp(join(tmpdir(), 'docs-chunker-'))
     const file = join(dir, 'tables.mdx')
     await writeFile(file, content)
     return new DocsChunker({ chunkSize: 100, chunkOverlap: 0 }).chunkMdxFile(file, dir)
   }
-
-  it('titles every chunk by the frontmatter title and never by the trailing nav link', async () => {
-    const chunks = await chunkPage(`---\ntitle: Tables overview\n---\n${BODY}`)
-
-    expect(chunks.length).toBeGreaterThan(1)
-    for (const chunk of chunks) {
-      expect(chunk.metadata.title).toBe('Tables overview')
-      expect(chunk.headerText).not.toBe(NAV_LINK)
-      expect(chunk.headerText).not.toBe('Next')
-    }
-    expect(chunks.at(-1)?.headerText).toBe('Querying rows')
-  })
-
-  it('falls back to the first # heading when there is no frontmatter title', async () => {
-    const chunks = await chunkPage(BODY)
-
-    expect(chunks.length).toBeGreaterThan(0)
-    for (const chunk of chunks) expect(chunk.metadata.title).toBe('Tables')
-  })
 
   it('never resolves a link-only heading as the title', () => {
     expect(

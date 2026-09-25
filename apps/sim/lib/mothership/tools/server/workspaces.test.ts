@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { db } from '@sim/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -62,7 +61,6 @@ const readPolicy = vi.spyOn(policy, 'getWorkspaceCreationPolicy')
 vi.spyOn(applicationAudit, 'recordProjectedUseCaseAuditEntries').mockImplementation(mocks.audit)
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.create.mockResolvedValue(workspace)
   mocks.chat.mockResolvedValue({ organizationId: 'org' })
   mocks.membership.mockResolvedValue([{ role: 'member' }])

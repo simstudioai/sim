@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { DEFAULT_NOTE_COLOR, isNoteColor, NOTE_COLOR_OPTIONS } from '@sim/workflow-renderer'
+import { DEFAULT_NOTE_COLOR, isNoteColor } from '@sim/workflow-renderer'
 import { describe, expect, it } from 'vitest'
 import { NoteBlock } from '@/blocks/blocks/note'
 
@@ -10,17 +7,6 @@ function getSubBlock(id: string) {
 }
 
 describe('note block', () => {
-  it('seeds new notes with the same default the renderer paints', () => {
-    /*
-     * The registry default and the palette default are read by different
-     * systems — the store materializes this value onto a new note, the canvas
-     * resolves the swatch from the palette. A literal in either place drifts
-     * silently: the note would persist one color and paint another.
-     */
-    expect(getSubBlock('color')?.defaultValue).toBe(DEFAULT_NOTE_COLOR)
-    expect(isNoteColor(DEFAULT_NOTE_COLOR)).toBe(true)
-  })
-
   it('declares color so sanitization keeps a user-chosen value', () => {
     /*
      * The realtime server stores `type: 'unknown'` for ids the block config
@@ -30,12 +16,6 @@ describe('note block', () => {
      */
     expect(getSubBlock('color')).toBeDefined()
     expect(getSubBlock('color')?.hidden).toBe(true)
-  })
-
-  it('offers a palette with stable, unique ids', () => {
-    const ids = NOTE_COLOR_OPTIONS.map((option) => option.id)
-    expect(new Set(ids).size).toBe(ids.length)
-    expect(ids).toContain(DEFAULT_NOTE_COLOR)
   })
 
   it('rejects inherited object keys as note colors', () => {

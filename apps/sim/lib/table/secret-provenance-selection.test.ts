@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { filterUndefined } from '@sim/utils/object'
 import { describe, expect, it } from 'vitest'
 import {

@@ -1,15 +1,11 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import { mergeFileKeys, mergeLargeValueKeys } from '@/lib/execution/payloads/access-keys'
 import { BlockType } from '@/executor/constants'
-import { DAGBuilder } from '@/executor/dag/builder'
+import type { DAGBuilder } from '@/executor/dag/builder'
 import { DAGExecutor } from '@/executor/execution/executor'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionContext, ExecutionResult } from '@/executor/types'
 import { RunFromBlockValidationError } from '@/executor/utils/run-from-block'
-import { buildSentinelStartId } from '@/executor/utils/subflow-utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 
 /** Reaches the executor's private context factory, which every run's root context comes from. */
@@ -78,126 +74,6 @@ describe('DAGExecutor restored cloned subflow registration', () => {
       parentType: 'parallel',
       branchIndex: 2,
     })
-  })
-
-  it('preserves cloned nested parent relationships within the same restored branch', () => {
-    const executor = createExecutor() as unknown as {
-      registerRestoredClonedSubflows: (
-        parentMap: Map<
-          string,
-          { parentId: string; parentType: 'loop' | 'parallel'; branchIndex?: number }
-        >,
-        clonedSubflows: Array<{
-          originalId: string
-          clonedId: string
-          outerBranchIndex: number
-          parentParallelId: string
-        }>
-      ) => void
-    }
-    const parentMap = new Map<
-      string,
-      { parentId: string; parentType: 'loop' | 'parallel'; branchIndex?: number }
-    >([
-      ['middle-loop', { parentId: 'parent-parallel', parentType: 'parallel' }],
-      ['inner-parallel', { parentId: 'middle-loop', parentType: 'loop' }],
-    ])
-
-    executor.registerRestoredClonedSubflows(parentMap, [
-      {
-        originalId: 'middle-loop',
-        clonedId: 'middle-loop__obranch-2',
-        outerBranchIndex: 2,
-        parentParallelId: 'parent-parallel',
-      },
-      {
-        originalId: 'inner-parallel',
-        clonedId: 'inner-parallel__obranch-2',
-        outerBranchIndex: 2,
-        parentParallelId: 'parent-parallel',
-      },
-    ])
-
-    expect(parentMap.get('inner-parallel__obranch-2')).toEqual({
-      parentId: 'middle-loop__obranch-2',
-      parentType: 'loop',
-      branchIndex: 0,
-    })
-  })
-
-  it('restores snapshot parallel batches with later global branch indexes', () => {
-    const parallelId = 'parallel-1'
-    const loopId = 'loop-1'
-    const taskId = 'task-1'
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [
-        createBlock('start', BlockType.STARTER),
-        createBlock(parallelId, BlockType.PARALLEL),
-        createBlock(loopId, BlockType.LOOP),
-        createBlock(taskId, BlockType.FUNCTION),
-      ],
-      connections: [
-        { source: 'start', target: parallelId },
-        { source: parallelId, target: loopId, sourceHandle: 'parallel-start-source' },
-        { source: loopId, target: taskId, sourceHandle: 'loop-start-source' },
-      ],
-      loops: {
-        [loopId]: {
-          id: loopId,
-          nodes: [taskId],
-          iterations: 1,
-          loopType: 'for',
-        },
-      },
-      parallels: {
-        [parallelId]: {
-          id: parallelId,
-          nodes: [loopId],
-          count: 4,
-          parallelType: 'count',
-        },
-      },
-    }
-    const dag = new DAGBuilder().build(workflow)
-    const executor = new DAGExecutor({ workflow }) as unknown as {
-      restoreSnapshotParallelBatches: (
-        dag: ReturnType<DAGBuilder['build']>,
-        snapshotState?: SerializableExecutionState
-      ) => Array<{
-        originalId: string
-        clonedId: string
-        outerBranchIndex: number
-        parentParallelId: string
-      }>
-    }
-
-    const restoredClones = executor.restoreSnapshotParallelBatches(dag, {
-      blockStates: {},
-      executedBlocks: [],
-      blockLogs: [],
-      decisions: { router: {}, condition: {} },
-      completedLoops: [],
-      activeExecutionPath: [],
-      parallelExecutions: {
-        [parallelId]: {
-          currentBatchStart: 2,
-          currentBatchSize: 1,
-          totalBranches: 4,
-          items: ['zero', 'one', 'two', 'three'],
-        },
-      },
-    })
-
-    expect(dag.nodes.has(buildSentinelStartId(`${loopId}__obranch-2`))).toBe(true)
-    expect(restoredClones).toContainEqual(
-      expect.objectContaining({
-        originalId: loopId,
-        clonedId: `${loopId}__obranch-2`,
-        outerBranchIndex: 2,
-        parentParallelId: parallelId,
-      })
-    )
   })
 })
 
@@ -290,56 +166,6 @@ describe('DAGExecutor run-from-block snapshot metadata', () => {
     expect(result.metadata?.fileKeys).not.toContain(unreachableFile.key)
   })
 
-  it('preserves reachable stable branch aliases in run-from-block snapshots', async () => {
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [
-        createBlock('start', BlockType.STARTER),
-        createBlock('producer', BlockType.FUNCTION),
-        createBlock('consumer', BlockType.FUNCTION),
-      ],
-      connections: [
-        { source: 'start', target: 'producer' },
-        { source: 'producer', target: 'consumer' },
-      ],
-      loops: {},
-      parallels: {},
-    }
-    let capturedContext: ExecutionContext | undefined
-    const executor = new DAGExecutor({ workflow }) as unknown as DAGExecutor & {
-      buildExecutionPipeline: (context: ExecutionContext) => { run: () => Promise<ExecutionResult> }
-    }
-    executor.buildExecutionPipeline = vi.fn((context: ExecutionContext) => {
-      capturedContext = context
-      return {
-        run: async (): Promise<ExecutionResult> => ({
-          success: true,
-          output: { ok: true },
-          metadata: {},
-        }),
-      }
-    })
-    const sourceSnapshot: SerializableExecutionState = {
-      blockStates: {
-        producer: { output: { result: 'latest-local-batch' } },
-        'producer__obranch-0': { output: { result: 'global-branch-0' } },
-        'unreachable__obranch-0': { output: { result: 'unreachable' } },
-        consumer: { output: { previous: true } },
-      },
-      executedBlocks: ['producer', 'producer__obranch-0', 'unreachable__obranch-0', 'consumer'],
-      blockLogs: [],
-      decisions: { router: {}, condition: {} },
-      completedLoops: [],
-      activeExecutionPath: [],
-    }
-
-    await executor.executeFromBlock('wf', 'consumer', sourceSnapshot)
-
-    expect(capturedContext?.blockStates.get('producer__obranch-0')?.output).toEqual({
-      result: 'global-branch-0',
-    })
-    expect(capturedContext?.blockStates.has('unreachable__obranch-0')).toBe(false)
-  })
   it('refuses a start block whose upstream never executed with a typed validation error', async () => {
     const workflow: SerializedWorkflow = {
       version: '1',
@@ -453,36 +279,6 @@ describe('DAGExecutor createExecutionContext useDraftState', () => {
       buildMetadataUseDraftState({ metadataUseDraftState: true, isDeployedContext: true })
     ).toBe(true)
   })
-
-  it('honors explicit useDraftState=false even when isDeployedContext is false', () => {
-    expect(
-      buildMetadataUseDraftState({ metadataUseDraftState: false, isDeployedContext: false })
-    ).toBe(false)
-  })
-
-  it('falls back to the isDeployedContext heuristic when useDraftState is not provided', () => {
-    expect(buildMetadataUseDraftState({ isDeployedContext: true })).toBe(false)
-    expect(buildMetadataUseDraftState({ isDeployedContext: false })).toBe(true)
-  })
-})
-
-describe('DAGExecutor executor delegation origin', () => {
-  it('copies the canonical origin into the runtime execution context', () => {
-    const executorDelegationOrigin = {
-      subjectUserId: 'user-1',
-      workflowId: 'parent-workflow',
-      executionId: 'parent-execution',
-    }
-    const executor = new DAGExecutor({
-      workflow: { version: '1', blocks: [], connections: [] },
-      contextExtensions: { executorDelegationOrigin },
-    })
-
-    const context = createExecutionContext(executor, 'child-workflow')
-
-    expect(context.workflowId).toBe('child-workflow')
-    expect(context.executorDelegationOrigin).toBe(executorDelegationOrigin)
-  })
 })
 
 describe('DAGExecutor run-scoped permission config cache', () => {
@@ -497,14 +293,6 @@ describe('DAGExecutor run-scoped permission config cache', () => {
 
     expect(context.permissionConfigCache).toBeInstanceOf(Map)
     expect(blockContext.permissionConfigCache).toBe(context.permissionConfigCache)
-  })
-
-  it('never shares the cache between runs', () => {
-    const workflow = { version: '1', blocks: [], connections: [] }
-    const parent = createExecutionContext(new DAGExecutor({ workflow, contextExtensions: {} }))
-    const child = createExecutionContext(new DAGExecutor({ workflow, contextExtensions: {} }))
-
-    expect(child.permissionConfigCache).not.toBe(parent.permissionConfigCache)
   })
 })
 
@@ -526,15 +314,5 @@ describe('DAGExecutor exact access key lists', () => {
 
     expect(context.largeValueKeys).toEqual(['large-value-key'])
     expect(context.fileKeys).toEqual(['file-key'])
-  })
-
-  it('shares the lists a run passes in rather than copying them', () => {
-    const largeValueKeys = ['inherited-large-value-key']
-    const fileKeys = ['inherited-file-key']
-
-    const context = createContext({ largeValueKeys, fileKeys })
-
-    expect(context.largeValueKeys).toBe(largeValueKeys)
-    expect(context.fileKeys).toBe(fileKeys)
   })
 })

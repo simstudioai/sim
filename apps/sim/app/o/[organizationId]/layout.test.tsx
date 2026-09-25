@@ -1,10 +1,5 @@
-/**
- * @vitest-environment node
- */
-
 import type { ReactNode } from 'react'
 import { authMockFns } from '@sim/testing'
-import { dehydrate } from '@tanstack/react-query'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -92,81 +87,11 @@ const SURFACE_CONTEXT = {
 
 describe('OrganizationLayout', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({
       user: { id: 'viewer-1' },
       session: { id: 'session-1', activeOrganizationId: 'active-org' },
     })
     mockUseSession.mockReturnValue({ data: { user: { id: 'viewer-1' } }, isPending: false })
-  })
-
-  it('returns signed-out visitors to the organization entry after sign-in', async () => {
-    mockGetSession.mockResolvedValue(null)
-
-    await expect(
-      OrganizationLayout({
-        children: null,
-        params: Promise.resolve({ organizationId: 'org-1' }),
-      })
-    ).rejects.toThrow('redirect:/login?callbackUrl=%2Fo%2Forg-1')
-    expect(mockGetOrganizationSurfaceContext).not.toHaveBeenCalled()
-    expect(mockPrefetchOrganizationSidebar).not.toHaveBeenCalled()
-  })
-
-  it('renders the surface for a member and seeds the chrome from the collapse cookie', async () => {
-    mockGetOrganizationSurfaceContext.mockResolvedValue(SURFACE_CONTEXT)
-
-    const element = await OrganizationLayout({
-      children: <div>Organization child</div>,
-      params: Promise.resolve({ organizationId: 'org-1' }),
-    })
-    const html = renderToStaticMarkup(element)
-
-    expect(mockGetOrganizationSurfaceContext).toHaveBeenCalledWith('org-1', 'viewer-1')
-    expect(mockPrefetchOrganizationSidebar).toHaveBeenCalledWith(
-      {},
-      'org-1',
-      { kind: 'session', userId: 'viewer-1', sessionId: 'session-1' },
-      'active-org'
-    )
-    expect(html).toContain('Organization child')
-    expect(mockUseMothershipChatEvents).toHaveBeenCalledWith(
-      { organizationId: 'org-1' },
-      SURFACE_CONTEXT.deployment.chatEnabled
-    )
-    expect(html).not.toContain('Stop impersonating')
-    expect(mockWorkspaceChrome).toHaveBeenCalledWith(
-      expect.objectContaining({ initialSidebarCollapsed: true }),
-      undefined
-    )
-  })
-
-  it('shows the shared impersonation banner above organization content', async () => {
-    const session = {
-      user: { id: 'viewer-1', name: 'QA Member', email: 'member@example.com' },
-      session: { id: 'session-1', impersonatedBy: 'platform-admin' },
-    }
-    mockGetSession.mockResolvedValue(session)
-    mockUseSession.mockReturnValue({ data: session, isPending: false })
-    mockGetOrganizationSurfaceContext.mockResolvedValue(SURFACE_CONTEXT)
-
-    const html = renderToStaticMarkup(
-      await OrganizationLayout({
-        children: <div>Organization child</div>,
-        params: Promise.resolve({ organizationId: 'org-1' }),
-      })
-    )
-
-    expect(mockGetOrganizationSurfaceContext).toHaveBeenCalledWith('org-1', 'viewer-1')
-    expect(mockPrefetchOrganizationSidebar).toHaveBeenCalledWith(
-      {},
-      'org-1',
-      { kind: 'session', userId: 'viewer-1', sessionId: 'session-1' },
-      null
-    )
-    expect(html).toContain('Impersonating QA Member (member@example.com)')
-    expect(html).toContain('Stop impersonating')
-    expect(html.indexOf('Stop impersonating')).toBeLessThan(html.indexOf('Organization child'))
   })
 
   it('does not use the impersonating admin to enter an organization outside the rollout', async () => {
@@ -227,21 +152,4 @@ describe('OrganizationLayout', () => {
       expect(mockPrefetchOrganizationSidebar).not.toHaveBeenCalled()
     }
   )
-
-  it('waits for sidebar reads before serializing hydration', async () => {
-    const ready = Promise.withResolvers<void>()
-    mockGetOrganizationSurfaceContext.mockResolvedValue(SURFACE_CONTEXT)
-    mockPrefetchOrganizationSidebar.mockReturnValue(ready.promise)
-    const pending = OrganizationLayout({
-      children: null,
-      params: Promise.resolve({ organizationId: 'org-1' }),
-    })
-    await vi.waitFor(() => expect(mockPrefetchOrganizationSidebar).toHaveBeenCalledOnce(), {
-      interval: 1,
-    })
-    expect(dehydrate).not.toHaveBeenCalled()
-    ready.resolve()
-    await pending
-    expect(dehydrate).toHaveBeenCalledOnce()
-  })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { usageLog } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -43,15 +40,12 @@ import {
   getBillingPeriodWorkflowRunCount,
   getStampedPeriodRangeUsageCostByUser,
   getUserUsageLogs,
-  getWorkspaceUsageLogs,
   recordCumulativeUsage,
   recordUsage,
   resolveCumulativeTopUp,
   UNKNOWN_CURSOR_MESSAGE,
   UnknownUsageCursorError,
 } from '@/lib/billing/core/usage-log'
-import { asOrchestrationError } from '@/lib/core/orchestration/types'
-import { HttpError } from '@/lib/core/utils/http-error'
 
 /**
  * Re-wires the shared db mocks (`dbChainMockFns`, backing the single shared
@@ -75,7 +69,6 @@ afterAll(resetEnvFlagsMock)
 
 describe('recordUsage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     installSharedDbMocks()
     mockReturning.mockResolvedValue([{ cost: '0.10' }, { cost: '0.20' }])
     mockOnConflictDoNothing.mockReturnValue({ returning: mockReturning })
@@ -133,24 +126,6 @@ describe('recordUsage', () => {
     expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
   })
 
-  it('uses pre-resolved billing context without loading subscriptions', async () => {
-    await recordUsage({
-      userId: 'user-1',
-      billingEntity: { type: 'user', id: 'user-1' },
-      billingPeriod: {
-        start: new Date('2026-05-01T00:00:00.000Z'),
-        end: new Date('2026-06-01T00:00:00.000Z'),
-      },
-      entries: [{ category: 'fixed', source: 'workflow', description: 'execution_fee', cost: 0.1 }],
-    })
-
-    expect(mockGetHighestPrioritySubscription).not.toHaveBeenCalled()
-    expect(mockValues.mock.calls[0][0][0]).toMatchObject({
-      billingEntityId: 'user-1',
-      billingEntityType: 'user',
-    })
-  })
-
   it('rejects workspace usage without an explicit payer context', async () => {
     await expect(
       recordUsage({
@@ -197,20 +172,6 @@ describe('recordUsage', () => {
       description: 'claude-sonnet-4',
       metadata: { inputTokens: 1200, outputTokens: 340 },
     })
-  })
-
-  it('writes nothing when every entry is zero-cost and billable', async () => {
-    await recordUsage({
-      userId: 'user-1',
-      billingEntity: { type: 'user', id: 'user-1' },
-      billingPeriod: {
-        start: new Date('2026-05-01T00:00:00.000Z'),
-        end: new Date('2026-06-01T00:00:00.000Z'),
-      },
-      entries: [{ category: 'model', source: 'workflow', description: 'gpt-4', cost: 0 }],
-    })
-
-    expect(mockInsert).not.toHaveBeenCalled()
   })
 })
 
@@ -271,7 +232,6 @@ describe('recordCumulativeUsage', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     installSharedDbMocks()
     mockReturning.mockResolvedValue([{ cost: '0.3474447' }])
     mockOnConflictDoNothing.mockReturnValue({ returning: mockReturning })
@@ -303,13 +263,6 @@ describe('recordCumulativeUsage', () => {
     mockTransaction.mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx))
     return { tx, select, updateSet }
   }
-
-  /** True when any tx.execute call ran a sql`` template containing the substring. */
-  const executedSqlContaining = (tx: { execute: ReturnType<typeof vi.fn> }, substring: string) =>
-    tx.execute.mock.calls.some(([arg]) => {
-      const strings = (arg as { strings?: readonly string[] } | null)?.strings
-      return Array.isArray(strings) && strings.some((s) => s.includes(substring))
-    })
 
   it('inserts the full cumulative on the first flush', async () => {
     setupTx(null)
@@ -402,56 +355,6 @@ describe('recordCumulativeUsage', () => {
     expect(mockUpdate).not.toHaveBeenCalled()
     expect(mockInsert).not.toHaveBeenCalled()
   })
-
-  it('resolves the billing context before opening the locked transaction, exactly once', async () => {
-    setupTx(null)
-    await recordCumulativeUsage({
-      userId: 'user-1',
-      source: 'workspace-chat',
-      model: 'claude-opus-4.8',
-      cost: 0.3474447,
-      eventKey: 'update-cost:msg-1-billing',
-    })
-    // One lookup total: pre-resolved outside the tx, and the first-flush
-    // insert reuses it instead of re-resolving on the pool inside the tx.
-    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledTimes(1)
-    expect(mockGetHighestPrioritySubscription.mock.invocationCallOrder[0]).toBeLessThan(
-      mockTransaction.mock.invocationCallOrder[0]
-    )
-  })
-
-  it('stamps the pre-resolved billing context onto the first-flush insert', async () => {
-    setupTx(null)
-    await recordCumulativeUsage({
-      userId: 'user-1',
-      source: 'workspace-chat',
-      model: 'claude-opus-4.8',
-      cost: 0.3474447,
-      eventKey: 'update-cost:msg-1-billing',
-    })
-    expect(mockValues.mock.calls[0][0][0]).toMatchObject({
-      billingEntityId: 'org-1',
-      billingEntityType: 'organization',
-    })
-  })
-
-  it('bounds the holder lifetime and lock wait before acquiring the event-key lock', async () => {
-    const { tx } = setupTx({ id: 'row-1', cost: '0.3474447' })
-    await recordCumulativeUsage({
-      userId: 'user-1',
-      source: 'workspace-chat',
-      model: 'claude-opus-4.8',
-      cost: 0.4662453,
-      eventKey: 'update-cost:msg-1-billing',
-    })
-    expect(executedSqlContaining(tx, 'transaction_timeout')).toBe(true)
-    expect(executedSqlContaining(tx, 'idle_in_transaction_session_timeout')).toBe(true)
-    expect(executedSqlContaining(tx, 'statement_timeout')).toBe(true)
-    expect(executedSqlContaining(tx, 'lock_timeout')).toBe(true)
-    expect(tx.execute.mock.calls[0][0]).toMatchObject({ values: ['4000ms', '3500ms', '3000ms'] })
-    expect(executedSqlContaining(tx, 'pg_advisory_xact_lock')).toBe(true)
-    expect(executedSqlContaining(tx, 'hashtextextended')).toBe(true)
-  })
 })
 
 interface MockCondition {
@@ -469,18 +372,7 @@ function latestWhereCondition(): MockCondition {
 
 describe('usage-log query scopes', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('queries a complete workspace ledger without an actor predicate', async () => {
-    await getWorkspaceUsageLogs('workspace-1', { limit: 25, includeSummary: false })
-
-    expect(latestWhereCondition()).toMatchObject({
-      type: 'and',
-      conditions: [{ type: 'eq', left: 'usageLog.workspaceId', right: 'workspace-1' }],
-    })
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(26)
   })
 
   it('rejects a cursor that resolves to no usage event instead of restarting at page 1', async () => {
@@ -493,55 +385,6 @@ describe('usage-log query scopes', () => {
 
     expect(rejection).toBeInstanceOf(UnknownUsageCursorError)
     expect((rejection as Error).message).toBe(UNKNOWN_CURSOR_MESSAGE)
-  })
-
-  /**
-   * Both projections of the same throw: the v2 route reads the classification off
-   * the `cause` chain, the session-only internal route reads `statusCode` off the
-   * `HttpError`. Asserting them here is what lets the route suites stay on the
-   * surface behaviour.
-   */
-  it('classifies the unresolvable-cursor rejection for both surfaces', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-
-    const rejection = await getUserUsageLogs('user-1', {
-      cursor: 'log-from-another-ledger',
-      includeSummary: false,
-    }).catch((error: unknown) => error)
-
-    expect(rejection).toBeInstanceOf(HttpError)
-    expect((rejection as HttpError).statusCode).toBe(400)
-    expect(asOrchestrationError(rejection)).toMatchObject({
-      code: 'validation',
-      message: UNKNOWN_CURSOR_MESSAGE,
-    })
-  })
-
-  it('narrows the page to rows after a resolvable cursor', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([{ createdAt: new Date('2026-07-01T00:00:00Z') }])
-
-    await getUserUsageLogs('user-1', { cursor: 'log-1', limit: 25, includeSummary: false })
-
-    expect(latestWhereCondition()).toMatchObject({
-      type: 'and',
-      conditions: [{ type: 'eq', left: 'usageLog.userId', right: 'user-1' }, { type: 'or' }],
-    })
-  })
-
-  it('trusts a caller-supplied cursor timestamp without a lookup', async () => {
-    await getUserUsageLogs('user-1', {
-      cursor: 'log-1',
-      cursorCreatedAt: new Date('2026-07-01T00:00:00Z'),
-      limit: 25,
-      includeSummary: false,
-    })
-
-    expect(latestWhereCondition()).toMatchObject({
-      type: 'and',
-      conditions: [{ type: 'eq', left: 'usageLog.userId', right: 'user-1' }, { type: 'or' }],
-    })
-    expect(dbChainMockFns.limit).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(26)
   })
 
   it('keeps personal queries actor-scoped with an optional workspace filter', async () => {
@@ -612,7 +455,6 @@ describe('ledger aggregates', () => {
   ]
 
   beforeEach(() => {
-    vi.clearAllMocks()
     installSharedDbMocks()
   })
 

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { waitForWorkflowToolCompletion, claimWorkflowToolExecution, recordDegraded } = vi.hoisted(
@@ -57,21 +53,12 @@ function baseParams(overrides: Record<string, unknown> = {}) {
 
 describe('raceWorkflowToolClientPickup', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     waiterSignals = []
   })
 
   afterEach(() => {
     vi.useRealTimers()
-  })
-
-  it('forwards requested output selectors to the client completion boundary', async () => {
-    waitForWorkflowToolCompletion.mockResolvedValue({ status: 'success', data: {} })
-    await raceWorkflowToolClientPickup({ ...baseParams(), select: ['Result.value'] })
-    expect(waitForWorkflowToolCompletion).toHaveBeenCalledWith(
-      expect.objectContaining({ select: ['Result.value'] })
-    )
   })
 
   it('lets the client win without ever attempting a claim', async () => {

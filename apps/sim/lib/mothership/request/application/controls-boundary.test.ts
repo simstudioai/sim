@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -32,7 +31,6 @@ vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: async () => [] }))
 import { abortRun } from '@/lib/mothership/request/application/controls'
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.permissions
     .mockReset()

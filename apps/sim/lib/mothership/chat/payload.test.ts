@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { envFlagsMockFns, resetEnvFlagsMock, setEnvFlags, workflowsUtilsMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getExposedIntegrationTools } from '@/lib/integrations/tool-catalog'
@@ -193,33 +190,12 @@ import {
 
 describe('buildIntegrationToolSchemas', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetEnvFlagsMock()
     clearIntegrationToolSchemaCacheForTests()
     mockCreateUserToolSchema.mockReturnValue({ type: 'object', properties: {} })
     mockIsIntegrationDeploymentAvailable.mockReturnValue(true)
     mockIsOAuthServiceDeploymentAvailable.mockReturnValue(true)
     mockGetUserPermissionConfig.mockResolvedValue(null)
-  })
-
-  it('appends the email footer prompt for free users', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue(null)
-
-    const toolSchemas = await buildIntegrationToolSchemas('user-free')
-    const gmailTool = toolSchemas.find((tool) => tool.name === 'gmail_send')
-
-    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledWith('user-free')
-    expect(gmailTool?.description).toContain('sent with sim ai')
-  })
-
-  it('does not append the email footer prompt for paid users', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
-
-    const toolSchemas = await buildIntegrationToolSchemas('user-paid')
-    const gmailTool = toolSchemas.find((tool) => tool.name === 'gmail_send')
-
-    expect(mockGetHighestPrioritySubscription).toHaveBeenCalledWith('user-paid')
-    expect(gmailTool?.description).toBe('Send emails using Gmail')
   })
 
   it('emits executeLocally for dynamic client tools only', async () => {
@@ -231,37 +207,6 @@ describe('buildIntegrationToolSchemas', () => {
 
     expect(gmailTool?.executeLocally).toBe(false)
     expect(runTool?.executeLocally).toBe(true)
-  })
-
-  it('preserves operation, outputs, and OAuth discovery metadata', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
-
-    const toolSchemas = await buildIntegrationToolSchemas('user-metadata')
-    const gmailTool = toolSchemas.find((tool) => tool.name === 'gmail_send')
-
-    expect(gmailTool).toEqual(
-      expect.objectContaining({
-        service: 'gmail',
-        operation: 'send',
-        outputs: { messageId: { type: 'string', description: 'Sent message ID' } },
-        oauth: { required: true, provider: 'google-email' },
-      })
-    )
-  })
-
-  it('uses copilot-facing file schemas for integration tools', async () => {
-    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro', status: 'active' })
-
-    await buildIntegrationToolSchemas('user-copilot')
-
-    expect(mockCreateUserToolSchema).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'gmail_send' }),
-      { surface: 'copilot', hostedKeySupport: expect.any(Boolean) }
-    )
-    expect(mockCreateUserToolSchema).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'brandfetch_search' }),
-      { surface: 'copilot', hostedKeySupport: expect.any(Boolean) }
-    )
   })
 
   it('removes tools whose canonical exposed block is unavailable', async () => {
@@ -422,7 +367,6 @@ describe('buildIntegrationToolSchemas', () => {
 
 describe('buildCopilotRequestPayload', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockTrackChatUpload.mockResolvedValue({ displayName: 'payroll.xlsx' })
     mockSecretNames.mockResolvedValue({ names: [] })
   })

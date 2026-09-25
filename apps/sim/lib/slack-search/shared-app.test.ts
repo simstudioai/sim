@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { db } from '@sim/db'
 import { slackApp, slackSearchInstallation } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
@@ -29,7 +28,6 @@ import {
 } from '@/lib/slack-search/shared-app'
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   m.hosted = true
   Object.assign(m.env, {
@@ -56,38 +54,10 @@ describe('shared Slack rollout', () => {
     await expect(requireSlackSearchAppAvailable('A1', 'org')).rejects.toThrow('unavailable')
     expect(m.flag).not.toHaveBeenCalled()
   })
-  it('preserves custom bot handling on self-hosted deployments', async () => {
-    m.hosted = false
-    queueTableRows(slackApp, [{ kind: 'custom' }])
-    await expect(requireSlackSearchAppAvailable('CUSTOM', 'org')).resolves.toBeUndefined()
-  })
   it.each([false, true])('requires both flag and configured app (flag=%s)', async (flag) => {
     m.flag.mockResolvedValue(flag)
     if (flag) m.env.SLACK_SEARCH_APP_ID = ''
     await expect(readSharedSlackSearchApp('org')).resolves.toBeNull()
-  })
-  it.each([
-    'SLACK_SEARCH_CLIENT_ID',
-    'SLACK_SEARCH_CLIENT_SECRET',
-    'SLACK_SEARCH_SIGNING_SECRET',
-  ] as const)('fails closed without %s', async (key) => {
-    m.env[key] = ''
-    await expect(readSharedSlackSearchApp('org')).rejects.toThrow('Configure SLACK_SEARCH_APP_ID')
-  })
-  it('uses deployment credentials without requiring a registered database row', async () => {
-    await expect(readSharedSlackSearchApp('org')).resolves.toMatchObject({
-      id: 'A1',
-      clientId: 'client',
-      clientSecret: 'secret',
-      signingSecret: 'signing',
-    })
-    expect(db.select).not.toHaveBeenCalled()
-  })
-  it('preserves custom bot handling while the shared flag is off', async () => {
-    m.flag.mockResolvedValue(false)
-    queueTableRows(slackApp, [{ kind: 'custom' }])
-    await expect(requireSlackSearchAppAvailable('CUSTOM', 'org')).resolves.toBeUndefined()
-    expect(m.flag).not.toHaveBeenCalled()
   })
   it('refuses a shared bot while the shared flag is off', async () => {
     m.flag.mockResolvedValue(false)

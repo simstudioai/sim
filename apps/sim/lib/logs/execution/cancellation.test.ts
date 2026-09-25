@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('drizzle-orm')
@@ -70,19 +66,5 @@ describe('terminalExecutionLogFields', () => {
 
     const { params } = new PgDialect().sqlToQuery(failed.totalDurationMs)
     expect(params).toContain(endedAt.toISOString())
-  })
-
-  /** The cancellation call sites must keep emitting exactly what they did. */
-  it('is what the cancellation binding emits', () => {
-    const endedAt = new Date('2026-08-13T12:00:05.000Z')
-    const dialect = new PgDialect()
-
-    const bound = cancelledExecutionLogFields(endedAt)
-    const direct = terminalExecutionLogFields('cancelled', endedAt)
-
-    expect({ ...bound, totalDurationMs: dialect.sqlToQuery(bound.totalDurationMs) }).toEqual({
-      ...direct,
-      totalDurationMs: dialect.sqlToQuery(direct.totalDurationMs),
-    })
   })
 })

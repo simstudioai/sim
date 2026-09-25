@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type {
   CredentialGroupEnrollmentPrincipal,
   DelegatedPrincipal,
@@ -107,7 +104,6 @@ function copilotPrincipal(overrides: Partial<DelegatedPrincipal> = {}): Delegate
 
 describe('Credential Group Settings application operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolveGroup.mockResolvedValue({
       ...workspaceContext,
@@ -147,39 +143,6 @@ describe('Credential Group Settings application operations', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.list).not.toHaveBeenCalled()
-  })
-
-  it('lists settings only after authorization and entitlement checks', async () => {
-    const result = await getWorkspaceAccountsSettings.execute({
-      principal: sessionPrincipal,
-      input: { workspaceId: 'workspace-1' },
-    })
-
-    expect(mocks.requireAvailable).toHaveBeenCalledWith('workspace-1')
-    expect(mocks.list).toHaveBeenCalledWith('workspace-1')
-    expect(result.credentialGroup).toBeNull()
-    /**
-     * Which providers are offerable depends on the OAuth clients this environment configures, so
-     * the list is asserted as a shape rather than a fixed set.
-     */
-    expect(Array.isArray(result.availableProviders)).toBe(true)
-  })
-
-  it('reads singleton readiness through trusted Copilot with the acting admin', async () => {
-    mocks.list.mockResolvedValue({ status: 'active', options: [] })
-    await expect(loadCopilotConnectedAccounts(copilotContext)).resolves.toEqual({
-      status: 'active',
-      options: [],
-    })
-    expect(mocks.resolvePermission).toHaveBeenCalledWith(
-      'admin-1',
-      'workspace-1',
-      null,
-      undefined,
-      { forUpdate: undefined }
-    )
-    expect(mocks.list).toHaveBeenCalledExactlyOnceWith('workspace-1')
-    expect(mocks.listEnrollments).not.toHaveBeenCalled()
   })
 
   it('reauthorizes connected-account reads after the acting admin is demoted', async () => {

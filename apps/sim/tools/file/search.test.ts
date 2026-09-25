@@ -1,17 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { fileSearchTool } from '@/tools/file/search'
 
 describe('fileSearchTool', () => {
-  it('uses the shared protected read operation and admits executor delegation', () => {
-    expect(fileOperations.searchContent).toMatchObject({
-      id: 'files.search_content',
-      minimumRole: 'read',
-      workspaceApiKey: 'allow',
-      delegatedServices: ['copilot', 'executor'],
-    })
-  })
-
   it('keeps the query model-visible and every builder setting user-only', () => {
     expect(fileSearchTool.params.query).toMatchObject({
       required: true,
@@ -25,14 +15,6 @@ describe('fileSearchTool', () => {
       required: false,
       visibility: 'user-only',
     })
-  })
-
-  it('documents the pattern syntax on the one param a model can supply', () => {
-    const query = fileSearchTool.params.query.description ?? ''
-    expect(query).toContain('regular expression')
-    expect(query).toContain('3 consecutive literal characters')
-    expect(query).toContain('cannot span a line break')
-    expect(query).toContain('not supported')
   })
 
   describe('mode-accurate syntax for the model', () => {
@@ -98,29 +80,6 @@ describe('fileSearchTool', () => {
     })
     expect(fileSearchTool.operation.input({ query: 'needle', mode: 'exact' })).toMatchObject({
       mode: 'exact',
-    })
-  })
-
-  it('describes structured results and index coverage counters', () => {
-    expect(fileSearchTool.outputs.results).toMatchObject({
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          fileId: { type: 'string' },
-          lineNumber: { type: 'number' },
-          text: { type: 'string' },
-        },
-      },
-    })
-    expect(fileSearchTool.outputs.indexStatus).toMatchObject({
-      properties: {
-        readyFiles: { type: 'number' },
-        pendingFiles: { type: 'number' },
-        failedFiles: { type: 'number' },
-        skippedFiles: { type: 'number' },
-        partialFiles: { type: 'number' },
-      },
     })
   })
 

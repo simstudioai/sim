@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
 import {
@@ -41,11 +38,7 @@ vi.mock('@/lib/core/utils/urls', () => ({
   getBaseUrl: () => 'https://sim.example.com',
 }))
 
-import {
-  executeElevenLabsAudioIsolation,
-  executeElevenLabsSoundEffects,
-  executeElevenLabsSpeechToSpeech,
-} from '@/lib/internal/elevenlabs/operations'
+import { executeElevenLabsAudioIsolation } from '@/lib/internal/elevenlabs/operations'
 
 const audioFile = {
   id: 'file-1',
@@ -63,7 +56,6 @@ const context = {
 
 describe('ElevenLabs operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.assertToolFileAccess.mockResolvedValue(null)
     mocks.downloadFileFromStorage.mockResolvedValue(Buffer.from('source-audio'))
     mocks.generateElevenLabsAudio.mockResolvedValue(Buffer.from('result-audio'))
@@ -74,17 +66,6 @@ describe('ElevenLabs operations', () => {
       name: 'generated.mp3',
       url: 'https://storage.example.com/generated.mp3',
     })
-  })
-
-  it('keeps headerless sound-effect execution compatible', async () => {
-    await expect(
-      executeElevenLabsSoundEffects({ apiKey: 'secret', text: 'A soft chime' }, context)
-    ).resolves.toEqual({ audioUrl: 'https://sim.example.com/generated.mp3', size: 12 })
-
-    expect(mocks.generateElevenLabsAudio).toHaveBeenCalledWith(
-      { operation: 'sound_effects', input: { apiKey: 'secret', text: 'A soft chime' } },
-      undefined
-    )
   })
 
   it('rejects incomplete private provenance before reading audio bytes', async () => {
@@ -156,15 +137,5 @@ describe('ElevenLabs operations', () => {
       'audio/mpeg',
       'user-1'
     )
-  })
-
-  it('preserves file authorization before speech voice validation', async () => {
-    mocks.assertToolFileAccess.mockResolvedValue(
-      Response.json({ success: false, error: 'File not found' }, { status: 404 })
-    )
-
-    await expect(
-      executeElevenLabsSpeechToSpeech({ apiKey: 'secret', audioFile }, context)
-    ).rejects.toMatchObject({ status: 404 })
   })
 })

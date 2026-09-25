@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -63,7 +60,6 @@ const delegatedReader = {
 
 describe('readUserFileContent', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     generatedPdf.size = PDF_SOURCE.length
     mockVerifyFileAccess.mockResolvedValue(true)

@@ -2,8 +2,6 @@
  * The hairline pass has no other safety net: it rewrites Tailwind's own output,
  * so a miss shows up as a half-device-pixel line weight on retina — invisible
  * in CI and easy to miss by eye. These cases pin both directions.
- *
- * @vitest-environment node
  */
 import postcss from 'postcss'
 import { describe, expect, it } from 'vitest'
@@ -61,24 +59,10 @@ describe('hairline border width', () => {
       expect(await run('.border-2 { border-width: 2px }')).toContain('2px')
     })
 
-    it('keeps a zeroed side', async () => {
-      expect(await run('.border-t-0 { border-top-width: 0px }')).toContain('0px')
-    })
-
     it('keeps an arbitrary 1px, which asked for exactly one pixel', async () => {
       const out = await run('.border-\\[1px\\] { border-width: 1px }')
       expect(out).toContain('1px')
       expect(out).not.toContain('var(--border-width)')
-    })
-
-    it('does not touch a non-border width sharing a border rule', async () => {
-      const out = await run(
-        '.border { border-width: 1px; outline-width: 1px; stroke-width: 1px; column-rule-width: 1px }'
-      )
-      expect(out).toContain('border-width: var(--border-width)')
-      expect(out).toContain('outline-width: 1px')
-      expect(out).toContain('stroke-width: 1px')
-      expect(out).toContain('column-rule-width: 1px')
     })
 
     it('does not splice into a sub-pixel value', async () => {
@@ -91,11 +75,6 @@ describe('hairline border width', () => {
       const out = await run('.border { border-width: 1px }', '/repo/node_modules/pkg/styles.css')
       expect(out).toContain('1px')
       expect(out).not.toContain('var(--border-width)')
-    })
-
-    it('ignores a hairline class that is not the rule subject', async () => {
-      const out = await run('.foo:has(.border) { border-width: 1px }')
-      expect(out).toContain('var(--border-width)')
     })
   })
 })

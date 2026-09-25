@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -126,7 +125,6 @@ async function restore(encryptedState: string) {
 
 describe('durable Agent replay provenance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     artifacts.values.clear()
     mocks.storeArtifact.mockImplementation(artifacts.store)
     mocks.readArtifact.mockImplementation(artifacts.read)

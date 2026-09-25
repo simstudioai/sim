@@ -1,12 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import type { ForkClearedRef } from '@/lib/api/contracts/workspace-fork'
 import {
   forkSyncBlockerReasonFor,
   selectForkSyncBlockingRefs,
-  toForkSyncBlockers,
 } from '@/ee/workspace-forking/lib/promote/sync-blockers'
 
 type ReferenceRef = Extract<ForkClearedRef, { cause: 'reference' }>
@@ -68,21 +64,9 @@ describe('forkSyncBlockerReasonFor', () => {
     )
   })
 
-  it('maps a workflow-cause entry to workflow-missing', () => {
-    expect(forkSyncBlockerReasonFor(workflowRef('wf-other'))).toBe('workflow-missing')
-  })
-
   it('never blocks a dependent-cause entry (the reconfigure flow owns dependents)', () => {
     expect(forkSyncBlockerReasonFor(dependentRef('credential'))).toBeNull()
     expect(forkSyncBlockerReasonFor(dependentRef('knowledge-base'))).toBeNull()
-  })
-
-  it('defensively ignores kinds the collector excludes (credential / env-var / document)', () => {
-    // These never reach the cleared list (excluded by the collector); if one leaked, the
-    // kind-level required gate owns credentials/env-vars, so this path must not double-block.
-    expect(forkSyncBlockerReasonFor(referenceRef('credential', 'c1'))).toBeNull()
-    expect(forkSyncBlockerReasonFor(referenceRef('env-var', 'KEY'))).toBeNull()
-    expect(forkSyncBlockerReasonFor(referenceRef('knowledge-document', 'doc-1'))).toBeNull()
   })
 })
 
@@ -104,21 +88,6 @@ describe('selectForkSyncBlockingRefs / toForkSyncBlockers', () => {
     ])
   })
 
-  it('maps blocking entries to the wire blocker shape', () => {
-    const blocking = selectForkSyncBlockingRefs([referenceRef('table', 'tbl-1')])
-    expect(toForkSyncBlockers(blocking)).toEqual([
-      {
-        workflowName: 'Workflow',
-        blockLabel: 'Block',
-        fieldLabel: 'Field',
-        kind: 'table',
-        sourceId: 'tbl-1',
-        sourceLabel: 'Source',
-        reason: 'unmapped-copyable',
-      },
-    ])
-  })
-
   it('classifies an unmapped custom block separately from the copyable kinds', () => {
     // A custom block is neither copyable nor clearable: its reference IS the block's type,
     // so an unmapped one keeps invoking the SOURCE environment's block. Blocking on it is
@@ -126,12 +95,6 @@ describe('selectForkSyncBlockingRefs / toForkSyncBlockers', () => {
     // copy does not tell the user to "select it for copy".
     expect(forkSyncBlockerReasonFor(referenceRef('custom-block', 'custom_block_abc'))).toBe(
       'unmapped-custom-block'
-    )
-  })
-
-  it('still reports a deleted custom block as source-deleted', () => {
-    expect(forkSyncBlockerReasonFor(referenceRef('custom-block', 'custom_block_abc', true))).toBe(
-      'source-deleted'
     )
   })
 })

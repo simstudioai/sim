@@ -1,6 +1,5 @@
-/** @vitest-environment node */
 import sharp from 'sharp'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { sandbox } = vi.hoisted(() => ({ sandbox: vi.fn() }))
 vi.mock('@/lib/execution/remote-sandbox', () => ({ executeInSandbox: sandbox }))
@@ -36,8 +35,6 @@ describe('document page selection', () => {
 })
 
 describe('renderDocumentForVision', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it.each(['pdf', 'docx', 'pptx'])(
     'renders compiled %s bytes through the document sandbox with cancellation and bounded binary output',
     async (ext) => {

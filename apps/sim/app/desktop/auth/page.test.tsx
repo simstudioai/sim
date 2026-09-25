@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetSession, mockCreateDesktopHandoffToken, mockRedirect } = vi.hoisted(() => ({
@@ -38,7 +35,6 @@ function pageProps(params: Record<string, string>) {
 
 describe('DesktopAuthPage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1', email: 'user@example.com' } })
     mockCreateDesktopHandoffToken.mockResolvedValue('tok123456')
   })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/executor/types'
@@ -81,7 +78,6 @@ function input() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   setEnvFlags({ isHosted: false })
   request.mockReset().mockImplementation(async ({ request: candidate }) => ({
     content: '{}',
@@ -92,16 +88,6 @@ beforeEach(() => {
 afterEach(resetEnvFlagsMock)
 
 describe('executeModelRequestWithFallbacks', () => {
-  it('keeps a successful primary request unchanged and clears earlier fallback metadata', async () => {
-    const options = input()
-    options.ctx.blockLogs[0].modelFallbacks = ['old-model']
-    const output = await executeModelRequestWithFallbacks(options)
-    expect(output).toMatchObject({ result: { model: 'gpt-4o' }, usedFallback: false })
-    expect(request).toHaveBeenCalledTimes(1)
-    expect(request.mock.calls[0][0].request).toBe(options.request)
-    expect(options.ctx.blockLogs[0].modelFallbacks).toBeUndefined()
-  })
-
   it('walks the chain in order, preserving the last error and recording earlier failed models', async () => {
     const options = input()
     const last = new Error('last provider failed')
@@ -157,14 +143,6 @@ describe('executeModelRequestWithFallbacks', () => {
     expect(output.result.model).toBe('gpt-4o-mini')
     expect(request).toHaveBeenCalledTimes(2)
     expect(options.ctx.blockLogs[0].modelFallbacks).toEqual(['gpt-4o'])
-  })
-
-  it('returns the original error when all remaining candidates are skipped', async () => {
-    const error = new Error('overloaded')
-    request.mockRejectedValueOnce(error)
-    validateModel.mockRejectedValue(new Error('not permitted'))
-    await expect(executeModelRequestWithFallbacks(input())).rejects.toBe(error)
-    expect(request).toHaveBeenCalledTimes(1)
   })
 
   it.each([

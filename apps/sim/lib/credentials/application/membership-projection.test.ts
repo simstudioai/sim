@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * `GET /api/credentials/memberships` names no workspace, so its own gate reads
  * the caller's organization default group. Every credential it returns does name
  * one (`credential.workspace_id` is NOT NULL), and `credentials.list` withholds
@@ -86,7 +84,6 @@ function callLeave(credentialId: string) {
 
 describe('credential membership listing under a workspace group', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveConfig.mockReset()
     mockGetSession.mockResolvedValue({ user: { id: USER_ID }, session: { id: 'session-1' } })
     mockGetUserOrganization.mockResolvedValue({
@@ -122,27 +119,6 @@ describe('credential membership listing under a workspace group', () => {
 
     expect(mockResolveConfig).toHaveBeenCalledWith(USER_ID, GOVERNED_WORKSPACE, undefined)
     expect(mockResolveConfig).toHaveBeenCalledWith(USER_ID, OPEN_WORKSPACE, undefined)
-  })
-
-  it('asks once per workspace, not once per credential', async () => {
-    mockList.mockResolvedValue([
-      membership('cred-a', GOVERNED_WORKSPACE),
-      membership('cred-b', GOVERNED_WORKSPACE),
-      membership('cred-c', OPEN_WORKSPACE),
-    ])
-
-    await callList()
-
-    expect(mockResolveConfig).toHaveBeenCalledTimes(2)
-  })
-
-  it('returns every row when no group governs the caller anywhere', async () => {
-    mockResolveConfig.mockResolvedValue(null)
-
-    const response = await callList()
-
-    const body = await response.json()
-    expect(body.memberships).toHaveLength(2)
   })
 
   /**

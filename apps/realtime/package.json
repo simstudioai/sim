@@ -47,6 +47,6 @@
     "@types/node": "24.2.1",
     "socket.io-client": "4.8.1",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.0"
+    "vitest": "^5.0.1"
   }
 }

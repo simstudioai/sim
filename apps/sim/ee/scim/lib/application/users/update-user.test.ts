@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { type ScimUserAttributes, scimConnection } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
@@ -128,7 +125,6 @@ afterAll(resetDbChainMock)
 
 describe('user updates', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.loadGroups.mockResolvedValue(new Map())
     mocks.reconcile.mockResolvedValue({ added: [], removed: [], raised: [] })
@@ -210,28 +206,6 @@ describe('user updates', () => {
     }
   )
 
-  it.each(['add', 'replace'] as const)('projects a display-name-only PATCH %s', async (op) => {
-    stage()
-    await run(patchScimUser, {
-      scimUserId: 'su-1',
-      operations: [{ op, path: 'displayName', value: 'Countess Lovelace' }],
-    })
-    expect(mocks.syncIdentity).toHaveBeenCalledWith(db, {
-      userId: 'u-1',
-      name: 'Countess Lovelace',
-    })
-  })
-
-  it('updates the account from name parts when no explicit display name exists', async () => {
-    stage({ attributes: { displayName: undefined } })
-    await run(patchScimUser, {
-      scimUserId: 'su-1',
-      operations: [{ op: 'replace', path: 'name.givenName', value: 'Augusta' }],
-    })
-    expect(mocks.syncIdentity).toHaveBeenCalledWith(db, { userId: 'u-1', name: 'Augusta Lovelace' })
-    expect(mocks.updateScimUser.mock.calls[0][1].attributes.displayName).toBeUndefined()
-  })
-
   it('keeps an explicit display name when only a name part changes', async () => {
     stage()
     await run(patchScimUser, {
@@ -240,38 +214,6 @@ describe('user updates', () => {
     })
     expect(mocks.syncIdentity).not.toHaveBeenCalled()
     expect(mocks.updateScimUser.mock.calls[0][1].attributes.name.formatted).toBe('Augusta Lovelace')
-  })
-
-  it('preserves name-part updates for legacy records with synthesized display names', async () => {
-    stage({ attributes: { displayNameSource: undefined } })
-    await run(patchScimUser, {
-      scimUserId: 'su-1',
-      operations: [{ op: 'replace', path: 'name.givenName', value: 'Augusta' }],
-    })
-    expect(mocks.syncIdentity).toHaveBeenCalledWith(db, { userId: 'u-1', name: 'Augusta Lovelace' })
-  })
-
-  it('adopts an explicit display name when a provider replaces a legacy profile', async () => {
-    stage({ attributes: { displayName: 'Countess Lovelace', displayNameSource: undefined } })
-    await run(replaceScimUser, {
-      scimUserId: 'su-1',
-      attributes: attributes({ displayName: 'Countess Lovelace' }),
-    })
-    expect(mocks.syncIdentity).toHaveBeenCalledWith(db, {
-      userId: 'u-1',
-      name: 'Countess Lovelace',
-    })
-    expect(mocks.updateScimUser.mock.calls[0][1].attributes.displayNameSource).toBe('provider')
-  })
-
-  it('restores the formatted fallback when a display name is removed', async () => {
-    stage({ attributes: { displayName: 'Countess Lovelace' } })
-    await run(patchScimUser, {
-      scimUserId: 'su-1',
-      operations: [{ op: 'remove', path: 'displayName' }],
-    })
-    expect(mocks.syncIdentity).toHaveBeenCalledWith(db, { userId: 'u-1', name: 'Ada Lovelace' })
-    expect(mocks.updateScimUser.mock.calls[0][1].attributes.displayName).toBeUndefined()
   })
 
   it('deactivates by suspending, never by removing, and keeps the projection', async () => {

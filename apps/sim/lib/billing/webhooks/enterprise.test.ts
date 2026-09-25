@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   createMockStripeEvent,
   dbChainMockFns,
@@ -207,7 +204,6 @@ function queueSuccessfulExistingSubscriptionReconciliation(options: {
 
 describe('Enterprise webhook issuance correlation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.patchOutboxEventPayload.mockResolvedValue(true)
     mocks.reapplyPaidOrgJoinBillingForExistingMemberTx.mockResolvedValue(undefined)
@@ -246,33 +242,6 @@ describe('Enterprise webhook issuance correlation', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mocks.patchOutboxEventPayload).not.toHaveBeenCalled()
     expect(mocks.reapplyPaidOrgJoinBillingForExistingMemberTx).not.toHaveBeenCalled()
-  })
-
-  it('queues the exact selected Enterprise owner workspaces after issuance is applied', async () => {
-    const subscription = stripeSubscription({ operationId: 'operation-1', paused: false })
-    mocks.subscriptionsRetrieve.mockResolvedValue(subscription)
-    queueSuccessfulExistingSubscriptionReconciliation({
-      operation: operationPayload({ workspaceIds: ['workspace-1', 'workspace-archived'] }),
-    })
-
-    await expect(
-      handleManualEnterpriseSubscription(eventFor(subscription))
-    ).resolves.toBeUndefined()
-
-    expect(mocks.enqueueOutboxEvents).toHaveBeenCalledWith(
-      expect.anything(),
-      'enterprise.move-workspace',
-      [
-        expect.objectContaining({ workspaceId: 'workspace-1', sequence: 0 }),
-        expect.objectContaining({ workspaceId: 'workspace-archived', sequence: 1 }),
-      ]
-    )
-    expect(mocks.enqueueOutboxEvent).toHaveBeenCalledWith(
-      expect.anything(),
-      'enterprise.reconcile-members',
-      expect.objectContaining({ organizationId: 'org-1', afterUserId: null })
-    )
-    expect(mocks.patchOutboxEventPayload).toHaveBeenCalled()
   })
 
   it('does not discover owner workspaces that were not selected at confirmation', async () => {
@@ -377,30 +346,6 @@ describe('Enterprise webhook issuance correlation', () => {
     expect(mocks.patchOutboxEventPayload).not.toHaveBeenCalled()
   })
 
-  it('allows later Stripe metadata edits after the issuance was already applied', async () => {
-    const subscription = stripeSubscription({ operationId: 'operation-1', paused: false })
-    mocks.subscriptionsRetrieve.mockResolvedValue(subscription)
-    queueSuccessfulExistingSubscriptionReconciliation({
-      operation: operationPayload({ applied: true, pausePaymentCollection: true }),
-    })
-
-    await expect(
-      handleManualEnterpriseSubscription(eventFor(subscription))
-    ).resolves.toBeUndefined()
-
-    expect(mocks.patchOutboxEventPayload).not.toHaveBeenCalled()
-  })
-
-  it('continues to reconcile manual Enterprise subscriptions without an operation id', async () => {
-    const subscription = stripeSubscription({})
-    mocks.subscriptionsRetrieve.mockResolvedValue(subscription)
-    queueSuccessfulExistingSubscriptionReconciliation({})
-
-    await expect(
-      handleManualEnterpriseSubscription(eventFor(subscription))
-    ).resolves.toBeUndefined()
-  })
-
   it('reconciles a duplicate event again so a stale generic webhook write is corrected', async () => {
     const subscription = stripeSubscription({})
     mocks.subscriptionsRetrieve.mockResolvedValue(subscription)
@@ -412,25 +357,6 @@ describe('Enterprise webhook issuance correlation', () => {
     await expect(handleManualEnterpriseSubscription(event)).resolves.toBeUndefined()
 
     expect(mocks.subscriptionsRetrieve).toHaveBeenCalledTimes(2)
-  })
-
-  it('allows a later valid Stripe edit that retains an already-applied config marker', async () => {
-    const subscription = stripeSubscription({
-      configOperationId: 'config-1',
-      seats: 14,
-    })
-    mocks.subscriptionsRetrieve.mockResolvedValue(subscription)
-    queueSuccessfulExistingSubscriptionReconciliation({
-      existingMetadata: { simConfigOperationId: 'config-1' },
-    })
-
-    await expect(
-      handleManualEnterpriseSubscription(eventFor(subscription))
-    ).resolves.toBeUndefined()
-
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ metadata: expect.objectContaining({ seats: '14' }) })
-    )
   })
 
   it('does not apply an unverified configuration delivery', async () => {

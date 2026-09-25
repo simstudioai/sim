@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 

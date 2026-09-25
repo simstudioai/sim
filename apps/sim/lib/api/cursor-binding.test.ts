@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { globSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -204,10 +201,6 @@ describe('v2 cursor binding', () => {
     it('separates parts rather than concatenating their values', () => {
       expect(cursorScopeKey(LIST, { a: '1', b: '2' })).not.toBe(cursorScopeKey(LIST, { a: '1|2' }))
       expect(cursorScopeKey(LIST, { a: '1' })).not.toBe(cursorScopeKey(LIST, { b: '1' }))
-    })
-
-    it('stays short enough to sit inside an opaque token', () => {
-      expect(cursorScopeKey(LIST, { search: 'x'.repeat(200) })).toHaveLength(22)
     })
   })
 

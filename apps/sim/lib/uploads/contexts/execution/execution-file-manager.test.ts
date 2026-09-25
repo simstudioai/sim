@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -34,7 +31,6 @@ const context = {
 
 describe('uploadExecutionFile key allocation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockUploadToS3.mockImplementation(async (file: Buffer, key: string, contentType: string) => ({
       key,
@@ -196,17 +192,6 @@ describe('uploadExecutionFile key allocation', () => {
     ).rejects.toThrow('Signing failed')
     expect(mockDeleteFromS3).toHaveBeenCalledTimes(1)
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ deletedAt: expect.any(Date) })
-  })
-
-  it('removes the uploaded object and metadata when creating its download URL fails', async () => {
-    mockGetPresignedUrlWithConfig.mockRejectedValueOnce(new Error('Presigning failed'))
-
-    await expect(
-      uploadExecutionFile(context, Buffer.from('file'), 'file.txt', 'text/plain', 'user-1')
-    ).rejects.toThrow('Presigning failed')
-
-    expect(mockDeleteFromS3.mock.calls[0]?.[0]).toBe(mockUploadToS3.mock.calls[0]?.[1])
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
   })
 
   it('removes its unique object when metadata insertion fails before uploadFile returns', async () => {

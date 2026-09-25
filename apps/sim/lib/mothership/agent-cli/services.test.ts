@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
@@ -48,7 +47,6 @@ function service(
 }
 describe('scoped CLI service adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     boundary.workspace.mockResolvedValue({ workspaceId: 'chosen', userId: 'actor' })
     boundary.organization.mockResolvedValue({ organizationId: 'org' })
     boundary.route.mockResolvedValue({ success: true, documents: [{ citation: '<doc id="1" />' }] })

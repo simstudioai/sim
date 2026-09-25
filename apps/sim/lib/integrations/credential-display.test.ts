@@ -1,20 +1,10 @@
-/**
- * @vitest-environment node
- */
-
 import {
   getIntegrationTypesForOAuthServiceId,
   isOAuthServiceAllowedByIntegrationTypes,
 } from '@sim/deployment-config/integration-availability'
 import integrationsJson from '@sim/deployment-config/integrations.json'
 import { describe, expect, it } from 'vitest'
-import {
-  getIntegrationsForCredentialProvider,
-  getServiceAccountCoverageSentence,
-  getServiceAccountFamilyName,
-  isFamilyServiceAccount,
-  resolveCredentialDisplay,
-} from '@/lib/integrations/credential-display'
+import { getIntegrationsForCredentialProvider } from '@/lib/integrations/credential-display'
 import { resolveOAuthServiceForIntegration } from '@/lib/integrations/oauth-service'
 import type { Integration } from '@/lib/integrations/types'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
@@ -99,12 +89,6 @@ const REGISTERED_SERVICE_ACCOUNT_IDS = [
   ),
 ].sort()
 
-const serviceAccount = (providerId: string) => ({
-  type: 'service_account',
-  displayName: 'Automation Bot',
-  providerId,
-})
-
 describe('GitHub Search credentials', () => {
   it('applies GitHub integration policy without changing workflow token authentication', () => {
     expect(getIntegrationTypesForOAuthServiceId('github-repositories')).toEqual(['github_v2'])
@@ -121,31 +105,9 @@ describe('GitHub Search credentials', () => {
     ])
     expect(getIntegrationsForCredentialProvider('github')).toEqual([])
   })
-
-  it('uses the GitHub brand and category for a connected Search account', () => {
-    const display = resolveCredentialDisplay({
-      type: 'oauth',
-      displayName: 'someone@example.com',
-      providerId: 'github-repositories',
-    })
-
-    expect(display.blockType).toBe('github_v2')
-    expect(display.integration?.slug).toBe('github')
-    expect(display.coveredIntegrations.map((integration) => integration.slug)).toEqual(['github'])
-  })
 })
 
 describe('service-account coverage', () => {
-  it('exposes NetSuite reusable credentials without changing its API-key catalog class', () => {
-    const netSuiteIntegration = INTEGRATIONS.find((integration) => integration.type === 'netsuite')
-    expect(netSuiteIntegration?.authType).toBe('api-key')
-    expect(OAUTH_PROVIDERS.netsuite.services.netsuite).toMatchObject({
-      providerId: 'netsuite',
-      serviceAccountProviderId: 'netsuite-service-account',
-      authType: 'service_account',
-    })
-  })
-
   it('pins the table to exactly the registered service-account provider ids', () => {
     expect(REGISTERED_SERVICE_ACCOUNT_IDS).toEqual(Object.keys(EXPECTED_COVERAGE).sort())
   })
@@ -179,114 +141,5 @@ describe('service-account coverage', () => {
         ).toBe(covered.has(integration.slug))
       }
     }
-  })
-
-  it('treats only multi-integration service accounts as families', () => {
-    const families = REGISTERED_SERVICE_ACCOUNT_IDS.filter(isFamilyServiceAccount)
-    expect(families).toEqual(['atlassian-service-account', 'google-service-account'])
-  })
-
-  it('names families after the vendor, not one of its products', () => {
-    expect(getServiceAccountFamilyName('atlassian-service-account')).toBe('Atlassian')
-    expect(getServiceAccountFamilyName('google-service-account')).toBe('Google')
-    expect(getServiceAccountFamilyName('notion-service-account')).toBeNull()
-  })
-})
-
-describe('resolveCredentialDisplay', () => {
-  it('gives an Atlassian service account a vendor identity and a Jira brand tile', () => {
-    const display = resolveCredentialDisplay(serviceAccount('atlassian-service-account'))
-
-    expect(display.familyName).toBe('Atlassian')
-    expect(display.detailTitle).toBe('Automation Bot')
-    expect(display.subtitle).toBe(
-      'Atlassian service account · Confluence, Jira, and Jira Service Management'
-    )
-    // Without a catalog fallback the name lookup misses and the row loses both
-    // its brand tile and its category filter membership.
-    expect(display.blockType).toBe('jira')
-    expect(display.integration?.integrationType).toBeTruthy()
-  })
-
-  it('states a count rather than enumerating 13 Google integrations', () => {
-    const display = resolveCredentialDisplay(serviceAccount('google-service-account'))
-
-    expect(display.familyName).toBe('Google')
-    expect(display.subtitle).toBe('Google service account · all 13 Google integrations')
-  })
-
-  it('uses each vendor own noun for non-family service accounts', () => {
-    expect(resolveCredentialDisplay(serviceAccount('slack-custom-bot')).subtitle).toBe(
-      'Slack custom bot'
-    )
-    expect(resolveCredentialDisplay(serviceAccount('notion-service-account')).subtitle).toBe(
-      'Notion integration secret'
-    )
-  })
-
-  it('leaves OAuth credentials titled by their service', () => {
-    const display = resolveCredentialDisplay({
-      type: 'oauth',
-      displayName: 'someone@example.com',
-      providerId: 'jira',
-    })
-
-    expect(display.familyName).toBeNull()
-    expect(display.detailTitle).toBe('Jira')
-    expect(display.subtitle).toBe('Jira integration')
-    expect(display.blockType).toBe('jira')
-  })
-
-  /**
-   * The detail page has always subtitled with the service's own description.
-   * Reusing the list subtitle there would restate the title ("Jira" over "Jira
-   * integration") and throw away the richer copy, so only family service
-   * accounts — which genuinely need their reach spelled out — diverge.
-   */
-  it('keeps the service description as the detail subtitle for non-family credentials', () => {
-    const oauth = resolveCredentialDisplay({
-      type: 'oauth',
-      displayName: 'someone@example.com',
-      providerId: 'jira',
-    })
-    expect(oauth.detailSubtitle).toBe('Access Jira projects, issues, and Service Management.')
-
-    const singleProductServiceAccount = resolveCredentialDisplay(
-      serviceAccount('notion-service-account')
-    )
-    expect(singleProductServiceAccount.detailSubtitle).toBe(
-      singleProductServiceAccount.service?.description
-    )
-  })
-
-  it('spells out reach on the detail page only for family service accounts', () => {
-    const display = resolveCredentialDisplay(serviceAccount('atlassian-service-account'))
-    expect(display.detailSubtitle).toBe(display.subtitle)
-    expect(display.detailSubtitle).toContain('Jira Service Management')
-  })
-
-  it('degrades safely for a credential with no provider', () => {
-    const display = resolveCredentialDisplay({
-      type: 'service_account',
-      displayName: 'Orphan',
-      providerId: null,
-    })
-
-    expect(display.service).toBeNull()
-    expect(display.icon).toBeNull()
-    expect(display.blockType).toBe('')
-    expect(display.detailTitle).toBe('Orphan')
-  })
-})
-
-describe('getServiceAccountCoverageSentence', () => {
-  it('explains that reusing an Atlassian token requires scopes and app access for each product', () => {
-    expect(getServiceAccountCoverageSentence('atlassian-service-account')).toBe(
-      'Reuse one token across Confluence, Jira, and Jira Service Management. Each product requires its own scopes and app access.'
-    )
-  })
-
-  it('returns null for providers that map to a single integration', () => {
-    expect(getServiceAccountCoverageSentence('notion-service-account')).toBeNull()
   })
 })

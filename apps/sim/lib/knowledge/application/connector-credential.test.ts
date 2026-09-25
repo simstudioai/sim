@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { Principal } from '@sim/auth/principal'
 import { credential, member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
@@ -67,7 +66,6 @@ const input = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.config.mockResolvedValue(null)
   mocks.catalog.mockResolvedValue([])

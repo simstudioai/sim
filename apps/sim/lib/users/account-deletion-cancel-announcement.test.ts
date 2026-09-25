@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -43,7 +40,6 @@ const MARKER_ROWS = [{ tableId: 'table-1', rowId: 'row-1', groupId: 'group-2' }]
 
 describe('announcing the work a deleted account’s cancels stopped', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.isSoleOwnerOfPaidOrganization.mockResolvedValue({ isSoleOwner: false, name: null })
     mocks.getPersonalSubscription.mockResolvedValue(null)

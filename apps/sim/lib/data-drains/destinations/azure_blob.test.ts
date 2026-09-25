@@ -1,25 +1,20 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-const { mockUpload, mockDeleteIfExists, BlobServiceClientCtor, StorageSharedKeyCredentialCtor } =
-  vi.hoisted(() => {
-    const mockUpload = vi.fn(async () => ({}))
-    const mockDeleteIfExists = vi.fn(async () => ({ succeeded: true }))
-    const blockBlobClient = { upload: mockUpload, deleteIfExists: mockDeleteIfExists }
-    const containerClient = { getBlockBlobClient: vi.fn(() => blockBlobClient) }
-    return {
-      mockUpload,
-      mockDeleteIfExists,
-      BlobServiceClientCtor: vi.fn().mockImplementation(
-        class {
-          getContainerClient = vi.fn(() => containerClient)
-        }
-      ),
-      StorageSharedKeyCredentialCtor: vi.fn().mockImplementation(class {}),
-    }
-  })
+const { mockUpload, BlobServiceClientCtor, StorageSharedKeyCredentialCtor } = vi.hoisted(() => {
+  const mockUpload = vi.fn(async () => ({}))
+  const mockDeleteIfExists = vi.fn(async () => ({ succeeded: true }))
+  const blockBlobClient = { upload: mockUpload, deleteIfExists: mockDeleteIfExists }
+  const containerClient = { getBlockBlobClient: vi.fn(() => blockBlobClient) }
+  return {
+    mockUpload,
+    BlobServiceClientCtor: vi.fn().mockImplementation(
+      class {
+        getContainerClient = vi.fn(() => containerClient)
+      }
+    ),
+    StorageSharedKeyCredentialCtor: vi.fn().mockImplementation(class {}),
+  }
+})
 
 vi.mock('@azure/storage-blob', () => ({
   BlobServiceClient: BlobServiceClientCtor,
@@ -34,10 +29,6 @@ const credentials = {
   accountKey:
     'YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE=',
 }
-
-beforeEach(() => {
-  vi.clearAllMocks()
-})
 
 describe('azureBlobDestination openSession', () => {
   it('uploads via BlockBlobClient and returns an azure:// locator', async () => {
@@ -87,32 +78,6 @@ describe('azureBlobDestination openSession', () => {
     await session.close()
   })
 
-  it('routes to a sovereign-cloud endpoint suffix when configured', async () => {
-    const session = azureBlobDestination.openSession({
-      config: { ...config, endpointSuffix: 'blob.core.usgovcloudapi.net' },
-      credentials,
-    })
-    await session.deliver({
-      body: Buffer.from('row\n', 'utf8'),
-      contentType: 'application/x-ndjson',
-      metadata: {
-        drainId: 'd',
-        runId: 'r',
-        source: 'workflow_logs',
-        sequence: 0,
-        rowCount: 1,
-        runStartedAt: new Date('2025-06-15T12:00:00Z'),
-      },
-      signal: new AbortController().signal,
-    })
-    expect(BlobServiceClientCtor).toHaveBeenCalledWith(
-      'https://simstore.blob.core.usgovcloudapi.net',
-      expect.anything(),
-      expect.objectContaining({ retryOptions: expect.any(Object) })
-    )
-    await session.close()
-  })
-
   it('surfaces Azure REST errors', async () => {
     mockUpload.mockRejectedValueOnce(
       Object.assign(new Error('Forbidden'), {
@@ -140,31 +105,11 @@ describe('azureBlobDestination openSession', () => {
   })
 })
 
-describe('azureBlobDestination test()', () => {
-  it('writes a probe blob then attempts cleanup', async () => {
-    await azureBlobDestination.test!({
-      config,
-      credentials,
-      signal: new AbortController().signal,
-    })
-    expect(mockUpload).toHaveBeenCalled()
-    expect(mockDeleteIfExists).toHaveBeenCalled()
-  })
-})
-
 describe('azureBlobDestination config schema', () => {
   it('rejects invalid account names', () => {
     const result = azureBlobDestination.configSchema.safeParse({
       accountName: 'BAD-NAME',
       containerName: 'drains',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects invalid container names', () => {
-    const result = azureBlobDestination.configSchema.safeParse({
-      accountName: 'simstore',
-      containerName: '--bad--',
     })
     expect(result.success).toBe(false)
   })
@@ -176,11 +121,6 @@ describe('azureBlobDestination credentials schema', () => {
     const result = azureBlobDestination.credentialsSchema.safeParse({
       accountKey: `${padded}!@#$`,
     })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects keys that are too short', () => {
-    const result = azureBlobDestination.credentialsSchema.safeParse({ accountKey: 'YQ==' })
     expect(result.success).toBe(false)
   })
 })

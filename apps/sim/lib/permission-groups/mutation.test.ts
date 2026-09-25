@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,7 +13,6 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
 import { withPermissionGroupMutation } from '@/lib/permission-groups/mutation'
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.regime.mockResolvedValue(true)
 })

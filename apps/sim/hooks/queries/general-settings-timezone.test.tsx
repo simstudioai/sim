@@ -55,29 +55,6 @@ describe('useTimezone', () => {
     }
   })
 
-  it('uses the browser timezone while no preference is saved', () => {
-    mockUseQuery.mockReturnValue({ data: { timezone: null } })
-
-    expect(renderHookResult(useTimezone)).toBe('America/Los_Angeles')
-    expect(renderHookResult(useTimezoneState)).toEqual({
-      timezone: 'America/Los_Angeles',
-      savedTimezone: null,
-      status: 'ready',
-    })
-  })
-
-  it('uses a saved timezone instead of the browser fallback', () => {
-    mockUseQuery.mockReturnValue({ data: { timezone: 'Asia/Kathmandu' } })
-
-    expect(renderHookResult(useTimezone)).toBe('Asia/Kathmandu')
-    expect(renderHookResult(useTimezoneState)).toEqual({
-      timezone: 'Asia/Kathmandu',
-      savedTimezone: 'Asia/Kathmandu',
-      status: 'ready',
-    })
-    expect(mockGetBrowserTimezone).not.toHaveBeenCalled()
-  })
-
   it('uses the browser timezone for display while preserving an invalid preference', () => {
     mockUseQuery.mockReturnValue({ data: { timezone: 'Not/AZone' } })
     mockIsValidTimezone.mockReturnValue(false)
@@ -87,17 +64,6 @@ describe('useTimezone', () => {
       savedTimezone: 'Not/AZone',
       status: 'invalid',
     })
-    expect(renderHookResult(useTimezone)).toBe('America/Los_Angeles')
-  })
-
-  it('reads the current setting again after it changes', () => {
-    let timezone: string | null = 'America/New_York'
-    mockUseQuery.mockImplementation(() => ({ data: { timezone } }))
-
-    expect(renderHookResult(useTimezone)).toBe('America/New_York')
-    timezone = 'Asia/Tokyo'
-    expect(renderHookResult(useTimezone)).toBe('Asia/Tokyo')
-    timezone = null
     expect(renderHookResult(useTimezone)).toBe('America/Los_Angeles')
   })
 

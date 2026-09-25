@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Lock-order regression guard: a column-creating CSV import must acquire the
  * per-table row-order advisory lock (`user_table_rows_pos`) BEFORE writing
  * `user_table_definitions`, matching the rows_pos → definitions order that plain
@@ -80,7 +78,6 @@ function updateOrderForTable(table: unknown): number {
 
 describe('table import lock ordering', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(userTableDefinitions, [TABLE])
   })

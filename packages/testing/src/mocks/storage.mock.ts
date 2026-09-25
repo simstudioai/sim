@@ -56,21 +56,3 @@ export function setupGlobalStorageMocks() {
 
   return { localStorage: localStorageMock, sessionStorage: sessionStorageMock }
 }
-
-/**
- * Clears all storage mock data and calls.
- */
-export function clearStorageMocks() {
-  if (typeof localStorage !== 'undefined') {
-    localStorage.clear()
-    vi.mocked(localStorage.getItem).mockClear()
-    vi.mocked(localStorage.setItem).mockClear()
-    vi.mocked(localStorage.removeItem).mockClear()
-  }
-  if (typeof sessionStorage !== 'undefined') {
-    sessionStorage.clear()
-    vi.mocked(sessionStorage.getItem).mockClear()
-    vi.mocked(sessionStorage.setItem).mockClear()
-    vi.mocked(sessionStorage.removeItem).mockClear()
-  }
-}

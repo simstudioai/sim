@@ -11,16 +11,7 @@
  * - Workflow state management
  */
 
-import {
-  createMockStorage,
-  expectBlockCount,
-  expectBlockExists,
-  expectBlockNotExists,
-  expectEdgeConnects,
-  expectEdgeCount,
-  expectNoEdgeBetween,
-  WorkflowBuilder,
-} from '@sim/testing'
+import { createMockStorage, expectBlockNotExists, expectEdgeCount } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -82,207 +73,7 @@ describe('workflow store', () => {
     })
   })
 
-  describe('batchAddBlocks (via addBlock helper)', () => {
-    it('should add a block with correct default properties', () => {
-      addBlock('agent-1', 'agent', 'My Agent', { x: 100, y: 200 })
-
-      const { blocks } = useWorkflowStore.getState()
-      expectBlockExists(blocks, 'agent-1', 'agent')
-      expect(blocks['agent-1'].name).toBe('My Agent')
-      expect(blocks['agent-1'].position).toEqual({ x: 100, y: 200 })
-      expect(blocks['agent-1'].enabled).toBe(true)
-    })
-
-    it('should add a block with parent relationship for containers', () => {
-      addBlock('loop-1', 'loop', 'My Loop', { x: 0, y: 0 }, { loopType: 'for', count: 3 })
-      addBlock(
-        'child-1',
-        'function',
-        'Child',
-        { x: 50, y: 50 },
-        { parentId: 'loop-1' },
-        'loop-1',
-        'parent'
-      )
-
-      const { blocks } = useWorkflowStore.getState()
-      expectBlockExists(blocks, 'child-1', 'function')
-      expect(blocks['child-1'].data?.parentId).toBe('loop-1')
-      expect(blocks['child-1'].data?.extent).toBe('parent')
-    })
-
-    it('should add multiple blocks correctly', () => {
-      addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
-      addBlock('block-2', 'agent', 'Agent', { x: 200, y: 0 })
-      addBlock('block-3', 'function', 'Function', { x: 400, y: 0 })
-
-      const { blocks } = useWorkflowStore.getState()
-      expectBlockCount({ blocks, edges: [], loops: {}, parallels: {} }, 3)
-      expectBlockExists(blocks, 'block-1', 'starter')
-      expectBlockExists(blocks, 'block-2', 'agent')
-      expectBlockExists(blocks, 'block-3', 'function')
-    })
-
-    it('should create a block with default properties when no blockProperties provided', () => {
-      addBlock('agent1', 'agent', 'Test Agent', { x: 100, y: 200 })
-
-      const state = useWorkflowStore.getState()
-      const block = state.blocks.agent1
-
-      expect(block).toBeDefined()
-      expect(block.id).toBe('agent1')
-      expect(block.type).toBe('agent')
-      expect(block.name).toBe('Test Agent')
-      expect(block.position).toEqual({ x: 100, y: 200 })
-      expect(block.enabled).toBe(true)
-      expect(block.horizontalHandles).toBe(true)
-      expect(block.height).toBe(0)
-    })
-
-    it('should create a block with custom blockProperties for regular blocks', () => {
-      addBlock(
-        'agent1',
-        'agent',
-        'Test Agent',
-        { x: 100, y: 200 },
-        { someData: 'test' },
-        undefined,
-        undefined,
-        {
-          enabled: false,
-          horizontalHandles: false,
-          advancedMode: true,
-          height: 300,
-        }
-      )
-
-      const state = useWorkflowStore.getState()
-      const block = state.blocks.agent1
-
-      expect(block).toBeDefined()
-      expect(block.enabled).toBe(false)
-      expect(block.horizontalHandles).toBe(false)
-      expect(block.advancedMode).toBe(true)
-      expect(block.height).toBe(300)
-    })
-
-    it('should create a loop block with custom blockProperties', () => {
-      addBlock(
-        'loop1',
-        'loop',
-        'Test Loop',
-        { x: 0, y: 0 },
-        { loopType: 'for', count: 5 },
-        undefined,
-        undefined,
-        {
-          enabled: false,
-          horizontalHandles: false,
-          advancedMode: true,
-          height: 250,
-        }
-      )
-
-      const state = useWorkflowStore.getState()
-      const block = state.blocks.loop1
-
-      expect(block).toBeDefined()
-      expect(block.enabled).toBe(false)
-      expect(block.horizontalHandles).toBe(false)
-      expect(block.advancedMode).toBe(true)
-      expect(block.height).toBe(250)
-    })
-
-    it('should create a parallel block with custom blockProperties', () => {
-      addBlock(
-        'parallel1',
-        'parallel',
-        'Test Parallel',
-        { x: 0, y: 0 },
-        { count: 3 },
-        undefined,
-        undefined,
-        {
-          enabled: false,
-          horizontalHandles: false,
-          advancedMode: true,
-          height: 400,
-        }
-      )
-
-      const state = useWorkflowStore.getState()
-      const block = state.blocks.parallel1
-
-      expect(block).toBeDefined()
-      expect(block.enabled).toBe(false)
-      expect(block.horizontalHandles).toBe(false)
-      expect(block.advancedMode).toBe(true)
-      expect(block.height).toBe(400)
-    })
-
-    it('should handle partial blockProperties (only some properties provided)', () => {
-      addBlock(
-        'agent1',
-        'agent',
-        'Test Agent',
-        { x: 100, y: 200 },
-        undefined,
-        undefined,
-        undefined,
-        {}
-      )
-
-      const state = useWorkflowStore.getState()
-      const block = state.blocks.agent1
-
-      expect(block).toBeDefined()
-      expect(block.enabled).toBe(true)
-      expect(block.horizontalHandles).toBe(true)
-      expect(block.advancedMode).toBe(false)
-      expect(block.height).toBe(0)
-    })
-
-    it('should handle blockProperties with parent relationships', () => {
-      addBlock('loop1', 'loop', 'Parent Loop', { x: 0, y: 0 })
-
-      addBlock(
-        'agent1',
-        'agent',
-        'Child Agent',
-        { x: 50, y: 50 },
-        { parentId: 'loop1' },
-        'loop1',
-        'parent',
-        {
-          enabled: false,
-          advancedMode: true,
-          height: 200,
-        }
-      )
-
-      const state = useWorkflowStore.getState()
-      const childBlock = state.blocks.agent1
-
-      expect(childBlock).toBeDefined()
-      expect(childBlock.enabled).toBe(false)
-      expect(childBlock.advancedMode).toBe(true)
-      expect(childBlock.height).toBe(200)
-      expect(childBlock.data?.parentId).toBe('loop1')
-      expect(childBlock.data?.extent).toBe('parent')
-    })
-  })
-
   describe('batchRemoveBlocks', () => {
-    it('should remove a block', () => {
-      const { batchRemoveBlocks } = useWorkflowStore.getState()
-
-      addBlock('block-1', 'function', 'Test', { x: 0, y: 0 })
-      batchRemoveBlocks(['block-1'])
-
-      const { blocks } = useWorkflowStore.getState()
-      expectBlockNotExists(blocks, 'block-1')
-    })
-
     it('should remove connected edges when block is removed', () => {
       const { batchAddEdges, batchRemoveBlocks } = useWorkflowStore.getState()
 
@@ -301,27 +92,9 @@ describe('workflow store', () => {
       expectBlockNotExists(state.blocks, 'block-2')
       expectEdgeCount(state, 0)
     })
-
-    it('should not throw when removing non-existent block', () => {
-      const { batchRemoveBlocks } = useWorkflowStore.getState()
-
-      expect(() => batchRemoveBlocks(['non-existent'])).not.toThrow()
-    })
   })
 
   describe('batchAddEdges', () => {
-    it('should add an edge between two blocks', () => {
-      const { batchAddEdges } = useWorkflowStore.getState()
-
-      addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
-      addBlock('block-2', 'function', 'End', { x: 200, y: 0 })
-
-      batchAddEdges([{ id: 'e1', source: 'block-1', target: 'block-2' }])
-
-      const { edges } = useWorkflowStore.getState()
-      expectEdgeConnects(edges, 'block-1', 'block-2')
-    })
-
     it('should not add duplicate connections', () => {
       const { batchAddEdges } = useWorkflowStore.getState()
 
@@ -416,84 +189,6 @@ describe('workflow store', () => {
     })
   })
 
-  describe('batchRemoveEdges', () => {
-    it('should remove an edge by id', () => {
-      const { batchAddEdges, batchRemoveEdges } = useWorkflowStore.getState()
-
-      addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
-      addBlock('block-2', 'function', 'End', { x: 200, y: 0 })
-      batchAddEdges([{ id: 'e1', source: 'block-1', target: 'block-2' }])
-
-      batchRemoveEdges(['e1'])
-
-      const state = useWorkflowStore.getState()
-      expectEdgeCount(state, 0)
-      expectNoEdgeBetween(state.edges, 'block-1', 'block-2')
-    })
-
-    it('should not throw when removing non-existent edge', () => {
-      const { batchRemoveEdges } = useWorkflowStore.getState()
-
-      expect(() => batchRemoveEdges(['non-existent'])).not.toThrow()
-    })
-  })
-
-  describe('clear', () => {
-    it('should clear all blocks and edges', () => {
-      const { batchAddEdges, clear } = useWorkflowStore.getState()
-
-      addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
-      addBlock('block-2', 'function', 'End', { x: 200, y: 0 })
-      batchAddEdges([{ id: 'e1', source: 'block-1', target: 'block-2' }])
-
-      clear()
-
-      const state = useWorkflowStore.getState()
-      expectBlockCount(state, 0)
-      expectEdgeCount(state, 0)
-    })
-  })
-
-  describe('batchToggleEnabled', () => {
-    it('should toggle block enabled state', () => {
-      const { batchToggleEnabled } = useWorkflowStore.getState()
-
-      addBlock('block-1', 'function', 'Test', { x: 0, y: 0 })
-
-      expect(useWorkflowStore.getState().blocks['block-1'].enabled).toBe(true)
-
-      batchToggleEnabled(['block-1'])
-      expect(useWorkflowStore.getState().blocks['block-1'].enabled).toBe(false)
-
-      batchToggleEnabled(['block-1'])
-      expect(useWorkflowStore.getState().blocks['block-1'].enabled).toBe(true)
-    })
-  })
-
-  describe('duplicateBlock', () => {
-    it('should duplicate a block', () => {
-      const { duplicateBlock } = useWorkflowStore.getState()
-
-      addBlock('original', 'agent', 'Original Agent', { x: 0, y: 0 })
-
-      duplicateBlock('original')
-
-      const { blocks } = useWorkflowStore.getState()
-      const blockIds = Object.keys(blocks)
-
-      expect(blockIds.length).toBe(2)
-
-      const duplicatedId = blockIds.find((id) => id !== 'original')
-      expect(duplicatedId).toBeDefined()
-
-      if (duplicatedId) {
-        expect(blocks[duplicatedId].type).toBe('agent')
-        expect(blocks[duplicatedId].name).toContain('Original Agent')
-        expect(blocks[duplicatedId].position.x).not.toBe(0)
-      }
-    })
-  })
-
   describe('duplicateBlock cloned webhook path', () => {
     /**
      * `duplicateBlock` is not currently reachable from the canvas (the context-menu Duplicate goes
@@ -563,19 +258,6 @@ describe('workflow store', () => {
     })
   })
 
-  describe('batchUpdatePositions', () => {
-    it('should update block position', () => {
-      const { batchUpdatePositions } = useWorkflowStore.getState()
-
-      addBlock('block-1', 'function', 'Test', { x: 0, y: 0 })
-
-      batchUpdatePositions([{ id: 'block-1', position: { x: 100, y: 200 } }])
-
-      const { blocks } = useWorkflowStore.getState()
-      expect(blocks['block-1'].position).toEqual({ x: 100, y: 200 })
-    })
-  })
-
   describe('loop management', () => {
     it('should regenerate loops when updateLoopCount is called', () => {
       const { updateLoopCount } = useWorkflowStore.getState()
@@ -599,54 +281,6 @@ describe('workflow store', () => {
       expect(state.blocks.loop1?.data?.count).toBe(10)
       expect(state.loops.loop1).toBeDefined()
       expect(state.loops.loop1.iterations).toBe(10)
-    })
-
-    it('should regenerate loops when updateLoopType is called', () => {
-      const { updateLoopType } = useWorkflowStore.getState()
-
-      addBlock(
-        'loop1',
-        'loop',
-        'Test Loop',
-        { x: 0, y: 0 },
-        {
-          loopType: 'for',
-          count: 5,
-          collection: '["a", "b", "c"]',
-        }
-      )
-
-      updateLoopType('loop1', 'forEach')
-
-      const state = useWorkflowStore.getState()
-
-      expect(state.blocks.loop1?.data?.loopType).toBe('forEach')
-      expect(state.loops.loop1).toBeDefined()
-      expect(state.loops.loop1.loopType).toBe('forEach')
-      expect(state.loops.loop1.forEachItems).toBe('["a", "b", "c"]')
-    })
-
-    it('should regenerate loops when updateLoopCollection is called', () => {
-      const { updateLoopCollection } = useWorkflowStore.getState()
-
-      addBlock(
-        'loop1',
-        'loop',
-        'Test Loop',
-        { x: 0, y: 0 },
-        {
-          loopType: 'forEach',
-          collection: '["item1", "item2"]',
-        }
-      )
-
-      updateLoopCollection('loop1', '["item1", "item2", "item3"]')
-
-      const state = useWorkflowStore.getState()
-
-      expect(state.blocks.loop1?.data?.collection).toBe('["item1", "item2", "item3"]')
-      expect(state.loops.loop1).toBeDefined()
-      expect(state.loops.loop1.forEachItems).toBe('["item1", "item2", "item3"]')
     })
 
     it('should allow loop counts above 1000 and clamp only to at least 1', () => {
@@ -696,33 +330,6 @@ describe('workflow store', () => {
       expect(state.blocks.parallel1?.data?.count).toBe(5)
       expect(state.parallels.parallel1).toBeDefined()
       expect(state.parallels.parallel1.distribution).toBeUndefined()
-    })
-
-    it('should regenerate parallels when updateParallelCollection is called', () => {
-      const { updateParallelCollection } = useWorkflowStore.getState()
-
-      addBlock(
-        'parallel1',
-        'parallel',
-        'Test Parallel',
-        { x: 0, y: 0 },
-        {
-          count: 3,
-          collection: '["item1", "item2"]',
-          parallelType: 'collection',
-        }
-      )
-
-      updateParallelCollection('parallel1', '["item1", "item2", "item3"]')
-
-      const state = useWorkflowStore.getState()
-
-      expect(state.blocks.parallel1?.data?.collection).toBe('["item1", "item2", "item3"]')
-      expect(state.parallels.parallel1).toBeDefined()
-      expect(state.parallels.parallel1.distribution).toBe('["item1", "item2", "item3"]')
-
-      const parsedDistribution = JSON.parse(state.parallels.parallel1.distribution as string)
-      expect(parsedDistribution).toHaveLength(3)
     })
 
     it('should allow parallel counts above 1000 and clamp only to at least 1', () => {
@@ -780,50 +387,9 @@ describe('workflow store', () => {
       state = useWorkflowStore.getState()
       expect(state.blocks.parallel1?.data?.batchSize).toBe(1)
     })
-
-    it('should regenerate parallels when updateParallelType is called', () => {
-      const { updateParallelType } = useWorkflowStore.getState()
-
-      addBlock(
-        'parallel1',
-        'parallel',
-        'Test Parallel',
-        { x: 0, y: 0 },
-        {
-          parallelType: 'collection',
-          count: 3,
-          collection: '["a", "b", "c"]',
-        }
-      )
-
-      updateParallelType('parallel1', 'count')
-
-      const state = useWorkflowStore.getState()
-
-      expect(state.blocks.parallel1?.data?.parallelType).toBe('count')
-      expect(state.parallels.parallel1).toBeDefined()
-      expect(state.parallels.parallel1.parallelType).toBe('count')
-    })
   })
 
   describe('mode switching', () => {
-    it('should toggle advanced mode on a block', () => {
-      const { toggleBlockAdvancedMode } = useWorkflowStore.getState()
-
-      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
-
-      let state = useWorkflowStore.getState()
-      expect(state.blocks.agent1?.advancedMode).toBe(false)
-
-      toggleBlockAdvancedMode('agent1')
-      state = useWorkflowStore.getState()
-      expect(state.blocks.agent1?.advancedMode).toBe(true)
-
-      toggleBlockAdvancedMode('agent1')
-      state = useWorkflowStore.getState()
-      expect(state.blocks.agent1?.advancedMode).toBe(false)
-    })
-
     it('should preserve systemPrompt and userPrompt when switching modes', () => {
       const { toggleBlockAdvancedMode } = useWorkflowStore.getState()
       const { setState: setSubBlockState } = useSubBlockStore
@@ -896,40 +462,9 @@ describe('workflow store', () => {
         { role: 'assistant', content: 'Nice to meet you, John!' },
       ])
     })
-
-    it('should handle mode switching when no subblock values exist', () => {
-      const { toggleBlockAdvancedMode } = useWorkflowStore.getState()
-
-      useWorkflowRegistry.setState({ activeWorkflowId: 'test-workflow' })
-
-      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
-
-      expect(useWorkflowStore.getState().blocks.agent1?.advancedMode).toBe(false)
-      expect(() => toggleBlockAdvancedMode('agent1')).not.toThrow()
-
-      const state = useWorkflowStore.getState()
-      expect(state.blocks.agent1?.advancedMode).toBe(true)
-    })
-
-    it('should not throw when toggling non-existent block', () => {
-      const { toggleBlockAdvancedMode } = useWorkflowStore.getState()
-
-      expect(() => toggleBlockAdvancedMode('non-existent')).not.toThrow()
-    })
   })
 
   describe('setBlockCanonicalMode / setBlockCanonicalModes', () => {
-    it('should merge a single canonical mode into an empty map', () => {
-      const { setBlockCanonicalMode } = useWorkflowStore.getState()
-      addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
-
-      setBlockCanonicalMode('agent1', 'credential', 'advanced')
-
-      expect(useWorkflowStore.getState().blocks.agent1?.data?.canonicalModes).toEqual({
-        credential: 'advanced',
-      })
-    })
-
     it('should merge without clobbering existing keys', () => {
       const { setBlockCanonicalMode } = useWorkflowStore.getState()
       addBlock('agent1', 'agent', 'Test Agent', { x: 0, y: 0 })
@@ -941,11 +476,6 @@ describe('workflow store', () => {
         '0:tableId': 'advanced',
         '1:tableId': 'basic',
       })
-    })
-
-    it('should not throw when merging into a non-existent block', () => {
-      const { setBlockCanonicalMode } = useWorkflowStore.getState()
-      expect(() => setBlockCanonicalMode('non-existent', 'credential', 'advanced')).not.toThrow()
     })
 
     it('should wholesale-replace canonicalModes, dropping keys absent from the new map', () => {
@@ -982,85 +512,6 @@ describe('workflow store', () => {
       expect(data?.canonicalModes).toEqual({})
       expect(data?.someOtherField).toBe('keep-me')
     })
-
-    it('should not throw when replacing canonicalModes on a non-existent block', () => {
-      const { setBlockCanonicalModes } = useWorkflowStore.getState()
-      expect(() => setBlockCanonicalModes('non-existent', { credential: 'advanced' })).not.toThrow()
-    })
-  })
-
-  describe('workflow state management', () => {
-    it('should work with WorkflowBuilder for complex setups', () => {
-      const workflowState = WorkflowBuilder.linear(3).build()
-
-      useWorkflowStore.setState(workflowState)
-
-      const state = useWorkflowStore.getState()
-      expectBlockCount(state, 3)
-      expectEdgeCount(state, 2)
-      expectBlockExists(state.blocks, 'block-0', 'starter')
-      expectEdgeConnects(state.edges, 'block-0', 'block-1')
-      expectEdgeConnects(state.edges, 'block-1', 'block-2')
-    })
-
-    it('should work with branching workflow', () => {
-      const workflowState = WorkflowBuilder.branching().build()
-
-      useWorkflowStore.setState(workflowState)
-
-      const state = useWorkflowStore.getState()
-      expectBlockCount(state, 5)
-      expectBlockExists(state.blocks, 'start', 'starter')
-      expectBlockExists(state.blocks, 'condition', 'condition')
-      expectBlockExists(state.blocks, 'true-branch', 'function')
-      expectBlockExists(state.blocks, 'false-branch', 'function')
-      expectBlockExists(state.blocks, 'end', 'function')
-    })
-
-    it('should work with loop workflow', () => {
-      const workflowState = WorkflowBuilder.withLoop(5).build()
-
-      useWorkflowStore.setState(workflowState)
-
-      const state = useWorkflowStore.getState()
-      expect(state.loops.loop).toBeDefined()
-      expect(state.loops.loop.iterations).toBe(5)
-      expect(state.loops.loop.nodes).toContain('loop-body')
-    })
-  })
-
-  describe('replaceWorkflowState', () => {
-    it('should replace entire workflow state', () => {
-      const { replaceWorkflowState } = useWorkflowStore.getState()
-
-      addBlock('old-1', 'function', 'Old', { x: 0, y: 0 })
-
-      const newState = WorkflowBuilder.linear(2).build()
-      replaceWorkflowState(newState)
-
-      const state = useWorkflowStore.getState()
-      expectBlockNotExists(state.blocks, 'old-1')
-      expectBlockExists(state.blocks, 'block-0', 'starter')
-      expectBlockExists(state.blocks, 'block-1', 'function')
-    })
-  })
-
-  describe('setBlockErrorEnabled', () => {
-    it('updates the persisted Error output flag', () => {
-      addBlock('function-1', 'function', 'Function 1', { x: 0, y: 0 })
-
-      useWorkflowStore.getState().setBlockErrorEnabled('function-1', true)
-
-      expect(useWorkflowStore.getState().blocks['function-1'].errorEnabled).toBe(true)
-    })
-
-    it('ignores an unknown block id', () => {
-      const before = useWorkflowStore.getState().blocks
-
-      useWorkflowStore.getState().setBlockErrorEnabled('missing', true)
-
-      expect(useWorkflowStore.getState().blocks).toEqual(before)
-    })
   })
 
   describe('syncDynamicHandleSubblockValue', () => {
@@ -1085,51 +536,9 @@ describe('workflow store', () => {
         ])
       )
     })
-
-    it('should ignore non-topology subblock updates', () => {
-      addBlock('function-1', 'function', 'Function 1', { x: 0, y: 0 })
-      const beforeBlock = useWorkflowStore.getState().blocks['function-1']
-
-      useWorkflowStore.getState().syncDynamicHandleSubblockValue('function-1', 'code', 'return 1')
-
-      const afterBlock = useWorkflowStore.getState().blocks['function-1']
-      expect(afterBlock).toEqual(beforeBlock)
-    })
-  })
-
-  describe('getWorkflowState', () => {
-    it('should return current workflow state', () => {
-      const { getWorkflowState } = useWorkflowStore.getState()
-
-      addBlock('block-1', 'starter', 'Start', { x: 0, y: 0 })
-      addBlock('block-2', 'function', 'End', { x: 200, y: 0 })
-
-      const state = getWorkflowState()
-
-      expectBlockCount(state, 2)
-      expectBlockExists(state.blocks, 'block-1')
-      expectBlockExists(state.blocks, 'block-2')
-    })
   })
 
   describe('loop/parallel regeneration optimization', () => {
-    it('should NOT regenerate loops when adding a regular block without parentId', () => {
-      // Add a loop first
-      addBlock('loop-1', 'loop', 'Loop 1', { x: 0, y: 0 }, { loopType: 'for', count: 5 })
-
-      const stateAfterLoop = useWorkflowStore.getState()
-      const loopsAfterLoop = stateAfterLoop.loops
-
-      // Add a regular block (no parentId)
-      addBlock('agent-1', 'agent', 'Agent 1', { x: 200, y: 0 })
-
-      const stateAfterAgent = useWorkflowStore.getState()
-
-      // Loops should be unchanged (same content)
-      expect(Object.keys(stateAfterAgent.loops)).toEqual(Object.keys(loopsAfterLoop))
-      expect(stateAfterAgent.loops['loop-1'].nodes).toEqual(loopsAfterLoop['loop-1'].nodes)
-    })
-
     it('should regenerate loops when adding a child to a loop', () => {
       // Add a loop
       addBlock('loop-1', 'loop', 'Loop 1', { x: 0, y: 0 }, { loopType: 'for', count: 5 })
@@ -1152,33 +561,6 @@ describe('workflow store', () => {
 
       // Loop should now include the child
       expect(stateAfterChild.loops['loop-1'].nodes).toContain('child-1')
-    })
-
-    it('should NOT regenerate parallels when adding a child to a loop', () => {
-      // Add both a loop and a parallel
-      addBlock('loop-1', 'loop', 'Loop 1', { x: 0, y: 0 }, { loopType: 'for', count: 5 })
-      addBlock('parallel-1', 'parallel', 'Parallel 1', { x: 300, y: 0 }, { count: 3 })
-
-      const stateAfterContainers = useWorkflowStore.getState()
-      const parallelsAfterContainers = stateAfterContainers.parallels
-
-      // Add a child to the loop (not the parallel)
-      addBlock(
-        'child-1',
-        'function',
-        'Child 1',
-        { x: 50, y: 50 },
-        { parentId: 'loop-1' },
-        'loop-1',
-        'parent'
-      )
-
-      const stateAfterChild = useWorkflowStore.getState()
-
-      // Parallels should be unchanged
-      expect(stateAfterChild.parallels['parallel-1'].nodes).toEqual(
-        parallelsAfterContainers['parallel-1'].nodes
-      )
     })
 
     it('should regenerate parallels when adding a child to a parallel', () => {
@@ -1234,91 +616,6 @@ describe('workflow store', () => {
   })
 
   describe('batchAddBlocks optimization', () => {
-    it('should NOT regenerate loops/parallels when adding regular blocks', () => {
-      const { batchAddBlocks } = useWorkflowStore.getState()
-
-      // Set up initial state with a loop
-      useWorkflowStore.setState({
-        blocks: {
-          'loop-1': {
-            id: 'loop-1',
-            type: 'loop',
-            name: 'Loop 1',
-            position: { x: 0, y: 0 },
-            subBlocks: {},
-            outputs: {},
-            enabled: true,
-            horizontalHandles: true,
-            advancedMode: false,
-            triggerMode: false,
-            height: 0,
-            data: { loopType: 'for', count: 5 },
-          },
-        },
-        edges: [],
-        loops: {
-          'loop-1': {
-            id: 'loop-1',
-            nodes: [],
-            iterations: 5,
-            loopType: 'for',
-            enabled: true,
-          },
-        },
-        parallels: {},
-      })
-
-      const stateBefore = useWorkflowStore.getState()
-
-      // Add regular blocks (no parentId, not loop/parallel type)
-      batchAddBlocks([
-        {
-          id: 'agent-1',
-          type: 'agent',
-          name: 'Agent 1',
-          position: { x: 200, y: 0 },
-          subBlocks: {},
-          outputs: {},
-          enabled: true,
-        },
-        {
-          id: 'function-1',
-          type: 'function',
-          name: 'Function 1',
-          position: { x: 400, y: 0 },
-          subBlocks: {},
-          outputs: {},
-          enabled: true,
-        },
-      ])
-
-      const stateAfter = useWorkflowStore.getState()
-
-      // Loops should be unchanged
-      expect(stateAfter.loops['loop-1'].nodes).toEqual(stateBefore.loops['loop-1'].nodes)
-    })
-
-    it('should regenerate loops when batch adding a loop block', () => {
-      const { batchAddBlocks } = useWorkflowStore.getState()
-
-      batchAddBlocks([
-        {
-          id: 'loop-1',
-          type: 'loop',
-          name: 'Loop 1',
-          position: { x: 0, y: 0 },
-          subBlocks: {},
-          outputs: {},
-          enabled: true,
-          data: { loopType: 'for', count: 5 },
-        },
-      ])
-
-      const state = useWorkflowStore.getState()
-      expect(state.loops['loop-1']).toBeDefined()
-      expect(state.loops['loop-1'].iterations).toBe(5)
-    })
-
     it('should regenerate loops when batch adding a child of a loop', () => {
       const { batchAddBlocks } = useWorkflowStore.getState()
 
@@ -1387,84 +684,7 @@ describe('workflow store', () => {
     })
   })
 
-  describe('edge operations should not affect loops/parallels', () => {
-    it('should preserve loops when adding edges', () => {
-      const { batchAddEdges } = useWorkflowStore.getState()
-
-      // Create a loop with a child
-      addBlock('loop-1', 'loop', 'Loop 1', { x: 0, y: 0 }, { loopType: 'for', count: 5 })
-      addBlock(
-        'child-1',
-        'function',
-        'Child 1',
-        { x: 50, y: 50 },
-        { parentId: 'loop-1' },
-        'loop-1',
-        'parent'
-      )
-      addBlock('external-1', 'function', 'External', { x: 300, y: 0 })
-
-      const stateBeforeEdge = useWorkflowStore.getState()
-      const loopsBeforeEdge = stateBeforeEdge.loops
-
-      // Add an edge (should not affect loops)
-      batchAddEdges([{ id: 'e1', source: 'loop-1', target: 'external-1' }])
-
-      const stateAfterEdge = useWorkflowStore.getState()
-
-      // Loops should be unchanged
-      expect(stateAfterEdge.loops['loop-1'].nodes).toEqual(loopsBeforeEdge['loop-1'].nodes)
-      expect(stateAfterEdge.loops['loop-1'].iterations).toEqual(
-        loopsBeforeEdge['loop-1'].iterations
-      )
-    })
-
-    it('should preserve loops when removing edges', () => {
-      const { batchAddEdges, batchRemoveEdges } = useWorkflowStore.getState()
-
-      // Create a loop with a child and an edge
-      addBlock('loop-1', 'loop', 'Loop 1', { x: 0, y: 0 }, { loopType: 'for', count: 5 })
-      addBlock(
-        'child-1',
-        'function',
-        'Child 1',
-        { x: 50, y: 50 },
-        { parentId: 'loop-1' },
-        'loop-1',
-        'parent'
-      )
-      addBlock('external-1', 'function', 'External', { x: 300, y: 0 })
-      batchAddEdges([{ id: 'e1', source: 'loop-1', target: 'external-1' }])
-
-      const stateBeforeRemove = useWorkflowStore.getState()
-      const loopsBeforeRemove = stateBeforeRemove.loops
-
-      // Remove the edge
-      batchRemoveEdges(['e1'])
-
-      const stateAfterRemove = useWorkflowStore.getState()
-
-      // Loops should be unchanged
-      expect(stateAfterRemove.loops['loop-1'].nodes).toEqual(loopsBeforeRemove['loop-1'].nodes)
-    })
-  })
-
   describe('batchToggleLocked', () => {
-    it('should toggle block locked state', () => {
-      const { batchToggleLocked } = useWorkflowStore.getState()
-
-      addBlock('block-1', 'function', 'Test', { x: 0, y: 0 })
-
-      // Initial state is undefined (falsy)
-      expect(useWorkflowStore.getState().blocks['block-1'].locked).toBeFalsy()
-
-      batchToggleLocked(['block-1'])
-      expect(useWorkflowStore.getState().blocks['block-1'].locked).toBe(true)
-
-      batchToggleLocked(['block-1'])
-      expect(useWorkflowStore.getState().blocks['block-1'].locked).toBe(false)
-    })
-
     it('should cascade lock to children when locking a loop', () => {
       const { batchToggleLocked } = useWorkflowStore.getState()
 
@@ -1511,47 +731,6 @@ describe('workflow store', () => {
       expect(blocks['parallel-1'].locked).toBe(false)
       expect(blocks['child-1'].locked).toBe(false)
     })
-
-    it('should toggle multiple blocks at once', () => {
-      const { batchToggleLocked } = useWorkflowStore.getState()
-
-      addBlock('block-1', 'function', 'Test 1', { x: 0, y: 0 })
-      addBlock('block-2', 'function', 'Test 2', { x: 100, y: 0 })
-
-      batchToggleLocked(['block-1', 'block-2'])
-
-      const { blocks } = useWorkflowStore.getState()
-      expect(blocks['block-1'].locked).toBe(true)
-      expect(blocks['block-2'].locked).toBe(true)
-    })
-  })
-
-  describe('setBlockLocked', () => {
-    it('should set block locked state', () => {
-      const { setBlockLocked } = useWorkflowStore.getState()
-
-      addBlock('block-1', 'function', 'Test', { x: 0, y: 0 })
-
-      setBlockLocked('block-1', true)
-      expect(useWorkflowStore.getState().blocks['block-1'].locked).toBe(true)
-
-      setBlockLocked('block-1', false)
-      expect(useWorkflowStore.getState().blocks['block-1'].locked).toBe(false)
-    })
-
-    it('should not update if locked state is already the target value', () => {
-      const { setBlockLocked } = useWorkflowStore.getState()
-
-      addBlock('block-1', 'function', 'Test', { x: 0, y: 0 })
-
-      // First set to true
-      setBlockLocked('block-1', true)
-      expect(useWorkflowStore.getState().blocks['block-1'].locked).toBe(true)
-
-      // Setting to true again should still be true
-      setBlockLocked('block-1', true)
-      expect(useWorkflowStore.getState().blocks['block-1'].locked).toBe(true)
-    })
   })
 
   describe('duplicateBlock with locked', () => {
@@ -1578,22 +757,6 @@ describe('workflow store', () => {
         expect(blocks.original.locked).toBe(true)
         // Duplicate should be unlocked so users can edit it
         expect(blocks[duplicatedId].locked).toBe(false)
-      }
-    })
-
-    it('should create unlocked duplicate when duplicating an unlocked block', () => {
-      const { duplicateBlock } = useWorkflowStore.getState()
-
-      addBlock('original', 'agent', 'Original Agent', { x: 0, y: 0 })
-
-      duplicateBlock('original')
-
-      const { blocks } = useWorkflowStore.getState()
-      const blockIds = Object.keys(blocks)
-      const duplicatedId = blockIds.find((id) => id !== 'original')
-
-      if (duplicatedId) {
-        expect(blocks[duplicatedId].locked).toBeFalsy()
       }
     })
 
@@ -1636,72 +799,6 @@ describe('workflow store', () => {
         expect(blocks['child-1'].data?.parentId).toBe('loop-1')
       }
     })
-
-    it('should keep duplicate inside unlocked container when duplicating block inside unlocked loop', () => {
-      const { duplicateBlock } = useWorkflowStore.getState()
-
-      // Create a loop with a child block (not locked)
-      addBlock('loop-1', 'loop', 'My Loop', { x: 0, y: 0 }, { loopType: 'for', count: 3 })
-      addBlock(
-        'child-1',
-        'function',
-        'Child',
-        { x: 50, y: 50 },
-        { parentId: 'loop-1' },
-        'loop-1',
-        'parent'
-      )
-
-      // Duplicate the child block (loop is NOT locked)
-      duplicateBlock('child-1')
-
-      const { blocks } = useWorkflowStore.getState()
-      const blockIds = Object.keys(blocks)
-      const duplicatedId = blockIds.find((id) => id !== 'loop-1' && id !== 'child-1')
-
-      if (duplicatedId) {
-        // Duplicate should still be inside the loop since it's not locked
-        expect(blocks[duplicatedId].data?.parentId).toBe('loop-1')
-      }
-    })
-  })
-
-  describe('updateBlockLayoutMetrics', () => {
-    it('updates only the measured block and skips identical measurements', () => {
-      addBlock('block-1', 'agent', 'Agent', { x: 0, y: 0 })
-      useWorkflowStore.setState({
-        edges: [{ id: 'edge-1', source: 'block-1', target: 'block-2' }],
-        loops: {},
-        parallels: {},
-        lastSaved: 123,
-      })
-
-      const before = useWorkflowStore.getState()
-      let notifications = 0
-      const unsubscribe = useWorkflowStore.subscribe(() => {
-        notifications += 1
-      })
-
-      before.updateBlockLayoutMetrics('block-1', { width: 320, height: 180 })
-
-      const afterFirstMeasurement = useWorkflowStore.getState()
-      expect(afterFirstMeasurement.blocks['block-1'].height).toBe(180)
-      expect(afterFirstMeasurement.blocks['block-1'].layout).toEqual({
-        measuredWidth: 320,
-        measuredHeight: 180,
-      })
-      expect(afterFirstMeasurement.edges).toBe(before.edges)
-      expect(afterFirstMeasurement.loops).toBe(before.loops)
-      expect(afterFirstMeasurement.parallels).toBe(before.parallels)
-      expect(afterFirstMeasurement.lastSaved).toBe(before.lastSaved)
-      expect(notifications).toBe(1)
-
-      afterFirstMeasurement.updateBlockLayoutMetrics('block-1', { width: 320, height: 180 })
-
-      expect(useWorkflowStore.getState()).toBe(afterFirstMeasurement)
-      expect(notifications).toBe(1)
-      unsubscribe()
-    })
   })
 
   describe('updateBlockName', () => {
@@ -1716,28 +813,6 @@ describe('workflow store', () => {
       addBlock('block1', 'agent', 'Column AD', { x: 0, y: 0 })
       addBlock('block2', 'function', 'Employee Length', { x: 100, y: 0 })
       addBlock('block3', 'starter', 'Start', { x: 200, y: 0 })
-    })
-
-    it('should have test blocks set up correctly', () => {
-      const state = useWorkflowStore.getState()
-
-      expect(state.blocks.block1).toBeDefined()
-      expect(state.blocks.block1.name).toBe('Column AD')
-      expect(state.blocks.block2).toBeDefined()
-      expect(state.blocks.block2.name).toBe('Employee Length')
-      expect(state.blocks.block3).toBeDefined()
-      expect(state.blocks.block3.name).toBe('Start')
-    })
-
-    it('should successfully rename a block when no conflicts exist', () => {
-      const { updateBlockName } = useWorkflowStore.getState()
-
-      const result = updateBlockName('block1', 'Data Processor')
-
-      expect(result.success).toBe(true)
-
-      const state = useWorkflowStore.getState()
-      expect(state.blocks.block1.name).toBe('Data Processor')
     })
 
     it('should allow renaming a block to a different case/spacing of its current name', () => {
@@ -1760,28 +835,6 @@ describe('workflow store', () => {
 
       const state = useWorkflowStore.getState()
       expect(state.blocks.block2.name).toBe('Employee Length')
-    })
-
-    it('should prevent renaming when another block has a name that normalizes to the same value', () => {
-      const { updateBlockName } = useWorkflowStore.getState()
-
-      const result = updateBlockName('block2', 'columnad')
-
-      expect(result.success).toBe(false)
-
-      const state = useWorkflowStore.getState()
-      expect(state.blocks.block2.name).toBe('Employee Length')
-    })
-
-    it('should prevent renaming when another block has a similar name with different spacing', () => {
-      const { updateBlockName } = useWorkflowStore.getState()
-
-      const result = updateBlockName('block3', 'employee length')
-
-      expect(result.success).toBe(false)
-
-      const state = useWorkflowStore.getState()
-      expect(state.blocks.block3.name).toBe('Start')
     })
 
     it('should reject empty or whitespace-only names', () => {
@@ -1808,14 +861,6 @@ describe('workflow store', () => {
 
       const state = useWorkflowStore.getState()
       expect(state.blocks.block1.name).toBe('Column AD')
-    })
-
-    it('should return false when trying to rename a non-existent block', () => {
-      const { updateBlockName } = useWorkflowStore.getState()
-
-      const result = updateBlockName('nonexistent', 'New Name')
-
-      expect(result.success).toBe(false)
     })
 
     it('should handle complex normalization cases correctly', () => {

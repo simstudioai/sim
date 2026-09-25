@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import type { ProviderToolConfig } from '@/providers/types'
@@ -76,7 +73,6 @@ async function readAgentEvents(stream: ReadableStream<AgentStreamEvent>) {
 
 describe('mistralProvider.executeRequest', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockExecuteTool.mockResolvedValue({ success: true, output: { ok: true } })
   })
 

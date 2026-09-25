@@ -85,8 +85,6 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
   'azure-openai': AzureIcon,
 }
 
-export const USAGE_PROVIDER_ICON_IDS = Object.keys(PROVIDER_ICONS)
-
 interface UsageConsumerRowProps {
   row: OrganizationUsageBreakdownRow
   /** Member rows lead with the member's avatar where other rows show a provider mark. */

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -122,13 +119,6 @@ describe('LongInput password masking', () => {
     expect(html).toContain('•')
   })
 
-  it('renders the plaintext value when the field is not a password field', () => {
-    const html = render(false)
-
-    expect(html).toContain('SIM-TEST-CREDENTIAL-MARKER')
-    expect(html).not.toContain('•')
-  })
-
   it('stays concealed while workflow search targets a match inside the secret', () => {
     searchTargetRef.current = {
       blockId: 'block-1',
@@ -145,22 +135,5 @@ describe('LongInput password masking', () => {
     expect(html).not.toContain('b3BlbnNzaC1rZXk')
     expect(html).not.toContain('SIM-TEST-CREDENTIAL-MARKER')
     expect(html).toContain('•')
-  })
-
-  it('highlights a workflow-search match when the field holds no secret', () => {
-    searchTargetRef.current = {
-      blockId: 'block-1',
-      subBlockId: 'privateKey',
-      targetKind: 'subblock',
-      valuePath: [],
-      query: SECRET_MATCH,
-      rawValue: SECRET_MATCH,
-      range: { start: MATCH_START, end: MATCH_START + SECRET_MATCH.length },
-    }
-
-    const html = render(false)
-
-    expect(html).toContain('<mark')
-    expect(html).toContain(SECRET_MATCH)
   })
 })

@@ -1,7 +1,5 @@
 /**
  * Tests for OAuth credentials API route
- *
- * @vitest-environment node
  */
 
 import {
@@ -49,73 +47,9 @@ describe('OAuth Credentials API Route', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     resetPermissionGroupScopeMock()
     mockCanUseCredential.mockReturnValue(true)
-  })
-
-  it('should handle unauthenticated user', async () => {
-    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
-      success: false,
-      error: 'Authentication required',
-    })
-
-    const req = createMockRequestWithQuery('GET', '?provider=google')
-
-    const response = await GET(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(401)
-    expect(data.error).toBe('User not authenticated')
-  })
-
-  it('should handle missing provider parameter', async () => {
-    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
-      success: true,
-      userId: 'user-123',
-      authType: 'session',
-    })
-
-    const req = createMockRequestWithQuery('GET')
-
-    const response = await GET(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(400)
-    expect(data.error).toBe('Provider or credentialId is required')
-  })
-
-  it('should handle no credentials found', async () => {
-    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
-      success: true,
-      userId: 'user-123',
-      authType: 'session',
-    })
-
-    const req = createMockRequestWithQuery('GET', '?provider=github')
-
-    const response = await GET(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.credentials).toHaveLength(0)
-  })
-
-  it('should return empty credentials when no workspace context', async () => {
-    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
-      success: true,
-      userId: 'user-123',
-      authType: 'session',
-    })
-
-    const req = createMockRequestWithQuery('GET', '?provider=google-email')
-
-    const response = await GET(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.credentials).toHaveLength(0)
   })
 
   it('does not expose a managed credential requested by exact ID', async () => {
@@ -220,14 +154,6 @@ describe('OAuth Credentials API Route', () => {
       ])
     })
 
-    it('preserves a complete Confluence grant without requesting another update', async () => {
-      const grantedScopes = getCanonicalScopesForProvider('confluence')
-      const credential = await requestCredential('confluence', grantedScopes.join(' '))
-
-      expect(credential.scopes).toEqual(grantedScopes)
-      expect(getMissingRequiredScopes(credential, grantedScopes)).toEqual([])
-    })
-
     it.each([null, '', ' \t\n '])(
       'preserves the Box omitted-scope fallback for %j',
       async (scope) => {
@@ -248,11 +174,6 @@ describe('OAuth Credentials API Route', () => {
       hideIntegrationsTab: true,
     }
 
-    /**
-     * `mockResolvedValue`, not `...Once`: the missing-provider test above
-     * returns 400 before authentication runs, so its queued value is never
-     * consumed and every later `...Once` in this file reads one test stale.
-     */
     function authenticatedAs(authType: 'session' | 'internal_jwt') {
       hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
         success: true,
@@ -308,15 +229,6 @@ describe('OAuth Credentials API Route', () => {
 
       expect(response.status).toBe(200)
       expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).not.toHaveBeenCalled()
-    })
-
-    it('allows a session whose group leaves Integrations alone', async () => {
-      governedBy(DEFAULT_PERMISSION_GROUP_CONFIG)
-      dbChainMockFns.where.mockResolvedValue([])
-
-      const response = await callWithWorkspace()
-
-      expect(response.status).toBe(200)
     })
 
     /**

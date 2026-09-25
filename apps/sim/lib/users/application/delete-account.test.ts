@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetUserProfile, mockDeleteUserAccount, mockGetAccountDeletionPlan } = vi.hoisted(
@@ -24,7 +21,6 @@ const EMPTY_PLAN = { blockers: [], workspacesToDelete: [], workspacesToTransfer:
 
 describe('deleteAccountUseCase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetUserProfile.mockResolvedValue({ id: 'user-1', email: 'Ada@Example.com' })
     mockDeleteUserAccount.mockResolvedValue(EMPTY_PLAN)
   })

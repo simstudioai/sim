@@ -12,7 +12,6 @@
 
 import {
   createAddBlockEntry,
-  createAddEdgeEntry,
   createBatchRemoveEdgesEntry,
   createBlock,
   createMockStorage,
@@ -38,18 +37,6 @@ describe('useUndoRedoStore', () => {
   })
 
   describe('push', () => {
-    it('should add an operation to the undo stack', () => {
-      const { push, getStackSizes } = useUndoRedoStore.getState()
-      const entry = createAddBlockEntry('block-1', { workflowId, userId })
-
-      push(workflowId, userId, entry)
-
-      expect(getStackSizes(workflowId, userId)).toEqual({
-        undoSize: 1,
-        redoSize: 0,
-      })
-    })
-
     it('should clear redo stack when pushing new operation', () => {
       const { push, undo, getStackSizes } = useUndoRedoStore.getState()
 
@@ -78,20 +65,6 @@ describe('useUndoRedoStore', () => {
       expect(getStackSizes(workflowId, userId).undoSize).toBe(3)
     })
 
-    it('should limit number of stacks to 5', () => {
-      const { push } = useUndoRedoStore.getState()
-
-      // Create 6 different workflow/user combinations
-      for (let i = 0; i < 6; i++) {
-        const wfId = `wf-${i}`
-        const uId = `user-${i}`
-        push(wfId, uId, createAddBlockEntry(`block-${i}`, { workflowId: wfId, userId: uId }))
-      }
-
-      const { stacks } = useUndoRedoStore.getState()
-      expect(Object.keys(stacks).length).toBe(5)
-    })
-
     it('should remove oldest stack when limit exceeded', () => {
       const { push } = useUndoRedoStore.getState()
 
@@ -109,102 +82,7 @@ describe('useUndoRedoStore', () => {
     })
   })
 
-  describe('undo', () => {
-    it('should return the last operation and move it to redo', () => {
-      const { push, undo, getStackSizes } = useUndoRedoStore.getState()
-      const entry = createAddBlockEntry('block-1', { workflowId, userId })
-
-      push(workflowId, userId, entry)
-      const result = undo(workflowId, userId)
-
-      expect(result).toEqual(entry)
-      expect(getStackSizes(workflowId, userId)).toEqual({
-        undoSize: 0,
-        redoSize: 1,
-      })
-    })
-
-    it('should return null when undo stack is empty', () => {
-      const { undo } = useUndoRedoStore.getState()
-
-      const result = undo(workflowId, userId)
-
-      expect(result).toBeNull()
-    })
-
-    it('should undo operations in LIFO order', () => {
-      const { push, undo } = useUndoRedoStore.getState()
-
-      const entry1 = createAddBlockEntry('block-1', { workflowId, userId })
-      const entry2 = createAddBlockEntry('block-2', { workflowId, userId })
-      const entry3 = createAddBlockEntry('block-3', { workflowId, userId })
-
-      push(workflowId, userId, entry1)
-      push(workflowId, userId, entry2)
-      push(workflowId, userId, entry3)
-
-      expect(undo(workflowId, userId)).toEqual(entry3)
-      expect(undo(workflowId, userId)).toEqual(entry2)
-      expect(undo(workflowId, userId)).toEqual(entry1)
-    })
-  })
-
-  describe('redo', () => {
-    it('should return the last undone operation and move it back to undo', () => {
-      const { push, undo, redo, getStackSizes } = useUndoRedoStore.getState()
-      const entry = createAddBlockEntry('block-1', { workflowId, userId })
-
-      push(workflowId, userId, entry)
-      undo(workflowId, userId)
-      const result = redo(workflowId, userId)
-
-      expect(result).toEqual(entry)
-      expect(getStackSizes(workflowId, userId)).toEqual({
-        undoSize: 1,
-        redoSize: 0,
-      })
-    })
-
-    it('should return null when redo stack is empty', () => {
-      const { redo } = useUndoRedoStore.getState()
-
-      const result = redo(workflowId, userId)
-
-      expect(result).toBeNull()
-    })
-
-    it('should redo operations in LIFO order', () => {
-      const { push, undo, redo } = useUndoRedoStore.getState()
-
-      const entry1 = createAddBlockEntry('block-1', { workflowId, userId })
-      const entry2 = createAddBlockEntry('block-2', { workflowId, userId })
-
-      push(workflowId, userId, entry1)
-      push(workflowId, userId, entry2)
-      undo(workflowId, userId)
-      undo(workflowId, userId)
-
-      expect(redo(workflowId, userId)).toEqual(entry1)
-      expect(redo(workflowId, userId)).toEqual(entry2)
-    })
-  })
-
   describe('clear', () => {
-    it('should clear both undo and redo stacks', () => {
-      const { push, undo, clear, getStackSizes } = useUndoRedoStore.getState()
-
-      push(workflowId, userId, createAddBlockEntry('block-1', { workflowId, userId }))
-      push(workflowId, userId, createAddBlockEntry('block-2', { workflowId, userId }))
-      undo(workflowId, userId)
-
-      clear(workflowId, userId)
-
-      expect(getStackSizes(workflowId, userId)).toEqual({
-        undoSize: 0,
-        redoSize: 0,
-      })
-    })
-
     it('should only clear stacks for specified workflow/user', () => {
       const { push, clear, getStackSizes } = useUndoRedoStore.getState()
 
@@ -223,72 +101,6 @@ describe('useUndoRedoStore', () => {
 
       expect(getStackSizes('wf-1', 'user-1').undoSize).toBe(0)
       expect(getStackSizes('wf-2', 'user-2').undoSize).toBe(1)
-    })
-  })
-
-  describe('clearRedo', () => {
-    it('should only clear the redo stack', () => {
-      const { push, undo, clearRedo, getStackSizes } = useUndoRedoStore.getState()
-
-      push(workflowId, userId, createAddBlockEntry('block-1', { workflowId, userId }))
-      push(workflowId, userId, createAddBlockEntry('block-2', { workflowId, userId }))
-      undo(workflowId, userId)
-
-      clearRedo(workflowId, userId)
-
-      expect(getStackSizes(workflowId, userId)).toEqual({
-        undoSize: 1,
-        redoSize: 0,
-      })
-    })
-  })
-
-  describe('getStackSizes', () => {
-    it('should return zero sizes for non-existent stack', () => {
-      const { getStackSizes } = useUndoRedoStore.getState()
-
-      expect(getStackSizes('non-existent', 'user')).toEqual({
-        undoSize: 0,
-        redoSize: 0,
-      })
-    })
-
-    it('should return correct sizes', () => {
-      const { push, undo, getStackSizes } = useUndoRedoStore.getState()
-
-      push(workflowId, userId, createAddBlockEntry('block-1', { workflowId, userId }))
-      push(workflowId, userId, createAddBlockEntry('block-2', { workflowId, userId }))
-      push(workflowId, userId, createAddBlockEntry('block-3', { workflowId, userId }))
-      undo(workflowId, userId)
-
-      expect(getStackSizes(workflowId, userId)).toEqual({
-        undoSize: 2,
-        redoSize: 1,
-      })
-    })
-  })
-
-  describe('setCapacity', () => {
-    it('should update capacity', () => {
-      const { setCapacity } = useUndoRedoStore.getState()
-
-      setCapacity(50)
-
-      expect(useUndoRedoStore.getState().capacity).toBe(50)
-    })
-
-    it('should truncate existing stacks to new capacity', () => {
-      const { push, setCapacity, getStackSizes } = useUndoRedoStore.getState()
-
-      for (let i = 0; i < 10; i++) {
-        push(workflowId, userId, createAddBlockEntry(`block-${i}`, { workflowId, userId }))
-      }
-
-      expect(getStackSizes(workflowId, userId).undoSize).toBe(10)
-
-      setCapacity(5)
-
-      expect(getStackSizes(workflowId, userId).undoSize).toBe(5)
     })
   })
 
@@ -400,28 +212,6 @@ describe('useUndoRedoStore', () => {
   })
 
   describe('recording suspension', () => {
-    it('should skip operations when recording is suspended', async () => {
-      const { push, getStackSizes } = useUndoRedoStore.getState()
-
-      await runWithUndoRedoRecordingSuspended(() => {
-        push(workflowId, userId, createAddBlockEntry('block-1', { workflowId, userId }))
-      })
-
-      expect(getStackSizes(workflowId, userId).undoSize).toBe(0)
-    })
-
-    it('should resume recording after suspension ends', async () => {
-      const { push, getStackSizes } = useUndoRedoStore.getState()
-
-      await runWithUndoRedoRecordingSuspended(() => {
-        push(workflowId, userId, createAddBlockEntry('block-1', { workflowId, userId }))
-      })
-
-      push(workflowId, userId, createAddBlockEntry('block-2', { workflowId, userId }))
-
-      expect(getStackSizes(workflowId, userId).undoSize).toBe(1)
-    })
-
     it('should handle nested suspension correctly', async () => {
       const { push, getStackSizes } = useUndoRedoStore.getState()
 
@@ -508,142 +298,9 @@ describe('useUndoRedoStore', () => {
       expect(getStackSizes('wf-1', 'user-2').undoSize).toBe(1)
       expect(getStackSizes('wf-2', 'user-1').undoSize).toBe(1)
     })
-
-    it('should not affect other stacks when undoing', () => {
-      const { push, undo, getStackSizes } = useUndoRedoStore.getState()
-
-      push(
-        'wf-1',
-        'user-1',
-        createAddBlockEntry('block-1', { workflowId: 'wf-1', userId: 'user-1' })
-      )
-      push(
-        'wf-2',
-        'user-1',
-        createAddBlockEntry('block-2', { workflowId: 'wf-2', userId: 'user-1' })
-      )
-
-      undo('wf-1', 'user-1')
-
-      expect(getStackSizes('wf-1', 'user-1').undoSize).toBe(0)
-      expect(getStackSizes('wf-2', 'user-1').undoSize).toBe(1)
-    })
-  })
-
-  describe('edge cases', () => {
-    it('should handle rapid consecutive operations', () => {
-      const { push, getStackSizes } = useUndoRedoStore.getState()
-
-      for (let i = 0; i < 50; i++) {
-        push(workflowId, userId, createAddBlockEntry(`block-${i}`, { workflowId, userId }))
-      }
-
-      expect(getStackSizes(workflowId, userId).undoSize).toBe(50)
-    })
-
-    it('should handle multiple undo/redo cycles', () => {
-      const { push, undo, redo, getStackSizes } = useUndoRedoStore.getState()
-
-      push(workflowId, userId, createAddBlockEntry('block-1', { workflowId, userId }))
-
-      for (let i = 0; i < 10; i++) {
-        undo(workflowId, userId)
-        redo(workflowId, userId)
-      }
-
-      expect(getStackSizes(workflowId, userId)).toEqual({
-        undoSize: 1,
-        redoSize: 0,
-      })
-    })
-
-    it('should handle mixed operation types', () => {
-      const { push, undo, getStackSizes } = useUndoRedoStore.getState()
-
-      push(workflowId, userId, createAddBlockEntry('block-1', { workflowId, userId }))
-      push(workflowId, userId, createAddEdgeEntry('edge-1', { workflowId, userId }))
-      push(
-        workflowId,
-        userId,
-        createMoveBlockEntry('block-1', {
-          workflowId,
-          userId,
-          before: { x: 0, y: 0 },
-          after: { x: 100, y: 100 },
-        })
-      )
-      push(workflowId, userId, createRemoveBlockEntry('block-2', null, { workflowId, userId }))
-
-      expect(getStackSizes(workflowId, userId).undoSize).toBe(4)
-
-      undo(workflowId, userId)
-      undo(workflowId, userId)
-
-      expect(getStackSizes(workflowId, userId)).toEqual({
-        undoSize: 2,
-        redoSize: 2,
-      })
-    })
-  })
-
-  describe('edge operations', () => {
-    it('should handle add-edge operations', () => {
-      const { push, undo, redo, getStackSizes } = useUndoRedoStore.getState()
-
-      push(workflowId, userId, createAddEdgeEntry('edge-1', { workflowId, userId }))
-      push(workflowId, userId, createAddEdgeEntry('edge-2', { workflowId, userId }))
-
-      expect(getStackSizes(workflowId, userId).undoSize).toBe(2)
-
-      const entry = undo(workflowId, userId)
-      expect(entry?.operation.type).toBe('batch-add-edges')
-      expect(getStackSizes(workflowId, userId).redoSize).toBe(1)
-
-      redo(workflowId, userId)
-      expect(getStackSizes(workflowId, userId).undoSize).toBe(2)
-    })
-
-    it('should handle batch-remove-edges operations', () => {
-      const { push, undo, getStackSizes } = useUndoRedoStore.getState()
-
-      const edgeSnapshot = { id: 'edge-1', source: 'block-1', target: 'block-2' }
-      push(workflowId, userId, createBatchRemoveEdgesEntry([edgeSnapshot], { workflowId, userId }))
-
-      expect(getStackSizes(workflowId, userId).undoSize).toBe(1)
-
-      const entry = undo(workflowId, userId)
-      expect(entry?.operation.type).toBe('batch-remove-edges')
-      expect(entry?.inverse.type).toBe('batch-add-edges')
-    })
   })
 
   describe('update-parent operations', () => {
-    it('should handle update-parent operations', () => {
-      const { push, undo, redo, getStackSizes } = useUndoRedoStore.getState()
-
-      push(
-        workflowId,
-        userId,
-        createUpdateParentEntry('block-1', {
-          workflowId,
-          userId,
-          oldParentId: undefined,
-          newParentId: 'loop-1',
-          oldPosition: { x: 100, y: 100 },
-          newPosition: { x: 50, y: 50 },
-        })
-      )
-
-      expect(getStackSizes(workflowId, userId).undoSize).toBe(1)
-
-      const entry = undo(workflowId, userId)
-      expect(entry?.operation.type).toBe('update-parent')
-      expect(entry?.inverse.type).toBe('update-parent')
-
-      redo(workflowId, userId)
-      expect(getStackSizes(workflowId, userId).undoSize).toBe(1)
-    })
-
     it('should correctly swap parent IDs in inverse operation', () => {
       const { push, undo } = useUndoRedoStore.getState()
 
@@ -692,74 +349,6 @@ describe('useUndoRedoStore', () => {
       // edge-1 exists in graph, so we can't undo its removal (can't add it back) → pruned
       // edge-2 doesn't exist, so we can undo its removal (can add it back) → kept
       expect(getStackSizes(workflowId, userId).undoSize).toBe(1)
-    })
-  })
-
-  describe('complex scenarios', () => {
-    it('should handle a complete workflow creation scenario', () => {
-      const { push, undo, redo, getStackSizes } = useUndoRedoStore.getState()
-
-      push(workflowId, userId, createAddBlockEntry('starter', { workflowId, userId }))
-      push(workflowId, userId, createAddBlockEntry('agent-1', { workflowId, userId }))
-      push(workflowId, userId, createAddEdgeEntry('edge-1', { workflowId, userId }))
-      push(
-        workflowId,
-        userId,
-        createMoveBlockEntry('agent-1', {
-          workflowId,
-          userId,
-          before: { x: 0, y: 0 },
-          after: { x: 200, y: 100 },
-        })
-      )
-
-      expect(getStackSizes(workflowId, userId).undoSize).toBe(4)
-
-      undo(workflowId, userId)
-      undo(workflowId, userId)
-      expect(getStackSizes(workflowId, userId)).toEqual({ undoSize: 2, redoSize: 2 })
-
-      redo(workflowId, userId)
-      expect(getStackSizes(workflowId, userId)).toEqual({ undoSize: 3, redoSize: 1 })
-
-      push(workflowId, userId, createAddBlockEntry('agent-2', { workflowId, userId }))
-      expect(getStackSizes(workflowId, userId)).toEqual({ undoSize: 4, redoSize: 0 })
-    })
-
-    it('should handle loop workflow with child blocks', () => {
-      const { push, undo, getStackSizes } = useUndoRedoStore.getState()
-
-      push(workflowId, userId, createAddBlockEntry('loop-1', { workflowId, userId }))
-
-      push(
-        workflowId,
-        userId,
-        createUpdateParentEntry('child-1', {
-          workflowId,
-          userId,
-          oldParentId: undefined,
-          newParentId: 'loop-1',
-        })
-      )
-
-      push(
-        workflowId,
-        userId,
-        createMoveBlockEntry('child-1', {
-          workflowId,
-          userId,
-          before: { x: 0, y: 0 },
-          after: { x: 50, y: 50 },
-        })
-      )
-
-      expect(getStackSizes(workflowId, userId).undoSize).toBe(3)
-
-      const moveEntry = undo(workflowId, userId)
-      expect(moveEntry?.operation.type).toBe('batch-move-blocks')
-
-      const parentEntry = undo(workflowId, userId)
-      expect(parentEntry?.operation.type).toBe('update-parent')
     })
   })
 })

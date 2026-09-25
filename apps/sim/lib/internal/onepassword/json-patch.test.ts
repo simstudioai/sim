@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { applyOnePasswordPatch } from '@/lib/internal/onepassword/json-patch'
 

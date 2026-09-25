@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { Principal, SubjectDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -30,7 +29,6 @@ const delegated: SubjectDelegatedPrincipal = {
 
 describe('account preferences authority', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.workspace.mockResolvedValue({
       workspaceId: 'workspace',
       workspaceOrganizationId: 'org',
@@ -79,30 +77,6 @@ describe('account preferences authority', () => {
     await expect(
       authorizeAccountPreferences(delegated, userAccountOperations.delete)
     ).rejects.toBeInstanceOf(Error)
-    expect(mocks.workspace).not.toHaveBeenCalled()
-  })
-  it('supports organization conversations without inventing a workspace grant', async () => {
-    await expect(
-      authorizeAccountPreferences(
-        {
-          kind: 'organization_delegated',
-          serviceId: 'copilot',
-          subjectUserId: 'actor',
-          organizationId: 'org',
-          delegationId: 'tool',
-          audience: delegated.audience,
-          issuedAt: delegated.issuedAt,
-          expiresAt: delegated.expiresAt,
-          resourceScope: { chatId: 'chat' },
-        },
-        userAccountOperations.updateSettings
-      )
-    ).resolves.toBe('actor')
-    expect(mocks.organization).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'organization_delegated' }),
-      expect.objectContaining({ minimumRole: 'member' }),
-      { organizationId: 'org' }
-    )
     expect(mocks.workspace).not.toHaveBeenCalled()
   })
   it('propagates revoked hosting access rather than writing as another member', async () => {

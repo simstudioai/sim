@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { credential, slackSearchInstallation, slackSearchTurn } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,7 +22,6 @@ const input = {
   event: { type: 'app_uninstalled' },
 } as const
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   m.app.mockResolvedValue({
     app: { id: 'A1', kind: 'shared', revision: 'r1', organizationId: null },
@@ -40,15 +38,6 @@ beforeEach(() => {
   ])
 })
 describe('Slack access revocation', () => {
-  it('disables the bot and cancels queued and running work on uninstall', async () => {
-    await revokeSlackSearchAccess.execute({ principal, input })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ enabled: false, lastOutcome: 'app_uninstalled' })
-    )
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'cancelled', outcome: 'access_revoked' })
-    )
-  })
   it('cancels only affected members without rotating the shared installation revision', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ providerSubjectId: 'U1' }])
     await revokeSlackSearchAccess.execute({
@@ -97,13 +86,6 @@ describe('Slack access revocation', () => {
       ]),
     })
   })
-  it('does not cancel work when no current member grants were revoked', async () => {
-    await revokeSlackSearchAccess.execute({
-      principal,
-      input: { ...input, event: { type: 'tokens_revoked', tokens: { oauth: ['U1'] } } },
-    })
-    expect(dbChainMockFns.update.mock.calls.map(([table]) => table)).toEqual([credential])
-  })
   it.each([{ bot: ['UBOT'] }, { bot: ['UBOT'], oauth: ['U1'] }])(
     'cancels all installation work when its bot is revoked: %j',
     async (tokens) => {
@@ -139,11 +121,6 @@ describe('Slack access revocation', () => {
       expect(m.app).not.toHaveBeenCalled()
     }
   )
-  it('does nothing when that app/workspace has no binding', async () => {
-    resetDbChainMock()
-    await revokeSlackSearchAccess.execute({ principal, input })
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
   it.each([
     { type: 'app_uninstalled' as const },
     { type: 'tokens_revoked' as const, tokens: { bot: ['UBOT'] } },

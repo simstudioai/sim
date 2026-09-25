@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import type { DelegatedPrincipal } from '@sim/auth/principal'
 import { describe, expect, it } from 'vitest'
 import {

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { db } from '@sim/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -10,7 +9,6 @@ import { resolveSlackSearchMember } from '@/lib/knowledge/application/slack-sear
 
 const limit = vi.fn()
 beforeEach(() => {
-  vi.clearAllMocks()
   const query = { from: vi.fn(), innerJoin: vi.fn(), where: vi.fn(), limit }
   query.from.mockReturnValue(query)
   query.innerJoin.mockReturnValue(query)

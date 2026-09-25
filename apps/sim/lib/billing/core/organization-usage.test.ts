@@ -1,5 +1,3 @@
-/** @vitest-environment node */
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { getOrganizationSubscription, getBillingPeriodUsageCostByUser } = vi.hoisted(() => ({
@@ -20,7 +18,6 @@ import { getOrganizationMemberUsageSnapshot } from '@/lib/billing/core/organizat
 
 describe('getOrganizationMemberUsageSnapshot', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-20T12:00:00.000Z'))
     getBillingPeriodUsageCostByUser.mockResolvedValue(new Map([['user-1', 12.5]]))

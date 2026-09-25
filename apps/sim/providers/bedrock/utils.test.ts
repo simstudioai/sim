@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { getBedrockInferenceProfileId, supportsToolResultStatus } from '@/providers/bedrock/utils'
 

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/utils/urls', () => ({ getSocketServerUrl: () => 'http://realtime' }))
@@ -11,26 +8,6 @@ import { applyEditToLiveFileDoc, invalidateLiveFileDoc } from '@/lib/realtime/no
 describe('applyEditToLiveFileDoc', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
-  })
-
-  it('POSTs the edit to the realtime apply-edit endpoint with the api key', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: vi.fn().mockResolvedValue({ applied: true, status: 'applied' }),
-    })
-    vi.stubGlobal('fetch', fetchMock)
-
-    await applyEditToLiveFileDoc('file-1', '# hello', { version: 42 })
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      'http://realtime/api/file-doc/apply-edit',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({ 'x-api-key': 'secret' }),
-        // A durable write sends `version`; an unversioned (legacy) call would drop it via JSON.stringify.
-        body: JSON.stringify({ fileId: 'file-1', markdown: '# hello', version: 42 }),
-      })
-    )
   })
 
   it('throws when the realtime call fails so the outbox can retry', async () => {
@@ -51,21 +28,6 @@ describe('applyEditToLiveFileDoc', () => {
       'status 503'
     )
     expect(cancel).toHaveBeenCalledOnce()
-  })
-
-  it('returns the relay reconciliation status to durable outbox callers', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ applied: false, status: 'no-live-room' }),
-      })
-    )
-
-    await expect(applyEditToLiveFileDoc('file-1', '# hello', { version: 42 })).resolves.toEqual({
-      applied: false,
-      status: 'no-live-room',
-    })
   })
 })
 

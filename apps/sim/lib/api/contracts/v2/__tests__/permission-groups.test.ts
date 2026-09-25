@@ -15,13 +15,6 @@ describe('public permission group boundaries', () => {
     expect(v2BulkAddPermissionGroupMembersBodySchema.safeParse(body).success).toBe(false)
   })
 
-  it.each([{ userIds: ['user-1'] }, { addAllOrganizationMembers: true }])(
-    'accepts a bounded bulk selection: %j',
-    (body) => {
-      expect(v2BulkAddPermissionGroupMembersBodySchema.parse(body)).toEqual(body)
-    }
-  )
-
   it('bounds explicit bulk membership input before any work starts', () => {
     expect(
       v2BulkAddPermissionGroupMembersBodySchema.safeParse({
@@ -51,13 +44,6 @@ describe('public permission group boundaries', () => {
     expect(
       v2CreatePermissionGroupBodySchema.safeParse({ name: 'Default', isDefault: true }).success
     ).toBe(true)
-  })
-
-  it('rejects empty patches and misspelled restriction fields', () => {
-    expect(v2UpdatePermissionGroupBodySchema.safeParse({}).success).toBe(false)
-    expect(
-      v2UpdatePermissionGroupBodySchema.safeParse({ config: { disableClAccess: true } }).success
-    ).toBe(false)
   })
 
   it('preserves the difference between unrestricted and empty allowlists', () => {

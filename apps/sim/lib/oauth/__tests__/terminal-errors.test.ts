@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { redisConfigMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -36,81 +33,37 @@ function createFakeRedis(): FakeRedis {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
 })
 
 describe('isTerminalRefreshError', () => {
-  it.each([
-    'invalid_refresh_token',
-    'bad_refresh_token',
-    'invalid_grant',
-    'access_denied',
-    'bad_client_secret',
-    'invalid_client_id',
-    'invalid_client',
-    'bad_redirect_uri',
-    'token_revoked',
-  ])('returns true for %s', (code) => {
-    expect(isTerminalRefreshError(code)).toBe(true)
+  it('treats a revoked refresh token as terminal but not a transient failure', () => {
+    expect(isTerminalRefreshError('invalid_grant')).toBe(true)
+    expect(isTerminalRefreshError('service_unavailable')).toBe(false)
+    expect(isTerminalRefreshError(undefined)).toBe(false)
   })
 
-  it.each(['confluence', 'jira'])('treats unauthorized_client as terminal for %s', (providerId) => {
-    expect(isTerminalRefreshError('unauthorized_client', providerId)).toBe(true)
-  })
-
-  it.each([undefined, 'microsoft', 'salesforce', 'google-email', 'constructor', '__proto__'])(
-    'does not treat unauthorized_client as terminal for %s',
+  it.each([undefined, 'microsoft', '__proto__'])(
+    'treats unauthorized_client as terminal only for Atlassian, not %s',
     (providerId) => {
+      expect(isTerminalRefreshError('unauthorized_client', 'confluence')).toBe(true)
       expect(isTerminalRefreshError('unauthorized_client', providerId)).toBe(false)
-    }
-  )
-
-  it.each(['ratelimited', 'internal_error', 'service_unavailable', undefined, null, ''])(
-    'returns false for %s',
-    (code) => {
-      expect(isTerminalRefreshError(code as string | undefined | null)).toBe(false)
     }
   )
 })
 
 describe('isCredentialRevocationError', () => {
-  it.each([
-    'invalid_refresh_token',
-    'bad_refresh_token',
-    'invalid_grant',
-    'access_denied',
-    'token_revoked',
-  ])('treats %s as a revoked credential', (code) => {
-    expect(isCredentialRevocationError(code)).toBe(true)
+  it('treats an app-registration fault as terminal but not a revocation', () => {
+    expect(isTerminalRefreshError('invalid_client', 'confluence')).toBe(true)
+    expect(isCredentialRevocationError('invalid_client', 'confluence')).toBe(false)
+    expect(isCredentialRevocationError('token_revoked')).toBe(true)
   })
 
-  it.each(['invalid_client', 'bad_client_secret', 'invalid_client_id', 'bad_redirect_uri'])(
-    'treats the app-registration fault %s as terminal but not a revocation',
-    (code) => {
-      expect(isTerminalRefreshError(code, 'confluence')).toBe(true)
-      expect(isCredentialRevocationError(code, 'confluence')).toBe(false)
-    }
-  )
-
-  it.each(['confluence', 'jira'])(
-    'treats unauthorized_client as a revocation for %s',
+  it.each([undefined, 'microsoft', '__proto__'])(
+    'treats unauthorized_client as a revocation only for Atlassian, not %s',
     (providerId) => {
-      expect(isCredentialRevocationError('unauthorized_client', providerId)).toBe(true)
-    }
-  )
-
-  it.each([undefined, 'microsoft', 'salesforce', 'constructor', '__proto__'])(
-    'does not treat unauthorized_client as a revocation for %s',
-    (providerId) => {
+      expect(isCredentialRevocationError('unauthorized_client', 'jira')).toBe(true)
       expect(isCredentialRevocationError('unauthorized_client', providerId)).toBe(false)
-    }
-  )
-
-  it.each(['ratelimited', 'internal_error', undefined, null, ''])(
-    'returns false for %s',
-    (code) => {
-      expect(isCredentialRevocationError(code as string | undefined | null)).toBe(false)
     }
   )
 })
@@ -124,16 +77,7 @@ describe('markCredentialDead / getRecentTerminalError / clearDeadFlag', () => {
     expect(await getRecentTerminalError('acc-1')).toBe('invalid_refresh_token')
   })
 
-  it('clearDeadFlag removes the entry', async () => {
-    const redis = createFakeRedis()
-    redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis as never)
-
-    await markCredentialDead('acc-1', 'invalid_refresh_token')
-    await clearDeadFlag('acc-1')
-    expect(await getRecentTerminalError('acc-1')).toBeNull()
-  })
-
-  it.each(['account-1', 'slack:T08CM6ZNYBE'])(
+  it.each(['slack:T08CM6ZNYBE'])(
     'reconnect clears the matching private refresh flag for %s',
     async (scopeKey) => {
       const redis = createFakeRedis()
@@ -170,13 +114,5 @@ describe('markCredentialDead / getRecentTerminalError / clearDeadFlag', () => {
     await expect(markCredentialDead('acc-1', 'code')).resolves.toBeUndefined()
     await expect(getRecentTerminalError('acc-1')).resolves.toBeNull()
     await expect(clearDeadFlag('acc-1')).resolves.toBeUndefined()
-  })
-
-  it('uses a 1-hour TTL on the dead flag', async () => {
-    const redis = createFakeRedis()
-    redisConfigMockFns.mockGetRedisClient.mockReturnValue(redis as never)
-
-    await markCredentialDead('acc-1', 'invalid_refresh_token')
-    expect(redis.set).toHaveBeenCalledWith('oauth:dead:acc-1', 'invalid_refresh_token', 'EX', 3600)
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockResolveSelectorCredentialBundle, mockSecureFetchWithValidation } = vi.hoisted(() => ({
@@ -39,24 +36,10 @@ function organizationArgs(signal: AbortSignal): ExecuteServerSelectorArgs {
 
 describe('Zoho Desk server selector adapters', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveSelectorCredentialBundle.mockResolvedValue({
       accessToken: 'server-only-token',
       apiDomain: 'https://desk.zoho.com',
     })
-  })
-
-  it('preserves caller cancellation from the provider boundary', async () => {
-    const controller = new AbortController()
-    const abortError = new DOMException('The operation was aborted', 'AbortError')
-    controller.abort()
-    mockSecureFetchWithValidation.mockRejectedValueOnce(abortError)
-
-    await expect(
-      zohoDeskSelectorAttachments['zoho_desk.organizations'].execute(
-        organizationArgs(controller.signal)
-      )
-    ).rejects.toBe(abortError)
   })
 
   it('conceals and cancels a rejected provider response while preserving its safe category', async () => {

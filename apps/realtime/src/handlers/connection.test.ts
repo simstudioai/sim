@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createServer, type Server as HttpServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { Server } from 'socket.io'

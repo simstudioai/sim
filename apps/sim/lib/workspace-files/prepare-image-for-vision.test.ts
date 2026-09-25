@@ -1,6 +1,5 @@
-/** @vitest-environment node */
 import sharp from 'sharp'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { sandbox, transcode } = vi.hoisted(() => ({ sandbox: vi.fn(), transcode: vi.fn() }))
 vi.mock('@/lib/execution/remote-sandbox', () => ({ executeInSandbox: sandbox }))
@@ -15,8 +14,6 @@ import { prepareImageForVision } from '@/lib/workspace-files/prepare-image-for-v
 const raster = () => sharp({ create: { width: 3, height: 2, channels: 3, background: '#ff0000' } })
 
 describe('prepareImageForVision', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it.each(['png', 'jpeg', 'webp', 'gif'] as const)(
     'preserves valid bounded %s bytes and sniffs the actual format',
     async (format) => {

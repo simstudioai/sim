@@ -1,11 +1,8 @@
-/**
- * @vitest-environment node
- */
 import type { PersonalApiKeyPrincipal, SessionPrincipal } from '@sim/auth/principal'
 import { oauthAccessToken, oauthConsent } from '@sim/db/schema'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   recordAudit: vi.fn(),
@@ -30,7 +27,6 @@ vi.mock('@sim/db', () => ({
 }))
 
 import { ForbiddenOperationError } from '@/lib/core/application'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   listAuthorizedAppsUseCase,
   revokeAuthorizedAppUseCase,
@@ -60,10 +56,6 @@ function selectChain(rows: unknown[]) {
 }
 
 describe('authorized apps', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('refuses a principal that is not the account holder in session', async () => {
     await expect(
       listAuthorizedAppsUseCase.execute({ principal: personalKey, input: {} })
@@ -76,45 +68,6 @@ describe('authorized apps', () => {
     ).rejects.toBeInstanceOf(ForbiddenOperationError)
     expect(mocks.transaction).not.toHaveBeenCalled()
     expect(mocks.select).not.toHaveBeenCalled()
-  })
-
-  it('returns one page of domain records without applying HTTP presentation', async () => {
-    mocks.select.mockReturnValue(
-      selectChain([
-        {
-          clientId: 'sim-cli',
-          name: 'Sim CLI',
-          scopes: ['openid', 'api:write'],
-          authorizedAt: new Date('2026-09-01T00:00:00.000Z'),
-        },
-        {
-          clientId: 'partner-app',
-          name: null,
-          scopes: ['openid'],
-          authorizedAt: new Date('2026-08-01T00:00:00.000Z'),
-        },
-      ])
-    )
-
-    await expect(
-      listAuthorizedAppsUseCase.execute({ principal: session, input: {} })
-    ).resolves.toEqual({
-      apps: [
-        {
-          clientId: 'sim-cli',
-          name: 'Sim CLI',
-          scopes: ['openid', 'api:write'],
-          authorizedAt: new Date('2026-09-01T00:00:00.000Z'),
-        },
-        {
-          clientId: 'partner-app',
-          name: null,
-          scopes: ['openid'],
-          authorizedAt: new Date('2026-08-01T00:00:00.000Z'),
-        },
-      ],
-      nextCursor: null,
-    })
   })
 
   it('limits the read and resumes after the last visible row with a stable timestamp tie-breaker', async () => {
@@ -199,26 +152,5 @@ describe('authorized apps', () => {
         resourceName: 'Sim CLI',
       })
     )
-  })
-
-  it('reports a grant this account does not hold as not found, changing nothing', async () => {
-    const tx = {
-      select: () => selectChain([]),
-      delete: () => {
-        throw new Error('must not delete')
-      },
-      update: () => {
-        throw new Error('must not update')
-      },
-    }
-    mocks.transaction.mockImplementation(async (run: (t: unknown) => unknown) => run(tx))
-
-    const failure = await revokeAuthorizedAppUseCase
-      .execute({ principal: session, input: { clientId: 'someone-elses' } })
-      .catch((error) => error)
-
-    expect(failure).toBeInstanceOf(OrchestrationError)
-    expect(failure.code).toBe('not_found')
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 })

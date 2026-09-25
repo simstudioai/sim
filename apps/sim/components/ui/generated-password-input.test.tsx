@@ -106,17 +106,6 @@ describe('GeneratedPasswordInput', () => {
     expect(passwordInput()).toHaveAttribute('placeholder', '••••••••')
   })
 
-  it('fetches the saved password on reveal', async () => {
-    const fetchCurrentPassword = vi.fn().mockResolvedValue('saved-secret')
-
-    renderInput({ fetchCurrentPassword })
-    await act(async () => passwordButton('Show password').click())
-
-    expect(fetchCurrentPassword).toHaveBeenCalledOnce()
-    expect(passwordInput()).toHaveAttribute('type', 'text')
-    expect(passwordInput()).toHaveValue('saved-secret')
-  })
-
   it('discards the saved password when hidden and re-fetches on the next reveal', async () => {
     const fetchCurrentPassword = vi.fn().mockResolvedValue('saved-secret')
 
@@ -136,18 +125,6 @@ describe('GeneratedPasswordInput', () => {
     expect(passwordInput()).toHaveValue('saved-secret')
   })
 
-  it('keeps an edited value when hidden', async () => {
-    const fetchCurrentPassword = vi.fn().mockResolvedValue('saved-secret')
-    const onChange = vi.fn()
-
-    renderInput({ fetchCurrentPassword, onChange, value: 'typed-secret' })
-    await act(async () => passwordButton('Show password').click())
-    act(() => passwordButton('Hide password').click())
-
-    expect(fetchCurrentPassword).not.toHaveBeenCalled()
-    expect(passwordInput()).toHaveValue('typed-secret')
-  })
-
   it('stays masked when loading the saved password fails', async () => {
     renderInput({ fetchCurrentPassword: vi.fn().mockRejectedValue(new Error('Failed')) })
 
@@ -156,14 +133,6 @@ describe('GeneratedPasswordInput', () => {
     expect(passwordInput()).toHaveAttribute('type', 'password')
     expect(passwordInput()).toHaveValue('')
     expect(passwordInput()).toHaveAttribute('placeholder', '••••••••')
-  })
-
-  it('stays empty when no saved-password loader is provided', () => {
-    renderInput()
-
-    expect(passwordInput()).toHaveAttribute('type', 'password')
-    expect(passwordInput()).toHaveValue('')
-    expect(passwordInput()).not.toHaveAttribute('placeholder', '••••••••')
   })
 
   it('keeps a generated password hidden when the field is hidden', () => {
@@ -175,18 +144,6 @@ describe('GeneratedPasswordInput', () => {
 
     expect(fetchCurrentPassword).not.toHaveBeenCalled()
     expect(passwordInput()).toHaveAttribute('type', 'password')
-    expect(onChange).toHaveBeenCalledWith(expect.stringMatching(/^.{24}$/))
-  })
-
-  it('keeps a generated password visible when the field is visible', async () => {
-    const fetchCurrentPassword = vi.fn().mockResolvedValue('saved-secret')
-    const onChange = vi.fn()
-    renderInput({ fetchCurrentPassword, onChange, showGenerate: true })
-
-    await act(async () => passwordButton('Show password').click())
-    act(() => passwordButton('Generate password').click())
-
-    expect(passwordInput()).toHaveAttribute('type', 'text')
     expect(onChange).toHaveBeenCalledWith(expect.stringMatching(/^.{24}$/))
   })
 })

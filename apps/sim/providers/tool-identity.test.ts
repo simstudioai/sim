@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import type { NormalizedBlockOutput, StreamingExecution } from '@/executor/types'
 import type { AgentStreamEvent } from '@/providers/stream-events'

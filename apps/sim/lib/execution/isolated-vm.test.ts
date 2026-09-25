@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { EventEmitter } from 'node:events'
 import {
   inputValidationMock,
@@ -9,7 +6,7 @@ import {
   redisConfigMockFns,
 } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 type MockProc = EventEmitter & {
   connected: boolean
@@ -281,10 +278,6 @@ async function loadExecutionModule(options: {
 }
 
 describe('isolated-vm scheduler', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   afterEach(() => {
     vi.restoreAllMocks()
   })

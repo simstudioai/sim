@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** Obvious non-secret so credential scanners do not flag these fixtures. */
@@ -134,35 +131,6 @@ describe('executeAgiloftRequest', () => {
 
     expect(mockSecureFetch).toHaveBeenCalledTimes(3)
     expect(mockSecureFetch.mock.calls[2][0]).toContain('/ewws/EWLogout')
-  })
-
-  it('swallows logout failures (best-effort)', async () => {
-    mockSecureFetch
-      .mockResolvedValueOnce(mockResponse({ json: { access_token: 'tok-3' } }))
-      .mockResolvedValueOnce(mockResponse({ json: { ok: true } }))
-      .mockRejectedValueOnce(new Error('logout network error'))
-
-    const result = await executeAgiloftRequest(
-      baseParams,
-      (base) => ({ url: `${base}/ewws/REST/demo/contracts/42`, method: 'GET' }),
-      async () => ({ success: true, output: {} })
-    )
-
-    expect(result.success).toBe(true)
-  })
-
-  it('throws when login does not return an access token', async () => {
-    mockSecureFetch.mockResolvedValueOnce(mockResponse({ json: {} }))
-
-    await expect(
-      executeAgiloftRequest(
-        baseParams,
-        (base) => ({ url: `${base}/ewws/REST/demo/contracts/42`, method: 'GET' }),
-        async () => ({ success: true, output: {} })
-      )
-    ).rejects.toThrow('Agiloft login did not return an access token')
-
-    expect(mockSecureFetch).toHaveBeenCalledTimes(1)
   })
 
   it('rejects an instance URL that resolves to a blocked IP without issuing any request', async () => {

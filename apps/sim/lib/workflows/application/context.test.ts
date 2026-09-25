@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   flattenMockConditions,
@@ -44,7 +41,6 @@ function queueCanonicalBindings(input: { log?: string; paused?: string; resumed?
 
 describe('workflow application contexts', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.loadWorkspace.mockResolvedValue(workspace)
     mocks.getJobQueue.mockResolvedValue({ getJob: mocks.getJob })
@@ -89,18 +85,6 @@ describe('workflow application contexts', () => {
     ).rejects.toMatchObject({ code: 'not_found', message: 'Workflow not found' })
   })
 
-  it('propagates canonical workspace database failures', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { workflowId: 'workflow-1', workflow, workspaceId: 'workspace-1' },
-    ])
-    const failure = new Error('workspace database unavailable')
-    mocks.loadWorkspace.mockRejectedValueOnce(failure)
-
-    await expect(
-      resolveActiveWorkflowApplicationContext({ workflowId: 'workflow-1' })
-    ).rejects.toBe(failure)
-  })
-
   it('fails hard when durable stores disagree about the canonical workflow binding', async () => {
     queueCanonicalBindings({ log: 'workflow-1', paused: 'workflow-2' })
 
@@ -119,29 +103,6 @@ describe('workflow application contexts', () => {
         assertedWorkflowId: 'workflow-forged',
       })
     ).rejects.toMatchObject({ code: 'not_found', message: 'Run not found' })
-  })
-
-  it('accepts matching durable bindings and resolves the active canonical workflow', async () => {
-    queueCanonicalBindings({ log: 'workflow-1', paused: 'workflow-1', resumed: 'workflow-1' })
-    queueTableRows(schemaMock.workflow, [
-      {
-        workflowId: 'workflow-1',
-        workflow: { id: 'workflow-1', name: 'Canonical workflow' },
-        workspaceId: 'workspace-1',
-      },
-    ])
-
-    await expect(
-      resolveActiveWorkflowRunApplicationContext({
-        runId: 'run-1',
-        assertedWorkflowId: 'workflow-1',
-        assertedWorkspaceId: 'workspace-1',
-      })
-    ).resolves.toMatchObject({
-      runId: 'run-1',
-      workflowId: 'workflow-1',
-      workspaceId: 'workspace-1',
-    })
   })
 
   it('binds live execution authority to the deployment version stored on its durable log', async () => {

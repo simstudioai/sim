@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import type { ForkReference } from '@/lib/workflows/references/remap-references'
 import type {

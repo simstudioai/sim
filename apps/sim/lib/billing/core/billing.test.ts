@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMock, dbChainMockFns, queueTableRows, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -48,7 +45,6 @@ import { calculateSubscriptionOverage, getPersonalBillingSummary } from '@/lib/b
 
 describe('getPersonalBillingSummary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockEnsureUserStatsExists.mockResolvedValue(undefined)
     mockResolveBillingInterval.mockReturnValue('year')
     mockComputeWeeklyRefreshConsumed.mockResolvedValue(1)
@@ -122,7 +118,6 @@ describe('getPersonalBillingSummary', () => {
 
 describe('calculateSubscriptionOverage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockComputeWeeklyRefreshConsumed.mockResolvedValue(0)
   })
 

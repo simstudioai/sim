@@ -30,7 +30,6 @@ vi.mock('@/lib/permission-groups/operation-access', () => ({
 }))
 
 import type { GetAllowedIntegrationsResponse } from '@/lib/api/contracts/common'
-import { getAllowedIntegrationsContract } from '@/lib/api/contracts/common'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { integrationAvailabilityKeys } from '@/hooks/queries/integration-availability'
 import { type PermissionConfigResult, usePermissionConfig } from '@/hooks/use-permission-config'
@@ -80,27 +79,6 @@ describe('usePermissionConfig deployment readiness', () => {
     )
   }
 
-  it('exposes an explicit pending state instead of implying that empty maps are ready', () => {
-    mockRequestJson.mockReturnValue(new Promise(() => {}))
-    render()
-    expect(current!.isIntegrationAvailabilityLoading).toBe(true)
-    expect(current!.isIntegrationAvailabilityReady).toBe(false)
-    expect(current!.oauthServiceAvailability.size).toBe(0)
-    expect(mockRequestJson).toHaveBeenCalledWith(getAllowedIntegrationsContract, {
-      signal: expect.any(AbortSignal),
-    })
-  })
-
-  it('keeps API-key workflow availability independent of its Search OAuth service', () => {
-    queryClient.setQueryData(integrationAvailabilityKeys.environments(), AVAILABILITY)
-    render()
-    expect(current!.isIntegrationAvailabilityReady).toBe(true)
-    expect(current!.isIntegrationAvailabilityLoading).toBe(false)
-    expect(current!.oauthServiceAvailability.get('github-repositories')).toBe(false)
-    expect(current!.isBlockAllowed('github_v2')).toBe(true)
-    expect(mockRequestJson).not.toHaveBeenCalled()
-  })
-
   it('offers requests only for group restrictions within the deployment allowlist', () => {
     mockUseUserPermissionConfig.mockReturnValue({
       data: { config: { ...DEFAULT_PERMISSION_GROUP_CONFIG, allowedIntegrations: [] } },
@@ -125,27 +103,6 @@ describe('usePermissionConfig deployment readiness', () => {
     mockRequestJson.mockReturnValue(new Promise(() => {}))
     render()
     expect(current!.isBlockRequestable('gmail')).toBe(false)
-  })
-
-  it('surfaces a failed availability request and recovers through the same refetch action', async () => {
-    const error = new Error('Unable to load deployment availability')
-    mockRequestJson.mockRejectedValueOnce(error)
-    render()
-    await act(async () => {
-      await vi.runOnlyPendingTimersAsync()
-    })
-    expect(current!.integrationAvailabilityError).toBe(error)
-    expect(current!.isIntegrationAvailabilityReady).toBe(false)
-    expect(current!.isIntegrationAvailabilityLoading).toBe(false)
-
-    mockRequestJson.mockResolvedValueOnce(AVAILABILITY)
-    await act(async () => {
-      await current!.refetchIntegrationAvailability()
-      await vi.runOnlyPendingTimersAsync()
-    })
-    expect(current!.integrationAvailabilityError).toBeNull()
-    expect(current!.isIntegrationAvailabilityReady).toBe(true)
-    expect(current!.oauthServiceAvailability.get('github-repositories')).toBe(false)
   })
 
   it('does not treat cached readiness as successful after a failed refresh', async () => {

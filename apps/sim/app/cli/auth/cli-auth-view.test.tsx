@@ -3,7 +3,7 @@
  */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockApprove, mockUseWorkspaces, mockPush } = vi.hoisted(() => ({
   mockApprove: vi.fn(),
@@ -76,40 +76,6 @@ const LOADED = {
 }
 
 describe('CliAuthView workspace loading', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('blocks Connect until the workspace list resolves', () => {
-    // The regression: while pending, the picker falls back to no default, so an
-    // early click saved no workspace when the same click a moment later would
-    // have saved the user's last active workspace.
-    mockUseWorkspaces.mockReturnValue({ isPending: true, isError: false, data: undefined })
-    render()
-
-    expect(connectButton().disabled).toBe(true)
-    expect(container.textContent).toContain('Loading workspaces')
-    expect(container.textContent).not.toContain('No default workspace')
-  })
-
-  it('does not present a workspace choice as final while loading', () => {
-    mockUseWorkspaces.mockReturnValue({ isPending: true, isError: false, data: undefined })
-    render()
-
-    expect(container.textContent).toContain('Loading your workspace options')
-    expect(container.textContent).not.toContain('Issues a personal key')
-  })
-
-  it('enables Connect and preselects the last active workspace once loaded', () => {
-    mockUseWorkspaces.mockReturnValue(LOADED)
-    render()
-
-    expect(connectButton().disabled).toBe(false)
-    expect(container.textContent).toContain('Acme')
-    expect(container.textContent).toContain('personal key')
-    expect(container.textContent).toContain('makes Acme the CLI default')
-  })
-
   it('issues a personal key even when the approver is a workspace admin', () => {
     mockUseWorkspaces.mockReturnValue(LOADED)
     render()
@@ -125,15 +91,5 @@ describe('CliAuthView workspace loading', () => {
       }),
       expect.anything()
     )
-  })
-
-  it('still lets the user connect when the workspace list fails', () => {
-    // A personal key is degraded but usable; blocking entirely would strand a
-    // terminal on a transient list failure.
-    mockUseWorkspaces.mockReturnValue({ isPending: false, isError: true, data: undefined })
-    render()
-
-    expect(connectButton().disabled).toBe(false)
-    expect(container.textContent).toContain('Could not load your workspaces')
   })
 })

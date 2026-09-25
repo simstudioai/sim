@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { execFile } from 'node:child_process'
 import { createReadStream } from 'node:fs'
 import { copyFile, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
@@ -237,7 +236,6 @@ let registered: boolean
 let storedProvenance: WorkspaceFileSecretProvenance | undefined
 
 beforeEach(async () => {
-  vi.clearAllMocks()
   resetDbChainMock()
   uploaded = undefined
   registered = false

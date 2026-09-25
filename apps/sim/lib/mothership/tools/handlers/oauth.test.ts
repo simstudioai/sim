@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -45,7 +42,6 @@ const context: ToolExecutionContext = {
 
 describe('executeOAuthGetAuthLink', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getBaseUrl.mockReturnValue('https://sim.test')
     mocks.execute.mockResolvedValue({
       serviceName: 'Gmail',

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'

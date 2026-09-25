@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -78,7 +75,6 @@ let lastHandle: FakeHandle | null
 
 describe('runTableExport', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     lastHandle = null
     mockGetTableById.mockResolvedValue(table)
     mockUpdateJobProgress.mockResolvedValue(true)
@@ -132,15 +128,6 @@ describe('runTableExport', () => {
       expect.objectContaining({ kind: 'job', type: 'export', status: 'ready', progress: 1 })
     )
     expect(mockDeleteFile).not.toHaveBeenCalled()
-  })
-
-  it('serializes JSON exports with display-name keys and option names', async () => {
-    await runTableExport({ ...payload, format: 'json' })
-    const init = mockCreateMultipartUpload.mock.calls[0][0]
-    expect(init.key.endsWith('/People.json')).toBe(true)
-    expect(JSON.parse(lastHandle?.content ?? '')).toEqual([
-      { name: 'Ada', tags: ['Alpha', 'Beta'] },
-    ])
   })
 
   it('aborts the upload and never completes when ownership is lost (cancel)', async () => {

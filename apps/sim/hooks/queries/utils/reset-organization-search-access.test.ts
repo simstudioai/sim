@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { expect, it, vi } from 'vitest'
 import type { WorkspaceKnowledgeSearchResult } from '@/lib/api/contracts/knowledge/search'

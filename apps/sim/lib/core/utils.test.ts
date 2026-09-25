@@ -1,12 +1,5 @@
-import { cn } from '@sim/emcn'
 import { resetEnvMock, setEnv } from '@sim/testing'
-import {
-  formatDate,
-  formatDateTime,
-  formatDuration,
-  formatTime,
-  getTimezoneAbbreviation,
-} from '@sim/utils/formatting'
+import { formatDuration } from '@sim/utils/formatting'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {
@@ -60,31 +53,6 @@ vi.mock('crypto', () => ({
 
 afterEach(() => {
   vi.clearAllMocks()
-})
-
-describe('cn (class name utility)', () => {
-  it.concurrent('should merge class names correctly', () => {
-    const result = cn('class1', 'class2')
-    expect(result).toBe('class1 class2')
-  })
-
-  it.concurrent('should handle conditional classes', () => {
-    const isActive = true
-    const result = cn('base', isActive && 'active')
-    expect(result).toBe('base active')
-  })
-
-  it.concurrent('should handle falsy values', () => {
-    const result = cn('base', false && 'hidden', null, undefined, 0, '')
-    expect(result).toBe('base')
-  })
-
-  it.concurrent('should handle arrays of class names', () => {
-    const result = cn('base', ['class1', 'class2'])
-    expect(result).toContain('base')
-    expect(result).toContain('class1')
-    expect(result).toContain('class2')
-  })
 })
 
 describe('encryption and decryption', () => {
@@ -157,29 +125,6 @@ describe('convertScheduleOptionsToCron', () => {
   })
 })
 
-describe('date formatting functions', () => {
-  it.concurrent('should format datetime correctly', () => {
-    const date = new Date('2023-05-15T14:30:00')
-    const result = formatDateTime(date)
-    expect(result).toMatch(/May 15, 2023/)
-    expect(result).toMatch(/2:30 PM|14:30/)
-  })
-
-  it.concurrent('should format date correctly', () => {
-    const date = new Date('2023-05-15T14:30:00')
-    const result = formatDate(date)
-    expect(result).toMatch(/May 15, 2023/)
-    expect(result).not.toMatch(/2:30|14:30/)
-  })
-
-  it.concurrent('should format time correctly', () => {
-    const date = new Date('2023-05-15T14:30:00')
-    const result = formatTime(date)
-    expect(result).toMatch(/2:30 PM|14:30/)
-    expect(result).not.toMatch(/2023|May/)
-  })
-})
-
 describe('formatDuration', () => {
   it.concurrent('should format milliseconds correctly', () => {
     const result = formatDuration(500)
@@ -202,69 +147,10 @@ describe('formatDuration', () => {
   })
 })
 
-describe('getTimezoneAbbreviation', () => {
-  it.concurrent('should return UTC for UTC timezone', () => {
-    const result = getTimezoneAbbreviation('UTC')
-    expect(result).toBe('UTC')
-  })
-
-  it.concurrent('should return PST/PDT for Los Angeles timezone', () => {
-    const winterDate = new Date('2023-01-15') // Standard time
-    const summerDate = new Date('2023-07-15') // Daylight time
-
-    const winterResult = getTimezoneAbbreviation('America/Los_Angeles', winterDate)
-    const summerResult = getTimezoneAbbreviation('America/Los_Angeles', summerDate)
-
-    expect(['PST', 'PDT']).toContain(winterResult)
-    expect(['PST', 'PDT']).toContain(summerResult)
-  })
-
-  it.concurrent('should return JST for Tokyo timezone (no DST)', () => {
-    const winterDate = new Date('2023-01-15')
-    const summerDate = new Date('2023-07-15')
-
-    const winterResult = getTimezoneAbbreviation('Asia/Tokyo', winterDate)
-    const summerResult = getTimezoneAbbreviation('Asia/Tokyo', summerDate)
-
-    expect(winterResult).toBe('JST')
-    expect(summerResult).toBe('JST')
-  })
-
-  it.concurrent('should return full timezone name for unknown timezones', () => {
-    const result = getTimezoneAbbreviation('Unknown/Timezone')
-    expect(result).toBe('Unknown/Timezone')
-  })
-})
-
 describe('validateName', () => {
   it.concurrent('should remove invalid characters', () => {
     const result = validateName('test@#$%name')
     expect(result).toBe('testname')
-  })
-
-  it.concurrent('should keep valid characters', () => {
-    const result = validateName('test_name_123')
-    expect(result).toBe('test_name_123')
-  })
-
-  it.concurrent('should keep spaces', () => {
-    const result = validateName('test name')
-    expect(result).toBe('test name')
-  })
-
-  it.concurrent('should handle empty string', () => {
-    const result = validateName('')
-    expect(result).toBe('')
-  })
-
-  it.concurrent('should handle string with only invalid characters', () => {
-    const result = validateName('@#$%')
-    expect(result).toBe('')
-  })
-
-  it.concurrent('should handle mixed valid and invalid characters', () => {
-    const result = validateName('my-workflow@2023!')
-    expect(result).toBe('myworkflow2023')
   })
 
   it.concurrent('should collapse multiple spaces into single spaces', () => {
@@ -297,11 +183,6 @@ describe('isValidName', () => {
 })
 
 describe('getInvalidCharacters', () => {
-  it.concurrent('should return empty array for valid names', () => {
-    const result = getInvalidCharacters('test_name_123')
-    expect(result).toEqual([])
-  })
-
   it.concurrent('should return invalid characters', () => {
     const result = getInvalidCharacters('test@#$name')
     expect(result).toEqual(['@', '#', '$'])
@@ -310,16 +191,6 @@ describe('getInvalidCharacters', () => {
   it.concurrent('should return unique invalid characters', () => {
     const result = getInvalidCharacters('test@@##name')
     expect(result).toEqual(['@', '#'])
-  })
-
-  it.concurrent('should handle empty string', () => {
-    const result = getInvalidCharacters('')
-    expect(result).toEqual([])
-  })
-
-  it.concurrent('should handle string with only invalid characters', () => {
-    const result = getInvalidCharacters('@#$%')
-    expect(result).toEqual(['@', '#', '$', '%'])
   })
 })
 

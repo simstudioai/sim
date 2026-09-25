@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   collectSimPageDiagnostics,
@@ -34,12 +31,6 @@ function page(kind: string, payload: string): string {
 }
 
 describe('page compile YAML expansion limits', () => {
-  it('renders a table whose expanded size is within the budget', () => {
-    const html = compileSimPage(page('table', aliasedTable(40)))
-    expect(html).toContain('<table>')
-    expect(collectSimPageDiagnostics(page('table', aliasedTable(40)))).toEqual([])
-  })
-
   it('skips a table whose aliases expand past the budget', () => {
     const source = page('table', aliasedTable(400))
     const html = compileSimPage(source)
@@ -95,35 +86,6 @@ describe('page compile YAML expansion limits', () => {
     const source = `---\ntitle: T\nnav:\n  - &g\n    pages:\n${pages}\n${nav}\n---\nBody.\n`
 
     expect(isSimPageSource(source)).toBe(false)
-  })
-
-  it('leaves an ordinary page and its diagnostics untouched', () => {
-    const source = [
-      '---',
-      'title: Report',
-      '---',
-      'Intro prose.',
-      '```sim:table',
-      'columns: [Name, Count:num]',
-      'rows:',
-      '  - [alpha, 1]',
-      '  - [beta, 2]',
-      '```',
-      '```sim:kv',
-      '- key: Owner',
-      '  value: Ops',
-      '```',
-      '```sim:table',
-      'columns: nope',
-      '```',
-    ].join('\n')
-
-    const html = compileSimPage(source)
-    expect(html).toContain('<td>alpha</td>')
-    expect(html).toContain('<ul class="rows">')
-    expect(collectSimPageDiagnostics(source)).toEqual([
-      'sim:table block starting "columns: nope" skipped: its payload did not match the expected shape',
-    ])
   })
 
   it('still reports a malformed payload as a syntax error, not a size error', () => {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -63,7 +60,6 @@ function makeRow(overrides: Partial<ForkableChatFileRow> = {}): ForkableChatFile
 
 describe('planChatFileCopies', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGenerateKey.mockReturnValue('workspace/ws-1/2-cat.png')
   })
 
@@ -146,7 +142,6 @@ describe('executeChatFileBlobCopies', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockDownloadFile.mockResolvedValue(Buffer.from('0123456789'))
     mockUploadFile.mockResolvedValue(undefined)
   })

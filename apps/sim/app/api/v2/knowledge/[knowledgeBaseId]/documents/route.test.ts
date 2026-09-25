@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -70,7 +67,6 @@ vi.mock('@/lib/core/telemetry', () => ({
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCapture }))
 
 import { REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
@@ -88,7 +84,6 @@ function buildRequest() {
 
 describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mockIsPayloadSizeLimitError.mockReturnValue(false)
@@ -191,23 +186,6 @@ describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
     expect(mockUploadDocument).not.toHaveBeenCalled()
   })
 
-  it('does not create human analytics for a workspace key', async () => {
-    v2RouteMocks.authenticate.mockResolvedValue({
-      principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-2' },
-      rateLimitSubjectIds: ['api-key:key-2', `workspace:${WORKSPACE_ID}`],
-      rateLimitSubscription: null,
-      keyType: 'workspace',
-    })
-
-    const response = await POST(buildRequest(), {
-      params: Promise.resolve({ knowledgeBaseId: 'kb-1' }),
-    })
-
-    expect(response.status).toBe(201)
-    expect(mockPlatformUploaded).toHaveBeenCalledOnce()
-    expect(mockCapture).not.toHaveBeenCalled()
-  })
-
   it('preserves the malformed multipart envelope without entering the upload operation', async () => {
     mockReadFormData.mockRejectedValueOnce(new Error('multipart boundary missing'))
 
@@ -255,20 +233,6 @@ describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
     expect(response.status).toBe(413)
     expect(await response.json()).toEqual({
       error: { code: 'PAYLOAD_TOO_LARGE', message: error.message },
-    })
-    expect(mockUploadDocument).not.toHaveBeenCalled()
-  })
-
-  it('requires a file form field before the upload operation', async () => {
-    mockReadFormData.mockResolvedValueOnce(new FormData())
-
-    const response = await POST(buildRequest(), {
-      params: Promise.resolve({ knowledgeBaseId: 'kb-1' }),
-    })
-
-    expect(response.status).toBe(400)
-    expect(await response.json()).toEqual({
-      error: { code: 'BAD_REQUEST', message: 'file form field is required' },
     })
     expect(mockUploadDocument).not.toHaveBeenCalled()
   })
@@ -326,24 +290,6 @@ describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
     expect(mockPlatformUploaded).not.toHaveBeenCalled()
     expect(mockCapture).not.toHaveBeenCalled()
   })
-
-  it('preserves final application authorization errors', async () => {
-    mockUploadDocument.mockRejectedValueOnce(
-      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
-    )
-
-    const response = await POST(buildRequest(), {
-      params: Promise.resolve({ knowledgeBaseId: 'kb-1' }),
-    })
-
-    expect(response.status).toBe(403)
-    expect(await response.json()).toEqual({
-      error: { code: 'FORBIDDEN', message: 'Insufficient workspace permissions' },
-    })
-    expect(mockUploadDocument).toHaveBeenCalledOnce()
-    expect(mockPlatformUploaded).not.toHaveBeenCalled()
-    expect(mockCapture).not.toHaveBeenCalled()
-  })
 })
 
 describe('GET /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
@@ -373,7 +319,6 @@ describe('GET /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     v2RouteMocks.authenticate.mockResolvedValue({

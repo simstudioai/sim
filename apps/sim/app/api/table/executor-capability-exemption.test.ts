@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * The raw `/api/table/**` routes that authenticate with
  * `checkSessionOrInternalAuth` accept an internal executor JWT, whose `userId`
  * is the subject the executor embedded rather than a person asking for
@@ -104,7 +102,6 @@ function startImport() {
 
 describe('the subject the raw table routes gate on', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetPermissionGroupScopeMock()
     mocks.checkWorkspaceAccess.mockResolvedValue({ hasAccess: true })
     mocks.getUserEntityPermissions.mockResolvedValue('admin')

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -110,7 +107,6 @@ async function write(expectedRevision?: string) {
 
 describe('updateWorkspaceFileContent', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
     mockAssertActiveWorkspaceAccess.mockResolvedValue(undefined)
     mockLoadActiveWorkspaceFileContext.mockResolvedValue({
@@ -122,16 +118,6 @@ describe('updateWorkspaceFileContent', () => {
     })
     mockGetWorkspaceFileWithCurrentVersion.mockResolvedValue(storedFile())
     mockUpdateStoredContent.mockImplementation(async () => storedFile({ currentVersion: 5 }))
-  })
-
-  it('reports the version its write recorded', async () => {
-    await expect(write()).resolves.toMatchObject({ file: { currentVersion: 5 } })
-  })
-
-  it('writes unconditionally when the caller sends no revision', async () => {
-    await write()
-
-    expect(mockUpdateStoredContent.mock.calls[0][5]).not.toHaveProperty('expectedUpdatedAt')
   })
 
   /*

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { requestUtilsMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,7 +18,6 @@ const request = new Request('http://localhost')
 
 describe('enforcePublicFileRateLimit', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     requestUtilsMockFns.mockGetClientIp.mockReturnValue('192.0.2.1')
     mockCheckRateLimitDirect.mockResolvedValue({ allowed: true })
   })

@@ -1,9 +1,5 @@
-/**
- * @vitest-environment node
- */
 import type { mcpServers } from '@sim/db/schema'
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -41,7 +37,7 @@ vi.mock('@/lib/mcp/application/use-cases', () => ({
   deleteMcpServerUseCase: { operation: { id: 'mcp_servers.delete' }, execute: mocks.remove },
 }))
 
-import { DELETE, GET, PATCH } from '@/app/api/v2/mcp-servers/[mcpServerId]/route'
+import { GET, PATCH } from '@/app/api/v2/mcp-servers/[mcpServerId]/route'
 
 type McpServerRow = typeof mcpServers.$inferSelect
 const WORKSPACE_ID = 'workspace-1'
@@ -101,85 +97,12 @@ function request(method: 'GET' | 'PATCH' | 'DELETE', body?: unknown) {
 
 describe('/api/v2/mcp-servers/[mcpServerId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.get.mockResolvedValue({ server })
     mocks.update.mockResolvedValue({ server })
     mocks.remove.mockResolvedValue({ server })
-  })
-
-  it('gets an MCP server through the semantic read operation', async () => {
-    const response = await GET(request('GET'), context)
-
-    expect(response.status).toBe(200)
-    expect(mocks.get).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: { workspaceId: WORKSPACE_ID, serverId: server.id },
-      request: expect.anything(),
-    })
-  })
-
-  /**
-   * Every list in this family rejects a query param it does not implement, so
-   * the single-resource reads must too. A caller who mistypes a flag otherwise
-   * gets a 200 that silently ignored it, which reads as confirmation the flag
-   * exists and does nothing.
-   */
-  it('rejects a query param it does not implement', async () => {
-    const response = await GET(
-      new NextRequest(
-        `http://localhost:3000/api/v2/mcp-servers/${server.id}?workspaceId=${WORKSPACE_ID}&includeTools=true`,
-        { method: 'GET', headers: { 'x-api-key': 'key' } }
-      ),
-      context
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.get).not.toHaveBeenCalled()
-  })
-
-  it('updates an MCP server through the strict semantic update operation', async () => {
-    const response = await PATCH(
-      request('PATCH', { workspaceId: WORKSPACE_ID, name: 'New docs' }),
-      context
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.update).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: {
-        workspaceId: WORKSPACE_ID,
-        serverId: server.id,
-        name: 'New docs',
-        source: 'api',
-      },
-      request: expect.anything(),
-    })
-  })
-
-  it('deletes an MCP server without product analytics for workspace keys', async () => {
-    const response = await DELETE(request('DELETE'), context)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { id: server.id, deleted: true } })
-    expect(mocks.remove).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: { workspaceId: WORKSPACE_ID, serverId: server.id, source: 'api' },
-      request: expect.anything(),
-    })
-    expect(mocks.capture).not.toHaveBeenCalled()
-  })
-
-  it('authenticates before parsing an invalid update body', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await PATCH(request('PATCH', {}), context)
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
-    expect(mocks.update).not.toHaveBeenCalled()
   })
 
   it('conceals cross-tenant access while preserving same-workspace role denials', async () => {

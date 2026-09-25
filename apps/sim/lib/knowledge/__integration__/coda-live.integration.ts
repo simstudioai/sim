@@ -79,9 +79,10 @@ const permissionListSchema = z.object({
   nextPageToken: z.string().optional(),
 })
 
-describe
-  .skipIf(!tokenPath || !fixturePath || !secondEmail)
-  .sequential('live Coda ingestion and source access', () => {
+describe.skipIf(!tokenPath || !fixturePath || !secondEmail)(
+  'live Coda ingestion and source access',
+  { concurrent: false },
+  () => {
     let ids: Awaited<ReturnType<typeof seedKnowledgeAclFixture>>
     let connectorId: string
     let documentId: string
@@ -378,4 +379,5 @@ describe
       },
       120_000
     )
-  })
+  }
+)

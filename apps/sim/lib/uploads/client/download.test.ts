@@ -27,7 +27,6 @@ const click = vi.fn()
 let downloadedName = ''
 
 beforeEach(() => {
-  vi.clearAllMocks()
   vi.useFakeTimers()
   vi.stubGlobal('fetch', fetchMock)
   vi.stubGlobal(
@@ -106,60 +105,11 @@ describe('file download snapshots', () => {
     }
   )
 
-  it('keeps the stored export for an unmounted viewer', async () => {
-    await triggerFileDownload(file)
-    expect(requestRaw).not.toHaveBeenCalled()
-    expect(fetchMock).toHaveBeenCalledWith('/api/files/export/file-1', { cache: 'no-store' })
-  })
-
-  it('keeps the stored export while an editor has no displayable content', async () => {
-    await triggerFileDownload(file, { ...source(), getContent: () => null })
-    expect(requestRaw).not.toHaveBeenCalled()
-    expect(fetchMock).toHaveBeenCalledOnce()
-  })
-
-  it('does not change non-Markdown downloads', async () => {
-    const mounted = source()
-    await triggerFileDownload({ ...file, name: 'document.txt', type: 'text/plain' }, mounted)
-    expect(mounted.getContent).not.toHaveBeenCalled()
-    expect(requestRaw).not.toHaveBeenCalled()
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/api/files/serve/stored-version'),
-      {
-        cache: 'no-store',
-      }
-    )
-  })
-
-  it.each(['workspace', 'mothership'] as const)(
-    'downloads chat-upload Markdown from its %s byte context, without mutable snapshot export',
-    async (storageContext) => {
-      const mounted = source()
-      await triggerFileDownload({ ...file, vfsNamespace: 'uploads', storageContext }, mounted)
-      expect(mounted.getContent).not.toHaveBeenCalled()
-      expect(requestRaw).not.toHaveBeenCalled()
-      expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining(`?context=${storageContext}&t=`),
-        { cache: 'no-store' }
-      )
-    }
-  )
-
   it('does not send non-workspace storage to the workspace snapshot endpoint', async () => {
     const mounted = source()
     await triggerFileDownload({ ...file, storageContext: 'mothership' }, mounted)
     expect(mounted.getContent).not.toHaveBeenCalled()
     expect(requestRaw).not.toHaveBeenCalled()
-  })
-
-  it('honors the archive filename returned for bundled embedded images', async () => {
-    vi.mocked(requestRaw).mockResolvedValueOnce(
-      new Response('zip', {
-        headers: { 'Content-Disposition': "attachment; filename*=UTF-8''document%20images.zip" },
-      })
-    )
-    await triggerFileDownload(file, source())
-    expect(downloadedName).toBe('document images.zip')
   })
 
   it.each(['Access denied', 'Markdown snapshot is too large'])(

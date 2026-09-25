@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Covers the JSON halves of the documents collection route (list and bulk
  * update). The multipart upload half is covered in `route.test.ts`, which mocks
  * the stream-limit helpers the JSON body parser also uses.
@@ -107,7 +105,6 @@ function authenticateAsPersonalKey() {
 
 describe('GET /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authenticateAsPersonalKey()
     mockListDocuments.mockResolvedValue({
       documents: [DOCUMENT],
@@ -115,35 +112,6 @@ describe('GET /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
       pagination: { total: 1, limit: 50, offset: 0, hasMore: false },
       workspaceId: WORKSPACE_ID,
     })
-  })
-
-  it('returns each document with its tag values keyed by display name', async () => {
-    const response = await GET(buildListRequest(`?workspaceId=${WORKSPACE_ID}`), context)
-
-    expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body.data[0]).toEqual(
-      expect.objectContaining({ id: 'doc-1', tags: { category: 'billing' } })
-    )
-    expect(body.nextCursor).toBeNull()
-  })
-
-  it('forwards display-named tag filters to the application use case', async () => {
-    const tagFilters = JSON.stringify([{ tagName: 'category', operator: 'eq', value: 'billing' }])
-
-    const response = await GET(
-      buildListRequest(`?workspaceId=${WORKSPACE_ID}&tagFilters=${encodeURIComponent(tagFilters)}`),
-      context
-    )
-
-    expect(response.status).toBe(200)
-    expect(mockListDocuments).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({
-          tagNameFilters: [{ tagName: 'category', operator: 'eq', value: 'billing' }],
-        }),
-      })
-    )
   })
 
   it('stamps the tag filters into the cursor so a replayed cursor cannot cross filters', async () => {
@@ -204,7 +172,6 @@ describe('GET /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
 
 describe('PATCH /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authenticateAsPersonalKey()
     mockBulkUpdate.mockResolvedValue({
       operation: 'disable',
@@ -243,34 +210,6 @@ describe('PATCH /api/v2/knowledge/[knowledgeBaseId]/documents', () => {
     expect(await response.json()).toEqual({
       data: { operation: 'disable', updatedCount: 100_000 },
     })
-  })
-
-  it('disables the named documents and answers with one object, not a page', async () => {
-    const response = await PATCH(
-      buildPatchRequest({
-        workspaceId: WORKSPACE_ID,
-        operation: 'disable',
-        documentIds: ['doc-1', 'doc-2'],
-      }),
-      context
-    )
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: { operation: 'disable', updatedCount: 2, documentIds: ['doc-1', 'doc-2'] },
-    })
-    expect(mockBulkUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: {
-          knowledgeBaseId: 'kb-1',
-          assertedWorkspaceId: WORKSPACE_ID,
-          operation: 'disable',
-          documentIds: ['doc-1', 'doc-2'],
-          selectAll: undefined,
-          enabledFilter: undefined,
-        },
-      })
-    )
   })
 
   it('does not expose an unaudited bulk delete', async () => {

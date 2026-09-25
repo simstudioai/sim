@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -60,7 +57,6 @@ const STORAGE_CONTEXT = {
 
 describe('workspace file storage attribution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockResolveStorageBillingContext.mockResolvedValue(STORAGE_CONTEXT)
     mockResolveWorkspaceFileFolderTarget.mockResolvedValue(null)

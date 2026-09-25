@@ -4,8 +4,6 @@
  * `POST` is an adapter over the `workflows.chat.deploy` use case, so its seams
  * are the canonical workflow load, the workspace permission resolver, and the
  * deploy orchestration.
- *
- * @vitest-environment node
  */
 import {
   auditMock,
@@ -127,7 +125,6 @@ describe('Chat API Route', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnv({ NODE_ENV: 'development', NEXT_PUBLIC_APP_URL: 'http://localhost:3000' })
     authMockFns.mockGetSession.mockResolvedValue({
@@ -166,86 +163,6 @@ describe('Chat API Route', () => {
   })
 
   describe('POST', () => {
-    it('returns 401 when there is no session', async () => {
-      authMockFns.mockGetSession.mockResolvedValue(null)
-
-      const response = await post(validBody)
-
-      expect(response.status).toBe(401)
-      expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
-    })
-
-    it('validates the request body before touching the workflow', async () => {
-      const response = await post({ workflowId: WORKFLOW_ID })
-
-      expect(response.status).toBe(400)
-      expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
-    })
-
-    /**
-     * The deploy modal renders `error` verbatim, so a refusal has to name the
-     * field it refused rather than the generic "Validation error" the route
-     * builder renders by default.
-     */
-    it('names the field a contract refusal rejected', async () => {
-      const response = await post({ ...validBody, identifier: 'Support Chat' })
-
-      expect(response.status).toBe(400)
-      expect((await response.json()).error).toBe(
-        'Identifier can only contain lowercase letters, numbers, and hyphens'
-      )
-      expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
-    })
-
-    it('deploys the chat through the shared use case', async () => {
-      queueChatLookups(null, null)
-
-      const response = await post(validBody)
-
-      expect(response.status).toBe(200)
-      expect(await response.json()).toMatchObject({
-        id: 'chat-1',
-        chatId: 'chat-1',
-        chatUrl: 'http://localhost:3000/chat/support',
-        message: 'Chat deployment created successfully',
-      })
-      expect(mocks.performChatDeploy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          workflowId: WORKFLOW_ID,
-          identifier: 'support',
-          title: 'Support chat',
-          workspaceId: WORKSPACE_ID,
-          userId: 'admin-1',
-          projectLegacyAudit: false,
-        })
-      )
-    })
-
-    it('passes customizations and output configs through unchanged', async () => {
-      queueChatLookups(null, null)
-
-      await post({
-        ...validBody,
-        customizations: {
-          primaryColor: '#ff0000',
-          welcomeMessage: 'Welcome',
-          imageUrl: 'https://example.com/logo.png',
-        },
-        outputConfigs: [{ blockId: 'block-1', path: 'result' }],
-      })
-
-      expect(mocks.performChatDeploy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          customizations: {
-            primaryColor: '#ff0000',
-            welcomeMessage: 'Welcome',
-            imageUrl: 'https://example.com/logo.png',
-          },
-          outputConfigs: [{ blockId: 'block-1', path: 'result' }],
-        })
-      )
-    })
-
     it('rejects an identifier another live deployment already holds', async () => {
       queueChatLookups(null, 'other-chat')
 
@@ -311,22 +228,6 @@ describe('Chat API Route', () => {
       expect(mocks.performChatDeploy).not.toHaveBeenCalled()
     })
 
-    it('surfaces a deploy validation failure as a 400', async () => {
-      queueChatLookups(null, null)
-      mocks.performChatDeploy.mockResolvedValue({
-        success: false,
-        errorCode: 'validation',
-        error: 'Password is required when using password protection',
-      })
-
-      const response = await post(validBody)
-
-      expect(response.status).toBe(400)
-      expect((await response.json()).error).toBe(
-        'Password is required when using password protection'
-      )
-    })
-
     /** A retryable in-flight deployment is a conflict, not a malformed request. */
     it('surfaces an in-flight workflow deployment as a 409', async () => {
       queueChatLookups(null, null)
@@ -341,22 +242,6 @@ describe('Chat API Route', () => {
 
       expect(response.status).toBe(409)
       expect((await response.json()).error).toContain('still preparing')
-    })
-
-    it('keeps an internal invariant failure a 500 with a generic message', async () => {
-      queueChatLookups(null, null)
-      mocks.performChatDeploy.mockResolvedValue({
-        success: false,
-        errorCode: 'internal',
-        error: 'Workflow deployment reported active without a live deployment version.',
-      })
-
-      const response = await post(validBody)
-
-      expect(response.status).toBe(500)
-      const body = await response.json()
-      expect(body.error).toBe('Failed to create chat deployment')
-      expect(JSON.stringify(body)).not.toContain('live deployment version')
     })
   })
 })

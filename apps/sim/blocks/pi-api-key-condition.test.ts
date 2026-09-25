@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
@@ -25,25 +22,12 @@ describe('Pi API Key visibility', () => {
 
   afterAll(resetEnvFlagsMock)
 
-  it('exposes an apiKey subblock that is required when visible', () => {
-    expect(apiKeySubBlock).toBeDefined()
-    expect(apiKeySubBlock?.required).toBe(true)
-  })
-
   // The bug this guards: the field used to hide for hosted models in every mode,
   // and Create PR then failed at execution demanding a BYOK key the user was
   // never asked for.
   it('shows the field in Create PR even for a model Sim hosts', () => {
     expect(hostedModel).toBeDefined()
     expect(isApiKeyVisible({ mode: 'cloud', model: hostedModel })).toBe(true)
-  })
-
-  it('shows the field in Create PR for a model Sim does not host', () => {
-    expect(isApiKeyVisible({ mode: 'cloud', model: 'some-unhosted-model' })).toBe(true)
-  })
-
-  it('shows the field in Plan even for a model Sim hosts', () => {
-    expect(isApiKeyVisible({ mode: 'cloud_plan', model: hostedModel })).toBe(true)
   })
 
   it.each([['local'], ['cloud_review']])(

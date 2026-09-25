@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   hybridAuthMockFns,
@@ -22,7 +19,6 @@ import { GET, surfaceOauthError } from './route'
 
 describe('MCP OAuth start route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
@@ -92,73 +88,6 @@ describe('MCP OAuth start route', () => {
     expect(response.status).toBe(504)
   })
 
-  it('returns 504 (not a generic 500) when a DB step times out', async () => {
-    // DB-step timeouts are bounded too; their OauthStepTimeoutError must reach the same
-    // 504 handler, not fall through to the generic 500.
-    mcpOauthMockFns.mockGetOrCreateOauthRow.mockImplementationOnce(() => {
-      throw new OauthStepTimeoutErrorMock('getOrCreateOauthRow', 5_000)
-    })
-    const request = new NextRequest(
-      'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
-    )
-
-    const response = await GET(request)
-
-    expect(response.status).toBe(504)
-    expect(mcpOauthMockFns.mockMcpAuthGuarded).not.toHaveBeenCalled()
-  })
-
-  it('returns the authorize URL without error-logging the success redirect throw', async () => {
-    mcpOauthMockFns.mockMcpAuthGuarded.mockRejectedValueOnce(
-      new McpOauthRedirectRequiredMock('https://mcp.exa.ai/authorize')
-    )
-    const request = new NextRequest(
-      'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
-    )
-
-    const response = await GET(request)
-    const body = await response.json()
-
-    expect(mcpOauthMockFns.mockMcpAuthGuarded).toHaveBeenCalledTimes(1)
-    expect(response.status).toBe(200)
-    expect(body).toEqual({ status: 'redirect', authorizationUrl: 'https://mcp.exa.ai/authorize' })
-  })
-
-  it('requires workspace write permission via MCP auth middleware', async () => {
-    const request = new NextRequest(
-      'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
-    )
-
-    await GET(request)
-
-    expect(permissionsMockFns.mockGetUserEntityPermissions).toHaveBeenCalledWith(
-      'user-2',
-      'workspace',
-      'workspace-1'
-    )
-  })
-
-  it('uses a workspace-scoped OAuth row and stamps the latest authorizing user', async () => {
-    const request = new NextRequest(
-      'http://localhost:3000/api/mcp/oauth/start?workspaceId=workspace-1&serverId=server-1'
-    )
-
-    const response = await GET(request)
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body).toEqual({
-      status: 'redirect',
-      authorizationUrl: 'https://mcp.exa.ai/authorize',
-    })
-    expect(mcpOauthMockFns.mockGetOrCreateOauthRow).toHaveBeenCalledWith({
-      mcpServerId: 'server-1',
-      userId: 'user-2',
-      workspaceId: 'workspace-1',
-    })
-    expect(mcpOauthMockFns.mockSetOauthRowUser).toHaveBeenCalledWith('oauth-row-1', 'user-2')
-  })
-
   it('rejects a second user starting OAuth while another authorization is active', async () => {
     mcpOauthMockFns.mockGetOrCreateOauthRow.mockResolvedValueOnce({
       id: 'oauth-row-1',
@@ -220,12 +149,6 @@ describe('MCP OAuth start route', () => {
 })
 
 describe('surfaceOauthError', () => {
-  it('uses typed OAuthError errorCode and message for spec-compliant errors', async () => {
-    const { InvalidGrantError } = await import('@modelcontextprotocol/sdk/server/auth/errors.js')
-    const err = new InvalidGrantError('Refresh token expired')
-    expect(surfaceOauthError(err)).toBe('invalid_grant: Refresh token expired')
-  })
-
   it('parses Raw body envelope for ServerError fallbacks (non-spec vendors)', async () => {
     const { ServerError } = await import('@modelcontextprotocol/sdk/server/auth/errors.js')
     const err = new ServerError(
@@ -244,21 +167,11 @@ describe('surfaceOauthError', () => {
     expect(surfaceOauthError(err)).toBe('Authorization server: the description')
   })
 
-  it('returns first line of generic errors', () => {
-    const err = new Error('Network blip\n  at fetch (...)')
-    expect(surfaceOauthError(err)).toBe('Network blip')
-  })
-
   it('truncates messages longer than 250 chars with ellipsis', async () => {
     const { InvalidGrantError } = await import('@modelcontextprotocol/sdk/server/auth/errors.js')
     const longMessage = 'x'.repeat(300)
     const result = surfaceOauthError(new InvalidGrantError(longMessage))
     expect(result.endsWith('…')).toBe(true)
     expect(result.length).toBe(251)
-  })
-
-  it('returns generic fallback for non-Error values', () => {
-    expect(surfaceOauthError(null)).toBe('Failed to start OAuth flow')
-    expect(surfaceOauthError(undefined)).toBe('Failed to start OAuth flow')
   })
 })

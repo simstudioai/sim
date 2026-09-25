@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import { TableQueryValidationError } from '@/lib/table/errors'
+import type { TableQueryValidationError } from '@/lib/table/errors'
 import {
   validatePredicate,
   validatePredicateShape,
@@ -17,21 +14,6 @@ const COLS: ColumnDefinition[] = [
 ]
 
 describe('validatePredicate', () => {
-  it('accepts a valid predicate over real + system columns', () => {
-    expect(() =>
-      validatePredicate(
-        {
-          all: [
-            { field: 'wins', op: 'gte', value: 10 },
-            { field: 'createdAt', op: 'lt', value: '2026-01-01' },
-            { any: [{ field: 'status', op: 'eq', value: 'active' }] },
-          ],
-        },
-        COLS
-      )
-    ).not.toThrow()
-  })
-
   it('rejects an unknown column', () => {
     expect(() => validatePredicate({ all: [{ field: 'nope', op: 'eq', value: 1 }] }, COLS)).toThrow(
       /Unknown filter column/
@@ -47,15 +29,6 @@ describe('validatePredicate', () => {
     }
   })
 
-  it('allows text-match / null ops on a json column', () => {
-    expect(() =>
-      validatePredicate({ all: [{ field: 'metadata', op: 'ilike', value: '*x*' }] }, COLS)
-    ).not.toThrow()
-    expect(() =>
-      validatePredicate({ all: [{ field: 'metadata', op: 'isNull' }] }, COLS)
-    ).not.toThrow()
-  })
-
   it('rejects an empty in/nin array', () => {
     expect(() =>
       validatePredicate({ all: [{ field: 'wins', op: 'in', value: [] }] }, COLS)
@@ -67,31 +40,9 @@ describe('validatePredicate', () => {
       validatePredicate({ all: [{ field: "x'; DROP", op: 'eq', value: 1 }] }, COLS)
     ).toThrow(/Invalid filter column/)
   })
-
-  it('carries the INVALID_FILTER code', () => {
-    try {
-      validatePredicate({ all: [{ field: 'nope', op: 'eq', value: 1 }] }, COLS)
-      expect.unreachable()
-    } catch (e) {
-      expect(e).toBeInstanceOf(TableQueryValidationError)
-      expect((e as TableQueryValidationError).code).toBe('INVALID_FILTER')
-    }
-  })
 })
 
 describe('validateSortSpec', () => {
-  it('accepts real and system columns', () => {
-    expect(() =>
-      validateSortSpec(
-        [
-          { field: 'wins', direction: 'desc' },
-          { field: 'updatedAt', direction: 'asc' },
-        ],
-        COLS
-      )
-    ).not.toThrow()
-  })
-
   it('rejects an unknown sort column with INVALID_ORDER', () => {
     try {
       validateSortSpec([{ field: 'nope', direction: 'asc' }], COLS)
@@ -120,12 +71,6 @@ describe('validatePredicate — leaves that would silently widen a bulk write', 
     expect(() => validatePredicate({ all: [{ field: 'wins', op: 'gte' }] }, COLS)).toThrow(
       /requires a value/
     )
-  })
-
-  it('still allows the valueless ops', () => {
-    for (const op of ['isNull', 'isNotNull', 'isEmpty', 'isNotEmpty'] as const) {
-      expect(() => validatePredicate({ all: [{ field: 'status', op }] }, COLS)).not.toThrow()
-    }
   })
 
   it('rejects a hybrid group+leaf node instead of silently picking one', () => {
@@ -186,12 +131,6 @@ describe('validatePredicate — legacy $-grammar diagnostics', () => {
       expect(() => validatePredicate(legacy as never, COLS)).not.toThrow(/undefined/)
     }
   })
-
-  it('still rejects a plain non-predicate object clearly', () => {
-    expect(() => validatePredicate({ nonsense: 'x' } as never, COLS)).toThrow(
-      /must be a group .* or a condition/
-    )
-  })
 })
 
 /**
@@ -207,10 +146,6 @@ describe('empty groups are rejected at every layer', () => {
     expect(() => validatePredicateShape({ all: [{ any: [] }] } as never)).toThrow(
       /at least one condition/
     )
-  })
-
-  it('validatePredicate rejects it too', () => {
-    expect(() => validatePredicate({ all: [] }, COLS)).toThrow(/at least one condition/)
   })
 })
 

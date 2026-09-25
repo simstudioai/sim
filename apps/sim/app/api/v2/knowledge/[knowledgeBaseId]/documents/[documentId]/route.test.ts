@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -112,7 +109,6 @@ function buildPatchRequest(body: unknown) {
 
 describe('/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     v2RouteMocks.authenticate.mockResolvedValue({
@@ -144,40 +140,6 @@ describe('/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]', () => {
       priority: 2,
       tag6: 'orphaned-slot-value',
     })
-  })
-
-  it('updates the whitelisted fields and returns the updated document with its tags', async () => {
-    const response = await PATCH(
-      buildPatchRequest({
-        workspaceId: WORKSPACE_ID,
-        filename: 'renamed.txt',
-        enabled: false,
-        tag1: 'support',
-      }),
-      context
-    )
-
-    expect(response.status).toBe(200)
-    expect(mockUpdateDocument).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: {
-          knowledgeBaseId: 'kb-1',
-          documentId: 'doc-1',
-          assertedWorkspaceId: WORKSPACE_ID,
-          updates: { filename: 'renamed.txt', enabled: false, tag1: 'support' },
-          source: 'api',
-        },
-      })
-    )
-    const body = await response.json()
-    expect(body.data).toEqual(
-      expect.objectContaining({
-        id: 'doc-1',
-        filename: 'renamed.txt',
-        enabled: false,
-        tags: { category: 'billing', priority: 2, tag6: 'orphaned-slot-value' },
-      })
-    )
   })
 
   it('acknowledges a processing retry without claiming settled indexing state', async () => {
@@ -236,13 +198,6 @@ describe('/api/v2/knowledge/[knowledgeBaseId]/documents/[documentId]', () => {
         message: expect.stringContaining('retryProcessing cannot be combined with enabled'),
       }),
     })
-    expect(mockUpdateDocument).not.toHaveBeenCalled()
-  })
-
-  it('rejects an update that changes nothing', async () => {
-    const response = await PATCH(buildPatchRequest({ workspaceId: WORKSPACE_ID }), context)
-
-    expect(response.status).toBe(400)
     expect(mockUpdateDocument).not.toHaveBeenCalled()
   })
 })

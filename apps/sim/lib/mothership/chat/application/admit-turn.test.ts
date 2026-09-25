@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { copilotChats, copilotRuns, member } from '@sim/db/schema'
 import {
   dbChainMockFns,
@@ -69,7 +68,6 @@ function input(mode: 'assistant' | 'agent' | 'plan' = 'assistant') {
 
 describe('organization turn admission through current private-chat authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.config.mockResolvedValue(null)
     mocks.banned.mockResolvedValue([])

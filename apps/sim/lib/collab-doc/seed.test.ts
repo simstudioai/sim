@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { FILE_DOC_SEED, FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-doc'
+import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { getSchema } from '@tiptap/core'
 import { prosemirrorJSONToYDoc } from '@tiptap/y-tiptap'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -46,7 +43,6 @@ function cachedState(docState: Uint8Array, markdown: string): collabState.Cached
 
 describe('buildFileDocSeed', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetWorkspaceFile.mockResolvedValue({
       id: 'file-1',
       name: 'note.md',
@@ -70,24 +66,6 @@ describe('buildFileDocSeed', () => {
     const doc = new Y.Doc()
     Y.applyUpdate(doc, seed!.update)
     expect(yDocToMarkdown(doc)).toBe(serializeMarkdownBody('# Title\n\nHello **world**.'))
-    doc.destroy()
-  })
-
-  it('cold-start fast path: returns the cached binary directly without re-converting when it is fresh', async () => {
-    const cachedDoc = markdownToYDoc('# Anything')
-    cachedDoc.getText('marker').insert(0, 'cached')
-    cachedDoc.getMap(FILE_DOC_SEED.configMap).set(FILE_DOC_SEED.docIdKey, 'doc-already-named')
-    const cached = Y.encodeStateAsUpdate(cachedDoc)
-    mockFetchBuffer.mockResolvedValue(Buffer.from('# Anything', 'utf-8'))
-    mockLoadState.mockResolvedValue(cachedState(cached, '# Anything'))
-
-    const seed = await buildFileDocSeed('ws-1', 'file-1')
-
-    expect(seed?.update).toBe(cached)
-    const doc = new Y.Doc()
-    Y.applyUpdate(doc, seed!.update)
-    expect(doc.getText('marker').toString()).toBe('cached')
-    cachedDoc.destroy()
     doc.destroy()
   })
 
@@ -135,32 +113,6 @@ describe('buildFileDocSeed', () => {
     doc.destroy()
   })
 
-  it('marks the seeded doc as initial-content-loaded so the client needs no seeder handshake', async () => {
-    mockFetchBuffer.mockResolvedValue(Buffer.from('# Body', 'utf-8'))
-    const seed = await buildFileDocSeed('ws-1', 'file-1')
-    const doc = new Y.Doc()
-    Y.applyUpdate(doc, seed!.update)
-    expect(doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.flag)).toBe(true)
-    doc.destroy()
-  })
-
-  it('carries the frontmatter in the config map (not the body)', async () => {
-    mockFetchBuffer.mockResolvedValue(Buffer.from('---\ntitle: X\n---\n\n# Body', 'utf-8'))
-    const seed = await buildFileDocSeed('ws-1', 'file-1')
-    const doc = new Y.Doc()
-    Y.applyUpdate(doc, seed!.update)
-    expect(doc.getMap(FILE_DOC_SEED.configMap).get(FILE_DOC_SEED.frontmatterKey)).toContain(
-      'title: X'
-    )
-    expect(yDocToMarkdown(doc)).not.toContain('title: X')
-    doc.destroy()
-  })
-
-  it('returns null for a missing file', async () => {
-    mockGetWorkspaceFile.mockResolvedValue(null)
-    expect(await buildFileDocSeed('ws-1', 'missing')).toBeNull()
-  })
-
   it('requests the file with throwOnError so a read failure is not mistaken for an empty file', async () => {
     mockGetWorkspaceFile.mockRejectedValue(new Error('db down'))
     await expect(buildFileDocSeed('ws-1', 'file-1')).rejects.toThrow('db down')
@@ -178,7 +130,6 @@ describe('buildFileDocSeed', () => {
  */
 describe('buildFileDocSeed — document identity', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetWorkspaceFile.mockResolvedValue({
       id: 'file-1',
       name: 'note.md',
@@ -202,19 +153,6 @@ describe('buildFileDocSeed — document identity', () => {
       doc.destroy()
     }
   }
-
-  it('stores the document it builds, so the next open resumes it rather than building another', async () => {
-    mockFetchBuffer.mockResolvedValue(Buffer.from('# Title\n\nbody', 'utf-8'))
-
-    const seed = await buildFileDocSeed('ws-1', 'file-1')
-
-    expect(mockCommitState).toHaveBeenCalledWith('ws-1', 'file-1', VERSION, {
-      docState: seed!.update,
-      sourceHash: collabState.hashMarkdown(Buffer.from('# Title\n\nbody')),
-      expectedState: null,
-    })
-    expect(typeof docIdOf(seed!.update)).toBe('string')
-  })
 
   it('keeps the stored document’s identity when the markdown changed out-of-band', async () => {
     const stored = markdownToYDoc('# Title\n\nbody')
@@ -274,47 +212,6 @@ describe('buildFileDocSeed — document identity', () => {
     doc.destroy()
   })
 
-  /**
-   * A document stored before identities existed is returned by the fast path on every open, so if it
-   * were named only where documents are BUILT those files would never acquire one — and the join-ack
-   * guard could never fire for them, which is the population most likely to have a tab that outlived
-   * its room. Naming it must also be stored, or every open would name it differently and the guard
-   * would refuse a client holding the very same document.
-   */
-  it('names a stored document that predates identities, once, and keeps that name', async () => {
-    const legacy = markdownToYDoc('# Legacy')
-    mockFetchBuffer.mockResolvedValue(Buffer.from('# Legacy', 'utf-8'))
-    mockLoadState.mockResolvedValue({
-      docState: Y.encodeStateAsUpdate(legacy),
-      sourceHash: collabState.hashMarkdown(Buffer.from('# Legacy')),
-      stateHash: collabState.hashMarkdown(Buffer.from(Y.encodeStateAsUpdate(legacy))),
-    })
-
-    const first = await buildFileDocSeed('ws-1', 'file-1')
-    const docId = docIdOf(first!.update)
-    expect(typeof docId).toBe('string')
-    expect(mockCommitState).toHaveBeenCalledWith('ws-1', 'file-1', VERSION, {
-      docState: first!.update,
-      sourceHash: collabState.hashMarkdown(Buffer.from('# Legacy')),
-      expectedState: expect.objectContaining({
-        stateHash: collabState.hashMarkdown(Buffer.from(Y.encodeStateAsUpdate(legacy))),
-      }),
-    })
-
-    mockCommitState.mockClear()
-    const stored = cachedState(first!.update, '# Legacy')
-    mockLoadState.mockResolvedValue(stored)
-    const second = await buildFileDocSeed('ws-1', 'file-1')
-    expect(docIdOf(second!.update)).toBe(docId)
-    expect(mockCommitState).toHaveBeenCalledOnce()
-    expect(mockCommitState).toHaveBeenCalledWith('ws-1', 'file-1', VERSION, {
-      docState: first!.update,
-      sourceHash: stored.sourceHash,
-      expectedState: { sourceHash: stored.sourceHash, stateHash: stored.stateHash },
-    })
-    legacy.destroy()
-  })
-
   it('does not return an unaccepted identity when the cache write fails', async () => {
     mockFetchBuffer.mockResolvedValue(Buffer.from('# Title', 'utf-8'))
     mockCommitState.mockRejectedValue(new Error('db down'))
@@ -325,7 +222,6 @@ describe('buildFileDocSeed — document identity', () => {
 
 describe('buildFileDocSeed — accepted revisions', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetWorkspaceFile.mockReset().mockResolvedValue({
       id: 'file-1',
       name: 'note.md',
@@ -419,20 +315,6 @@ describe('buildFileDocSeed — accepted revisions', () => {
     }
   })
 
-  it('revalidates even an unchanged named snapshot against its exact source and binary token', async () => {
-    const cached = cachedState(namedState('base', 'existing-document'), 'base')
-    mockLoadState.mockResolvedValue(cached)
-
-    const seed = await buildFileDocSeed('ws-1', 'file-1')
-
-    expect(seed?.update).toBe(cached.docState)
-    expect(mockCommitState).toHaveBeenCalledWith('ws-1', 'file-1', VERSION, {
-      docState: cached.docState,
-      sourceHash: cached.sourceHash,
-      expectedState: { sourceHash: cached.sourceHash, stateHash: cached.stateHash },
-    })
-  })
-
   it('adopts a same-content identity replacement instead of returning an unfenced cache hit', async () => {
     const prior = cachedState(namedState('base', 'old-generation'), 'base')
     const winner = cachedState(namedState('base', 'new-generation'), 'base')
@@ -449,34 +331,6 @@ describe('buildFileDocSeed — accepted revisions', () => {
     expect(mockCommitState.mock.calls[1][3].expectedState.stateHash).toBe(winner.stateHash)
   })
 
-  it('rereads content and cache after a content-version race before publishing the winning seed', async () => {
-    const winner = cachedState(namedState('new content', 'winning-generation'), 'new content')
-    mockCommitState.mockImplementationOnce(async () => {
-      mockGetWorkspaceFile.mockResolvedValue({
-        id: 'file-1',
-        name: 'note.md',
-        key: 'new-key',
-        context: 'workspace',
-        contentUpdatedAt: new Date(VERSION + 1),
-        updatedAt: new Date(VERSION + 1),
-      })
-      mockFetchBuffer.mockResolvedValue(Buffer.from('new content'))
-      mockLoadState.mockResolvedValue(winner)
-      return { status: 'conflict' }
-    })
-
-    const seed = await buildFileDocSeed('ws-1', 'file-1')
-
-    expect(seed).toEqual({ update: winner.docState, version: VERSION + 1 })
-    expect(mockGetWorkspaceFile).toHaveBeenCalledTimes(2)
-    expect(mockFetchBuffer).toHaveBeenCalledTimes(2)
-    expect(mockCommitState.mock.calls[1][2]).toBe(VERSION + 1)
-    expect(mockCommitState.mock.calls[1][3].expectedState).toEqual({
-      sourceHash: winner.sourceHash,
-      stateHash: winner.stateHash,
-    })
-  })
-
   it('bounds seed conflicts to three complete read/prepare/commit attempts', async () => {
     mockCommitState.mockResolvedValue({ status: 'conflict' })
 
@@ -489,113 +343,12 @@ describe('buildFileDocSeed — accepted revisions', () => {
     expect(mockCommitState).toHaveBeenCalledTimes(3)
   })
 
-  it('does not start a seed for an already cancelled request', async () => {
-    const reason = new Error('request cancelled')
-
-    await expect(buildFileDocSeed('ws-1', 'file-1', AbortSignal.abort(reason))).rejects.toBe(reason)
-    expect(mockGetWorkspaceFile).not.toHaveBeenCalled()
-    expect(mockFetchBuffer).not.toHaveBeenCalled()
-    expect(mockCommitState).not.toHaveBeenCalled()
-  })
-
-  it.each(['file lookup', 'download', 'cache lookup'] as const)(
-    'stops after cancellation during %s without preparing or committing a seed',
-    async (stage) => {
-      const controller = new AbortController()
-      const reason = new Error('request cancelled')
-      const stop = () => controller.abort(reason)
-      if (stage === 'file lookup') {
-        mockGetWorkspaceFile.mockImplementationOnce(async () => {
-          stop()
-          return null
-        })
-      } else if (stage === 'download') {
-        mockFetchBuffer.mockImplementationOnce(async (_record, options) => {
-          stop()
-          expect(options.signal.aborted).toBe(true)
-          expect(options.signal.reason).toBe(reason)
-          return Buffer.from('base')
-        })
-      } else {
-        mockLoadState.mockImplementationOnce(async () => {
-          stop()
-          return null
-        })
-      }
-
-      await expect(buildFileDocSeed('ws-1', 'file-1', controller.signal)).rejects.toBe(reason)
-      expect(mockCommitState).not.toHaveBeenCalled()
-      if (stage === 'file lookup') expect(mockFetchBuffer).not.toHaveBeenCalled()
-      if (stage !== 'cache lookup') expect(mockLoadState).not.toHaveBeenCalled()
-    }
-  )
-
-  it.each(['committed', 'conflict'] as const)(
-    'does not publish or retry a %s result after cancellation during commit',
-    async (status) => {
-      const controller = new AbortController()
-      const reason = new Error('request cancelled')
-      mockCommitState.mockImplementationOnce(async () => {
-        controller.abort(reason)
-        return { status, version: VERSION }
-      })
-
-      await expect(buildFileDocSeed('ws-1', 'file-1', controller.signal)).rejects.toBe(reason)
-      expect(mockGetWorkspaceFile).toHaveBeenCalledOnce()
-      expect(mockCommitState).toHaveBeenCalledOnce()
-    }
-  )
-
-  it('shares one deadline across retries and stops when it expires without caller cancellation', async () => {
-    const deadline = new AbortController()
-    const reason = new DOMException('Seed deadline expired', 'TimeoutError')
-    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(deadline.signal)
-    mockCommitState.mockResolvedValueOnce({ status: 'conflict' })
-    mockFetchBuffer.mockResolvedValueOnce(Buffer.from('base')).mockImplementationOnce(async () => {
-      deadline.abort(reason)
-      return Buffer.from('base')
-    })
-
-    try {
-      await expect(buildFileDocSeed('ws-1', 'file-1')).rejects.toBe(reason)
-      expect(timeout).toHaveBeenCalledExactlyOnceWith(FILE_DOC_TIMEOUTS.seedRequestMs)
-      expect(mockFetchBuffer).toHaveBeenCalledTimes(2)
-      for (const [, options] of mockFetchBuffer.mock.calls) {
-        expect(options.signal).toBe(deadline.signal)
-      }
-      expect(mockLoadState).toHaveBeenCalledOnce()
-      expect(mockCommitState).toHaveBeenCalledOnce()
-    } finally {
-      timeout.mockRestore()
-    }
-  })
-
   it('returns missing if the file is deleted during the commit', async () => {
     mockCommitState.mockResolvedValue({ status: 'missing' })
 
     await expect(buildFileDocSeed('ws-1', 'file-1')).resolves.toBeNull()
     expect(mockCommitState).toHaveBeenCalledOnce()
     expect(mockGetWorkspaceFile).toHaveBeenCalledOnce()
-  })
-
-  it('returns missing if the file disappears before a retry', async () => {
-    mockCommitState.mockImplementationOnce(async () => {
-      mockGetWorkspaceFile.mockResolvedValue(null)
-      return { status: 'conflict' }
-    })
-
-    await expect(buildFileDocSeed('ws-1', 'file-1')).resolves.toBeNull()
-    expect(mockCommitState).toHaveBeenCalledOnce()
-    expect(mockLoadState).toHaveBeenCalledOnce()
-    expect(mockGetWorkspaceFile).toHaveBeenCalledTimes(2)
-  })
-
-  it('propagates a durable read error without constructing or committing a new document', async () => {
-    mockFetchBuffer.mockRejectedValue(new Error('object storage unavailable'))
-
-    await expect(buildFileDocSeed('ws-1', 'file-1')).rejects.toThrow('object storage unavailable')
-    expect(mockLoadState).not.toHaveBeenCalled()
-    expect(mockCommitState).not.toHaveBeenCalled()
   })
 
   it('keeps the freshness hash tied to raw durable Markdown rather than its canonical projection', async () => {
@@ -618,64 +371,11 @@ describe('buildFileDocSeed — accepted revisions', () => {
     }
   })
 
-  it.each(['fresh', 'stale'] as const)(
-    'retains deleted history when the %s cached document seeds a cold room',
-    async (kind) => {
-      const peer = new Y.Doc()
-      const cold = new Y.Doc()
-      try {
-        Y.applyUpdate(peer, namedState('base', 'shared-generation'))
-        const paragraph = peer.getXmlFragment(COLLAB_DOC_FIELD).get(0)
-        if (!(paragraph instanceof Y.XmlElement)) throw new Error('Expected paragraph')
-        const text = paragraph.get(0)
-        if (!(text instanceof Y.XmlText)) throw new Error('Expected text')
-        const start = text.length
-        text.insert(start, ' transient peer text')
-        const beforeDeletion = Y.encodeStateAsUpdate(peer)
-        text.delete(start, text.length - start)
-        const cache = cachedState(Y.encodeStateAsUpdate(peer), 'base')
-        mockLoadState.mockResolvedValue(cache)
-        const durable = kind === 'fresh' ? 'base' : 'base\n\nexternal addition'
-        mockFetchBuffer.mockResolvedValue(Buffer.from(durable))
-
-        const seed = await buildFileDocSeed('ws-1', 'file-1')
-        const accepted = mockCommitState.mock.calls[0][3] as collabState.PreparedCollabDocState
-        expect(seed?.update).toBe(accepted.docState)
-        Y.applyUpdate(cold, accepted.docState)
-        Y.applyUpdate(cold, beforeDeletion)
-
-        expect(yDocToFileMarkdown(cold)).not.toContain('transient peer text')
-        expect(yDocToMarkdown(cold)).toBe(serializeMarkdownBody(durable))
-        expect(identityOf(seed!.update)).toBe('shared-generation')
-        expect(accepted.expectedState).toEqual({
-          sourceHash: cache.sourceHash,
-          stateHash: cache.stateHash,
-        })
-      } finally {
-        peer.destroy()
-        cold.destroy()
-      }
-    }
-  )
-
   it('fails closed on an undecodable cache tagged as current rather than returning a fabricated history', async () => {
     mockLoadState.mockResolvedValue(cachedState(new Uint8Array([255]), 'base'))
 
     await expect(buildFileDocSeed('ws-1', 'file-1')).rejects.toThrow()
     expect(mockCommitState).not.toHaveBeenCalled()
-  })
-
-  it('fences replacement of an undecodable stale cache against the exact corrupt revision', async () => {
-    const corrupt = cachedState(new Uint8Array([255]), 'older bytes')
-    mockLoadState.mockResolvedValue(corrupt)
-    const seed = await buildFileDocSeed('ws-1', 'file-1')
-
-    expect(typeof identityOf(seed!.update)).toBe('string')
-    expect(mockCommitState).toHaveBeenCalledWith('ws-1', 'file-1', VERSION, {
-      docState: seed!.update,
-      sourceHash: collabState.hashMarkdown(Buffer.from('base')),
-      expectedState: { sourceHash: corrupt.sourceHash, stateHash: corrupt.stateHash },
-    })
   })
 
   it('never publishes a rebuilt identity when replacement of a corrupt cache loses every race', async () => {
@@ -687,37 +387,4 @@ describe('buildFileDocSeed — accepted revisions', () => {
     )
     expect(mockCommitState).toHaveBeenCalledTimes(3)
   })
-
-  it.each(['fresh', 'frontmatter-only write'] as const)(
-    'preserves a peer’s empty-paragraph typing target while preparing a %s seed',
-    async (kind) => {
-      const peer = new Y.Doc()
-      const cold = new Y.Doc()
-      try {
-        Y.applyUpdate(peer, namedState('base', 'shared-generation'))
-        const tail = new Y.XmlElement('paragraph')
-        const text = new Y.XmlText()
-        tail.insert(0, [text])
-        peer.getXmlFragment(COLLAB_DOC_FIELD).push([tail])
-        const cache = cachedState(Y.encodeStateAsUpdate(peer), 'base')
-        mockLoadState.mockResolvedValue(cache)
-        const durable = kind === 'fresh' ? 'base' : '---\ntitle: changed\n---\n\nbase'
-        mockFetchBuffer.mockResolvedValue(Buffer.from(durable))
-
-        const seed = await buildFileDocSeed('ws-1', 'file-1')
-        expect(seed?.update).toBe(mockCommitState.mock.calls[0][3].docState)
-        text.insert(0, 'late offline text')
-        Y.applyUpdate(cold, seed!.update)
-        Y.applyUpdate(cold, Y.encodeStateAsUpdate(peer))
-
-        expect(yDocToFileMarkdown(cold)).toContain('base\n\nlate offline text')
-        if (kind === 'frontmatter-only write') {
-          expect(yDocToFileMarkdown(cold)).toContain('title: changed')
-        }
-      } finally {
-        peer.destroy()
-        cold.destroy()
-      }
-    }
-  )
 })

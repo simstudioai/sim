@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { db } from '@sim/db'
 import { executionLargeValueDependencies, executionLargeValueReferences } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
@@ -24,7 +20,6 @@ afterAll(resetDbChainMock)
 
 describe('large value metadata', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.execute.mockResolvedValue([{ count: 0 }])
   })

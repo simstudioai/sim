@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
@@ -55,7 +52,6 @@ function secureResponse(
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mockBackoffWithJitter.mockReturnValue(0)
   mockParseRetryAfter.mockImplementation((header: string | null) =>
     header === null ? null : Number(header) * 1000

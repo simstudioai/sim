@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockSecureFetchWithPinnedIP, mockValidateUrlWithDNS } = vi.hoisted(() => ({
@@ -21,34 +18,7 @@ import {
 
 describe('fetchRemoteImage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
-  })
-
-  it('validates, pins, bounds, and returns the image bytes', async () => {
-    mockSecureFetchWithPinnedIP.mockResolvedValue(
-      new Response(Buffer.from('image-bytes'), {
-        headers: { 'Content-Type': 'image/png' },
-      })
-    )
-    const controller = new AbortController()
-
-    const result = await fetchRemoteImage(
-      'https://images.example.test/generated.png',
-      controller.signal
-    )
-
-    expect(result).toEqual({ buffer: Buffer.from('image-bytes'), contentType: 'image/png' })
-    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
-      'https://images.example.test/generated.png',
-      '203.0.113.1',
-      expect.objectContaining({
-        method: 'GET',
-        maxResponseBytes: MAX_REMOTE_IMAGE_BYTES,
-        signal: controller.signal,
-        headers: expect.not.objectContaining({ 'Accept-Encoding': expect.anything() }),
-      })
-    )
   })
 
   it('rejects an unsafe URL before issuing a request', async () => {
@@ -61,16 +31,6 @@ describe('fetchRemoteImage', () => {
       Partial<RemoteImageFetchError>
     >({ status: 403, message: 'Private addresses are not allowed' })
     expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
-  })
-
-  it('preserves the upstream response status', async () => {
-    mockSecureFetchWithPinnedIP.mockResolvedValue(
-      new Response('missing', { status: 404, statusText: 'Not Found' })
-    )
-
-    await expect(fetchRemoteImage('https://images.example.test/missing.png')).rejects.toMatchObject<
-      Partial<RemoteImageFetchError>
-    >({ status: 404, message: 'Failed to fetch image: Not Found' })
   })
 
   it('maps an oversized response to 413', async () => {

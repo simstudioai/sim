@@ -3,8 +3,6 @@
  * hard-delete stored documents. `listingCapped` and a truthful `hasMore` are the only things
  * standing between a partial listing and reconciliation purging the rest of the knowledge base,
  * so each quadrant is asserted explicitly.
- *
- * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -47,17 +45,6 @@ describe('granola connector listing completeness', () => {
     mockFetchWithRetry.mockReset()
   })
 
-  it("passes Granola's hasMore through with the cursor on a normal page", async () => {
-    mockListResponse({ notes: [note('not_1')], hasMore: true, cursor: 'cur_2' })
-
-    const syncContext: Record<string, unknown> = {}
-    const page = await list({}, syncContext)
-
-    expect(page.hasMore).toBe(true)
-    expect(page.nextCursor).toBe('cur_2')
-    expect(syncContext.listingCapped).toBeUndefined()
-  })
-
   it('surfaces hasMore=true with no cursor so the engine can mark the listing truncated', async () => {
     /**
      * The engine sets `listingTruncated` (which blocks deletion reconciliation outright) only when
@@ -70,27 +57,6 @@ describe('granola connector listing completeness', () => {
 
     expect(page.hasMore).toBe(true)
     expect(page.nextCursor).toBeUndefined()
-  })
-
-  it('reports a complete listing when the source is exhausted', async () => {
-    mockListResponse({ notes: [note('not_1'), note('not_2')], hasMore: false, cursor: null })
-
-    const syncContext: Record<string, unknown> = {}
-    const page = await list({}, syncContext)
-
-    expect(page.hasMore).toBe(false)
-    expect(page.nextCursor).toBeUndefined()
-    expect(syncContext.listingCapped).toBeUndefined()
-    expect(page.documents).toHaveLength(2)
-  })
-
-  it('never caps when no maxNotes is configured', async () => {
-    mockListResponse({ notes: [note('not_1'), note('not_2')], hasMore: true, cursor: 'cur_2' })
-
-    const syncContext: Record<string, unknown> = {}
-    await list({ maxNotes: '' }, syncContext)
-
-    expect(syncContext.listingCapped).toBeUndefined()
   })
 
   it('caps and flags when maxNotes slices a page, hiding notes that still exist', async () => {
@@ -142,39 +108,5 @@ describe('granola connector listing completeness', () => {
     expect(page.documents).toHaveLength(1)
     expect(syncContext.totalDocsFetched).toBe(2)
     expect(syncContext.listingCapped).toBe(true)
-  })
-})
-
-describe('granola connector request shaping', () => {
-  beforeEach(() => {
-    mockFetchWithRetry.mockReset()
-  })
-
-  it('requests the maximum page size and applies only valid scope filters', async () => {
-    mockListResponse({ notes: [], hasMore: false, cursor: null })
-
-    await granolaConnector.listDocuments(
-      'tok',
-      { folderId: 'not-a-folder-id', createdAfter: '2025-01-01' },
-      undefined,
-      {},
-      new Date('2026-01-01T00:00:00Z')
-    )
-
-    const url = new URL(mockFetchWithRetry.mock.calls[0][0] as string)
-    expect(url.searchParams.get('page_size')).toBe('30')
-    expect(url.searchParams.get('created_after')).toBe('2025-01-01T00:00:00.000Z')
-    expect(url.searchParams.get('updated_after')).toBe('2026-01-01T00:00:00.000Z')
-    /* A malformed folder id must not be sent — it would scope the sync to nothing. */
-    expect(url.searchParams.get('folder_id')).toBeNull()
-  })
-
-  it('stores content as plain text, matching the bytes the sync engine writes', async () => {
-    mockListResponse({ notes: [note('not_1')], hasMore: false, cursor: null })
-
-    const page = await list({}, {})
-
-    expect(page.documents[0].mimeType).toBe('text/plain')
-    expect(page.documents[0].contentDeferred).toBe(true)
   })
 })

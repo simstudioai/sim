@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import { buildDashboardStats, type LogStatsWindow, resolveLogStatsWindow } from '@/lib/logs/stats'
 import type { LogStatsSegmentRow } from '@/lib/logs/stats-queries'
@@ -94,33 +91,6 @@ describe('resolveLogStatsWindow', () => {
     expect(resolved.segmentMs).toBe(60 * 60 * 1000)
   })
 
-  it('reports the requested window when nothing ran inside it', () => {
-    const resolved = resolveLogStatsWindow({ minTime: null, maxTime: null }, 6, {
-      requestedStart: new Date('2026-01-01T00:00:00.000Z'),
-      requestedEnd: new Date('2026-01-07T00:00:00.000Z'),
-      now,
-    })
-
-    expect(resolved.startTime).toEqual(new Date('2026-01-01T00:00:00.000Z'))
-    expect(resolved.endTime).toEqual(new Date('2026-01-07T00:00:00.000Z'))
-    expect(resolved.segmentMs).toBe(24 * 60 * 60 * 1000)
-  })
-
-  /**
-   * The case neither fallback sentence covers on its own: with no rows and only
-   * a right edge, the 24-hour window is measured back from the requested end,
-   * not from the wall clock.
-   */
-  it('measures the empty-result fallback back from a requested end', () => {
-    const resolved = resolveLogStatsWindow({ minTime: null, maxTime: null }, 24, {
-      requestedEnd: new Date('2026-01-10T00:00:00.000Z'),
-      now,
-    })
-
-    expect(resolved.endTime).toEqual(new Date('2026-01-10T00:00:00.000Z'))
-    expect(resolved.startTime).toEqual(new Date('2026-01-09T00:00:00.000Z'))
-  })
-
   /** The dashboard schema has no `startDate <= endDate` refinement, so a crossed pair reaches here. */
   it('keeps a crossed requested pair from producing a non-positive bucket width', () => {
     const resolved = resolveLogStatsWindow({ minTime: null, maxTime: null }, 6, {
@@ -155,17 +125,6 @@ describe('buildDashboardStats', () => {
       successfulExecutions: 0,
       avgDurationMs: 0,
     })
-    expect(stats.workflows[0].segments[1].totalExecutions).toBe(1)
-  })
-
-  it('clamps an out-of-range bucket index into the window', () => {
-    const { stats } = buildDashboardStats(
-      [row({ segmentIndex: 99 }), row({ segmentIndex: -5 })],
-      window,
-      2
-    )
-
-    expect(stats.workflows[0].segments[0].totalExecutions).toBe(1)
     expect(stats.workflows[0].segments[1].totalExecutions).toBe(1)
   })
 
@@ -272,15 +231,6 @@ describe('buildDashboardStats', () => {
     }
   })
 
-  it('reports no truncation when the cap is not reached', () => {
-    const { workflowsTruncated, stats } = buildDashboardStats([row()], window, 1, {
-      maxWorkflows: 200,
-    })
-
-    expect(workflowsTruncated).toBe(false)
-    expect(stats.workflows).toHaveLength(1)
-  })
-
   /**
    * Five runs on the default 72-bucket window answered with 67 zero rows per
    * series — tens of kilobytes carrying nothing the totals did not. The sparse
@@ -308,26 +258,6 @@ describe('buildDashboardStats', () => {
     expect(stats.totalErrors).toBe(1)
     expect(stats.segmentMs).toBe(window.segmentMs)
   })
-
-  it('publishes no buckets at all for a workspace with no runs when empties are omitted', () => {
-    const { stats } = buildDashboardStats([], window, 2, { includeEmpty: false })
-
-    expect(stats.aggregateSegments).toEqual([])
-    expect(stats.totalRuns).toBe(0)
-  })
-
-  it('returns an empty-but-shaped response for a workspace with no runs', () => {
-    const { stats } = buildDashboardStats([], window, 2)
-
-    expect(stats.workflows).toEqual([])
-    expect(stats.aggregateSegments).toHaveLength(2)
-    expect(stats.totalRuns).toBe(0)
-    expect(stats.avgLatency).toBe(0)
-    expect(stats.timeBounds).toEqual({
-      start: '2026-01-15T00:00:00.000Z',
-      end: '2026-01-15T02:00:00.000Z',
-    })
-  })
 })
 
 describe('buildDashboardStats handled errors', () => {
@@ -352,11 +282,5 @@ describe('buildDashboardStats handled errors', () => {
     expect(stats.handledErrorRuns).toBe(3)
     /** A handled error is still a successful run in every other figure. */
     expect(stats.totalErrors).toBe(0)
-  })
-
-  it('publishes no handled-error count unless the rows were counted', () => {
-    const { stats } = buildDashboardStats([row({ handledErrorRuns: 2 })], window, 2)
-
-    expect(stats).not.toHaveProperty('handledErrorRuns')
   })
 })

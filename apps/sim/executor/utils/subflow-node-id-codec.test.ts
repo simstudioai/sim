@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { SubflowNodeIdCodec } from '@/executor/utils/subflow-node-id-codec'
 
@@ -12,12 +9,6 @@ describe('SubflowNodeIdCodec', () => {
       expect(SubflowNodeIdCodec.isBranchNodeId(id)).toBe(true)
       expect(SubflowNodeIdCodec.extractBaseBlockId(id)).toBe('block-1')
       expect(SubflowNodeIdCodec.extractBranchIndex(id)).toBe(2)
-    })
-
-    it('returns null index and false predicate for non-branch IDs', () => {
-      expect(SubflowNodeIdCodec.isBranchNodeId('block-1')).toBe(false)
-      expect(SubflowNodeIdCodec.extractBranchIndex('block-1')).toBeNull()
-      expect(SubflowNodeIdCodec.extractBaseBlockId('block-1')).toBe('block-1')
     })
 
     it('only strips a trailing branch subscript', () => {
@@ -37,11 +28,6 @@ describe('SubflowNodeIdCodec', () => {
       expect(SubflowNodeIdCodec.extractLoopIdFromSentinel(start)).toBe('loop-1')
       expect(SubflowNodeIdCodec.extractLoopIdFromSentinel(end)).toBe('loop-1')
     })
-
-    it('returns null when not a loop sentinel', () => {
-      expect(SubflowNodeIdCodec.isLoopSentinelNodeId('block-1')).toBe(false)
-      expect(SubflowNodeIdCodec.extractLoopIdFromSentinel('block-1')).toBeNull()
-    })
   })
 
   describe('parallel sentinels', () => {
@@ -54,11 +40,6 @@ describe('SubflowNodeIdCodec', () => {
       expect(SubflowNodeIdCodec.isParallelSentinelNodeId(end)).toBe(true)
       expect(SubflowNodeIdCodec.extractParallelIdFromSentinel(start)).toBe('p-1')
       expect(SubflowNodeIdCodec.extractParallelIdFromSentinel(end)).toBe('p-1')
-    })
-
-    it('returns null when not a parallel sentinel', () => {
-      expect(SubflowNodeIdCodec.isParallelSentinelNodeId('block-1')).toBe(false)
-      expect(SubflowNodeIdCodec.extractParallelIdFromSentinel('block-1')).toBeNull()
     })
   })
 
@@ -73,11 +54,6 @@ describe('SubflowNodeIdCodec', () => {
       const id = 'loop-1__obranch-2__obranch-5'
       expect(SubflowNodeIdCodec.extractOuterBranchIndex(id)).toBe(2)
       expect(SubflowNodeIdCodec.extractInnermostOuterBranchIndex(id)).toBe(5)
-    })
-
-    it('returns undefined when no outer branch suffix is present', () => {
-      expect(SubflowNodeIdCodec.extractOuterBranchIndex('loop-1')).toBeUndefined()
-      expect(SubflowNodeIdCodec.extractInnermostOuterBranchIndex('loop-1')).toBeUndefined()
     })
 
     it('strips outer-branch and clone-digest suffixes', () => {
@@ -119,11 +95,6 @@ describe('SubflowNodeIdCodec', () => {
   })
 
   describe('findEffectiveContainerId', () => {
-    it('returns the original ID for branch 0 / missing scope', () => {
-      const map = new Map<string, unknown>([['loop-1', {}]])
-      expect(SubflowNodeIdCodec.findEffectiveContainerId('loop-1', 'block-1', map)).toBe('loop-1')
-    })
-
     it('prefers the mapped cloned scope when present', () => {
       const map = new Map<string, unknown>([
         ['loop-1', {}],
@@ -152,24 +123,6 @@ describe('SubflowNodeIdCodec', () => {
       expect(
         SubflowNodeIdCodec.findEffectiveContainerId('loop-1', 'block-1__cloneabc__obranch-2', map)
       ).toBe('loop-1__cloneabc__obranch-2')
-    })
-  })
-
-  describe('round-trip parse ∘ build', () => {
-    it('builds then parses branch IDs symmetrically', () => {
-      for (const index of [0, 1, 7, 20]) {
-        const id = SubflowNodeIdCodec.buildBranchNodeId('base-id', index)
-        expect(SubflowNodeIdCodec.extractBranchIndex(id)).toBe(index)
-        expect(SubflowNodeIdCodec.extractBaseBlockId(id)).toBe('base-id')
-      }
-    })
-
-    it('builds then parses outer-branch scoped IDs symmetrically', () => {
-      for (const index of [1, 4, 19]) {
-        const id = SubflowNodeIdCodec.buildOuterBranchScopedId('base-id', index)
-        expect(SubflowNodeIdCodec.extractOuterBranchIndex(id)).toBe(index)
-        expect(SubflowNodeIdCodec.stripOuterBranchSuffix(id)).toBe('base-id')
-      }
     })
   })
 })

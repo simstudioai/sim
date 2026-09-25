@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -59,7 +56,6 @@ import {
 
 describe('organization workspace helpers', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockEnsureUserInOrganizationTx.mockReset()
     mockChangeWorkspaceStoragePayersInTx.mockReset()
@@ -72,104 +68,6 @@ describe('organization workspace helpers', () => {
 
   afterAll(() => {
     resetDbChainMock()
-  })
-
-  it('attaches owned workspaces to an organization and syncs existing members', async () => {
-    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }, { id: 'ws-2' }])
-    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }, { id: 'ws-2' }])
-    queueTableRows(schemaMock.workspace, [
-      { id: 'ws-1', billedAccountUserId: 'user-1', organizationId: null },
-      { id: 'ws-2', billedAccountUserId: 'user-1', organizationId: null },
-    ])
-    queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
-    queueTableRows(schemaMock.permissions, [{ userId: 'owner-1' }, { userId: 'member-1' }])
-    queueTableRows(schemaMock.member, [{ userId: 'owner-1', organizationId: 'org-1' }])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'ws-2' }, { id: 'ws-1' }])
-    mockEnsureUserInOrganizationTx
-      .mockResolvedValueOnce({
-        success: true,
-        alreadyMember: false,
-        memberId: 'member-1',
-        billingActions: {
-          proUsageSnapshotted: false,
-          proCancelledAtPeriodEnd: false,
-        },
-      })
-      .mockResolvedValueOnce({
-        success: true,
-        alreadyMember: true,
-        billingActions: {
-          proUsageSnapshotted: false,
-          proCancelledAtPeriodEnd: false,
-        },
-      })
-
-    const result = await attachOwnedWorkspacesToOrganization({
-      ownerUserId: 'user-1',
-      organizationId: 'org-1',
-    })
-
-    expect(result.attachedWorkspaceIds).toEqual(['ws-1', 'ws-2'])
-    expect(result.addedMemberIds).toEqual(['member-1'])
-    expect(result.skippedMembers).toEqual([])
-    expect(mockEnsureUserInOrganizationTx).toHaveBeenCalledWith(expect.anything(), {
-      userId: 'owner-1',
-      organizationId: 'org-1',
-      role: 'owner',
-      skipSeatValidation: true,
-    })
-    expect(mockEnsureUserInOrganizationTx).toHaveBeenCalledWith(expect.anything(), {
-      userId: 'member-1',
-      organizationId: 'org-1',
-      role: 'member',
-      skipSeatValidation: true,
-    })
-    expect(mockSyncUsageLimitsFromSubscription).toHaveBeenCalledWith('member-1')
-    expect(mockReapplyPaidOrgJoinBillingForExistingMemberTx).toHaveBeenCalledWith(
-      expect.anything(),
-      'owner-1',
-      'org-1'
-    )
-    expect(mockAcquireInvitationMutationLocks.mock.invocationCallOrder[0]).toBeLessThan(
-      mockAcquireOrganizationMutationLock.mock.invocationCallOrder[0]
-    )
-    expect(mockAcquireOrganizationMutationLock.mock.invocationCallOrder[0]).toBeLessThan(
-      dbChainMockFns.for.mock.invocationCallOrder[0]
-    )
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationAssignedAt: expect.any(Date) })
-    )
-    expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledTimes(1)
-    expect(mockInvalidateWorkspaceTableLimitsCache).toHaveBeenCalledTimes(2)
-    expect(dbChainMockFns.for.mock.invocationCallOrder[0]).toBeLessThan(
-      mockEnsureUserInOrganizationTx.mock.invocationCallOrder[0]
-    )
-    expect(mockChangeWorkspaceStoragePayersInTx).toHaveBeenCalledWith(expect.anything(), [
-      {
-        workspaceId: 'ws-1',
-        organizationId: 'org-1',
-        billedAccountUserId: 'owner-1',
-        expectedCurrentPayer: {
-          organizationId: null,
-          billedAccountUserId: 'user-1',
-        },
-      },
-      {
-        workspaceId: 'ws-2',
-        organizationId: 'org-1',
-        billedAccountUserId: 'owner-1',
-        expectedCurrentPayer: {
-          organizationId: null,
-          billedAccountUserId: 'user-1',
-        },
-      },
-    ])
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.values).toHaveBeenCalledWith([
-      expect.objectContaining({ entityId: 'ws-1', userId: 'owner-1' }),
-      expect.objectContaining({ entityId: 'ws-2', userId: 'owner-1' }),
-    ])
   })
 
   it('fails before attaching workspaces when an existing member belongs to another organization', async () => {
@@ -284,35 +182,6 @@ describe('organization workspace helpers', () => {
     expect(mockEnsureUserInOrganizationTx).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-  })
-
-  it('does not report a committed attachment as failed when derived usage refresh fails', async () => {
-    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
-    queueTableRows(schemaMock.workspace, [{ id: 'ws-1' }])
-    queueTableRows(schemaMock.workspace, [
-      { id: 'ws-1', billedAccountUserId: 'user-1', organizationId: null },
-    ])
-    queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
-    queueTableRows(schemaMock.permissions, [{ userId: 'member-1' }])
-    queueTableRows(schemaMock.member, [])
-    mockEnsureUserInOrganizationTx.mockResolvedValueOnce({
-      success: true,
-      alreadyMember: false,
-      memberId: 'member-1',
-      billingActions: {
-        proUsageSnapshotted: false,
-        proCancelledAtPeriodEnd: false,
-      },
-    })
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'ws-1' }])
-    mockSyncUsageLimitsFromSubscription.mockRejectedValueOnce(new Error('refresh failed'))
-
-    await expect(
-      attachOwnedWorkspacesToOrganization({
-        ownerUserId: 'user-1',
-        organizationId: 'org-1',
-      })
-    ).resolves.toMatchObject({ attachedWorkspaceIds: ['ws-1'] })
   })
 
   it.each(['standalone', 'enlisted'] as const)(

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { createHash } from 'node:crypto'
 import { generateShortId } from '@sim/utils/id'
 import Redis from 'ioredis'
@@ -58,7 +57,6 @@ async function download(provenance: WorkspaceFileSecretProvenance = secret) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   recorded.clear()
   storage = redis ?? memory
   scope = { ...scope, sessionKey: `chat-${generateShortId(16)}` }

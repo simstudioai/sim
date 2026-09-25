@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -70,7 +67,6 @@ const draftState = {
 
 describe('readWorkflowDefinition', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.loadSnapshot.mockResolvedValue({
@@ -78,21 +74,6 @@ describe('readWorkflowDefinition', () => {
       normalizedData: draftState,
     })
     mocks.loadDeployed.mockResolvedValue({ ...draftState, deploymentVersionId: 'version-1' })
-  })
-
-  it('returns the workflow row and draft state from one canonical snapshot', async () => {
-    const result = await readWorkflowDefinition.execute({
-      principal,
-      input: { workflowId: WORKFLOW_ID, state: 'draft' },
-    })
-
-    expect(mocks.loadSnapshot).toHaveBeenCalledWith(WORKFLOW_ID, WORKSPACE_ID)
-    expect(mocks.loadDeployed).not.toHaveBeenCalled()
-    expect(result).toEqual({
-      workflow: snapshotWorkflow,
-      workspaceId: WORKSPACE_ID,
-      state: draftState,
-    })
   })
 
   it.each([

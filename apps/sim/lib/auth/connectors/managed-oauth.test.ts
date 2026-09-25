@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { exportJWK, generateKeyPair, SignJWT } from 'jose'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import {

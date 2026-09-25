@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * A `checkbox-list` groups several boolean tool params behind one field. Its stored
  * value therefore projects onto its OPTION ids, not onto its own id — which no tool
  * declares.

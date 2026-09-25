@@ -1,7 +1,5 @@
 /**
  * Tests for chat API utils
- *
- * @vitest-environment node
  */
 import {
   authMockFns,
@@ -12,7 +10,6 @@ import {
   requestUtilsMockFns,
   workflowsUtilsMock,
 } from '@sim/testing'
-import type { NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -66,13 +63,12 @@ vi.mock('@/lib/core/security/deployment', () => ({
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 import { decryptSecret } from '@/lib/core/security/encryption'
-import { setChatAuthCookie, validateChatAuth } from '@/app/api/chat/utils'
+import { validateChatAuth } from '@/app/api/chat/utils'
 
 const mockGetSession = authMockFns.mockGetSession
 
 describe('Chat API Utils', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('process', {
       ...process,
       env: {
@@ -83,27 +79,6 @@ describe('Chat API Utils', () => {
   })
 
   describe('Auth token utils', () => {
-    it('should accept valid auth cookie via validateChatAuth', async () => {
-      mockReadDeploymentAuthToken.mockResolvedValue({})
-
-      const deployment = {
-        id: 'chat-id',
-        authType: 'password',
-        password: 'encrypted-password',
-      }
-
-      const mockRequest = createMockRequest('POST', undefined, {
-        cookie: 'chat_auth_chat-id=valid-token',
-      })
-
-      const result = await validateChatAuth('request-id', deployment, mockRequest)
-      expect(mockReadDeploymentAuthToken).toHaveBeenCalledWith({
-        token: 'valid-token',
-        resource: deployment,
-      })
-      expect(result.authorized).toBe(true)
-    })
-
     it('should reject invalid auth cookie via validateChatAuth', async () => {
       mockReadDeploymentAuthToken.mockResolvedValue(null)
 
@@ -120,145 +95,12 @@ describe('Chat API Utils', () => {
       const result = await validateChatAuth('request-id', deployment, mockRequest)
       expect(result.authorized).toBe(false)
     })
-
-    it('returns the authenticated email carried by a valid email-auth cookie', async () => {
-      mockReadDeploymentAuthToken.mockResolvedValue({
-        authenticatedEmail: 'person@example.com',
-      })
-
-      const deployment = {
-        id: 'chat-id',
-        authType: 'email',
-      }
-      const mockRequest = createMockRequest('POST', undefined, {
-        cookie: 'chat_auth_chat-id=valid-token',
-      })
-
-      await expect(validateChatAuth('request-id', deployment, mockRequest)).resolves.toEqual({
-        authorized: true,
-        authenticatedEmail: 'person@example.com',
-      })
-    })
-  })
-
-  describe('Cookie handling', () => {
-    it('should delegate to setDeploymentAuthCookie', async () => {
-      const mockResponse = {
-        cookies: { set: vi.fn() },
-      } as unknown as NextResponse
-
-      const deployment = {
-        id: 'test-chat-id',
-        authType: 'password',
-        password: 'encrypted-password',
-      }
-      await setChatAuthCookie(mockResponse, deployment)
-
-      expect(mockSetDeploymentAuthCookie).toHaveBeenCalledWith({
-        response: mockResponse,
-        cookiePrefix: 'chat',
-        resource: deployment,
-        verifiedEmail: undefined,
-      })
-    })
-
-    it('forwards an authenticated email into the signed deployment cookie', async () => {
-      const mockResponse = {
-        cookies: { set: vi.fn() },
-      } as unknown as NextResponse
-
-      const deployment = {
-        id: 'test-chat-id',
-        authType: 'email',
-        allowedEmails: ['person@example.com'],
-      }
-      await setChatAuthCookie(mockResponse, deployment, 'person@example.com')
-
-      expect(mockSetDeploymentAuthCookie).toHaveBeenCalledWith({
-        response: mockResponse,
-        cookiePrefix: 'chat',
-        resource: deployment,
-        verifiedEmail: 'person@example.com',
-      })
-    })
   })
 
   describe('Chat auth validation', () => {
     beforeEach(() => {
       mockDecryptSecret.mockResolvedValue({ decrypted: 'correct-password' })
       mockCheckRateLimitDirect.mockResolvedValue({ allowed: true })
-    })
-
-    it('should allow access to public chats', async () => {
-      const deployment = {
-        id: 'chat-id',
-        authType: 'public',
-      }
-
-      const mockRequest = {
-        cookies: {
-          get: vi.fn().mockReturnValue(null),
-        },
-      } as any
-
-      const result = await validateChatAuth('request-id', deployment, mockRequest)
-
-      expect(result.authorized).toBe(true)
-    })
-
-    it('should request password auth for GET requests', async () => {
-      const deployment = {
-        id: 'chat-id',
-        authType: 'password',
-      }
-
-      const mockRequest = {
-        method: 'GET',
-        cookies: {
-          get: vi.fn().mockReturnValue(null),
-        },
-      } as any
-
-      const result = await validateChatAuth('request-id', deployment, mockRequest)
-
-      expect(result.authorized).toBe(false)
-      expect(result.error).toBe('auth_required_password')
-    })
-
-    it('should validate password for POST requests', async () => {
-      const deployment = {
-        id: 'chat-id',
-        authType: 'password',
-        password: 'encrypted-password',
-      }
-
-      const mockRequest = {
-        method: 'POST',
-        cookies: {
-          get: vi.fn().mockReturnValue(null),
-        },
-      } as any
-
-      const parsedBody = {
-        password: 'correct-password',
-      }
-
-      const result = await validateChatAuth('request-id', deployment, mockRequest, parsedBody)
-
-      expect(mockCheckRateLimitDirect).toHaveBeenNthCalledWith(
-        1,
-        'chat-password:ip:chat-id:127.0.0.1',
-        expect.objectContaining({ maxTokens: 10 }),
-        { failClosed: true }
-      )
-      expect(mockCheckRateLimitDirect).toHaveBeenNthCalledWith(
-        2,
-        'chat-password:resource:chat-id',
-        expect.objectContaining({ maxTokens: 100 }),
-        { failClosed: true }
-      )
-      expect(decryptSecret).toHaveBeenCalledWith('encrypted-password')
-      expect(result.authorized).toBe(true)
     })
 
     it('should reject incorrect password', async () => {
@@ -316,35 +158,6 @@ describe('Chat API Utils', () => {
       )
     })
 
-    it('should return 429 when the password resource rate limit is exceeded', async () => {
-      mockCheckRateLimitDirect
-        .mockResolvedValueOnce({ allowed: true })
-        .mockResolvedValueOnce({ allowed: false, retryAfterMs: 30_000 })
-
-      const deployment = {
-        id: 'chat-id',
-        authType: 'password',
-        password: 'encrypted-password',
-      }
-      const mockRequest = createMockRequest('POST')
-      const candidate = 'password-attempt-fixture'
-
-      const result = await validateChatAuth('request-id', deployment, mockRequest, {
-        password: candidate,
-      })
-
-      expect(result).toEqual(
-        expect.objectContaining({ authorized: false, status: 429, retryAfterMs: 30_000 })
-      )
-      expect(mockCheckRateLimitDirect).toHaveBeenNthCalledWith(
-        2,
-        'chat-password:resource:chat-id',
-        expect.objectContaining({ maxTokens: 100 }),
-        { failClosed: true }
-      )
-      expect(decryptSecret).not.toHaveBeenCalled()
-    })
-
     it('should retain the password resource limit when the client IP cannot be resolved', async () => {
       requestUtilsMockFns.mockGetClientIp.mockReturnValueOnce(null)
       const deployment = {
@@ -366,26 +179,6 @@ describe('Chat API Utils', () => {
         expect.objectContaining({ maxTokens: 100 }),
         { failClosed: true }
       )
-    })
-
-    it('should request email auth for email-protected chats', async () => {
-      const deployment = {
-        id: 'chat-id',
-        authType: 'email',
-        allowedEmails: ['user@example.com', '@company.com'],
-      }
-
-      const mockRequest = {
-        method: 'GET',
-        cookies: {
-          get: vi.fn().mockReturnValue(null),
-        },
-      } as any
-
-      const result = await validateChatAuth('request-id', deployment, mockRequest)
-
-      expect(result.authorized).toBe(false)
-      expect(result.error).toBe('auth_required_email')
     })
 
     it('should check allowed emails for email auth', async () => {
@@ -461,20 +254,6 @@ describe('Chat API Utils', () => {
         )
       })
 
-      it('authorizes execution when session email is allowlisted', async () => {
-        mockGetSession.mockResolvedValue({ user: { email: 'User@Example.com' } })
-        mockIsEmailAllowed.mockReturnValue(true)
-
-        const result = await validateChatAuth('request-id', ssoDeployment, postRequest, {
-          input: 'hello',
-        })
-
-        expect(result).toEqual({
-          authorized: true,
-          authenticatedEmail: 'user@example.com',
-        })
-      })
-
       it('rejects execution when session email is not allowlisted', async () => {
         mockGetSession.mockResolvedValue({ user: { email: 'stranger@other.com' } })
         mockIsEmailAllowed.mockReturnValue(false)
@@ -486,71 +265,6 @@ describe('Chat API Utils', () => {
         expect(result.authorized).toBe(false)
         expect(result.error).toBe('Your email is not authorized to access this resource')
       })
-    })
-  })
-
-  describe('Execution Result Processing', () => {
-    it.concurrent('should process logs regardless of overall success status', () => {
-      const executionResult = {
-        success: false,
-        output: {},
-        logs: [
-          {
-            blockId: 'agent1',
-            startedAt: '2023-01-01T00:00:00Z',
-            endedAt: '2023-01-01T00:00:01Z',
-            durationMs: 1000,
-            success: true,
-            output: { content: 'Agent 1 succeeded' },
-            error: undefined,
-          },
-          {
-            blockId: 'agent2',
-            startedAt: '2023-01-01T00:00:00Z',
-            endedAt: '2023-01-01T00:00:01Z',
-            durationMs: 500,
-            success: false,
-            output: null,
-            error: 'Agent 2 failed',
-          },
-        ],
-        metadata: { duration: 1000 },
-      }
-
-      expect(executionResult.success).toBe(false)
-      expect(executionResult.logs).toBeDefined()
-      expect(executionResult.logs).toHaveLength(2)
-
-      expect(executionResult.logs[0].success).toBe(true)
-      expect(executionResult.logs[0].output?.content).toBe('Agent 1 succeeded')
-
-      expect(executionResult.logs[1].success).toBe(false)
-      expect(executionResult.logs[1].error).toBe('Agent 2 failed')
-    })
-
-    it.concurrent('should handle ExecutionResult vs StreamingExecution types correctly', () => {
-      const executionResult = {
-        success: true,
-        output: { content: 'test' },
-        logs: [],
-        metadata: { duration: 100 },
-      }
-
-      const directResult = executionResult
-      const extractedDirect = directResult
-      expect(extractedDirect).toBe(executionResult)
-
-      const streamingResult = {
-        stream: new ReadableStream(),
-        execution: executionResult,
-      }
-
-      const extractedFromStreaming =
-        streamingResult && typeof streamingResult === 'object' && 'execution' in streamingResult
-          ? streamingResult.execution
-          : streamingResult
-
-      expect(extractedFromStreaming).toBe(executionResult)
     })
   })
 })

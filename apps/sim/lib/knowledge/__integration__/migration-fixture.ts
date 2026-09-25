@@ -7,9 +7,9 @@ export async function createEnterpriseSearchMigrationFixture(databaseUrl: string
   const url = new URL(databaseUrl)
   if (
     !['localhost', '127.0.0.1'].includes(url.hostname) ||
-    !url.pathname.startsWith('/sim_acl_test')
+    !/(^|_)test(_|$)/.test(url.pathname.slice(1))
   ) {
-    throw new Error('Search migration tests require a disposable local sim_acl_test database')
+    throw new Error('Search migration tests require a disposable local test database')
   }
   const client = postgres(databaseUrl, { max: 1, fetch_types: false })
   const schemaName = `search_migration_${generateId().replaceAll('-', '')}`

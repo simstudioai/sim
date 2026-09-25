@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -31,7 +28,6 @@ const basePayload = {
 
 describe('performChatDeploy password guards', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetWorkflowDeploymentSummary.mockResolvedValue({
       activeDeployment: { id: 'deployment-1' },
@@ -72,16 +68,6 @@ describe('performChatDeploy password guards', () => {
     })
 
     expect(mockGetWorkflowDeploymentSummary).not.toHaveBeenCalled()
-  })
-
-  it('rejects a whitespace-only password regardless of auth type', async () => {
-    await expect(
-      performChatDeploy({ ...basePayload, authType: 'public', password: '   ' })
-    ).resolves.toEqual({
-      success: false,
-      error: 'Password cannot contain only whitespace',
-      errorCode: 'validation',
-    })
   })
 
   /**

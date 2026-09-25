@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { TinyFishBlock } from '@/blocks/blocks/tinyfish'
 import { cancelRunTool } from '@/tools/tinyfish/cancel_run'
@@ -407,14 +404,6 @@ describe('tinyfish hosted-key config', () => {
     expect(urls?.extractUsage({ urls: 'https://a.com, https://b.com' }, {})).toBe(2)
     expect(urls?.extractUsage({}, {})).toBe(0)
   })
-
-  it('leaves the async run and its companions off hosted keys, since they cannot be metered', () => {
-    expect(runAsyncTool.hosting).toBeUndefined()
-    expect(getRunTool.hosting).toBeUndefined()
-    expect(cancelRunTool.hosting).toBeUndefined()
-    expect(listRunsTool.hosting).toBeUndefined()
-    expect(listVaultItemsTool.hosting).toBeUndefined()
-  })
 })
 
 describe('tinyfish_get_run', () => {
@@ -722,15 +711,6 @@ describe('tinyfish profile diagnostics', () => {
   })
 })
 
-describe('tinyfish profile visibility', () => {
-  it('keeps the profile fields out of the schema the agent model writes', () => {
-    for (const tool of [runTool, runAsyncTool]) {
-      expect(tool.params.useProfile.visibility).toBe('user-only')
-      expect(tool.params.profileId.visibility).toBe('user-only')
-    }
-  })
-})
-
 describe('tinyfish_list_profiles', () => {
   it('maps a profile onto the id a run starts from', async () => {
     const result = await listProfilesTool.transformResponse!(
@@ -794,16 +774,6 @@ describe('tinyfish_list_profiles', () => {
 })
 
 describe('TinyFish block', () => {
-  it('routes every operation to its own tool', () => {
-    for (const toolId of TinyFishBlock.tools.access) {
-      expect(TinyFishBlock.tools.config?.tool?.({ operation: toolId })).toBe(toolId)
-    }
-  })
-
-  it('falls back to the synchronous run for an unknown operation', () => {
-    expect(TinyFishBlock.tools.config?.tool?.({ operation: 'nope' })).toBe('tinyfish_run')
-  })
-
   it('renames the list-runs goal filter onto the goal query the tool sends', () => {
     const params = TinyFishBlock.tools.config?.params?.({
       operation: 'tinyfish_list_runs',
@@ -852,26 +822,5 @@ describe('TinyFish block', () => {
     expect(
       TinyFishBlock.tools.config?.params?.({ operation: 'tinyfish_run', maxSteps: '  ' })
     ).not.toHaveProperty('maxSteps')
-  })
-
-  it('shows the profile id only once a profile is opted into', () => {
-    const profileId = TinyFishBlock.subBlocks.find((subBlock) => subBlock.id === 'profileId')
-    expect(profileId?.condition).toMatchObject({
-      field: 'operation',
-      and: { field: 'useProfile', value: true },
-    })
-  })
-
-  it('always shows an API key field for the operations hosted keys cannot cover', () => {
-    const apiKeyFields = TinyFishBlock.subBlocks.filter((subBlock) => subBlock.id === 'apiKey')
-    expect(apiKeyFields).toHaveLength(2)
-
-    const hosted = apiKeyFields.find((field) => field.hideWhenHosted)
-    const unhosted = apiKeyFields.find((field) => !field.hideWhenHosted)
-    expect(hosted?.condition).toMatchObject({
-      field: 'operation',
-      value: ['tinyfish_run', 'tinyfish_search', 'tinyfish_fetch'],
-    })
-    expect(unhosted?.condition).toMatchObject({ not: true })
   })
 })

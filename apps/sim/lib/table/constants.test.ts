@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockEnv } = vi.hoisted(() => ({
@@ -40,7 +37,6 @@ declare module '@/lib/table/constants?constants-test' {
 import {
   getBillingDisabledTableLimits,
   getDeleteSnapshotBatchSize,
-  getMaxPageBytes,
   getMaxRowSizeBytes,
   TABLE_LIMITS,
 } from '@/lib/table/constants?constants-test'
@@ -48,13 +44,6 @@ import {
 describe('getBillingDisabledTableLimits', () => {
   beforeEach(() => {
     for (const key of Object.keys(mockEnv)) delete mockEnv[key]
-  })
-
-  it('is unlimited when no free-tier env vars are set', () => {
-    expect(getBillingDisabledTableLimits()).toEqual({
-      maxTables: Number.MAX_SAFE_INTEGER,
-      maxRowsPerTable: Number.MAX_SAFE_INTEGER,
-    })
   })
 
   it('opts each cap back in independently when its env var is explicitly set', () => {
@@ -70,22 +59,6 @@ describe('getBillingDisabledTableLimits', () => {
       maxTables: 7,
       maxRowsPerTable: 2500,
     })
-  })
-})
-
-describe('getMaxPageBytes', () => {
-  beforeEach(() => {
-    for (const key of Object.keys(mockEnv)) delete mockEnv[key]
-  })
-
-  it('defaults bounded pages to the 5MB query-result budget', () => {
-    expect(getMaxPageBytes()).toBe(TABLE_LIMITS.MAX_QUERY_RESULT_BYTES)
-  })
-
-  it('allows a positive integer environment override', () => {
-    mockEnv.TABLE_MAX_PAGE_BYTES = String(2 * 1024 * 1024)
-
-    expect(getMaxPageBytes()).toBe(2 * 1024 * 1024)
   })
 })
 

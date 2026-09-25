@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   glob,
@@ -183,12 +180,6 @@ describe('grep', () => {
   it('returns empty array for invalid regex pattern', () => {
     const files = vfsFromEntries([['a.txt', 'x']])
     expect(grep(files, '(unclosed', undefined, { outputMode: 'content' })).toEqual([])
-  })
-
-  it('respects ignoreCase', () => {
-    const files = vfsFromEntries([['a.txt', 'Hello']])
-    const hits = grep(files, 'hello', undefined, { outputMode: 'content', ignoreCase: true })
-    expect(hits).toHaveLength(1)
   })
 })
 

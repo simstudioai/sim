@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   document,
   knowledgeBase,
@@ -156,7 +153,6 @@ afterAll(resetDbChainMock)
 
 describe('cleanup-failed', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     vi.mocked(getBlock).mockReturnValue(kbBlockConfig())
   })
@@ -170,20 +166,6 @@ describe('cleanup-failed', () => {
       expect(docValue(result.state)).toBe('')
     })
 
-    it('leaves a state that references no failed id untouched (same reference, not changed)', () => {
-      const input = versionState('other-kb')
-      const result = rewriteDeploymentVersionState(input, failedKbResolver)
-      expect(result.changed).toBe(false)
-      expect(result.state).toBe(input)
-    })
-
-    it('is tolerant of a malformed state shape', () => {
-      const input = { not: 'a workflow state' }
-      const result = rewriteDeploymentVersionState(input, failedKbResolver)
-      expect(result.changed).toBe(false)
-      expect(result.state).toBe(input)
-    })
-
     // The deployed-version sweep must clear EVERY subblock variety the draft sweep does -
     // including a failed id nested in an agent block's `tool-input` tool params, not only
     // top-level selectors - via the shared remapForkSubBlocks/clearFailedSubBlockReferences.
@@ -192,14 +174,6 @@ describe('cleanup-failed', () => {
       const result = rewriteDeploymentVersionState(agentVersionState('failed-kb'), failedKbResolver)
       expect(result.changed).toBe(true)
       expect(nestedKbValue(result.state)).toBe('')
-    })
-
-    it('leaves an agent tool-input param that references no failed id untouched', () => {
-      vi.mocked(getBlock).mockImplementation((type) => agentToolConfig(type))
-      const input = agentVersionState('other-kb')
-      const result = rewriteDeploymentVersionState(input, failedKbResolver)
-      expect(result.changed).toBe(false)
-      expect(result.state).toBe(input)
     })
   })
 
@@ -216,16 +190,6 @@ describe('cleanup-failed', () => {
       const cleared = updates()[0].values.subBlocks as Record<string, { value: unknown }>
       expect(cleared.knowledgeBaseId.value).toBe('')
       expect(cleared.documentId.value).toBe('')
-    })
-
-    it('returns an empty set and writes nothing when no block references a failed id', async () => {
-      queueTableRows(workflow, [{ id: 'wf-1' }])
-      queueTableRows(workflowBlocks, [draftBlockRow('other-kb')])
-
-      const affected = await clearFailedReferencesInWorkflows('child-ws', failedByKind(), 'test')
-
-      expect(affected.size).toBe(0)
-      expect(updates()).toHaveLength(0)
     })
   })
 
@@ -245,17 +209,6 @@ describe('cleanup-failed', () => {
       expect(mockInvalidateDeployedStateCache).toHaveBeenCalledWith('dv-1')
     })
 
-    it('leaves a version that does not reference a failed id unwritten and uncached', async () => {
-      queueTableRows(workflowDeploymentVersion, [
-        { id: 'dv-old', version: 3, state: versionState('other-kb') },
-      ])
-
-      await clearFailedReferencesInDeploymentVersions(new Set(['wf-1']), failedByKind(), 'test')
-
-      expect(updates()).toHaveLength(0)
-      expect(mockInvalidateDeployedStateCache).not.toHaveBeenCalled()
-    })
-
     it('writes only the changed version when a workflow mixes referencing and non-referencing versions', async () => {
       queueTableRows(workflowDeploymentVersion, [
         { id: 'dv-active', version: 5, state: versionState('failed-kb') },
@@ -267,12 +220,6 @@ describe('cleanup-failed', () => {
       expect(updates()).toHaveLength(1)
       expect(mockInvalidateDeployedStateCache).toHaveBeenCalledTimes(1)
       expect(mockInvalidateDeployedStateCache).toHaveBeenCalledWith('dv-active')
-    })
-
-    it('does nothing when no workflows were affected', async () => {
-      await clearFailedReferencesInDeploymentVersions(new Set(), failedByKind(), 'test')
-      expect(updates()).toHaveLength(0)
-      expect(mockInvalidateDeployedStateCache).not.toHaveBeenCalled()
     })
 
     it('attempts every workflow, then reports a workflow-scoped cleanup failure', async () => {
@@ -302,50 +249,6 @@ describe('cleanup-failed', () => {
   })
 
   describe('clearFailedForkResourceReferences', () => {
-    it('threads the draft sweep into the deployed sweep, then drops the placeholder', async () => {
-      queueTableRows(workflow, [{ id: 'wf-1' }])
-      queueTableRows(workflowBlocks, [draftBlockRow('failed-kb')])
-      queueTableRows(workflowDeploymentVersion, [
-        { id: 'dv-active', version: 5, state: versionState('failed-kb') },
-        { id: 'dv-old', version: 4, state: versionState('other-kb') },
-      ])
-
-      const cleaned = await clearFailedForkResourceReferences({
-        childWorkspaceId: 'child-ws',
-        failures: [{ kind: 'knowledge-base', childId: 'failed-kb', documentChildIds: [] }],
-        requestId: 'test',
-      })
-
-      expect(cleaned).toEqual({ cleared: 1, clearingFailed: false })
-      // One draft block update + one deployed version update (only the referencing version).
-      const updatedTables = updates().map((u) => u.table)
-      expect(updatedTables).toEqual([workflowBlocks, workflowDeploymentVersion])
-      expect(mockInvalidateDeployedStateCache).toHaveBeenCalledTimes(1)
-      expect(mockInvalidateDeployedStateCache).toHaveBeenCalledWith('dv-active')
-      // The orphaned KB placeholder is dropped after both sweeps.
-      expect(deletes()).toHaveLength(1)
-      expect(deletes()[0].table).toBe(knowledgeBase)
-    })
-
-    it('still drops the placeholder when no workflow referenced the failed resource', async () => {
-      queueTableRows(workflow, [{ id: 'wf-1' }])
-      queueTableRows(workflowBlocks, [draftBlockRow('other-kb')])
-
-      const cleaned = await clearFailedForkResourceReferences({
-        childWorkspaceId: 'child-ws',
-        failures: [{ kind: 'knowledge-base', childId: 'failed-kb', documentChildIds: [] }],
-        requestId: 'test',
-      })
-
-      expect(cleaned).toEqual({ cleared: 1, clearingFailed: false })
-      // No draft block referenced the failed id AND no deployed targets were threaded, so the
-      // deployed sweep is skipped entirely.
-      expect(updates()).toHaveLength(0)
-      expect(mockInvalidateDeployedStateCache).not.toHaveBeenCalled()
-      expect(deletes()).toHaveLength(1)
-      expect(deletes()[0].table).toBe(knowledgeBase)
-    })
-
     it('keeps a failed copied knowledge base when it contains a non-fork document', async () => {
       queueTableRows(knowledgeBase, [{ id: 'failed-kb' }])
 

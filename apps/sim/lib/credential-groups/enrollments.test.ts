@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { eq, ilike, inArray, isNull } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -114,7 +111,6 @@ describe('focused public enrollment projection', () => {
     },
   ]
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(schemaMock.credentialGroupEnrollment, [
       {
@@ -166,7 +162,6 @@ describe('focused public enrollment projection', () => {
 
 describe('listCredentialGroupEnrollments', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -357,7 +352,6 @@ describe('listCredentialGroupEnrollments', () => {
 
 describe('createCredentialGroupInvitationLink', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -413,7 +407,6 @@ describe('createCredentialGroupInvitationLink', () => {
 
 describe('verified self enrollment', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -471,7 +464,6 @@ describe('verified self enrollment', () => {
 
 describe('resendCredentialGroupEnrollment', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -546,7 +538,6 @@ describe('resendCredentialGroupEnrollment', () => {
 
 describe('deleteCredentialGroupEnrollment', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -567,7 +558,6 @@ describe('deleteCredentialGroupEnrollment', () => {
 
 describe('completeCredentialGroupEnrollment', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -683,7 +673,6 @@ describe('enrollment context for session-authorized or consumed-attempt OAuth', 
     workspaceOwnerId: 'owner',
   }
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
   it('resolves pinned identity after invitation rotation or expiry without looking up the old bearer', async () => {
@@ -847,7 +836,6 @@ describe('verified immutable enrollment identity binding', () => {
     invitationTokenHash: ENROLLMENT.invitationTokenHash,
   }
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
   it('binds an invitation once to its verified recipient', async () => {

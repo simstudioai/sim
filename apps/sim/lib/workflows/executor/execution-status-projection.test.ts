@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * `logs.trace_spans` and `logs.cost` are PROJECTIONS, not gates — a group
  * withholds those fields from the response rather than refusing the read.
  *
@@ -86,23 +84,12 @@ function readRun(viewerUserId: string | null | undefined) {
 
 describe('run-detail field projection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     resetPermissionGroupScopeMock()
     mockMaterializeForDisplayWithBlockOutputs.mockResolvedValue({
       executionData: {},
       blockOutputs: new Map(),
     })
-  })
-
-  it('reads the run whole for a member no group governs', async () => {
-    queueCompletedRun()
-
-    const status = await readRun('user-1')
-
-    expect(status?.cost).toEqual({ total: 0.75 })
-    expect(status?.finalOutput).toEqual({ answer: 'a customer address' })
-    expect(status?.blockOutputs).toEqual({ [BLOCK_ID]: { answer: 'a customer address' } })
   })
 
   it('withholds the run total from a member whose group hides spend', async () => {

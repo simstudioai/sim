@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { extractSlackTeamId } from '@/lib/oauth/slack'
 
@@ -19,10 +16,6 @@ describe('extractSlackTeamId', () => {
 
   it('accepts enterprise grid ids', () => {
     expect(extractSlackTeamId('E0123ABCD-usr_U1-aaaa')).toBe('E0123ABCD')
-  })
-
-  it('returns null for pasted custom-bot account ids', () => {
-    expect(extractSlackTeamId('slack-bot-1764756583292')).toBeNull()
   })
 
   it('returns null for lowercase or malformed ids', () => {

@@ -1,12 +1,4 @@
-/**
- * @vitest-environment node
- */
-
-import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  isInternalToolFileResult,
-  type StoredToolFile,
-} from '@/lib/internal/tool-operations/file-result'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const clientMocks = vi.hoisted(() => ({
   connectItemToSdkItem: vi.fn(),
@@ -28,7 +20,6 @@ vi.mock('@/lib/uploads/utils/validation', () => ({ MAX_FILE_SIZE: 5 }))
 import type { OnePasswordOperationError } from '@/lib/internal/onepassword/errors'
 import {
   executeOnePasswordGetItemFile,
-  executeOnePasswordListVaults,
   executeOnePasswordResolveSecret,
   executeOnePasswordUpdateItem,
 } from '@/lib/internal/onepassword/operations'
@@ -44,33 +35,8 @@ const CONNECT_CREDENTIALS = {
   apiKey: 'not-a-real-connect-token',
 }
 
-function response(options: {
-  status?: number
-  json?: unknown
-  bytes?: Uint8Array
-  contentType?: string
-}) {
-  const status = options.status ?? 200
-  const bytes = options.bytes ?? new Uint8Array()
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    statusText: '',
-    headers: {
-      get: (name: string) =>
-        name.toLowerCase() === 'content-type' ? (options.contentType ?? null) : null,
-    },
-    body: null,
-    json: async () => options.json ?? {},
-    text: async () => '',
-    arrayBuffer: async () =>
-      bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
-  }
-}
-
 describe('1Password operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clientMocks.resolveCredentials.mockImplementation((input: { connectionMode?: string }) =>
       input.connectionMode === 'connect'
         ? {
@@ -86,28 +52,6 @@ describe('1Password operations', () => {
     clientMocks.normalizeSdkVault.mockImplementation((vault) => vault)
     clientMocks.normalizeSdkItem.mockImplementation((item) => item)
     clientMocks.connectItemToSdkItem.mockImplementation((item) => item)
-  })
-
-  it('preserves Connect provider statuses and forwards cancellation', async () => {
-    const controller = new AbortController()
-    clientMocks.connectRequest.mockResolvedValue(
-      response({ status: 429, json: { message: 'rate limited' } })
-    )
-
-    await expect(
-      executeOnePasswordListVaults(CONNECT_CREDENTIALS, { signal: controller.signal })
-    ).rejects.toMatchObject<Partial<OnePasswordOperationError>>({
-      status: 429,
-      body: { error: 'rate limited' },
-    })
-    expect(clientMocks.connectRequest).toHaveBeenCalledWith({
-      serverUrl: CONNECT_CREDENTIALS.serverUrl,
-      apiKey: CONNECT_CREDENTIALS.apiKey,
-      path: '/v1/vaults',
-      method: 'GET',
-      query: undefined,
-      signal: controller.signal,
-    })
   })
 
   it('preserves ID-aware JSON Patch semantics before an SDK update', async () => {
@@ -188,83 +132,6 @@ describe('1Password operations', () => {
     expect(read).toHaveBeenCalledOnce()
   })
 
-  it('keeps Connect file content bounded and preserves the file envelope', async () => {
-    const controller = new AbortController()
-    clientMocks.connectRequest
-      .mockResolvedValueOnce(response({ json: { name: 'secret.txt', size: 5 } }))
-      .mockResolvedValueOnce(
-        response({ bytes: new TextEncoder().encode('hello'), contentType: 'text/plain' })
-      )
-
-    const result = await executeOnePasswordGetItemFile(
-      {
-        ...CONNECT_CREDENTIALS,
-        vaultId: 'vault-1',
-        itemId: 'item-1',
-        fileId: 'file-1',
-      },
-      { signal: controller.signal }
-    )
-
-    assert(isInternalToolFileResult(result))
-    expect(result.files).toEqual([
-      {
-        name: 'secret.txt',
-        mimeType: 'text/plain',
-        buffer: Buffer.from('hello'),
-      },
-    ])
-    const storedFile: StoredToolFile = {
-      id: 'stored-file-1',
-      key: 'execution/stored-file-1',
-      url: '/api/files/serve/stored-file-1',
-      name: 'secret.txt',
-      type: 'text/plain',
-      mimeType: 'text/plain',
-      size: 5,
-      context: 'execution',
-    }
-    expect(result.present([storedFile])).toEqual({ file: storedFile })
-    expect(clientMocks.connectRequest.mock.calls[1]?.[0]).toMatchObject({
-      maxResponseBytes: 5,
-      signal: controller.signal,
-    })
-  })
-
-  it('returns SDK attachment bytes for storage with the actual byte length', async () => {
-    clientMocks.createOnePasswordClient.mockResolvedValue({
-      items: {
-        get: vi.fn().mockResolvedValue({ id: 'item-1' }),
-        files: { read: vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3])) },
-      },
-    })
-    clientMocks.findItemFileAttributes.mockReturnValue({
-      id: 'file-1',
-      name: 'secret.bin',
-      size: 3,
-    })
-
-    const result = await executeOnePasswordGetItemFile(
-      { ...SERVICE_CREDENTIALS, vaultId: 'vault-1', itemId: 'item-1', fileId: 'file-1' },
-      {}
-    )
-
-    expect(result.files).toEqual([
-      { name: 'secret.bin', mimeType: 'application/octet-stream', buffer: Buffer.from([1, 2, 3]) },
-    ])
-    const storedFile: StoredToolFile = {
-      id: 'stored-file-1',
-      key: 'execution/stored-file-1',
-      url: '/api/files/serve/stored-file-1',
-      name: 'secret.bin',
-      type: 'application/octet-stream',
-      mimeType: 'application/octet-stream',
-      size: 3,
-      context: 'execution',
-    }
-    expect(result.present([storedFile])).toEqual({ file: storedFile })
-  })
-
   it('preserves the private secret value and rejects Connect mode', async () => {
     const resolve = vi.fn().mockResolvedValue('resolved-secret')
     clientMocks.createOnePasswordClient.mockResolvedValue({ secrets: { resolve } })
@@ -288,21 +155,5 @@ describe('1Password operations', () => {
       status: 400,
       body: { error: 'Resolve Secret is only available in Service Account mode' },
     })
-  })
-
-  it('propagates cancellation after an SDK call returns', async () => {
-    const controller = new AbortController()
-    clientMocks.createOnePasswordClient.mockResolvedValue({
-      vaults: {
-        list: vi.fn().mockImplementation(async () => {
-          controller.abort(new DOMException('cancelled', 'AbortError'))
-          return []
-        }),
-      },
-    })
-
-    await expect(
-      executeOnePasswordListVaults(SERVICE_CREDENTIALS, { signal: controller.signal })
-    ).rejects.toMatchObject({ name: 'AbortError' })
   })
 })

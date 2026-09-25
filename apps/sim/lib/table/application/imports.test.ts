@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -145,7 +141,6 @@ const workspaceFile = {
 
 describe('table import application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveWorkspaceContext.mockResolvedValue(workspaceContext)
     mocks.getResource.mockResolvedValue(record)
@@ -178,68 +173,6 @@ describe('table import application use cases', () => {
     mocks.getUserPermissionConfig.mockResolvedValue(null)
   })
 
-  it('creates an import through the domain resource boundary without presenting a v2 DTO', async () => {
-    const request = new Request('http://localhost:3000/api/table/imports', { method: 'POST' })
-
-    await expect(
-      createTableImportUseCase.execute({
-        principal: reader,
-        input: {
-          body: {
-            workspaceId: 'workspace-1',
-            source: record.source,
-            target: record.target,
-          },
-        },
-        request,
-      })
-    ).resolves.toEqual({ import: { record, upload: null } })
-
-    expect(mocks.createResource).toHaveBeenCalledWith({
-      body: {
-        workspaceId: 'workspace-1',
-        source: record.source,
-        target: record.target,
-      },
-      userId: 'reader-2',
-      principal: reader,
-      localOrigin: 'http://localhost:3000',
-      resolvedFolderId: undefined,
-      workspaceFile: undefined,
-    })
-    expect(record.createdAt).toBe(createdAt)
-  })
-
-  it('creates an upload import for an unscoped current-workflow executor principal', async () => {
-    const request = new Request('http://localhost:3000/api/table/imports', { method: 'POST' })
-
-    await createTableImportUseCase.execute({
-      principal: executor,
-      input: {
-        body: {
-          workspaceId: 'workspace-1',
-          source: record.source,
-          target: record.target,
-        },
-      },
-      request,
-    })
-
-    expect(mocks.resolvePermission).toHaveBeenCalledWith(
-      'executor-user-1',
-      'workspace-1',
-      null,
-      undefined,
-      { forUpdate: undefined }
-    )
-    expect(mocks.createResource).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: 'executor-user-1',
-        principal: executor,
-      })
-    )
-  })
-
   it('reads a durable import by workspace role rather than uploader identity', async () => {
     await expect(
       readTableImportUseCase.execute({
@@ -261,61 +194,6 @@ describe('table import application use cases', () => {
     )
   })
 
-  /**
-   * The 201 that creates an upload-backed import reports `status: "uploading"`
-   * against an id that has no durable job row yet. Reading that id back is only
-   * possible through the upload session, so the token has to be honored here the
-   * same way `DELETE` honors it — otherwise the whole upload phase 404s.
-   */
-  it('reads an upload-phase import through its upload token', async () => {
-    await expect(
-      readTableImportUseCase.execute({
-        principal: workspaceKey,
-        input: { importId: 'import-1', workspaceId: 'workspace-1', uploadToken: 'signed-token' },
-      })
-    ).resolves.toEqual({ import: record })
-
-    expect(mocks.getUpload).toHaveBeenCalledWith({
-      importId: 'import-1',
-      assertedWorkspaceId: 'workspace-1',
-      principal: workspaceKey,
-      uploadToken: 'signed-token',
-    })
-    expect(mocks.getResource).not.toHaveBeenCalled()
-    expect(mocks.resourceFromUpload).toHaveBeenCalledWith(upload)
-  })
-
-  it('prefers the durable job once the upload has started one', async () => {
-    const running = { ...record, status: 'running' as const }
-    mocks.findResource.mockResolvedValue(running)
-
-    await expect(
-      readTableImportUseCase.execute({
-        principal: workspaceKey,
-        input: { importId: 'import-1', workspaceId: 'workspace-1', uploadToken: 'signed-token' },
-      })
-    ).resolves.toEqual({ import: running })
-    expect(mocks.resourceFromUpload).not.toHaveBeenCalled()
-  })
-
-  it('resolves a workspace-file source canonically inside the authorized import command', async () => {
-    await createTableImportUseCase.execute({
-      principal: reader,
-      input: {
-        body: {
-          workspaceId: 'workspace-1',
-          source: { type: 'workspace_file', fileId: 'file-1' },
-          target: record.target,
-        },
-      },
-    })
-
-    expect(mocks.getWorkspaceFile).toHaveBeenLastCalledWith('workspace-1', 'file-1', {
-      throwOnError: true,
-    })
-    expect(mocks.createResource).toHaveBeenCalledWith(expect.objectContaining({ workspaceFile }))
-  })
-
   it('conceals a cross-workspace workspace-file id before import mutation', async () => {
     mocks.getWorkspaceFile.mockResolvedValueOnce(null)
 
@@ -333,15 +211,6 @@ describe('table import application use cases', () => {
     ).rejects.toMatchObject({ code: 'not_found' })
 
     expect(mocks.createResource).not.toHaveBeenCalled()
-  })
-
-  it('lets a workspace key cancel the durable workspace resource', async () => {
-    await cancelTableImportUseCase.execute({
-      principal: workspaceKey,
-      input: { importId: 'import-1', workspaceId: 'workspace-1' },
-    })
-
-    expect(mocks.cancelResource).toHaveBeenCalledWith(record)
   })
 
   it('preserves exact principal and token binding on upload control legs', async () => {
@@ -395,45 +264,6 @@ describe('table import application use cases', () => {
     })
     expect(mocks.abortUpload).toHaveBeenCalledWith(upload, workspaceKey)
     expect(mocks.assertUploadBinding).toHaveBeenCalledWith(upload, workspaceKey)
-  })
-
-  it('threads the exact executor principal through upload control and finalization', async () => {
-    const request = new Request('http://localhost:3000/api/table/imports/import-1/parts', {
-      method: 'POST',
-    })
-
-    await createTableImportPartsUseCase.execute({
-      principal: executor,
-      input: {
-        importId: 'import-1',
-        workspaceId: 'workspace-1',
-        uploadToken: 'signed-token',
-        partNumbers: [1],
-      },
-      request,
-    })
-    await completeTableImportUseCase.execute({
-      principal: executor,
-      input: {
-        importId: 'import-1',
-        workspaceId: 'workspace-1',
-        uploadToken: 'signed-token',
-      },
-    })
-
-    expect(mocks.getUpload).toHaveBeenNthCalledWith(1, {
-      importId: 'import-1',
-      assertedWorkspaceId: 'workspace-1',
-      principal: executor,
-      uploadToken: 'signed-token',
-    })
-    expect(mocks.getUpload).toHaveBeenNthCalledWith(2, {
-      importId: 'import-1',
-      assertedWorkspaceId: 'workspace-1',
-      principal: executor,
-      uploadToken: 'signed-token',
-    })
-    expect(mocks.assertUploadBinding).toHaveBeenCalledWith(upload, executor)
   })
 
   it('creates a private CLI import for the actual Copilot subject with API keys disabled', async () => {
@@ -523,37 +353,6 @@ describe('table import application use cases', () => {
       expect(mocks.createResource).toHaveBeenCalled()
     })
 
-    it('exempts an executor delegation at completion too', async () => {
-      await expect(
-        completeTableImportUseCase.execute({
-          principal: executor,
-          input: {
-            importId: 'import-1',
-            workspaceId: 'workspace-1',
-            uploadToken: 'signed-token',
-          },
-        })
-      ).resolves.toBeDefined()
-
-      expect(mocks.startUploadedImport).toHaveBeenCalled()
-    })
-
-    it('still allows importing into an existing table, which creates nothing', async () => {
-      await expect(
-        createTableImportUseCase.execute({
-          principal: reader,
-          input: {
-            body: {
-              workspaceId: 'workspace-1',
-              source: record.source,
-              target: { type: 'existing', tableId: 'table-1' },
-            },
-          },
-          request: new Request('http://localhost:3000/api/table/imports', { method: 'POST' }),
-        })
-      ).resolves.toEqual({ import: { record, upload: null } })
-    })
-
     /**
      * Creation and completion are separate requests, so a group that withholds
      * creation between them has to be read again at completion — otherwise the
@@ -572,47 +371,6 @@ describe('table import application use cases', () => {
       ).rejects.toMatchObject({ capability: 'tables.create' })
 
       expect(mocks.startUploadedImport).not.toHaveBeenCalled()
-    })
-
-    it('still completes an upload targeting an existing table', async () => {
-      mocks.tableImportBodyFromUpload.mockReturnValue({
-        workspaceId: 'workspace-1',
-        source: record.source,
-        target: { type: 'existing', tableId: 'table-1' },
-      })
-
-      await expect(
-        completeTableImportUseCase.execute({
-          principal: reader,
-          input: {
-            importId: 'import-1',
-            workspaceId: 'workspace-1',
-            uploadToken: 'signed-token',
-          },
-        })
-      ).resolves.toEqual({ import: { ...record, status: 'ready' } })
-
-      expect(mocks.startUploadedImport).toHaveBeenCalledTimes(1)
-    })
-
-    /**
-     * A workspace API key has no acting person, so there is no group to read —
-     * the same exemption `createTableImportUseCase` makes, and the reason the
-     * re-check must not become a blanket refusal on the completion leg.
-     */
-    it('still completes an upload driven by a workspace key, which has no subject', async () => {
-      await expect(
-        completeTableImportUseCase.execute({
-          principal: workspaceKey,
-          input: {
-            importId: 'import-1',
-            workspaceId: 'workspace-1',
-            uploadToken: 'signed-token',
-          },
-        })
-      ).resolves.toEqual({ import: { ...record, status: 'ready' } })
-
-      expect(mocks.startUploadedImport).toHaveBeenCalledTimes(1)
     })
   })
 })

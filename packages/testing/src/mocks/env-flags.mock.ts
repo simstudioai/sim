@@ -7,7 +7,7 @@ import { vi } from 'vitest'
  * `isEmailPasswordEnabled`, and `isChatEnabled` are true — the last because it
  * is an opt-out flag, on unless `NEXT_PUBLIC_CHAT_DISABLED` is set.
  */
-export interface EnvFlagsMockState {
+interface EnvFlagsMockState {
   isProd: boolean
   isDev: boolean
   isTest: boolean

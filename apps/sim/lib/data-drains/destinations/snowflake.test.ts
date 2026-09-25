@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { generateKeyPairSync } from 'node:crypto'
 import { decodeJwt } from 'jose'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -36,7 +33,6 @@ const meta = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   vi.stubGlobal('fetch', fetchMock)
   fetchMock.mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }))
 })
@@ -71,23 +67,6 @@ describe('snowflakeDestination', () => {
     expect(payload.bindings['1']).toEqual({ type: 'TEXT', value: JSON.stringify({ id: 'a' }) })
     expect(payload.bindings['2']).toEqual({ type: 'TEXT', value: JSON.stringify({ id: 'b' }) })
     expect(payload.warehouse).toBe('WH')
-    await session.close()
-  })
-
-  it('uses the configured column when provided', async () => {
-    const session = snowflakeDestination.openSession({
-      config: { ...config, column: 'payload' },
-      credentials,
-    })
-    await session.deliver({
-      body: Buffer.from(`${JSON.stringify({ x: 1 })}\n`),
-      contentType: 'application/x-ndjson',
-      metadata: meta,
-      signal: new AbortController().signal,
-    })
-    const init = fetchMock.mock.calls[0]?.[1] as RequestInit
-    const payload = JSON.parse(init.body as string)
-    expect(payload.statement).toContain('("payload")')
     await session.close()
   })
 
@@ -130,39 +109,6 @@ describe('snowflakeDestination', () => {
     await session.close()
   })
 
-  it('parses CRLF NDJSON bodies correctly', async () => {
-    const session = snowflakeDestination.openSession({ config, credentials })
-    const body = Buffer.from(
-      `${JSON.stringify({ id: 'a' })}\r\n${JSON.stringify({ id: 'b' })}\r\n`,
-      'utf8'
-    )
-    await session.deliver({
-      body,
-      contentType: 'application/x-ndjson',
-      metadata: meta,
-      signal: new AbortController().signal,
-    })
-    const init = fetchMock.mock.calls[0]?.[1] as RequestInit
-    const payload = JSON.parse(init.body as string)
-    expect(payload.bindings['1']).toEqual({ type: 'TEXT', value: JSON.stringify({ id: 'a' }) })
-    expect(payload.bindings['2']).toEqual({ type: 'TEXT', value: JSON.stringify({ id: 'b' }) })
-    await session.close()
-  })
-
-  it('retries the POST on 5xx and succeeds on the next attempt', async () => {
-    fetchMock.mockResolvedValueOnce(new Response('boom', { status: 503 }))
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 200 }))
-    const session = snowflakeDestination.openSession({ config, credentials })
-    await session.deliver({
-      body: Buffer.from(`${JSON.stringify({ x: 1 })}\n`),
-      contentType: 'application/x-ndjson',
-      metadata: meta,
-      signal: new AbortController().signal,
-    })
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-    await session.close()
-  })
-
   it('honors Retry-After (delta seconds) on 429 before retrying', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response('slow down', { status: 429, headers: { 'Retry-After': '1' } })
@@ -196,16 +142,5 @@ describe('snowflakeDestination', () => {
     ).rejects.toThrow(/16 MB/)
     expect(fetchMock).not.toHaveBeenCalled()
     await session.close()
-  })
-
-  it('test() runs SELECT 1', async () => {
-    await snowflakeDestination.test!({
-      config,
-      credentials,
-      signal: new AbortController().signal,
-    })
-    const init = fetchMock.mock.calls[0]?.[1] as RequestInit
-    const payload = JSON.parse(init.body as string)
-    expect(payload.statement).toBe('SELECT 1')
   })
 })

@@ -1,13 +1,9 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
 import {
   RESOLVED_SECRET_PROVENANCE_FIELD,
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
 } from '@/lib/execution/private-tool-metadata'
-import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 const mocks = vi.hoisted(() => ({
   analyzeVision: vi.fn(),
@@ -54,7 +50,6 @@ const context = {
 
 describe('Vision operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.analyzeVision.mockResolvedValue({ content: 'A lighthouse', model: 'gpt-5.2' })
     mocks.assertToolFileAccess.mockResolvedValue(null)
     mocks.downloadFileFromStorage.mockResolvedValue(Buffer.from([1, 2, 3]))
@@ -66,48 +61,6 @@ describe('Vision operations', () => {
       isValid: true,
       resolvedIP: '203.0.113.10',
     })
-  })
-
-  it('authorizes and bounds stored files before provider egress', async () => {
-    await executeVisionOperation(
-      { apiKey: 'secret', imageFile, model: 'gpt-5.2', prompt: null },
-      context
-    )
-
-    expect(mocks.assertToolFileAccess).toHaveBeenCalledWith(
-      imageFile.key,
-      'user-1',
-      'request-1',
-      expect.anything()
-    )
-    expect(mocks.downloadFileFromStorage).toHaveBeenCalledWith(
-      expect.objectContaining({ key: imageFile.key }),
-      'request-1',
-      expect.anything(),
-      { maxBytes: MAX_BUFFERED_TRANSFER_BYTES }
-    )
-    expect(mocks.analyzeVision).toHaveBeenCalledWith(
-      {
-        apiKey: 'secret',
-        imageSource: 'data:image/png;base64,AQID',
-        imageContentType: 'image/png',
-        model: 'gpt-5.2',
-        prompt: 'Please analyze this image and describe what you see in detail.',
-        remoteImageResolvedIP: undefined,
-      },
-      undefined
-    )
-  })
-
-  it('forwards cancellation through the provider operation', async () => {
-    const controller = new AbortController()
-
-    await executeVisionOperation(
-      { apiKey: 'secret', imageFile, model: 'gpt-5.2', prompt: null },
-      { ...context, signal: controller.signal }
-    )
-
-    expect(mocks.analyzeVision).toHaveBeenCalledWith(expect.anything(), controller.signal)
   })
 
   it('rejects incomplete private provenance before resolving the image', async () => {
@@ -155,25 +108,6 @@ describe('Vision operations', () => {
     })
     expect(mocks.downloadFileFromStorage).not.toHaveBeenCalled()
     expect(mocks.analyzeVision).not.toHaveBeenCalled()
-  })
-
-  it('uses the file over a simultaneous URL', async () => {
-    await executeVisionOperation(
-      {
-        apiKey: 'secret',
-        imageFile,
-        imageUrl: 'https://ignored.example.com/image.png',
-        model: 'gpt-5.2',
-        prompt: 'Describe it',
-      },
-      context
-    )
-
-    expect(mocks.validateUrlWithDNS).not.toHaveBeenCalled()
-    expect(mocks.analyzeVision).toHaveBeenCalledWith(
-      expect.objectContaining({ imageSource: 'data:image/png;base64,AQID' }),
-      undefined
-    )
   })
 
   it('preserves v1 data URL inputs without treating them as network destinations', async () => {

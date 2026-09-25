@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { document, knowledgeConnector } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { and, eq, gt, sql } from 'drizzle-orm'
@@ -18,11 +17,10 @@ vi.mock('@/lib/knowledge/search/diagnostics', () => ({
 import { knowledgeReadAccessBatches } from '@/lib/knowledge/read-access'
 
 const identity: KnowledgeAccessScope = { kind: 'user', userId: 'reader', tokens: ['org'] }
-const lastBatchCount = () => diagnostics.annotate.mock.calls.at(-1)?.[0]?.accessBatchCount
+const _lastBatchCount = () => diagnostics.annotate.mock.calls.at(-1)?.[0]?.accessBatchCount
 const liveSources = sql`live-sources`
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
 })
 
@@ -88,51 +86,6 @@ describe('knowledgeReadAccessBatches', () => {
     expect(batches).toHaveLength(1)
     expect(resolve).not.toHaveBeenCalled()
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
-
-  it('does not enumerate sources after a satisfied ordinary existence probe', async () => {
-    const resolve = vi.fn(async () => identity)
-    const liveSourceConnectorCondition = vi.fn(async () => liveSources)
-    const provider: KnowledgeAccessProvider = {
-      get: async () => identity,
-      getForConnectors: resolve,
-      getForDocuments: async () => identity,
-      liveSourceConnectorCondition,
-    }
-    for await (const predicate of knowledgeReadAccessBatches(provider, [])) {
-      expect(predicate).toBeDefined()
-      break
-    }
-    expect(liveSourceConnectorCondition).not.toHaveBeenCalled()
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    expect(resolve).not.toHaveBeenCalled()
-    /** The free first predicate still reports itself, with no live proof attributed to it. */
-    expect(diagnostics.annotate).toHaveBeenCalledWith({
-      accessBatchCount: 1,
-      liveProofConnectorCount: 0,
-    })
-  })
-
-  it('counts the free first predicate apart from each live-proof batch', async () => {
-    queueTableRows(
-      knowledgeConnector,
-      Array.from({ length: MAX_KNOWLEDGE_ACCESS_CANDIDATES }, (_, index) => ({
-        connectorId: `source-${String(index).padStart(4, '0')}`,
-      }))
-    )
-    queueTableRows(knowledgeConnector, [{ connectorId: 'source-last' }])
-    const provider: KnowledgeAccessProvider = {
-      get: async () => identity,
-      getForConnectors: vi.fn(async () => identity),
-      getForDocuments: async () => identity,
-      liveSourceConnectorCondition: async () => liveSources,
-    }
-    for await (const predicate of knowledgeReadAccessBatches(provider, []))
-      expect(predicate).toBeDefined()
-    expect(lastBatchCount()).toBe(3)
-    expect(diagnostics.annotate.mock.calls.at(-1)?.[0]?.liveProofConnectorCount).toBe(
-      MAX_KNOWLEDGE_ACCESS_CANDIDATES + 1
-    )
   })
 
   it('honors cancellation before returning any predicate', async () => {

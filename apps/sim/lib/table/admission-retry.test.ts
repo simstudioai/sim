@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
 import type { PreprocessExecutionResult } from '@/lib/execution/preprocessing'
@@ -25,7 +22,6 @@ import {
 
 describe('retryTableAdmission', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockBackoffWithJitter.mockReturnValue(25)
     mockSleep.mockResolvedValue(undefined)
   })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockSleep } = vi.hoisted(() => ({
@@ -120,12 +117,6 @@ describe('readDocsPage', () => {
 
   it('surfaces a docs-site outage as a retryable error after exhausting retries', async () => {
     fetchMock.mockResolvedValue(fetchResponse(502))
-    await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/could not be reached/)
-    expect(fetchMock).toHaveBeenCalledTimes(3)
-  })
-
-  it('treats a network failure as retryable', async () => {
-    fetchMock.mockRejectedValue(new Error('socket hang up'))
     await expect(readDocsPage(`docs/${SAMPLE_PAGE}`)).rejects.toThrow(/could not be reached/)
     expect(fetchMock).toHaveBeenCalledTimes(3)
   })

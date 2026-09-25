@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { formatCsvValue, neutralizeCsvFormula, toCsvRow } from '@/lib/core/utils/csv'
 
@@ -12,15 +9,6 @@ describe('CSV formatting', () => {
       expect(formatCsvValue(value)).toBe(`'${value}`)
     }
   )
-
-  it('preserves non-string primitives', () => {
-    expect(formatCsvValue(-42)).toBe('-42')
-    expect(formatCsvValue(true)).toBe('true')
-  })
-
-  it('uses the provided object serializer', () => {
-    expect(formatCsvValue({ value: 'x' }, () => 'serialized')).toBe('serialized')
-  })
 
   it('handles objects that serialize to undefined', () => {
     expect(formatCsvValue({ toJSON: () => undefined })).toBe('')

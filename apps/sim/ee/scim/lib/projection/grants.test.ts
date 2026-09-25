@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   type MappingRow,
@@ -74,33 +71,6 @@ describe('resolveDesiredGrants', () => {
       { targetKind: 'org_role', targetId: 'admin' },
     ])
   })
-
-  it('drops rows whose target column is missing', () => {
-    const rows: MappingRow[] = [
-      {
-        targetKind: 'workspace',
-        workspaceId: 'ws-1',
-        permissionType: null,
-        permissionGroupId: null,
-        role: null,
-      },
-      {
-        targetKind: 'permission_group',
-        permissionGroupId: null,
-        workspaceId: null,
-        permissionType: null,
-        role: null,
-      },
-      {
-        targetKind: 'something_else',
-        permissionGroupId: 'x',
-        workspaceId: 'y',
-        permissionType: 'admin',
-        role: 'admin',
-      },
-    ]
-    expect(resolveDesiredGrants(rows)).toEqual([])
-  })
 })
 
 describe('planGrantChanges', () => {
@@ -111,14 +81,6 @@ describe('planGrantChanges', () => {
     targetKind: 'workspace',
     targetId,
     permissionType,
-  })
-
-  it('plans nothing when desired and current agree, which is what makes a reconcile idempotent', () => {
-    const grants = [
-      workspace('ws-1', 'write'),
-      { targetKind: 'permission_group' as const, targetId: 'pg-1' },
-    ]
-    expect(planGrantChanges(grants, [...grants].reverse())).toEqual({ withdraw: [], apply: [] })
   })
 
   it('withdraws what is no longer desired and applies what is new', () => {

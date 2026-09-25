@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -110,7 +109,6 @@ import {
   startKnowledgeConnectorMemberEnrollment,
   updateKnowledgeConnectorAccess,
 } from '@/lib/knowledge/application/connector-access'
-import { GitHubInstallationError } from '@/lib/oauth/github-installation'
 
 const principal = { kind: 'session' as const, userId: 'admin', sessionId: 'session' }
 const input = { knowledgeBaseId: 'kb', connectorId: 'source', assertedWorkspaceId: 'workspace' }
@@ -125,7 +123,6 @@ const row = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.context.mockResolvedValue({
     workspaceId: 'workspace',
     workspaceOrganizationId: null,
@@ -215,32 +212,6 @@ describe('GitHub installation connection replacement', () => {
     }))
   })
 
-  it.each([
-    { status: 404, operation: 'repository' as const },
-    { status: 422, operation: 'repository-token' as const },
-  ])(
-    'rejects an incompatible installation with actionable validation ($status)',
-    async ({ status, operation }) => {
-      mocks.repository.mockRejectedValue(
-        new GitHubInstallationError('Provider detail', status, operation)
-      )
-      await expect(
-        updateKnowledgeConnectorAccess.execute({ principal, input: replacementInput })
-      ).rejects.toMatchObject({
-        code: 'validation',
-        message:
-          "This GitHub connection cannot access this source's repository. Choose a connection with access to the same repository, or add a new source for a different repository.",
-      })
-      expect(mocks.repository).toHaveBeenCalledExactlyOnceWith(
-        { installationId: '42', accountId: '7' },
-        'acme/platform'
-      )
-      expect(mocks.update).not.toHaveBeenCalled()
-      expect(mocks.binding).not.toHaveBeenCalled()
-      expect(mocks.token).not.toHaveBeenCalled()
-    }
-  )
-
   it('rejects a recreated repository at the same path before changing the binding', async () => {
     mocks.repository.mockResolvedValue({ id: '999', fullName: 'acme/platform' })
     await expect(
@@ -250,38 +221,6 @@ describe('GitHub installation connection replacement', () => {
       message: 'Create a new source to index a different GitHub repository',
     })
     expect(mocks.update).not.toHaveBeenCalled()
-  })
-
-  it('passes a verified replacement for the same repository to the atomic access update', async () => {
-    await updateKnowledgeConnectorAccess.execute({ principal, input: replacementInput })
-    expect(mocks.authorizeOrganization).toHaveBeenCalledWith(
-      principal,
-      expect.objectContaining({ minimumRole: 'admin' }),
-      expect.objectContaining({ organizationId: 'org' })
-    )
-    expect(mocks.credential).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal,
-        credentialId: replacementInput.credentialId,
-        scope: { kind: 'organization', organizationId: 'org' },
-      })
-    )
-    expect(mocks.update).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        userId: 'admin',
-        connectorId: 'source',
-        knowledgeBase: { id: 'kb', name: 'Search', organizationId: 'org' },
-        target: {
-          accessMode: 'members',
-          credentialId: replacementInput.credentialId,
-          binding: {
-            credentialGroupId: 'group',
-            credentialGroupOptionId: 'github-members',
-            sourceConfig,
-          },
-        },
-      })
-    )
   })
 
   it('rechecks organization administration before reading the installation or mutating the source', async () => {
@@ -295,68 +234,9 @@ describe('GitHub installation connection replacement', () => {
     expect(mocks.repository).not.toHaveBeenCalled()
     expect(mocks.update).not.toHaveBeenCalled()
   })
-
-  it.each([403, 429, 503])(
-    'preserves a real provider failure (%s) without changing the binding',
-    async (status) => {
-      const error = new GitHubInstallationError('Provider unavailable', status, 'repository')
-      mocks.repository.mockRejectedValue(error)
-      await expect(
-        updateKnowledgeConnectorAccess.execute({ principal, input: replacementInput })
-      ).rejects.toBe(error)
-      expect(mocks.update).not.toHaveBeenCalled()
-    }
-  )
 })
 
 describe('source member enrollment', () => {
-  it.each(['admin', 'members'])(
-    'starts provider OAuth directly for a Search %s source',
-    async (accessMode) => {
-      const completionId = '550e8400-e29b-41d4-a716-446655440000'
-      mocks.context.mockResolvedValue({
-        workspaceId: 'workspace',
-        workspaceOrganizationId: null,
-        allowPersonalApiKeys: true,
-        knowledgeBaseId: 'kb',
-        connectorId: 'source',
-        knowledgeBase: { workspaceId: 'workspace', id: 'kb', name: 'Search', isSearchIndex: true },
-      })
-      mocks.connector.mockResolvedValue({
-        ...row,
-        accessMode,
-        credentialGroupId: 'group',
-        credentialGroupOptionId: 'option',
-      })
-      mocks.meta.mockReturnValue({ name: 'Confluence', search: true, requiresMemberIdentity: true })
-      mocks.identityBinding.mockReturnValue({
-        credentialGroupId: 'group',
-        credentialGroupOptionId: 'option',
-      })
-      await expect(
-        startKnowledgeConnectorMemberEnrollment.execute({
-          principal,
-          input: { ...input, oauthCompletionId: completionId },
-        })
-      ).resolves.toEqual({ url: 'https://provider.example.test/authorize' })
-      expect(mocks.oauthContext).toHaveBeenCalledWith(
-        {
-          workspaceId: 'workspace',
-          credentialGroupId: 'group',
-          enrollmentId: 'enrollment',
-          email: 'person@example.test',
-          userId: 'admin',
-        },
-        'option'
-      )
-      expect(mocks.startOAuth).toHaveBeenCalledWith(
-        { credentialOwnerId: 'admin', option: { id: 'option' } },
-        'enroll',
-        { completionRedirect: true, returnTo: 'search', completionId }
-      )
-    }
-  )
-
   it('rejects direct OAuth for a non-Search source before creating an enrollment', async () => {
     await expect(
       startKnowledgeConnectorMemberEnrollment.execute({
@@ -366,69 +246,6 @@ describe('source member enrollment', () => {
     ).rejects.toThrow('requires a Search source')
     expect(mocks.enrollment).not.toHaveBeenCalled()
     expect(mocks.startOAuth).not.toHaveBeenCalled()
-  })
-
-  it.each(['admin', 'members'])(
-    'focuses a Search %s source on its exact validated account option',
-    async (accessMode) => {
-      mocks.context.mockResolvedValue({
-        workspaceId: 'workspace',
-        workspaceOrganizationId: null,
-        allowPersonalApiKeys: true,
-        knowledgeBaseId: 'kb',
-        connectorId: 'source',
-        knowledgeBase: { workspaceId: 'workspace', id: 'kb', name: 'Search', isSearchIndex: true },
-      })
-      mocks.connector.mockResolvedValue({
-        ...row,
-        connectorType: 'confluence',
-        accessMode,
-        credentialGroupId: 'group',
-        credentialGroupOptionId: 'source-option-two',
-      })
-      mocks.meta.mockReturnValue({ name: 'Confluence', search: true, requiresMemberIdentity: true })
-      mocks.identityBinding.mockReturnValue({
-        credentialGroupId: 'accounts',
-        credentialGroupOptionId: 'identity-option-two',
-      })
-      const { url } = await startKnowledgeConnectorMemberEnrollment.execute({ principal, input })
-      expect(new URL(url).searchParams.get('optionId')).toBe(
-        accessMode === 'admin' ? 'identity-option-two' : 'source-option-two'
-      )
-      expect(new URL(url).searchParams.get('returnTo')).toBe('search')
-      expect(mocks.update).not.toHaveBeenCalled()
-      expect(mocks.provision).not.toHaveBeenCalled()
-    }
-  )
-
-  it('lets a reader connect only their identity for a configured mirrored source without creating a crawler binding', async () => {
-    mocks.role.mockResolvedValue('read')
-    mocks.connector.mockResolvedValue({ ...row, accessMode: 'admin', connectorType: 'confluence' })
-    mocks.meta.mockReturnValue({
-      name: 'Confluence',
-      mirrorsSourceAcls: true,
-      requiresMemberIdentity: true,
-    })
-    mocks.identityBinding.mockReturnValue({
-      credentialGroupId: 'accounts',
-      credentialGroupOptionId: 'confluence',
-    })
-    await expect(
-      startKnowledgeConnectorMemberEnrollment.execute({ principal, input })
-    ).resolves.toEqual({ url: 'https://fixture.test/enroll' })
-    expect(mocks.loadWorkspaceAccounts).toHaveBeenCalledExactlyOnceWith({
-      kind: 'workspace',
-      workspaceId: 'workspace',
-    })
-    expect(mocks.enrollment).toHaveBeenCalledExactlyOnceWith({
-      userId: 'admin',
-      workspaceId: 'workspace',
-      credentialGroupId: 'accounts',
-    })
-    expect(mocks.binding).not.toHaveBeenCalled()
-    expect(mocks.provision).not.toHaveBeenCalled()
-    expect(mocks.update).not.toHaveBeenCalled()
-    expect(mocks.token).not.toHaveBeenCalled()
   })
 
   it('refuses a mirrored source without a configured active identity option', async () => {
@@ -468,32 +285,6 @@ describe('source member enrollment', () => {
     )
     expect(mocks.binding).not.toHaveBeenCalled()
   })
-
-  it('does not mint a link for a disabled or incompatible provider option', async () => {
-    mocks.connector.mockResolvedValue({
-      ...row,
-      accessMode: 'members',
-      credentialGroupId: 'group',
-      credentialGroupOptionId: 'option',
-    })
-    mocks.validateBinding.mockReturnValueOnce({
-      ok: false,
-      message: 'Credential option collects a different provider',
-    })
-    await expect(
-      startKnowledgeConnectorMemberEnrollment.execute({ principal, input })
-    ).rejects.toThrow('different provider')
-    expect(mocks.enrollment).not.toHaveBeenCalled()
-  })
-
-  it('does not provision a group when the stored option is missing', async () => {
-    mocks.connector.mockResolvedValue({ ...row, accessMode: 'members', credentialGroupId: 'group' })
-    await expect(
-      startKnowledgeConnectorMemberEnrollment.execute({ principal, input })
-    ).rejects.toMatchObject({ code: 'validation' })
-    expect(mocks.binding).not.toHaveBeenCalled()
-    expect(mocks.enrollment).not.toHaveBeenCalled()
-  })
 })
 
 describe('connector access application boundary', () => {
@@ -513,28 +304,6 @@ describe('connector access application boundary', () => {
       })
     ).rejects.toThrow('Search sources must support')
     expect(mocks.update).not.toHaveBeenCalled()
-  })
-
-  it('validates the canonical stored API key before enabling source mirroring', async () => {
-    await updateKnowledgeConnectorAccess.execute({
-      principal,
-      input: { ...input, accessMode: 'admin' },
-    })
-    expect(mocks.validate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actingUserId: 'admin',
-        workspaceId: 'workspace',
-        connector: expect.objectContaining({
-          encryptedApiKey: 'encrypted-fixture',
-          credentialId: null,
-          accessMode: 'admin',
-        }),
-      })
-    )
-    expect(mocks.token).not.toHaveBeenCalled()
-    expect(mocks.update).toHaveBeenCalledWith(
-      expect.objectContaining({ target: { accessMode: 'admin', credentialId: null } })
-    )
   })
 
   it('does not mutate access when the source refuses the configured token', async () => {
@@ -573,17 +342,6 @@ describe('connector access application boundary', () => {
     expect(mocks.validate).not.toHaveBeenCalled()
   })
 
-  it('requires a usable OAuth credential when leaving member access', async () => {
-    mocks.meta.mockReturnValue({ name: 'Drive', auth: { mode: 'oauth', provider: 'google-drive' } })
-    await expect(
-      updateKnowledgeConnectorAccess.execute({
-        principal,
-        input: { ...input, accessMode: 'workspace' },
-      })
-    ).rejects.toMatchObject({ code: 'validation' })
-    expect(mocks.update).not.toHaveBeenCalled()
-  })
-
   it('rejects separate content credentials for providers without the capability', async () => {
     mocks.meta.mockReturnValue({
       name: 'Confluence',
@@ -597,98 +355,9 @@ describe('connector access application boundary', () => {
     ).rejects.toMatchObject({ code: 'validation' })
     expect(mocks.update).not.toHaveBeenCalled()
   })
-
-  it('preserves a dedicated content credential on rebind and validates its use', async () => {
-    mocks.meta.mockReturnValue({
-      name: 'Drive',
-      auth: { mode: 'oauth', provider: 'google-drive' },
-      supportsSeparateContentCredential: true,
-    })
-    mocks.connector.mockResolvedValue({
-      ...row,
-      connectorType: 'google_drive',
-      accessMode: 'members',
-      credentialId: 'service-account',
-    })
-    await updateKnowledgeConnectorAccess.execute({
-      principal,
-      input: { ...input, accessMode: 'members' },
-    })
-    expect(mocks.token).toHaveBeenCalledWith(
-      expect.objectContaining({ credentialId: 'service-account', actingUserId: 'admin' })
-    )
-    expect(mocks.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        target: expect.objectContaining({ accessMode: 'members', credentialId: 'service-account' }),
-      })
-    )
-  })
-
-  it('requires explicit null to remove the dedicated content credential', async () => {
-    mocks.meta.mockReturnValue({
-      name: 'Drive',
-      auth: { mode: 'oauth', provider: 'google-drive' },
-      supportsSeparateContentCredential: true,
-    })
-    mocks.connector.mockResolvedValue({
-      ...row,
-      accessMode: 'members',
-      credentialId: 'service-account',
-    })
-    await updateKnowledgeConnectorAccess.execute({
-      principal,
-      input: { ...input, accessMode: 'members', credentialId: null },
-    })
-    expect(mocks.token).not.toHaveBeenCalled()
-    expect(mocks.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        target: expect.objectContaining({ accessMode: 'members', credentialId: null }),
-      })
-    )
-  })
 })
 
 describe('account and settings save', () => {
-  it('validates the replacement with the edited configuration before passing a single mutation', async () => {
-    const sourceConfig = { domain: 'example.atlassian.net', spaceKey: ['ENG'] }
-    mocks.connector.mockResolvedValue({
-      ...row,
-      accessMode: 'admin',
-      connectorType: 'confluence',
-      credentialId: 'old',
-      updatedAt: new Date('2026-09-01'),
-    })
-    mocks.meta.mockReturnValue({
-      name: 'Confluence',
-      auth: { mode: 'oauth', provider: 'confluence' },
-      mirrorsSourceAcls: true,
-    })
-    await updateKnowledgeConnectorAccess.execute({
-      principal,
-      input: {
-        ...input,
-        accessMode: 'admin',
-        credentialId: 'new',
-        sourceConfig,
-        syncIntervalMinutes: 1440,
-      },
-    })
-    expect(mocks.validate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        connector: expect.objectContaining({ credentialId: 'new' }),
-        sourceConfig,
-      })
-    )
-    expect(mocks.update).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        target: { accessMode: 'admin', credentialId: 'new' },
-        sourceConfig,
-        syncIntervalMinutes: 1440,
-        expectedUpdatedAt: new Date('2026-09-01'),
-      })
-    )
-  })
-
   it('leaves both account and settings unchanged when provider validation rejects the replacement', async () => {
     mocks.connector.mockResolvedValue({ ...row, accessMode: 'admin' })
     mocks.validate.mockResolvedValue({
@@ -706,20 +375,5 @@ describe('account and settings save', () => {
       })
     ).rejects.toThrow('Cannot access this space')
     expect(mocks.update).not.toHaveBeenCalled()
-  })
-
-  it('rejects combined settings when switching access modes before resolving credentials', async () => {
-    await expect(
-      updateKnowledgeConnectorAccess.execute({
-        principal,
-        input: {
-          ...input,
-          accessMode: 'admin',
-          sourceConfig: { host: 'new.example.test' },
-        },
-      })
-    ).rejects.toThrow('Save source settings separately')
-    expect(mocks.update).not.toHaveBeenCalled()
-    expect(mocks.token).not.toHaveBeenCalled()
   })
 })

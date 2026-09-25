@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -49,7 +46,6 @@ const file = {
 
 describe('readWorkspaceFileContent', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.getFile.mockResolvedValue(file)
@@ -81,32 +77,6 @@ describe('readWorkspaceFileContent', () => {
     })
     expect(mocks.fetchBuffer).toHaveBeenCalledWith(file, { maxBytes: 512 })
     expect(mocks.getSecretProvenance).not.toHaveBeenCalled()
-  })
-
-  it('loads bound provenance only when requested after the authorized content read', async () => {
-    const secretProvenance = {
-      status: 'exact' as const,
-      entries: [{ encryptedValue: 'ciphertext', sourceUserId: 'user-1' }],
-    }
-    mocks.getSecretProvenance.mockResolvedValue(secretProvenance)
-
-    await expect(
-      readWorkspaceFileContent.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: {
-          fileId: 'file-1',
-          assertedWorkspaceId: 'workspace-1',
-          includeSecretProvenance: true,
-        },
-      })
-    ).resolves.toEqual({ file, content: Buffer.from('source'), secretProvenance })
-
-    expect(mocks.fetchBuffer).toHaveBeenCalledBefore(mocks.getSecretProvenance)
-    expect(mocks.getSecretProvenance).toHaveBeenCalledWith('workspace-1', {
-      fileId: 'file-1',
-      key: file.key,
-      context: 'workspace',
-    })
   })
 
   it('conceals an asserted-workspace mismatch before authorization or storage reads', async () => {

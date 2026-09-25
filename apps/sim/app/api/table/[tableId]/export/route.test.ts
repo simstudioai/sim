@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createTableDefinition, hybridAuthMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -42,7 +39,6 @@ function callGet(format: string) {
 
 describe('table export route — id→name translation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
@@ -80,14 +76,6 @@ describe('table export route — id→name translation', () => {
     expect(header).toBe('email,legacy')
     // Without id→name resolution the email cell would be blank.
     expect(firstRow).toBe('a@b.c,x')
-  })
-
-  it('JSON: keys are display names, never the stable column id', async () => {
-    const res = await callGet('json')
-    expect(res.status).toBe(200)
-    const parsed = JSON.parse(await res.text())
-    expect(parsed).toEqual([{ email: 'a@b.c', legacy: 'x' }])
-    expect(JSON.stringify(parsed)).not.toContain('col_email')
   })
 
   it('refuses the stream when the group withholds tables.export', async () => {

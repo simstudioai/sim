@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Regression test: the credentials response must expose only display metadata,
  * never the connected account's OAuth access/refresh token.
  */
@@ -119,7 +117,6 @@ describe('getCredentialsServerTool', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
 
     wireDb(

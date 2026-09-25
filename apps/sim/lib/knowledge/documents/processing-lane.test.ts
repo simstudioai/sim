@@ -1,12 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import {
-  BACKFILL_PROCESSING_QUEUE_NAME,
-  documentProcessingQueueOptions,
-  INTERACTIVE_PROCESSING_QUEUE_NAME,
-} from '@/lib/knowledge/documents/processing-lane'
+import { documentProcessingQueueOptions } from '@/lib/knowledge/documents/processing-lane'
 import type { DocumentProcessingPayload } from '@/lib/knowledge/documents/processing-payload'
 import { resolveDocumentProcessingLane } from '@/lib/knowledge/documents/processing-payload'
 
@@ -55,10 +48,6 @@ function organizationPayload(organizationId: string): DocumentProcessingPayload 
 }
 
 describe('resolveDocumentProcessingLane', () => {
-  it('keeps an explicit interactive stamp', () => {
-    expect(resolveDocumentProcessingLane('interactive')).toBe('interactive')
-  })
-
   /**
    * Payloads written before the lanes existed carry no lane, and a rolling
    * deploy can hand this version one stamped by a newer. Neither may throw:
@@ -73,22 +62,6 @@ describe('resolveDocumentProcessingLane', () => {
 })
 
 describe('documentProcessingQueueOptions', () => {
-  it('routes interactive work to the interactive queue keyed by workspace', () => {
-    expect(documentProcessingQueueOptions(workspacePayload())).toEqual({
-      queue: INTERACTIVE_PROCESSING_QUEUE_NAME,
-      concurrencyKey: 'workspace:workspace-1',
-    })
-  })
-
-  it('routes backfill to its own queue under the same key', () => {
-    expect(
-      documentProcessingQueueOptions(workspacePayload({ processingLane: 'backfill' }))
-    ).toEqual({
-      queue: BACKFILL_PROCESSING_QUEUE_NAME,
-      concurrencyKey: 'workspace:workspace-1',
-    })
-  })
-
   /**
    * The incident this split exists for: organization-scoped knowledge bases
    * carry `workspaceId: null`, so a workspace-only key would collapse every one

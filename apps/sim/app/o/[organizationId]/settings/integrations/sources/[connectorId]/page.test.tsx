@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { Suspense } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -30,7 +29,6 @@ const props = { params: Promise.resolve({ organizationId: 'org-one', connectorId
 
 describe('organization source page authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.session.mockResolvedValue({ user: { id: 'admin-one' } })
     mocks.authorize.mockResolvedValue(true)
     mocks.redirect.mockImplementation(() => {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'

@@ -99,7 +99,7 @@ import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { downloadFileFromUrl } from '@/lib/uploads/utils/file-utils.server'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const redisUrl = process.env.KNOWLEDGE_ACL_TEST_REDIS_URL
+const redisUrl = process.env.TEST_REDIS_URL
 if (redisUrl) {
   const target = new URL(redisUrl)
   if (

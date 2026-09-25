@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { flattenMockConditions, hasMockCondition } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -301,7 +298,6 @@ const toolRow = (id: string, serverId: string) => ({
 
 describe('workflow MCP tool withdrawal and restore', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.acquireLock.mockResolvedValue(undefined)
     mocks.usageRows.mockResolvedValue([])
     mocks.exceedsBudget.mockReturnValue(false)
@@ -325,43 +321,6 @@ describe('workflow MCP tool withdrawal and restore', () => {
     expect(archive?.table).toBe(workflowMcpTool)
     expect(archive?.values?.archivedAt).toBeInstanceOf(Date)
     expect(hasMockCondition(archive?.where, (node) => node.type === 'isNull')).toBe(true)
-  })
-
-  /**
-   * Redeploying republishes the workflow on exactly the servers it was
-   * published on before the undeploy.
-   */
-  it('restores archived registrations when the workflow is deployed again', async () => {
-    const { tx, writes } = createFakeTx([
-      NO_LIVE_SERVERS,
-      [archivedRow('t-1', 'srv-1', 'orders')],
-      NO_LIVE_SERVERS,
-      [],
-      [],
-      [toolRow('t-1', 'srv-1')],
-      [],
-      [],
-    ])
-
-    await syncMcpToolsForWorkflow({
-      workflowId: WORKFLOW_ID,
-      requestId: REQUEST_ID,
-      state: { blocks: {} },
-      tx,
-      notify: false,
-      throwOnError: true,
-    })
-
-    const restore = writes.find((write) => write.values?.archivedAt === null)
-    expect(restore).toBeDefined()
-    expect(restore?.table).toBe(workflowMcpTool)
-    expect(
-      hasMockCondition(
-        restore?.where,
-        (node) => node.type === 'inArray' && (node.values as string[]).includes('t-1')
-      )
-    ).toBe(true)
-    expect(mocks.acquireLock).toHaveBeenCalledWith(tx, 'srv-1')
   })
 
   /**

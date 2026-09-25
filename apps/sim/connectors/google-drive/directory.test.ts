@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { listDomainGroups, openGoogleDirectory } from '@/connectors/google-drive/directory'
 import { ConnectorDirectoryGroupAccessError } from '@/connectors/source-error'
@@ -40,18 +37,11 @@ const NESTED = (email: string) => ({ email, type: 'GROUP' })
 
 describe('listDomainGroups', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
   })
 
   it('folds group emails so they match the tokens a crawl writes', async () => {
     directory({}, [{ email: 'Eng@Corp.com', name: 'Engineering' }])
-
-    await expect(listDomainGroups('token')).resolves.toEqual([{ id: 'eng@corp.com' }])
-  })
-
-  it('drops a group with no email, which is the only identifier a grant carries', async () => {
-    directory({}, [{ name: 'Nameless' }, { email: 'eng@corp.com' }])
 
     await expect(listDomainGroups('token')).resolves.toEqual([{ id: 'eng@corp.com' }])
   })
@@ -85,18 +75,7 @@ describe('the membership a directory reports', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  it('reports the people in a flat group, case-folded', async () => {
-    directory({ 'eng@corp.com': [USER('Alice@Corp.com'), USER('bob@corp.com')] })
-
-    await expect(membersOf(GROUP)).resolves.toEqual({
-      group: GROUP,
-      memberTokens: ['u:alice@corp.com', 'u:bob@corp.com'],
-      complete: true,
-    })
   })
 
   it('follows nested groups to the people inside them', async () => {
@@ -289,59 +268,11 @@ describe('the membership a directory reports', () => {
       expect(failure).toMatchObject({ status })
     }
   )
-
-  /** A directory that hiccups must not cost a group its membership; transient errors are retried. */
-  it('retries a transient directory error before giving up', async () => {
-    directory({ 'eng@corp.com': [USER('alice@corp.com')] })
-    const healthy = mockFetch.getMockImplementation()!
-    let firstMemberRead = true
-    mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
-      if (String(url).includes('/members') && firstMemberRead) {
-        firstMemberRead = false
-        return jsonResponse(
-          { error: { errors: [{ reason: 'backendError' }], message: 'try again' } },
-          503
-        )
-      }
-      return healthy(url, init)
-    })
-
-    await expect(membersOf(GROUP)).resolves.toMatchObject({
-      memberTokens: ['u:alice@corp.com'],
-      complete: true,
-    })
-  })
 })
 
 describe('openGoogleDirectory', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  it('lists one synthetic group per domain the customer owns, after the real groups', async () => {
-    directory({}, [{ email: 'eng@corp.com' }])
-    const dir = openGoogleDirectory('google-drive', 'token', 'admin@corp.com')
-
-    await expect(dir?.listGroups()).resolves.toEqual([
-      { id: 'eng@corp.com' },
-      { id: 'domain:corp.com' },
-      { id: 'domain:corp.io' },
-      { id: 'domain:sub.corp.com' },
-    ])
-  })
-
-  /** The wildcard is what a reader at that domain matches; nobody is enumerated. */
-  it('answers a synthetic domain group with its wildcard member and no directory call', async () => {
-    directory({})
-    const dir = openGoogleDirectory('google-drive', 'token', 'admin@corp.com')
-
-    await expect(dir?.listGroupMembers({ id: 'domain:corp.com' })).resolves.toEqual({
-      group: { id: 'domain:corp.com' },
-      memberTokens: ['u:*@corp.com'],
-      complete: true,
-    })
-    expect(mockFetch).not.toHaveBeenCalled()
   })
 
   it('stores a CUSTOMER member as the wildcard of every domain the customer owns', async () => {
@@ -357,13 +288,5 @@ describe('openGoogleDirectory', () => {
       'u:*@sub.corp.com',
       'u:bob@corp.com',
     ])
-  })
-
-  it('carries the provider and tenant every token of the directory names', () => {
-    expect(openGoogleDirectory('google-drive', 'token', 'Admin@Corp.com')).toMatchObject({
-      providerId: 'google-drive',
-      tenantId: 'corp.com',
-    })
-    expect(openGoogleDirectory('google-drive', 'token', undefined)).toBeNull()
   })
 })

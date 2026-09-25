@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { generateShortId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -58,7 +55,6 @@ describe('readThroughSegments', () => {
     }, {})
 
   beforeEach(() => {
-    vi.clearAllMocks()
     redisMock.client = null
     namespace = `test-${generateShortId()}`
   })

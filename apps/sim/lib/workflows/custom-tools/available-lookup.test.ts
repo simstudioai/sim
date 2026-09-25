@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
@@ -36,10 +33,6 @@ function selection(rows: unknown[]) {
 }
 
 describe('getAvailableCustomTool', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('returns the workspace tool without querying the personal fallback', async () => {
     mocks.select.mockReturnValueOnce(selection([workspaceTool]))
 

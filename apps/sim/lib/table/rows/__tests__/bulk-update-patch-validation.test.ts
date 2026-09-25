@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * A bulk update's patch must be judged on its own: an uncoercible value is a
  * property of the request, so it has to be answered identically whether the
  * filter matches rows or none.
@@ -69,7 +67,6 @@ function row(id: string, data: RowData): { id: string; data: RowData } {
 
 describe('bulk update patch validation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.selectRowDataPage.mockResolvedValue([])
     mocks.mutateTableRowsWithSecretProvenance.mockImplementation(

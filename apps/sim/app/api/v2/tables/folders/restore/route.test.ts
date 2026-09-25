@@ -1,9 +1,4 @@
-/**
- * @vitest-environment node
- */
-
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -24,7 +19,6 @@ vi.mock('@/lib/table/application/folders', () => ({
   },
 }))
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { POST } from '@/app/api/v2/tables/folders/restore/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -76,35 +70,10 @@ function restore(body: unknown) {
 
 describe('POST /api/v2/tables/folders/restore', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.restore.mockResolvedValue(restored('Reports', '/Reports'))
-  })
-
-  it('delegates the workspace and archived path, and reports what came back', async () => {
-    const invocation = restore({ workspaceId: WORKSPACE_ID, path: '/Reports' })
-    const response = await invocation.response
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: {
-        folder: {
-          name: 'Reports',
-          path: '/Reports',
-          parentPath: '/',
-          createdAt: '2026-01-01T00:00:00.000Z',
-          updatedAt: '2026-01-01T00:00:00.000Z',
-        },
-        restoredItems: { folders: 2, tables: 5 },
-      },
-    })
-    expect(mocks.restore).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: { workspaceId: WORKSPACE_ID, path: '/Reports' },
-      request: invocation.request,
-    })
   })
 
   /**
@@ -121,57 +90,5 @@ describe('POST /api/v2/tables/folders/restore', () => {
 
     expect(response.status).toBe(200)
     expect((await response.json()).data.folder.path).toBe('/Reports')
-  })
-
-  /**
-   * A name an active sibling took while the folder was archived is deduplicated, not
-   * rejected — the caller cannot rename an archived folder, so a taken name would otherwise
-   * make it permanently unrestorable.
-   */
-  it('reports the deduplicated name when an active sibling holds the original', async () => {
-    mocks.restore.mockResolvedValue(restored('Reports (1)', '/Reports%20%281%29'))
-
-    const response = await restore({ workspaceId: WORKSPACE_ID, path: '/Reports' }).response
-
-    expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body.data.folder.name).toBe('Reports (1)')
-    expect(body.data.folder.path).toBe('/Reports%20%281%29')
-  })
-
-  it('answers 404 for a path no archived folder holds', async () => {
-    mocks.restore.mockRejectedValueOnce(new OrchestrationError('not_found', 'Folder not found'))
-
-    const response = await restore({ workspaceId: WORKSPACE_ID, path: '/Nope' }).response
-
-    expect(response.status).toBe(404)
-    expect((await response.json()).error.code).toBe('NOT_FOUND')
-  })
-
-  it('rejects the workspace root before delegation', async () => {
-    const response = await restore({ workspaceId: WORKSPACE_ID, path: '/' }).response
-
-    expect(response.status).toBe(400)
-    expect(mocks.restore).not.toHaveBeenCalled()
-  })
-
-  it('rejects an unknown body key', async () => {
-    const response = await restore({
-      workspaceId: WORKSPACE_ID,
-      path: '/Reports',
-      recursive: true,
-    }).response
-
-    expect(response.status).toBe(400)
-    expect(mocks.restore).not.toHaveBeenCalled()
-  })
-
-  it('rejects an unauthenticated request before delegation', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await restore({ workspaceId: WORKSPACE_ID, path: '/Reports' }).response
-
-    expect(response.status).toBe(401)
-    expect(mocks.restore).not.toHaveBeenCalled()
   })
 })

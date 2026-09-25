@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockFindUserEmailsByIds } = vi.hoisted(() => ({ mockFindUserEmailsByIds: vi.fn() }))
 
@@ -30,10 +27,6 @@ const version: WorkspaceFileVersionRecord = {
 }
 
 describe('toV2FileVersions', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('keeps authors whose accounts no longer exist, with a null email', async () => {
     mockFindUserEmailsByIds.mockResolvedValueOnce(new Map([['user-1', 'ada@example.com']]))
 

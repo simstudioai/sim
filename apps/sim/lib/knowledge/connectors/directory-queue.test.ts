@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMock, dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DatabaseJobQueue } from '@/lib/core/async-jobs/backends/database'
@@ -16,7 +13,6 @@ import { dispatchDirectorySync } from '@/lib/knowledge/connectors/directory-queu
 
 describe('local directory sync dispatch', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.returning.mockResolvedValue([{ id: 'job' }])
   })

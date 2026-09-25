@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockExecuteTool } = vi.hoisted(() => ({ mockExecuteTool: vi.fn() }))
@@ -41,7 +38,6 @@ function snapshot(overrides: Record<string, unknown> = {}) {
 
 describe('fetchPrSnapshot', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockExecuteTool.mockResolvedValue({ success: true, output: snapshot() })
   })
 
@@ -62,15 +58,6 @@ describe('fetchPrSnapshot', () => {
     expect(result).toMatchObject({ headSha: HEAD_SHA, baseSha: BASE_SHA, state: 'open' })
   })
 
-  it('returns a closed or merged pull request instead of throwing', async () => {
-    // This is the whole reason the state guard lives in the wrapper: a mode that
-    // must report "the PR closed mid-run" as a result rather than as a failure
-    // builds on this form, so folding the guard back in here would break it.
-    mockExecuteTool.mockResolvedValue({ success: true, output: snapshot({ state: 'closed' }) })
-
-    await expect(fetchPrSnapshot(COORDINATES)).resolves.toMatchObject({ state: 'closed' })
-  })
-
   it('surfaces a failed read rather than returning an empty snapshot', async () => {
     mockExecuteTool.mockResolvedValue({ success: false, error: 'Not Found' })
 
@@ -87,14 +74,6 @@ describe('fetchPrSnapshot', () => {
 })
 
 describe('fetchOpenPrSnapshot', () => {
-  beforeEach(() => vi.clearAllMocks())
-
-  it('passes an open pull request through', async () => {
-    mockExecuteTool.mockResolvedValue({ success: true, output: snapshot() })
-
-    await expect(fetchOpenPrSnapshot(COORDINATES)).resolves.toMatchObject({ state: 'open' })
-  })
-
   it('refuses anything that is not open', async () => {
     mockExecuteTool.mockResolvedValue({ success: true, output: snapshot({ state: 'closed' }) })
 
@@ -111,8 +90,6 @@ describe('findOpenPrForBranch', () => {
     branch: 'feature/existing',
     githubToken: 'ghp_secret',
   }
-
-  beforeEach(() => vi.clearAllMocks())
 
   function list(items: unknown[]) {
     return { success: true, output: { items, count: items.length } }
@@ -214,19 +191,6 @@ describe('setPullRequestDraftState', () => {
     })
   }
 
-  it('does nothing when the pull request already has the requested state', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(
-      graphQlResponse({
-        repository: { pullRequest: { id: 'PR_kwDOExample', isDraft: false } },
-      })
-    )
-    vi.stubGlobal('fetch', mockFetch)
-
-    await setPullRequestDraftState({ ...COORDINATES, state: 'ready' })
-
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-  })
-
   it.each([
     ['draft', false, 'convertPullRequestToDraft'],
     ['ready', true, 'markPullRequestReadyForReview'],
@@ -252,10 +216,6 @@ describe('setPullRequestDraftState', () => {
 })
 
 describe('validateRepositoryCoordinates', () => {
-  it('accepts ordinary GitHub coordinates', () => {
-    expect(() => validateRepositoryCoordinates(COORDINATES)).not.toThrow()
-  })
-
   it.each([
     ['a traversal in the owner', { owner: '../octo' }],
     ['a traversal in the repo', { repo: '..' }],

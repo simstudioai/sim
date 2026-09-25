@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { fetchPointsTool } from '@/tools/qdrant/fetch_points'
 import { searchVectorTool } from '@/tools/qdrant/search_vector'

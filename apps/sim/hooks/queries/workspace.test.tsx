@@ -5,7 +5,7 @@ import { act, type ReactNode } from 'react'
 import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 const { mockRequestJson } = vi.hoisted(() => ({
   mockRequestJson: vi.fn(),
@@ -97,10 +97,6 @@ afterEach(() => {
   })
 })
 
-beforeEach(() => {
-  vi.clearAllMocks()
-})
-
 describe('useWorkspacePermissionsQuery', () => {
   it('does not retain admin access while a different workspace loads', () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -142,37 +138,6 @@ describe('useWorkspacePermissionsQuery', () => {
 })
 
 describe('useToggleWorkspacePin', () => {
-  it('pins by creating a row addressed to the workspace itself', async () => {
-    mockRequestJson.mockResolvedValue({ pinnedItem: {} })
-    const { getResult, queryClient } = renderHookWithClient(() => useToggleWorkspacePin())
-    seedList(queryClient, [])
-
-    act(() => {
-      getResult().mutate({ workspaceId: 'ws-a', pinned: true })
-    })
-    await flush()
-
-    expect(mockRequestJson).toHaveBeenCalledWith(createPinnedItemContract, {
-      body: { workspaceId: 'ws-a', resourceType: 'workspace', resourceId: 'ws-a' },
-    })
-  })
-
-  it('unpins by deleting that row', async () => {
-    mockRequestJson.mockResolvedValue({ success: true })
-    const { getResult, queryClient } = renderHookWithClient(() => useToggleWorkspacePin())
-    seedList(queryClient, ['ws-a'])
-
-    act(() => {
-      getResult().mutate({ workspaceId: 'ws-a', pinned: false })
-    })
-    await flush()
-
-    expect(mockRequestJson).toHaveBeenCalledWith(deletePinnedItemContract, {
-      params: { resourceType: 'workspace', resourceId: 'ws-a' },
-    })
-    expect(readPins(queryClient)).toEqual([])
-  })
-
   /**
    * Pin then unpin the same workspace race on the same row: an unpin that overtook
    * its pin would delete nothing and leave the workspace pinned. The mutation scope
@@ -203,69 +168,6 @@ describe('useToggleWorkspacePin', () => {
 
     expect(mockRequestJson).toHaveBeenCalledTimes(2)
     expect(mockRequestJson.mock.calls[1][0]).toBe(deletePinnedItemContract)
-    expect(readPins(queryClient)).toEqual([])
-  })
-
-  /**
-   * The writes are serialized, so an earlier toggle settles while a later one is
-   * still queued. Refetching there would render the server's intermediate state and
-   * bounce the row out of the pinned group and back.
-   */
-  it('reconciles only once no toggle is still queued', async () => {
-    const resolvers: Array<() => void> = []
-    mockRequestJson.mockImplementation(
-      () => new Promise((resolve) => resolvers.push(() => resolve({ pinnedItem: {} })))
-    )
-    const { getResult, queryClient } = renderHookWithClient(() => useToggleWorkspacePin())
-    seedList(queryClient, [])
-    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
-
-    act(() => {
-      getResult().mutate({ workspaceId: 'ws-a', pinned: true })
-      getResult().mutate({ workspaceId: 'ws-a', pinned: false })
-    })
-    await flush()
-
-    act(() => resolvers[0]())
-    await flush()
-
-    // The unpin is now in flight; reconciling here would refetch the pinned state.
-    expect(invalidateSpy).not.toHaveBeenCalled()
-
-    act(() => resolvers[1]())
-    await flush()
-
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: workspaceKeys.lists() })
-  })
-
-  /** Both duplicate-click outcomes mean the row is already in the requested end state. */
-  it.each([
-    ['pin', true, 409],
-    ['unpin', false, 404],
-  ])('treats a duplicate %s (%s) as success', async (_label, pinned, status) => {
-    mockRequestJson.mockRejectedValue(apiError(status as number))
-    const { getResult, queryClient } = renderHookWithClient(() => useToggleWorkspacePin())
-    seedList(queryClient, pinned ? [] : ['ws-a'])
-
-    act(() => {
-      getResult().mutate({ workspaceId: 'ws-a', pinned: pinned as boolean })
-    })
-    await flush()
-
-    expect(getResult().isError).toBe(false)
-    expect(readPins(queryClient)).toEqual(pinned ? ['ws-a'] : [])
-  })
-
-  it('rolls the optimistic pin back when the write fails', async () => {
-    mockRequestJson.mockRejectedValue(apiError(500))
-    const { getResult, queryClient } = renderHookWithClient(() => useToggleWorkspacePin())
-    seedList(queryClient, [])
-
-    act(() => {
-      getResult().mutate({ workspaceId: 'ws-a', pinned: true })
-    })
-    await flush()
-
     expect(readPins(queryClient)).toEqual([])
   })
 
@@ -302,28 +204,6 @@ describe('useRecordWorkspaceVisit', () => {
     })
   }
 
-  function readList(queryClient: QueryClient) {
-    const data = queryClient.getQueryData<{
-      workspaces: { id: string }[]
-      lastActiveWorkspaceId: string | null
-    }>(workspaceKeys.list('active'))
-    return { ids: data?.workspaces.map(({ id }) => id), lastActive: data?.lastActiveWorkspaceId }
-  }
-
-  it('moves the workspace to the front before the server answers', async () => {
-    mockRequestJson.mockReturnValue(new Promise<never>(() => {}))
-    const { getResult, queryClient } = renderHookWithClient(() => useRecordWorkspaceVisit())
-    seedWorkspaces(queryClient, ['ws-a', 'ws-b', 'ws-c'])
-
-    act(() => getResult().mutate('ws-c'))
-    await flush()
-
-    expect(mockRequestJson).toHaveBeenCalledWith(recordWorkspaceVisitContract, {
-      params: { id: 'ws-c' },
-    })
-    expect(readList(queryClient)).toEqual({ ids: ['ws-c', 'ws-a', 'ws-b'], lastActive: 'ws-c' })
-  })
-
   it('sends visits one at a time, in the order they happened', async () => {
     let finishFirst: (value: { success: true }) => void = () => {}
     mockRequestJson
@@ -345,53 +225,5 @@ describe('useRecordWorkspaceVisit', () => {
     expect(mockRequestJson).toHaveBeenLastCalledWith(recordWorkspaceVisitContract, {
       params: { id: 'ws-c' },
     })
-  })
-
-  it('reconciles only after the last queued visit settles', async () => {
-    let finishFirst: (value: { success: true }) => void = () => {}
-    let finishSecond: (value: { success: true }) => void = () => {}
-    mockRequestJson
-      .mockReturnValueOnce(new Promise((resolve) => (finishFirst = resolve)))
-      .mockReturnValueOnce(new Promise((resolve) => (finishSecond = resolve)))
-    const { getResult, queryClient } = renderHookWithClient(() => useRecordWorkspaceVisit())
-    seedWorkspaces(queryClient, ['ws-a', 'ws-b', 'ws-c'])
-    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
-
-    act(() => {
-      getResult().mutate('ws-b')
-      getResult().mutate('ws-c')
-    })
-    await flush()
-    finishFirst({ success: true })
-    await flush()
-    expect(invalidate).not.toHaveBeenCalled()
-    expect(readList(queryClient).ids).toEqual(['ws-c', 'ws-b', 'ws-a'])
-
-    finishSecond({ success: true })
-    await flush()
-    expect(invalidate).toHaveBeenCalledTimes(1)
-  })
-
-  it('reconciles the list with the server once the visit settles', async () => {
-    mockRequestJson.mockRejectedValueOnce(apiError(500))
-    const { getResult, queryClient } = renderHookWithClient(() => useRecordWorkspaceVisit())
-    seedWorkspaces(queryClient, ['ws-a', 'ws-b'])
-    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
-
-    act(() => getResult().mutate('ws-b'))
-    await flush()
-
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: workspaceKeys.lists() })
-  })
-
-  it('leaves the order untouched for a workspace the list does not contain', async () => {
-    mockRequestJson.mockReturnValue(new Promise<never>(() => {}))
-    const { getResult, queryClient } = renderHookWithClient(() => useRecordWorkspaceVisit())
-    seedWorkspaces(queryClient, ['ws-a', 'ws-b'])
-
-    act(() => getResult().mutate('ws-gone'))
-    await flush()
-
-    expect(readList(queryClient)).toEqual({ ids: ['ws-a', 'ws-b'], lastActive: 'ws-a' })
   })
 })

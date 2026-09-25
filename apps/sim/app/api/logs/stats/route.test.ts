@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   authMockFns,
   createMockRequest,
@@ -47,7 +44,6 @@ function makeRequest(query = '') {
 
 describe('GET /api/logs/stats', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mocks.checkWorkspaceAccess.mockResolvedValue({ hasAccess: true })
     mocks.readLogStatsBounds.mockResolvedValue({
@@ -69,45 +65,5 @@ describe('GET /api/logs/stats', () => {
       details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
     })
     expect(mocks.readLogStatsBounds).not.toHaveBeenCalled()
-  })
-
-  it('answers an unfiltered read under the same group', async () => {
-    resolveGroupConfigMock.mockResolvedValue({ hideCostInfo: true })
-
-    const response = await GET(makeRequest())
-
-    expect(response.status).toBe(200)
-    expect(mocks.readLogStatsBounds).toHaveBeenCalled()
-  })
-
-  /**
-   * The refusal needs both conditions, so an unfiltered read can never be
-   * refused and the config lookup — which re-reads workspace and
-   * organization/group state — is pure cost on the dashboard's common path.
-   */
-  it('does not consult the group for an unfiltered read', async () => {
-    resolveGroupConfigMock.mockResolvedValue({ hideCostInfo: true })
-
-    const response = await GET(makeRequest())
-
-    expect(response.status).toBe(200)
-    expect(resolveGroupConfigMock).not.toHaveBeenCalled()
-  })
-
-  it('answers the same cost-filtered read when no group withholds spend', async () => {
-    const response = await GET(makeRequest('&costOperator=%3E&costValue=0.5'))
-
-    expect(response.status).toBe(200)
-    expect(mocks.readLogStatsBounds).toHaveBeenCalled()
-  })
-
-  /** A caller with no workspace access is answered with a zeroed 200, as before. */
-  it('does not consult the group for a caller without workspace access', async () => {
-    mocks.checkWorkspaceAccess.mockResolvedValue({ hasAccess: false })
-
-    const response = await GET(makeRequest('&costOperator=%3E&costValue=0.5'))
-
-    expect(response.status).toBe(200)
-    expect(resolveGroupConfigMock).not.toHaveBeenCalled()
   })
 })

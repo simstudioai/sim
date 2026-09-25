@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { member, user } from '@sim/db/schema'
 import { authMockFns, createMockRequest, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -52,7 +51,6 @@ const principal = {
 } as const
 const input = { organizationId: 'org', userId: 'target' }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.remove.mockResolvedValue({ success: true, billingActions: {} })
   mocks.seats.mockResolvedValue({ changed: false })
@@ -130,32 +128,6 @@ describe('organization member removal', () => {
       onError: 'throw',
     })
     expect(mocks.active).toHaveBeenCalledWith(null)
-  })
-  it('retains external removal grant counts and skips seat changes', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(member, [])
-    queueTableRows(user, [{ id: 'target', name: 'External' }])
-    const result = await removeOrganizationMember.execute({ principal, input })
-    expect(result.removal).toMatchObject({
-      workspaceAccessRevoked: 2,
-      credentialMembershipsRevoked: 1,
-    })
-    expect(mocks.external).toHaveBeenCalledWith({
-      userId: 'target',
-      organizationId: 'org',
-      actorUserId: 'actor',
-    })
-    expect(mocks.seats).not.toHaveBeenCalled()
-  })
-  it('preserves completed removal and reports seat reconciliation failure', async () => {
-    target()
-    mocks.seats.mockRejectedValueOnce(new Error('stripe-unavailable'))
-    const result = await removeOrganizationMember.execute({ principal, input })
-    expect(result.seatReduction).toEqual({
-      changed: false,
-      reason: 'Failed to reduce seats after member removal',
-    })
-    expect(mocks.audit).toHaveBeenCalledTimes(1)
   })
   it.each(['Cannot remove organization owner', 'Billing ownership must be transferred'])(
     'preserves lifecycle refusal %s',

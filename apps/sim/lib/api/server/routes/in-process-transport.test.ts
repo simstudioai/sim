@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest, NextResponse } from 'next/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 

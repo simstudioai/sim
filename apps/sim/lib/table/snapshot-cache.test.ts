@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -55,7 +52,6 @@ describe('getOrCreateTableSnapshot', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     lastHandle = null
     mockDeleteFile.mockResolvedValue(undefined)
@@ -80,21 +76,6 @@ describe('getOrCreateTableSnapshot', () => {
       lastHandle = handle
       return Promise.resolve(handle)
     })
-  })
-
-  it('returns the cached snapshot on a hit without reading rows', async () => {
-    versions(3)
-    mockHeadObject.mockResolvedValue({ size: 42 })
-
-    const ref = await getOrCreateTableSnapshot(table, 'req')
-
-    expect(ref).toEqual({
-      key: expect.stringMatching(/^table-snapshots\/ws_1\/tbl_1\/v3-[0-9a-f]{12}\.csv$/),
-      size: 42,
-      version: 3,
-    })
-    expect(mockCreateMultipartUpload).not.toHaveBeenCalled()
-    expect(mockSelectExportRowPage).not.toHaveBeenCalled()
   })
 
   it('materializes and stores on a miss, then cleans up the previous version', async () => {

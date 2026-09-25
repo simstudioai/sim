@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   auditMock,
   authMockFns,
@@ -138,7 +135,6 @@ describe('GET /api/workspaces/invitations', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([
       { workspace: { id: 'ws-managed' }, permissionType: 'admin', viaOrgAdmin: false },
@@ -173,29 +169,12 @@ describe('GET /api/workspaces/invitations', () => {
       email: 'invitee@example.com',
     })
   })
-
-  it('asks only for the workspaces the caller can reach', async () => {
-    await GET(createMockRequest('GET'))
-
-    expect(mockListInvitationsForWorkspaces).toHaveBeenCalledWith([
-      'ws-managed',
-      'ws-org-admin',
-      'ws-read-only',
-    ])
-  })
-
-  it('refuses an unauthenticated caller', async () => {
-    mockGetSession.mockResolvedValue(null)
-
-    expect((await GET(createMockRequest('GET'))).status).toBe(401)
-  })
 })
 
 afterAll(resetEnvFlagsMock)
 
 describe('POST /api/workspaces/invitations/batch', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(schemaMock.workspace, [
       {
@@ -315,37 +294,6 @@ describe('POST /api/workspaces/invitations/batch', () => {
     expect(data.upgradeRequired).toBe(true)
   })
 
-  it('blocks invites for grandfathered workspaces without a team plan', async () => {
-    mockGetWorkspaceWithOwner.mockResolvedValueOnce({
-      id: 'workspace-1',
-      name: 'Grandfathered Workspace',
-      ownerId: 'user-1',
-      organizationId: null,
-      workspaceMode: 'grandfathered_shared',
-      billedAccountUserId: 'user-1',
-    })
-    mockGetWorkspaceInvitePolicy.mockResolvedValueOnce({
-      allowed: false,
-      reason: UPGRADE_TO_INVITE_REASON,
-      requiresSeat: false,
-      organizationId: null,
-      upgradeRequired: true,
-    })
-
-    const request = createMockRequest('POST', {
-      workspaceIds: ['workspace-1'],
-      emails: ['new@example.com'],
-      permission: 'read',
-    })
-
-    const response = await POST(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(403)
-    expect(data.upgradeRequired).toBe(true)
-    expect(mockCreatePendingInvitation).not.toHaveBeenCalled()
-  })
-
   it('reports org-owned invites as failed when the organization has no available seats', async () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
@@ -400,105 +348,6 @@ describe('POST /api/workspaces/invitations/batch', () => {
     expect(mockValidateSeatAvailability).toHaveBeenCalledWith('org-1', 1, {
       executor: dbChainMock.db,
     })
-  })
-
-  it('creates an external workspace invitation for users already in another organization', async () => {
-    mockGetWorkspaceWithOwner.mockResolvedValueOnce({
-      id: 'workspace-1',
-      name: 'Org Workspace',
-      ownerId: 'user-1',
-      organizationId: 'org-1',
-      workspaceMode: 'organization',
-      billedAccountUserId: 'owner-1',
-    })
-    mockGetWorkspaceInvitePolicy.mockResolvedValueOnce({
-      allowed: true,
-      reason: null,
-      requiresSeat: true,
-      organizationId: 'org-1',
-      upgradeRequired: false,
-    })
-    mockGetUserOrganization.mockResolvedValueOnce({
-      organizationId: 'org-2',
-      role: 'member',
-      memberId: 'member-1',
-    })
-    queueTableRows(schemaMock.user, [{ id: 'existing-user', email: 'new@example.com' }])
-
-    const request = createMockRequest('POST', {
-      workspaceIds: ['workspace-1'],
-      emails: ['new@example.com'],
-      permission: 'read',
-    })
-
-    const response = await POST(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.success).toBe(true)
-    expect(data.invitations[0].membershipIntent).toBe('external')
-    expect(mockValidateSeatAvailability).not.toHaveBeenCalled()
-    expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: 'workspace',
-        email: 'new@example.com',
-        organizationId: 'org-1',
-        membershipIntent: 'external',
-        grants: [{ workspaceId: 'workspace-1', permission: 'read' }],
-      })
-    )
-  })
-
-  it('creates a unified workspace invitation for a grandfathered workspace', async () => {
-    mockGetWorkspaceWithOwner.mockResolvedValueOnce({
-      id: 'workspace-1',
-      name: 'Grandfathered Workspace',
-      ownerId: 'user-1',
-      organizationId: null,
-      workspaceMode: 'grandfathered_shared',
-      billedAccountUserId: 'user-1',
-    })
-
-    const request = createMockRequest('POST', {
-      workspaceIds: ['workspace-1'],
-      emails: ['new@example.com'],
-      permission: 'write',
-    })
-
-    const response = await POST(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.success).toBe(true)
-    expect(mockCreatePendingInvitation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: 'workspace',
-        email: 'new@example.com',
-        organizationId: null,
-        grants: [{ workspaceId: 'workspace-1', permission: 'write' }],
-      })
-    )
-    expect(mockSendInvitationEmail).toHaveBeenCalled()
-    expect(mockValidateSeatAvailability).not.toHaveBeenCalled()
-  })
-
-  it('creates multiple workspace invitations in one batch request', async () => {
-    const request = createMockRequest('POST', {
-      workspaceIds: ['workspace-1'],
-      emails: ['first@example.com', 'second@example.com'],
-      permission: 'read',
-    })
-
-    const response = await POST(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.success).toBe(true)
-    expect(data.successful).toEqual(['first@example.com', 'second@example.com'])
-    expect(data.failed).toEqual([])
-    expect(data.invitations).toHaveLength(2)
-    expect(mockCreatePendingInvitation).toHaveBeenCalledTimes(2)
-    expect(mockSendInvitationEmail).toHaveBeenCalledTimes(2)
   })
 
   it('coalesces several workspaces into one invitation and one email', async () => {

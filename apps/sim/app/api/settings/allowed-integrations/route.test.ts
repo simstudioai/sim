@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -23,7 +20,6 @@ import { GET } from '@/app/api/settings/allowed-integrations/route'
 
 describe('allowed integrations response', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getSession.mockResolvedValue({ user: { id: 'user-1' } })
     mocks.getIntegrationAvailability.mockReturnValue([
       { type: 'github_v2', state: 'ready', oauthAvailable: false, missingFields: [] },

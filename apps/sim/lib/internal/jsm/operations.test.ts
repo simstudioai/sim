@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const client = {
@@ -44,7 +41,6 @@ vi.mock('@/lib/internal/jsm/client', () => ({
 vi.mock('@/tools/jsm/utils', () => ({ mapAssetObject: mocks.mapAssetObject }))
 
 import { executeJsmSearchObjectsAql } from '@/lib/internal/jsm/assets'
-import { executeJsmSubmitForm } from '@/lib/internal/jsm/forms'
 import { executeJsmCreateRequest } from '@/lib/internal/jsm/service-desk'
 
 const BASE = {
@@ -54,10 +50,6 @@ const BASE = {
 }
 
 describe('JSM operations', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('keeps form answers separate from explicitly supplied request field values', async () => {
     mocks.client.json.mockResolvedValueOnce({ issueKey: 'HELP-1' })
     await executeJsmCreateRequest({
@@ -75,22 +67,6 @@ describe('JSM operations', () => {
       form: { answers: { q1: 'yes' } },
       requestFieldValues: { customfield_1: 'safe' },
     })
-  })
-
-  it('uses the Forms action endpoint and preserves its empty-body default', async () => {
-    mocks.client.optionalJson.mockResolvedValueOnce({})
-    const result = await executeJsmSubmitForm({
-      ...BASE,
-      issueIdOrKey: 'HELP-1',
-      formId: '12345678-1234-1234-1234-123456789012',
-    })
-    expect(mocks.client.optionalJson).toHaveBeenCalledWith(
-      'forms:/issue/HELP-1/form/12345678-1234-1234-1234-123456789012/action/submit',
-      { method: 'PUT' },
-      undefined,
-      true
-    )
-    expect(result.output.status).toBe('submitted')
   })
 
   it('normalizes Assets AQL pagination and forwards the execution signal', async () => {

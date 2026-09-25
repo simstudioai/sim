@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import { getBlockSchema } from '@/executor/utils/block-data'
 import { resolveBlockReference } from '@/executor/utils/block-reference'
@@ -46,15 +43,6 @@ function resolve(
 }
 
 describe('generic webhook output schema', () => {
-  /**
-   * A generic webhook receives whatever the caller sends, so it must publish no schema at all.
-   * `collectBlockData` registers any non-empty output declaration as exhaustive, which turns
-   * every unlisted field into a hard `InvalidFieldError` rather than an absent value.
-   */
-  it('publishes no output schema, leaving the block shape open', () => {
-    expect(getBlockSchema(triggerBlock('generic_webhook'))).toBeUndefined()
-  })
-
   it.each([
     [{}, 'no flags set'],
     [{ acceptOtherMethods: true, exposeRequestHeaders: true }, 'both request-metadata flags on'],

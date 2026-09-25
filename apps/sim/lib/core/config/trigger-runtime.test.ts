@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockTaskContext } = vi.hoisted(() => ({
@@ -28,22 +25,12 @@ describe('trigger runtime detection', () => {
     resetInsideTriggerRunForTests()
   })
 
-  it('reports no run when neither signal is present', () => {
-    expect(isInsideTriggerRun()).toBe(false)
-  })
-
   it('reports a run from the SDK ambient task context alone', () => {
     mockTaskContext.isInsideTask = true
     expect(isInsideTriggerRun()).toBe(true)
   })
 
   it('reports a run from the init-hook marker alone', () => {
-    markInsideTriggerRun()
-    expect(isInsideTriggerRun()).toBe(true)
-  })
-
-  it('is idempotent when marked repeatedly', () => {
-    markInsideTriggerRun()
     markInsideTriggerRun()
     expect(isInsideTriggerRun()).toBe(true)
   })

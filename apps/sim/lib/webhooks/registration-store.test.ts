@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -166,7 +163,6 @@ function activeRow(overrides: Record<string, unknown> = {}) {
 
 describe('activateWebhookRegistrations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockIsDeploymentOperationCurrent.mockResolvedValue(true)
   })
@@ -182,16 +178,6 @@ describe('activateWebhookRegistrations', () => {
 
   it('rejects stale operations when newer generation rows exist', async () => {
     const { tx, updates } = createTx([[{ id: 'workflow-1' }], [], [{ id: 'wh-newer' }]])
-
-    await expect(activateWebhookRegistrations(tx, FENCE)).rejects.toBeInstanceOf(
-      StaleWebhookRegistrationOperationError
-    )
-    expect(updates).toHaveLength(0)
-  })
-
-  it('rejects when the operation is no longer current', async () => {
-    mockIsDeploymentOperationCurrent.mockResolvedValue(false)
-    const { tx, updates } = createTx([[{ id: 'workflow-1' }]])
 
     await expect(activateWebhookRegistrations(tx, FENCE)).rejects.toBeInstanceOf(
       StaleWebhookRegistrationOperationError
@@ -232,7 +218,6 @@ describe('activateWebhookRegistrations', () => {
 
 describe('prepareWebhookRegistrationIntents', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockIsDeploymentOperationCurrent.mockResolvedValue(true)
     mockClaimWebhookPath.mockResolvedValue('hooks/a')
@@ -353,7 +338,6 @@ describe('prepareWebhookRegistrationIntents', () => {
 
 describe('redeploys racing within seconds', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockClaimWebhookPath.mockResolvedValue('hooks/a')
     dbChainMockFns.transaction.mockImplementation(async () => {

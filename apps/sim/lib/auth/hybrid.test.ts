@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -38,7 +34,6 @@ function createRequest(headers: Record<string, string>): NextRequest {
 
 describe('checkHybridAuth credential precedence', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockVerifyInternalToken.mockResolvedValue({ valid: false })
     mockGetSession.mockResolvedValue({
       user: { id: 'session-user', name: 'Session User', email: 'session@example.com' },

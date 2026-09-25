@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * OpenAI Responses reasoning payload: summaries are requested on agent-events
  * runs and whenever an explicit effort is set (staging parity), legacy runs
  * without explicit effort keep a reasoning-free payload, and the
@@ -87,7 +85,6 @@ describe('executeResponsesProviderRequest reasoning payload', () => {
   let fetchMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
-    vi.clearAllMocks()
     fetchMock = vi.fn().mockResolvedValue(jsonResponse(COMPLETED_RESPONSE))
   })
 

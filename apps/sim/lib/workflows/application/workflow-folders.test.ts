@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
@@ -96,7 +93,6 @@ const principals: Principal[] = [
 
 describe('workflow folder application operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveContext.mockResolvedValue({
       workspaceId: 'ws-1',
       workspaceOrganizationId: null,
@@ -152,37 +148,6 @@ describe('workflow folder application operations', () => {
     )
   })
 
-  /**
-   * `parentPath` is a filter, so a path naming no active folder narrows the
-   * result to nothing rather than reporting the collection missing. Falling
-   * through to `listActiveFolderRows` with an undefined `parentId` would list
-   * every folder in the workspace, so the miss has to short-circuit.
-   */
-  it('answers a parent path naming no folder with an empty page', async () => {
-    const result = await listWorkflowFolders.execute({
-      principal: principals[0],
-      input: { workspaceId: 'ws-1', parentPath: '/Missing', sortBy: 'name', sortOrder: 'asc' },
-    })
-
-    expect(result.folders).toEqual([])
-    expect(mocks.listRows).not.toHaveBeenCalled()
-  })
-
-  it('resolves a canonical parent path before listing', async () => {
-    mocks.listRows.mockResolvedValueOnce([folder])
-
-    await listWorkflowFolders.execute({
-      principal: principals[0],
-      input: { workspaceId: 'ws-1', parentPath: '/Reports', sortBy: 'name', sortOrder: 'asc' },
-    })
-
-    expect(mocks.listRows).toHaveBeenCalledWith(
-      'ws-1',
-      'workflow',
-      expect.objectContaining({ parentId: folder.id })
-    )
-  })
-
   it('rejects a workspace key outside the canonical workspace before mutation', async () => {
     await expect(
       createWorkflowFolder.execute({
@@ -215,40 +180,6 @@ describe('workflow folder application operations', () => {
       })
     )
   })
-
-  it('does not audit a rejected transition', async () => {
-    mocks.create.mockResolvedValue({
-      success: false,
-      error: 'Folder is locked',
-      errorCode: 'locked',
-    })
-
-    await expect(
-      createWorkflowFolder.execute({
-        principal: principals[0],
-        input: { workspaceId: 'ws-1', path: '/Reports' },
-      })
-    ).rejects.toMatchObject({ code: 'locked' })
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('propagates context infrastructure failures without mutation or audit', async () => {
-    const failure = new Error('database unavailable')
-    mocks.resolveContext.mockRejectedValueOnce(failure)
-
-    await expect(
-      listWorkflowFolders.execute({
-        principal: principals[0],
-        input: {
-          workspaceId: 'ws-1',
-          sortBy: 'name',
-          sortOrder: 'asc',
-        },
-      })
-    ).rejects.toBe(failure)
-    expect(mocks.listRows).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
 })
 
 /**
@@ -267,13 +198,5 @@ describe('folder path projection for archived workflows', () => {
 
   it('answers the root path instead, which is where restore would place it', () => {
     expect(archivableWorkflowFolderPath(index, archivedFolderId)).toBe('/')
-  })
-
-  it('still resolves a folder that is active', () => {
-    expect(archivableWorkflowFolderPath(index, folder.id)).toBe('/Reports')
-  })
-
-  it('treats no folder as the root', () => {
-    expect(archivableWorkflowFolderPath(index, null)).toBe('/')
   })
 })

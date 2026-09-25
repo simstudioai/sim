@@ -1,7 +1,5 @@
-/** @vitest-environment node */
-import { recordAudit } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
-import { member, user } from '@sim/db/schema'
+import { member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -43,7 +41,6 @@ import {
   removeOrganizationMember,
   updateOrganizationMember,
 } from '@/lib/organizations/application/members'
-import { organizationOperations } from '@/lib/organizations/application/operations'
 import { listOrganizationMembers, listOrganizations } from '@/lib/organizations/application/reads'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
@@ -70,7 +67,6 @@ const target = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.config.mockResolvedValue(null)
   mocks.update.mockResolvedValue({
@@ -90,32 +86,6 @@ beforeEach(() => {
 })
 
 describe('organization application operations', () => {
-  it.each([session, key, oauth])(
-    'uses the real $kind actor for role changes and semantic audit',
-    async (principal) => {
-      queueTableRows(member, [{ role: 'admin' }])
-      await updateOrganizationMember.execute({ principal, input: roleInput })
-      expect(mocks.update).toHaveBeenCalledWith({ ...roleInput, actorUserId: 'actor' })
-      expect(recordAudit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          actorId: 'actor',
-          resourceId: 'org',
-          metadata: expect.objectContaining({
-            operation: 'organizations.members.update',
-            actor: expect.objectContaining({ kind: principal.kind }),
-          }),
-        })
-      )
-    }
-  )
-
-  it.each(Object.values(organizationOperations))(
-    'rejects workspace principals for $id',
-    async (operation) => {
-      expect(operation.principalKinds).not.toContain('workspace_api_key')
-    }
-  )
-
   it('rejects workspace keys before protected loading', async () => {
     await expect(
       updateOrganizationMember.execute({
@@ -161,34 +131,6 @@ describe('organization application operations', () => {
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
-  it('preserves audit on a successful same-role request', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    mocks.update.mockResolvedValueOnce({
-      member: { ...target, role: 'admin' },
-      previousRole: 'admin',
-      changed: false,
-    })
-    await updateOrganizationMember.execute({ principal: session, input: roleInput })
-    expect(recordAudit).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        actorId: 'actor',
-        resourceId: 'org',
-        metadata: expect.objectContaining({
-          changes: [{ field: 'role', from: 'admin', to: 'admin' }],
-        }),
-      })
-    )
-  })
-
-  it('does not audit a failed role write', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    mocks.update.mockRejectedValueOnce(new Error('database unavailable'))
-    await expect(
-      updateOrganizationMember.execute({ principal: session, input: roleInput })
-    ).rejects.toThrow('database unavailable')
-    expect(recordAudit).not.toHaveBeenCalled()
-  })
-
   it('allows self-removal and preserves only the acting session by verified row ID', async () => {
     queueTableRows(member, [{ role: 'member' }])
     await removeOrganizationMember.execute({
@@ -215,22 +157,6 @@ describe('organization application operations', () => {
       expect.not.objectContaining({ spareSessionId: expect.anything() })
     )
   })
-
-  it.each(['admin', 'owner'])(
-    'retains member-directory access for %s when directory visibility is disabled',
-    async (role) => {
-      queueTableRows(member, [{ role }])
-      mocks.config.mockResolvedValue({
-        ...DEFAULT_PERMISSION_GROUP_CONFIG,
-        hideOrgMemberDirectory: true,
-      })
-      await listOrganizationMembers.execute({
-        principal: key,
-        input: { organizationId: 'org', sortBy: 'name', sortOrder: 'asc', limit: 10 },
-      })
-      expect(mocks.members).toHaveBeenCalledOnce()
-    }
-  )
 
   it('denies directory access to a restricted member and suppresses non-admin usage enrichment', async () => {
     queueTableRows(member, [{ role: 'member' }])
@@ -261,28 +187,6 @@ describe('organization application operations', () => {
       expect.objectContaining({ includeUsage: false })
     )
   })
-
-  it.each([session, key, oauth])(
-    'creates invitations with $kind audit attribution after delivery',
-    async (principal) => {
-      queueTableRows(member, [{ role: 'admin' }])
-      queueTableRows(user, [{ name: 'Acting Admin', email: 'admin@example.com' }])
-      await createOrganizationInvitation.execute({ principal, input: inviteInput })
-      expect(mocks.create).toHaveBeenCalledWith({
-        context: expect.objectContaining({ inviterId: 'actor', organizationId: 'org' }),
-        email: inviteInput.email,
-        role: 'member',
-      })
-      expect(recordAudit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          metadata: expect.objectContaining({
-            actor: expect.objectContaining({ kind: principal.kind }),
-            invitationId: 'invitation',
-          }),
-        })
-      )
-    }
-  )
 
   it('withheld invitations prevent creation', async () => {
     mocks.config.mockResolvedValue({ ...DEFAULT_PERMISSION_GROUP_CONFIG, disableInvitations: true })

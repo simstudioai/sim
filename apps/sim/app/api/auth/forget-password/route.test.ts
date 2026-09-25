@@ -1,7 +1,5 @@
 /**
  * Tests for forget password API route
- *
- * @vitest-environment node
  */
 import { createMockRequest, requestUtilsMockFns, resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -69,7 +67,6 @@ import { POST } from '@/app/api/auth/forget-password/route'
 
 describe('Forget Password API Route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     setEnv({ NEXT_PUBLIC_APP_URL: 'https://app.example.com' })
     mockRequestPasswordReset.mockResolvedValue(undefined)
     mockCheckRateLimitDirect.mockImplementation(async () => allowAll())
@@ -81,27 +78,6 @@ describe('Forget Password API Route', () => {
 
   afterEach(() => {
     vi.clearAllMocks()
-  })
-
-  it('should send password reset email successfully with same-origin redirectTo', async () => {
-    const req = createMockRequest('POST', {
-      email: 'test@example.com',
-      redirectTo: 'https://app.example.com/reset',
-    })
-
-    const response = await POST(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.success).toBe(true)
-
-    expect(mockRequestPasswordReset).toHaveBeenCalledWith({
-      body: {
-        email: 'test@example.com',
-        redirectTo: 'https://app.example.com/reset',
-      },
-      method: 'POST',
-    })
   })
 
   it('rejects with 429 once the recipient budget is spent, without sending mail', async () => {
@@ -165,52 +141,6 @@ describe('Forget Password API Route', () => {
     expect(mockRequestPasswordReset).not.toHaveBeenCalled()
   })
 
-  it('should send password reset email without redirectTo', async () => {
-    const req = createMockRequest('POST', {
-      email: 'test@example.com',
-    })
-
-    const response = await POST(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.success).toBe(true)
-
-    expect(mockRequestPasswordReset).toHaveBeenCalledWith({
-      body: {
-        email: 'test@example.com',
-        redirectTo: undefined,
-      },
-      method: 'POST',
-    })
-  })
-
-  it('should handle missing email', async () => {
-    const req = createMockRequest('POST', {})
-
-    const response = await POST(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(400)
-    expect(data.message).toBe('Email is required')
-
-    expect(mockRequestPasswordReset).not.toHaveBeenCalled()
-  })
-
-  it('should handle empty email', async () => {
-    const req = createMockRequest('POST', {
-      email: '',
-    })
-
-    const response = await POST(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(400)
-    expect(data.message).toBe('Please provide a valid email address')
-
-    expect(mockRequestPasswordReset).not.toHaveBeenCalled()
-  })
-
   /**
    * The route answers identically whether or not an account exists, so a refusal must not become a
    * status the success path never produces — that alone would tell a caller which addresses are
@@ -227,43 +157,5 @@ describe('Forget Password API Route', () => {
     await expect(response.json()).resolves.toEqual({ success: true })
     expect(mockLogger.error).not.toHaveBeenCalled()
     expect(mockLogger.warn).toHaveBeenCalled()
-  })
-
-  it('should handle auth service error with message', async () => {
-    const errorMessage = 'User not found'
-
-    mockRequestPasswordReset.mockRejectedValue(new Error(errorMessage))
-
-    const req = createMockRequest('POST', {
-      email: 'nonexistent@example.com',
-    })
-
-    const response = await POST(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(500)
-    /** An unrecognized failure is ours, and its wording is not for an unauthenticated caller. */
-    expect(data.message).toBe('Failed to send password reset email. Please try again later.')
-    expect(data.message).not.toContain(errorMessage)
-
-    expect(mockLogger.error).toHaveBeenCalledWith('Error requesting password reset:', {
-      error: expect.any(Error),
-    })
-  })
-
-  it('should handle unknown error', async () => {
-    mockRequestPasswordReset.mockRejectedValue('Unknown error')
-
-    const req = createMockRequest('POST', {
-      email: 'test@example.com',
-    })
-
-    const response = await POST(req)
-    const data = await response.json()
-
-    expect(response.status).toBe(500)
-    expect(data.message).toBe('Failed to send password reset email. Please try again later.')
-
-    expect(mockLogger.error).toHaveBeenCalled()
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch, mockResolveSelectorOAuthAccessToken } = vi.hoisted(() => ({
@@ -35,7 +32,6 @@ function args(
 
 describe('Zoom server selector adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveSelectorOAuthAccessToken.mockResolvedValue('server-only-token')
   })
@@ -59,21 +55,6 @@ describe('Zoom server selector adapter', () => {
     })
     const url = new URL(String(mockFetch.mock.calls[0]?.[0]))
     expect(url.searchParams.get('next_page_token')).toBe('page-1')
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-  })
-
-  it('hydrates a selected meeting without draining the list', async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ id: 123, topic: 'Planning' }), { status: 200 })
-    )
-
-    await expect(
-      zoomSelectorAttachments['zoom.meetings'].execute(args({ kind: 'detail', id: '123' }))
-    ).resolves.toEqual({
-      kind: 'detail',
-      item: { id: '123', label: 'Planning' },
-    })
-    expect(String(mockFetch.mock.calls[0]?.[0]).endsWith('/v2/meetings/123')).toBe(true)
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 })

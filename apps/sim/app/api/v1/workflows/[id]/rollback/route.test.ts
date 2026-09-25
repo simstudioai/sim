@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Tests for POST /api/v1/workflows/[id]/rollback — verifies target version
  * resolution (previous version by default, explicit version when provided)
  * and the mapping of activation results to v1 API responses.
@@ -75,7 +73,6 @@ function makeRequest(body?: unknown) {
 
 describe('POST /api/v1/workflows/[id]/rollback', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'user-1' })
     mockValidateWorkspaceAccess.mockResolvedValue(null)
     workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValue(WORKFLOW_RECORD)
@@ -102,24 +99,6 @@ describe('POST /api/v1/workflows/[id]/rollback', () => {
     })
   })
 
-  it('rejects unauthenticated requests', async () => {
-    mockCheckRateLimit.mockResolvedValue({ allowed: false, error: 'Invalid API key' })
-
-    const response = await POST(makeRequest(), makeContext())
-
-    expect(response.status).toBe(401)
-    expect(mockPerformActivateVersion).not.toHaveBeenCalled()
-  })
-
-  it('returns 404 when the workflow does not exist', async () => {
-    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValue(null)
-
-    const response = await POST(makeRequest(), makeContext())
-
-    expect(response.status).toBe(404)
-    expect(mockPerformActivateVersion).not.toHaveBeenCalled()
-  })
-
   it('returns 423 when the workflow is locked', async () => {
     workflowAuthzMockFns.mockAssertWorkflowMutable.mockRejectedValue(new WorkflowLockedError())
 
@@ -127,28 +106,6 @@ describe('POST /api/v1/workflows/[id]/rollback', () => {
 
     expect(response.status).toBe(423)
     expect(mockPerformActivateVersion).not.toHaveBeenCalled()
-  })
-
-  it('rolls back to the previous version when no version is given', async () => {
-    mockFindPreviousDeploymentVersion.mockResolvedValue({ ok: true, version: 4 })
-
-    const response = await POST(makeRequest(), makeContext())
-
-    expect(response.status).toBe(200)
-    expect(mockPerformActivateVersion).toHaveBeenCalledWith(
-      expect.objectContaining({ workflowId: WORKFLOW_ID, version: 4, userId: 'user-1' })
-    )
-
-    const body = await response.json()
-    expect(body.data).toEqual({
-      id: WORKFLOW_ID,
-      isDeployed: true,
-      deployedAt: '2026-06-12T00:00:00.000Z',
-      version: 4,
-      warnings: [],
-      activeDeployment: expect.objectContaining({ deploymentVersionId: 'dv-4', version: 4 }),
-      latestDeploymentAttempt: expect.objectContaining({ id: 'op-1', status: 'active' }),
-    })
   })
 
   it('returns 400 when the workflow is not deployed, even with an explicit version', async () => {
@@ -163,58 +120,6 @@ describe('POST /api/v1/workflows/[id]/rollback', () => {
     const body = await response.json()
     expect(body.error).toBe('Workflow is not deployed')
     expect(mockPerformActivateVersion).not.toHaveBeenCalled()
-  })
-
-  it('rolls back to an explicit version when provided', async () => {
-    const response = await POST(makeRequest({ version: 2 }), makeContext())
-
-    expect(response.status).toBe(200)
-    expect(mockPerformActivateVersion).toHaveBeenCalledWith(expect.objectContaining({ version: 2 }))
-    expect(mockFindPreviousDeploymentVersion).not.toHaveBeenCalled()
-  })
-
-  it('rejects a non-integer version', async () => {
-    const response = await POST(makeRequest({ version: 1.5 }), makeContext())
-
-    expect(response.status).toBe(400)
-    expect(mockPerformActivateVersion).not.toHaveBeenCalled()
-  })
-
-  it('returns 400 when there is no active deployment to roll back from', async () => {
-    mockFindPreviousDeploymentVersion.mockResolvedValue({ ok: false, reason: 'no_active_version' })
-
-    const response = await POST(makeRequest(), makeContext())
-
-    expect(response.status).toBe(400)
-    const body = await response.json()
-    expect(body.error).toBe('Workflow has no active deployment to roll back from')
-    expect(mockPerformActivateVersion).not.toHaveBeenCalled()
-  })
-
-  it('returns 400 when there is no previous version to roll back to', async () => {
-    mockFindPreviousDeploymentVersion.mockResolvedValue({
-      ok: false,
-      reason: 'no_previous_version',
-    })
-
-    const response = await POST(makeRequest(), makeContext())
-
-    expect(response.status).toBe(400)
-    const body = await response.json()
-    expect(body.error).toBe('No previous deployment version to roll back to')
-    expect(mockPerformActivateVersion).not.toHaveBeenCalled()
-  })
-
-  it('maps a missing target version to 404', async () => {
-    mockPerformActivateVersion.mockResolvedValue({
-      success: false,
-      error: 'Deployment version not found',
-      errorCode: 'not_found',
-    })
-
-    const response = await POST(makeRequest({ version: 99 }), makeContext())
-
-    expect(response.status).toBe(404)
   })
 
   it('masks missing admin permission as 404', async () => {

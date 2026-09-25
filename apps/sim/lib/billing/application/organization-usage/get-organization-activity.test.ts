@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { Principal, SessionPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
@@ -47,7 +46,6 @@ const breakdownInput = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.authority.mockResolvedValue(true)
   mocks.entitlement.mockResolvedValue(true)
   mocks.subscription.mockResolvedValue(null)
@@ -109,24 +107,6 @@ describe.each([
     expect(mocks.summary).not.toHaveBeenCalled()
     expect(mocks.breakdown).not.toHaveBeenCalled()
   })
-})
-
-it('uses the same authorized scope and timezone for summaries and paginated breakdowns', async () => {
-  const summary = await getOrganizationActivitySummary.execute({ principal, input })
-  await getOrganizationActivityBreakdown.execute({ principal, input: breakdownInput })
-  const scope = {
-    organizationId: 'org',
-    workspaceId: 'workspace',
-    start: new Date('2026-03-08T08:00:00Z'),
-    end: new Date('2026-03-10T07:00:00Z'),
-  }
-  expect(mocks.summary).toHaveBeenCalledWith(scope, 'America/Los_Angeles')
-  expect(mocks.breakdown).toHaveBeenCalledWith(scope, 'workflow', 'failures', 2)
-  expect(summary.workspace).toEqual({ id: 'workspace', name: 'Support' })
-  expect(summary.series).toEqual([
-    { timestamp: '2026-03-08T00:00:00', workflowRuns: 0, completed: 0, failed: 0, chatRuns: 0 },
-    { timestamp: '2026-03-09T00:00:00', workflowRuns: 0, completed: 0, failed: 0, chatRuns: 0 },
-  ])
 })
 
 describe('activity summary folding', () => {

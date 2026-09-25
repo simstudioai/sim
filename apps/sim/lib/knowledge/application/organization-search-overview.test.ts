@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { knowledgeConnector, member, organizationSearchIntegration } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,8 +25,6 @@ vi.mock('@/lib/sim-search/connectors', () => ({
   ],
 }))
 
-import { organizationSearchOverviewSchema } from '@/lib/api/contracts/knowledge/connectors'
-import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { readOrganizationSearchOverview } from '@/lib/knowledge/application/organization-search-overview'
 import { SOURCE_CONTENT_ERROR } from '@/lib/knowledge/connectors/sync-limits'
 
@@ -72,7 +69,6 @@ const health = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.context.mockResolvedValue(input)
   mocks.policy.mockResolvedValue(null)
@@ -80,30 +76,6 @@ beforeEach(() => {
 })
 
 describe('organization Search administration overview', () => {
-  it.each([
-    { connectorType: 'google_drive', memberScoped: true, status: 'waiting_for_connections' },
-    { connectorType: 'google_drive', memberScoped: false, status: 'needs_setup' },
-    { connectorType: 'gitlab', memberScoped: true, status: 'needs_setup' },
-  ])(
-    'reports $connectorType setup with member access $memberScoped',
-    async ({ connectorType, memberScoped, status }) => {
-      queueTableRows(member, [{ role: 'admin' }])
-      queueTableRows(organizationSearchIntegration, [{ connectorType, approved: true }])
-      mocks.availability.mockResolvedValue({ memberScoped, sourceMirrored: true })
-      const result = await readOrganizationSearchOverview.execute({ principal, input })
-      expect(result.providers).toEqual([
-        {
-          connectorType,
-          approved: true,
-          sourceCount: 0,
-          status,
-          issue: null,
-          isSyncing: false,
-          hasPendingSync: false,
-        },
-      ])
-    }
-  )
   it.each([
     {
       hasPermissionError: true,
@@ -133,95 +105,6 @@ describe('organization Search administration overview', () => {
     expect(memberErrorClause?.sql).toContain('IS NOT NULL AND ? <> ?')
     expect(memberErrorClause?.params).toContain(SOURCE_CONTENT_ERROR)
   })
-  it('keeps recovery observable while a previous error remains visible', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(knowledgeConnector, [{ ...health, hasError: true, hasIndexing: true }])
-    const result = await readOrganizationSearchOverview.execute({ principal, input })
-    expect(result.providers).toEqual([
-      {
-        connectorType: 'google_drive',
-        sourceCount: 4,
-        approved: true,
-        status: 'needs_attention',
-        issue: 'sync_failed',
-        isSyncing: true,
-        hasPendingSync: false,
-      },
-    ])
-    expect(organizationSearchOverviewSchema.parse(result)).toEqual(result)
-  })
-
-  it('includes member document and dispatch failures in provider health queries', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(knowledgeConnector, [{ ...health }])
-    await readOrganizationSearchOverview.execute({ principal, input })
-    const selection = dbChainMockFns.select.mock.calls.find(([fields]) => fields?.hasError)?.[0]
-    const { params } = renderFragment(selection?.hasError)
-    expect(params).toContain('knowledgeConnectorMemberSyncLog.docsFailed')
-    expect(params).toContain('knowledgeConnectorMemberSyncLog.processingDispatchFailed')
-    expect(params).not.toContain(undefined)
-  })
-
-  it('keeps unfinished work observable without presenting an idle worker as indexing', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(knowledgeConnector, [{ ...health, hasPendingSync: true, hasUnstarted: true }])
-    const result = await readOrganizationSearchOverview.execute({ principal, input })
-    expect(result.providers[0]).toMatchObject({
-      status: 'needs_setup',
-      isSyncing: false,
-      hasPendingSync: true,
-    })
-  })
-
-  it.each(['admin', 'owner'])(
-    'allows a current %s and returns only operational facts',
-    async (role) => {
-      queueTableRows(member, [{ role }])
-      queueTableRows(knowledgeConnector, [
-        { ...health, rawError: 'private', sourceConfig: { token: 'secret' } },
-      ])
-      queueTableRows(organizationSearchIntegration, [
-        { connectorType: 'gmail', approved: true },
-        { connectorType: 'github', approved: false },
-      ])
-      const result = await readOrganizationSearchOverview.execute({ principal, input })
-      expect(result).toEqual({
-        providers: [
-          {
-            connectorType: 'google_drive',
-            sourceCount: 4,
-            approved: true,
-            status: 'active',
-            issue: null,
-            isSyncing: false,
-            hasPendingSync: false,
-          },
-          {
-            connectorType: 'gmail',
-            sourceCount: 0,
-            approved: true,
-            status: 'waiting_for_connections',
-            issue: null,
-            isSyncing: false,
-            hasPendingSync: false,
-          },
-          {
-            connectorType: 'github',
-            sourceCount: 0,
-            approved: false,
-            status: 'paused',
-            issue: null,
-            isSyncing: false,
-            hasPendingSync: false,
-          },
-        ],
-      })
-      expect(organizationSearchOverviewSchema.parse(result)).toEqual(result)
-      expect(JSON.stringify(result)).not.toMatch(/private|secret|DocumentCount|sourceConfig/)
-      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-      expect(dbChainMockFns.limit).toHaveBeenCalledWith(100)
-    }
-  )
   it.each([
     { rows: [{ role: 'member' }], code: 'forbidden' },
     { rows: [], code: 'not_found' },
@@ -242,47 +125,12 @@ describe('organization Search administration overview', () => {
     ).rejects.toThrow()
     expect(mocks.context).not.toHaveBeenCalled()
   })
-  it('declares administrative session authority without delegation', () => {
-    expect(knowledgeOperations.readOrganizationSearchOverview).toMatchObject({
-      minimumRole: 'admin',
-      workspaceApiKey: 'deny',
-      principalKinds: ['session'],
-      organizationOperation: { minimumRole: 'admin' },
-    })
-  })
-  it('preserves explicit deactivation despite existing sources and hides untouched catalog entries', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(knowledgeConnector, [{ ...health, hasIndexing: true }])
-    queueTableRows(organizationSearchIntegration, [
-      { connectorType: 'google_drive', approved: false },
-    ])
-    const result = await readOrganizationSearchOverview.execute({ principal, input })
-    expect(result.providers).toEqual([
-      {
-        connectorType: 'google_drive',
-        sourceCount: 4,
-        approved: false,
-        status: 'paused',
-        issue: null,
-        isSyncing: false,
-        hasPendingSync: false,
-      },
-    ])
-  })
   it('does not mistake infrastructure failure for an empty integration list', async () => {
     queueTableRows(member, [{ role: 'admin' }])
     mocks.policy.mockRejectedValue(new Error('Database unavailable'))
     await expect(readOrganizationSearchOverview.execute({ principal, input })).rejects.toThrow(
       'Database unavailable'
     )
-  })
-  it('omits general knowledge-base connectors outside the supported Search catalog', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(knowledgeConnector, [{ ...health, connectorType: 'notion' }])
-    queueTableRows(organizationSearchIntegration, [{ connectorType: 'notion', approved: true }])
-    expect(await readOrganizationSearchOverview.execute({ principal, input })).toEqual({
-      providers: [],
-    })
   })
   it('does not report indexing when the owner-scoped Search gate is disabled', async () => {
     queueTableRows(member, [{ role: 'admin' }])

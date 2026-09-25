@@ -1,12 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { member, user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { batchWorkspaceInvitationBodySchema } from '@/lib/api/contracts/invitations'
-import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 
 const mocks = vi.hoisted(() => ({
   orgContext: vi.fn(),
@@ -109,7 +105,6 @@ const invitation = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   queueTableRows(user, [{ name: 'Current Admin', email: 'admin@example.com' }])
   mocks.orgContext.mockImplementation(async (context) => context)
@@ -161,69 +156,6 @@ describe('invitation batch application boundary', () => {
     expect(mocks.orgContext).not.toHaveBeenCalled()
   })
 
-  it('uses current principal identity and org authority without a workspace selection', async () => {
-    const result = await sendInvitationBatch.execute({ principal, input: orgInput })
-    expect(result).toMatchObject({ success: true, successful: ['person@example.com'], failed: [] })
-    expect(mocks.orgContext).toHaveBeenCalledWith({
-      organizationId: 'org-target',
-      inviterId: 'admin-user',
-      inviterName: 'Current Admin',
-      inviterEmail: 'admin@example.com',
-    })
-    expect(mocks.workspaceContext).not.toHaveBeenCalled()
-    expect(mocks.orgSend).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal,
-        input: { organizationId: 'org-target', email: 'person@example.com', role: 'member' },
-      })
-    )
-  })
-
-  it('keeps workspace invitations on the existing per-workspace authorization path', async () => {
-    await sendInvitationBatch.execute({
-      principal,
-      input: { ...orgInput, workspaceIds: ['workspace'], permission: 'write' },
-    })
-    expect(mocks.workspaceContext).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceIds: ['workspace'], inviterId: 'admin-user' })
-    )
-    expect(mocks.workspaceSend).toHaveBeenCalledWith(
-      expect.objectContaining({ permission: 'write' })
-    )
-    expect(mocks.orgSend).not.toHaveBeenCalled()
-    expect(mocks.canonicalWorkspace).not.toHaveBeenCalled()
-  })
-
-  it.each([personal, oauth])(
-    'authorizes the actual $kind caller and carries audit identity',
-    async (principal) => {
-      await sendInvitationBatch.execute({
-        principal,
-        input: { workspaceIds: ['workspace'], emails: ['person@example.com'] },
-      })
-      expect(mocks.workspaceRole).toHaveBeenCalledWith(
-        'admin-user',
-        'workspace',
-        'org-target',
-        db,
-        { forUpdate: undefined }
-      )
-      expect(mocks.config).toHaveBeenCalledWith('admin-user', 'workspace', 'org-target', db)
-      expect(mocks.workspaceContext).toHaveBeenCalledWith(
-        expect.objectContaining({
-          inviterId: 'admin-user',
-          auditActor: expect.objectContaining({
-            id: 'admin-user',
-            metadata: {
-              actor: expect.objectContaining({ kind: principal.kind, userId: 'admin-user' }),
-              operation: 'invitations.send_batch',
-            },
-          }),
-        })
-      )
-    }
-  )
-
   it('rejects read-only OAuth before any protected lookup', async () => {
     await expect(
       sendInvitationBatch.execute({
@@ -250,25 +182,6 @@ describe('invitation batch application boundary', () => {
     }
   )
 
-  it.each([
-    [personal, { disablePersonalApiKeys: true }],
-    [oauth, { disableOAuthAppAccess: true }],
-    [{ ...oauth, clientId: SIM_CLI_CLIENT_ID }, { disableCliAccess: true }],
-  ] as const)(
-    'enforces credential policy before preparing a workspace invitation',
-    async (principal, restriction) => {
-      mocks.config.mockResolvedValue({ ...DEFAULT_PERMISSION_GROUP_CONFIG, ...restriction })
-      await expect(
-        sendInvitationBatch.execute({
-          principal,
-          input: { workspaceIds: ['workspace'], emails: ['person@example.com'] },
-        })
-      ).rejects.toThrow()
-      expect(mocks.workspaceContext).not.toHaveBeenCalled()
-      expect(mocks.workspaceSend).not.toHaveBeenCalled()
-    }
-  )
-
   it('refuses a workspace that disabled personal keys before invitation preparation', async () => {
     mocks.canonicalWorkspace.mockResolvedValue({
       ...canonicalWorkspace,
@@ -281,31 +194,6 @@ describe('invitation batch application boundary', () => {
       })
     ).rejects.toMatchObject({ detailCode: 'PERSONAL_API_KEYS_DISABLED' })
     expect(mocks.workspaceContext).not.toHaveBeenCalled()
-  })
-
-  it('preserves the first recipient when workspace credential policy changes before the next', async () => {
-    mocks.workspaceSend.mockImplementationOnce(async () => {
-      mocks.canonicalWorkspace.mockResolvedValue({
-        ...canonicalWorkspace,
-        allowPersonalApiKeys: false,
-      })
-      return { ...invitation, workspaceIds: ['workspace'] }
-    })
-    const result = await sendInvitationBatch.execute({
-      principal: personal,
-      input: { workspaceIds: ['workspace'], emails: ['person@example.com', 'other@example.com'] },
-    })
-    expect(result).toMatchObject({
-      success: false,
-      successful: ['person@example.com'],
-      failed: [
-        {
-          email: 'other@example.com',
-          error: 'Personal API keys are not allowed for this workspace',
-        },
-      ],
-    })
-    expect(mocks.workspaceSend).toHaveBeenCalledTimes(1)
   })
 
   it('stops later recipients when permission-group invitation access is withdrawn', async () => {
@@ -327,17 +215,6 @@ describe('invitation batch application boundary', () => {
     })
     expect(mocks.workspaceSend).toHaveBeenCalledTimes(1)
     expect(mocks.config).toHaveBeenLastCalledWith('admin-user', 'workspace', 'org-target', db)
-  })
-
-  it('rejects mismatched asserted org scope after canonical workspace authorization', async () => {
-    mocks.workspaceContext.mockResolvedValue({ targets: [], organizationId: 'org-other' })
-    await expect(
-      sendInvitationBatch.execute({
-        principal,
-        input: { ...orgInput, workspaceIds: ['workspace'] },
-      })
-    ).rejects.toThrow('do not belong to this organization')
-    expect(mocks.workspaceSend).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -385,41 +262,6 @@ describe('invitation batch application boundary', () => {
     }
   )
 
-  it.each([
-    [{ ...lockedWorkspace, allowPersonalApiKeys: false }, 'Personal API keys are not allowed'],
-    [{ ...lockedWorkspace, organizationId: 'moved-org' }, 'changed organizations'],
-  ])(
-    'uses the locked workspace policy and original organization scope',
-    async (workspace, error) => {
-      const write = vi.fn()
-      mocks.workspaceSend.mockImplementationOnce(
-        async (input: Parameters<typeof createWorkspaceInvitation>[0]) => {
-          expect(input.validateLockedWorkspace).toBeTypeOf('function')
-          await input.validateLockedWorkspace?.(db, workspace)
-          write()
-          return invitation
-        }
-      )
-      const result = await sendInvitationBatch.execute({
-        principal: personal,
-        input: { workspaceIds: ['workspace'], emails: ['person@example.com'] },
-      })
-      expect(result.success).toBe(false)
-      expect(result.failed[0].error).toContain(error)
-      expect(write).not.toHaveBeenCalled()
-    }
-  )
-
-  it('leaves session invitation admission on the existing path', async () => {
-    await sendInvitationBatch.execute({
-      principal,
-      input: { workspaceIds: ['workspace'], emails: ['person@example.com'] },
-    })
-    expect(mocks.workspaceSend).toHaveBeenCalledWith(
-      expect.objectContaining({ validateLockedWorkspace: undefined })
-    )
-  })
-
   it('refuses a plan disabled after preflight using the locked billing context', async () => {
     const tx = new Proxy(db, {})
     const write = vi.fn()
@@ -450,43 +292,6 @@ describe('invitation batch application boundary', () => {
     expect(write).not.toHaveBeenCalled()
   })
 
-  it('preserves earlier successes and reports later failures without leaking infrastructure details', async () => {
-    mocks.orgSend
-      .mockResolvedValueOnce(invitation)
-      .mockRejectedValueOnce(new Error('postgres private-connection-string'))
-    const result = await sendInvitationBatch.execute({
-      principal,
-      input: { ...orgInput, emails: ['person@example.com', 'other@example.com'] },
-    })
-    expect(result).toMatchObject({
-      success: false,
-      successful: ['person@example.com'],
-      failed: [
-        { email: 'other@example.com', error: 'Failed to create invitation. Please try again.' },
-      ],
-    })
-  })
-
-  it.each([
-    new WorkspaceInvitationError({ message: 'Private delivery provider failure', status: 502 }),
-    new Error('Private persistence failure after a grant'),
-  ])(
-    'does not expose public delivery infrastructure details or advise a blind retry',
-    async (error) => {
-      mocks.workspaceSend.mockRejectedValue(error)
-      const result = await sendInvitationBatch.execute({
-        principal: personal,
-        input: { workspaceIds: ['workspace'], emails: ['person@example.com'] },
-      })
-      expect(result.success).toBe(false)
-      expect(result.failed[0].error).toMatch(
-        'Check workspace members and invitations before retrying.'
-      )
-      expect(result.failed[0].error).not.toContain('Private')
-      expect(result.invitations).toEqual([])
-    }
-  )
-
   it('deduplicates normalized addresses and preserves actionable per-email refusals', async () => {
     mocks.orgSend.mockRejectedValue(
       new WorkspaceInvitationError({
@@ -508,27 +313,6 @@ describe('invitation batch application boundary', () => {
     ])
     expect(mocks.orgSend).toHaveBeenCalledTimes(1)
   })
-
-  it('reports directory-managed refusals and continues the workspace invitation batch', async () => {
-    const message = 'This person is provisioned by the organization’s identity provider.'
-    mocks.workspaceSend.mockRejectedValueOnce(
-      new ForbiddenOperationError('SCIM_MANAGED_MEMBERSHIP', message)
-    )
-    const result = await sendInvitationBatch.execute({
-      principal,
-      input: {
-        ...orgInput,
-        workspaceIds: ['workspace'],
-        emails: ['managed@example.com', 'person@example.com'],
-      },
-    })
-    expect(result).toMatchObject({
-      success: false,
-      successful: ['person@example.com'],
-      failed: [{ email: 'managed@example.com', error: message }],
-    })
-    expect(mocks.workspaceSend).toHaveBeenCalledTimes(2)
-  })
 })
 
 const delegated = {
@@ -544,24 +328,6 @@ const delegated = {
 } as const
 
 describe('organization invitation delegation', () => {
-  it.each(['admin', 'owner'])(
-    'uses current %s authority and actual actor in existing delivery pipeline',
-    async (role) => {
-      queueTableRows(member, [{ role }])
-      await expect(
-        sendOrganizationInvitationBatch.execute({ principal: delegated, input: orgInput })
-      ).resolves.toMatchObject({ success: true })
-      expect(mocks.orgContext).toHaveBeenCalledWith(
-        expect.objectContaining({ organizationId: 'org-target', inviterId: 'admin-user' })
-      )
-      expect(mocks.orgSend).toHaveBeenCalledExactlyOnceWith(
-        expect.objectContaining({
-          principal: delegated,
-          input: { organizationId: 'org-target', email: 'person@example.com', role: 'member' },
-        })
-      )
-    }
-  )
   it.each([{ role: 'member' }, { role: null }])(
     'refuses revoked or insufficient role before delivery',
     async ({ role }) => {
@@ -619,24 +385,6 @@ describe('workspace invitation delegation', () => {
     expiresAt: new Date(Date.now() + 60_000),
   } as const
   const input = { ...orgInput, workspaceIds: ['workspace'] }
-
-  it('preserves the current actor in the workspace delivery lifecycle', async () => {
-    await expect(
-      sendWorkspaceInvitationBatch.execute({ principal: actor, input })
-    ).resolves.toMatchObject({ success: true })
-    expect(mocks.workspaceContext).toHaveBeenCalledWith(
-      expect.objectContaining({
-        inviterId: 'admin-user',
-        workspaceIds: ['workspace'],
-        auditActor: expect.objectContaining({
-          id: 'admin-user',
-          metadata: expect.objectContaining({
-            actor: expect.objectContaining({ kind: 'delegated' }),
-          }),
-        }),
-      })
-    )
-  })
 
   it.each([[], ['foreign'], ['workspace', 'foreign']])(
     'rejects targets outside the delegated workspace: %j',

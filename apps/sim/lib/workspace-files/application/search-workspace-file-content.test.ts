@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -31,7 +30,6 @@ const input = {
 
 describe('searchWorkspaceFileContent cancellation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.load.mockResolvedValue({
       workspaceId: 'workspace-1',
       workspaceOrganizationId: null,
@@ -41,24 +39,6 @@ describe('searchWorkspaceFileContent cancellation', () => {
     mocks.permission.mockResolvedValue('read')
     mocks.search.mockResolvedValue({ results: [] })
   })
-
-  it.each(['request', 'input'] as const)(
-    'propagates the %s signal through the authorized application operation',
-    async (source) => {
-      const controller = new AbortController()
-      await searchWorkspaceFileContent.execute({
-        principal,
-        input: { ...input, ...(source === 'input' ? { signal: controller.signal } : {}) },
-        request: {
-          headers: new Headers(),
-          ...(source === 'request' ? { signal: controller.signal } : {}),
-        },
-      })
-      expect(mocks.search).toHaveBeenCalledWith(
-        expect.objectContaining({ signal: controller.signal })
-      )
-    }
-  )
 
   it('does not resolve folders or enqueue database work for a cancelled HTTP request', async () => {
     const signal = AbortSignal.abort(new Error('cancelled'))

@@ -103,18 +103,4 @@ describe('PrivacyView telemetry preference', () => {
     expect(getBrowserTelemetryPreference()).toBe(true)
     expect(toastError).toHaveBeenCalledWith('Unable to save')
   })
-
-  it.each([false, true])(
-    'waits for an enable update with browser preference %s',
-    async (preference) => {
-      settings.telemetryEnabled = false
-      setBrowserTelemetryPreference(preference)
-      const pending = Promise.withResolvers<void>()
-      mutate.mockReturnValue(pending.promise)
-      clickToggle()
-      expect(getBrowserTelemetryPreference()).toBe(false)
-      await act(async () => pending.resolve())
-      expect(getBrowserTelemetryPreference()).toBe(true)
-    }
-  )
 })

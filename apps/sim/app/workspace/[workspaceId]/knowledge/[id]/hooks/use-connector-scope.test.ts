@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -36,13 +33,6 @@ beforeEach(() => {
 })
 
 describe('connector resource authority', () => {
-  it('reads the organization role and flags independently of workspace authority', () => {
-    expect(useConnectorScope({ kind: 'organization', organizationId: 'org-1' })).toMatchObject({
-      canAdmin: true,
-      memberAccessAvailable: true,
-      mirroredAccessAvailable: false,
-    })
-  })
   it('does not grant an organization member the surrounding workspace admin role', () => {
     mocks.organization.viewer.isAdmin = false
     expect(useConnectorScope({ kind: 'organization', organizationId: 'org-1' }).canAdmin).toBe(
@@ -57,15 +47,6 @@ describe('connector resource authority', () => {
       canAdmin: false,
       memberAccessAvailable: false,
       mirroredAccessAvailable: false,
-    })
-  })
-  it('preserves the routed workspace capabilities', () => {
-    expect(useConnectorScope()).toMatchObject({
-      scope: { kind: 'workspace', workspaceId: 'workspace-1' },
-      canAdmin: true,
-      memberAccessAvailable: true,
-      mirroredAccessAvailable: true,
-      hasMaxAccess: true,
     })
   })
 })

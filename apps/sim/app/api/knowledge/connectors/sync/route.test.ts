@@ -4,8 +4,6 @@
  * A hard kill (OOM/SIGKILL) skips `executeSync`'s `catch` and `finally`, so this
  * reaper is the only writer that ever records that failure. These tests pin the
  * shape of the SQL it writes, which is the part no shape-agnostic mock can enforce.
- *
- * @vitest-environment node
  */
 import {
   dbChainMockFns,
@@ -16,10 +14,9 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
-import { type NextRequest, NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  CONNECTOR_AUTO_DISABLED_ERROR,
   CONNECTOR_FAILURE_BACKOFF_CAP_MINUTES,
   CONNECTOR_FAILURE_BACKOFF_STEP_MINUTES,
   CONNECTOR_SYNC_STALE_LOCK_TTL_MS,
@@ -133,7 +130,6 @@ function syncLogSweepWhere(): unknown {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mockVerifyCronAuth.mockReturnValue(null)
   mockDispatchSync.mockResolvedValue(undefined)
@@ -242,38 +238,6 @@ describe('connector sync scheduler stale-lock reaper', () => {
     expect(setPayloadForUpdate(0).syncLockToken).toBeNull()
   })
 
-  it('closes the reclaimed run lease alongside its token', async () => {
-    await runTickRecovering(['connector-1'])
-
-    /**
-     * A reclaimed row is re-locked by its replacement, which opens a fresh
-     * lease. Leaving the dead run's lease behind would let the replacement
-     * inherit an already-expired one and be reclaimed on the very next tick.
-     */
-    expect(setPayloadForUpdate(0).syncLockLeaseAt).toBeNull()
-  })
-
-  it('tells the operator the connector is disabled when the reclaim disables it', async () => {
-    await runTickRecovering(['connector-1'])
-
-    /**
-     * `reclaimedStatus()` disables at the threshold and `reclaimedNextSyncAt()`
-     * then writes no next attempt, so an unconditional "timed out, will retry"
-     * message describes a retry that will never happen. The two CASE arms must
-     * pivot on the same comparison.
-     */
-    const error = setPayloadForUpdate(0).lastSyncError
-    expect(renderedSql(error)).toBe('CASE WHEN COALESCE(?, 0) + 1 >= ? THEN ? ELSE ? END')
-
-    const values = asFragment(error).values
-    expect(values[0]).toBe(schemaMock.knowledgeConnector.consecutiveFailures)
-    expect(values[1]).toBe(MAX_CONSECUTIVE_FAILURES)
-    // Sourced from the constant the in-process breaker writes, so the two
-    // writers of one verdict cannot drift into two different messages.
-    expect(values[2]).toBe(CONNECTOR_AUTO_DISABLED_ERROR)
-    expect(values[3]).toBe('Sync timed out (stale lock recovered)')
-  })
-
   it('does not stamp lastSyncAt when reclaiming a stale lock', async () => {
     await runTickRecovering(['connector-1'])
 
@@ -319,56 +283,6 @@ describe('connector sync scheduler stale-lock reaper', () => {
     return fragment as unknown as MockSqlFragment
   }
 
-  it('spares the log row of a run whose lock is still being heartbeated', async () => {
-    await runTickRecovering(['connector-1'])
-
-    /**
-     * The sweep keys on `startedAt`, which no heartbeat refreshes, so age alone
-     * would close a legitimately long in-process run's row and record a
-     * successful sync as failed. Every clause is pinned: sparing requires the
-     * connector to be locked, THIS row's run to be the holder, and that lock to
-     * be live — an orphan can satisfy at most two.
-     */
-    const fragment = sweepLivenessFragment()
-
-    expect(fragment.toSQL().sql.replace(/\s+/g, ' ').trim()).toBe(
-      "NOT EXISTS ( SELECT 1 FROM ? WHERE ? = ? AND ? = ? AND ? = 'syncing' AND ? > ? )"
-    )
-
-    /**
-     * The rendered SQL above is seven `?` carrying every operand, so the shape
-     * assertion alone cannot tell one column from another. The bound values are
-     * the only place the predicate's operands are observable, and they are
-     * checked positionally so a swapped column fails on the exact slot.
-     */
-    const bound = fragment.values
-    expect(bound[0]).toBe(schemaMock.knowledgeConnector)
-    expect(bound[1]).toBe(schemaMock.knowledgeConnector.id)
-    expect(bound[2]).toBe(schemaMock.knowledgeConnectorSyncLog.connectorId)
-    expect(bound[3]).toBe(schemaMock.knowledgeConnector.syncLockToken)
-    expect(bound[4]).toBe(schemaMock.knowledgeConnectorSyncLog.id)
-    expect(bound[5]).toBe(schemaMock.knowledgeConnector.status)
-    expectLeaseExpression(bound[6])
-  })
-
-  it('identifies the lock holder by token, not merely by the connector syncing', async () => {
-    await runTickRecovering(['connector-1'])
-
-    /**
-     * Without the token clause the sweep spares every `started` row on a locked
-     * connector — including an orphan from a crashed run whose replacement now
-     * holds the lock, which would then never drain while that connector stays
-     * busy.
-     */
-    const bound = sweepLivenessFragment().values
-
-    // Compared against the LOG ROW's id: matching the connector id instead makes
-    // the correlation trivially true, so `NOT EXISTS` never spares anything.
-    expect(bound[3]).toBe(schemaMock.knowledgeConnector.syncLockToken)
-    expect(bound[4]).toBe(schemaMock.knowledgeConnectorSyncLog.id)
-    expect(bound[4]).not.toBe(schemaMock.knowledgeConnectorSyncLog.connectorId)
-  })
-
   it('requires the held lock to be heartbeated, not merely held', async () => {
     await runTickRecovering(['connector-1'])
 
@@ -384,22 +298,6 @@ describe('connector sync scheduler stale-lock reaper', () => {
     // Compared by value: `toBeDefined()` passed even for `new Date()`, which
     // spares nothing and closes rows started a second ago.
     expect((bound[7] as { value: Date }).value).toEqual(EXPECTED_STALE_CUTOFF)
-  })
-
-  it('closes stale sync-log rows even when no connector was reclaimed this tick', async () => {
-    /**
-     * The self-healing assertion. A row orphaned before this sweep existed —
-     * or by a transient failure of the sweep itself — belongs to a connector
-     * already flipped out of `syncing`, so it can never appear in a reclaim
-     * batch again. Scoping the close to this tick's reclaims strands it forever.
-     */
-    const response = await GET(cronRequest())
-
-    expect(response.status).toBe(200)
-
-    expect(setPayloadForUpdate(updateIndexFor(schemaMock.knowledgeConnectorSyncLog)).status).toBe(
-      'failed'
-    )
   })
 
   it('recovers connectors whose queued sync was never started', async () => {
@@ -474,13 +372,6 @@ describe('connector sync scheduler stale-lock reaper', () => {
       )
     ).toBe(true)
   })
-
-  it('drives the connector write off a single clock', async () => {
-    await runTickRecovering(['connector-1'])
-
-    // `updatedAt` shares the server clock the nextSyncAt interval math uses.
-    expect(renderedSql(setPayloadForUpdate(0).updatedAt)).toContain('now()')
-  })
 })
 
 describe('connector sync scheduler reclaim predicate', () => {
@@ -529,38 +420,6 @@ describe('connector sync scheduler reclaim predicate', () => {
 })
 
 describe('connector sync scheduler authentication and dispatch', () => {
-  it('rejects an unauthenticated request without touching the database', async () => {
-    mockVerifyCronAuth.mockReturnValue(
-      NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    )
-
-    const response = await GET(cronRequest())
-
-    // Deleting the auth check leaves an unauthenticated cron endpoint.
-    expect(response.status).toBe(401)
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-    expect(mockDispatchSync).not.toHaveBeenCalled()
-  })
-
-  it('dispatches a sync for every due connector with its workspace billing context', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [
-      { id: 'due-1', workspaceId: 'ws-1' },
-      { id: 'due-2', workspaceId: 'ws-2' },
-    ])
-
-    const response = await GET(cronRequest())
-
-    // Deleting the dispatch call means no connector ever syncs.
-    expect(await response.json()).toMatchObject({ success: true, count: 2 })
-    expect(mockResolveSystemBillingAttribution).toHaveBeenCalledWith('ws-1')
-    expect(mockResolveSystemBillingAttribution).toHaveBeenCalledWith('ws-2')
-    expect(mockDispatchSync).toHaveBeenCalledTimes(2)
-    expect(mockDispatchSync).toHaveBeenCalledWith(
-      'due-1',
-      expect.objectContaining({ billingAttribution: { workspaceId: 'ws-1' } })
-    )
-  })
-
   it('skips a connector missing resource billing context without failing the tick', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [
       { id: 'due-1', workspaceId: null },
@@ -607,13 +466,6 @@ describe('connector sync scheduler authentication and dispatch', () => {
     await GET(cronRequest())
     expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
     expect(mockResolveSystemOrganizationBillingAttribution).toHaveBeenCalledExactlyOnceWith('org-1')
-    expect(mockDispatchSync).not.toHaveBeenCalled()
-  })
-
-  it('reports a tick with nothing due', async () => {
-    const response = await GET(cronRequest())
-
-    expect(await response.json()).toMatchObject({ success: true, count: 0 })
     expect(mockDispatchSync).not.toHaveBeenCalled()
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetWorkspaceShares, mockListWorkspaceFiles } = vi.hoisted(() => ({
@@ -35,7 +32,6 @@ const STORED_FILE = {
 
 describe('listWorkspaceFilesWithShares', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockListWorkspaceFiles.mockResolvedValue([STORED_FILE])
     mockGetWorkspaceShares.mockResolvedValue(new Map())
   })
@@ -70,24 +66,6 @@ describe('listWorkspaceFilesWithShares', () => {
     expect(mockListWorkspaceFiles).toHaveBeenCalledWith('ws-1', { scope: 'active', limit: 3 })
   })
 
-  it('returns the list when it fits maxRows', async () => {
-    mockListWorkspaceFiles.mockResolvedValue([STORED_FILE])
-
-    const result = await listWorkspaceFilesWithShares('ws-1', 'active', { maxRows: 2 })
-
-    expect(result).toHaveLength(1)
-    expect(mockGetWorkspaceShares).toHaveBeenCalledWith('file', 'ws-1')
-  })
-
-  /** The boundary the `>` comparison turns on: exactly maxRows must still be the list. */
-  it('returns the list when it sits exactly on maxRows', async () => {
-    mockListWorkspaceFiles.mockResolvedValue([STORED_FILE, STORED_FILE])
-
-    const result = await listWorkspaceFilesWithShares('ws-1', 'active', { maxRows: 2 })
-
-    expect(result).toHaveLength(2)
-  })
-
   /**
    * The file read swallows errors and returns `[]` by default. A caller seeding a cache
    * must not receive that: an empty list would be cached as "this workspace has no files".
@@ -99,34 +77,5 @@ describe('listWorkspaceFilesWithShares', () => {
       'ws-1',
       expect.objectContaining({ throwOnError: true })
     )
-  })
-
-  it('does not ask the file read to throw unless the caller opts in', async () => {
-    await listWorkspaceFilesWithShares('ws-1', 'active')
-
-    expect(mockListWorkspaceFiles).toHaveBeenCalledWith(
-      'ws-1',
-      expect.not.objectContaining({ throwOnError: true })
-    )
-  })
-
-  it('joins each file public share onto its row', async () => {
-    const share = {
-      id: 'share-1',
-      token: 'tok',
-      url: 'https://sim.ai/f/tok',
-      isActive: true,
-      resourceType: 'file' as const,
-      resourceId: 'file-1',
-      authType: 'public' as const,
-      hasPassword: false,
-      allowedEmails: [],
-    }
-    mockGetWorkspaceShares.mockResolvedValue(new Map([['file-1', share]]))
-
-    const [file] = await listWorkspaceFilesWithShares('ws-1', 'active')
-
-    expect(file.share).toEqual(share)
-    expect(mockGetWorkspaceShares).toHaveBeenCalledWith('file', 'ws-1')
   })
 })

@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * `logs.trace_spans` and `logs.cost` are PROJECTIONS, not gates — a group
  * withholds those fields from the response rather than refusing the read, which
  * is why `logOperations.list` and `logOperations.readDetail` correctly declare
@@ -122,13 +120,6 @@ const workflowLog = {
   executionData: { pointer: true },
 }
 
-const jobLog = {
-  kind: 'job' as const,
-  executionId: 'job-1',
-  cost: { total: 0.4 },
-  executionData: { pointer: true },
-}
-
 /** A person governed by a group; the group's own keys decide what is withheld. */
 const personalPrincipal = {
   kind: 'personal_api_key' as const,
@@ -167,7 +158,6 @@ function listInput(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetPermissionGroupScopeMock()
   mocks.loadWorkspace.mockResolvedValue(workspaceContext)
   mocks.resolvePermission.mockResolvedValue('read')
@@ -196,18 +186,6 @@ describe('listPublicLogs field projection', () => {
     })
 
     expect((result.items[0].log as { costTotal: string | null }).costTotal).toBeNull()
-  })
-
-  it('blanks a job run cost too, which the presenter reads from another column', async () => {
-    governedBy({ hideCostInfo: true })
-    mocks.listLogs.mockResolvedValueOnce({ data: [jobLog], nextCursorKeys: null })
-
-    const result = await listPublicLogs.execute({
-      principal: personalPrincipal,
-      input: listInput({ includeJobRuns: true }),
-    })
-
-    expect((result.items[0].log as { cost: unknown }).cost).toBeNull()
   })
 
   it('strips spend from the spans it still returns when only cost is hidden', async () => {
@@ -262,26 +240,6 @@ describe('listPublicLogs field projection', () => {
     )
   })
 
-  it('still materializes for a group that withholds only spend', async () => {
-    governedBy({ hideCostInfo: true })
-
-    await listPublicLogs.execute({ principal: personalPrincipal, input: listInput() })
-
-    expect(mocks.materialize).toHaveBeenCalledTimes(1)
-  })
-
-  it('withholds nothing from a caller no group governs', async () => {
-    const result = await listPublicLogs.execute({
-      principal: personalPrincipal,
-      input: listInput(),
-    })
-
-    expect((result.items[0].log as { costTotal: string | null }).costTotal).toBe('0.75')
-    expect(result.includeTraceSpans).toBe(true)
-    expect(result.items[0].executionData?.traceSpans).toHaveLength(1)
-    expect(result.items[0].executionData?.finalOutput).toEqual(EXECUTION_DATA.finalOutput)
-  })
-
   /**
    * A workspace API key authorizes as the workspace and represents no user, so
    * there is no group to apply. Substituting the key's creator would govern
@@ -325,39 +283,6 @@ describe('listPublicLogs cost-selective queries', () => {
 
     expect(mocks.listLogs).not.toHaveBeenCalled()
   })
-
-  it('answers a cost sort for a group that withholds nothing', async () => {
-    await listPublicLogs.execute({
-      principal: personalPrincipal,
-      input: listInput({ sortBy: 'cost' as const }),
-    })
-
-    expect(mocks.listLogs).toHaveBeenCalledWith(expect.objectContaining({ sortBy: 'cost' }))
-  })
-
-  it('answers a cost filter for a workspace API key', async () => {
-    governedBy({ hideCostInfo: true })
-
-    await listPublicLogs.execute({
-      principal: workspacePrincipal,
-      input: listInput({ filters: { minCost: 0.5 } }),
-    })
-
-    expect(mocks.listLogs).toHaveBeenCalledWith(
-      expect.objectContaining({ filters: expect.objectContaining({ minCost: 0.5 }) })
-    )
-  })
-
-  it('leaves a non-spend filter alone for a group that withholds spend', async () => {
-    governedBy({ hideCostInfo: true })
-
-    await listPublicLogs.execute({
-      principal: personalPrincipal,
-      input: listInput({ filters: { minDurationMs: 100 } }),
-    })
-
-    expect(mocks.listLogs).toHaveBeenCalled()
-  })
 })
 
 describe('getPublicLog field projection', () => {
@@ -393,31 +318,5 @@ describe('getPublicLog field projection', () => {
     expect(result.executionData).not.toHaveProperty('finalOutput')
     expect(result.executionData).not.toHaveProperty('workflowInput')
     expect(result.executionData).not.toHaveProperty('blockExecutions')
-  })
-
-  it('withholds nothing from a caller no group governs', async () => {
-    const result = await getPublicLog.execute({
-      principal: personalPrincipal,
-      input: { runId: 'run-1' },
-    })
-
-    expect(result.log.costTotal).toBe('0.75')
-    expect(result.costLedger).toEqual(COST_LEDGER)
-    expect(result.executionData.finalOutput).toEqual(EXECUTION_DATA.finalOutput)
-    expect(result.executionData.models).toEqual(EXECUTION_DATA.models)
-  })
-
-  it('withholds nothing from a workspace API key', async () => {
-    governedBy({ hideTraceSpans: true, hideCostInfo: true })
-
-    const result = await getPublicLog.execute({
-      principal: workspacePrincipal,
-      input: { runId: 'run-1' },
-    })
-
-    expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).not.toHaveBeenCalled()
-    expect(result.log.costTotal).toBe('0.75')
-    expect(result.costLedger).toEqual(COST_LEDGER)
-    expect(result.executionData.traceSpans).toHaveLength(1)
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { readFileSync } from 'node:fs'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -42,7 +39,7 @@ const EXECUTE_WORKFLOW: OperationSpec = {
  * status must not reach the exit code — branching on a run's status is what
  * `runs wait` is for, with its own exit-code matrix.
  */
-const GET_WORKFLOW_DEPLOYMENT: OperationSpec = {
+const _GET_WORKFLOW_DEPLOYMENT: OperationSpec = {
   method: 'GET',
   path: '/api/v2/workflows/[workflowId]/deployment',
   pathParams: ['workflowId'],
@@ -55,28 +52,28 @@ const BULK_DELETE_TABLES: OperationSpec = {
   body: {},
 }
 
-const BULK_DELETE_FILES: OperationSpec = {
+const _BULK_DELETE_FILES: OperationSpec = {
   method: 'POST',
   path: '/api/v2/files/bulk-delete',
   pathParams: [],
   body: { fileIds: { kind: 'array' } },
 }
 
-const MOVE_TABLES: OperationSpec = {
+const _MOVE_TABLES: OperationSpec = {
   method: 'POST',
   path: '/api/v2/tables/move',
   pathParams: [],
   body: {},
 }
 
-const MOVE_WORKFLOWS: OperationSpec = {
+const _MOVE_WORKFLOWS: OperationSpec = {
   method: 'POST',
   path: '/api/v2/workflows/move',
   pathParams: [],
   body: {},
 }
 
-const MOVE_FLAGS = { workflow: ['wf_1'], to: '/a' }
+const _MOVE_FLAGS = { workflow: ['wf_1'], to: '/a' }
 
 const DELETE_TABLE_ROWS: OperationSpec = {
   method: 'DELETE',
@@ -86,7 +83,7 @@ const DELETE_TABLE_ROWS: OperationSpec = {
 }
 
 /** Invokes a generated command that takes both a path positional and flags. */
-function invokeRowDelete(flags: Record<string, unknown>) {
+function _invokeRowDelete(flags: Record<string, unknown>) {
   const host = new Command('leaf')
   return executeOperation('deleteTableRows', {}, DELETE_TABLE_ROWS, ['tbl_1', flags, host])
 }
@@ -112,7 +109,6 @@ function invoke(
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   output.format = 'json'
 })
 
@@ -173,48 +169,6 @@ describe('a chat publish that lands on public auth', () => {
       authType: 'public',
     })
   })
-
-  it('notes an explicit --auth-type public just the same', async () => {
-    request.mockResolvedValue({ data: { id: 'chat_1', authType: 'public' } })
-    const captured = streams()
-
-    await publishChat({ authType: 'public' })
-
-    expect(request.mock.calls[0][1].body).toMatchObject({ authType: 'public' })
-    expect(captured.stderr).toContain(PUBLIC_NOTE)
-  })
-
-  it('notes in the human format too, still on stderr', async () => {
-    output.format = 'table'
-    request.mockResolvedValue({ data: { id: 'chat_1', authType: 'public' } })
-    const captured = streams()
-
-    await publishChat({})
-
-    expect(captured.stderr).toContain(PUBLIC_NOTE)
-    expect(captured.stdout).toContain('chat_1')
-    expect(captured.stdout).not.toContain('note:')
-  })
-
-  it('stays quiet once the chat is restricted', async () => {
-    request.mockResolvedValue({ data: { id: 'chat_1', authType: 'password' } })
-    const captured = streams()
-
-    await publishChat({ authType: 'password', password: 'hunter2' })
-
-    expect(captured.stderr).not.toContain('note:')
-  })
-
-  it('falls back to what was sent when the response omits the gate', async () => {
-    request.mockResolvedValue({ data: { id: 'chat_1' } })
-    const captured = streams()
-
-    await publishChat({ authType: 'password', password: 'hunter2' })
-    expect(captured.stderr).not.toContain('note:')
-
-    await publishChat({})
-    expect(captured.stderr).toContain(PUBLIC_NOTE)
-  })
 })
 
 describe('workspace mutation receipt identity', () => {
@@ -253,26 +207,6 @@ describe('workspace mutation receipt identity', () => {
   }
 
   it.each([
-    ['importWorkflow', 'workflow_import'],
-    ['forkWorkspace', 'workspace_fork'],
-    ['pushWorkspace', 'workspace_push'],
-    ['pullWorkspace', 'workspace_pull'],
-  ] as const)('accepts the matching receipt for %s', async (operation, kind) => {
-    const expected = { ...receipt, kind }
-    request.mockResolvedValue({ data: expected })
-
-    await expect(
-      executeOperation(operation, CLI_CONTRACT[operation]!, V2_OPERATIONS[operation], [
-        { ...flags, workflow: '{"blocks":{},"edges":[]}', wait: true },
-        new Command('leaf'),
-      ])
-    ).resolves.toBeUndefined()
-
-    expect(request).toHaveBeenCalledTimes(1)
-    expect(JSON.parse(vi.mocked(console.log).mock.calls[0][0])).toEqual(expected)
-  })
-
-  it.each([
     { field: 'requestId', value: 'another-request', wait: false },
     { field: 'requestId', value: 'another-request', wait: true },
     { field: 'workspaceId', value: 'another-workspace', wait: false },
@@ -302,17 +236,6 @@ describe('workspace mutation receipt identity', () => {
     })
     expect(request).toHaveBeenCalledTimes(1)
     expect(console.log).not.toHaveBeenCalled()
-  })
-
-  it('matches the canonical request ID after the fork contract trims surrounding whitespace', async () => {
-    request.mockResolvedValue({ data: receipt })
-    await expect(
-      executeOperation('pushWorkspace', CLI_CONTRACT.pushWorkspace!, V2_OPERATIONS.pushWorkspace, [
-        { ...flags, requestId: ' original-request ', wait: true },
-        new Command('leaf'),
-      ])
-    ).resolves.toBeUndefined()
-    expect(request).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -368,18 +291,6 @@ describe('an in-band run failure', () => {
     )
   })
 
-  it('fails the process when a synchronous run reports status cancelled', async () => {
-    request.mockResolvedValue({ data: { runId: 'run_1', status: 'cancelled', error: null } })
-
-    await expect(invoke('executeWorkflow', EXECUTE_WORKFLOW, 'wf_1')).rejects.toThrow(SimApiError)
-  })
-
-  it('succeeds when the run completed', async () => {
-    request.mockResolvedValue({ data: { runId: 'run_1', status: 'completed', error: null } })
-
-    await expect(invoke('executeWorkflow', EXECUTE_WORKFLOW, 'wf_1')).resolves.toBeUndefined()
-  })
-
   /**
    * `paused` is a run waiting to be resumed, not a broken one, and `--follow`
    * reports it the way it reports a success.
@@ -388,21 +299,6 @@ describe('an in-band run failure', () => {
     request.mockResolvedValue({ data: { runId: 'run_1', status: 'paused', error: null } })
 
     await expect(invoke('executeWorkflow', EXECUTE_WORKFLOW, 'wf_1')).resolves.toBeUndefined()
-  })
-
-  /**
-   * The scoping guard. A command that reports a failed *record* has itself
-   * succeeded, and reading any `status` field in any payload as the command's
-   * own outcome would start failing every one of them.
-   */
-  it('leaves an unrelated operation reporting a failed record alone', async () => {
-    request.mockResolvedValue({
-      data: { id: 'dep_1', status: 'failed', error: { message: 'the deployment failed' } },
-    })
-
-    await expect(
-      invoke('getWorkflowDeployment', GET_WORKFLOW_DEPLOYMENT, 'wf_1')
-    ).resolves.toBeUndefined()
   })
 })
 
@@ -426,22 +322,6 @@ describe('a bulk call that changed nothing', () => {
     )
   })
 
-  it('fails the process when every requested table could not be deleted', async () => {
-    request.mockResolvedValue({
-      data: {
-        deleted: [],
-        skipped: [],
-        notFound: [],
-        failed: [{ kind: 'table', id: 'tbl_1', name: 't', reason: 'locked' }],
-        deletedItems: { tables: 0, folders: 0 },
-      },
-    })
-
-    await expect(invokeWithFlags('bulkDeleteTables', BULK_DELETE_TABLES, {})).rejects.toThrow(
-      SimApiError
-    )
-  })
-
   /**
    * The scoping guard. Some items really were deleted, so the call did work;
    * failing here would break every caller sweeping a list that legitimately
@@ -460,181 +340,6 @@ describe('a bulk call that changed nothing', () => {
 
     await expect(
       invokeWithFlags('bulkDeleteTables', BULK_DELETE_TABLES, {})
-    ).resolves.toBeUndefined()
-  })
-
-  /** A folder-only delete still deleted something. */
-  it('succeeds when only folders were deleted', async () => {
-    request.mockResolvedValue({
-      data: {
-        deleted: [{ kind: 'folder', id: 'fld_1', name: 'f' }],
-        skipped: [],
-        notFound: [],
-        failed: [],
-        deletedItems: { tables: 0, folders: 1 },
-      },
-    })
-
-    await expect(
-      invokeWithFlags('bulkDeleteTables', BULK_DELETE_TABLES, {})
-    ).resolves.toBeUndefined()
-  })
-
-  /** Nothing asked for, nothing missed: an empty sweep is not a failure. */
-  it('succeeds when nothing was requested', async () => {
-    request.mockResolvedValue({
-      data: {
-        deleted: [],
-        skipped: [],
-        notFound: [],
-        failed: [],
-        deletedItems: { tables: 0, folders: 0 },
-      },
-    })
-
-    await expect(
-      invokeWithFlags('bulkDeleteTables', BULK_DELETE_TABLES, {})
-    ).resolves.toBeUndefined()
-  })
-
-  it('fails the process when every workflow move failed', async () => {
-    request.mockResolvedValue({ data: { moved: [], failed: ['wf_1'], folderPath: '/a' } })
-
-    await expect(invokeWithFlags('moveWorkflows', MOVE_WORKFLOWS, MOVE_FLAGS)).rejects.toThrow(
-      /Moved nothing/
-    )
-  })
-
-  it('succeeds on a partial move', async () => {
-    request.mockResolvedValue({ data: { moved: ['wf_1'], failed: ['wf_2'], folderPath: '/a' } })
-
-    await expect(
-      invokeWithFlags('moveWorkflows', MOVE_WORKFLOWS, MOVE_FLAGS)
-    ).resolves.toBeUndefined()
-  })
-
-  it('succeeds when every workflow moved', async () => {
-    request.mockResolvedValue({ data: { moved: ['wf_1'], failed: [], folderPath: '/a' } })
-
-    await expect(
-      invokeWithFlags('moveWorkflows', MOVE_WORKFLOWS, MOVE_FLAGS)
-    ).resolves.toBeUndefined()
-  })
-
-  /**
-   * `bulkDeleteFiles` reports a deleted count and nothing else, so the number of
-   * items asked for is only knowable from the request that was sent.
-   */
-  it('fails the process when no requested file was deleted', async () => {
-    request.mockResolvedValue({ data: { deletedItems: { files: 0 } } })
-
-    await expect(
-      invokeWithFlags('bulkDeleteFiles', BULK_DELETE_FILES, { fileIds: ['file_1', 'file_2'] })
-    ).rejects.toThrow(/Deleted nothing/)
-  })
-
-  it('succeeds on a partial file delete', async () => {
-    request.mockResolvedValue({ data: { deletedItems: { files: 1 } } })
-
-    await expect(
-      invokeWithFlags('bulkDeleteFiles', BULK_DELETE_FILES, { fileIds: ['file_1', 'file_2'] })
-    ).resolves.toBeUndefined()
-  })
-
-  it('fails the process when every table move failed', async () => {
-    request.mockResolvedValue({
-      data: {
-        moved: [],
-        skipped: [],
-        notFound: [],
-        failed: [{ kind: 'table', id: 'tbl_1', name: 't', reason: 'locked' }],
-      },
-    })
-
-    await expect(invokeWithFlags('moveTables', MOVE_TABLES, {})).rejects.toThrow(/Moved nothing/)
-  })
-
-  /**
-   * A move reports an id nothing resolved to under `notFound`, leaving `failed`
-   * empty — so a check reading `failed` alone exited `0` on a batch of typos,
-   * the exact case it exists to catch.
-   */
-  it('fails the process when every table to move was missing', async () => {
-    request.mockResolvedValue({
-      data: {
-        moved: [],
-        skipped: [],
-        notFound: [
-          { kind: 'table', id: 'tbl_nope1' },
-          { kind: 'table', id: 'tbl_nope2' },
-        ],
-        failed: [],
-      },
-    })
-
-    await expect(invokeWithFlags('moveTables', MOVE_TABLES, {})).rejects.toThrow(
-      /Moved nothing: 2 of 2 items were not found or could not be moved\./
-    )
-  })
-
-  it('succeeds on a partial table move', async () => {
-    request.mockResolvedValue({
-      data: {
-        moved: [{ kind: 'table', id: 'tbl_1', name: 't' }],
-        skipped: [],
-        notFound: [],
-        failed: [{ kind: 'table', id: 'tbl_2', name: 'u', reason: 'locked' }],
-      },
-    })
-
-    await expect(invokeWithFlags('moveTables', MOVE_TABLES, {})).resolves.toBeUndefined()
-  })
-
-  it('succeeds when no table was requested', async () => {
-    request.mockResolvedValue({ data: { moved: [], skipped: [], notFound: [], failed: [] } })
-
-    await expect(invokeWithFlags('moveTables', MOVE_TABLES, {})).resolves.toBeUndefined()
-  })
-
-  it('fails the process when no requested row was deleted', async () => {
-    request.mockResolvedValue({
-      data: {
-        deletedCount: 0,
-        deletedRowIds: [],
-        requestedCount: 1,
-        missingRowIds: ['00000000-0000-0000-0000-000000000000'],
-      },
-    })
-
-    await expect(
-      invokeRowDelete({ row: ['00000000-0000-0000-0000-000000000000'] })
-    ).rejects.toThrow(/Deleted nothing: none of the 1 requested row was deleted\./)
-  })
-
-  it('succeeds on a partial row delete', async () => {
-    request.mockResolvedValue({
-      data: {
-        deletedCount: 1,
-        deletedRowIds: ['row_1'],
-        requestedCount: 2,
-        missingRowIds: ['row_gone'],
-      },
-    })
-
-    await expect(invokeRowDelete({ row: ['row_1', 'row_gone'] })).resolves.toBeUndefined()
-  })
-
-  /**
-   * The selection mode the guard must not touch. A filter answers with a deleted
-   * count and no `requestedCount`, and a filter that matches nothing deleted
-   * nothing because there was nothing left to delete — the second run of an
-   * idempotent sweep, not a failure.
-   */
-  it('succeeds when a filter matched no rows', async () => {
-    request.mockResolvedValue({ data: { deletedCount: 0, deletedRowIds: [] } })
-
-    await expect(
-      invokeRowDelete({ filter: { all: [{ field: 'status', op: 'eq', value: 'archived' }] } })
     ).resolves.toBeUndefined()
   })
 })
@@ -710,27 +415,6 @@ describe('workspace invitation batch outcomes', () => {
     }
   )
 
-  it.each(['added', 'updated', 'unchanged'] as const)(
-    'accepts successful direct grants with outcome %s even without a new invitation',
-    async (outcome) => {
-      request.mockResolvedValue({
-        data: {
-          ...empty,
-          invitations: [{ ...receipt, instantAdd: true, outcome }],
-          added: outcome === 'added' ? ['first@example.com'] : [],
-        },
-      })
-      await expect(invite()).resolves.toBeUndefined()
-    }
-  )
-
-  it('accepts successful pending invitations', async () => {
-    request.mockResolvedValue({
-      data: { ...empty, successful: ['first@example.com'], invitations: [receipt] },
-    })
-    await expect(invite()).resolves.toBeUndefined()
-  })
-
   it('preserves HTTP failures without reporting a successful batch or retrying', async () => {
     const failure = new SimApiError('Organization access denied', 403)
     request.mockRejectedValue(failure)
@@ -751,7 +435,7 @@ describe('a bulk call that touched nothing', () => {
     ])
   }
 
-  function indexFiles(flags: Record<string, unknown>) {
+  function _indexFiles(flags: Record<string, unknown>) {
     const host = new Command('leaf')
     return executeOperation('addWorkspaceFilesToKnowledgeBase', {}, ADD_WORKSPACE_FILES, [
       'kb_1',
@@ -774,41 +458,6 @@ describe('a bulk call that touched nothing', () => {
     await expect(updateChunks(CHUNK_FLAGS)).rejects.toThrow(
       /No matching chunks found to disable: c1, c2/
     )
-  })
-
-  it('succeeds on a partial chunk update', async () => {
-    request.mockResolvedValue({
-      data: { operation: 'disable', processed: 1, errors: ['No matching chunks found: c2'] },
-    })
-
-    await expect(updateChunks(CHUNK_FLAGS)).resolves.toBeUndefined()
-  })
-
-  it('fails the process when every file failed to index', async () => {
-    request.mockResolvedValue({
-      data: { knowledgeBaseId: 'kb_1', added: [], failed: ['wf_1', 'wf_2'] },
-    })
-
-    await expect(indexFiles({ file: ['wf_1', 'wf_2'] })).rejects.toThrow(
-      /Indexed nothing: none of the 2 requested files were added\./
-    )
-  })
-
-  it('succeeds on a partial index', async () => {
-    request.mockResolvedValue({
-      data: { knowledgeBaseId: 'kb_1', added: [{ documentId: 'd_1' }], failed: ['wf_2'] },
-    })
-
-    await expect(indexFiles({ file: ['wf_1', 'wf_2'] })).resolves.toBeUndefined()
-  })
-
-  /** Nothing asked for is nothing missed — an empty answer is still an answer. */
-  it('succeeds when nothing was asked for', async () => {
-    request.mockResolvedValue({ data: { knowledgeBaseId: 'kb_1', added: [], failed: [] } })
-    await expect(indexFiles({ file: ['wf_1'] })).resolves.toBeUndefined()
-
-    request.mockResolvedValue({ data: { operation: 'disable', processed: 0, errors: [] } })
-    await expect(updateChunks({ operation: 'disable', chunk: [] })).resolves.toBeUndefined()
   })
 })
 

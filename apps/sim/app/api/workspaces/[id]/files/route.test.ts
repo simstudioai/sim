@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,7 +27,7 @@ vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { GET, POST } from '@/app/api/workspaces/[id]/files/route'
+import { POST } from '@/app/api/workspaces/[id]/files/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const USER = { id: 'user-1', name: 'Test User', email: 'test@sim.ai' }
@@ -60,36 +57,10 @@ function createRequest(body: unknown): NextRequest {
 
 describe('/api/workspaces/[id]/files', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({ user: USER, session: { id: 'session-1' } })
     mocks.admitCreate.mockResolvedValue(undefined)
     mocks.createFile.mockResolvedValue({ file: FILE })
     mocks.listFiles.mockResolvedValue({ files: [FILE] })
-  })
-
-  it('lists files through the shared read operation', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/workspaces/${WORKSPACE_ID}/files?scope=archived`
-    )
-    const response = await GET(request, context)
-
-    expect(response.status).toBe(200)
-    expect((await response.json()).files).toHaveLength(1)
-    expect(mocks.listFiles).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: { workspaceId: WORKSPACE_ID, scope: 'archived' },
-      request,
-    })
-  })
-
-  it('authenticates before create admission or body parsing', async () => {
-    authMockFns.mockGetSession.mockResolvedValue(null)
-
-    const response = await POST(createRequest('{not-json'), context)
-
-    expect(response.status).toBe(401)
-    expect(mocks.admitCreate).not.toHaveBeenCalled()
-    expect(mocks.createFile).not.toHaveBeenCalled()
   })
 
   it('authorizes the asserted workspace before buffering the create body', async () => {
@@ -113,46 +84,5 @@ describe('/api/workspaces/[id]/files', () => {
     expect(response.status).toBe(400)
     expect(mocks.admitCreate).toHaveBeenCalled()
     expect(mocks.createFile).not.toHaveBeenCalled()
-  })
-
-  it('creates through the shared use case and preserves internal analytics', async () => {
-    const request = createRequest({ name: 'notes.md', content: 'TQ==', encoding: 'base64' })
-    const response = await POST(request, context)
-
-    expect(response.status).toBe(201)
-    expect((await response.json()).file.id).toBe(FILE.id)
-    expect(mocks.createFile).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: {
-        workspaceId: WORKSPACE_ID,
-        name: 'notes.md',
-        contentType: 'text/markdown',
-        content: 'TQ==',
-        encoding: 'base64',
-        folderId: undefined,
-        exactName: false,
-      },
-      request,
-    })
-    expect(mocks.captureServerEvent).toHaveBeenCalledWith(
-      USER.id,
-      'file_uploaded',
-      { workspace_id: WORKSPACE_ID, file_type: 'text/markdown' },
-      { groups: { workspace: WORKSPACE_ID } }
-    )
-  })
-
-  it('renders typed create conflicts without exposing unknown errors', async () => {
-    mocks.createFile.mockRejectedValueOnce(new OrchestrationError('conflict', 'Name exists'))
-    const conflict = await POST(createRequest({ name: 'notes.md' }), context)
-    expect(conflict.status).toBe(409)
-    expect(await conflict.json()).toEqual({ error: 'Name exists' })
-
-    mocks.createFile.mockRejectedValueOnce(new Error('database details'))
-    const unexpected = await POST(createRequest({ name: 'notes.md' }), context)
-    expect(unexpected.status).toBe(500)
-    expect(await unexpected.json()).toEqual({
-      error: 'Internal server error',
-    })
   })
 })

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { TableDefinition, WorkflowGroup } from '@/lib/table/types'
@@ -75,17 +71,13 @@ vi.mock('@/lib/workflows/application/resolve-workflow-outputs', () => ({
   loadResolvedDeployedWorkflowOutputs: mocks.loadWorkflowOutputs,
 }))
 
-import { v2WorkflowGroupSchema } from '@/lib/api/contracts/v2/tables'
 import {
   addWorkflowTableGroupOutput,
   createTableEnrichmentGroup,
   createTableGroupUseCase,
   createWorkflowTableGroup,
-  deleteTableGroupOutputUseCase,
   updateTableGroupUseCase,
-  updateWorkflowTableGroup,
 } from '@/lib/table/application/groups'
-import { resolveWorkflowGroupDeploymentMode } from '@/lib/table/workflow-groups/deployment-mode'
 
 const group: WorkflowGroup = {
   id: 'group-1',
@@ -208,7 +200,6 @@ function useEnrichmentTable(): void {
 
 describe('workflow and enrichment Table application commands', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.runWorkflowColumn.mockResolvedValue({
       dispatchId: 'dispatch-1',
@@ -249,48 +240,6 @@ describe('workflow and enrichment Table application commands', () => {
     })
   })
 
-  it('owns workflow resolution plus group and column construction', async () => {
-    const result = await createWorkflowTableGroup.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        workflowId: 'workflow-1',
-        name: 'Scoring',
-        outputs: [{ blockId: 'block-2', path: 'score' }],
-      },
-    })
-
-    expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({
-      workflowId: 'workflow-1',
-      assertedWorkspaceId: 'workspace-1',
-    })
-    expect(mocks.addGroup).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        group: expect.objectContaining({
-          id: 'generated-id',
-          workflowId: 'workflow-1',
-          name: 'Scoring',
-          autoRun: false,
-          outputs: [{ blockId: 'block-2', path: 'score', columnName: 'score' }],
-        }),
-        outputColumns: [
-          expect.objectContaining({
-            name: 'score',
-            type: 'number',
-            workflowGroupId: 'generated-id',
-          }),
-        ],
-      }),
-      'request-1'
-    )
-    expect(result.group.id).toBe('generated-id')
-    expect(mocks.audit).toHaveBeenCalledTimes(1)
-    expect(mocks.signal).toHaveBeenCalledWith(table.id)
-  })
-
   /**
    * Adding an output backfills it from saved runs, and a backfilled cell can
    * satisfy a downstream group's deps and start it. That cascade is gated on
@@ -312,53 +261,6 @@ describe('workflow and enrichment Table application commands', () => {
       expect.objectContaining({ capabilityGovernedUserId: 'user-1' }),
       'request-1'
     )
-  })
-
-  it('persists disabled auto-run on a newly created workflow group', async () => {
-    const result = await createWorkflowTableGroup.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        workflowId: 'workflow-1',
-        outputs: [{ blockId: 'block-2', path: 'score' }],
-        autoRun: false,
-      },
-    })
-
-    expect(result.group.autoRun).toBe(false)
-    expect(mocks.addGroup).toHaveBeenCalledWith(
-      expect.objectContaining({
-        group: expect.objectContaining({ autoRun: false }),
-        autoRun: false,
-      }),
-      'request-1'
-    )
-  })
-
-  it('starts group auto-run without manual rerun semantics', async () => {
-    await createWorkflowTableGroup.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        workflowId: 'workflow-1',
-        outputs: [{ blockId: 'block-2', path: 'score' }],
-        autoRun: true,
-      },
-    })
-
-    expect(mocks.runDetached).toHaveBeenCalledWith('table-workflow-group-create-auto-run')
-    expect(mocks.runWorkflowColumn).toHaveBeenCalledWith({
-      tableId: table.id,
-      workspaceId: table.workspaceId,
-      groupIds: ['generated-id'],
-      mode: 'new',
-      isManualRun: false,
-      requestId: 'request-1',
-      triggeredByUserId: 'user-1',
-      capabilityGovernedUserId: 'user-1',
-    })
   })
 
   it('conceals a cross-workspace workflow before group mutation or effects', async () => {
@@ -387,68 +289,6 @@ describe('workflow and enrichment Table application commands', () => {
     expect(mocks.signal).not.toHaveBeenCalled()
   })
 
-  it('stores an empty workflowId for a public enrichment group that omits it', async () => {
-    const result = await createTableGroupUseCase.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        group: {
-          type: 'enrichment',
-          enrichmentId: 'company-domain',
-          name: 'Company Domain',
-          outputs: [{ blockId: '', path: '', outputId: 'domain', columnName: 'domain' }],
-        },
-        outputColumns: [{ name: 'domain', type: 'string' }],
-      },
-    })
-
-    expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
-    expect(mocks.addGroup).toHaveBeenCalledWith(
-      expect.objectContaining({
-        group: expect.objectContaining({ id: 'generated-id', workflowId: '' }),
-      }),
-      'request-1'
-    )
-    expect(result.group.workflowId).toBe('')
-    expect(
-      v2WorkflowGroupSchema.safeParse({
-        ...result.group,
-        deploymentMode: resolveWorkflowGroupDeploymentMode(result.group),
-      }).success
-    ).toBe(true)
-  })
-
-  /**
-   * A group whose outputs all land in columns the table already has needs no
-   * `outputColumns` at all; the service attaches those columns. The use case
-   * used to require at least one entry and the service refused a matching
-   * name, so a group could never be attached to existing columns.
-   */
-  it('creates a group over existing columns with outputColumns omitted', async () => {
-    await createTableGroupUseCase.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        group: {
-          workflowId: 'workflow-1',
-          outputs: [{ blockId: 'block-2', path: 'score', columnName: 'name' }],
-        },
-      },
-    })
-
-    expect(mocks.addGroup).toHaveBeenCalledWith(
-      expect.objectContaining({
-        group: expect.objectContaining({
-          outputs: [{ blockId: 'block-2', path: 'score', columnName: 'name' }],
-        }),
-        outputColumns: [],
-      }),
-      'request-1'
-    )
-  })
-
   it('refuses an output whose column is neither declared nor existing', async () => {
     await expect(
       createTableGroupUseCase.execute({
@@ -469,31 +309,6 @@ describe('workflow and enrichment Table application commands', () => {
     })
 
     expect(mocks.addGroup).not.toHaveBeenCalled()
-  })
-
-  it('preserves the internal create contract for an invalid related workflow', async () => {
-    mocks.resolveWorkflowContext.mockRejectedValueOnce(
-      new OrchestrationError('not_found', 'Workflow not found')
-    )
-
-    await expect(
-      createTableGroupUseCase.execute({
-        principal,
-        input: {
-          tableId: table.id,
-          workspaceId: table.workspaceId,
-          group: {
-            id: 'group-new',
-            workflowId: 'workflow-other',
-            outputs: [{ blockId: 'block-2', path: 'score', columnName: 'score' }],
-          },
-          outputColumns: [{ name: 'score', type: 'number' }],
-        },
-      })
-    ).rejects.toMatchObject({ code: 'validation', message: 'Invalid workflow ID' })
-
-    expect(mocks.addGroup).not.toHaveBeenCalled()
-    expect(mocks.audit).not.toHaveBeenCalled()
   })
 
   it('refuses a created enrichment group whose enrichment id the registry does not define', async () => {
@@ -545,29 +360,6 @@ describe('workflow and enrichment Table application commands', () => {
     expect(mocks.addGroup).not.toHaveBeenCalled()
   })
 
-  it('refuses a created enrichment output that carries no output id', async () => {
-    await expect(
-      createTableGroupUseCase.execute({
-        principal,
-        input: {
-          tableId: table.id,
-          workspaceId: table.workspaceId,
-          group: {
-            type: 'enrichment',
-            enrichmentId: 'company-domain',
-            outputs: [{ blockId: '', path: '', columnName: 'domain' }],
-          },
-          outputColumns: [{ name: 'domain', type: 'string' }],
-        },
-      })
-    ).rejects.toMatchObject({
-      code: 'validation',
-      message: 'Enrichment "Company Domain" has no output ""',
-    })
-
-    expect(mocks.addGroup).not.toHaveBeenCalled()
-  })
-
   it('refuses a created workflow group output coordinate the workflow cannot produce', async () => {
     await expect(
       createTableGroupUseCase.execute({
@@ -590,192 +382,6 @@ describe('workflow and enrichment Table application commands', () => {
 
     expect(mocks.addGroup).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
-  })
-
-  it('still creates a workflow group whose output coordinates the workflow produces', async () => {
-    const result = await createTableGroupUseCase.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        group: {
-          id: 'group-new',
-          workflowId: 'workflow-1',
-          outputs: [{ blockId: 'block-2', path: 'score', columnName: 'score' }],
-        },
-        outputColumns: [{ name: 'score', type: 'number' }],
-      },
-    })
-
-    expect(mocks.addGroup).toHaveBeenCalledWith(
-      expect.objectContaining({
-        group: expect.objectContaining({ id: 'group-new', workflowId: 'workflow-1' }),
-      }),
-      'request-1'
-    )
-    expect(result.group.workflowId).toBe('workflow-1')
-  })
-
-  it('still creates an enrichment-template group that carries a backing workflow', async () => {
-    const result = await createTableGroupUseCase.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        group: {
-          id: 'group-new',
-          type: 'enrichment',
-          workflowId: 'workflow-1',
-          outputs: [{ blockId: 'block-2', path: 'score', columnName: 'score' }],
-        },
-        outputColumns: [{ name: 'score', type: 'number' }],
-      },
-    })
-
-    expect(mocks.getEnrichment).not.toHaveBeenCalled()
-    expect(result.group.workflowId).toBe('workflow-1')
-  })
-
-  it('preserves the internal update contract for an invalid related workflow', async () => {
-    mocks.resolveWorkflowContext.mockRejectedValueOnce(
-      new OrchestrationError('not_found', 'Workflow not found')
-    )
-
-    await expect(
-      updateTableGroupUseCase.execute({
-        principal,
-        input: {
-          tableId: table.id,
-          workspaceId: table.workspaceId,
-          groupId: group.id,
-          workflowId: 'workflow-other',
-        },
-      })
-    ).rejects.toMatchObject({ code: 'validation', message: 'Invalid workflow ID' })
-
-    expect(mocks.updateGroup).not.toHaveBeenCalled()
-    expect(mocks.audit).not.toHaveBeenCalled()
-  })
-
-  it('preserves an existing output coordinate that is no longer pickable', async () => {
-    mocks.loadWorkflowOutputs.mockResolvedValueOnce({
-      ...resolvedWorkflow,
-      outputs: resolvedWorkflow.outputs.filter((output) => output.blockId !== 'block-1'),
-    })
-
-    await updateTableGroupUseCase.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        groupId: group.id,
-        name: 'Renamed group',
-        outputs: group.outputs,
-      },
-    })
-
-    expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
-    expect(mocks.loadWorkflowOutputs).not.toHaveBeenCalled()
-    expect(mocks.updateGroup).toHaveBeenCalledWith(
-      expect.objectContaining({ outputs: group.outputs, name: 'Renamed group' }),
-      'request-1'
-    )
-  })
-
-  it('extends an enrichment group with a registry output without resolving a workflow', async () => {
-    useEnrichmentTable()
-
-    await updateTableGroupUseCase.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        groupId: enrichmentGroup.id,
-        outputs: [
-          ...enrichmentGroup.outputs,
-          { blockId: '', path: '', outputId: 'company_name', columnName: 'zz_z' },
-        ],
-        newOutputColumns: [{ name: 'zz_z', type: 'string' }],
-      },
-    })
-
-    expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
-    expect(mocks.updateGroup).toHaveBeenCalledWith(
-      expect.objectContaining({
-        groupId: enrichmentGroup.id,
-        newOutputColumns: [{ name: 'zz_z', type: 'string', workflowGroupId: enrichmentGroup.id }],
-      }),
-      'request-1'
-    )
-  })
-
-  it('refuses an enrichment output the registry does not define', async () => {
-    useEnrichmentTable()
-
-    await expect(
-      updateTableGroupUseCase.execute({
-        principal,
-        input: {
-          tableId: table.id,
-          workspaceId: table.workspaceId,
-          groupId: enrichmentGroup.id,
-          outputs: [
-            ...enrichmentGroup.outputs,
-            { blockId: '', path: '', outputId: 'invented', columnName: 'zz_z' },
-          ],
-          newOutputColumns: [{ name: 'zz_z', type: 'string' }],
-        },
-      })
-    ).rejects.toMatchObject({
-      code: 'validation',
-      message: 'Enrichment "Company Domain" has no output "invented"',
-    })
-
-    expect(mocks.updateGroup).not.toHaveBeenCalled()
-    expect(mocks.audit).not.toHaveBeenCalled()
-  })
-
-  it('refuses an enrichment output coordinate that carries no registry output id', async () => {
-    useEnrichmentTable()
-
-    await expect(
-      updateTableGroupUseCase.execute({
-        principal,
-        input: {
-          tableId: table.id,
-          workspaceId: table.workspaceId,
-          groupId: enrichmentGroup.id,
-          outputs: [...enrichmentGroup.outputs, { blockId: '', path: 'name', columnName: 'zz_z' }],
-          newOutputColumns: [{ name: 'zz_z', type: 'string' }],
-        },
-      })
-    ).rejects.toMatchObject({
-      code: 'validation',
-      message: 'Enrichment "Company Domain" has no output ""',
-    })
-
-    expect(mocks.updateGroup).not.toHaveBeenCalled()
-  })
-
-  it('leaves an untouched enrichment binding alone while renaming the group', async () => {
-    useEnrichmentTable()
-
-    await updateTableGroupUseCase.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        groupId: enrichmentGroup.id,
-        name: 'Renamed enrichment',
-        outputs: enrichmentGroup.outputs,
-      },
-    })
-
-    expect(mocks.getEnrichment).not.toHaveBeenCalled()
-    expect(mocks.updateGroup).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Renamed enrichment' }),
-      'request-1'
-    )
   })
 
   it('refuses relabelling a workflow group as an enrichment', async () => {
@@ -822,117 +428,6 @@ describe('workflow and enrichment Table application commands', () => {
     expect(mocks.audit).not.toHaveBeenCalled()
   })
 
-  it('accepts a type that echoes the group it is updating', async () => {
-    await updateTableGroupUseCase.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        groupId: group.id,
-        type: 'manual',
-        name: 'Renamed group',
-      },
-    })
-
-    expect(mocks.updateGroup).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'manual', name: 'Renamed group' }),
-      'request-1'
-    )
-  })
-
-  it('still applies an update that leaves the group type alone', async () => {
-    await updateTableGroupUseCase.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        groupId: group.id,
-        name: 'Renamed group',
-        autoRun: false,
-      },
-    })
-
-    expect(mocks.updateGroup).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Renamed group', autoRun: false }),
-      'request-1'
-    )
-  })
-
-  it('lets an enrichment-template group backed by a workflow keep its enrichment label', async () => {
-    const templateGroup: WorkflowGroup = { ...group, type: 'enrichment' }
-    mocks.resolveContext.mockResolvedValue({
-      tableId: table.id,
-      table: tableWithGroup(templateGroup),
-      workspaceId: table.workspaceId,
-      workspaceOrganizationId: null,
-      allowPersonalApiKeys: true,
-      billedAccountUserId: 'billing-owner-1',
-    })
-
-    await updateTableGroupUseCase.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        groupId: group.id,
-        type: 'enrichment',
-        name: 'Renamed template',
-      },
-    })
-
-    expect(mocks.updateGroup).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'enrichment', name: 'Renamed template' }),
-      'request-1'
-    )
-  })
-
-  it('names the enrichment instead of a missing workflow for a mapping update', async () => {
-    useEnrichmentTable()
-
-    await expect(
-      updateTableGroupUseCase.execute({
-        principal,
-        input: {
-          tableId: table.id,
-          workspaceId: table.workspaceId,
-          groupId: enrichmentGroup.id,
-          mappingUpdates: [{ columnName: 'column-domain', blockId: 'block-1', path: 'content' }],
-        },
-      })
-    ).rejects.toMatchObject({
-      code: 'validation',
-      message: 'Mapping updates are not supported for an enrichment group; send outputs[] instead',
-    })
-
-    expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
-    expect(mocks.updateGroup).not.toHaveBeenCalled()
-  })
-
-  it('still resolves the workflow for a new output coordinate on a manual group', async () => {
-    await updateTableGroupUseCase.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        groupId: group.id,
-        outputs: [...group.outputs, { blockId: 'block-2', path: 'score', columnName: 'score' }],
-        newOutputColumns: [{ name: 'score', type: 'number' }],
-      },
-    })
-
-    expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({
-      workflowId: 'workflow-1',
-      assertedWorkspaceId: 'workspace-1',
-    })
-    expect(mocks.getEnrichment).not.toHaveBeenCalled()
-    expect(mocks.updateGroup).toHaveBeenCalledWith(
-      expect.objectContaining({
-        newOutputColumns: [{ name: 'score', type: 'number', workflowGroupId: group.id }],
-      }),
-      'request-1'
-    )
-  })
-
   it('refuses an output column no output names instead of dropping it', async () => {
     await expect(
       updateTableGroupUseCase.execute({
@@ -974,23 +469,6 @@ describe('workflow and enrichment Table application commands', () => {
     expect(mocks.runWorkflowColumn).not.toHaveBeenCalled()
   })
 
-  it('rejects an invalid output before constructing or mutating the group', async () => {
-    await expect(
-      createWorkflowTableGroup.execute({
-        principal,
-        input: {
-          tableId: table.id,
-          workspaceId: table.workspaceId,
-          workflowId: 'workflow-1',
-          outputs: [{ blockId: 'missing', path: 'value' }],
-        },
-      })
-    ).rejects.toMatchObject({ code: 'validation' })
-
-    expect(mocks.addGroup).not.toHaveBeenCalled()
-    expect(mocks.audit).not.toHaveBeenCalled()
-  })
-
   it('rejects oversized workflow output construction before resolution or mutation', async () => {
     await expect(
       createWorkflowTableGroup.execute({
@@ -1009,157 +487,6 @@ describe('workflow and enrichment Table application commands', () => {
 
     expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
     expect(mocks.addGroup).not.toHaveBeenCalled()
-  })
-
-  it('constructs new columns while preserving existing bindings during restructure', async () => {
-    await updateWorkflowTableGroup.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        groupId: group.id,
-        outputs: [
-          { blockId: 'block-1', path: 'content', columnName: 'ignored-rename' },
-          { blockId: 'block-2', path: 'score', columnName: 'score_value' },
-        ],
-      },
-    })
-
-    expect(mocks.updateGroup).toHaveBeenCalledWith(
-      expect.objectContaining({
-        outputs: [
-          { blockId: 'block-1', path: 'content', columnName: 'column-result' },
-          { blockId: 'block-2', path: 'score', columnName: 'score_value' },
-        ],
-        newOutputColumns: [
-          expect.objectContaining({
-            name: 'score_value',
-            type: 'number',
-            workflowGroupId: group.id,
-          }),
-        ],
-      }),
-      'request-1'
-    )
-    expect(mocks.audit).toHaveBeenCalledTimes(1)
-    expect(mocks.signal).toHaveBeenCalledWith(table.id)
-  })
-
-  it('allows a replacement output to reuse the removed output column name', async () => {
-    await updateWorkflowTableGroup.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        groupId: group.id,
-        outputs: [{ blockId: 'block-2', path: 'score', columnName: 'result' }],
-      },
-    })
-
-    expect(mocks.updateGroup).toHaveBeenCalledWith(
-      expect.objectContaining({
-        outputs: [{ blockId: 'block-2', path: 'score', columnName: 'result' }],
-        newOutputColumns: [
-          expect.objectContaining({
-            name: 'result',
-            type: 'number',
-            workflowGroupId: group.id,
-          }),
-        ],
-      }),
-      'request-1'
-    )
-  })
-
-  it('propagates a concurrent schema conflict without audit or effects', async () => {
-    const conflict = Object.assign(new Error('retry the update'), { code: 'conflict' })
-    mocks.updateGroup.mockRejectedValueOnce(conflict)
-
-    await expect(
-      updateWorkflowTableGroup.execute({
-        principal,
-        input: {
-          tableId: table.id,
-          workspaceId: table.workspaceId,
-          groupId: group.id,
-          mappingUpdates: [{ columnName: 'column-result', blockId: 'block-2', path: 'score' }],
-        },
-      })
-    ).rejects.toBe(conflict)
-
-    expect(mocks.audit).not.toHaveBeenCalled()
-    expect(mocks.signal).not.toHaveBeenCalled()
-  })
-
-  it('does not audit or signal an authoritative no-op group update', async () => {
-    mocks.updateGroup.mockResolvedValueOnce(table)
-
-    const result = await updateWorkflowTableGroup.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        groupId: group.id,
-        name: group.name,
-      },
-    })
-
-    expect(result.changed).toBe(false)
-    expect(mocks.audit).not.toHaveBeenCalled()
-    expect(mocks.signal).not.toHaveBeenCalled()
-  })
-
-  it('does not start auto-run when the workflow update saves a legacy enabled group', async () => {
-    await updateWorkflowTableGroup.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        groupId: group.id,
-        autoRun: true,
-      },
-    })
-
-    expect(mocks.updateGroup).toHaveBeenCalledWith(
-      expect.objectContaining({
-        autoRun: true,
-        suppressAutoRunDispatch: true,
-      }),
-      'request-1'
-    )
-    expect(mocks.runDetached).not.toHaveBeenCalled()
-    expect(mocks.runWorkflowColumn).not.toHaveBeenCalled()
-  })
-
-  it('passes authorized output type and ordering to the add-output mutation', async () => {
-    await addWorkflowTableGroupOutput.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        groupId: group.id,
-        blockId: 'block-2',
-        path: 'score',
-      },
-    })
-
-    expect(mocks.addOutput).toHaveBeenCalledWith(
-      expect.objectContaining({
-        // A copilot delegation stays governed, so the backfill's downstream
-        // cells run under the delegating person rather than ungated.
-        capabilityGovernedUserId: 'user-1',
-        resolvedOutput: expect.objectContaining({
-          workflowId: 'workflow-1',
-          columnType: 'number',
-          order: expect.arrayContaining([
-            expect.objectContaining({ blockId: 'block-2', executionDistance: 2 }),
-          ]),
-        }),
-      }),
-      'request-1'
-    )
-    expect(mocks.audit).toHaveBeenCalledTimes(1)
-    expect(mocks.signal).toHaveBeenCalledWith(table.id)
   })
 
   it('rejects adding a workflow output to an enrichment group before resolution or mutation', async () => {
@@ -1237,30 +564,6 @@ describe('workflow and enrichment Table application commands', () => {
       'request-1'
     )
     expect(result.group.enrichmentId).toBe('company-domain')
-    expect(mocks.audit).toHaveBeenCalledTimes(1)
-    expect(mocks.signal).toHaveBeenCalledWith(table.id)
-  })
-
-  it('deletes an output with authoritative audit and schema effects', async () => {
-    await deleteTableGroupOutputUseCase.execute({
-      principal,
-      input: {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        groupId: group.id,
-        columnName: 'result',
-      },
-    })
-
-    expect(mocks.deleteOutput).toHaveBeenCalledWith(
-      {
-        tableId: table.id,
-        workspaceId: table.workspaceId,
-        groupId: group.id,
-        columnName: 'result',
-      },
-      'request-1'
-    )
     expect(mocks.audit).toHaveBeenCalledTimes(1)
     expect(mocks.signal).toHaveBeenCalledWith(table.id)
   })

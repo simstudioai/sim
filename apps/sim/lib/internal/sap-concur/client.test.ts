@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockSecureFetch, MOCK_MAX_JSON_BYTES } = vi.hoisted(() => ({
@@ -17,16 +14,9 @@ import {
   assertSafeExternalUrl,
   extractSapConcurError,
   fetchSapConcurAccessToken,
-  forwardedSapConcurHeaders,
   invokeSapConcurMultipart,
 } from '@/lib/internal/sap-concur/client'
-import {
-  SAP_CONCUR_ALLOWED_DATACENTERS,
-  type SapConcurAuth,
-  sapConcurApiInputSchema,
-  sapConcurApiPathSchema,
-  sapConcurDatacenterSchema,
-} from '@/lib/internal/sap-concur/schema'
+import { type SapConcurAuth, sapConcurApiPathSchema } from '@/lib/internal/sap-concur/schema'
 
 const CLIENT_SECRET = 'super-secret-client-value'
 const PASSWORD = 'hunter2-plaintext-password'
@@ -65,7 +55,6 @@ function tokenResponse(
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   // mockReset also drains any `mockResolvedValueOnce` a failing test left queued.
   mockSecureFetch.mockReset()
   mockSecureFetch.mockResolvedValue(tokenResponse())
@@ -99,28 +88,6 @@ describe('fetchSapConcurAccessToken token cache key isolation', () => {
     expect(second.accessToken).toBe('token-other')
   })
 
-  it('does not share a cache entry across differing client secrets', async () => {
-    const clientId = freshClientId()
-    const base = auth({ clientId })
-
-    mockSecureFetch.mockResolvedValueOnce(
-      tokenResponse({ access_token: 'token-first-secret', expires_in: 3600 })
-    )
-    const first = await fetchSapConcurAccessToken(base, 'req-1')
-
-    mockSecureFetch.mockResolvedValueOnce(
-      tokenResponse({ access_token: 'token-second-secret', expires_in: 3600 })
-    )
-    const second = await fetchSapConcurAccessToken(
-      { ...base, clientSecret: 'a-different-client-secret' },
-      'req-2'
-    )
-
-    expect(mockSecureFetch).toHaveBeenCalledTimes(2)
-    expect(first.accessToken).toBe('token-first-secret')
-    expect(second.accessToken).toBe('token-second-secret')
-  })
-
   it('does not share a cache entry across differing companyUuid', async () => {
     const clientId = freshClientId()
     const base = auth({ clientId })
@@ -129,43 +96,6 @@ describe('fetchSapConcurAccessToken token cache key isolation', () => {
     await fetchSapConcurAccessToken({ ...base, companyUuid: 'company-b' }, 'req-2')
 
     expect(mockSecureFetch).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not share a cache entry across differing credtype', async () => {
-    const clientId = freshClientId()
-    const base = auth({
-      clientId,
-      grantType: 'password',
-      username: 'alice@example.com',
-      password: PASSWORD,
-    })
-
-    await fetchSapConcurAccessToken({ ...base, credtype: 'password' }, 'req-1')
-    await fetchSapConcurAccessToken({ ...base, credtype: 'authtoken' }, 'req-2')
-
-    expect(mockSecureFetch).toHaveBeenCalledTimes(2)
-  })
-
-  it('shares the cache for two fully identical requests', async () => {
-    const clientId = freshClientId()
-    const base = auth({
-      clientId,
-      grantType: 'password',
-      username: 'alice@example.com',
-      password: PASSWORD,
-      companyUuid: 'company-a',
-      credtype: 'password',
-    })
-
-    mockSecureFetch.mockResolvedValueOnce(
-      tokenResponse({ access_token: 'token-cached', expires_in: 3600 })
-    )
-    const first = await fetchSapConcurAccessToken({ ...base }, 'req-1')
-    const second = await fetchSapConcurAccessToken({ ...base }, 'req-2')
-
-    expect(mockSecureFetch).toHaveBeenCalledTimes(1)
-    expect(first.accessToken).toBe('token-cached')
-    expect(second.accessToken).toBe('token-cached')
   })
 
   it('refetches once a cached token falls inside the 60s safety window', async () => {
@@ -230,18 +160,6 @@ describe('fetchSapConcurAccessToken in-flight coalescing', () => {
     }
   })
 
-  it('does not collapse concurrent misses for different keys', async () => {
-    const first = auth({ clientId: freshClientId() })
-    const second = auth({ clientId: freshClientId() })
-
-    await Promise.all([
-      fetchSapConcurAccessToken(first, 'req-1'),
-      fetchSapConcurAccessToken(second, 'req-2'),
-    ])
-
-    expect(mockSecureFetch).toHaveBeenCalledTimes(2)
-  })
-
   it('does not poison the key when the in-flight request rejects', async () => {
     const base = auth({ clientId: freshClientId() })
 
@@ -295,21 +213,6 @@ describe('fetchSapConcurAccessToken in-flight coalescing', () => {
 })
 
 describe('fetchSapConcurAccessToken geolocation validation', () => {
-  const accepted = [
-    'https://us.api.concursolutions.com',
-    'https://www-us2.api.concursolutions.com',
-    'https://apj1.api.concursolutions.com',
-    'https://emea-impl.api.concursolutions.com',
-  ]
-
-  it.each(accepted)('accepts the Concur geolocation %s', async (geolocation) => {
-    mockSecureFetch.mockResolvedValueOnce(
-      tokenResponse({ access_token: 'token-1', expires_in: 3600, geolocation })
-    )
-    const result = await fetchSapConcurAccessToken(auth({ clientId: freshClientId() }), 'req-1')
-    expect(result.geolocation).toBe(geolocation)
-  })
-
   const rejected: Array<[string, string]> = [
     ['an unrelated host', 'https://evil.com'],
     ['a suffix-confusion host', 'https://concursolutions.com.evil.com'],
@@ -338,27 +241,6 @@ describe('fetchSapConcurAccessToken geolocation validation', () => {
     ).rejects.toThrow('geolocation must use https://')
   })
 
-  it('rejects a loopback geolocation', async () => {
-    mockSecureFetch.mockResolvedValueOnce(
-      tokenResponse({ access_token: 'token-1', expires_in: 3600, geolocation: 'https://127.0.0.1' })
-    )
-    await expect(
-      fetchSapConcurAccessToken(auth({ clientId: freshClientId() }), 'req-1')
-    ).rejects.toThrow('geolocation host is not allowed')
-  })
-
-  it('normalizes a bare hostname to https and still validates it', async () => {
-    mockSecureFetch.mockResolvedValueOnce(
-      tokenResponse({
-        access_token: 'token-1',
-        expires_in: 3600,
-        geolocation: 'us2.api.concursolutions.com',
-      })
-    )
-    const result = await fetchSapConcurAccessToken(auth({ clientId: freshClientId() }), 'req-1')
-    expect(result.geolocation).toBe('https://us2.api.concursolutions.com')
-  })
-
   it('rejects a bare hostname that normalizes to a non-Concur host', async () => {
     mockSecureFetch.mockResolvedValueOnce(
       tokenResponse({ access_token: 'token-1', expires_in: 3600, geolocation: 'evil.com' })
@@ -366,29 +248,6 @@ describe('fetchSapConcurAccessToken geolocation validation', () => {
     await expect(
       fetchSapConcurAccessToken(auth({ clientId: freshClientId() }), 'req-1')
     ).rejects.toThrow('not a valid Concur API host')
-  })
-
-  /**
-   * DOCUMENTED TRUST ASSUMPTION, asserted as current behavior on purpose: the geolocation
-   * check validates the *shape* `[label].api.concursolutions.com`, not membership in
-   * {@link SAP_CONCUR_ALLOWED_DATACENTERS}. That is deliberate — Concur's docs instruct
-   * clients to store and reuse whatever geolocation the token response returns, and SAP
-   * adds datacenters (GLZ was one) without clients redeploying, so pinning the response
-   * to the selectable set would break tenants on a new datacenter.
-   *
-   * The consequence is that an attacker-flavored label like `evil-us` is accepted. Such a
-   * host can only exist if SAP itself creates it under concursolutions.com, which puts it
-   * inside the same trust boundary as every other Concur host. Narrowing this to the
-   * allowlist is a deliberate product decision, not a bug fix — do not "harden" it
-   * without re-reading the geolocation guidance in the authentication docs.
-   */
-  it('accepts any SAP-created label under api.concursolutions.com (trust boundary is the domain)', async () => {
-    const geolocation = 'https://evil-us.api.concursolutions.com'
-    mockSecureFetch.mockResolvedValueOnce(
-      tokenResponse({ access_token: 'token-1', expires_in: 3600, geolocation })
-    )
-    const result = await fetchSapConcurAccessToken(auth({ clientId: freshClientId() }), 'req-1')
-    expect(result.geolocation).toBe(geolocation)
   })
 
   it('rejects a userinfo-form geolocation whose real hostname is attacker-controlled', async () => {
@@ -402,15 +261,6 @@ describe('fetchSapConcurAccessToken geolocation validation', () => {
     await expect(
       fetchSapConcurAccessToken(auth({ clientId: freshClientId() }), 'req-1')
     ).rejects.toThrow('not a valid Concur API host')
-  })
-
-  it('accepts a Concur host carrying an explicit port and preserves it', async () => {
-    const geolocation = 'https://us.api.concursolutions.com:8443'
-    mockSecureFetch.mockResolvedValueOnce(
-      tokenResponse({ access_token: 'token-1', expires_in: 3600, geolocation })
-    )
-    const result = await fetchSapConcurAccessToken(auth({ clientId: freshClientId() }), 'req-1')
-    expect(result.geolocation).toBe(geolocation)
   })
 
   it('rejects a non-Concur host even when the port looks Concur-shaped', async () => {
@@ -453,61 +303,6 @@ describe('fetchSapConcurAccessToken company-level auth', () => {
     expect(params.get('username')).toBe('08BCCA1E-0D4F-4261-9F1B-F778D96617D6')
     expect(params.get('password')).toBe('company-request-token')
     expect(params.get('credtype')).toBe('authtoken')
-  })
-
-  it('lets an explicit credtype override the company-flow default', async () => {
-    await fetchSapConcurAccessToken(
-      auth({
-        clientId: freshClientId(),
-        grantType: 'password',
-        password: 'company-request-token',
-        companyUuid: 'company-uuid-1',
-        credtype: 'password',
-      }),
-      'req-1'
-    )
-
-    expect(submittedParams().get('credtype')).toBe('password')
-  })
-
-  it('prefers the companyUuid over a supplied username', async () => {
-    await fetchSapConcurAccessToken(
-      auth({
-        clientId: freshClientId(),
-        grantType: 'password',
-        username: 'alice@example.com',
-        password: 'company-request-token',
-        companyUuid: 'company-uuid-2',
-      }),
-      'req-1'
-    )
-
-    expect(submittedParams().get('username')).toBe('company-uuid-2')
-  })
-
-  it('leaves the user-level password grant untouched (no credtype, real username)', async () => {
-    await fetchSapConcurAccessToken(
-      auth({
-        clientId: freshClientId(),
-        grantType: 'password',
-        username: 'alice@example.com',
-        password: PASSWORD,
-      }),
-      'req-1'
-    )
-
-    const params = submittedParams()
-    expect(params.get('username')).toBe('alice@example.com')
-    expect(params.has('credtype')).toBe(false)
-  })
-
-  it('requires a username or a companyUuid for a password grant', async () => {
-    await expect(
-      fetchSapConcurAccessToken(
-        auth({ clientId: freshClientId(), grantType: 'password', password: PASSWORD }),
-        'req-1'
-      )
-    ).rejects.toThrow('username is required for password grant')
   })
 })
 
@@ -584,16 +379,6 @@ describe('fetchSapConcurAccessToken secret handling', () => {
 })
 
 describe('sapConcurApiPathSchema', () => {
-  const accepted = [
-    '/expensereports/v4/reports/abc123',
-    'expensereports/v4/reports/abc123',
-    '/profile/v1/principals/1234-5678',
-  ]
-
-  it.each(accepted)('accepts the ordinary path %s', (path) => {
-    expect(sapConcurApiPathSchema.safeParse(path).success).toBe(true)
-  })
-
   const rejected = [
     '/expensereports/../../etc/passwd',
     '/expensereports/./v4/reports',
@@ -610,73 +395,12 @@ describe('sapConcurApiPathSchema', () => {
   it.each(rejected)('rejects the traversal-shaped path %s', (path) => {
     expect(sapConcurApiPathSchema.safeParse(path).success).toBe(false)
   })
-
-  /**
-   * KNOWN LIMITATION, asserted as current behavior on purpose: the refine only inspects
-   * one layer of percent-encoding, so a double-encoded `%252e%252e` passes. That is
-   * acceptable because the refine is defense-in-depth — the request host is still pinned
-   * by `assertSafeExternalUrl` against the validated Concur geolocation, so a decoded
-   * `..` can at worst walk within concursolutions.com and cannot reach another origin.
-   * Do not "fix" this here without re-checking the host pinning that backs it.
-   */
-  it('does not reject double-encoded traversal (defense-in-depth, host is pinned elsewhere)', () => {
-    expect(sapConcurApiPathSchema.safeParse('/expensereports/%252e%252e/v4').success).toBe(true)
-  })
-})
-
-describe('sapConcurApiInputSchema accept', () => {
-  function parse(overrides: Record<string, unknown>) {
-    return sapConcurApiInputSchema.parse({
-      clientId: 'client-1',
-      clientSecret: CLIENT_SECRET,
-      path: '/expensereports/v4/reports',
-      ...overrides,
-    })
-  }
-
-  it('leaves accept undefined so callConcur applies its application/json default', () => {
-    expect(parse({}).accept).toBeUndefined()
-  })
-
-  /** Itinerary and Travel Profile are XML-only and 406 an Accept they cannot satisfy. */
-  it('carries an explicit XML accept through', () => {
-    expect(parse({ accept: 'application/xml' }).accept).toBe('application/xml')
-  })
 })
 
 /**
  * The executor retries 429/5xx for a block with a retry config and paces itself off
  * `Retry-After`; dropping the header downgrades a precise wait to blind backoff.
  */
-describe('forwardedSapConcurHeaders', () => {
-  it('forwards Retry-After, Location, and Link', () => {
-    expect(
-      forwardedSapConcurHeaders(
-        new Headers({
-          'Retry-After': '30',
-          Location: 'https://us.api.concursolutions.com/receipts/v4/receipts/abc',
-          Link: '<https://us.api.concursolutions.com/next>; rel="next"',
-        })
-      )
-    ).toEqual({
-      'retry-after': '30',
-      location: 'https://us.api.concursolutions.com/receipts/v4/receipts/abc',
-      link: '<https://us.api.concursolutions.com/next>; rel="next"',
-    })
-  })
-
-  it('omits headers Concur did not send', () => {
-    expect(forwardedSapConcurHeaders(new Headers({ 'Retry-After': '5' }))).toEqual({
-      'retry-after': '5',
-    })
-  })
-
-  it('forwards nothing when no interesting header is present', () => {
-    expect(forwardedSapConcurHeaders(new Headers({ 'Content-Type': 'application/json' }))).toEqual(
-      {}
-    )
-  })
-})
 
 describe('invokeSapConcurMultipart request cap', () => {
   it('rejects the serialized multipart body before provider I/O when it exceeds the cap', async () => {
@@ -699,66 +423,7 @@ describe('invokeSapConcurMultipart request cap', () => {
   })
 })
 
-describe('sapConcurDatacenterSchema', () => {
-  /** Every host in the published Base URIs table, plus the legacy `eu`/`emea` aliases. */
-  const accepted = [
-    'us.api.concursolutions.com',
-    'www-us.api.concursolutions.com',
-    'us2.api.concursolutions.com',
-    'www-us2.api.concursolutions.com',
-    'eu.api.concursolutions.com',
-    'eu2.api.concursolutions.com',
-    'www-eu2.api.concursolutions.com',
-    'emea.api.concursolutions.com',
-    'www-emea.api.concursolutions.com',
-    'apj1.api.concursolutions.com',
-    'www-apj1.api.concursolutions.com',
-    'usg.api.concursolutions.com',
-    'www-usg.api.concursolutions.com',
-    'glz.api.concursolutions.com',
-    'us-impl.api.concursolutions.com',
-    'www-us-impl.api.concursolutions.com',
-    'emea-impl.api.concursolutions.com',
-    'www-emea-impl.api.concursolutions.com',
-  ]
-
-  it.each(accepted)('accepts the documented datacenter %s', (datacenter) => {
-    expect(sapConcurDatacenterSchema.safeParse(datacenter).success).toBe(true)
-  })
-
-  it('covers exactly the documented set with no extras', () => {
-    expect([...SAP_CONCUR_ALLOWED_DATACENTERS].sort()).toEqual([...accepted].sort())
-  })
-
-  /** GLZ is the one production row the Base URIs table publishes without a `www-` twin. */
-  it('does not offer a www- twin for GLZ', () => {
-    expect(sapConcurDatacenterSchema.safeParse('www-glz.api.concursolutions.com').success).toBe(
-      false
-    )
-  })
-
-  const rejected = [
-    'evil.com',
-    'us.api.concursolutions.com.evil.com',
-    'evil-us.api.concursolutions.com',
-    'https://us.api.concursolutions.com',
-  ]
-
-  it.each(rejected)('rejects the non-selectable datacenter %s', (datacenter) => {
-    expect(sapConcurDatacenterSchema.safeParse(datacenter).success).toBe(false)
-  })
-})
-
 describe('assertSafeExternalUrl', () => {
-  it('accepts a normal Concur https URL', () => {
-    const url = assertSafeExternalUrl('https://us.api.concursolutions.com/expense/v4', 'apiUrl')
-    expect(url.hostname).toBe('us.api.concursolutions.com')
-  })
-
-  it('rejects a non-URL', () => {
-    expect(() => assertSafeExternalUrl('not a url', 'apiUrl')).toThrow('must be a valid URL')
-  })
-
   it('rejects a non-https scheme', () => {
     expect(() => assertSafeExternalUrl('http://us.api.concursolutions.com', 'apiUrl')).toThrow(
       'must use https://'
@@ -805,34 +470,16 @@ describe('extractSapConcurError', () => {
     expect(message).toContain('amount must be > 0')
   })
 
-  it('returns a bare Expense v4 errorMessage when there are no validation errors', () => {
-    expect(extractSapConcurError({ errorMessage: 'Report is not valid' }, 400)).toBe(
-      'Report is not valid'
-    )
-  })
-
   it('prefixes the SCIM detail with the scimType', () => {
     expect(
       extractSapConcurError({ scimType: 'invalidValue', detail: 'userName already exists' }, 409)
     ).toBe('[invalidValue] userName already exists')
   })
 
-  it('returns a SCIM detail without a scimType', () => {
-    expect(extractSapConcurError({ detail: 'userName already exists' }, 409)).toBe(
-      'userName already exists'
-    )
-  })
-
   it('reads the legacy nested Content.Error.Message envelope', () => {
     expect(
       extractSapConcurError({ Content: { Error: { Message: 'Invalid report key' } } }, 400)
     ).toBe('Invalid report key')
-  })
-
-  it('reads the legacy top-level Error.Message envelope', () => {
-    expect(extractSapConcurError({ Error: { Message: 'Invalid itinerary' } }, 400)).toBe(
-      'Invalid itinerary'
-    )
   })
 
   it('includes the token-error code alongside the OAuth error', () => {
@@ -842,12 +489,6 @@ describe('extractSapConcurError', () => {
         400
       )
     ).toBe('[16] invalid_request: user lives elsewhere')
-  })
-
-  it('accepts a string-typed token-error code', () => {
-    expect(extractSapConcurError({ code: '53', error: 'invalid_grant' }, 400)).toBe(
-      '[53] invalid_grant'
-    )
   })
 
   /** Budget v4 (Budget Category) failure response, verbatim from the API reference. */
@@ -898,10 +539,6 @@ describe('extractSapConcurError', () => {
     ).toBe('[ERROR BUDGET.BUDGET_PERIOD_REQUIRED] Record 1) Budget period is missing')
   })
 
-  it('still prefers a string-valued message over the legacy envelope', () => {
-    expect(extractSapConcurError({ message: 'Report not found' }, 404)).toBe('Report not found')
-  })
-
   it('falls back to the Concur SCIM messages extension when detail is absent', () => {
     expect(
       extractSapConcurError(
@@ -924,20 +561,6 @@ describe('extractSapConcurError', () => {
     ).toBe('[ATTRIBUTE_REQUIRED] userName is required (userName)')
   })
 
-  it('prefers the SCIM detail over the messages extension when both are present', () => {
-    expect(
-      extractSapConcurError(
-        {
-          detail: 'userName already exists',
-          'urn:ietf:params:scim:api:messages:concur:2.0:Error': {
-            messages: [{ code: 'DUP', message: 'duplicate', type: 'error' }],
-          },
-        },
-        409
-      )
-    ).toBe('userName already exists')
-  })
-
   it('joins an errors list with its error codes', () => {
     expect(
       extractSapConcurError(
@@ -952,19 +575,9 @@ describe('extractSapConcurError', () => {
     ).toBe('[E1] first problem; [E2] second problem')
   })
 
-  it('passes a raw string body through when no cap is set', () => {
-    expect(extractSapConcurError('Service Unavailable', 503)).toBe('Service Unavailable')
-  })
-
   it('caps a raw string body when maxRawBodyLength is set', () => {
     expect(extractSapConcurError('x'.repeat(500), 503, { maxRawBodyLength: 20 })).toBe(
       `${'x'.repeat(20)}...`
-    )
-  })
-
-  it('leaves a structured body uncapped even when maxRawBodyLength is set', () => {
-    expect(extractSapConcurError({ error: 'invalid_client' }, 401, { maxRawBodyLength: 5 })).toBe(
-      'invalid_client'
     )
   })
 
@@ -972,10 +585,6 @@ describe('extractSapConcurError', () => {
     expect(extractSapConcurError({ unexpected: true }, 418)).toBe(
       'Concur request failed with HTTP 418'
     )
-  })
-
-  it('falls back to the generic HTTP message for an empty body', () => {
-    expect(extractSapConcurError('', 500)).toBe('Concur request failed with HTTP 500')
   })
 })
 

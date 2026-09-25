@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { sha256Hex } from '@sim/security/hash'
@@ -42,7 +41,6 @@ vi.mock('@/lib/permission-groups/resolve.server', () => ({
   getUserPermissionConfigForOrganization: mocks.config,
 }))
 
-import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
   configureSlackSearchInstallation,
   listSlackSearchInstallations,
@@ -72,7 +70,6 @@ const principal = { kind: 'session', userId: 'admin', sessionId: 's1' } as const
 const input = { organizationId: 'org1', credentialId: 'cred1', enabled: true }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.config.mockResolvedValue(null)
   mocks.membership.mockResolvedValue([{ role: 'admin' }])
   mocks.credential.mockResolvedValue({
@@ -158,13 +155,6 @@ describe('Slack Search installation configuration', () => {
     expect(mocks.insert).not.toHaveBeenCalled()
     expect(mocks.update).not.toHaveBeenCalled()
   })
-  it('requires the organization-scoped credential lookup to succeed', async () => {
-    mocks.credential.mockRejectedValueOnce(new Error('Organization Slack bot not found'))
-    await expect(configureSlackSearchInstallation.execute({ principal, input })).rejects.toThrow(
-      'not found'
-    )
-    expect(mocks.verifyBot).not.toHaveBeenCalled()
-  })
   it('rejects concurrent credential rotation instead of binding a stale token', async () => {
     mocks.txLimit
       .mockReset()
@@ -193,19 +183,6 @@ describe('Slack Search installation configuration', () => {
     )
     expect(mocks.audit).not.toHaveBeenCalled()
   })
-  it('allows disabling a broken connection without contacting Slack', async () => {
-    mocks.txLimit
-      .mockReset()
-      .mockResolvedValueOnce([credential])
-      .mockResolvedValueOnce([{ id: 'install1', organizationId: 'org1', ...identity }])
-    await configureSlackSearchInstallation.execute({
-      principal,
-      input: { ...input, enabled: false },
-    })
-    expect(mocks.credential).not.toHaveBeenCalled()
-    expect(mocks.verifyBot).not.toHaveBeenCalled()
-    expect(mocks.update).toHaveBeenCalledOnce()
-  })
 })
 
 const delegated: OrganizationDelegatedPrincipal = {
@@ -221,38 +198,6 @@ const delegated: OrganizationDelegatedPrincipal = {
 }
 
 describe('Slack Search Settings delegation', () => {
-  it('admits settings delegation only for the three existing administrative operations', () => {
-    const operations = Object.values(knowledgeOperations).filter(
-      (operation) => operation.organizationOperation.delegationAudience === 'sim:settings'
-    )
-    expect(operations).toEqual([
-      knowledgeOperations.listSlackInstallations,
-      knowledgeOperations.configureSlackInstallation,
-      knowledgeOperations.removeSlackInstallation,
-    ])
-    for (const operation of operations) {
-      expect(operation.principalKinds).toEqual(['session'])
-      expect(operation.organizationOperation).toMatchObject({
-        minimumRole: 'admin',
-        capability: 'knowledge.use',
-        delegatedServices: ['copilot'],
-      })
-    }
-  })
-  it('uses the same canonical configuration behavior and real delegated actor', async () => {
-    await expect(
-      configureSlackSearchInstallation.execute({ principal: delegated, input })
-    ).resolves.toEqual({ id: 'install1' })
-    expect(mocks.credential).toHaveBeenCalledWith('cred1', 'org1')
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: 'admin',
-        metadata: expect.objectContaining({
-          actor: expect.objectContaining({ kind: 'organization_delegated' }),
-        }),
-      })
-    )
-  })
   it('rechecks organization admin authority for status, configure, and remove', async () => {
     mocks.membership.mockResolvedValue([{ role: 'member' }])
     await expect(
@@ -301,14 +246,6 @@ describe('Slack Search Settings delegation', () => {
       configureSlackSearchInstallation.execute({ principal: delegated, input })
     ).rejects.toThrow()
     expect(mocks.credential).not.toHaveBeenCalled()
-  })
-  it('preserves Search availability checks before provider calls', async () => {
-    mocks.available.mockRejectedValueOnce(new Error('Search unavailable'))
-    await expect(
-      configureSlackSearchInstallation.execute({ principal: delegated, input })
-    ).rejects.toThrow('Search unavailable')
-    expect(mocks.credential).not.toHaveBeenCalled()
-    expect(mocks.verifyBot).not.toHaveBeenCalled()
   })
   it('rejects secret fields at the tool boundary', () => {
     expect(

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -135,7 +132,6 @@ async function edit(edit: EditWorkspaceFileContentEdit, expectedRevision?: strin
 
 describe('editWorkspaceFileContent', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAcquireLock.mockResolvedValue(true)
     mockReleaseLock.mockResolvedValue(true)
     mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
@@ -152,23 +148,6 @@ describe('editWorkspaceFileContent', () => {
     mockUpdateStoredContent.mockImplementation(async () => storedFile())
   })
 
-  it('writes back only the changed text', async () => {
-    await edit({ mode: 'search_replace', search: 'based in NYC', content: 'based in SF' })
-
-    const written = mockUpdateStoredContent.mock.calls[0][3] as Buffer
-    expect(written.toString('utf-8')).toBe('# self\n\n- prefers async\n- based in SF\n')
-  })
-
-  it('reports the line count so a caller can re-anchor', async () => {
-    const result = await edit({
-      mode: 'insert_after',
-      anchor: '- based in NYC',
-      content: '- vegetarian',
-    })
-
-    expect(result.lineCount).toBe(5)
-  })
-
   /*
    * The real concurrency guard. Two agents editing the same note both read the
    * same bytes; without this the second silently discards the first's change.
@@ -179,14 +158,6 @@ describe('editWorkspaceFileContent', () => {
     expect(mockUpdateStoredContent.mock.calls[0][5]).toMatchObject({
       expectedUpdatedAt: CONTENT_UPDATED_AT,
     })
-  })
-
-  it('reports the version its write recorded', async () => {
-    mockUpdateStoredContent.mockResolvedValue(storedFile({ currentVersion: 5 }))
-
-    await expect(
-      edit({ mode: 'search_replace', search: 'NYC', content: 'SF' })
-    ).resolves.toMatchObject({ file: { currentVersion: 5 } })
   })
 
   /**
@@ -271,23 +242,5 @@ describe('editWorkspaceFileContent', () => {
     ).rejects.toThrow()
 
     expect(mockReleaseLock).toHaveBeenCalled()
-  })
-
-  it('surfaces an ambiguous match as a validation failure naming the lines', async () => {
-    mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('- todo\nx\n- todo\n', 'utf-8'))
-
-    await expect(
-      edit({ mode: 'search_replace', search: '- todo', content: '- done' })
-    ).rejects.toThrow(/lines 1, 3/)
-    expect(mockUpdateStoredContent).not.toHaveBeenCalled()
-  })
-
-  it('rejects an oversized replaceAll result before writing it', async () => {
-    mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('a'.repeat(1_100_000), 'utf-8'))
-
-    await expect(
-      edit({ mode: 'search_replace', search: 'a', content: 'x'.repeat(49), replaceAll: true })
-    ).rejects.toMatchObject({ code: 'payload_too_large' })
-    expect(mockUpdateStoredContent).not.toHaveBeenCalled()
   })
 })

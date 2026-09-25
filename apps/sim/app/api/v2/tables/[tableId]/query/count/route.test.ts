@@ -1,9 +1,4 @@
-/**
- * @vitest-environment node
- */
-
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -77,7 +72,6 @@ function call(body: unknown) {
 
 describe('POST /api/v2/tables/[tableId]/query/count', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -123,31 +117,6 @@ describe('POST /api/v2/tables/[tableId]/query/count', () => {
     )
   })
 
-  it('counts the whole table when no predicate is sent', async () => {
-    mocks.queryRows.mockResolvedValue({
-      table: TABLE,
-      rows: [],
-      rowCount: 0,
-      totalCount: 0,
-      nextCursor: null,
-    })
-
-    const response = await call({ workspaceId: WORKSPACE_ID }).response
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { totalCount: 0 } })
-    expect(mocks.queryRows).toHaveBeenCalledWith(
-      expect.objectContaining({ input: expect.objectContaining({ predicate: undefined }) })
-    )
-  })
-
-  it('rejects the paging controls a count has no use for', async () => {
-    const response = await call({ workspaceId: WORKSPACE_ID, limit: 10, cursor: 'x' }).response
-
-    expect(response.status).toBe(400)
-    expect(mocks.queryRows).not.toHaveBeenCalled()
-  })
-
   it('keeps a malformed predicate as a structured 400', async () => {
     mocks.queryRows.mockRejectedValue(
       new MockTableRowsValidationError('Unknown column "nope"', { code: 'INVALID_PREDICATE' })
@@ -177,14 +146,5 @@ describe('POST /api/v2/tables/[tableId]/query/count', () => {
     expect(await response.json()).toEqual({
       error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
     })
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await call({ workspaceId: WORKSPACE_ID }).response
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 })

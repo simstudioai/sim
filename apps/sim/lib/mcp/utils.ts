@@ -137,42 +137,6 @@ export function mcpOrchestrationStatus(errorCode: string | undefined): number {
 }
 
 /**
- * Validate string parameter
- * Consolidates parameter validation logic found across routes
- */
-export function validateStringParam(
-  value: unknown,
-  paramName: string
-): { isValid: true } | { isValid: false; error: string } {
-  if (!value || typeof value !== 'string') {
-    return {
-      isValid: false,
-      error: `${paramName} is required and must be a string`,
-    }
-  }
-  return { isValid: true }
-}
-
-/**
- * Validate required fields in request body
- */
-export function validateRequiredFields(
-  body: Record<string, unknown>,
-  requiredFields: string[]
-): { isValid: true } | { isValid: false; error: string } {
-  const missingFields = requiredFields.filter((field) => !(field in body))
-
-  if (missingFields.length > 0) {
-    return {
-      isValid: false,
-      error: `Missing required fields: ${missingFields.join(', ')}`,
-    }
-  }
-
-  return { isValid: true }
-}
-
-/**
  * Enhanced error categorization for more specific HTTP status codes.
  * Returns safe, generic messages to prevent leaking internal details.
  */

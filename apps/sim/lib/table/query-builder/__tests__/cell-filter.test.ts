@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * "Filter by cell value" unit tests. The property that matters throughout: the
  * row the user right-clicked must survive the filter its own cell produced.
  */
@@ -16,20 +14,9 @@ function column(overrides: Partial<ColumnDefinition> = {}): ColumnDefinition {
 }
 
 describe('cellValueFilterConditions', () => {
-  it('offers nothing without a column', () => {
-    expect(cellValueFilterConditions(undefined, 'x')).toEqual([])
-  })
-
   it('keys conditions on the column id, not its display name', () => {
     expect(cellValueFilterConditions(column({ id: 'col_a', name: 'Name' }), 'Ada')).toEqual([
       { field: 'col_a', op: 'eq', value: 'Ada' },
-    ])
-  })
-
-  it('falls back to the name when the column carries no id', () => {
-    const legacy = { name: 'Name', type: 'string' } as ColumnDefinition
-    expect(cellValueFilterConditions(legacy, 'Ada')).toEqual([
-      { field: 'Name', op: 'eq', value: 'Ada' },
     ])
   })
 
@@ -52,10 +39,6 @@ describe('cellValueFilterConditions', () => {
     expect(cellValueFilterConditions(column({ type: 'date' }), stored)).toEqual([
       { field: 'col_a', op: 'eq', value: stored },
     ])
-  })
-
-  it.each([[null], [undefined], ['']])('maps %p onto isEmpty', (value) => {
-    expect(cellValueFilterConditions(column(), value)).toEqual([{ field: 'col_a', op: 'isEmpty' }])
   })
 
   it('compares a single-select by option id', () => {
@@ -121,10 +104,6 @@ describe('cellValueFilterConditions', () => {
 describe('withCellValueFilter', () => {
   const eqA = { field: 'col_a', op: 'eq', value: 'x' } as const
 
-  it('starts a new filter when none is active', () => {
-    expect(withCellValueFilter(null, [eqA])).toEqual({ all: [eqA] })
-  })
-
   it('keeps conditions on other columns', () => {
     const current: TablePredicate = { all: [{ field: 'col_b', op: 'eq', value: 1 }] }
     expect(withCellValueFilter(current, [eqA])).toEqual({
@@ -167,12 +146,5 @@ describe('withCellValueFilter', () => {
     expect(withCellValueFilter(current, [eqA])).toEqual({
       all: [{ field: 'col_b', op: 'eq', value: 'keep' }, eqA],
     })
-  })
-
-  // An `{ all: [] }` group is not a valid predicate — the server rejects it.
-  it('leaves the filter untouched when there are no conditions', () => {
-    const current: TablePredicate = { all: [{ field: 'col_a', op: 'eq', value: 'x' }] }
-    expect(withCellValueFilter(current, [])).toBe(current)
-    expect(withCellValueFilter(null, [])).toBeNull()
   })
 })

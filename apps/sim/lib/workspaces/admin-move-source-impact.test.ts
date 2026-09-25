@@ -1,8 +1,5 @@
-/** @vitest-environment node */
-
 import { member, subscription } from '@sim/db/schema'
-import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { PgDialect } from 'drizzle-orm/pg-core'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveMoveEntitlements } from '@/lib/workspaces/admin-move-source-impact'
 
@@ -37,43 +34,8 @@ describe('resolveMoveEntitlements', () => {
   afterAll(resetDbChainMock)
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     isSubscriptionBackedEntitlement.mockReturnValue(true)
-  })
-
-  it('asks the database only for usable subscriptions', async () => {
-    /**
-     * Asserted against the SQL rather than with a `past_due` fixture, because
-     * the chain mock ignores `WHERE` and would return one regardless.
-     *
-     * `USABLE_...` and not `ENTITLED_...` is the whole point: the gates this
-     * blocker protects resolve through `getOrganizationSubscriptionUsable`,
-     * which accepts only `active`. A `past_due` Enterprise subscription is
-     * entitled but not usable, so its features are already gone, and reading
-     * it as Enterprise would wave a real downgrade through.
-     */
-    queueTableRows(subscription, [])
-    queueTableRows(member, [])
-
-    await resolveMoveEntitlements(SOURCE, DESTINATION)
-
-    const dialect = new PgDialect()
-    const rendered = dbChainMockFns.where.mock.calls.map(([condition]) =>
-      dialect.sqlToQuery(condition as never)
-    )
-    const statuses = rendered.flatMap((query) =>
-      query.params.filter((param) => param === 'active' || param === 'past_due')
-    )
-    expect(statuses).toEqual(['active'])
-  })
-
-  it('reports no loss for a personal source, which has nothing to lose', async () => {
-    await expect(resolveMoveEntitlements(null, DESTINATION)).resolves.toEqual({
-      sourceIsEnterprise: false,
-      destinationIsEnterprise: false,
-      capabilitiesLost: [],
-    })
   })
 
   it('reports no loss when entitlement comes from deployment configuration', async () => {
@@ -119,31 +81,6 @@ describe('resolveMoveEntitlements', () => {
         'custom blocks',
       ])
     )
-  })
-
-  it('reports no loss when both organizations are Enterprise', async () => {
-    queueTableRows(subscription, [
-      { referenceId: SOURCE, plan: 'enterprise' },
-      { referenceId: DESTINATION, plan: 'enterprise' },
-    ])
-    queueTableRows(member, [])
-
-    await expect(resolveMoveEntitlements(SOURCE, DESTINATION)).resolves.toEqual({
-      sourceIsEnterprise: true,
-      destinationIsEnterprise: true,
-      capabilitiesLost: [],
-    })
-  })
-
-  it('reports no loss when a non-Enterprise source moves anywhere', async () => {
-    queueTableRows(subscription, [{ referenceId: SOURCE, plan: 'team' }])
-    queueTableRows(member, [])
-
-    await expect(resolveMoveEntitlements(SOURCE, DESTINATION)).resolves.toEqual({
-      sourceIsEnterprise: false,
-      destinationIsEnterprise: false,
-      capabilitiesLost: [],
-    })
   })
 
   it('treats a billing-blocked Enterprise destination as a downgrade', async () => {

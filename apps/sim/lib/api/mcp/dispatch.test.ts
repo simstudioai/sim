@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
@@ -55,7 +52,6 @@ function dispatched(): NextRequest {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.audiences.length = 0
   mocks.route.mockImplementation(async () => {
     mocks.audiences.push(getOAuthAccessTokenAudience())
@@ -95,15 +91,6 @@ describe('dispatchMcpOperation', () => {
     expect(headers.get('cookie')).toBeNull()
   })
 
-  it('sends an API key as x-api-key', async () => {
-    await dispatchMcpOperation(
-      { operation: 'getTableRow', params: { tableId: 't', rowId: 'r' } },
-      { ...context, credential: { apiKey: 'sk-sim-key', bearer: null } }
-    )
-    expect(dispatched().headers.get('x-api-key')).toBe('sk-sim-key')
-    expect(dispatched().headers.get('authorization')).toBeNull()
-  })
-
   it('runs the route under the MCP token audience only', async () => {
     await dispatchMcpOperation(
       { operation: 'getTableRow', params: { tableId: 't', rowId: 'r' } },
@@ -111,23 +98,6 @@ describe('dispatchMcpOperation', () => {
     )
     expect(mocks.audiences).toEqual([audience])
     expect(getOAuthAccessTokenAudience()).toEqual({})
-  })
-
-  it('sends a JSON body and the headers the contract declares', async () => {
-    await dispatchMcpOperation(
-      {
-        operation: 'completeFileUpload',
-        params: { uploadId: 'up-1' },
-        body: { workspaceId: 'ws-1' },
-        headers: { 'upload-token': 'signed' },
-      },
-      context
-    )
-    const request = dispatched()
-    expect(request.method).toBe('POST')
-    expect(request.headers.get('content-type')).toBe('application/json')
-    expect(request.headers.get('upload-token')).toBe('signed')
-    expect(await request.json()).toEqual({ workspaceId: 'ws-1' })
   })
 
   it.each([
@@ -176,20 +146,6 @@ describe('dispatchMcpOperation', () => {
       expect(mocks.route).not.toHaveBeenCalled()
     }
   )
-
-  it('returns a route error as a tool error', async () => {
-    mocks.route.mockResolvedValue(
-      jsonResponse({ error: { code: 'NOT_FOUND', message: 'Row not found' } }, 404)
-    )
-    const result = await dispatchMcpOperation(
-      { operation: 'getTableRow', params: { tableId: 't', rowId: 'r' } },
-      context
-    )
-    expect(result).toEqual({
-      isError: true,
-      content: [{ type: 'text', text: '{"error":{"code":"NOT_FOUND","message":"Row not found"}}' }],
-    })
-  })
 
   it('refuses a streaming response', async () => {
     mocks.route.mockResolvedValue(

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { SessionPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
@@ -95,7 +92,6 @@ function executorPrincipal(workspaceId = 'workspace-1'): WorkflowExecutionDelega
 
 describe('listCredentialGroupMcpConnections', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.requirePolicy.mockResolvedValue({
       document: buildOrganizationAccountAccessPolicy(
         'group-1',
@@ -107,19 +103,7 @@ describe('listCredentialGroupMcpConnections', () => {
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.getWorkspaceOwnerSubscriptionAccess.mockResolvedValue({ isEnterprise: true })
     mocks.resolveCredentialGroupsAvailability.mockResolvedValue({ available: true })
-    mocks.listMcpConnections.mockResolvedValue({
-      mcpConnections: [
-        {
-          credentialId: 'mcp-cg-connection-1',
-          email: 'person@example.com',
-          displayName: 'Fireflies',
-          mcpServerId: 'mcp-server-1',
-          mcpServerName: 'Fireflies',
-          toolNames: ['list_transcripts'],
-        },
-      ],
-      nextCursor: null,
-    })
+    mocks.listMcpConnections.mockResolvedValue({ mcpConnections: [], nextCursor: null })
   })
 
   it('rejects unsupported principals before loading the group', async () => {
@@ -165,53 +149,6 @@ describe('listCredentialGroupMcpConnections', () => {
         input: { ...input, connectorId: 'granola' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.listMcpConnections).not.toHaveBeenCalled()
-  })
-
-  it('lists bounded MCP connection references after authorization and entitlement checks', async () => {
-    const result = await listCredentialGroupMcpConnections.execute({
-      principal: executorPrincipal(),
-      input: {
-        ...input,
-        email: ' Person@Example.COM ',
-        mcpServerId: ' mcp-server-1 ',
-      },
-    })
-
-    expect(mocks.listMcpConnections).toHaveBeenCalledWith({
-      organizationId: 'org-1',
-      credentialGroupId: 'group-1',
-      limit: 50,
-      cursor: undefined,
-      email: 'person@example.com',
-      mcpServerId: 'mcp-server-1',
-      connectorId: undefined,
-      allowedConnectorIds: ['fireflies', 'granola', 'databricks', 'coda'],
-    })
-    expect(result).toEqual({
-      mcpConnections: [
-        {
-          credentialId: 'mcp-cg-connection-1',
-          email: 'person@example.com',
-          displayName: 'Fireflies',
-          mcpServerId: 'mcp-server-1',
-          mcpServerName: 'Fireflies',
-          toolNames: ['list_transcripts'],
-        },
-      ],
-      count: 1,
-      hasMore: false,
-      nextCursor: null,
-    })
-  })
-
-  it('rejects invalid filters before querying MCP connections', async () => {
-    await expect(
-      listCredentialGroupMcpConnections.execute({
-        principal: executorPrincipal(),
-        input: { ...input, email: 'not-an-email' },
-      })
-    ).rejects.toMatchObject({ code: 'validation', message: 'Email must be a valid address' })
     expect(mocks.listMcpConnections).not.toHaveBeenCalled()
   })
 

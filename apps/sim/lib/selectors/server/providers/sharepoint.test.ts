@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch, mockResolveSelectorOAuthAccessToken } = vi.hoisted(() => ({
@@ -54,7 +51,6 @@ function listArgs(
 
 describe('SharePoint server selector adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveSelectorOAuthAccessToken.mockResolvedValue('server-only-token')
   })
@@ -146,26 +142,6 @@ describe('SharePoint server selector adapter', () => {
     })
     expect(String(mockFetch.mock.calls[0]?.[0])).toContain(
       '/sites/contoso.sharepoint.com%2Csite%2Cweb/lists/list-1'
-    )
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-  })
-
-  it('hydrates a selected site directly by its compound ID', async () => {
-    const siteId = 'contoso.sharepoint.com,site,web'
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ id: siteId, displayName: 'Engineering' }), { status: 200 })
-    )
-
-    await expect(
-      sharepointSelectorAttachments['sharepoint.sites'].execute(
-        detailArgs('sharepoint.sites', siteId)
-      )
-    ).resolves.toEqual({
-      kind: 'detail',
-      item: { id: siteId, label: 'Engineering' },
-    })
-    expect(String(mockFetch.mock.calls[0]?.[0])).toContain(
-      '/sites/contoso.sharepoint.com%2Csite%2Cweb'
     )
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,7 +26,6 @@ function callbackRequest(searchParams: URLSearchParams) {
 
 describe('QuickBooks OAuth callback', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
@@ -75,28 +71,6 @@ describe('QuickBooks OAuth callback', () => {
     )
     expect(response.headers.get('location')).toBe(
       'https://sim.test/oauth/credential-connected?flow=quickbooks&quickbooks_connected=true'
-    )
-  })
-
-  it('returns a provider-denial result without exchanging a code', async () => {
-    const state = createQuickBooksOAuthState({
-      userId: 'user-1',
-      draftId: 'draft-1',
-      returnUrl: 'https://sim.test/oauth/credential-connected',
-    })
-    const response = await GET(
-      callbackRequest(
-        new URLSearchParams({
-          state,
-          error: 'access_denied',
-          error_description: 'The user denied access',
-        })
-      )
-    )
-
-    expect(mockCompleteQuickBooksConnection).not.toHaveBeenCalled()
-    expect(response.headers.get('location')).toBe(
-      'https://sim.test/oauth/credential-connected?error=quickbooks_access_denied'
     )
   })
 

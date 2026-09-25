@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest, resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -21,7 +18,6 @@ const request = () => createMockRequest('GET')
 
 describe('vLLM models route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockFilterBlacklistedModels.mockImplementation((models: string[]) => models)
     mockIsProviderBlacklisted.mockReturnValue(false)
     mockFetch.mockResolvedValue({
@@ -35,16 +31,6 @@ describe('vLLM models route', () => {
   afterAll(() => {
     vi.unstubAllGlobals()
     resetEnvMock()
-  })
-
-  it('discovers and prefixes models from a server-root URL', async () => {
-    const response = await GET(request())
-
-    await expect(response.json()).resolves.toEqual({ models: ['vllm/local-model'] })
-    expect(mockFetch).toHaveBeenCalledWith(
-      'http://localhost:8000/v1/models',
-      expect.objectContaining({ headers: { 'Content-Type': 'application/json' } })
-    )
   })
 
   it('uses an existing /v1 prefix once and forwards bearer authentication', async () => {

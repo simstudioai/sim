@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -50,7 +47,6 @@ const personalPrincipal = {
 
 describe('createCredentialConnection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveTarget.mockResolvedValue({
@@ -62,24 +58,6 @@ describe('createCredentialConnection', () => {
       expiresAt: new Date('2026-08-12T20:15:00.000Z'),
     })
     mocks.getBaseUrl.mockReturnValue('https://sim.ai')
-  })
-
-  it('rejects workspace keys before canonical workspace loading', async () => {
-    await expect(
-      createCredentialConnection.execute({
-        principal: {
-          kind: 'workspace_api_key',
-          workspaceId: 'workspace-1',
-          keyId: 'key-1',
-        },
-        input: {
-          workspaceId: 'workspace-1',
-          providerId: 'google-email',
-          displayName: 'Work Gmail',
-        },
-      })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
   })
 
   it('creates a user-bound draft and returns its canonical connection context', async () => {

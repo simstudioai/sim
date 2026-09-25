@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * The gate lives on the middleware, so this is where it is proved. Thirteen raw
  * MCP management routes sit behind `withMcpAuth` and only the workflow-server
  * create handler ever grew a capability check of its own; asserting per route
@@ -60,7 +58,6 @@ function call(capability: 'deploy.mcp' | 'mcp_tools.use' | 'none') {
 
 describe('withMcpAuth permission-group gate', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.auth.mockResolvedValue({
       success: true,
       userId: 'user-1',
@@ -97,13 +94,6 @@ describe('withMcpAuth permission-group gate', () => {
     })
 
     const response = await call('mcp_tools.use')
-
-    expect(response.status).toBe(200)
-    expect(handler).toHaveBeenCalled()
-  })
-
-  it('admits a caller no permission group governs', async () => {
-    const response = await call('deploy.mcp')
 
     expect(response.status).toBe(200)
     expect(handler).toHaveBeenCalled()

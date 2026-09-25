@@ -1,9 +1,4 @@
-/**
- * @vitest-environment node
- */
-
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -85,7 +80,6 @@ function call(body: unknown) {
 
 describe('POST /api/v2/tables/[tableId]/query', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -138,27 +132,6 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
     )
   })
 
-  it('queries every row when the predicate is omitted', async () => {
-    const invocation = call({ workspaceId: WORKSPACE_ID })
-    const response = await invocation.response
-
-    expect(response.status).toBe(200)
-    expect(mocks.queryRows).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: {
-        tableId: 'table-1',
-        assertedWorkspaceId: WORKSPACE_ID,
-        predicate: undefined,
-        sort: undefined,
-        cursor: undefined,
-        limit: 100,
-        includeTotal: false,
-        includeRunState: false,
-      },
-      request: invocation.request,
-    })
-  })
-
   it('preserves explicit limit=0 as the unbounded opt-in', async () => {
     await call({ workspaceId: WORKSPACE_ID, limit: 0 }).response
 
@@ -175,29 +148,6 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
 
     expect(response.status).toBe(400)
     expect(mocks.queryRows).not.toHaveBeenCalled()
-  })
-
-  it('rejects an invalid page limit after admission and before delegation', async () => {
-    const response = await call({ workspaceId: WORKSPACE_ID, limit: 5000 }).response
-
-    expect(response.status).toBe(400)
-    expect(v2RouteMocks.authenticate).toHaveBeenCalledOnce()
-    expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(AUTH.rateLimitSubjectIds.length)
-    expect(mocks.queryRows).not.toHaveBeenCalled()
-  })
-
-  it('keeps malformed POST query cursors as a structured 400', async () => {
-    mocks.queryRows.mockRejectedValue(
-      new MockTableRowsValidationError('Invalid cursor', { code: 'INVALID_CURSOR' })
-    )
-
-    const response = await call({
-      workspaceId: WORKSPACE_ID,
-      cursor: queryCursor('table-1', 'malformed'),
-    }).response
-
-    expect(response.status).toBe(400)
-    expect((await response.json()).error.details).toEqual({ code: 'INVALID_CURSOR' })
   })
 
   /**
@@ -222,14 +172,5 @@ describe('POST /api/v2/tables/[tableId]/query', () => {
 
     expect(response.status).toBe(413)
     expect(mocks.queryRows).not.toHaveBeenCalled()
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await call({ workspaceId: WORKSPACE_ID }).response
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 })

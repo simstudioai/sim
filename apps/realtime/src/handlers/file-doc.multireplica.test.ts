@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Multi-replica (store-enabled) coverage for the copilot live-merge stale-check. The main
  * `file-doc.test.ts` runs with the store DISABLED (single-replica fallback); this file mocks an ENABLED
  * store so the cross-process branch of `mergeMarkdownIntoRoom` — staleness against the SHARED synced
@@ -56,7 +54,6 @@ const ROOM_NAME = 'workspace-file-doc:file-1'
 
 describe('applyMarkdownToLiveFileDoc — multi-replica (store-enabled) ordering', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     fakeStore.versions.clear()
     fakeStore.acquireMergeSlot.mockResolvedValue('token')
     fakeStore.getStreamState.mockResolvedValue(new Uint8Array([1]))

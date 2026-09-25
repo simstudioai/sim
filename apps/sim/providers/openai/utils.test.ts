@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type OpenAI from 'openai'
 import { describe, expect, it } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'

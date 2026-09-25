@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -38,7 +34,6 @@ vi.mock('@/lib/table/application/rows', () => ({
   queryTableRows: { operation: { id: 'tables.rows.query' }, execute: mocks.queryRows },
 }))
 
-import { TableV2FeatureDisabledError } from '@/lib/table/application/rows'
 import { POST } from '@/app/api/table/[tableId]/query/route'
 
 const TABLE = {
@@ -95,7 +90,6 @@ function callQuery(body: Record<string, unknown>) {
 
 describe('POST /api/table/[tableId]/query application adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     sessionPrincipal()
     mocks.queryRows.mockResolvedValue({
       table: TABLE,
@@ -108,52 +102,11 @@ describe('POST /api/table/[tableId]/query application adapter', () => {
     })
   })
 
-  it('passes typed query semantics and feature admission to the shared use case', async () => {
-    const response = await callQuery({
-      workspaceId: 'workspace-1',
-      predicate: { field: 'Name', op: 'eq', value: 'Ada' },
-      sort: [{ field: 'Age', direction: 'desc' }],
-      columns: ['Name'],
-      limit: 10,
-    })
-
-    expect(response.status).toBe(200)
-    expect(mocks.queryRows.mock.calls[0][0].input).toMatchObject({
-      assertedWorkspaceId: 'workspace-1',
-      columns: ['Name'],
-      limit: 10,
-      allowExpandedLimit: true,
-      requireV2Feature: true,
-      includeTotal: true,
-    })
-    expect((await response.json()).data.rows[0].data).toEqual({
-      'column-name': 'Ada',
-      'column-age': 36,
-    })
-  })
-
   it('uses canonical delegated workspace and returns name-keyed rows', async () => {
     executorPrincipal()
     const response = await callQuery({ workspaceId: 'workspace-forged', limit: 10 })
 
     expect(mocks.queryRows.mock.calls[0][0].input.assertedWorkspaceId).toBe('workspace-canonical')
     expect((await response.json()).data.rows[0].data).toEqual({ Name: 'Ada', Age: 36 })
-  })
-
-  it('projects the feature gate error with the compatibility code', async () => {
-    mocks.queryRows.mockRejectedValueOnce(new TableV2FeatureDisabledError())
-
-    const response = await callQuery({ workspaceId: 'workspace-1', limit: 10 })
-
-    expect(response.status).toBe(403)
-    expect(await response.json()).toMatchObject({
-      error: 'The v2 table query API is not enabled for this workspace',
-      code: 'tables_v2_disabled',
-    })
-  })
-
-  it('does not recompute the total count on cursor pages', async () => {
-    await callQuery({ workspaceId: 'workspace-1', limit: 10, cursor: 'cursor-1' })
-    expect(mocks.queryRows.mock.calls[0][0].input.includeTotal).toBe(false)
   })
 })

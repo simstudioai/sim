@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { envFlagsMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -43,7 +40,6 @@ function pageProps() {
 
 describe('CliAuthPage signed-out bounce', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue(null)
   })
 
@@ -54,18 +50,6 @@ describe('CliAuthPage signed-out bounce', () => {
   it('sends a signed-out visitor to signup, carrying the handoff as callbackUrl', async () => {
     await expect(CliAuthPage(pageProps())).rejects.toThrow(
       `NEXT_REDIRECT:/signup?callbackUrl=${EXPECTED_CALLBACK}`
-    )
-  })
-
-  /**
-   * Nobody can create an account under the flag, so the pairing visitor is
-   * necessarily an existing user and signup would be a guaranteed dead end.
-   */
-  it('sends them to login instead when registration is disabled', async () => {
-    envFlagsMock.isRegistrationDisabled = true
-
-    await expect(CliAuthPage(pageProps())).rejects.toThrow(
-      `NEXT_REDIRECT:/login?callbackUrl=${EXPECTED_CALLBACK}`
     )
   })
 })

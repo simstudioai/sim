@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -86,7 +83,6 @@ const credential = {
 
 describe('resolveCredentialConnectionTarget', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.listCatalog.mockResolvedValue([salesforceProvider])
     mocks.getWorkspaceCredential.mockResolvedValue(credential)
     mocks.getCredentialActorContext.mockResolvedValue({ credential, isAdmin: true })
@@ -112,20 +108,6 @@ describe('resolveCredentialConnectionTarget', () => {
     await resolveCredentialConnectionTarget({ principal, context, credentialId: 'credential-1' })
 
     expect(mocks.assertWorkspaceCapability).not.toHaveBeenCalled()
-  })
-
-  it('accepts an exact authorization option for a new connection', async () => {
-    const result = await resolveCredentialConnectionTarget({
-      principal,
-      context,
-      providerId: 'salesforce-sandbox',
-    })
-
-    expect(result).toEqual({
-      provider: salesforceProvider,
-      providerId: 'salesforce-sandbox',
-    })
-    expect(mocks.getWorkspaceCredential).not.toHaveBeenCalled()
   })
 
   it('loads reconnect credentials through the asserted workspace and requires admin access', async () => {

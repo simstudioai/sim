@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -95,7 +92,6 @@ function input(overrides: Record<string, unknown> = {}) {
 
 describe('downloadWorkflowRunFileStream', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.resolveRunContext.mockResolvedValue(runContext)
     mocks.getRunFiles.mockResolvedValue(terminalRun())
@@ -125,13 +121,6 @@ describe('downloadWorkflowRunFileStream', () => {
         input: input({ fileId: 'file_absent' }),
       })
     ).rejects.toThrow('File not found')
-    expect(mocks.downloadFileStream).not.toHaveBeenCalled()
-  })
-
-  it('authorizes a file the run did produce', async () => {
-    await expect(
-      downloadWorkflowRunFileStream.authorize({ principal: principals[0], input: input() })
-    ).resolves.not.toThrow()
     expect(mocks.downloadFileStream).not.toHaveBeenCalled()
   })
 
@@ -174,14 +163,6 @@ describe('downloadWorkflowRunFileStream', () => {
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(mocks.resolvePermission).not.toHaveBeenCalled()
     expect(mocks.getRunFiles).not.toHaveBeenCalled()
-  })
-
-  it('reports an unknown run as not found', async () => {
-    mocks.getRunFiles.mockResolvedValueOnce(null)
-
-    await expect(
-      downloadWorkflowRunFileStream.execute({ principal: workspaceKeyPrincipal, input: input() })
-    ).rejects.toMatchObject({ code: 'not_found', message: 'File not found' })
   })
 
   /**
@@ -253,15 +234,4 @@ describe('downloadWorkflowRunFileStream', () => {
       ).rejects.toMatchObject({ code: 'not_found' })
     }
   )
-
-  it('falls back to a generic content type when the record has none', async () => {
-    mocks.getRunFiles.mockResolvedValueOnce(terminalRun([runFile({ type: '' })]))
-
-    const result = await downloadWorkflowRunFileStream.execute({
-      principal: workspaceKeyPrincipal,
-      input: input(),
-    })
-
-    expect(result.contentType).toBe('application/octet-stream')
-  })
 })

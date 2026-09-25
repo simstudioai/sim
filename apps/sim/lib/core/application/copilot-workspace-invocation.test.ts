@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-delegation'

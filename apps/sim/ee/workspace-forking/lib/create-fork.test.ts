@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { workspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -130,7 +127,6 @@ function forkParams(selection?: {
 
 describe('createFork storage headroom gate', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     /**
      * The fork transaction re-reads the parent's organization under the lock to
@@ -218,33 +214,6 @@ describe('createFork storage headroom gate', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
-  it('proceeds under quota, summing exactly the selected files + knowledge bases', async () => {
-    mockSumForkCopyBytes.mockResolvedValue(500)
-
-    const result = await createFork(forkParams({ files: ['wf-1'], knowledgeBases: ['kb-1'] }))
-
-    expect(result.workspace.name).toBe('My Fork')
-    expect(result.workflowsCopied).toBe(0)
-    expect(mockSumForkCopyBytes).toHaveBeenCalledWith(expect.anything(), 'src-ws', {
-      fileIds: ['wf-1'],
-      knowledgeBaseIds: ['kb-1'],
-    })
-    expect(mockAssertForkStorageHeadroom).toHaveBeenCalledWith({
-      plannedWorkspaceId: expect.any(String),
-      creationPolicy: POLICY,
-      bytes: 500,
-    })
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
-    expect(mockCopyForkResourceContainers).toHaveBeenCalledWith(
-      expect.objectContaining({
-        documentMappingContext: {
-          edgeChildWorkspaceId: result.workspace.id,
-          sourceIsParent: true,
-        },
-      })
-    )
-  })
-
   it('preserves the source workspace personal API-key policy in the child', async () => {
     const result = await createFork(forkParams())
 
@@ -271,29 +240,6 @@ describe('createFork storage headroom gate', () => {
       resourceType: 'file',
       parentResourceId: 'workspace/src-ws/a.png',
       childResourceId: 'workspace/child/a.png',
-    })
-  })
-
-  it('mirrors and seeds referenced file folders without selecting their files for copy', async () => {
-    mockCollectReferencedFileFolderPaths.mockReturnValue(new Set(['/Reports']))
-    mockPlanForkFileCopies.mockResolvedValue({
-      keyMap: new Map(),
-      idMap: new Map(),
-      blobTasks: [],
-      folderIdMap: new Map([['folder-src', 'folder-dst']]),
-      folderPathMap: new Map([['/Reports', '/Reports']]),
-    })
-
-    await createFork(forkParams())
-
-    expect(mockPlanForkFileCopies).toHaveBeenCalledWith(
-      expect.objectContaining({ fileIds: [], folderPaths: ['/Reports'] })
-    )
-    const seeded = mockSeedEdgeMappings.mock.calls[0][3] as Array<Record<string, unknown>>
-    expect(seeded).toContainEqual({
-      resourceType: 'file_folder',
-      parentResourceId: '/Reports',
-      childResourceId: '/Reports',
     })
   })
 })

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import type { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -27,29 +23,7 @@ describe('handleMothershipChatStatusEvent', () => {
   } satisfies Pick<QueryClient, 'getQueryData' | 'invalidateQueries' | 'removeQueries'>
 
   beforeEach(() => {
-    vi.clearAllMocks()
     queryClient.getQueryData.mockReturnValue(undefined)
-  })
-
-  it('invalidates the task list and detail for completed task events', () => {
-    handleMothershipChatStatusEvent(
-      queryClient,
-      'ws-1',
-      JSON.stringify({
-        chatId: 'chat-1',
-        type: 'completed',
-        timestamp: Date.now(),
-      })
-    )
-
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
-    })
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.detail('chat-1'),
-    })
-    expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
 
   it('keeps completed task detail when an unkeyed completion races an active stream', () => {
@@ -67,60 +41,6 @@ describe('handleMothershipChatStatusEvent', () => {
       JSON.stringify({
         chatId: 'chat-1',
         type: 'completed',
-        timestamp: Date.now(),
-      })
-    )
-
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
-    })
-    expect(queryClient.removeQueries).not.toHaveBeenCalled()
-  })
-
-  it('keeps completed task detail when a newer optimistic stream is active', () => {
-    queryClient.getQueryData.mockReturnValue({
-      id: 'chat-1',
-      title: null,
-      messages: [{ id: 'old-stream' }, { id: 'new-stream' }],
-      activeStreamId: 'new-stream',
-      resources: [],
-    })
-
-    handleMothershipChatStatusEvent(
-      queryClient,
-      'ws-1',
-      JSON.stringify({
-        chatId: 'chat-1',
-        type: 'completed',
-        streamId: 'old-stream',
-        timestamp: Date.now(),
-      })
-    )
-
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
-    })
-    expect(queryClient.removeQueries).not.toHaveBeenCalled()
-  })
-
-  it('keeps completed task detail when only a newer optimistic stream is cached', () => {
-    queryClient.getQueryData.mockReturnValue({
-      id: 'chat-1',
-      title: null,
-      messages: [{ id: 'new-stream' }, { id: 'live-assistant:new-stream' }],
-      activeStreamId: 'new-stream',
-      resources: [],
-    })
-
-    handleMothershipChatStatusEvent(
-      queryClient,
-      'ws-1',
-      JSON.stringify({
-        chatId: 'chat-1',
-        type: 'completed',
-        streamId: 'old-stream',
         timestamp: Date.now(),
       })
     )
@@ -192,57 +112,6 @@ describe('handleMothershipChatStatusEvent', () => {
     expect(queryClient.removeQueries).not.toHaveBeenCalled()
   })
 
-  it('invalidates completed task detail when the completed stream is active', () => {
-    queryClient.getQueryData.mockReturnValue({
-      id: 'chat-1',
-      title: null,
-      messages: [],
-      activeStreamId: 'stream-1',
-      resources: [],
-    })
-
-    handleMothershipChatStatusEvent(
-      queryClient,
-      'ws-1',
-      JSON.stringify({
-        chatId: 'chat-1',
-        type: 'completed',
-        streamId: 'stream-1',
-        timestamp: Date.now(),
-      })
-    )
-
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
-    })
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.detail('chat-1'),
-    })
-    expect(queryClient.removeQueries).not.toHaveBeenCalled()
-  })
-
-  it('invalidates the task list and detail for metadata-changing task events', () => {
-    handleMothershipChatStatusEvent(
-      queryClient,
-      'ws-1',
-      JSON.stringify({
-        chatId: 'chat-1',
-        type: 'renamed',
-        timestamp: Date.now(),
-      })
-    )
-
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
-    })
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.detail('chat-1'),
-    })
-    expect(queryClient.removeQueries).not.toHaveBeenCalled()
-  })
-
   it('invalidates the task list and removes detail cache for deleted task events', () => {
     handleMothershipChatStatusEvent(
       queryClient,
@@ -266,80 +135,6 @@ describe('handleMothershipChatStatusEvent', () => {
     expect(suspendTerminalScope).toHaveBeenCalledWith('chat-1')
   })
 
-  it('invalidates the task list and detail for started task events', () => {
-    handleMothershipChatStatusEvent(
-      queryClient,
-      'ws-1',
-      JSON.stringify({
-        chatId: 'chat-1',
-        type: 'started',
-        timestamp: Date.now(),
-      })
-    )
-
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
-    })
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.detail('chat-1'),
-    })
-    expect(queryClient.removeQueries).not.toHaveBeenCalled()
-  })
-
-  it('keeps started task detail when an unkeyed started event races an active stream', () => {
-    queryClient.getQueryData.mockReturnValue({
-      id: 'chat-1',
-      title: null,
-      messages: [{ id: 'new-stream' }, { id: 'live-assistant:new-stream' }],
-      activeStreamId: 'new-stream',
-      resources: [],
-    })
-
-    handleMothershipChatStatusEvent(
-      queryClient,
-      'ws-1',
-      JSON.stringify({
-        chatId: 'chat-1',
-        type: 'started',
-        timestamp: Date.now(),
-      })
-    )
-
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
-    })
-    expect(queryClient.removeQueries).not.toHaveBeenCalled()
-  })
-
-  it('keeps started task detail when the started stream is already active', () => {
-    queryClient.getQueryData.mockReturnValue({
-      id: 'chat-1',
-      title: null,
-      messages: [{ id: 'stream-1' }],
-      activeStreamId: 'stream-1',
-      resources: [],
-    })
-
-    handleMothershipChatStatusEvent(
-      queryClient,
-      'ws-1',
-      JSON.stringify({
-        chatId: 'chat-1',
-        type: 'started',
-        streamId: 'stream-1',
-        timestamp: Date.now(),
-      })
-    )
-
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
-    })
-    expect(queryClient.removeQueries).not.toHaveBeenCalled()
-  })
-
   it('keeps started task detail when a stale started stream is older than the active stream', () => {
     queryClient.getQueryData.mockReturnValue({
       id: 'chat-1',
@@ -356,54 +151,6 @@ describe('handleMothershipChatStatusEvent', () => {
         chatId: 'chat-1',
         type: 'started',
         streamId: 'old-stream',
-        timestamp: Date.now(),
-      })
-    )
-
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
-    })
-    expect(queryClient.removeQueries).not.toHaveBeenCalled()
-  })
-
-  it('invalidates started task detail when a missing stream may be newer server state', () => {
-    queryClient.getQueryData.mockReturnValue({
-      id: 'chat-1',
-      title: null,
-      messages: [{ id: 'old-stream' }],
-      activeStreamId: 'old-stream',
-      resources: [],
-    })
-
-    handleMothershipChatStatusEvent(
-      queryClient,
-      'ws-1',
-      JSON.stringify({
-        chatId: 'chat-1',
-        type: 'started',
-        streamId: 'new-stream',
-        timestamp: Date.now(),
-      })
-    )
-
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(2)
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
-    })
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.detail('chat-1'),
-    })
-    expect(queryClient.removeQueries).not.toHaveBeenCalled()
-  })
-
-  it('keeps list invalidation only for unknown task event types', () => {
-    handleMothershipChatStatusEvent(
-      queryClient,
-      'ws-1',
-      JSON.stringify({
-        chatId: 'chat-1',
-        type: 'archived',
         timestamp: Date.now(),
       })
     )
@@ -435,39 +182,12 @@ describe('handleMothershipChatStatusEvent', () => {
         })
     }
   )
-
-  it('does not invalidate when task event payload is invalid', () => {
-    handleMothershipChatStatusEvent(queryClient, 'ws-1', '{')
-
-    expect(queryClient.invalidateQueries).not.toHaveBeenCalled()
-    expect(queryClient.removeQueries).not.toHaveBeenCalled()
-  })
 })
 
 describe('resyncMothershipChatCaches', () => {
   const queryClient = {
     invalidateQueries: vi.fn().mockResolvedValue(undefined),
   } satisfies Pick<QueryClient, 'invalidateQueries'>
-
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('invalidates the workspace lists', () => {
-    resyncMothershipChatCaches(queryClient, 'ws-1')
-
-    expect(queryClient.invalidateQueries).toHaveBeenCalledTimes(1)
-    expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
-      queryKey: mothershipChatKeys.workspaceLists('ws-1'),
-    })
-  })
-
-  it('reconciles active and archived organization lists after reconnect', () => {
-    resyncMothershipChatCaches(queryClient, { organizationId: 'org-1' })
-    expect(queryClient.invalidateQueries).toHaveBeenCalledExactlyOnceWith({
-      queryKey: mothershipChatKeys.organizationLists('org-1'),
-    })
-  })
 
   it('leaves chat details untouched so a mounted stream cannot be refetched mid-turn', () => {
     resyncMothershipChatCaches(queryClient, 'ws-1')

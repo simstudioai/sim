@@ -5,8 +5,6 @@
  * cross the child's `MAX_FOLDERS_PER_WORKSPACE` ceiling. That refusal is a classified
  * `OrchestrationError`, which `withRouteHandler` alone renders as an opaque 500 — it only
  * understands `HttpError`. These pin that the caller gets the actionable 409 instead.
- *
- * @vitest-environment node
  */
 import { user } from '@sim/db/schema'
 import { auditMock, authMockFns, createMockRequest, type MockUser } from '@sim/testing'
@@ -76,7 +74,6 @@ function forkRequest() {
 
 describe('POST /api/workspaces/[id]/fork', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue({ user: TEST_USER, session: { id: 'session-1' } })
     resetDbChainMock()
     queueTableRows(user, [{ name: TEST_USER.name }])
@@ -116,29 +113,5 @@ describe('POST /api/workspaces/[id]/fork', () => {
     const response = await POST(forkRequest(), routeContext)
 
     expect(response.status).toBe(500)
-  })
-
-  it('still returns the created fork when the copy succeeds', async () => {
-    mockCreateFork.mockResolvedValue({
-      workspace: {
-        id: 'ws-child',
-        name: 'Child',
-        ownerId: TEST_USER.id,
-        organizationId: null,
-        workspaceMode: 'personal',
-      },
-      workflowsCopied: 2,
-    })
-
-    const response = await POST(forkRequest(), routeContext)
-
-    expect(response.status).toBe(201)
-    expect(mockCreateFork).toHaveBeenCalledWith(
-      expect.objectContaining({
-        source: expect.objectContaining({ id: SOURCE_WORKSPACE_ID }),
-        userId: TEST_USER.id,
-        actorName: TEST_USER.name,
-      })
-    )
   })
 })

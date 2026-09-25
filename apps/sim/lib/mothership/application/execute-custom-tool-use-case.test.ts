@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import { customToolOperations } from '@/lib/custom-tools/application/operations'
 import { executeCopilotCustomToolUseCase } from '@/lib/mothership/application/execute-custom-tool-use-case'

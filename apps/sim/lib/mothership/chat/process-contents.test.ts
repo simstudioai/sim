@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { createLogger } from '@sim/logger'
 import { dbChainMockFns, loggerMock, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -134,7 +130,6 @@ import {
 
 describe('processContextsServer - workflow references', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     readWorkflowMetadata.mockResolvedValue({
       workflow: { id: 'workflow-1', workspaceId: 'workspace-1', name: 'Lead intake' },
       folderPath: '/',
@@ -214,7 +209,6 @@ describe('processContextsServer - workflow references', () => {
 
 describe('processContextsServer - knowledge contexts', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     readKnowledgeBase.mockResolvedValue({
       knowledgeBase: { id: 'knowledge-1', name: 'Product docs' },
       folderPath: '/',
@@ -287,7 +281,6 @@ const mockProcessContentsLogger = vi.mocked(loggerMock.createLogger).mock.result
 
 describe('processContextsServer - block contexts', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     const blocks = {
       start_trigger: { type: 'start_trigger', hideFromToolbar: false },
       slack: { type: 'slack', hideFromToolbar: false },
@@ -321,10 +314,6 @@ describe('processContextsServer - block contexts', () => {
 })
 
 describe('processContextsServer - skill contexts', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('resolves a tagged workspace skill to its full body through current authorization', async () => {
     getSkillUseCase.mockResolvedValue({
       skill: {
@@ -441,10 +430,6 @@ describe('processContextsServer - skill contexts', () => {
 })
 
 describe('processContextsServer - docs contexts', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('routes @Docs to an unscoped search_docs query', async () => {
     const resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry()
     const results = [
@@ -556,10 +541,6 @@ describe('processContextsServer - docs contexts', () => {
 })
 
 describe('processContextsServer - MCP contexts', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('references the selected service while the request catalog owns tool discovery', async () => {
     discoverServerTools.mockResolvedValue({
       tools: [
@@ -727,10 +708,6 @@ describe('processContextsServer - browser and terminal selections', () => {
 })
 
 describe('processContextsServer - logs contexts', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('resolves a tagged run to a compact summary with a block overview, never raw input/output', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([
       {
@@ -910,8 +887,6 @@ describe('processContextsServer - logs contexts', () => {
 })
 
 describe('file folder context', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it('uses the CLI folder path while preserving literal slashes inside folder names', async () => {
     resolveFileFolderPath.mockResolvedValueOnce({ path: 'Reports/Client \\/ notes' })
     const context = await resolveActiveResourceContext('filefolder', 'folder-1', 'ws-1', 'reader')
@@ -939,7 +914,6 @@ describe('file folder context', () => {
 
 describe('processContextsServer - file_selection contexts', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     readWorkspaceFileMetadata.mockImplementation(
       async ({ input }: { input: { fileId: string } }) => {
         const file = await getWorkspaceFile('ws-1', input.fileId)
@@ -1029,10 +1003,6 @@ describe('processContextsServer - file_selection contexts', () => {
 })
 
 describe('processContextsServer - table_selection contexts', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('distinguishes which row was selected when visible cell values are identical', async () => {
     readTableUseCase.mockResolvedValue({
       table: {
@@ -1456,7 +1426,6 @@ describe('processContextsServer - table_selection contexts', () => {
 
 describe('workflow resource context consistency', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     readWorkflowMetadata.mockResolvedValue({
       workflow: { name: 'Flow 100%' },
       folderPath: '/Planning%2FReview/Nested',
@@ -1525,7 +1494,6 @@ describe('folder and foldered-resource chat pointers', () => {
   ]
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resolveFileFolderPath.mockResolvedValue({ path: null })
     for (const list of [listWorkflowFolders, listTableFolders, listKnowledgeFolders]) {
       list.mockResolvedValue({ folders: [] })
@@ -1751,7 +1719,6 @@ describe('folder and foldered-resource chat pointers', () => {
 
 describe('table view context', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     readTableUseCase.mockResolvedValue({
       table: { id: 'table-1', name: 'Leads' },
       folderPath: '/Sales',
@@ -1882,7 +1849,6 @@ describe('table view context', () => {
 
 describe('organization skill mention targets', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resolveInvocationWorkspace.mockImplementation(async (_owner, workspaceId) => {
       if (!workspaceId) throw new Error('explicit workspace required')
       return { workspaceId }

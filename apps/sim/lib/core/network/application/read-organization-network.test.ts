@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { Principal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -27,7 +26,6 @@ const principal: Principal = {
 const input = { organizationId: 'org_example' }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.membership.mockResolvedValue([{ role: 'admin' }])
   mocks.section.mockResolvedValue(true)
   mocks.route.mockResolvedValue({ kind: 'direct' })

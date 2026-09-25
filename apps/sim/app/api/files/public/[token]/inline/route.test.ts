@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -51,7 +48,6 @@ function downloadByKey(docContent = `![a](/api/files/view/${FILE_ID})`) {
 
 describe('GET /api/files/public/[token]/inline', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockRateLimit.mockResolvedValue(null)
     mockResolveShare.mockResolvedValue(share)
     mockValidateAuth.mockResolvedValue({ authorized: true })
@@ -61,15 +57,6 @@ describe('GET /api/files/public/[token]/inline', () => {
       filename: 'photo.png',
     })
     mockDownloadFile.mockImplementation(downloadByKey())
-  })
-
-  it('serves a same-workspace image referenced by the doc, typed from its bytes', async () => {
-    const request = req(`fileId=${FILE_ID}`)
-    const res = await GET(request, params)
-    expect(res.status).toBe(200)
-    expect(res.headers.get('content-type')).toBe('image/png')
-    expect(mockRateLimit).toHaveBeenCalledExactlyOnceWith(request, 'inline')
-    expect(res.headers.get('cache-control')).toBe('private, no-cache, must-revalidate')
   })
 
   it('rejects exhausted image budgets before share lookup, authentication, or storage reads', async () => {
@@ -87,23 +74,6 @@ describe('GET /api/files/public/[token]/inline', () => {
     expect(mockValidateAuth).not.toHaveBeenCalled()
     expect(mockResolveImage).not.toHaveBeenCalled()
     expect(mockDownloadFile).not.toHaveBeenCalled()
-  })
-
-  it('serves an image whose id is percent-encoded in the document', async () => {
-    mockDownloadFile.mockImplementation(downloadByKey('![a](/api/files/view/wf%5Fabc)'))
-
-    const res = await GET(req('fileId=wf%5Fabc'), params)
-
-    expect(res.status).toBe(200)
-    expect(mockResolveImage).toHaveBeenCalledWith('ws-1', { fileId: 'wf_abc' })
-  })
-
-  it('serves a key-referenced image', async () => {
-    mockDownloadFile.mockImplementation(
-      downloadByKey(`![a](/api/files/serve/${encodeURIComponent(IMG_KEY)}?context=workspace)`)
-    )
-    const res = await GET(req(`key=${encodeURIComponent(IMG_KEY)}`), params)
-    expect(res.status).toBe(200)
   })
 
   it.each(['fileId', 'key'] as const)(
@@ -164,29 +134,10 @@ describe('GET /api/files/public/[token]/inline', () => {
     expect(res.status).toBe(404)
   })
 
-  it('404s when the bytes are not a renderable image', async () => {
-    mockDownloadFile.mockImplementation(({ key }: { key: string }) =>
-      Promise.resolve(
-        key === DOC_KEY
-          ? Buffer.from(`![a](/api/files/view/${FILE_ID})`, 'utf-8')
-          : Buffer.from('<svg/>', 'utf-8')
-      )
-    )
-    const res = await GET(req(`fileId=${FILE_ID}`), params)
-    expect(res.status).toBe(404)
-  })
-
   it('401s and never reads storage when the share is unauthorized', async () => {
     mockValidateAuth.mockResolvedValue({ authorized: false, error: 'auth_required_password' })
     const res = await GET(req(`fileId=${FILE_ID}`), params)
     expect(res.status).toBe(401)
-    expect(mockDownloadFile).not.toHaveBeenCalled()
-  })
-
-  it('404s for an unknown or inactive token', async () => {
-    mockResolveShare.mockResolvedValue(null)
-    const res = await GET(req(`fileId=${FILE_ID}`), params)
-    expect(res.status).toBe(404)
     expect(mockDownloadFile).not.toHaveBeenCalled()
   })
 

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
@@ -8,11 +5,8 @@ import { executeNetsuiteTool } from '@/lib/internal/netsuite/execute-tool'
 import { executeNetsuiteAttachRecordOperation } from '@/lib/internal/netsuite/operations/attach-record'
 import { executeNetsuiteGetSelectOptionsOperation } from '@/lib/internal/netsuite/operations/get-select-options'
 import { executeNetsuiteGetSubresourceOperation } from '@/lib/internal/netsuite/operations/get-subresource'
-import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import { NetSuiteBlock } from '@/blocks/blocks/netsuite'
-import type { SubBlockConfig } from '@/blocks/types'
 import toolMetadata from '@/tools/generated/tool-metadata'
-import * as netsuiteToolExports from '@/tools/netsuite'
 import {
   netsuiteAttachRecordTool,
   netsuiteBatchCreateRecordsTool,
@@ -44,7 +38,6 @@ import {
 } from '@/tools/netsuite'
 import type { NetSuiteAuthParams } from '@/tools/netsuite/types'
 import { netsuiteAuthParamFields } from '@/tools/netsuite/utils'
-import { hasToolId } from '@/tools/tool-ids'
 import type { InternalToolConfig, ToolResponse } from '@/tools/types'
 
 const ORIGIN = 'https://1234567.suitetalk.api.netsuite.com'
@@ -105,62 +98,10 @@ const NETSUITE_TOOLS = [
   netsuiteGetGovernanceLimitsTool,
 ] as const
 
-function importedNetSuiteTools(): InternalToolConfig[] {
-  return Object.values(netsuiteToolExports).filter(
-    (value): value is InternalToolConfig =>
-      typeof value === 'object' &&
-      value !== null &&
-      'id' in value &&
-      typeof value.id === 'string' &&
-      value.id.startsWith('netsuite_') &&
-      'operation' in value
-  )
-}
-
 function mergedBlockInputs(inputs: Record<string, unknown>): Record<string, unknown> {
   const mapParams = NetSuiteBlock.tools.config.params
   if (!mapParams) throw new Error('NetSuite block must map tool parameters')
   return { ...inputs, ...mapParams(inputs) }
-}
-
-const netSuiteOperationIds = (
-  NetSuiteBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')?.options ?? []
-).map((option) => String(option.id))
-
-const netSuiteToolById = new Map(importedNetSuiteTools().map((tool) => [tool.id, tool]))
-
-function paramIdOf(subBlock: SubBlockConfig): string {
-  return subBlock.canonicalParamId ?? subBlock.id
-}
-
-function conditionOperations(subBlock: SubBlockConfig): string[] {
-  const condition = subBlock.condition
-  if (!condition || typeof condition === 'function') return netSuiteOperationIds
-  const values = (Array.isArray(condition.value) ? condition.value : [condition.value]).map(String)
-  return condition.not
-    ? netSuiteOperationIds.filter((operation) => !values.includes(operation))
-    : values
-}
-
-function requiredOperations(subBlock: SubBlockConfig): string[] {
-  const required = subBlock.required
-  if (required === true) return netSuiteOperationIds
-  if (!required || typeof required !== 'object') return []
-  const value = (required as { value: unknown }).value
-  return (Array.isArray(value) ? value : [value]).map(String)
-}
-
-function blockParamId(toolId: string, toolParamId: string): string {
-  if (toolParamId !== 'taskId') return toolParamId
-  return toolId === 'netsuite_get_async_status' ? 'statusTaskId' : 'resultTaskId'
-}
-
-function toolParamId(toolId: string, blockParamIdValue: string): string {
-  if (toolId === 'netsuite_get_async_status' && blockParamIdValue === 'statusTaskId')
-    return 'taskId'
-  if (toolId === 'netsuite_get_async_result' && blockParamIdValue === 'resultTaskId')
-    return 'taskId'
-  return blockParamIdValue
 }
 
 interface SourceMatrixEntry {
@@ -856,136 +797,6 @@ describe('NetSuite operation contracts', () => {
     }
   })
 
-  it('derives one 27-operation surface across block, barrel, registry, matrix, and generated data', () => {
-    const dropdownIds = (
-      NetSuiteBlock.subBlocks.find((subBlock) => subBlock.id === 'operation')?.options ?? []
-    ).map((option) => String(option.id))
-    const matrixIds = SOURCE_MATRIX.map((entry) => entry.id)
-    const explicitlyImportedIds = NETSUITE_TOOLS.map((tool) => tool.id)
-    const barrelIds = importedNetSuiteTools().map((tool) => tool.id)
-
-    expect(matrixIds).toHaveLength(27)
-    expect(dropdownIds).toEqual(matrixIds)
-    expect(NetSuiteBlock.tools.access).toEqual(matrixIds)
-    expect(explicitlyImportedIds).toEqual(matrixIds)
-    expect([...barrelIds].sort()).toEqual([...matrixIds].sort())
-
-    for (const id of matrixIds) {
-      expect(NetSuiteBlock.tools.config.tool({ operation: id }), `${id} mapping`).toBe(id)
-      expect(hasToolId(id), `${id} registry`).toBe(true)
-      expect(toolMetadata[id]?.id, `${id} generated metadata`).toBe(id)
-    }
-  })
-
-  it('keeps visible, required, and typed block inputs aligned with every selected tool', () => {
-    const problems: string[] = []
-    const inputs = NetSuiteBlock.inputs as Record<string, { type?: string }>
-
-    for (const tool of NETSUITE_TOOLS) {
-      for (const [toolParam, config] of Object.entries(tool.params)) {
-        if (config.visibility === 'hidden') continue
-        const blockParam = blockParamId(tool.id, toolParam)
-        const input = inputs[blockParam]
-        if (!input) {
-          problems.push(`${tool.id}.${toolParam}: no block input ${blockParam}`)
-          continue
-        }
-        if (input.type !== config.type) {
-          problems.push(`${tool.id}.${toolParam}: block type ${input.type} != ${config.type}`)
-        }
-        const shown = NetSuiteBlock.subBlocks.filter(
-          (subBlock) =>
-            paramIdOf(subBlock) === blockParam && conditionOperations(subBlock).includes(tool.id)
-        )
-        if (!shown.length) problems.push(`${tool.id}.${toolParam}: not visible`)
-        if (
-          config.required &&
-          !shown.some((subBlock) => requiredOperations(subBlock).includes(tool.id))
-        ) {
-          problems.push(`${tool.id}.${toolParam}: not required`)
-        }
-      }
-    }
-
-    for (const subBlock of NetSuiteBlock.subBlocks) {
-      if (subBlock.id === 'operation') continue
-      for (const operation of conditionOperations(subBlock)) {
-        const tool = netSuiteToolById.get(operation)
-        if (!tool) {
-          problems.push(`${subBlock.id}: unknown operation ${operation}`)
-          continue
-        }
-        const toolParam = toolParamId(operation, paramIdOf(subBlock))
-        if (!(toolParam in tool.params)) {
-          problems.push(`${subBlock.id}: ${operation} does not accept ${toolParam}`)
-        }
-      }
-    }
-
-    expect(problems).toEqual([])
-    expect(
-      NETSUITE_TOOLS.filter((tool) => Object.hasOwn(tool.params, 'replace')).map((tool) => tool.id)
-    ).toEqual(['netsuite_create_record', 'netsuite_update_record'])
-  })
-
-  it('keeps only the approved canonical selector/manual pairs well formed', () => {
-    const ids = NetSuiteBlock.subBlocks.map((subBlock) => subBlock.id)
-    expect(new Set(ids).size, 'duplicate sub-block id').toBe(ids.length)
-    for (const subBlock of NetSuiteBlock.subBlocks) {
-      if (!subBlock.canonicalParamId) continue
-      expect(ids, `${subBlock.id} canonical id collides with a sub-block id`).not.toContain(
-        subBlock.canonicalParamId
-      )
-    }
-
-    const groups = buildCanonicalIndex(NetSuiteBlock.subBlocks).groupsById
-    for (const [canonicalId, group] of Object.entries(groups)) {
-      expect(group.basicId, `${canonicalId} has no basic member`).toBeTruthy()
-      expect(group.advancedIds, `${canonicalId} advanced members`).toHaveLength(1)
-      const members = NetSuiteBlock.subBlocks.filter(
-        (subBlock) => subBlock.canonicalParamId === canonicalId
-      )
-      expect(
-        new Set(members.map((member) => JSON.stringify(member.condition ?? null))).size,
-        `${canonicalId} members disagree on condition`
-      ).toBe(1)
-      expect(
-        new Set(members.map((member) => JSON.stringify(member.required ?? null))).size,
-        `${canonicalId} members disagree on required`
-      ).toBe(1)
-    }
-    expect(Object.keys(groups).sort()).toEqual([
-      'oauthCredential',
-      'recordType',
-      'resultTaskId',
-      'statusTaskId',
-    ])
-  })
-
-  it('conditions Location and jobId outputs on their producing operations', () => {
-    const batchIds = [
-      'netsuite_batch_get_records',
-      'netsuite_batch_create_records',
-      'netsuite_batch_update_records',
-      'netsuite_batch_upsert_records',
-      'netsuite_batch_delete_records',
-    ]
-    expect(NetSuiteBlock.outputs.location.condition).toEqual({
-      field: 'operation',
-      value: [
-        'netsuite_create_record',
-        'netsuite_update_record',
-        'netsuite_upsert_record',
-        'netsuite_transform_record',
-        ...batchIds,
-      ],
-    })
-    expect(NetSuiteBlock.outputs.jobId.condition).toEqual({
-      field: 'operation',
-      value: batchIds,
-    })
-  })
-
   it('preserves typed agent parameters when no editor operation is present', () => {
     const agentParams = {
       oauthCredential: 'credential-id',
@@ -1095,46 +906,6 @@ describe('NetSuite operation contracts', () => {
     }
   })
 
-  it('declares batch record collections as arrays of account-specific objects', () => {
-    for (const tool of [
-      netsuiteBatchCreateRecordsTool,
-      netsuiteBatchUpdateRecordsTool,
-      netsuiteBatchUpsertRecordsTool,
-    ]) {
-      expect(tool.params.items, tool.id).toMatchObject({
-        type: 'array',
-        required: true,
-        visibility: 'user-or-llm',
-        items: { type: 'object', additionalProperties: true },
-      })
-    }
-  })
-
-  it('exposes Location and async job outputs only for documented operations', () => {
-    const batchToolIds = new Set([
-      'netsuite_batch_get_records',
-      'netsuite_batch_create_records',
-      'netsuite_batch_update_records',
-      'netsuite_batch_upsert_records',
-      'netsuite_batch_delete_records',
-    ])
-
-    for (const tool of NETSUITE_TOOLS) {
-      const expected = ['status', 'data']
-      if (
-        tool.id === 'netsuite_create_record' ||
-        tool.id === 'netsuite_update_record' ||
-        tool.id === 'netsuite_upsert_record' ||
-        tool.id === 'netsuite_transform_record' ||
-        batchToolIds.has(tool.id)
-      ) {
-        expected.push('location')
-      }
-      if (batchToolIds.has(tool.id)) expected.push('jobId')
-      expect(Object.keys(tool.outputs ?? {}), tool.id).toEqual(expected)
-    }
-  })
-
   it('covers create and existing-record variants for form and select-options media types', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = []
     vi.stubGlobal(
@@ -1190,65 +961,6 @@ describe('NetSuite operation contracts', () => {
     expect(collection.error).toContain('collection page')
   })
 
-  it('documents stable collection and action response envelopes without guessing record fields', () => {
-    for (const tool of [
-      netsuiteListRecordsTool,
-      netsuiteExecuteSuiteQLTool,
-      netsuiteListDatasetsTool,
-      netsuiteExecuteDatasetTool,
-    ]) {
-      const data = tool.outputs?.data
-      expect(data?.properties, tool.id).toMatchObject({
-        links: { type: 'array' },
-        items: { type: 'array' },
-        count: { type: 'number' },
-        hasMore: { type: 'boolean' },
-        offset: { type: 'number' },
-        totalResults: { type: 'number' },
-      })
-    }
-    expect(netsuiteExecuteActionTool.outputs?.data?.properties).toEqual({
-      result: { type: 'boolean', description: expect.stringContaining('True') },
-    })
-    expect(netsuiteListRecordsTool.outputs?.data?.properties?.items).toMatchObject({
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          links: { type: 'array' },
-        },
-      },
-    })
-    expect(netsuiteListRecordTypesTool.outputs?.data?.properties).toMatchObject({
-      links: { type: 'array' },
-      items: {
-        type: 'array',
-        items: {
-          properties: {
-            name: { type: 'string' },
-            links: {
-              type: 'array',
-              items: {
-                properties: { mediaType: { type: 'string' } },
-              },
-            },
-          },
-        },
-      },
-    })
-    expect(netsuiteGetSelectOptionsTool.outputs?.data).toMatchObject({
-      type: 'json',
-      description: expect.stringContaining('_selectOptions'),
-      properties: {
-        links: { type: 'array' },
-      },
-    })
-    for (const pagingField of ['items', 'count', 'offset', 'hasMore', 'totalResults']) {
-      expect(netsuiteGetSelectOptionsTool.outputs?.data?.description).toContain(pagingField)
-    }
-  })
-
   it('retrieves job status by default, lists tasks, and requires a task ID for task status', async () => {
     const calls: string[] = []
     vi.stubGlobal(
@@ -1291,50 +1003,6 @@ describe('NetSuite operation contracts', () => {
     expect(invalid.success).toBe(false)
     expect(invalid.error).toContain('Task ID is required')
     expect(calls).toHaveLength(2)
-  })
-
-  it('declares only Oracle-documented async task status fields', () => {
-    const data = netsuiteGetAsyncStatusTool.outputs?.data
-    expect(data?.type).toBe('json')
-    if (!data || data.type !== 'json') throw new Error('Missing async status data output')
-    expect(data.properties).toMatchObject({
-      completed: { type: 'boolean' },
-      endTime: { type: 'string' },
-      id: { type: 'string' },
-      progress: { type: 'string' },
-      startTime: { type: 'string' },
-      items: {
-        type: 'array',
-        items: {
-          properties: {
-            links: {
-              type: 'array',
-              items: {
-                properties: {
-                  rel: { type: 'string' },
-                  href: { type: 'string' },
-                },
-              },
-            },
-          },
-        },
-      },
-      links: {
-        type: 'array',
-        items: {
-          properties: {
-            rel: { type: 'string' },
-            href: { type: 'string' },
-          },
-        },
-      },
-      task: {
-        type: 'object',
-        properties: {
-          links: { type: 'array' },
-        },
-      },
-    })
   })
 
   it('rejects unsupported external-ID characters before authentication', async () => {

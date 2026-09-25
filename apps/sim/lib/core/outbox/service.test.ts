@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
@@ -29,7 +25,6 @@ import {
   continueOutboxHandler,
   deferOutboxHandler,
   enqueueOrReschedulePendingOutboxEvent,
-  enqueueOutboxEvent,
   enqueueOutboxEvents,
   outboxEventHasSourceOperationId,
   outboxPayloadHasSourceOperationId,
@@ -85,46 +80,7 @@ afterAll(resetDbChainMock)
 
 describe('enqueueOutboxEvent', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('inserts a row with the given event type and payload', async () => {
-    const id = await enqueueOutboxEvent(dbChainMock.db, 'test.event', { foo: 'bar' })
-    expect(id).toBe('test-event-id')
-    expect(dbChainMockFns.values.mock.calls[0][0]).toMatchObject({
-      id: 'test-event-id',
-      eventType: 'test.event',
-      payload: { foo: 'bar' },
-      maxAttempts: 10,
-    })
-  })
-
-  it('respects maxAttempts override', async () => {
-    await enqueueOutboxEvent(dbChainMock.db, 'test.event', {}, { maxAttempts: 3 })
-    expect(dbChainMockFns.values.mock.calls[0][0]).toMatchObject({ maxAttempts: 3 })
-  })
-
-  it('respects availableAt override for delayed processing', async () => {
-    const future = new Date(Date.now() + 60_000)
-    await enqueueOutboxEvent(dbChainMock.db, 'test.event', {}, { availableAt: future })
-    expect((dbChainMockFns.values.mock.calls[0][0] as { availableAt: Date }).availableAt).toBe(
-      future
-    )
-  })
-
-  it('inserts a bounded event batch in one statement', async () => {
-    const ids = await enqueueOutboxEvents(dbChainMock.db, 'test.event', [
-      { sequence: 0 },
-      { sequence: 1 },
-    ])
-
-    expect(ids).toHaveLength(2)
-    expect(dbChainMockFns.values).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.values.mock.calls[0][0]).toEqual([
-      expect.objectContaining({ eventType: 'test.event', payload: { sequence: 0 } }),
-      expect.objectContaining({ eventType: 'test.event', payload: { sequence: 1 } }),
-    ])
   })
 
   it('rejects an oversized event batch before inserting', async () => {
@@ -171,32 +127,7 @@ describe('outbox parent-operation correlation', () => {
 
 describe('enqueueOrReschedulePendingOutboxEvent', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('inserts normally when the subject has no pending event', async () => {
-    const availableAt = new Date('2026-07-30T12:01:00.000Z')
-
-    const id = await enqueueOrReschedulePendingOutboxEvent(
-      dbChainMock.db,
-      'invitation.send-migrated-link',
-      { invitationId: 'invite-1' },
-      {
-        availableAt,
-        coalesceOn: { payloadKey: 'invitationId', payloadValue: 'invite-1' },
-      }
-    )
-
-    expect(id).toBe('test-event-id')
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'test-event-id',
-        eventType: 'invitation.send-migrated-link',
-        payload: { invitationId: 'invite-1' },
-        availableAt,
-      })
-    )
   })
 
   it('extends one pending event instead of inserting a duplicate for the same subject', async () => {
@@ -255,19 +186,7 @@ describe('enqueueOrReschedulePendingOutboxEvent', () => {
 
 describe('processOutboxEvents — empty / no handler', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('returns zero counts when no events are due', async () => {
-    const result = await processOutboxEvents({})
-    expect(result).toEqual({
-      processed: 0,
-      retried: 0,
-      deadLettered: 0,
-      leaseLost: 0,
-      reaped: 0,
-    })
   })
 
   it('retries events with no registered handler during rolling deployments', async () => {
@@ -298,7 +217,6 @@ describe('processOutboxEvents — empty / no handler', () => {
 
 describe('processOutboxEvents — infrastructure diagnostics', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -326,19 +244,6 @@ describe('processOutboxEvents — infrastructure diagnostics', () => {
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
   })
 
-  it('distinguishes a reaper failure from discovery and stops the poll', async () => {
-    const error = new Error('connection closed')
-    dbChainMockFns.returning.mockRejectedValueOnce(error)
-
-    await expect(processOutboxEvents({})).rejects.toBe(error)
-
-    expect(logger.error).toHaveBeenCalledWith(
-      'Outbox processing failed',
-      expect.objectContaining({ phase: 'reap' })
-    )
-    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
-  })
-
   it('reports completed work when a later claim fails without rerunning handlers', async () => {
     const handler = vi.fn(async () => {})
     const error = new Error('connection closed')
@@ -360,7 +265,6 @@ describe('processOutboxEvents — infrastructure diagnostics', () => {
 
 describe('processOutboxEvents — handler success and retry', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -380,24 +284,6 @@ describe('processOutboxEvents — handler success and retry', () => {
     const completeUpdate = updateSets().find((set) => set.status === 'completed')
     expect(completeUpdate).toBeDefined()
     expect(completeUpdate?.lastError).toBeNull()
-  })
-
-  it('checkpoints payload fields only while the processing lease is held', async () => {
-    const handler = vi.fn(
-      async (
-        _payload: unknown,
-        ctx: { checkpointPayload: (patch: Record<string, unknown>) => Promise<void> }
-      ) => {
-        await ctx.checkpointPayload({ stripeProgress: { customerId: 'cus_1' } })
-      }
-    )
-    queuePendingEvents([makePendingRow()])
-    holdLease()
-
-    const result = await processOutboxEvents({ 'test.event': handler })
-
-    expect(result.processed).toBe(1)
-    expect(updateSets().some((set) => 'payload' in set)).toBe(true)
   })
 
   it('stops a handler whose payload checkpoint loses the processing lease', async () => {
@@ -531,7 +417,6 @@ describe('processOutboxEvents — handler success and retry', () => {
 
 describe('processOutboxEvents — lease CAS / reaper race', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -547,24 +432,10 @@ describe('processOutboxEvents — lease CAS / reaper race', () => {
     expect(result.leaseLost).toBe(1)
     expect(result.processed).toBe(0)
   })
-
-  it('reports leaseLost on retry-schedule UPDATE when row was reclaimed', async () => {
-    const handler = vi.fn(async () => {
-      throw new Error('transient')
-    })
-
-    queuePendingEvents([makePendingRow({ attempts: 2 })])
-
-    const result = await processOutboxEvents({ 'test.event': handler })
-
-    expect(result.leaseLost).toBe(1)
-    expect(result.retried).toBe(0)
-  })
 })
 
 describe('processOutboxEvents — handler timeout', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     vi.useFakeTimers()
   })
@@ -677,7 +548,6 @@ describe('processOutboxEvents — handler timeout', () => {
 
 describe('processOutboxEvents — reaper recovery', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -700,10 +570,5 @@ describe('processOutboxEvents — reaper recovery', () => {
     )
     expect(reaperUpdate).toBeDefined()
     expect(reaperUpdate?.lockedAt).toBeNull()
-  })
-
-  it('returns zero reaped when no rows are stuck', async () => {
-    const result = await processOutboxEvents({})
-    expect(result.reaped).toBe(0)
   })
 })

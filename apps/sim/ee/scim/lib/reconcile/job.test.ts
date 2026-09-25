@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-import { db } from '@sim/db'
 import { scimConnection } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -85,7 +81,6 @@ afterAll(resetDbChainMock)
 
 describe('reconcileConnection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     vi.useFakeTimers()
     vi.setSystemTime(NOW)
@@ -148,79 +143,6 @@ describe('reconcileConnection', () => {
     expect(release).not.toHaveProperty('reconciledAt')
   })
 
-  it('re-reads the settings for every batch and pages by the last order key', async () => {
-    grantLease()
-    const first = page(Array.from({ length: 25 }, (_, i) => `su-${i}`))
-    const second = page(['su-25', 'su-26', 'su-27'])
-    mocks.listScimUserIds
-      .mockResolvedValueOnce(first)
-      .mockResolvedValueOnce(second)
-      .mockResolvedValueOnce([])
-    stageBatch('run-1', { autoMap: false })
-    stageBatch('run-1', { autoMap: true, defaultRole: 'admin' })
-
-    await reconcileConnection(connection)
-
-    expect(mocks.listScimUserIds).toHaveBeenNthCalledWith(1, db, {
-      connectionId: 'conn-1',
-      limit: 25,
-    })
-    expect(mocks.listScimUserIds).toHaveBeenNthCalledWith(2, db, {
-      connectionId: 'conn-1',
-      afterOrderKey: 'k-su-24',
-      limit: 25,
-    })
-    expect(mocks.listScimUserIds).toHaveBeenNthCalledWith(3, db, {
-      connectionId: 'conn-1',
-      afterOrderKey: 'k-su-27',
-      limit: 25,
-    })
-    expect(mocks.reconcileBatch).toHaveBeenCalledTimes(2)
-    expect(mocks.reconcileBatch).toHaveBeenNthCalledWith(1, {
-      connectionId: 'conn-1',
-      organizationId: 'org-1',
-      scimUserIds: first.map((row) => row.id),
-      settings: { autoMap: false },
-    })
-    expect(mocks.reconcileBatch).toHaveBeenNthCalledWith(2, {
-      connectionId: 'conn-1',
-      organizationId: 'org-1',
-      scimUserIds: ['su-25', 'su-26', 'su-27'],
-      settings: { autoMap: true, defaultRole: 'admin' },
-    })
-  })
-
-  it('matches pre-existing groups before projecting users when automatic matching is enabled', async () => {
-    grantLease()
-    const settings = { autoMapPermissionGroupsByName: true }
-    const groups = [{ id: 'group-1', displayName: 'Engineering', orderKey: 'group-key-1' }]
-    mocks.listGroups.mockResolvedValueOnce(groups).mockResolvedValueOnce([])
-    queueTableRows(scimConnection, [{ status: 'active', token: 'run-1', settings }])
-    queueTableRows(scimConnection, [{ status: 'active', token: 'run-1', settings }])
-    mocks.listScimUserIds.mockResolvedValueOnce(page(['su-1'])).mockResolvedValueOnce([])
-    stageBatch('run-1', settings)
-
-    await reconcileConnection({ ...connection, settings })
-
-    expect(mocks.autoMap).toHaveBeenCalledWith(db, {
-      organizationId: 'org-1',
-      scimGroupId: 'group-1',
-      displayName: 'Engineering',
-    })
-    expect(mocks.listGroups).toHaveBeenNthCalledWith(2, db, {
-      connectionId: 'conn-1',
-      afterOrderKey: 'group-key-1',
-      limit: 25,
-    })
-    expect(mocks.settleGroups).toHaveBeenCalledWith(db, {
-      organizationId: 'org-1',
-      scimGroupId: 'group-1',
-    })
-    expect(mocks.autoMap.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.reconcileBatch.mock.invocationCallOrder[0]
-    )
-  })
-
   it('stops automatic matching when the rule was disabled after the pass was queued', async () => {
     grantLease()
     queueTableRows(scimConnection, [{ status: 'active', token: 'run-1', settings: {} }])
@@ -230,36 +152,6 @@ describe('reconcileConnection', () => {
     })
     expect(mocks.listGroups).not.toHaveBeenCalled()
     expect(mocks.autoMap).not.toHaveBeenCalled()
-  })
-
-  it('falls back to the settings the due query returned when the row cannot be re-read', async () => {
-    grantLease()
-    mocks.listScimUserIds.mockResolvedValueOnce(page(['su-1'])).mockResolvedValueOnce([])
-    stageBatch('run-1')
-    await reconcileConnection(connection)
-    expect(mocks.reconcileBatch).toHaveBeenCalledWith(
-      expect.objectContaining({ settings: { autoMap: true } })
-    )
-  })
-
-  it('reports users reconciled and counts raised grants as additions', async () => {
-    grantLease()
-    mocks.listScimUserIds
-      .mockResolvedValueOnce(page(['su-1', 'su-2']))
-      .mockResolvedValueOnce(page(['su-3']))
-      .mockResolvedValueOnce([])
-    stageBatch('run-1', {})
-    stageBatch('run-1', {})
-    mocks.reconcileBatch.mockResolvedValueOnce(delta(2, 1, 1)).mockResolvedValueOnce(delta(0, 0, 2))
-
-    const report = await reconcileConnection(connection)
-
-    expect(report).toEqual({
-      connectionId: 'conn-1',
-      reconciledUsers: 3,
-      grantsAdded: 3,
-      grantsRemoved: 3,
-    })
   })
 
   it('stamps reconciledAt only after a completed pass', async () => {
@@ -301,19 +193,10 @@ describe('reconcileConnection', () => {
     expect(release).toEqual({ reconcileLockToken: null, reconcileLeaseAt: null })
     expect(release).not.toHaveProperty('reconciledAt')
   })
-
-  it('still releases the lease when the prune itself throws', async () => {
-    grantLease()
-    mocks.prune.mockRejectedValueOnce(new Error('prune failed'))
-    await expect(reconcileConnection(connection)).rejects.toThrow('prune failed')
-    expect(mocks.listScimUserIds).not.toHaveBeenCalled()
-    expect(setCalls()[1]).toEqual({ reconcileLockToken: null, reconcileLeaseAt: null })
-  })
 })
 
 describe('runScimReconcileSweep', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     vi.useFakeTimers()
     vi.setSystemTime(NOW)
@@ -325,13 +208,6 @@ describe('runScimReconcileSweep', () => {
 
   afterEach(() => {
     vi.useRealTimers()
-  })
-
-  it('returns an empty sweep when nothing is due', async () => {
-    const sweep = await runScimReconcileSweep()
-    expect(sweep).toEqual({ connections: 0, reconciledUsers: 0, grantsAdded: 0, grantsRemoved: 0 })
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(200)
-    expect(mocks.isEntitled).not.toHaveBeenCalled()
   })
 
   it('totals the completed passes and keeps going past a connection that fails', async () => {

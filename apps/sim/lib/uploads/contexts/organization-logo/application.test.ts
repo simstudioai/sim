@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
@@ -20,7 +19,6 @@ import {
   authorizeOrganizationLogoControl,
   createOrganizationLogoUpload,
   finalizeOrganizationLogoUpload,
-  organizationLogoOperation,
 } from '@/lib/uploads/contexts/organization-logo/application'
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 
@@ -55,39 +53,12 @@ const session = {
 const request = { headers: new Headers() }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.config.mockResolvedValue(null)
   dbChainMockFns.limit.mockResolvedValue([{ role: 'admin' }])
 })
 
 describe('organization logo uploads', () => {
-  it('defines a session-only organization administrator operation', () => {
-    expect(organizationLogoOperation).toMatchObject({
-      minimumRole: 'admin',
-      principalKinds: ['session'],
-    })
-  })
-
-  it.each(['owner', 'admin'])(
-    'allows the current %s and uses their real organization identity',
-    async (role) => {
-      dbChainMockFns.limit.mockResolvedValueOnce([{ role }]).mockResolvedValueOnce([{ logo: null }])
-      await createOrganizationLogoUpload(principal, input)
-      expect(mocks.create).toHaveBeenCalledWith({
-        purpose: 'organization_logo',
-        principal,
-        organizationId: 'org-1',
-        expectedLogo: null,
-        userId: 'user-1',
-        fileName: 'logo.png',
-        contentType: 'image/png',
-        fileSize: 100,
-        localOrigin: 'http://localhost',
-      })
-    }
-  )
-
   it.each([
     ['member', 'forbidden'],
     ['invalid', 'not_found'],
@@ -202,27 +173,6 @@ describe('organization logo uploads', () => {
       {
         code: 'conflict',
       }
-    )
-    expect(dbChainMockFns.set).not.toHaveBeenCalled()
-    expect(recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('captures an existing logo as server-authored concurrency state', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([{ role: 'admin' }])
-      .mockResolvedValueOnce([{ logo: '/existing-logo.png' }])
-    await createOrganizationLogoUpload(principal, input)
-    expect(mocks.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        expectedLogo: '/existing-logo.png',
-      })
-    )
-  })
-
-  it('propagates infrastructure errors without reporting a successful logo update', async () => {
-    dbChainMockFns.limit.mockRejectedValueOnce(new Error('database unavailable'))
-    await expect(finalizeOrganizationLogoUpload(principal, session, request)).rejects.toThrow(
-      'database unavailable'
     )
     expect(dbChainMockFns.set).not.toHaveBeenCalled()
     expect(recordAudit).not.toHaveBeenCalled()

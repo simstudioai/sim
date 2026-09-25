@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { TerminalTabState } from '@sim/terminal-protocol'
 import { describe, expect, it } from 'vitest'
 import { terminalTabTitle, terminalTooltip } from '@/lib/terminal/tab-label'

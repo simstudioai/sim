@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import type { UserFile } from '@/executor/types'
 import type { ToolDefinition } from '@/tools/types'

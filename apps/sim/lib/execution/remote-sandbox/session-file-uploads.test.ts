@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { execFile } from 'node:child_process'
 import { createReadStream } from 'node:fs'
 import { mkdtemp, readdir, readFile, rm, stat, truncate, writeFile } from 'node:fs/promises'

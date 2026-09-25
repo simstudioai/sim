@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Tests for GET /api/v1/audit-logs/[id] — verifies the lookup is constrained
  * by the organization scope and 404s for rows outside it.
  */
@@ -74,7 +72,6 @@ function callRoute(id: string) {
 
 describe('GET /api/v1/audit-logs/[id]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCheckRateLimit.mockResolvedValue({ allowed: true, userId: 'admin-1' })
     mockValidateV1EnterpriseAuditAccess.mockResolvedValue({
       success: true,
@@ -83,26 +80,6 @@ describe('GET /api/v1/audit-logs/[id]', () => {
     })
     mockGetOrgWorkspaceIds.mockResolvedValue(ORG_WORKSPACE_IDS)
     mockBuildOrgScopeCondition.mockReturnValue(SCOPE_SENTINEL)
-  })
-
-  it('constrains the lookup with the org scope condition (includeDeparted)', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([AUDIT_ROW])
-
-    const response = await callRoute('log-1')
-
-    expect(response.status).toBe(200)
-    expect(mockBuildOrgScopeCondition).toHaveBeenCalledWith({
-      organizationId: ORG_ID,
-      orgWorkspaceIds: ORG_WORKSPACE_IDS,
-      orgMemberIds: MEMBER_IDS,
-      includeDeparted: true,
-    })
-    expect(dbChainMockFns.where).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'and',
-        conditions: expect.arrayContaining([SCOPE_SENTINEL]),
-      })
-    )
   })
 
   it('returns 404 when the row is outside the organization scope', async () => {

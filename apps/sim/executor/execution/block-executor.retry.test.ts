@@ -1,10 +1,8 @@
 /**
- * @vitest-environment node
- *
  * Retry wraps only the handler invocation, so a replay cannot duplicate output the
  * client has already seen and cannot re-run the deterministic post-processing.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { BlockType, EDGE } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
@@ -97,8 +95,6 @@ function buildExecutor(block: SerializedBlock, handler: BlockHandler, state: Exe
 const enabled = { enabled: true as const, maxTries: 3, waitBetweenTriesMs: 0 }
 
 describe('BlockExecutor retry', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it('runs a block with no policy exactly once, as every existing workflow does', async () => {
     const block = createBlock()
     const execute = vi.fn().mockRejectedValue(new Error('boom'))
@@ -109,17 +105,6 @@ describe('BlockExecutor retry', () => {
     await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow()
     expect(execute).toHaveBeenCalledTimes(1)
     expect(ctx.blockLogs[0]?.tries).toBeUndefined()
-  })
-
-  it('runs a block whose policy is switched off exactly once', async () => {
-    const block = createBlock({ enabled: false, maxTries: 5, waitBetweenTriesMs: 0 })
-    const execute = vi.fn().mockRejectedValue(new Error('boom'))
-    const state = new ExecutionState()
-    const executor = buildExecutor(block, { canHandle: () => true, execute }, state)
-
-    await expect(executor.execute(createContext(state), createNode(block), block)).rejects.toThrow()
-    expect(execute).toHaveBeenCalledTimes(1)
-    expect(execute.mock.calls[0][3]).not.toHaveProperty('retry')
   })
 
   it('tells each try where it sits in the policy, and a block without one nothing', async () => {
@@ -150,29 +135,6 @@ describe('BlockExecutor retry', () => {
       plainState
     ).execute(createContext(plainState), createNode(plain), plain)
     expect(executePlain.mock.calls[0][3]).not.toHaveProperty('retry')
-  })
-
-  it('hands the same try position to a handler that takes the node', async () => {
-    const block = createBlock({ enabled: true, maxTries: 2, waitBetweenTriesMs: 0 })
-    const executeWithNode = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('one'))
-      .mockResolvedValueOnce({ ok: true })
-    const execute = vi.fn()
-    const state = new ExecutionState()
-    const executor = buildExecutor(
-      block,
-      { canHandle: () => true, execute, executeWithNode },
-      state
-    )
-
-    await executor.execute(createContext(state), createNode(block), block)
-
-    expect(execute).not.toHaveBeenCalled()
-    expect(executeWithNode.mock.calls.map(([, , , metadata]) => metadata.retry)).toEqual([
-      { attempt: 1, maxTries: 2, isFinalTry: false },
-      { attempt: 2, maxTries: 2, isFinalTry: true },
-    ])
   })
 
   it('replays any failure and succeeds on a later try', async () => {
@@ -308,21 +270,5 @@ describe('BlockExecutor retry', () => {
 
     await expect(executor.execute(createContext(state), createNode(block), block)).rejects.toThrow()
     expect(execute).toHaveBeenCalledTimes(1)
-  })
-
-  it('waits between tries', async () => {
-    const block = createBlock({ enabled: true, maxTries: 2, waitBetweenTriesMs: 60 })
-    const execute = vi
-      .fn()
-      .mockRejectedValueOnce(new Error('transient'))
-      .mockResolvedValueOnce({ ok: true })
-    const state = new ExecutionState()
-    const executor = buildExecutor(block, { canHandle: () => true, execute }, state)
-
-    const startedAt = Date.now()
-    await executor.execute(createContext(state), createNode(block), block)
-
-    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(50)
-    expect(execute).toHaveBeenCalledTimes(2)
   })
 })

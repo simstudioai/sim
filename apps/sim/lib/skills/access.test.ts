@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockCheckWorkspaceAccess, mockGetUsersWithPermissions, dbState, makeChain, dbMock } =
@@ -77,7 +74,6 @@ const wsRead = { hasAccess: true, canWrite: false, canAdmin: false, workspace: {
 const wsNone = { hasAccess: false, canWrite: false, canAdmin: false, workspace: null }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   dbState.results = []
   mockGetUsersWithPermissions.mockResolvedValue([])
 })

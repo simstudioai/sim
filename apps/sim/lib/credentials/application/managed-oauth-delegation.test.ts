@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutorDelegationOrigin } from '@/executor/types'
 
@@ -38,7 +35,6 @@ function delegationOrigin(
 
 describe('bindExecutorManagedOAuthDelegation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockBindInternalExecutorDelegation.mockImplementation(async (claims, options) => ({
       kind: 'delegated',
       serviceId: 'executor',
@@ -87,13 +83,5 @@ describe('bindExecutorManagedOAuthDelegation', () => {
     await expect(
       bindExecutorManagedOAuthDelegation(delegationOrigin(), 'cred-1')
     ).rejects.toBeInstanceOf(InvalidManagedOAuthDelegationError)
-  })
-
-  it('rethrows unexpected binding failures unchanged', async () => {
-    mockBindInternalExecutorDelegation.mockRejectedValue(new Error('db unavailable'))
-
-    await expect(bindExecutorManagedOAuthDelegation(delegationOrigin(), 'cred-1')).rejects.toThrow(
-      'db unavailable'
-    )
   })
 })

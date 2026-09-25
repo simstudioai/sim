@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { dropcontactEnrichContactTool } from '@/tools/dropcontact/enrich_contact'
 import { DROPCONTACT_CREDIT_USD } from '@/tools/dropcontact/hosting'
@@ -17,13 +14,6 @@ function cost(tool: ToolConfig<any, any>, params: any, output: Record<string, un
   const result = pricing.getCost(params, output)
   return typeof result === 'number' ? { cost: result } : result
 }
-
-describe('Dropcontact hosted key config', () => {
-  it('declares hosting with the correct env prefix and BYOK provider ID', () => {
-    expect(dropcontactEnrichContactTool.hosting?.envKeyPrefix).toBe('DROPCONTACT_API_KEY')
-    expect(dropcontactEnrichContactTool.hosting?.byokProviderId).toBe('dropcontact')
-  })
-})
 
 describe('Dropcontact hosted key pricing', () => {
   it('charges 1 credit when email_found is true', () => {

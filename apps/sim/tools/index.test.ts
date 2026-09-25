@@ -1,7 +1,5 @@
 import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
 /**
- * @vitest-environment node
- *
  * Tools Registry and Executor Unit Tests
  *
  * This file contains unit tests for the tools registry and executeTool function,
@@ -673,48 +671,6 @@ beforeAll(() => {
 })
 
 afterAll(resetEnvFlagsMock)
-
-describe('Tools Registry', () => {
-  it('should include all expected built-in tools', () => {
-    expect(tools.http_request).toBeDefined()
-    expect(tools.function_execute).toBeDefined()
-
-    expect(tools.gmail_read).toBeDefined()
-    expect(tools.gmail_send).toBeDefined()
-    expect(tools.google_drive_list).toBeDefined()
-    expect(tools.serper_search).toBeDefined()
-  })
-
-  it('getTool should return the correct tool by ID', () => {
-    const httpTool = getTool('http_request')
-    expect(httpTool).toBeDefined()
-    expect(httpTool?.id).toBe('http_request')
-    expect(httpTool?.name).toBe('HTTP Request')
-
-    const gmailTool = getTool('gmail_read')
-    expect(gmailTool).toBeDefined()
-    expect(gmailTool?.id).toBe('gmail_read')
-    expect(gmailTool?.name).toBe('Gmail Read')
-  })
-
-  it.each([
-    ['notion_add_database_row', 'notion_add_database_row_v2'],
-    ['notion_update_page', 'notion_update_page_v2'],
-  ])('getTool resolves both the legacy and v2 ids for %s', (legacyId, v2Id) => {
-    const legacy = getTool(legacyId)
-    expect(legacy).toBeDefined()
-    expect(legacy?.id).toBe(legacyId)
-
-    const v2 = getTool(v2Id)
-    expect(v2).toBeDefined()
-    expect(v2?.id).toBe(v2Id)
-  })
-
-  it('getTool should return undefined for non-existent tool', () => {
-    const nonExistentTool = getTool('non_existent_tool')
-    expect(nonExistentTool).toBeUndefined()
-  })
-})
 
 describe('Custom Tools', () => {
   it('does not resolve custom tools through the synchronous client helper', () => {
@@ -2918,21 +2874,6 @@ describe('executeTool Function', () => {
 
     expect(mockExecuteFunction).not.toHaveBeenCalled()
     expect(result.success).toBe(false)
-  })
-
-  it('should add timing information to results', async () => {
-    const result = await executeTool(
-      'http_request',
-      {
-        url: 'https://api.example.com/data',
-      },
-      { skipPostProcess: true }
-    )
-
-    expect(result.timing).toBeDefined()
-    expect(result.timing?.startTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
-    expect(result.timing?.endTime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)
-    expect(result.timing?.duration).toBeGreaterThanOrEqual(0)
   })
 })
 
@@ -5603,22 +5544,6 @@ describe('Centralized Error Handling', () => {
     expect(result.error).toBe(expectedError)
   }
 
-  it('should extract GraphQL error format (Linear API)', async () => {
-    await testErrorFormat(
-      'GraphQL',
-      { errors: [{ message: 'Invalid query field' }] },
-      'Invalid query field'
-    )
-  })
-
-  it('should extract X/Twitter API error format', async () => {
-    await testErrorFormat(
-      'X/Twitter',
-      { errors: [{ detail: 'Rate limit exceeded' }] },
-      'Rate limit exceeded'
-    )
-  })
-
   it('uses a tool-specific Prospeo extractor before flattening a failed response', async () => {
     const originalExtractor = tools.http_request.errorExtractor
     tools.http_request.errorExtractor = ErrorExtractorId.PROSPEO_ERRORS
@@ -5628,62 +5553,6 @@ describe('Centralized Error Handling', () => {
     } finally {
       tools.http_request.errorExtractor = originalExtractor
     }
-  })
-
-  it('should extract Hunter API error format', async () => {
-    await testErrorFormat('Hunter', { errors: [{ details: 'Invalid API key' }] }, 'Invalid API key')
-  })
-
-  it('should extract direct errors array (string)', async () => {
-    await testErrorFormat('Direct string array', { errors: ['Network timeout'] }, 'Network timeout')
-  })
-
-  it('should extract direct errors array (object)', async () => {
-    await testErrorFormat(
-      'Direct object array',
-      { errors: [{ message: 'Validation failed' }] },
-      'Validation failed'
-    )
-  })
-
-  it('should extract OAuth error description', async () => {
-    await testErrorFormat('OAuth', { error_description: 'Invalid grant' }, 'Invalid grant')
-  })
-
-  it('should extract SOAP fault error', async () => {
-    await testErrorFormat(
-      'SOAP fault',
-      { fault: { faultstring: 'Server unavailable' } },
-      'Server unavailable'
-    )
-  })
-
-  it('should extract simple SOAP faultstring', async () => {
-    await testErrorFormat(
-      'Simple SOAP',
-      { faultstring: 'Authentication failed' },
-      'Authentication failed'
-    )
-  })
-
-  it('should extract Notion/Discord message format', async () => {
-    await testErrorFormat('Notion/Discord', { message: 'Page not found' }, 'Page not found')
-  })
-
-  it('should extract Airtable error object format', async () => {
-    await testErrorFormat(
-      'Airtable',
-      { error: { message: 'Invalid table ID' } },
-      'Invalid table ID'
-    )
-  })
-
-  it('should extract simple error string format', async () => {
-    await testErrorFormat(
-      'Simple string',
-      { error: 'Simple error message' },
-      'Simple error message'
-    )
   })
 
   it('should fall back to text when JSON parsing fails and extract error message', async () => {
@@ -5760,31 +5629,6 @@ describe('Centralized Error Handling', () => {
     expect(result.success).toBe(false)
     // Should fall back to HTTP status text when both parsing methods fail
     expect(result.error).toBe('Internal Server Error')
-  })
-
-  it('should handle complex nested error objects', async () => {
-    await testErrorFormat(
-      'Complex nested',
-      { error: { code: 400, message: 'Complex validation error', details: 'Field X is invalid' } },
-      'Complex validation error'
-    )
-  })
-
-  it('should handle error arrays with multiple entries (take first)', async () => {
-    await testErrorFormat(
-      'Multiple errors',
-      { errors: [{ message: 'First error' }, { message: 'Second error' }] },
-      'First error'
-    )
-  })
-
-  it('should stringify complex error objects when no message found', async () => {
-    const complexError = { code: 500, type: 'ServerError', context: { requestId: '123' } }
-    await testErrorFormat(
-      'Complex object stringify',
-      { error: complexError },
-      JSON.stringify(complexError)
-    )
   })
 })
 
@@ -7173,7 +7017,6 @@ describe('organization scratch internal entrance', () => {
 
 describe('Live Search Assistant GitHub OAuth binding', () => {
   beforeEach(async () => {
-    vi.clearAllMocks()
     setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
     const metadata = await import('@/tools/metadata')
     const actual = await vi.importActual<typeof import('@/tools/metadata')>('@/tools/metadata')

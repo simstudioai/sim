@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { propagation, trace } from '@opentelemetry/api'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
@@ -177,7 +173,6 @@ describe('createSSEStream terminal error handling', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockDisconnected = false
     resetDbChainMock()
     setEnvFlags({ isHosted: false })
@@ -610,41 +605,6 @@ describe('createSSEStream terminal error handling', () => {
     )
   })
 
-  it('passes an OTel context into the streaming lifecycle', async () => {
-    let lifecycleTraceparent = ''
-    runCopilotLifecycle.mockImplementation(async (_payload, options) => {
-      const { traceHeaders } = await import('@/lib/mothership/request/go/propagation')
-      lifecycleTraceparent = traceHeaders({}, options.otelContext).traceparent ?? ''
-      return {
-        success: true,
-        content: 'OK',
-        contentBlocks: [],
-        toolCalls: [],
-      }
-    })
-
-    const stream = createSSEStream({
-      requestPayload: { message: 'hello' },
-      userId: 'user-1',
-      streamId: 'stream-1',
-      executionId: 'exec-1',
-      runId: 'run-1',
-      currentChat: null,
-      message: 'hello',
-      titleModel: 'gpt-5.4',
-      requestId: 'req-otel',
-      orchestrateOptions: {
-        userId: 'user-1',
-        goRoute: '/api/mothership',
-        workflowId: 'workflow-1',
-      },
-    })
-
-    await drainStream(stream)
-
-    expect(lifecycleTraceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-0[0-9a-f]$/)
-  })
-
   it('releases the stream registration and pollers when preview initialization fails before the lifecycle starts', async () => {
     clearFilePreviewSessions.mockRejectedValue(new Error('redis down'))
 
@@ -722,7 +682,6 @@ describe('requestChatTitle billing protocol', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockDisconnected = false
     resetDbChainMock()
     setEnvFlags({ isHosted: true })

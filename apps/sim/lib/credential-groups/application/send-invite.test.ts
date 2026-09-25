@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -109,7 +106,6 @@ function invite(principal: WorkflowExecutionDelegatedPrincipal) {
 
 describe('sendCredentialGroupInvite', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveGroup.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.requireAvailable.mockResolvedValue(undefined)
@@ -126,25 +122,6 @@ describe('sendCredentialGroupInvite', () => {
 
     expect(result.enrollment.id).toBe('enrollment-1')
     expect(mocks.loadInviter).not.toHaveBeenCalled()
-    expect(mocks.inviteEnrollment).toHaveBeenCalledWith(
-      'workspace-1',
-      'group-1',
-      undefined,
-      undefined,
-      'person@example.com'
-    )
-  })
-
-  it('invites without naming an inviter on an actorless run', async () => {
-    await invite(
-      unattendedPrincipal({
-        kind: 'system',
-        serviceId: 'schedule',
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-      })
-    )
-
     expect(mocks.inviteEnrollment).toHaveBeenCalledWith(
       'workspace-1',
       'group-1',

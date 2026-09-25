@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns, createMockRequest, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -61,7 +58,6 @@ afterAll(resetEnvFlagsMock)
 
 describe('POST /api/billing/switch-plan', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'viewer-1' } })
     mockCanManageWorkspaceBilling.mockReturnValue(true)
     mockGetOrganizationSubscription.mockResolvedValue({

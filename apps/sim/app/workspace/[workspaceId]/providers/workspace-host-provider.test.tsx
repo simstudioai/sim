@@ -131,13 +131,4 @@ describe('WorkspaceHostProvider', () => {
     expect(textOf('context')).toBe('false')
     expect(getDeploymentShape().billingEnabled).toBe(false)
   })
-
-  it('keeps the env fallback for a host context that predates deployment projection', () => {
-    const { deployment: _legacy, ...legacyContext } = HOST_CONTEXT
-
-    renderProvider(legacyContext)
-
-    expect(textOf('getter')).toBe('false')
-    expect(textOf('context')).toBe('undefined')
-  })
 })

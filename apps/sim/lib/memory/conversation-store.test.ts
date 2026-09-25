@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { memory, memoryItem, memorySecretProvenance } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -40,7 +39,6 @@ const writers = {
 
 describe('bounded conversation item writes', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(memory, [{ id: identity.memoryId, storageVersion: 2 }])
     dbChainMockFns.returning.mockResolvedValue([{ revision: 1 }])
@@ -69,7 +67,6 @@ describe('bounded conversation item writes', () => {
 
 describe('untracked legacy appends', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -117,7 +114,6 @@ describe('untracked legacy appends', () => {
 
 describe('bounded legacy appends', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

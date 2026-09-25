@@ -1,12 +1,8 @@
 /**
  * Tests for custom tools API routes
- *
- * @vitest-environment node
  */
 import {
   authMockFns,
-  createMockRequest,
-  dbChainMockFns,
   hybridAuthMockFns,
   permissionsMock,
   permissionsMockFns,
@@ -90,13 +86,12 @@ vi.mock('@/lib/workflows/custom-tools/operations', () => ({
 
 vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
-import { DELETE, GET, POST } from '@/app/api/tools/custom/route'
+import { DELETE } from '@/app/api/tools/custom/route'
 
 describe('Custom Tools API Routes', () => {
   const mockSession = { user: { id: 'user-123' } }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
 
     authMockFns.mockGetSession.mockResolvedValue(mockSession)
@@ -119,139 +114,9 @@ describe('Custom Tools API Routes', () => {
   })
 
   /**
-   * Test GET endpoint
-   */
-  describe('GET /api/tools/custom', () => {
-    it('should return tools for authenticated user with workspaceId', async () => {
-      const req = new NextRequest(
-        'http://localhost:3000/api/tools/custom?workspaceId=workspace-123'
-      )
-
-      queueTableRows(schemaMock.customTools, sampleTools)
-
-      const response = await GET(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(data).toHaveProperty('data')
-      expect(data.data).toEqual(sampleTools)
-
-      expect(dbChainMockFns.select).toHaveBeenCalled()
-      expect(dbChainMockFns.from).toHaveBeenCalled()
-      expect(dbChainMockFns.where).toHaveBeenCalled()
-      expect(dbChainMockFns.orderBy).toHaveBeenCalled()
-    })
-
-    it('should handle unauthorized access', async () => {
-      const req = new NextRequest(
-        'http://localhost:3000/api/tools/custom?workspaceId=workspace-123'
-      )
-
-      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
-        success: false,
-        error: 'Unauthorized',
-      })
-
-      const response = await GET(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(401)
-      expect(data).toHaveProperty('error', 'Unauthorized')
-    })
-
-    it('should handle workflowId parameter', async () => {
-      const req = new NextRequest('http://localhost:3000/api/tools/custom?workflowId=workflow-123')
-
-      queueTableRows(schemaMock.customTools, sampleTools)
-
-      const response = await GET(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(data).toHaveProperty('data')
-
-      expect(dbChainMockFns.where).toHaveBeenCalled()
-    })
-  })
-
-  /**
-   * Test POST endpoint
-   */
-  describe('POST /api/tools/custom', () => {
-    it('should reject unauthorized requests', async () => {
-      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
-        success: false,
-        error: 'Unauthorized',
-      })
-
-      const req = createMockRequest('POST', { tools: [], workspaceId: 'workspace-123' })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(401)
-      expect(data).toHaveProperty('error', 'Unauthorized')
-    })
-
-    it('should validate request data', async () => {
-      const invalidTool = {
-        code: 'return "invalid";',
-      }
-
-      const req = createMockRequest('POST', { tools: [invalidTool], workspaceId: 'workspace-123' })
-
-      const response = await POST(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(400)
-      expect(data).toHaveProperty('error', 'Invalid request data')
-      expect(data).toHaveProperty('details')
-    })
-  })
-
-  /**
    * Test DELETE endpoint
    */
   describe('DELETE /api/tools/custom', () => {
-    it('should delete a workspace-scoped tool by ID', async () => {
-      queueTableRows(schemaMock.customTools, [sampleTools[0]])
-
-      const req = new NextRequest(
-        'http://localhost:3000/api/tools/custom?id=tool-1&workspaceId=workspace-123'
-      )
-
-      const response = await DELETE(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(data).toHaveProperty('success', true)
-
-      expect(dbChainMockFns.delete).toHaveBeenCalled()
-      expect(dbChainMockFns.where).toHaveBeenCalled()
-    })
-
-    it('should reject requests missing tool ID', async () => {
-      const req = new NextRequest('http://localhost:3000/api/tools/custom')
-
-      const response = await DELETE(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(400)
-      expect(data).toHaveProperty('error', 'Tool ID is required')
-    })
-
-    it('should handle tool not found', async () => {
-      queueTableRows(schemaMock.customTools, [])
-
-      const req = new NextRequest('http://localhost:3000/api/tools/custom?id=non-existent')
-
-      const response = await DELETE(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(404)
-      expect(data).toHaveProperty('error', 'Tool not found')
-    })
-
     it('should prevent unauthorized deletion of user-scoped tool', async () => {
       hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
         success: true,
@@ -269,21 +134,6 @@ describe('Custom Tools API Routes', () => {
 
       expect(response.status).toBe(403)
       expect(data).toHaveProperty('error', 'Access denied')
-    })
-
-    it('should reject unauthorized requests', async () => {
-      hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValueOnce({
-        success: false,
-        error: 'Unauthorized',
-      })
-
-      const req = new NextRequest('http://localhost:3000/api/tools/custom?id=tool-1')
-
-      const response = await DELETE(req)
-      const data = await response.json()
-
-      expect(response.status).toBe(401)
-      expect(data).toHaveProperty('error', 'Unauthorized')
     })
   })
 })

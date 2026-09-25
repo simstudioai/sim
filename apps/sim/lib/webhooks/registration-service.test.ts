@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { providerHandler } = vi.hoisted(() => ({
   providerHandler: {
@@ -73,10 +70,6 @@ function dependencies(
 }
 
 describe('stable webhook registration service', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('persists candidate intent as invisible to legacy delivery queries', () => {
     const now = new Date('2026-07-14T00:00:00Z')
     const desired: DesiredWebhookRegistrationIntent = {

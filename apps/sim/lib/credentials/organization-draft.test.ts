@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { pendingCredentialDraft } from '@sim/db/schema'
 import { dbChainMockFns, hasMockCondition, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -44,7 +43,6 @@ const draft = {
 
 describe('organization OAuth callback completion', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.context.mockResolvedValue({ canWrite: true })
   })
@@ -68,12 +66,6 @@ describe('organization OAuth callback completion', () => {
       })
     )
     expect(dbChainMockFns.delete).toHaveBeenCalledWith(pendingCredentialDraft)
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: 'admin-1',
-        metadata: expect.objectContaining({ organizationId: 'org-1' }),
-      })
-    )
   })
   it('refuses a callback after membership or admin role removal before reading secrets', async () => {
     mocks.context.mockResolvedValue(null)

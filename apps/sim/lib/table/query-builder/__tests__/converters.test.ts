@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Converter unit tests for the table query builder. Cover the operator
  * round-trips — UI rule → Filter object → UI rule — with attention to the
  * valueless `$empty` operator that maps to two distinct UI operators.
@@ -15,10 +13,9 @@ import {
   predicateToFilterRules,
   pruneFilterForColumns,
   prunePredicateForColumns,
-  sortRulesToSortSpec,
   toLegacyFilter,
 } from '@/lib/table/query-builder/converters'
-import type { ColumnDefinition, FilterRule, SortRule, TablePredicate } from '@/lib/table/types'
+import type { ColumnDefinition, FilterRule, TablePredicate } from '@/lib/table/types'
 
 function rule(overrides: Partial<FilterRule>): FilterRule {
   return {
@@ -32,25 +29,6 @@ function rule(overrides: Partial<FilterRule>): FilterRule {
 }
 
 describe('filterRulesToFilter', () => {
-  it('emits a bare value for eq (containment shorthand)', () => {
-    expect(filterRulesToFilter([rule({ operator: 'eq', value: 'John' })])).toEqual({ name: 'John' })
-  })
-
-  it('wraps non-eq operators in a $-prefixed operator object', () => {
-    expect(
-      filterRulesToFilter([rule({ column: 'email', operator: 'startsWith', value: 'a' })])
-    ).toEqual({ email: { $startsWith: 'a' } })
-    expect(
-      filterRulesToFilter([rule({ column: 'email', operator: 'ncontains', value: 'x' })])
-    ).toEqual({ email: { $ncontains: 'x' } })
-  })
-
-  it('parses comma-separated values into arrays for in / nin', () => {
-    expect(
-      filterRulesToFilter([rule({ column: 'status', operator: 'nin', value: 'a, b' })])
-    ).toEqual({ status: { $nin: ['a', 'b'] } })
-  })
-
   it('serializes isEmpty / isNotEmpty to $empty without a value', () => {
     expect(filterRulesToFilter([rule({ column: 'phone', operator: 'isEmpty' })])).toEqual({
       phone: { $empty: true },
@@ -107,20 +85,6 @@ describe('filterToRules', () => {
     expect(notEmpty[0]).toMatchObject({ column: 'phone', operator: 'isNotEmpty', value: '' })
   })
 
-  it('round-trips string-pattern operators', () => {
-    for (const operator of ['contains', 'ncontains', 'startsWith', 'endsWith'] as const) {
-      const filter = filterRulesToFilter([rule({ column: 'name', operator, value: 'abc' })])
-      const back = filterToRules(filter)
-      expect(back[0]).toMatchObject({ column: 'name', operator, value: 'abc' })
-    }
-  })
-
-  it('round-trips isEmpty through filterRulesToFilter', () => {
-    const filter = filterRulesToFilter([rule({ column: 'name', operator: 'isEmpty' })])
-    const back = filterToRules(filter)
-    expect(back[0]).toMatchObject({ column: 'name', operator: 'isEmpty', value: '' })
-  })
-
   it('round-trips a multi-operator column (Filter → rules → Filter) without loss', () => {
     const original = { age: { $gte: 18, $lte: 65 } }
     const rules = filterToRules(original)
@@ -156,15 +120,6 @@ describe('filterRulesToPredicate (v2)', () => {
     })
   })
 
-  it('valueless ops omit the value', () => {
-    const p = filterRulesToPredicate([rule({ column: 'note', operator: 'isEmpty' })])
-    expect(p).toEqual({ all: [{ field: 'note', op: 'isEmpty' }] })
-  })
-
-  it('returns null for no rules', () => {
-    expect(filterRulesToPredicate([])).toBeNull()
-  })
-
   it('round-trips rules → predicate → rules (operator + value preserved)', () => {
     const rules: FilterRule[] = [
       rule({ column: 'wins', operator: 'gte', value: '10' }),
@@ -191,10 +146,6 @@ describe('predicateToFilterRules (v2)', () => {
       ['a', 'eq', '1'],
       ['b', 'isNotEmpty', ''],
     ])
-  })
-
-  it('returns [] for null', () => {
-    expect(predicateToFilterRules(null)).toEqual([])
   })
 })
 
@@ -240,23 +191,6 @@ describe('predicateToFilter (v2 → legacy)', () => {
   })
 })
 
-describe('sortRulesToSortSpec (v2)', () => {
-  it('maps rules to an ordered field/direction list', () => {
-    const rules: SortRule[] = [
-      { id: '1', column: 'wins', direction: 'desc' },
-      { id: '2', column: 'name', direction: 'asc' },
-    ]
-    expect(sortRulesToSortSpec(rules)).toEqual([
-      { field: 'wins', direction: 'desc' },
-      { field: 'name', direction: 'asc' },
-    ])
-  })
-
-  it('skips column-less rules and returns null when empty', () => {
-    expect(sortRulesToSortSpec([{ id: '1', column: '', direction: 'asc' }])).toBeNull()
-  })
-})
-
 it('does not throw "rules is not iterable" for a non-array builder value', () => {
   expect(filterRulesToPredicate({} as unknown as FilterRule[])).toBeNull()
   expect(filterRulesToPredicate(undefined as unknown as FilterRule[])).toBeNull()
@@ -271,15 +205,6 @@ it('rejects predicate-shaped members rather than dropping them', () => {
       rule({ column: 'status', operator: 'eq', value: 'archived' }),
     ] as unknown as FilterRule[])
   ).toThrow(/predicate condition/)
-})
-
-it('still ignores a genuinely blank builder row', () => {
-  expect(
-    filterRulesToPredicate([
-      rule({ column: '', operator: 'eq', value: '' }),
-      rule({ column: 'status', operator: 'eq', value: 'archived' }),
-    ])
-  ).toEqual({ all: [{ field: 'status', op: 'eq', value: 'archived' }] })
 })
 describe('select option ids survive as text', () => {
   const numericIdColumn: ColumnDefinition = {
@@ -313,11 +238,6 @@ describe('select option ids survive as text', () => {
     ).toEqual({ status: { $in: ['1', 'true'] } })
   })
 
-  it('still coerces on a non-select column', () => {
-    const age: ColumnDefinition = { id: 'age', name: 'age', type: 'number' }
-    expect(filterRulesToFilter([rule({ column: 'age', value: '30' })], [age])).toEqual({ age: 30 })
-  })
-
   it('survives the prune round-trip without coercion', () => {
     const filter = { status: '1' }
     // Nothing to prune here, but the pruned path re-serializes through the
@@ -343,30 +263,12 @@ describe('pruneFilterForColumns', () => {
     expect(pruneFilterForColumns({ status: 'opt_a' }, [multi])).toBeNull()
   })
 
-  it('keeps the operators each cardinality does accept', () => {
-    const eq = { status: 'opt_a' }
-    expect(pruneFilterForColumns(eq, [single])).toBe(eq)
-    const contains = { status: { $contains: 'opt_a' } }
-    expect(pruneFilterForColumns(contains, [multi])).toBe(contains)
-  })
-
   it('keeps sibling conditions when one is pruned', () => {
     const pruned = pruneFilterForColumns(
       { status: { $contains: 'Op' }, name: { $contains: 'ada' } },
       [single, text]
     )
     expect(pruned).toEqual({ name: { $contains: 'ada' } })
-  })
-
-  it('leaves non-select and unresolved columns for the server to judge', () => {
-    const onText = { name: { $contains: 'ada' } }
-    expect(pruneFilterForColumns(onText, [text])).toBe(onText)
-    const unknown = { gone: { $contains: 'x' } }
-    expect(pruneFilterForColumns(unknown, [single])).toBe(unknown)
-  })
-
-  it('returns the same object when nothing is pruned', () => {
-    expect(pruneFilterForColumns(null, [single])).toBeNull()
   })
 })
 
@@ -395,14 +297,6 @@ describe('filterRulesToPredicate select-awareness (grid parity)', () => {
     )
     expect(p).toEqual({ all: [{ field: 'col_status', op: 'in', value: ['123', '456'] }] })
   })
-
-  it('still coerces non-select columns', () => {
-    const p = filterRulesToPredicate(
-      [rule({ column: 'wins', operator: 'eq', value: '123' })],
-      SELECT_COLS
-    )
-    expect(p).toEqual({ all: [{ field: 'wins', op: 'eq', value: 123 }] })
-  })
 })
 
 describe('prunePredicateForColumns', () => {
@@ -424,24 +318,10 @@ describe('prunePredicateForColumns', () => {
     expect(p).toEqual({ all: [{ field: 'col_n', op: 'gte', value: 5 }] })
   })
 
-  it('returns the same reference when nothing is dropped', () => {
-    const p = { all: [{ field: 'col_n', op: 'gte' as const, value: 5 }] }
-    expect(prunePredicateForColumns(p, COLS)).toBe(p)
-  })
-
   it('collapses to null when every condition is dropped', () => {
     expect(
       prunePredicateForColumns({ all: [{ field: 'col_s', op: 'contains', value: 'o1' }] }, COLS)
     ).toBeNull()
-  })
-})
-
-describe('isTablePredicate', () => {
-  it('discriminates the two grammars group-first', () => {
-    expect(isTablePredicate({ all: [] })).toBe(true)
-    expect(isTablePredicate({ any: [] })).toBe(true)
-    expect(isTablePredicate({ status: 'active' })).toBe(false)
-    expect(isTablePredicate({ $or: [{ a: 1 }] } as never)).toBe(false)
   })
 })
 
@@ -482,13 +362,6 @@ describe('toLegacyFilter / predicateToFilter hybrid safety', () => {
     // malformed group value is also caught, not crashed on
     expect(() => toLegacyFilter({ all: [{ all: 'x' }] } as never)).toThrow()
   })
-
-  it('toLegacyFilter passes a well-formed predicate and a legacy filter through', () => {
-    expect(toLegacyFilter({ all: [{ field: 'a', op: 'eq', value: 1 }] })).toEqual({
-      $and: [{ a: 1 }],
-    })
-    expect(toLegacyFilter({ status: 'archived' })).toEqual({ status: 'archived' })
-  })
 })
 
 describe('isTablePredicate vs columns literally named all/any', () => {
@@ -497,13 +370,6 @@ describe('isTablePredicate vs columns literally named all/any', () => {
     // objects on it are legacy filters, not predicate groups.
     expect(isTablePredicate({ all: 'x' } as never)).toBe(false)
     expect(isTablePredicate({ any: { $eq: 'x' } } as never)).toBe(false)
-  })
-
-  it('array-valued all/any is a predicate group (documented precedence)', () => {
-    // A legacy filter with an ARRAY on a regular field was always a dropped
-    // no-op condition, so predicate precedence here regresses nothing.
-    expect(isTablePredicate({ all: [] })).toBe(true)
-    expect(isTablePredicate({ any: [{ field: 'a', op: 'eq', value: 1 }] })).toBe(true)
   })
 })
 

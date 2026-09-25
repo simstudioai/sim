@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   isInternalToolFileResult,
@@ -23,7 +19,6 @@ import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 
 describe('getTwilioRecording', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.validateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
     mocks.secureFetchWithPinnedIP
       .mockResolvedValueOnce(

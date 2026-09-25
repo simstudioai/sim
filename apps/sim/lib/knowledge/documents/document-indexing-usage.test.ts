@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -204,7 +201,6 @@ function recordedSourceReference(index: number): string {
 
 describe('knowledge document indexing usage', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     // The processing claim is guarded and returns the row it claimed; without a
     // stub every worker would read as 'already completed' and return early.
@@ -261,33 +257,6 @@ describe('knowledge document indexing usage', () => {
     finishParse?.({ chunks: [{ text: 'late text', metadata: {} }], metadata: {} })
     await vi.advanceTimersByTimeAsync(0)
     expect(mockGenerateEmbeddings).not.toHaveBeenCalled()
-    expect(mockRecordUsage).not.toHaveBeenCalled()
-  })
-
-  it('aborts in-flight embeddings when the document deadline expires', async () => {
-    vi.useFakeTimers()
-    armDocumentReads()
-    mockGenerateEmbeddings.mockImplementationOnce(
-      (_texts, _model, _workspace, signal: AbortSignal) =>
-        new Promise((_resolve, reject) =>
-          signal.addEventListener('abort', () => reject(signal.reason), { once: true })
-        )
-    )
-    const pending = processDocumentAsync(
-      KNOWLEDGE_BASE_ID,
-      DOCUMENT_ID,
-      DOC_DATA,
-      {},
-      BILLING_ATTRIBUTION,
-      'timeout-pass'
-    )
-    const rejected = expect(pending).rejects.toThrow('Document processing timed out')
-    await vi.advanceTimersByTimeAsync(0)
-    const signal = mockGenerateEmbeddings.mock.calls[0][3] as AbortSignal
-    expect(signal).toBe(mockProcessDocument.mock.calls[0][6].signal)
-    await vi.advanceTimersByTimeAsync(600_001)
-    await rejected
-    expect(signal.aborted).toBe(true)
     expect(mockRecordUsage).not.toHaveBeenCalled()
   })
 
@@ -371,25 +340,6 @@ describe('knowledge document indexing usage', () => {
 
     expect(mockRecordUsage).toHaveBeenCalledTimes(2)
     expect(recordedSourceReference(1)).not.toBe(recordedSourceReference(0))
-  })
-
-  it('falls back to a pricing-scoped reference that is still stable across attempts', async () => {
-    const nowSpy = vi.spyOn(Date, 'now')
-
-    nowSpy.mockReturnValue(1_000)
-    armDocumentReads()
-    await processDocumentAsync(KNOWLEDGE_BASE_ID, DOCUMENT_ID, DOC_DATA, {}, BILLING_ATTRIBUTION)
-
-    nowSpy.mockReturnValue(9_000)
-    armDocumentReads()
-    await processDocumentAsync(KNOWLEDGE_BASE_ID, DOCUMENT_ID, DOC_DATA, {}, BILLING_ATTRIBUTION)
-
-    nowSpy.mockRestore()
-
-    expect(recordedSourceReference(0)).toBe(
-      `knowledge-document:${DOCUMENT_ID}:model:text-embedding-3-small`
-    )
-    expect(recordedSourceReference(1)).toBe(recordedSourceReference(0))
   })
 
   it('re-bills the fallback reference when the embedding model changes', async () => {

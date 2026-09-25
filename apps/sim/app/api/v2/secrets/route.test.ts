@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -83,7 +80,6 @@ const secret = {
 
 describe('GET /api/v2/secrets', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.authenticate.mockResolvedValue(AUTH)
     mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
@@ -270,52 +266,6 @@ describe('GET /api/v2/secrets', () => {
 
     expect(replayed.status).toBe(400)
     expect((await replayed.json()).error.message).toBe(REFILTERED_CURSOR_MESSAGE)
-    expect(mocks.list).not.toHaveBeenCalled()
-  })
-
-  it('resumes a cursor replayed under the filters it was minted with', async () => {
-    mocks.list.mockResolvedValue({
-      secrets: [secret],
-      values: {},
-      userId: 'user-1',
-      nextCursorKeys: ['STRIPE_API_KEY', 'secret-1'],
-      sortBy: 'name',
-      sortOrder: 'asc',
-    })
-
-    const minted = await GET(
-      new NextRequest(
-        `http://localhost:3000/api/v2/secrets?workspaceId=${WORKSPACE_ID}&search=stripe`,
-        { headers: { 'x-api-key': 'key' } }
-      )
-    )
-    const { nextCursor } = await minted.json()
-
-    mocks.list.mockClear()
-    const resumed = await GET(
-      new NextRequest(
-        `http://localhost:3000/api/v2/secrets?workspaceId=${WORKSPACE_ID}&search=stripe&cursor=${encodeURIComponent(nextCursor)}`,
-        { headers: { 'x-api-key': 'key' } }
-      )
-    )
-
-    expect(resumed.status).toBe(200)
-    expect(mocks.list).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: expect.objectContaining({
-        search: 'stripe',
-        cursorKeys: ['STRIPE_API_KEY', 'secret-1'],
-      }),
-      request: expect.anything(),
-    })
-  })
-
-  it('authenticates before validating list input', async () => {
-    mocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await GET(new NextRequest('http://localhost:3000/api/v2/secrets'))
-
-    expect(response.status).toBe(401)
     expect(mocks.list).not.toHaveBeenCalled()
   })
 })

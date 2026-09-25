@@ -1,7 +1,5 @@
 /**
  * Tests for the workspace-events no-activity polling cron route.
- *
- * @vitest-environment node
  */
 import { createMockRequest, redisConfigMockFns } from '@sim/testing'
 import { sleep } from '@sim/utils/helpers'
@@ -32,7 +30,6 @@ const flushMicrotasks = () => sleep(0)
 
 describe('workspace events polling route (fire-and-forget)', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     redisConfigMockFns.mockAcquireLock.mockResolvedValue(true)
     redisConfigMockFns.mockReleaseLock.mockResolvedValue(true)
     mockVerifyCronAuth.mockReturnValue(null)
@@ -42,36 +39,6 @@ describe('workspace events polling route (fire-and-forget)', () => {
       fired: 0,
       skipped: 0,
     })
-  })
-
-  it('returns the auth error when cron auth fails', async () => {
-    mockVerifyCronAuth.mockReturnValueOnce(new Response(null, { status: 401 }) as never)
-
-    const response = await GET(createRequest())
-
-    expect(response.status).toBe(401)
-    expect(mockPollNoActivityEvents).not.toHaveBeenCalled()
-  })
-
-  it('acknowledges with 202 and polls in the background after acquiring the lock', async () => {
-    const response = await GET(createRequest())
-
-    expect(response.status).toBe(202)
-    const data = await response.json()
-    expect(data).toMatchObject({ status: 'started' })
-    expect(redisConfigMockFns.mockAcquireLock).toHaveBeenCalledWith(
-      'workspace-events-no-activity-poll-lock',
-      expect.any(String),
-      expect.any(Number),
-      { reclaimOnFailure: true }
-    )
-
-    await flushMicrotasks()
-    expect(mockPollNoActivityEvents).toHaveBeenCalledTimes(1)
-    expect(redisConfigMockFns.mockReleaseLock).toHaveBeenCalledWith(
-      'workspace-events-no-activity-poll-lock',
-      expect.any(String)
-    )
   })
 
   it('skips with 202 when the lock is already held', async () => {

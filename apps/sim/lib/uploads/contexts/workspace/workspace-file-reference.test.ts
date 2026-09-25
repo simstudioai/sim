@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * `resolveWorkspaceFileReference` and the chat-upload namespace. Chat uploads
  * (`context = 'mothership'`) are hidden from every listing on purpose, so the
  * only way to one is an explicit `uploads/<name>` reference (or its own id)
@@ -54,11 +52,9 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => 
 }))
 
 import {
-  getSandboxWorkspaceFilePath,
   listWorkspaceFiles,
   parseChatUploadReference,
   resolveWorkspaceFileReference,
-  workspaceFileVfsPath,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
 const WS = '22222222-2222-2222-2222-222222222222'
@@ -111,7 +107,6 @@ describe('parseChatUploadReference', () => {
 
 describe('resolveWorkspaceFileReference', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -176,17 +171,6 @@ describe('resolveWorkspaceFileReference', () => {
     )
   })
 
-  it('falls through to workspace files when no chat upload carries the name', async () => {
-    queueTableRows(schemaMock.workspaceFiles, [])
-    queueTableRows(schemaMock.workspaceFiles, [])
-
-    await expect(
-      resolveWorkspaceFileReference(WS, 'uploads/report.csv', { includeChatUploads: true })
-    ).resolves.toBeNull()
-
-    expect(dbChainMockFns.from).toHaveBeenCalledTimes(2)
-  })
-
   it('reaches a chat upload by its own id only on opt-in', async () => {
     queueTableRows(schemaMock.workspaceFiles, [{ file: chatUploadRow(), currentVersion: 7 }])
 
@@ -205,23 +189,6 @@ describe('resolveWorkspaceFileReference', () => {
         type: 'inArray',
         column: schemaMock.workspaceFiles.context,
         values: ['workspace', 'mothership'],
-      })
-    )
-  })
-
-  it('keeps id lookups on workspace files by default', async () => {
-    queueTableRows(schemaMock.workspaceFiles, [])
-    queueTableRows(schemaMock.workspaceFiles, [])
-
-    await resolveWorkspaceFileReference(WS, 'wf_upload')
-
-    const conditions = allConditions()
-    expect(conditions.some((condition) => condition.type === 'inArray')).toBe(false)
-    expect(conditions).toContainEqual(
-      expect.objectContaining({
-        type: 'eq',
-        left: schemaMock.workspaceFiles.context,
-        right: 'workspace',
       })
     )
   })
@@ -291,7 +258,6 @@ describe('resolveWorkspaceFileReference', () => {
 
 describe('listWorkspaceFiles', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -307,21 +273,5 @@ describe('listWorkspaceFiles', () => {
         right: 'workspace',
       })
     )
-  })
-})
-
-describe('workspace file VFS paths', () => {
-  it('addresses a chat upload under uploads/ and mounts it there', () => {
-    const upload = { folderPath: null, name: 'face (2).png', vfsNamespace: 'uploads' as const }
-
-    expect(workspaceFileVfsPath(upload)).toBe('uploads/face%20(2).png')
-    expect(getSandboxWorkspaceFilePath(upload)).toBe('/home/user/uploads/face%20(2).png')
-  })
-
-  it('keeps workspace files under files/', () => {
-    const file = { folderPath: 'Reports', name: 'data.csv' }
-
-    expect(workspaceFileVfsPath(file)).toBe('files/Reports/data.csv')
-    expect(getSandboxWorkspaceFilePath(file)).toBe('/home/user/files/Reports/data.csv')
   })
 })

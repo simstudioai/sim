@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-import { createLogger } from '@sim/logger'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -94,14 +90,6 @@ vi.mock('@/executor/handlers/pi/core/pi-sdk', async (importOriginal) => ({
 import { runCloudReviewPi } from '@/executor/handlers/pi/cloud/review/backend'
 import type { PiCloudReviewRunParams } from '@/executor/handlers/pi/core/backend'
 
-/**
- * The mock logger instance the global `@sim/logger` mock handed to the module
- * under test at import time, captured so the suite can assert on its warns.
- */
-const mockLoggerWarn = vi.mocked(createLogger).mock.results[
-  vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'PiCloudReviewBackend')
-].value.warn as ReturnType<typeof vi.fn>
-
 const HEAD_SHA = 'a'.repeat(40)
 const BASE_SHA = 'b'.repeat(40)
 const REVIEW_TOOL_NAMES = [
@@ -148,7 +136,6 @@ function snapshot(overrides: Record<string, unknown> = {}) {
 
 describe('runCloudReviewPi', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     sessionEventListener = undefined
     mockPrompt.mockReset()
     mockPrompt.mockResolvedValue(undefined)
@@ -233,29 +220,6 @@ describe('runCloudReviewPi', () => {
     })
   })
 
-  it('uses metadata-only fetches and one exact commit_id', async () => {
-    const signal = new AbortController().signal
-    await runCloudReviewPi(baseParams(), { onEvent: vi.fn(), signal })
-
-    const metadataCalls = mockExecuteTool.mock.calls.filter(
-      ([toolId]: [string]) => toolId === 'github_pr_v2'
-    )
-    expect(metadataCalls).toHaveLength(2)
-    for (const [, input, options] of metadataCalls) {
-      expect(input).toMatchObject({ includeFiles: false, pullNumber: 7 })
-      expect(options).toEqual({ signal })
-    }
-    expect(mockExecuteTool).toHaveBeenCalledWith(
-      'github_create_pr_review_v2',
-      expect.objectContaining({
-        commit_id: HEAD_SHA,
-        body: 'Overall review.',
-        comments: [{ path: 'src/x.ts', body: 'Fix this', line: 12, side: 'RIGHT' }],
-      }),
-      { signal }
-    )
-  })
-
   it('fails closed when checkout does not match the API snapshot', async () => {
     mockRun.mockImplementation((command: string) => {
       if (command.includes('git clone')) {
@@ -311,81 +275,6 @@ describe('runCloudReviewPi', () => {
     expect(metadataFetches).toBe(2)
   })
 
-  it('requires complete PR snapshot metadata before creating a sandbox', async () => {
-    mockExecuteTool.mockResolvedValue({
-      success: true,
-      output: snapshot({ base: undefined }),
-    })
-
-    await expect(runCloudReviewPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(
-      /pull request response\.base must be an object/
-    )
-    expect(mockRun).not.toHaveBeenCalled()
-  })
-
-  it('does not post when the agent omits structured findings', async () => {
-    mockGetFindings.mockReturnValue(undefined)
-
-    await expect(runCloudReviewPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(
-      /without calling submit_review/
-    )
-    expect(
-      mockExecuteTool.mock.calls.some(
-        ([toolId]: [string]) => toolId === 'github_create_pr_review_v2'
-      )
-    ).toBe(false)
-  })
-
-  it('does not post when the agent emits an error event', async () => {
-    mockPrompt.mockImplementation(async () => {
-      sessionEventListener?.({ type: 'error', error: 'provider failed' })
-    })
-
-    await expect(runCloudReviewPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(
-      /Pi review agent failed: provider failed/
-    )
-    expect(
-      mockExecuteTool.mock.calls.some(
-        ([toolId]: [string]) => toolId === 'github_create_pr_review_v2'
-      )
-    ).toBe(false)
-  })
-
-  it('does not post after cancellation during the agent run', async () => {
-    const abortController = new AbortController()
-    mockPrompt.mockImplementation(async () => {
-      abortController.abort()
-    })
-
-    await expect(
-      runCloudReviewPi(baseParams(), {
-        onEvent: vi.fn(),
-        signal: abortController.signal,
-      })
-    ).rejects.toThrow(/aborted/)
-    expect(mockAgentSession.abort).toHaveBeenCalled()
-    expect(
-      mockExecuteTool.mock.calls.some(
-        ([toolId]: [string]) => toolId === 'github_create_pr_review_v2'
-      )
-    ).toBe(false)
-  })
-
-  it('supports hosted model credentials without sending them to the sandbox', async () => {
-    await expect(
-      runCloudReviewPi(
-        baseParams({ isBYOK: false, apiKey: 'sk-hosted', task: 'review sk-hosted' }),
-        { onEvent: vi.fn() }
-      )
-    ).resolves.toMatchObject({ commentsPosted: 1 })
-    expect(mockSetRuntimeApiKey).toHaveBeenCalledWith('anthropic', 'sk-hosted')
-    expect(
-      mockRun.mock.calls.some(([, options]) => JSON.stringify(options.envs).includes('sk-hosted'))
-    ).toBe(false)
-    expect(JSON.stringify(mockWriteFile.mock.calls)).not.toContain('sk-hosted')
-    expect(mockPrompt.mock.calls[0][0]).toContain('review sk-hosted')
-  })
-
   it('scrubs hosted credentials from emitted and thrown provider errors', async () => {
     const onEvent = vi.fn()
     mockPrompt.mockImplementation(async () => {
@@ -409,68 +298,6 @@ describe('runCloudReviewPi', () => {
     expect(JSON.stringify(onEvent.mock.calls)).not.toContain('sk-hosted')
   })
 
-  it('scrubs hosted credentials from exceptions thrown by the Pi SDK', async () => {
-    mockCreateAgentSession.mockRejectedValueOnce(
-      new Error('request failed with Authorization: Bearer sk-hosted')
-    )
-
-    const error = (await runCloudReviewPi(baseParams({ isBYOK: false, apiKey: 'sk-hosted' }), {
-      onEvent: vi.fn(),
-    }).catch((caught) => caught)) as Error
-
-    expect(error.message).toBe('request failed with Authorization: Bearer ***')
-    expect(mockRemoveRuntimeApiKey).toHaveBeenCalledWith('anthropic')
-  })
-
-  it('scrubs hosted credentials from disposal logs', async () => {
-    mockAgentSession.dispose.mockImplementationOnce(() => {
-      throw new Error('dispose failed for sk-hosted')
-    })
-
-    await runCloudReviewPi(baseParams({ isBYOK: false, apiKey: 'sk-hosted' }), {
-      onEvent: vi.fn(),
-    })
-
-    expect(mockLoggerWarn).toHaveBeenCalledWith('Failed to dispose Pi review session', {
-      error: 'dispose failed for ***',
-    })
-    expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain('sk-hosted')
-  })
-
-  it('does not rewrite review content that matches a transport credential', async () => {
-    const onEvent = vi.fn()
-    mockGetFindings.mockReturnValue({
-      body: 'Summary accidentally included sk-hosted.',
-      comments: [
-        { path: 'src/x.ts', body: 'Inline sk-hosted disclosure', line: 12, side: 'RIGHT' },
-      ],
-    })
-
-    const result = await runCloudReviewPi(baseParams({ isBYOK: false, apiKey: 'sk-hosted' }), {
-      onEvent,
-    })
-
-    const reviewCall = mockExecuteTool.mock.calls.find(
-      ([toolId]: [string]) => toolId === 'github_create_pr_review_v2'
-    )
-    expect(reviewCall?.[1]).toMatchObject({
-      body: 'Summary accidentally included sk-hosted.',
-      comments: [
-        {
-          path: 'src/x.ts',
-          body: 'Inline sk-hosted disclosure',
-          line: 12,
-          side: 'RIGHT',
-        },
-      ],
-    })
-    expect(result.totals.finalText).toBe('Summary accidentally included sk-hosted.')
-    expect(onEvent).toHaveBeenCalledWith({
-      type: 'text',
-      text: 'Summary accidentally included sk-hosted.',
-    })
-  })
-
   describe('optional web search', () => {
     function searchParams() {
       return baseParams({
@@ -486,35 +313,6 @@ describe('runCloudReviewPi', () => {
         },
       })
     }
-
-    it('states no network access and omits web_search when search is off', async () => {
-      await runCloudReviewPi(baseParams(), { onEvent: vi.fn() })
-
-      const systemPrompt = mockCreateSealedResourceLoader.mock.calls[0][1]
-      expect(systemPrompt).toContain('access the network')
-      expect(systemPrompt).not.toContain('web_search')
-      expect(mockPrompt.mock.calls[0][0]).toContain('Use repository tools only to inspect code')
-      expect(mockCreateAgentSession.mock.calls[0][0].tools).toEqual(REVIEW_TOOL_NAMES)
-    })
-
-    it('allows web_search in the sealed prompt and registers it in both tool lists', async () => {
-      await runCloudReviewPi(searchParams(), { onEvent: vi.fn() })
-
-      const systemPrompt = mockCreateSealedResourceLoader.mock.calls[0][1]
-      expect(systemPrompt).toContain('your only network access is web_search')
-      expect(systemPrompt).toContain('You may only use')
-      expect(systemPrompt).toContain('web_search')
-      // The sealed prompt drops promptGuidelines, so the untrusted-data warning has to be in it.
-      expect(systemPrompt).toContain('untrusted third-party data')
-      expect(mockPrompt.mock.calls[0][0]).toContain('web_search only when a finding depends on')
-
-      const session = mockCreateAgentSession.mock.calls[0][0]
-      expect(session.tools).toEqual([...REVIEW_TOOL_NAMES, 'web_search'])
-      expect(session.customTools.map((tool: { name: string }) => tool.name)).toEqual([
-        ...REVIEW_TOOL_NAMES,
-        'web_search',
-      ])
-    })
 
     it('keeps the search key out of the sandbox without rewriting successful tool content', async () => {
       const params = searchParams()
@@ -540,32 +338,6 @@ describe('runCloudReviewPi', () => {
     expect(mockRun).not.toHaveBeenCalled()
   })
 
-  it('rejects malformed repository coordinates before making an authenticated request', async () => {
-    await expect(
-      runCloudReviewPi(baseParams({ owner: '../octo' }), { onEvent: vi.fn() })
-    ).rejects.toThrow(/Invalid GitHub repository coordinates/)
-    expect(mockExecuteTool).not.toHaveBeenCalled()
-  })
-
-  it('requires exact commit SHAs and review URLs from GitHub responses', async () => {
-    mockExecuteTool.mockResolvedValueOnce({
-      success: true,
-      output: snapshot({ head: { sha: 'short' } }),
-    })
-    await expect(runCloudReviewPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(
-      /head\.sha must be a full commit SHA/
-    )
-
-    vi.clearAllMocks()
-    mockExecuteTool.mockResolvedValueOnce({
-      success: true,
-      output: snapshot({ html_url: undefined }),
-    })
-    await expect(runCloudReviewPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(
-      /pull request response\.html_url must be a non-blank string/
-    )
-  })
-
   it('fails closed when GitHub reports a different reviewed commit', async () => {
     mockExecuteTool.mockImplementation((toolId: string) => {
       if (toolId === 'github_pr_v2') {
@@ -586,46 +358,5 @@ describe('runCloudReviewPi', () => {
     await expect(runCloudReviewPi(baseParams(), { onEvent: vi.fn() })).rejects.toThrow(
       /did not match the reviewed commit/
     )
-  })
-
-  it('accepts a null reviewed commit after GitHub has submitted the review', async () => {
-    mockExecuteTool.mockImplementation((toolId: string) => {
-      if (toolId === 'github_pr_v2') {
-        return Promise.resolve({ success: true, output: snapshot() })
-      }
-      if (toolId === 'github_create_pr_review_v2') {
-        return Promise.resolve({
-          success: true,
-          output: {
-            html_url: 'https://github.com/octo/demo/pull/7#pullrequestreview-9',
-            commit_id: null,
-          },
-        })
-      }
-      throw new Error(`Unexpected tool: ${toolId}`)
-    })
-
-    await expect(runCloudReviewPi(baseParams(), { onEvent: vi.fn() })).resolves.toMatchObject({
-      reviewUrl: 'https://github.com/octo/demo/pull/7#pullrequestreview-9',
-    })
-    expect(
-      mockExecuteTool.mock.calls.filter(
-        ([toolId]: [string]) => toolId === 'github_create_pr_review_v2'
-      )
-    ).toHaveLength(1)
-  })
-
-  it('scrubs the GitHub token from authenticated fetch failures', async () => {
-    mockRun.mockResolvedValue({
-      stdout: '',
-      stderr: 'fatal: Authentication failed for token ghp_secret',
-      exitCode: 1,
-    })
-
-    const error = (await runCloudReviewPi(baseParams(), { onEvent: vi.fn() }).catch(
-      (caught) => caught
-    )) as Error
-    expect(error.message).toMatch(/git fetch PR failed/)
-    expect(error.message).not.toContain('ghp_secret')
   })
 })

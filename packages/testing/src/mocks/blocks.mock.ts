@@ -305,7 +305,7 @@ export function createMockGetBlock(extraConfigs: Record<string, any> = {}) {
 /**
  * Mock tool configurations for validation tests.
  */
-export const mockToolConfigs: Record<string, any> = {
+const mockToolConfigs: Record<string, any> = {
   jina_read_url: {
     params: {
       url: { visibility: 'user-or-llm', required: true },
@@ -323,7 +323,7 @@ export const mockToolConfigs: Record<string, any> = {
 /**
  * Creates a getTool function that returns mock tool configs.
  */
-export function createMockGetTool(extraConfigs: Record<string, any> = {}) {
+function createMockGetTool(extraConfigs: Record<string, any> = {}) {
   const configs = { ...mockToolConfigs, ...extraConfigs }
   return (toolId: string) => configs[toolId] || null
 }

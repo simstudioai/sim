@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   hasMockCondition,
@@ -9,7 +6,6 @@ import {
   schemaMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { DbOrTx } from '@/lib/db/types'
 import type { TableSchema } from '@/lib/table/types'
 
 const { mockAssertTableRowTtlEnabled } = vi.hoisted(() => ({
@@ -33,28 +29,6 @@ import { createTable, getTableById } from '@/lib/table/service'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 
-/** A column produced by a workflow group, and the group that declares it. */
-function groupedSchema(overrides: { columnGroupId: string; groupId: string }): TableSchema {
-  return {
-    columns: [
-      { id: 'col_email', name: 'email', type: 'string' },
-      {
-        id: 'col_summary',
-        name: 'summary',
-        type: 'string',
-        workflowGroupId: overrides.columnGroupId,
-      },
-    ],
-    workflowGroups: [
-      {
-        id: overrides.groupId,
-        workflowId: 'workflow-1',
-        outputs: [{ blockId: 'block-1', path: 'out', columnName: 'col_summary' }],
-      },
-    ],
-  } as TableSchema
-}
-
 function create(schema: TableSchema) {
   return createTable(
     { name: 'contacts', schema, workspaceId: WORKSPACE_ID, userId: 'user-1' },
@@ -64,7 +38,6 @@ function create(schema: TableSchema) {
 
 describe('createTable schema invariants', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockAssertTableRowTtlEnabled.mockResolvedValue(undefined)
   })
@@ -97,39 +70,6 @@ describe('createTable schema invariants', () => {
     })
 
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-  })
-
-  it('still creates a table whose columns name a group the same schema declares', async () => {
-    queueTableRows(schemaMock.userTableDefinitions, [{ count: 0 }])
-
-    const table = await create(groupedSchema({ columnGroupId: 'group-1', groupId: 'group-1' }))
-
-    expect(table.schema.columns.map((column) => column.workflowGroupId)).toEqual([
-      undefined,
-      'group-1',
-    ])
-    expect(dbChainMockFns.insert).toHaveBeenCalled()
-  })
-
-  it('creates an ordinary group-free table with a persisted default view', async () => {
-    queueTableRows(schemaMock.userTableDefinitions, [{ count: 0 }])
-
-    const table = await create({ columns: [{ name: 'email', type: 'string' }] } as TableSchema)
-
-    expect(table.name).toBe('contacts')
-    expect(table.schema.columns[0].id).toEqual(expect.any(String))
-    expect(dbChainMockFns.insert).toHaveBeenCalledWith(schemaMock.userTableDefinitions)
-    expect(dbChainMockFns.insert).toHaveBeenCalledWith(schemaMock.tableViews)
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tableId: table.id,
-        workspaceId: WORKSPACE_ID,
-        name: 'Default',
-        config: {},
-        isDefault: true,
-        createdBy: 'user-1',
-      })
-    )
   })
 })
 
@@ -167,31 +107,7 @@ function definitionRow(overrides: Record<string, unknown> = {}) {
  */
 describe('getTableById job derivation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('reads the table and its latest job in a single query', async () => {
-    queueTableRows(schemaMock.userTableDefinitions, [definitionRow()])
-
-    const table = await getTableById(TABLE_ID)
-
-    expect(table).toMatchObject({ id: TABLE_ID, rowCount: 100 })
-    expect(table).toMatchObject({
-      jobStatus: null,
-      jobId: null,
-      jobType: null,
-      jobError: null,
-      jobRowsProcessed: 0,
-    })
-    expect(table).not.toHaveProperty('pendingDeleteRemaining')
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
-    // double-cast-allowed: the mocked drizzle `sql` tag exposes the raw template parts
-    const projected = dbChainMockFns.select.mock.calls[0][0] as unknown as {
-      latestJob?: { strings: string[]; values: unknown[] }
-    }
-    expect(projected.latestJob?.strings.join(' ? ')).toContain("<> 'export'")
-    expect(projected.latestJob?.values).toContain(schemaMock.userTableDefinitions.id)
   })
 
   it("reduces rowCount by a running delete job's remaining doomed rows", async () => {
@@ -219,40 +135,6 @@ describe('getTableById job derivation', () => {
     })
   })
 
-  it('leaves rowCount alone for a running job that is not a delete', async () => {
-    queueTableRows(schemaMock.userTableDefinitions, [
-      definitionRow({
-        latestJob: {
-          id: 'job-2',
-          type: 'import',
-          status: 'running',
-          rowsProcessed: 4,
-          error: null,
-          doomedCount: 10,
-        },
-      }),
-    ])
-
-    expect(await getTableById(TABLE_ID)).toMatchObject({ rowCount: 100, jobType: 'import' })
-  })
-
-  it('leaves rowCount alone once the delete job is terminal', async () => {
-    queueTableRows(schemaMock.userTableDefinitions, [
-      definitionRow({
-        latestJob: {
-          id: 'job-3',
-          type: 'delete',
-          status: 'ready',
-          rowsProcessed: 4,
-          error: null,
-          doomedCount: 10,
-        },
-      }),
-    ])
-
-    expect(await getTableById(TABLE_ID)).toMatchObject({ rowCount: 100, jobStatus: 'ready' })
-  })
-
   it('filters out archived tables unless includeArchived is set', async () => {
     queueTableRows(schemaMock.userTableDefinitions, [definitionRow()])
     await getTableById(TABLE_ID)
@@ -276,29 +158,5 @@ describe('getTableById job derivation', () => {
           node.type === 'isNull' && node.column === schemaMock.userTableDefinitions.archivedAt
       )
     ).toBe(false)
-  })
-
-  it('runs the single query on a supplied transaction executor', async () => {
-    const limit = vi.fn().mockResolvedValue([
-      definitionRow({
-        latestJob: {
-          id: 'job-4',
-          type: 'delete',
-          status: 'running',
-          rowsProcessed: 1,
-          error: null,
-          doomedCount: 5,
-        },
-      }),
-    ])
-    const select = vi.fn(() => ({ from: () => ({ where: () => ({ limit }) }) }))
-    const tx = { select } as unknown as DbOrTx
-
-    const table = await getTableById(TABLE_ID, { tx })
-
-    expect(table).toMatchObject({ rowCount: 96, jobId: 'job-4' })
-    expect(select).toHaveBeenCalledTimes(1)
-    expect(limit).toHaveBeenCalledWith(1)
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 })

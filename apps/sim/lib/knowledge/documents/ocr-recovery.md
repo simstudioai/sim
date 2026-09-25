@@ -34,7 +34,7 @@ Confluence pages with valid, verified empty bodies become successful skips. Sear
 
 ## Validation and rollout
 
-Run `bun scripts/test-knowledge-acls.ts` for disposable PostgreSQL/Redis tests covering concurrent capacity admission, delayed recovery, indexing, and authorized search. Set `KNOWLEDGE_PROVIDER_LIVE_ENV_FILE` to a selected local environment file to additionally test synthetic content against real OpenAI/Mistral APIs. The harness never uses the production database.
+Run `bun run test:integration` for disposable PostgreSQL/Redis tests covering concurrent capacity admission, delayed recovery, indexing, and authorized search. Set `KNOWLEDGE_PROVIDER_LIVE_ENV_FILE` to a selected local environment file to additionally test synthetic content against real OpenAI/Mistral APIs. The harness never uses the production database.
 
 Without Trigger, knowledge outbox handlers receive a bounded 550-second slice. Bundled Docker and Helm schedules use the longer outbox request budget. Custom schedulers or proxies calling the outbox endpoint must permit its 800-second invocation budget.
 

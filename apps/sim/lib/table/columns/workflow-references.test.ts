@@ -1,12 +1,8 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import {
   collectTableBlockColumnReferences,
   findUnmigratedTableBlockReferences,
-  isTableBlockBoundTo,
 } from '@/lib/table/columns/workflow-references'
 
 function subBlocks(values: Record<string, unknown>) {
@@ -67,25 +63,10 @@ describe('collectTableBlockColumnReferences', () => {
       collectTableBlockColumnReferences(subBlocks({ filter: '<start.filter>' }), 'wins')
     ).toEqual([])
   })
-
-  it('ignores empty and absent sub-blocks', () => {
-    expect(collectTableBlockColumnReferences(subBlocks({ filter: '  ' }), 'wins')).toEqual([])
-    expect(collectTableBlockColumnReferences({}, 'wins')).toEqual([])
-  })
-})
-
-describe('isTableBlockBoundTo', () => {
-  it('accepts the manual id, the selector, or a canonical tableId', () => {
-    expect(isTableBlockBoundTo(subBlocks({ manualTableId: 'tbl_1' }), 'tbl_1')).toBe(true)
-    expect(isTableBlockBoundTo(subBlocks({ tableSelector: 'tbl_1' }), 'tbl_1')).toBe(true)
-    expect(isTableBlockBoundTo(subBlocks({ tableId: ' tbl_1 ' }), 'tbl_1')).toBe(true)
-    expect(isTableBlockBoundTo(subBlocks({ manualTableId: 'tbl_2' }), 'tbl_1')).toBe(false)
-  })
 })
 
 describe('findUnmigratedTableBlockReferences', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

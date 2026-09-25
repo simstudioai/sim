@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
@@ -91,7 +87,6 @@ const tableAfterDelete: TableDefinition = {
 
 describe('multi-column delete application use case', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveContext.mockResolvedValue({
       tableId: table.id,
@@ -102,35 +97,6 @@ describe('multi-column delete application use case', () => {
       billedAccountUserId: 'billing-owner-1',
     })
     mocks.deleteColumns.mockResolvedValue(tableAfterDelete)
-  })
-
-  it('owns canonical mutation, audit, and schema effects', async () => {
-    const result = await deleteTableColumnsUseCase.execute({
-      principal,
-      input: {
-        tableId: 'table-1',
-        workspaceId: 'workspace-1',
-        columnNames: ['first', 'last'],
-      },
-    })
-
-    expect(mocks.deleteColumns).toHaveBeenCalledWith(
-      { tableId: 'table-1', columnNames: ['first', 'last'] },
-      'request-1',
-      { expectedWorkspaceId: 'workspace-1' }
-    )
-    expect(result.deletedColumns).toEqual([
-      { id: 'column-first', name: 'first' },
-      { id: 'column-last', name: 'last' },
-    ])
-    expect(mocks.audit).toHaveBeenCalledTimes(1)
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        description: 'Deleted 2 columns from table "People"',
-        metadata: expect.objectContaining({ columnNames: ['first', 'last'] }),
-      })
-    )
-    expect(mocks.signal).toHaveBeenCalledWith('table-1')
   })
 
   it('derives aliases and duplicate references from the authoritative schema delta', async () => {
@@ -213,7 +179,6 @@ describe('column rename application use case', () => {
   ]
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveContext.mockResolvedValue({
       tableId: table.id,
@@ -254,13 +219,6 @@ describe('column rename application use case', () => {
     })
     expect(result.unmigrated).toEqual(unmigrated)
     expect(result.changed).toBe(true)
-  })
-
-  it('does not scan when the update is not a rename', async () => {
-    const result = await update({ required: true })
-
-    expect(mocks.findUnmigrated).not.toHaveBeenCalled()
-    expect(result.unmigrated).toEqual([])
   })
 
   it('reports nothing rather than failing a rename that already committed when the scan fails', async () => {

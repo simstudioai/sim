@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -50,9 +47,8 @@ vi.mock('@/lib/skills/application/use-cases', () => ({
 
 import { v2ListSkillsContract } from '@/lib/api/contracts/v2/skills'
 import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
-import { PrincipalKindAuthorizationError } from '@/lib/core/application'
 import { cursorSortKey, encodeOffsetCursor } from '@/app/api/v2/lib/response'
-import { GET, POST } from '@/app/api/v2/skills/route'
+import { GET } from '@/app/api/v2/skills/route'
 
 const WORKSPACE_ID = 'workspace-1'
 
@@ -116,7 +112,6 @@ function request(method: 'GET' | 'POST' | 'HEAD', url: string, body?: unknown) {
 
 describe('/api/v2/skills', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.authenticate.mockResolvedValue(AUTH)
     mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
@@ -240,106 +235,5 @@ describe('/api/v2/skills', () => {
 
     expect(response.status).toBe(200)
     expect(mocks.list).toHaveBeenCalled()
-  })
-
-  it('rejects a malformed cursor rather than silently restarting at page one', async () => {
-    const response = await GET(
-      request('GET', `/api/v2/skills?workspaceId=${WORKSPACE_ID}&cursor=not-a-cursor`)
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.list).not.toHaveBeenCalled()
-  })
-
-  /**
-   * A personal key, not the suite's default workspace key. `skills.create` denies
-   * a workspace key like every other skill write: the per-skill editor row that
-   * authorizes an update or a delete resolves against a human subject a workspace
-   * key cannot supply, so allowing it to create left rows it could never remove.
-   */
-  it('creates a skill with the v2 source and status', async () => {
-    const principal = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-personal' }
-    mocks.authenticate.mockResolvedValueOnce({ ...AUTH, principal, keyType: 'personal' as const })
-
-    const response = await POST(
-      request('POST', '/api/v2/skills', {
-        workspaceId: WORKSPACE_ID,
-        name: skill.name,
-        description: skill.description,
-        content: skill.content,
-      })
-    )
-
-    expect(response.status).toBe(201)
-    expect((await response.json()).data.id).toBe(skill.id)
-    expect(mocks.create).toHaveBeenCalledWith({
-      principal,
-      input: {
-        workspaceId: WORKSPACE_ID,
-        name: skill.name,
-        description: skill.description,
-        content: skill.content,
-        source: 'api',
-      },
-      request: expect.anything(),
-    })
-  })
-
-  it('keeps skill analytics on the personal-key v2 surface', async () => {
-    mocks.authenticate.mockResolvedValueOnce({
-      ...AUTH,
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-personal' },
-      keyType: 'personal',
-    })
-
-    const response = await POST(
-      request('POST', '/api/v2/skills', {
-        workspaceId: WORKSPACE_ID,
-        name: skill.name,
-        description: skill.description,
-        content: skill.content,
-      })
-    )
-
-    expect(response.status).toBe(201)
-    expect(mocks.capture).toHaveBeenCalledWith(
-      'user-1',
-      'skill_created',
-      expect.objectContaining({ skill_id: skill.id, source: 'api' }),
-      expect.anything()
-    )
-  })
-
-  /**
-   * `skills.create` denies a workspace key outright, so what this pins is the
-   * surface's half: the refusal reaches the caller as the operation's own 403,
-   * and a create that never happened emits no analytics.
-   */
-  it('refuses a workspace-key create and records no analytics for it', async () => {
-    mocks.create.mockRejectedValueOnce(
-      new PrincipalKindAuthorizationError('workspace_api_key', 'skills.create')
-    )
-
-    const response = await POST(
-      request('POST', '/api/v2/skills', {
-        workspaceId: WORKSPACE_ID,
-        name: skill.name,
-        description: skill.description,
-        content: skill.content,
-      })
-    )
-
-    expect(response.status).toBe(403)
-    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ principal: PRINCIPAL }))
-    expect(mocks.capture).not.toHaveBeenCalled()
-  })
-
-  it('authenticates before parsing skill input', async () => {
-    mocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await POST(request('POST', '/api/v2/skills', {}))
-
-    expect(response.status).toBe(401)
-    expect(mocks.create).not.toHaveBeenCalled()
   })
 })

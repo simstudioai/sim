@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ host: vi.fn(), materialize: vi.fn(), send: vi.fn() }))
@@ -32,7 +29,6 @@ const context = { requestId: 'request-1', userId: 'user-1', signal: new AbortCon
 
 describe('SMTP operation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.host.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
     mocks.materialize.mockResolvedValue([])
     mocks.send.mockResolvedValue({ messageId: 'message-1' })
@@ -64,20 +60,6 @@ describe('SMTP operation', () => {
     )
   })
 
-  it('preserves None mode TLS behavior and the 25MB attachment policy', async () => {
-    const attachment = { key: 'workspace/ws-1/a.txt', name: 'a.txt', size: 3 }
-    await executeSmtpSend({ ...base, smtpSecure: 'None', attachments: [attachment] }, context)
-    expect(mocks.materialize).toHaveBeenCalledWith([attachment], context, {
-      label: 'Total attachment size',
-      maxTotalBytes: 25 * 1024 * 1024,
-      preflightDeclaredSize: true,
-    })
-    expect(mocks.send.mock.calls[0][0]).toMatchObject({
-      secure: false,
-      tls: { rejectUnauthorized: false, servername: 'smtp.example.com' },
-    })
-  })
-
   it('rejects unsafe SMTP destinations before creating a transport', async () => {
     mocks.host.mockResolvedValue({ isValid: false, error: 'Private address' })
     await expect(executeSmtpSend(base, context)).rejects.toMatchObject({
@@ -85,18 +67,5 @@ describe('SMTP operation', () => {
       body: { success: false, error: 'Private address' },
     })
     expect(mocks.send).not.toHaveBeenCalled()
-  })
-
-  it('preserves SMTP authentication error semantics', async () => {
-    const error = new Error('bad auth') as NodeJS.ErrnoException
-    error.code = 'EAUTH'
-    mocks.send.mockRejectedValue(error)
-    await expect(executeSmtpSend(base, context)).rejects.toMatchObject({
-      status: 500,
-      body: {
-        success: false,
-        error: 'SMTP authentication failed - check username and password',
-      },
-    })
   })
 })

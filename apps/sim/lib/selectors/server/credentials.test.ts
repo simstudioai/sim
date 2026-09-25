@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { credential } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -70,7 +66,6 @@ function authorize(): Promise<unknown> {
 
 describe('authorizeSelectorCredential', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.getServiceConfig.mockReturnValue({ id: 'gmail' })
   })
@@ -306,8 +301,6 @@ describe('authorizeSelectorCredential', () => {
 })
 
 describe('resolveSelectorOAuthAccessToken', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it('rejects only the canceled waiter while shared credential work serves another caller', async () => {
     let resolveShared!: (value: { accessToken: string }) => void
     const sharedResolution = new Promise<{ accessToken: string }>((resolve) => {

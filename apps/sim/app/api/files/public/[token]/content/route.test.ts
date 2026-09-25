@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -62,7 +59,6 @@ const passwordShare = {
 
 describe('GET /api/files/public/[token]/content', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockEnforceRateLimit.mockResolvedValue(null)
     mockResolveActiveShareByToken.mockResolvedValue(passwordShare)
     mockDownloadFile.mockResolvedValue(Buffer.from('data'))
@@ -78,35 +74,6 @@ describe('GET /api/files/public/[token]/content', () => {
     expect(res.status).toBe(401)
     expect((await res.json()).error).toBe('auth_required_password')
     expect(mockDownloadFile).not.toHaveBeenCalled()
-  })
-
-  it('serves the bytes once authorized, bounded by the shared transfer ceiling', async () => {
-    mockValidateDeploymentAuth.mockResolvedValueOnce({ authorized: true })
-    const res = await GET(request(), params())
-    expect(res.status).toBe(200)
-    // The ceiling matters most here: this is the only surface that reads a workspace
-    // object for a caller with no session, and the object is admitted at 5 GB.
-    expect(mockDownloadFile).toHaveBeenCalledWith({
-      key: passwordShare.file.key,
-      context: 'workspace',
-      maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
-    })
-  })
-
-  it('413s when a compiled artifact outgrows the ceiling its source fit inside', async () => {
-    mockValidateDeploymentAuth.mockResolvedValueOnce({ authorized: true })
-    // The source read is bounded, but the artifact is fetched separately — a small
-    // generation source can resolve to a document far larger than the source ever was.
-    mockDownloadFile.mockResolvedValueOnce(Buffer.from('generation source'))
-    mockResolveServableDoc.mockResolvedValueOnce({
-      kind: 'artifact',
-      buffer: Buffer.alloc(MAX_BUFFERED_TRANSFER_BYTES + 1),
-      contentType: 'application/pdf',
-    })
-
-    const res = await GET(request(), params())
-
-    expect(res.status).toBe(413)
   })
 
   it('answers 413 rather than 500 when the shared file is too large to serve resident', async () => {

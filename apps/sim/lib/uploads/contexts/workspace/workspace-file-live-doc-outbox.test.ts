@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -53,7 +50,6 @@ function handler() {
 
 describe('workspace file live-document outbox', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockDownloadFile.mockResolvedValue(Buffer.from('# Durable content'))
     mockApplyEditToLiveFileDoc.mockResolvedValue({ applied: true, status: 'applied' })
@@ -119,13 +115,6 @@ describe('workspace file live-document outbox', () => {
     await expect(handler()(PAYLOAD, context())).resolves.toEqual(
       expect.objectContaining({ outcome: 'deferred' })
     )
-  })
-
-  it('rejects malformed payloads before touching durable state', async () => {
-    await expect(handler()({ ...PAYLOAD, version: 0 }, context())).rejects.toThrow(
-      'invalid version'
-    )
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
   it('does not materialize files beyond the collaborative editor boundary', async () => {

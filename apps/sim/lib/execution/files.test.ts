@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SerializedBlock } from '@/serializer/types'
@@ -79,7 +78,6 @@ function trigger(id: string, name: string, type = 'file[]'): SerializedBlock {
 
 describe('workflow input files', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.byId.mockResolvedValue(stored)
     mocks.byKey.mockResolvedValue(stored)
     mocks.presign.mockResolvedValue('https://fresh.example.com/report.pdf')

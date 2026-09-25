@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { loggingSessionMock, workflowAuthzMockFns } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ADMISSION_ERROR_CODE } from '@/lib/core/admission/transient-failure'
@@ -218,7 +214,6 @@ describe('preprocessExecution logPreprocessingErrors option', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.mocked(getHighestPrioritySubscription).mockResolvedValue({ plan: 'free' } as any)
     mockCheckAttributedUsageLimits.mockResolvedValue({
       isExceeded: false,
@@ -256,10 +251,6 @@ describe('preprocessExecution logPreprocessingErrors option', () => {
 })
 
 describe('preprocessExecution suppressRetryableFailureLogs option', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   const baseOptions = {
     workflowId: 'workflow-1',
     userId: 'owner-1',
@@ -374,7 +365,6 @@ describe('preprocessExecution ban gate', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetActivelyBannedUserIds.mockResolvedValue([])
     vi.mocked(getHighestPrioritySubscription).mockResolvedValue({ plan: 'free' } as any)
     mockCheckAttributedUsageLimits.mockResolvedValue({
@@ -635,7 +625,6 @@ describe('preprocessExecution system attribution', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetActivelyBannedUserIds.mockResolvedValue([])
     vi.mocked(getHighestPrioritySubscription).mockResolvedValue({ plan: 'free' } as any)
     mockCheckAttributedUsageLimits.mockResolvedValue({
@@ -685,7 +674,6 @@ describe('preprocessExecution billing attribution', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetActivelyBannedUserIds.mockResolvedValue([])
     vi.mocked(getHighestPrioritySubscription).mockResolvedValue({
       id: 'actor-subscription',

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ select: vi.fn(), limit: vi.fn() }))
@@ -31,7 +30,6 @@ function row(sequence: number) {
 
 describe('plain appended-memory read budget', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.limit.mockReset()
     const chain = {
       from: vi.fn(),

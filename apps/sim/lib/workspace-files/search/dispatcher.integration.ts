@@ -37,13 +37,13 @@ import {
 
 describe('workspace file search dispatch PostgreSQL deadlines', () => {
   const schemaName = `dispatch_test_${generateId().replaceAll('-', '')}`
-  const databaseUrl = process.env.KNOWLEDGE_ACL_TEST_DATABASE_URL
+  const databaseUrl = process.env.TEST_DATABASE_URL
   if (!databaseUrl) throw new Error('Dispatcher tests require a disposable local database')
   const target = new URL(databaseUrl)
   if (
     !['postgres:', 'postgresql:'].includes(target.protocol) ||
     !['localhost', '127.0.0.1'].includes(target.hostname) ||
-    (!target.pathname.startsWith('/sim_acl_test') && target.pathname !== '/sim_auth_scim')
+    !/(^|_)test(_|$)/.test(target.pathname.slice(1))
   ) {
     throw new Error('File search tests require a disposable local integration database')
   }

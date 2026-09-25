@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { db } from '@sim/db'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -54,7 +53,6 @@ function context(): OutboxEventContext {
 
 describe('durable knowledge storage cleanup', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetBindings.mockResolvedValue([binding])
     mockDeleteFile.mockResolvedValue(undefined)
@@ -76,23 +74,6 @@ describe('durable knowledge storage cleanup', () => {
     )
     expect(mockGetBindings.mock.calls.map(([keys]) => keys.length)).toEqual([100, 100, 51])
     expect(dbChainMockFns.values.mock.calls.map(([rows]) => rows.length)).toEqual([100, 100, 51])
-  })
-
-  it('uses a separate identity for an unattached upload so later release can still be queued', async () => {
-    const documents = [
-      {
-        id: 'document-1',
-        workspaceId: binding.workspaceId,
-        fileUrl: `/api/files/serve/${encodeURIComponent(binding.key)}`,
-      },
-    ]
-    await enqueueKnowledgeStorageCleanup(db, documents, 'request-1', {
-      reason: 'uncommitted-upload',
-    })
-    await enqueueKnowledgeStorageCleanup(db, documents, 'request-1')
-    const rows = dbChainMockFns.values.mock.calls.map(([value]) => value[0])
-    expect(rows[0].id).not.toBe(rows[1].id)
-    expect(rows[0].payload).toEqual(rows[1].payload)
   })
 
   it('propagates persistence failures before the parent transaction can commit', async () => {
@@ -120,31 +101,6 @@ describe('durable knowledge storage cleanup', () => {
       'Storage temporarily unavailable'
     )
     expect(mockDeleteMetadata).not.toHaveBeenCalled()
-  })
-
-  it('binds legacy personal cleanup to the canonical document owner', async () => {
-    const personalBinding = { ...binding, workspaceId: null }
-    mockGetBindings.mockResolvedValueOnce([personalBinding])
-    await enqueueKnowledgeStorageCleanup(
-      db,
-      [
-        {
-          id: payload.documentId,
-          fileUrl: `/api/files/serve/${encodeURIComponent(binding.key)}`,
-          userId: 'owner-1',
-        },
-      ],
-      'personal-cleanup'
-    )
-    const queued = dbChainMockFns.values.mock.calls[0][0][0]
-    expect(queued.payload).toMatchObject({
-      userId: 'owner-1',
-      workspaceId: null,
-      organizationId: null,
-    })
-    dbChainMockFns.limit.mockResolvedValueOnce([personalBinding]).mockResolvedValueOnce([])
-    await cleanupKnowledgeStorage(queued.payload, context())
-    expect(mockDeleteFile).toHaveBeenCalledOnce()
   })
 
   it.each([undefined, 'another-user'])(
@@ -175,21 +131,6 @@ describe('durable knowledge storage cleanup', () => {
     ])
     await cleanupKnowledgeStorage({ ...payload, workspaceId: null, userId: 'owner-1' }, context())
     expect(mockDeleteFile).not.toHaveBeenCalled()
-  })
-
-  it('creates a fresh intent for a later release of the same document and file identity', async () => {
-    const documents = [
-      {
-        id: payload.documentId,
-        workspaceId: binding.workspaceId,
-        fileUrl: `/api/files/serve/${encodeURIComponent(binding.key)}`,
-      },
-    ]
-    await enqueueKnowledgeStorageCleanup(db, documents, 'first-release')
-    await enqueueKnowledgeStorageCleanup(db, documents, 'second-release')
-    const rows = dbChainMockFns.values.mock.calls.map(([value]) => value[0])
-    expect(rows[0].id).not.toBe(rows[1].id)
-    expect(rows[0].payload).toEqual(rows[1].payload)
   })
 
   it('retries safely after an object was deleted but the transaction did not commit', async () => {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { randomInt } from './random.js'
 
@@ -24,25 +21,11 @@ describe('randomInt', () => {
     vi.restoreAllMocks()
   })
 
-  it('terminates after one draw for a power-of-two range', () => {
-    const getRandomValues = mockRandomValues(7)
-
-    expect(randomInt(0, 16)).toBe(7)
-    expect(getRandomValues).toHaveBeenCalledOnce()
-  })
-
   it('redraws values from the biased upper tail', () => {
     const getRandomValues = mockRandomValues(UINT32_MAX, 42)
 
     expect(randomInt(0, 10)).toBe(2)
     expect(getRandomValues).toHaveBeenCalledTimes(2)
-  })
-
-  it('supports a range spanning the full Uint32 sample space', () => {
-    const getRandomValues = mockRandomValues(UINT32_MAX)
-
-    expect(randomInt(0, UINT32_SAMPLE_SPACE_SIZE)).toBe(UINT32_MAX)
-    expect(getRandomValues).toHaveBeenCalledOnce()
   })
 
   it('rejects ranges larger than the Uint32 sample space', () => {

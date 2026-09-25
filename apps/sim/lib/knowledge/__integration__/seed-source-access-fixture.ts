@@ -43,7 +43,7 @@ export async function seedKnowledgeAclFixture(
   const target = new URL(process.env.DATABASE_URL ?? '')
   if (
     !['localhost', '127.0.0.1'].includes(target.hostname) ||
-    (!target.pathname.startsWith('/sim_acl_test') && target.pathname !== '/sim_auth_scim')
+    !/(^|_)test(_|$)/.test(target.pathname.slice(1))
   ) {
     throw new Error('Knowledge fixture seeding requires a local disposable test database')
   }

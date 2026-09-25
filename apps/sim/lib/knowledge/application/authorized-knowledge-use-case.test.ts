@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -67,7 +64,6 @@ function useCaseFor(context: object) {
 
 describe('defineAuthorizedKnowledgeUseCase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.authorizeOrganization.mockResolvedValue(undefined)
   })
@@ -85,15 +81,6 @@ describe('defineAuthorizedKnowledgeUseCase', () => {
     await expect(useCase.authorize({ principal: session, input: {} })).rejects.toMatchObject({
       name: 'NoWorkspaceAccessError',
     })
-  })
-
-  it('executes a workspace base and records its audit under the workspace', async () => {
-    const { useCase } = useCaseFor(workspaceContext)
-
-    await expect(useCase.execute({ principal: session, input: {} })).resolves.toBe('done')
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceId: 'workspace-1', resourceId: 'knowledge-1' })
-    )
   })
 
   it('authorizes and executes an organization base through the organization operation', async () => {

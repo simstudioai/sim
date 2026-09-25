@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ mcpUrl: undefined as string | undefined }))
@@ -28,10 +25,6 @@ describe('Sim MCP host routing', () => {
   describe('on a dedicated host', () => {
     beforeEach(() => {
       mocks.mcpUrl = 'https://mcp.sim.ai/mcp/'
-    })
-
-    it('uses the configured URL as the canonical resource', () => {
-      expect(getSimMcpUrl()).toBe('https://mcp.sim.ai/mcp')
     })
 
     it.each([

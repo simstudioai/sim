@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import {
   LEGACY_CONNECTOR_CREDENTIAL_BATCH_SIZE,

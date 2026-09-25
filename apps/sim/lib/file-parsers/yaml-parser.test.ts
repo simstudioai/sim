@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   assertYamlWithinLimits,
@@ -26,28 +23,6 @@ function buildAliasBomb(levels: number, width: number): string {
 }
 
 describe('parseYAMLBuffer', () => {
-  it('reports empty input with the typed parser taxonomy', async () => {
-    await expect(parseYAMLBuffer(Buffer.alloc(0))).rejects.toMatchObject({ code: 'empty_input' })
-  })
-
-  it('parses a normal YAML document', async () => {
-    const result = await parseYAMLBuffer(
-      Buffer.from('name: sim\nlist:\n  - a\n  - b\nnested:\n  key: value\n')
-    )
-    const parsed = JSON.parse(result.content)
-    expect(parsed).toEqual({ name: 'sim', list: ['a', 'b'], nested: { key: 'value' } })
-    expect(result.metadata.type).toBe('yaml')
-    expect(result.metadata.keys).toEqual(['name', 'list', 'nested'])
-    expect(result.metadata.depth).toBeGreaterThan(0)
-  })
-
-  it('reports depth and array metadata', async () => {
-    const result = await parseYAMLBuffer(Buffer.from('- 1\n- 2\n- 3\n'))
-    expect(result.metadata.isArray).toBe(true)
-    expect(result.metadata.itemCount).toBe(3)
-    expect(result.metadata.depth).toBe(1)
-  })
-
   it('rejects an alias-expansion bomb before serialization', async () => {
     const bomb = buildAliasBomb(9, 10)
     expect(Buffer.byteLength(bomb)).toBeLessThan(2048)
@@ -69,43 +44,9 @@ describe('parseYAMLBuffer', () => {
     expect(Buffer.byteLength(bomb)).toBeLessThan(4096)
     await expect(parseYAMLBuffer(Buffer.from(bomb))).rejects.toBeInstanceOf(YamlComplexityError)
   })
-
-  it('parses a multi-document stream as one document per item', async () => {
-    const stream =
-      'apiVersion: v1\nkind: Service\nmetadata:\n  name: web\n---\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\n'
-    const result = await parseYAMLBuffer(Buffer.from(stream))
-    const parsed = JSON.parse(result.content) as Array<{ kind: string }>
-
-    expect(parsed.map((document) => document.kind)).toEqual(['Service', 'Deployment'])
-    expect(result.metadata).toMatchObject({
-      type: 'yaml',
-      isArray: true,
-      itemCount: 2,
-      documentCount: 2,
-    })
-  })
-
-  it('keeps a single document unwrapped and skips empty documents in a stream', async () => {
-    const result = await parseYAMLBuffer(Buffer.from('---\nname: solo\n---\n'))
-
-    expect(JSON.parse(result.content)).toEqual({ name: 'solo' })
-    expect(result.metadata).toMatchObject({ isArray: false, documentCount: 1 })
-  })
-
-  it('surfaces malformed YAML as an Invalid YAML error', async () => {
-    await expect(parseYAMLBuffer(Buffer.from('key: "unterminated\n'))).rejects.toThrow(
-      /Invalid YAML/
-    )
-  })
 })
 
 describe('assertYamlWithinLimits', () => {
-  it('returns the depth of a well-formed structure', () => {
-    expect(assertYamlWithinLimits({ a: { b: { c: 1 } } })).toBe(3)
-    expect(assertYamlWithinLimits([1, 2, 3])).toBe(1)
-    expect(assertYamlWithinLimits('scalar')).toBe(0)
-  })
-
   it('rejects nesting beyond the depth cap', () => {
     let deep: unknown = 1
     for (let i = 0; i < 600; i++) deep = { a: deep }

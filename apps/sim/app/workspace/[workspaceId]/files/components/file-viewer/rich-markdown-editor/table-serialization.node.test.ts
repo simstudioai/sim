@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { getSchema, type JSONContent } from '@tiptap/core'
 import { prosemirrorJSONToYDoc } from '@tiptap/y-tiptap'
 import { describe, expect, it } from 'vitest'

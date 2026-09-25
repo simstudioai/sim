@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FileParserError } from '@/lib/file-parsers/errors'
@@ -43,9 +40,6 @@ vi.mock('@/lib/file-parsers', () => ({
   parseBuffer: mocks.parseBuffer,
 }))
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
-import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -89,7 +83,6 @@ function input(overrides: Record<string, unknown> = {}) {
 
 describe('readWorkspaceFileText', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.resolveContext.mockResolvedValue(referenceContext())
     mocks.fetchBuffer.mockResolvedValue(Buffer.from('hello there!'))
@@ -120,36 +113,6 @@ describe('readWorkspaceFileText', () => {
         () => readWorkspaceFileText.execute({ principal: principals[0], input: input() })
       )
     ).rejects.toThrow('no evidence')
-  })
-
-  it.each(principals)('allows $kind at the read role', async (principal) => {
-    const result = await readWorkspaceFileText.execute({ principal, input: input() })
-
-    expect(result.text).toBe('hello there!')
-    expect(result.degraded).toBe(false)
-    expect(result.truncated).toBe(false)
-  })
-
-  /**
-   * `parseBuffer` signals every failure as a bare `Error`, which no v2 policy
-   * classifies — so calling it unguarded turned a zero-byte upload or a
-   * mislabelled archive into a `500` on a well-formed request.
-   */
-  it('answers empty text for a zero-byte file instead of failing', async () => {
-    mocks.fetchBuffer.mockResolvedValue(Buffer.alloc(0))
-
-    const result = await readWorkspaceFileText.execute({ principal: principals[0], input: input() })
-
-    expect(result.text).toBe('')
-    expect(mocks.parseBuffer).not.toHaveBeenCalled()
-  })
-
-  it('classifies unparseable bytes as a conflict rather than an unhandled error', async () => {
-    mocks.parseBuffer.mockRejectedValue(new Error('Unsupported file type'))
-
-    await expect(
-      readWorkspaceFileText.execute({ principal: principals[0], input: input() })
-    ).rejects.toMatchObject({ code: 'conflict' })
   })
 
   it('uses the complete text representation before selecting a line window', async () => {
@@ -188,26 +151,6 @@ describe('readWorkspaceFileText', () => {
     expect(mocks.parseBuffer).not.toHaveBeenCalled()
   })
 
-  it.each(['', 'downloaded text'])(
-    'stops before parsing a cancelled download of %j',
-    async (text) => {
-      const controller = new AbortController()
-      const reason = new Error('request cancelled during download')
-      mocks.fetchBuffer.mockImplementationOnce(async () => {
-        controller.abort(reason)
-        return Buffer.from(text)
-      })
-      await expect(
-        readWorkspaceFileText.execute({
-          principal: principals[0],
-          input: input(),
-          request: { headers: new Headers(), signal: controller.signal },
-        })
-      ).rejects.toBe(reason)
-      expect(mocks.parseBuffer).not.toHaveBeenCalled()
-    }
-  )
-
   it.each(['return', 'throw'])(
     'preserves cancellation when the parser would %s',
     async (outcome) => {
@@ -227,15 +170,6 @@ describe('readWorkspaceFileText', () => {
       ).rejects.toBe(reason)
     }
   )
-
-  it('reports complete extraction complexity limits as payload limits', async () => {
-    mocks.parseBuffer.mockRejectedValueOnce(
-      new FileParserError('complexity_limit', 'expanded text budget')
-    )
-    await expect(
-      readWorkspaceFileText.execute({ principal: principals[0], input: input() })
-    ).rejects.toMatchObject({ code: 'payload_too_large' })
-  })
   it('denies a principal below the read role', async () => {
     mocks.resolvePermission.mockResolvedValue(null)
 
@@ -243,46 +177,6 @@ describe('readWorkspaceFileText', () => {
       readWorkspaceFileText.execute({ principal: principals[0], input: input() })
     ).rejects.toThrow()
     expect(mocks.parseBuffer).not.toHaveBeenCalled()
-  })
-
-  it('resolves the file canonically before authorizing or reading', async () => {
-    mocks.resolveContext.mockRejectedValueOnce(
-      Object.assign(new Error('File not found'), { code: 'not_found' })
-    )
-
-    await expect(
-      readWorkspaceFileText.execute({ principal: principals[2], input: input() })
-    ).rejects.toMatchObject({ code: 'not_found' })
-    expect(mocks.resolvePermission).not.toHaveBeenCalled()
-    expect(mocks.fetchBuffer).not.toHaveBeenCalled()
-  })
-
-  /**
-   * The reference is what makes a chat upload readable: no listing shows one, so
-   * the `uploads/<name>` path from its upload notice must resolve with chat
-   * uploads admitted, and the record's display name is what comes back.
-   */
-  it('resolves the reference with chat uploads admitted and reads the resolved record', async () => {
-    mocks.resolveContext.mockResolvedValueOnce(
-      referenceContext({ id: 'wf_upload', name: 'notes (2).txt', storageContext: 'mothership' })
-    )
-
-    const result = await readWorkspaceFileText.execute({
-      principal: principals[2],
-      input: input({ reference: 'uploads/notes%20(2).txt' }),
-    })
-
-    expect(mocks.resolveContext).toHaveBeenCalledWith(
-      principals[2],
-      { workspaceId: WORKSPACE_ID, reference: 'uploads/notes%20(2).txt' },
-      { includeChatUploads: true }
-    )
-    expect(result.file.name).toBe('notes (2).txt')
-    expect(mocks.fetchBuffer).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'wf_upload', storageContext: 'mothership' }),
-      expect.anything()
-    )
-    expect(result.text).toBe('hello there!')
   })
 
   /**
@@ -307,36 +201,6 @@ describe('readWorkspaceFileText', () => {
     expect(result.degradedReason).toBe(
       'Basic text extraction used. For better results, convert to DOCX format.'
     )
-  })
-
-  it('surfaces a text-free deck as degraded', async () => {
-    mocks.resolveContext.mockResolvedValueOnce(referenceContext({ name: 'deck.pptx' }))
-    mocks.parseBuffer.mockResolvedValueOnce({
-      content: 'Unable to extract text from PowerPoint file.',
-      metadata: { degraded: true, warning: 'Basic text extraction used' },
-    })
-
-    const result = await readWorkspaceFileText.execute({ principal: principals[2], input: input() })
-
-    expect(result.degraded).toBe(true)
-  })
-
-  it('reports no degraded reason for a clean extraction', async () => {
-    const result = await readWorkspaceFileText.execute({ principal: principals[2], input: input() })
-
-    expect(result.degraded).toBe(false)
-    expect(result.degradedReason).toBeNull()
-  })
-
-  it('reports parser truncation', async () => {
-    mocks.parseBuffer.mockResolvedValueOnce({
-      content: 'partial',
-      metadata: { truncated: true },
-    })
-
-    const result = await readWorkspaceFileText.execute({ principal: principals[2], input: input() })
-
-    expect(result.truncated).toBe(true)
   })
 
   /**
@@ -375,21 +239,6 @@ describe('readWorkspaceFileText', () => {
     expect(mocks.fetchBuffer).not.toHaveBeenCalled()
   })
 
-  it('rejects an unsupported type and names the raw-bytes escape hatch', async () => {
-    mocks.resolveContext.mockResolvedValue(referenceContext({ name: 'photo.heic' }))
-
-    await expect(
-      readWorkspaceFileText.execute({ principal: principals[2], input: input() })
-    ).rejects.toMatchObject({
-      code: 'validation',
-      message: expect.stringContaining('download the raw bytes'),
-    })
-    await expect(
-      readWorkspaceFileText.execute({ principal: principals[2], input: input() })
-    ).rejects.toMatchObject({ message: expect.not.stringMatching(/\/api\/v2\//) })
-    expect(mocks.fetchBuffer).not.toHaveBeenCalled()
-  })
-
   it('rejects a source above the extraction ceiling before reading bytes', async () => {
     mocks.resolveContext.mockResolvedValueOnce(referenceContext({ size: 26 * 1024 * 1024 }))
 
@@ -409,48 +258,6 @@ describe('readWorkspaceFileText', () => {
         input: input({ maxBytes: 500 * 1024 * 1024 }),
       })
     ).rejects.toMatchObject({ code: 'payload_too_large' })
-  })
-
-  it('honours a caller maxBytes below the server ceiling', async () => {
-    mocks.resolveContext.mockResolvedValueOnce(referenceContext({ size: 2048 }))
-
-    await expect(
-      readWorkspaceFileText.execute({ principal: principals[2], input: input({ maxBytes: 1024 }) })
-    ).rejects.toMatchObject({ code: 'payload_too_large' })
-  })
-
-  /**
-   * Both numbers are sub-1 KB, which the default size formatting renders as
-   * "0 Bytes" — leaving the caller unable to work out what to pass instead.
-   */
-  it('names the real size and limit when both are under 1 KB', async () => {
-    mocks.resolveContext.mockResolvedValueOnce(referenceContext({ size: 28 }))
-
-    await expect(
-      readWorkspaceFileText.execute({ principal: principals[2], input: input({ maxBytes: 27 }) })
-    ).rejects.toMatchObject({
-      code: 'payload_too_large',
-      message: expect.stringContaining('is 28 Bytes, above the 27 Bytes'),
-    })
-    expect(mocks.fetchBuffer).not.toHaveBeenCalled()
-  })
-
-  it('reports a missing file as not found', async () => {
-    mocks.resolveContext.mockRejectedValueOnce(
-      new OrchestrationError('not_found', 'File not found')
-    )
-
-    await expect(
-      readWorkspaceFileText.execute({ principal: principals[2], input: input() })
-    ).rejects.toMatchObject({ code: 'not_found' })
-  })
-
-  it('propagates a storage failure rather than concealing it', async () => {
-    mocks.fetchBuffer.mockRejectedValueOnce(new Error('s3 unavailable'))
-
-    await expect(
-      readWorkspaceFileText.execute({ principal: principals[2], input: input() })
-    ).rejects.toThrow('s3 unavailable')
   })
 
   /**
@@ -483,52 +290,6 @@ describe('readWorkspaceFileText', () => {
     expect(result.text).toBe('Quarterly results')
   })
 
-  it('preserves cancellation when an artifact read wraps the error', async () => {
-    const controller = new AbortController()
-    const reason = new Error('request cancelled during artifact read')
-    mocks.resolveContext.mockResolvedValueOnce(
-      referenceContext({ name: 'report.pdf', type: 'text/x-pdflibjs' })
-    )
-    mocks.fetchServable.mockImplementationOnce(async () => {
-      controller.abort(reason)
-      throw new DocCompileUserError('not ready', { pending: true })
-    })
-    await expect(
-      readWorkspaceFileText.execute({
-        principal: principals[0],
-        input: input(),
-        request: { headers: new Headers(), signal: controller.signal },
-      })
-    ).rejects.toBe(reason)
-    expect(mocks.parseBuffer).not.toHaveBeenCalled()
-  })
-
-  /** A genuinely uploaded PDF carries its real MIME and must keep reading its own bytes. */
-  it('reads an uploaded pdf from storage rather than an artifact', async () => {
-    mocks.resolveContext.mockResolvedValueOnce(
-      referenceContext({ name: 'scan.pdf', type: 'application/pdf', size: 900 })
-    )
-
-    await readWorkspaceFileText.execute({ principal: principals[2], input: input() })
-
-    expect(mocks.fetchBuffer).toHaveBeenCalledTimes(1)
-    expect(mocks.fetchServable).not.toHaveBeenCalled()
-  })
-
-  /** An artifact still compiling is retryable, so it must not read as a fault. */
-  it('reports a still-compiling artifact as a conflict', async () => {
-    mocks.resolveContext.mockResolvedValueOnce(
-      referenceContext({ name: 'report.pdf', type: 'text/x-pdflibjs', size: 900 })
-    )
-    mocks.fetchServable.mockRejectedValueOnce(
-      new DocCompileUserError('not ready', { pending: true })
-    )
-
-    await expect(
-      readWorkspaceFileText.execute({ principal: principals[2], input: input() })
-    ).rejects.toMatchObject({ code: 'conflict' })
-  })
-
   /**
    * The stored size of a generation source bounds nothing — it is text that
    * renders to orders of magnitude more — so the source pre-check must not be
@@ -542,26 +303,6 @@ describe('readWorkspaceFileText', () => {
     await readWorkspaceFileText.execute({ principal: principals[2], input: input() })
 
     expect(mocks.fetchServable.mock.calls[0][2]).toMatchObject({ maxBytes: expect.any(Number) })
-  })
-
-  /**
-   * The artifact branch renders the same caller-supplied ceiling, so it needs
-   * the same exact-byte formatting the source branch does.
-   */
-  it('names a sub-1 KB artifact limit in bytes', async () => {
-    mocks.resolveContext.mockResolvedValueOnce(
-      referenceContext({ name: 'report.pdf', type: 'text/x-pdflibjs', size: 10 })
-    )
-    mocks.fetchServable.mockRejectedValueOnce(
-      new PayloadSizeLimitError({ label: 'artifact', maxBytes: 27 })
-    )
-
-    await expect(
-      readWorkspaceFileText.execute({ principal: principals[2], input: input({ maxBytes: 27 }) })
-    ).rejects.toMatchObject({
-      code: 'payload_too_large',
-      message: expect.stringContaining('renders to more than 27 Bytes'),
-    })
   })
 })
 

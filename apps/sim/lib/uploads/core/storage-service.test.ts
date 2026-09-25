@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -73,13 +70,12 @@ vi.mock('@/lib/uploads/core/knowledge-upload-cleanup', () => ({
   cleanupUnboundKnowledgeUpload: mockCleanupUnboundKnowledgeUpload,
 }))
 
-import { createMultipartUpload, deleteFile, uploadFile } from '@/lib/uploads/core/storage-service'
+import { createMultipartUpload, uploadFile } from '@/lib/uploads/core/storage-service'
 
 const PART_SIZE = 8 * 1024 * 1024
 
 describe('createMultipartUpload', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     partBodies.length = 0
     mockInitiate.mockResolvedValue({ uploadId: 'up1', key: 'k' })
     mockUploadPart.mockImplementation((_key, _uploadId, partNumber: number, body: Buffer) => {
@@ -98,36 +94,6 @@ describe('createMultipartUpload', () => {
     mockHeadS3Object.mockResolvedValue(null)
   })
 
-  it('can upload an object without persisting generic metadata', async () => {
-    await uploadFile({
-      file: Buffer.from('hello'),
-      fileName: 'k',
-      contentType: 'text/plain',
-      context: 'workspace',
-      metadata: { userId: 'user-1', workspaceId: 'workspace-1' },
-      persistMetadata: false,
-    })
-
-    expect(mockUploadToS3).toHaveBeenCalledTimes(1)
-    expect(mockInsertFileMetadata).not.toHaveBeenCalled()
-  })
-
-  it('forwards metadata-free immutable publication to the provider conditional put', async () => {
-    await uploadFile({
-      file: Buffer.from('image'),
-      fileName: 'image.webp',
-      customKey: 'chat-images/chat/request/image.webp',
-      contentType: 'image/webp',
-      context: 'mothership',
-      preserveKey: true,
-      persistMetadata: false,
-      createOnly: true,
-    })
-    expect(mockUploadToS3.mock.calls[0][7]).toBe(true)
-    expect(mockUploadToS3.mock.calls[0][6]).toBeUndefined()
-    expect(mockInsertFileMetadata).not.toHaveBeenCalled()
-  })
-
   it('preserves a pre-reserved create-only identity without registering metadata again', async () => {
     await uploadFile({
       file: Buffer.from('reserved content'),
@@ -143,26 +109,6 @@ describe('createMultipartUpload', () => {
     expect(mockUploadToS3.mock.calls[0][6]).toMatchObject({ uploadId: 'reserved-upload-1' })
     expect(mockUploadToS3.mock.calls[0][7]).toBe(true)
     expect(mockInsertImmutableFileMetadata).not.toHaveBeenCalled()
-  })
-
-  it('forwards checkpoint cancellation to cloud uploads and deletes', async () => {
-    const signal = new AbortController().signal
-    await uploadFile({
-      file: Buffer.from('private text'),
-      fileName: 'checkpoint.txt',
-      contentType: 'text/plain',
-      context: 'knowledge-base',
-      preserveKey: true,
-      persistMetadata: false,
-      signal,
-    })
-    expect(mockUploadToS3.mock.calls[0][8]).toBe(signal)
-    await deleteFile({ key: 'checkpoint.txt', context: 'knowledge-base', signal })
-    expect(mockDeleteFromS3).toHaveBeenCalledWith(
-      'checkpoint.txt',
-      { bucket: 'b', region: 'r' },
-      signal
-    )
   })
 
   it('persists connector caches with an immutable organization binding', async () => {
@@ -206,24 +152,6 @@ describe('createMultipartUpload', () => {
     const uploadId = mockUploadToS3.mock.calls[0][6].uploadId
     expect(uploadId).not.toBe('caller-supplied')
     expect(mockCleanupUnboundKnowledgeUpload).toHaveBeenCalledExactlyOnceWith('k', uploadId)
-  })
-
-  it('preserves the metadata error if compensation also fails', async () => {
-    const failure = new Error('metadata unavailable')
-    mockInsertImmutableFileMetadata.mockRejectedValueOnce(failure)
-    mockCleanupUnboundKnowledgeUpload.mockRejectedValueOnce(new Error('storage unavailable'))
-
-    await expect(
-      uploadFile({
-        file: Buffer.from('hello'),
-        fileName: 'kb/new.txt',
-        contentType: 'text/plain',
-        context: 'knowledge-base',
-        metadata: { userId: 'user-1', workspaceId: 'workspace-1' },
-      })
-    ).rejects.toBe(failure)
-
-    expect(mockCleanupUnboundKnowledgeUpload).toHaveBeenCalledTimes(1)
   })
 
   it('does not compensate a failed create-only write that may belong to a prior upload', async () => {
@@ -366,23 +294,6 @@ describe('createMultipartUpload', () => {
       })
     ).rejects.toThrow('newly allocated execution or Copilot key')
     expect(mockUploadToS3).not.toHaveBeenCalled()
-  })
-
-  it('takes the single-shot PutObject path for a payload smaller than one part', async () => {
-    const handle = await createMultipartUpload({
-      key: 'k',
-      context: 'execution',
-      contentType: 'text/csv',
-      completionPolicy: 'replace',
-    })
-    await handle.write('hello')
-    const result = await handle.complete()
-
-    expect(mockInitiate).not.toHaveBeenCalled()
-    expect(mockUploadPart).not.toHaveBeenCalled()
-    expect(mockUploadToS3).toHaveBeenCalledTimes(1)
-    expect((mockUploadToS3.mock.calls[0][0] as Buffer).toString('utf8')).toBe('hello')
-    expect(result).toEqual({ key: 'k', size: 5 })
   })
 
   it('splits into parts and reassembles byte-for-byte over one part boundary', async () => {

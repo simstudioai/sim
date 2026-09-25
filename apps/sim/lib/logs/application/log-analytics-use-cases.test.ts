@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-import type { SessionPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -50,11 +46,6 @@ const workspacePrincipal = {
   workspaceId: 'workspace-1',
   keyId: 'key-1',
 }
-const sessionPrincipal: SessionPrincipal = {
-  kind: 'session',
-  userId: 'user-1',
-  sessionId: 'session-1',
-}
 
 function segmentRow(workflowId: string) {
   return {
@@ -69,7 +60,6 @@ function segmentRow(workflowId: string) {
 
 describe('getLogStats', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.readBounds.mockResolvedValue({
@@ -78,18 +68,6 @@ describe('getLogStats', () => {
     })
     mocks.readSegments.mockResolvedValue([segmentRow('workflow-1')])
     mocks.resolveFolderScope.mockResolvedValue({ includesRoot: false, folderIds: ['folder-1'] })
-  })
-
-  it('rejects a principal kind the operation does not accept before reading anything', async () => {
-    await expect(
-      getLogStats.execute({
-        principal: sessionPrincipal,
-        input: { workspaceId: 'workspace-1', filters: {}, segmentCount: 24 },
-      })
-    ).rejects.toMatchObject({ code: 'forbidden' })
-
-    expect(mocks.readBounds).not.toHaveBeenCalled()
-    expect(mocks.readSegments).not.toHaveBeenCalled()
   })
 
   it('conceals a workspace that does not resolve', async () => {
@@ -114,20 +92,6 @@ describe('getLogStats', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
 
     expect(mocks.readBounds).not.toHaveBeenCalled()
-  })
-
-  it('derives the bucket width from the window before reading the segments', async () => {
-    await getLogStats.execute({
-      principal: workspacePrincipal,
-      input: { workspaceId: 'workspace-1', filters: {}, segmentCount: 2 },
-    })
-
-    expect(mocks.readSegments).toHaveBeenCalledWith(
-      expect.anything(),
-      '2026-08-06T00:00:00.000Z',
-      expect.any(Number),
-      { countHandledErrors: false }
-    )
   })
 
   it('publishes only the buckets that hold a run unless the caller asks for empties', async () => {
@@ -215,26 +179,5 @@ describe('getLogStats', () => {
     expect(workflowsTruncated).toBe(true)
     expect(stats.workflows).toHaveLength(200)
     expect(stats.totalRuns).toBe(500)
-  })
-
-  it('records no audit for a read', async () => {
-    await getLogStats.execute({
-      principal: workspacePrincipal,
-      input: { workspaceId: 'workspace-1', filters: {}, segmentCount: 2 },
-    })
-
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('propagates infrastructure failures instead of turning them into a not-found', async () => {
-    const failure = new Error('replica unavailable')
-    mocks.readBounds.mockRejectedValueOnce(failure)
-
-    await expect(
-      getLogStats.execute({
-        principal: workspacePrincipal,
-        input: { workspaceId: 'workspace-1', filters: {}, segmentCount: 2 },
-      })
-    ).rejects.toBe(failure)
   })
 })

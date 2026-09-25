@@ -1,6 +1,5 @@
-/** @vitest-environment node */
 import { generateId } from '@sim/utils/id'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ServerToolContext } from '@/lib/mothership/tools/server/base-tool'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 
@@ -84,8 +83,6 @@ function context(workspaceId = generateId()): ServerToolContext {
 }
 
 describe('prepared file write across tool invocations', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it('creates then applies content in a new tool context without another prepare', async () => {
     const prepareContext = context()
     const created = file('actions.md', prepareContext.workspaceId!)

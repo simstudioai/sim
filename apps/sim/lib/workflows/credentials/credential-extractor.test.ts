@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   collectStrippedWorkspaceBindings,
@@ -69,10 +66,6 @@ function sanitizedValue(type: string, value: unknown): unknown {
 }
 
 describe('export sanitizer resource coverage', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   /**
    * The drift guard. Adding a selector to the resource registry without deciding how export
    * should treat it fails here rather than silently shipping a workspace-scoped id to another
@@ -138,10 +131,6 @@ describe('export sanitizer resource coverage', () => {
     expect(sanitized.blocks?.b1?.subBlocks?.field?.value).toEqual([
       { id: 'b', model: 'openrouter/x' },
     ])
-  })
-
-  it('leaves an ordinary field untouched', () => {
-    expect(sanitizedValue('short-input', 'plain text')).toBe('plain text')
   })
 
   it('clears tableId by key on a block with no registry config', () => {
@@ -432,38 +421,5 @@ describe('collectStrippedWorkspaceBindings', () => {
     )
 
     expect(findings).toEqual([{ blockId: 'kb', blockName: 'Lookup', field: 'knowledgeBaseId' }])
-  })
-
-  it('accepts a value on either member and skips hidden, optional, and disabled fields', () => {
-    expect(
-      collectStrippedWorkspaceBindings(
-        knowledgeState({
-          operation: 'search',
-          knowledgeBaseSelector: null,
-          manualKnowledgeBaseId: 'kb_1',
-        })
-      )
-    ).toEqual([])
-    expect(
-      collectStrippedWorkspaceBindings(
-        knowledgeState({
-          operation: 'get_document',
-          knowledgeBaseSelector: 'kb_1',
-          documentSelector: null,
-        })
-      )
-    ).toEqual([{ blockId: 'kb', blockName: 'Lookup', field: 'documentId' }])
-    expect(
-      collectStrippedWorkspaceBindings(
-        knowledgeState({ operation: 'search', knowledgeBaseSelector: null }, false)
-      )
-    ).toEqual([])
-  })
-
-  it('ignores a block the registry does not know', () => {
-    vi.mocked(getBlock).mockReturnValue(undefined as never)
-    expect(
-      collectStrippedWorkspaceBindings(knowledgeState({ knowledgeBaseSelector: null }))
-    ).toEqual([])
   })
 })

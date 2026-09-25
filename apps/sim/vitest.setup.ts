@@ -17,7 +17,7 @@ import { afterAll, vi } from 'vitest'
 
 /**
  * This file runs once per test file, and with `isolate: true` every module it
- * touches is re-evaluated each time. The `@sim/testing` barrel is 69 modules
+ * touches is re-evaluated each time. The `@sim/testing` barrel is ~60 modules
  * (factories, builders, assertions, every mock); the 15 mocks registered here
  * are 16. Importing them by file keeps the fixed per-file setup cost at
  * ~10ms instead of ~300ms — measured on the full suite: setup 926s -> 30s.

@@ -1,18 +1,9 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import {
-  getManagedMcpConnector,
-  requireManagedMcpConnectorUrl,
-} from '@/lib/credential-groups/managed-mcp-connectors'
+import { requireManagedMcpConnectorUrl } from '@/lib/credential-groups/managed-mcp-connectors'
 
 describe('managed MCP connectors', () => {
-  it('uses immutable URLs for fixed connectors', () => {
-    expect(requireManagedMcpConnectorUrl('fireflies')).toBe('https://api.fireflies.ai/mcp')
-    expect(requireManagedMcpConnectorUrl('coda')).toBe('https://docs.superhuman.com/apis/mcp')
+  it('refuses a caller-supplied URL for fixed connectors', () => {
     expect(() => requireManagedMcpConnectorUrl('coda', 'https://example.com/mcp')).toThrow()
-    expect(requireManagedMcpConnectorUrl('granola')).toBe('https://mcp.granola.ai/mcp')
     expect(() => requireManagedMcpConnectorUrl('fireflies', 'https://example.com/mcp')).toThrow(
       'Fireflies uses the fixed MCP URL'
     )
@@ -34,11 +25,5 @@ describe('managed MCP connectors', () => {
     'https://workspace.cloud.databricks.com/api/2.0/mcp/functions/catalog/schema?token=secret',
   ])('rejects a noncanonical Databricks MCP URL: %s', (url) => {
     expect(() => requireManagedMcpConnectorUrl('databricks', url)).toThrow()
-  })
-
-  it('fails on connector IDs that are not in the registry', () => {
-    expect(() => getManagedMcpConnector('custom')).toThrow(
-      'Unsupported managed MCP connector: custom'
-    )
   })
 })

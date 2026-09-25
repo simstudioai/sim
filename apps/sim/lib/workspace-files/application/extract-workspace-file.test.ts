@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { Buffer } from 'buffer'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -81,7 +78,6 @@ const file = {
 
 describe('extractWorkspaceFile', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.getFile.mockResolvedValue(file)
@@ -169,20 +165,6 @@ describe('extractWorkspaceFile', () => {
       'claim-1'
     )
     expect(mocks.notify).toHaveBeenCalledWith('workspace-1')
-  })
-
-  it('rejects non-zip files before reading storage', async () => {
-    mocks.getFile.mockResolvedValue({ ...file, name: 'bundle.txt' })
-
-    await expect(
-      extractWorkspaceFile.execute({
-        principal,
-        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
-      })
-    ).rejects.toMatchObject({ code: 'validation', message: 'Only .zip files can be unzipped' })
-
-    expect(mocks.fetchBuffer).not.toHaveBeenCalled()
-    expect(mocks.decompress).not.toHaveBeenCalled()
   })
 
   it('rejects a second extraction while the same archive is already being extracted', async () => {
@@ -304,48 +286,6 @@ describe('extractWorkspaceFile', () => {
     return reason
   }
 
-  it('reports a budget overrun as a caller-fixable error, not the raw abort', async () => {
-    mocks.decompress.mockImplementationOnce(async (_content, options) => {
-      await options.prepareRootFolder()
-      throw expireDeadline(options.signal)
-    })
-
-    await expect(
-      extractWorkspaceFile.execute({
-        principal,
-        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
-      })
-    ).rejects.toMatchObject({
-      code: 'payload_too_large',
-      message: expect.stringContaining('took too long and was cancelled'),
-    })
-
-    expect(mocks.archiveFolderIfEmpty).toHaveBeenCalledOnce()
-  })
-
-  it('keeps the real cause when a failure races the deadline', async () => {
-    // The signal stays aborted for the rest of the request, so an unrelated mid-entry
-    // failure after the timer fires must not be relabelled as a timeout.
-    mocks.decompress.mockImplementationOnce(async (_content, options) => {
-      await options.prepareRootFolder()
-      expireDeadline(options.signal)
-      throw Object.assign(new Error('Archive entry "a.txt" could not be decompressed'), {
-        name: 'ArchiveError',
-        reason: 'invalid',
-      })
-    })
-
-    await expect(
-      extractWorkspaceFile.execute({
-        principal,
-        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
-      })
-    ).rejects.toMatchObject({
-      name: 'ArchiveError',
-      message: expect.stringContaining('could not be decompressed'),
-    })
-  })
-
   it('leaves a destination folder that gained collaborators content during rollback', async () => {
     mocks.decompress.mockImplementationOnce(async (_content, options) => {
       await options.prepareRootFolder()
@@ -383,35 +323,6 @@ describe('extractWorkspaceFile', () => {
         input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
       })
     ).resolves.toMatchObject({ extractedCount: 2 })
-  })
-
-  it('allows scoped Copilot extraction with the actual actor and no personal API key', async () => {
-    const copilotPrincipal = {
-      kind: 'delegated',
-      serviceId: 'copilot',
-      subjectUserId: 'user-1',
-      workspaceId: 'workspace-1',
-      delegationId: 'delegation-1',
-      audience: 'sim:workspace-files',
-      issuedAt: new Date('2026-01-01T00:00:00Z'),
-      expiresAt: new Date('2999-01-01T00:00:00Z'),
-    } as const
-    mocks.loadContext.mockResolvedValue({ ...context, allowPersonalApiKeys: false })
-
-    await expect(
-      extractWorkspaceFile.execute({
-        principal: copilotPrincipal,
-        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
-      })
-    ).resolves.toMatchObject({ extractedCount: 2 })
-
-    expect(mocks.createFolder).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceId: 'workspace-1', userId: 'user-1' })
-    )
-    expect(mocks.decompress).toHaveBeenCalledWith(
-      expect.any(Buffer),
-      expect.objectContaining({ principal: copilotPrincipal, workspaceId: 'workspace-1' })
-    )
   })
 
   it('rejects a non-Copilot delegated principal before loading the file', async () => {

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { resetEnvMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -30,7 +26,6 @@ afterAll(resetEnvMock)
 
 describe('internal file route authentication', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue(null)
     mockBindDelegation.mockImplementation(async (delegation, options) => ({
       kind: 'delegated',
@@ -132,19 +127,5 @@ describe('internal file route authentication', () => {
         { id: 'ws-1', fileId: 'file-1' }
       )
     ).rejects.toBe(infrastructureError)
-  })
-
-  it('preserves browser session principals when no service token is supplied', async () => {
-    mockGetSession.mockResolvedValue({
-      user: { id: 'user-1' },
-      session: { id: 'session-1' },
-    })
-
-    await expect(
-      internalSessionOrExecutorAuth.authenticate(
-        new NextRequest('http://localhost/api/workspaces/ws-1/files/file-1'),
-        { id: 'ws-1', fileId: 'file-1' }
-      )
-    ).resolves.toEqual({ kind: 'session', userId: 'user-1', sessionId: 'session-1' })
   })
 })

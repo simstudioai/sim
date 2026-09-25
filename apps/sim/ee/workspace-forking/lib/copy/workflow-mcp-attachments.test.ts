@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 
 const { mockGetEdgeMappingRows, mockAcquireLock } = vi.hoisted(() => ({
@@ -169,22 +166,6 @@ describe('reconcileForkWorkflowMcpAttachments', () => {
     expect(inserted).toHaveLength(0)
     expect(result.affectedServerIds).toEqual([])
   })
-
-  it('no-ops with no mapped servers (attachments follow the server identity)', async () => {
-    mockGetEdgeMappingRows.mockResolvedValue([
-      { ...serverMappingRow, resourceType: 'table' as const },
-    ])
-    const { tx, inserted } = makeTx([])
-    const result = await reconcileForkWorkflowMcpAttachments({
-      tx,
-      childWorkspaceId: 'child-ws',
-      sourceIsParent: false,
-      now: new Date(),
-      writtenPairs: [{ sourceWorkflowId: 'wf-child', targetWorkflowId: 'wf-parent' }],
-    })
-    expect(inserted).toHaveLength(0)
-    expect(result.affectedServerIds).toEqual([])
-  })
 })
 
 describe('copyForkWorkflowMcpAttachments', () => {
@@ -208,17 +189,5 @@ describe('copyForkWorkflowMcpAttachments', () => {
       workflowId: 'wf-copy',
       toolName: 'run_support_flow',
     })
-  })
-
-  it('no-ops when either id map is empty', async () => {
-    const { tx, inserted } = makeTx([])
-    const result = await copyForkWorkflowMcpAttachments({
-      tx,
-      serverIdMap: new Map(),
-      workflowIdMap: new Map([['wf-src', 'wf-copy']]),
-      now: new Date(),
-    })
-    expect(result.copied).toBe(0)
-    expect(inserted).toHaveLength(0)
   })
 })

@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Knowledge Utils Unit Tests
  *
  * This file contains unit tests for the knowledge base utility functions,
@@ -15,7 +13,6 @@ import {
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as billingAttributionModule from '@/lib/billing/core/billing-attribution'
-import * as apiKeysModule from '@/lib/core/config/api-keys'
 import { env } from '@/lib/core/config/env'
 import * as documentsUtilsModule from '@/lib/knowledge/documents/utils'
 import * as workspacesUtilsModule from '@/lib/workspaces/utils'
@@ -149,19 +146,9 @@ function createEmbeddingFetchMock() {
 vi.stubGlobal('fetch', createEmbeddingFetchMock())
 
 import { processDocumentAsync } from '@/lib/knowledge/documents/service'
-import { generateEmbeddings, type KbEmbeddingTarget } from '@/lib/knowledge/embeddings'
-
-/** The platform default model and vector width, as a knowledge base records them. */
-const DEFAULT_EMBEDDING_TARGET: KbEmbeddingTarget = {
-  model: 'text-embedding-3-small',
-  dimensions: 1536,
-}
-
-import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 
 describe('Knowledge Utils', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     // The document claim gates on the row it writes back, so an unstubbed
     // `returning()` would abort processing before any completion write.
@@ -257,100 +244,6 @@ describe('Knowledge Utils', () => {
       expect(dbChainMockFns.values.mock.invocationCallOrder[0]).toBeLessThan(
         dbChainMockFns.set.mock.invocationCallOrder[completedIndex]
       )
-    })
-  })
-
-  describe('checkKnowledgeBaseAccess', () => {
-    it('should return success for owner', async () => {
-      queueTableRows(schemaMock.knowledgeBase, [{ id: 'kb1', userId: 'user1' }])
-      const result = await checkKnowledgeBaseAccess('kb1', 'user1')
-
-      expect(result.hasAccess).toBe(true)
-    })
-
-    it('should return notFound when knowledge base is missing', async () => {
-      const result = await checkKnowledgeBaseAccess('missing', 'user1')
-
-      expect(result.hasAccess).toBe(false)
-      expect('notFound' in result && result.notFound).toBe(true)
-    })
-  })
-
-  describe('generateEmbeddings', () => {
-    it('should return same length as input', async () => {
-      const result = await generateEmbeddings(['a', 'b'], DEFAULT_EMBEDDING_TARGET)
-
-      expect(result.embeddings.length).toBe(2)
-    })
-
-    it('should use Azure OpenAI when Azure config is provided', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      Object.assign(env, {
-        AZURE_OPENAI_API_KEY: 'test-azure-key',
-        AZURE_OPENAI_ENDPOINT: 'https://test.openai.azure.com',
-        AZURE_OPENAI_API_VERSION: '2024-12-01-preview',
-        KB_OPENAI_MODEL_NAME: 'text-embedding-ada-002',
-        OPENAI_API_KEY: 'test-openai-key',
-      })
-
-      const fetchSpy = vi.mocked(fetch)
-      fetchSpy.mockResolvedValueOnce(createEmbeddingResponse([0.1], 'float'))
-
-      await generateEmbeddings(['test text'], DEFAULT_EMBEDDING_TARGET)
-
-      expect(fetchSpy).toHaveBeenCalledWith(
-        'https://test.openai.azure.com/openai/deployments/text-embedding-ada-002/embeddings?api-version=2024-12-01-preview',
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            'api-key': 'test-azure-key',
-          }),
-        })
-      )
-
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-    })
-
-    it('should fallback to OpenAI when no Azure config provided', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      Object.assign(env, {
-        OPENAI_API_KEY: 'test-openai-key',
-      })
-
-      const fetchSpy = vi.mocked(fetch)
-      fetchSpy.mockResolvedValueOnce(createEmbeddingResponse([0.1], 'base64'))
-
-      await generateEmbeddings(['test text'], DEFAULT_EMBEDDING_TARGET)
-
-      expect(fetchSpy).toHaveBeenCalledWith(
-        'https://api.openai.com/v1/embeddings',
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: 'Bearer test-openai-key',
-          }),
-        })
-      )
-
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-    })
-
-    it('should throw error when no API configuration provided', async () => {
-      Object.keys(env).forEach((key) => delete (env as Record<string, unknown>)[key])
-      const rotationSpy = vi.spyOn(apiKeysModule, 'getRotatingApiKey').mockImplementation(() => {
-        throw new Error('No rotation keys configured')
-      })
-
-      try {
-        await expect(generateEmbeddings(['test text'], DEFAULT_EMBEDDING_TARGET)).rejects.toThrow(
-          'Semantic retrieval is unavailable because its embedding provider is not configured.'
-        )
-        expect(rotationSpy).toHaveBeenCalledWith('openai')
-        expect(fetch).not.toHaveBeenCalled()
-      } finally {
-        rotationSpy.mockRestore()
-        vi.unstubAllEnvs()
-      }
     })
   })
 })

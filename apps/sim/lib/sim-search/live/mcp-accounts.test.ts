@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -29,7 +28,6 @@ const row = {
 }
 describe('Coda personal search authority', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.context.mockResolvedValue({ workspaceId: 'workspace', workspaceOrganizationId: 'org' })
     mocks.policy.mockResolvedValue({})

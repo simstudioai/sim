@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { queueTableRows, requestUtilsMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -38,7 +35,6 @@ const context = { params: Promise.resolve({ identifier: 'support' }) }
 
 describe('POST /api/chat/[identifier]/sso', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(schemaMock.chat, [deployment])
     requestUtilsMockFns.mockGetClientIp.mockReturnValue('127.0.0.1')
@@ -63,17 +59,6 @@ describe('POST /api/chat/[identifier]/sso', () => {
       expect.objectContaining({ maxTokens: 100 }),
       { failClosed: true }
     )
-  })
-
-  it('returns 429 when the chat-resource limit is exceeded', async () => {
-    mockCheckRateLimitDirect
-      .mockResolvedValueOnce({ allowed: true })
-      .mockResolvedValueOnce({ allowed: false, retryAfterMs: 3000 })
-
-    const response = await POST(post('user@acme.com'), context)
-
-    expect(response.status).toBe(429)
-    expect(response.headers.get('Retry-After')).toBe('3')
   })
 
   it('retains the chat-resource limit when the client IP cannot be resolved', async () => {

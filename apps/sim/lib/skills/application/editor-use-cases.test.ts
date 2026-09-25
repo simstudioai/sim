@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { skill } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -122,7 +119,6 @@ function queueSkill(): void {
 
 describe('skill editor application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')

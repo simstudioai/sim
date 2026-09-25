@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   FALAI_HOSTED_KEY_MARKUP_MULTIPLIER,

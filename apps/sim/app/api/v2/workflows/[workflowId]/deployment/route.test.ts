@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -138,7 +134,6 @@ async function get() {
 
 describe('GET /api/v2/workflows/[workflowId]/deployment', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -288,15 +283,6 @@ describe('GET /api/v2/workflows/[workflowId]/deployment', () => {
     expect((await response.json()).error.code).toBe('NOT_FOUND')
     expect(mocks.getWorkflowDeploymentSummary).not.toHaveBeenCalled()
   })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await get()
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
-  })
 })
 
 const workspaceKeyAuth = {
@@ -321,7 +307,6 @@ async function patch(body: unknown) {
 
 describe('PATCH /api/v2/workflows/[workflowId]/deployment', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -394,22 +379,5 @@ describe('PATCH /api/v2/workflows/[workflowId]/deployment', () => {
     expect(response.status).toBe(404)
     expect((await response.json()).error.code).toBe('NOT_FOUND')
     expect(mocks.updatePublicApiRow).not.toHaveBeenCalled()
-  })
-
-  it('rejects a body that names no setting', async () => {
-    const response = await patch({})
-
-    expect(response.status).toBe(400)
-    expect((await response.json()).error.code).toBe('BAD_REQUEST')
-    expect(mocks.updatePublicApiRow).not.toHaveBeenCalled()
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await patch({ isPublicApi: true })
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 })

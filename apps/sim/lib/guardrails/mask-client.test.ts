@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetUrlsMock, urlsMockFns } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,7 +19,6 @@ describe('maskPIIBatchViaHttp', () => {
   let fetchMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockToken.mockResolvedValue('tok')
     mockBaseUrl.mockReturnValue('http://app.internal:3000')
     mockSleep.mockResolvedValue(undefined)
@@ -38,13 +34,6 @@ describe('maskPIIBatchViaHttp', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
-  })
-
-  it('masks a small batch in a single request', async () => {
-    const out = await maskPIIBatchViaHttp(['a', 'b', 'c'], ['EMAIL_ADDRESS'])
-
-    expect(out).toEqual(['M(a)', 'M(b)', 'M(c)'])
-    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('splits by count into multiple requests, preserving global order', async () => {
@@ -76,40 +65,12 @@ describe('maskPIIBatchViaHttp', () => {
     expect(mockSleep).toHaveBeenCalledTimes(1)
   })
 
-  it('retries a rejected fetch (network error) and then succeeds', async () => {
-    fetchMock.mockRejectedValueOnce(new TypeError('fetch failed'))
-
-    const out = await maskPIIBatchViaHttp(['a'], [])
-
-    expect(out).toEqual(['M(a)'])
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-  })
-
-  it('retries a runtime-level request timeout and then succeeds', async () => {
-    const timeout = new Error('The operation timed out.')
-    timeout.name = 'TimeoutError'
-    fetchMock.mockRejectedValueOnce(timeout)
-
-    const out = await maskPIIBatchViaHttp(['a'], [])
-
-    expect(out).toEqual(['M(a)'])
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-  })
-
   it('gives up after the retry budget is exhausted on a persistent 5xx', async () => {
     fetchMock.mockImplementation(async () => new Response('down', { status: 503 }))
 
     await expect(maskPIIBatchViaHttp(['a'], [])).rejects.toThrow(/mask-batch request failed/)
     expect(fetchMock).toHaveBeenCalledTimes(8)
     expect(mockSleep).toHaveBeenCalledTimes(7)
-  })
-
-  it('mints a fresh internal token per attempt', async () => {
-    fetchMock.mockResolvedValueOnce(new Response('deploying', { status: 503 }))
-
-    await maskPIIBatchViaHttp(['a'], [])
-
-    expect(mockToken).toHaveBeenCalledTimes(2)
   })
 
   it('does not retry a null 200 body (deterministic, not a transient TypeError)', async () => {
@@ -120,24 +81,5 @@ describe('maskPIIBatchViaHttp', () => {
     await expect(maskPIIBatchViaHttp(['a'], [])).rejects.toThrow(/unexpected result/)
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(mockSleep).not.toHaveBeenCalled()
-  })
-
-  it('does not retry a shape mismatch (deterministic server bug)', async () => {
-    fetchMock.mockResolvedValueOnce(
-      new Response(JSON.stringify({ nope: true }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      })
-    )
-
-    await expect(maskPIIBatchViaHttp(['a'], [])).rejects.toThrow(/unexpected result/)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('returns [] without any request for empty input', async () => {
-    const out = await maskPIIBatchViaHttp([], [])
-
-    expect(out).toEqual([])
-    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

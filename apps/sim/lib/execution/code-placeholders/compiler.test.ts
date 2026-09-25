@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { spawnSync } from 'node:child_process'
 import { hasPython3, PYTHON_SKIP_REASON } from '@sim/testing/environment'
 import { afterEach, describe, expect, it } from 'vitest'

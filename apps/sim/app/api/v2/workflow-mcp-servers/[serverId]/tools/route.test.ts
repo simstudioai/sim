@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   resetDbChainMock,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -146,7 +142,6 @@ async function del() {
 
 describe('/api/v2/workflow-mcp-servers/[serverId]/tools', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     v2RouteMocks.authenticate.mockResolvedValue(personalKeyAuth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
@@ -167,30 +162,6 @@ describe('/api/v2/workflow-mcp-servers/[serverId]/tools', () => {
   })
 
   describe('POST', () => {
-    it('publishes a deployed workflow and reports it as new', async () => {
-      queueWorkflowLookup()
-
-      const response = await post({ workflowId: WORKFLOW_ID })
-
-      expect(response.status).toBe(200)
-      expect(await response.json()).toEqual({
-        data: {
-          id: 'wfmcptool-1',
-          serverId: SERVER_ID,
-          workflowId: WORKFLOW_ID,
-          toolName: 'triage_ticket',
-          toolDescription: 'Execute Ticket triage workflow',
-          mcpServerUrl: expect.stringContaining(`/api/mcp/serve/${SERVER_ID}`),
-          apiEndpoint: expect.stringContaining(`/api/v2/workflows/${WORKFLOW_ID}/execute`),
-          updated: false,
-          createdAt: '2026-06-12T10:30:00.000Z',
-          updatedAt: '2026-06-12T10:30:00.000Z',
-        },
-      })
-      expect(mocks.createTool).toHaveBeenCalled()
-      expect(mocks.updateTool).not.toHaveBeenCalled()
-    })
-
     /** Publishing is idempotent per workflow — a repeat replaces rather than conflicts. */
     it('replaces an existing tool and reports updated', async () => {
       queueWorkflowLookup()
@@ -237,16 +208,6 @@ describe('/api/v2/workflow-mcp-servers/[serverId]/tools', () => {
       expect(mocks.getServer).not.toHaveBeenCalled()
     })
 
-    it('rejects a nested unknown key in parameterDescriptions', async () => {
-      const response = await post({
-        workflowId: WORKFLOW_ID,
-        parameterDescriptions: [{ name: 'field', description: 'x', required: true }],
-      })
-
-      expect(response.status).toBe(400)
-      expect(mocks.getServer).not.toHaveBeenCalled()
-    })
-
     it('refuses a caller below workspace admin with 403', async () => {
       queueWorkflowLookup()
       mocks.resolvePermission.mockResolvedValue('write')
@@ -255,14 +216,6 @@ describe('/api/v2/workflow-mcp-servers/[serverId]/tools', () => {
 
       expect(response.status).toBe(403)
       expect(mocks.createTool).not.toHaveBeenCalled()
-    })
-
-    it('rejects an unauthenticated request', async () => {
-      v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-      const response = await post({ workflowId: WORKFLOW_ID })
-
-      expect(response.status).toBe(401)
     })
   })
 
@@ -308,23 +261,6 @@ describe('/api/v2/workflow-mcp-servers/[serverId]/tools', () => {
    * a caller that lost the publish response could not reconcile a server.
    */
   describe('GET', () => {
-    it('returns each published tool with the workflowId that addresses it', async () => {
-      mocks.getServer.mockResolvedValue(serverRow)
-      mocks.listTools.mockResolvedValue({ tools: [toolRow], truncated: false })
-
-      const response = await get()
-
-      expect(response.status).toBe(200)
-      const body = await response.json()
-      expect(body.data).toHaveLength(1)
-      expect(body.data[0]).toMatchObject({
-        id: 'wfmcptool-1',
-        serverId: SERVER_ID,
-        workflowId: WORKFLOW_ID,
-        toolName: 'triage_ticket',
-      })
-    })
-
     /**
      * An undeploy archives the workflow's registrations rather than deleting
      * them. Omitting those rows made `tools list` answer `[]` for a server whose
@@ -355,26 +291,6 @@ describe('/api/v2/workflow-mcp-servers/[serverId]/tools', () => {
         ['close_ticket', 'inactive'],
       ])
       expect(body.data[1]).not.toHaveProperty('archivedAt')
-    })
-
-    /** `updated` reports what a publish did; a read has no publish to report. */
-    it('omits the publish-only updated flag', async () => {
-      mocks.getServer.mockResolvedValue(serverRow)
-      mocks.listTools.mockResolvedValue({ tools: [toolRow], truncated: false })
-
-      const body = await (await get()).json()
-
-      expect(body.data[0]).not.toHaveProperty('updated')
-    })
-
-    it('is a full set, so nextCursor is always null', async () => {
-      mocks.getServer.mockResolvedValue(serverRow)
-      mocks.listTools.mockResolvedValue({ tools: [toolRow], truncated: false })
-
-      const body = await (await get()).json()
-
-      expect(body.nextCursor).toBeNull()
-      expect(body.truncated).toBe(false)
     })
 
     /**

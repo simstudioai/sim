@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { account, credential } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { eq, ne } from 'drizzle-orm'
@@ -11,7 +10,6 @@ import { getPersonalOAuthCredentials } from '@/lib/credentials/personal'
 
 describe('personal OAuth queries', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     enrolled.mockResolvedValue([])
   })

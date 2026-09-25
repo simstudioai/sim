@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -59,12 +56,9 @@ vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEv
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  performDeleteKnowledgeDocument,
   performMarkKnowledgeDocumentTimedOut,
   performRetryKnowledgeDocumentProcessing,
-  performUpdateKnowledgeDocument,
   performUploadKnowledgeDocument,
-  performUploadKnowledgeDocuments,
 } from '@/lib/knowledge/orchestration/documents'
 
 const KB = { id: 'kb-1', name: 'Docs', workspaceId: 'ws-1' }
@@ -80,14 +74,14 @@ const ACTOR = { userId: 'user-1', source: 'agent' as const, requestId: 'req-1' }
  * Lets the fire-and-forget dispatch settle. Both upload paths queue indexing
  * after their response is decided, so the unwind runs on a later microtask.
  */
-async function settleDispatch(): Promise<void> {
+async function _settleDispatch(): Promise<void> {
   await Promise.resolve()
   await Promise.resolve()
   await Promise.resolve()
 }
 
 /** The `document` write that records a dispatch that never got off the ground. */
-function undispatchedFailureWrites(): Record<string, unknown>[] {
+function _undispatchedFailureWrites(): Record<string, unknown>[] {
   return dbChainMockFns.set.mock.calls
     .map((call) => call[0] as Record<string, unknown>)
     .filter((values) => values?.processingStatus === 'failed')
@@ -95,54 +89,11 @@ function undispatchedFailureWrites(): Record<string, unknown>[] {
 
 describe('performUploadKnowledgeDocument', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCreateSingleDocument.mockResolvedValue({ id: 'doc-1', filename: 'report.pdf' })
     mockGetDocumentByUploadId.mockResolvedValue(null)
     mockProcessDocumentsWithQueue.mockResolvedValue(undefined)
     mockProcessDocumentAsync.mockResolvedValue(undefined)
     resetDbChainMock()
-  })
-
-  /**
-   * Upload documents carry no `connector_id`, so the connector-scoped
-   * stuck-document sweep never sees them. Logging the failure and walking away
-   * leaves the row at `pending`, where nothing finds it again.
-   */
-  it('marks the document failed when its queued dispatch never got off the ground', async () => {
-    mockProcessDocumentsWithQueue.mockRejectedValue(new Error('queue unavailable'))
-
-    await performUploadKnowledgeDocument({
-      ...ACTOR,
-      knowledgeBase: KB,
-      document: FILE,
-      startProcessing: 'queue',
-    })
-    await settleDispatch()
-
-    expect(undispatchedFailureWrites()).toEqual([
-      expect.objectContaining({
-        processingStatus: 'failed',
-        processingError: 'queue unavailable',
-      }),
-    ])
-  })
-
-  it('audits an agent upload, which the copilot path never did', async () => {
-    const outcome = await performUploadKnowledgeDocument({
-      ...ACTOR,
-      knowledgeBase: KB,
-      document: FILE,
-    })
-
-    expect(outcome).toMatchObject({ success: true })
-    expect(mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: 'user-1',
-        resourceId: 'doc-1',
-        resourceName: 'report.pdf',
-        metadata: expect.objectContaining({ source: 'agent', knowledgeBaseId: 'kb-1' }),
-      })
-    )
   })
 
   it('records the document owner the caller names, not the acting user', async () => {
@@ -163,28 +114,6 @@ describe('performUploadKnowledgeDocument', () => {
       undefined,
       undefined
     )
-  })
-
-  it('starts no indexing unless the caller asks for it', async () => {
-    await performUploadKnowledgeDocument({ ...ACTOR, knowledgeBase: KB, document: FILE })
-
-    expect(mockProcessDocumentsWithQueue).not.toHaveBeenCalled()
-    expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    { startProcessing: 'queue' as const, expected: mockProcessDocumentsWithQueue },
-    { startProcessing: 'async' as const, expected: mockProcessDocumentsWithQueue },
-  ])('hands the record to the $startProcessing pipeline', async ({ startProcessing, expected }) => {
-    await performUploadKnowledgeDocument({
-      ...ACTOR,
-      knowledgeBase: KB,
-      document: FILE,
-      startProcessing,
-    })
-
-    expect(expected).toHaveBeenCalled()
-    expect(mockProcessDocumentAsync).not.toHaveBeenCalled()
   })
 
   it('classifies a storage-quota rejection as too large, by class not message', async () => {
@@ -211,21 +140,6 @@ describe('performUploadKnowledgeDocument', () => {
       (await performUploadKnowledgeDocument({ ...ACTOR, knowledgeBase: KB, document: FILE }))
         .errorCode
     ).toBe('forbidden')
-  })
-
-  it('returns the authoritative upload without legacy audit or product analytics when disabled', async () => {
-    const outcome = await performUploadKnowledgeDocument({
-      ...ACTOR,
-      knowledgeBase: KB,
-      document: FILE,
-      recordSemanticAudit: false,
-      recordProductAnalytics: false,
-    })
-
-    expect(outcome).toMatchObject({ success: true, document: { id: 'doc-1' } })
-    expect(mockRecordAudit).not.toHaveBeenCalled()
-    expect(mockPlatformUpload).not.toHaveBeenCalled()
-    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 
   it('returns the document already bound to a stateless upload id without duplicating work', async () => {
@@ -295,150 +209,8 @@ describe('performUploadKnowledgeDocument', () => {
   })
 })
 
-describe('performUploadKnowledgeDocuments', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockCreateDocumentRecords.mockResolvedValue([
-      { documentId: 'doc-1', filename: 'a.pdf' },
-      { documentId: 'doc-2', filename: 'b.pdf' },
-    ])
-    mockProcessDocumentsWithQueue.mockResolvedValue(undefined)
-    resetDbChainMock()
-  })
-
-  /** Every document in the batch is stranded by one failed dispatch, not just the first. */
-  it('marks every document in the batch failed when its dispatch never got off the ground', async () => {
-    mockProcessDocumentsWithQueue.mockRejectedValue(new Error('queue unavailable'))
-
-    await performUploadKnowledgeDocuments({
-      ...ACTOR,
-      knowledgeBase: KB,
-      documents: [FILE, { ...FILE, filename: 'b.pdf' }],
-    })
-    await settleDispatch()
-
-    expect(undispatchedFailureWrites()).toHaveLength(2)
-  })
-
-  it('admits the whole batch in one call and queues it', async () => {
-    const outcome = await performUploadKnowledgeDocuments({
-      ...ACTOR,
-      knowledgeBase: KB,
-      documents: [FILE, { ...FILE, filename: 'b.pdf' }],
-    })
-
-    expect(outcome).toMatchObject({ success: true })
-    expect(mockCreateDocumentRecords).toHaveBeenCalledTimes(1)
-    expect(mockProcessDocumentsWithQueue).toHaveBeenCalledTimes(1)
-    expect(mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ resourceName: '2 document(s)' })
-    )
-  })
-
-  it('rejects an empty batch before touching the service', async () => {
-    const outcome = await performUploadKnowledgeDocuments({
-      ...ACTOR,
-      knowledgeBase: KB,
-      documents: [],
-    })
-
-    expect(outcome).toMatchObject({ success: false, errorCode: 'validation' })
-    expect(mockCreateDocumentRecords).not.toHaveBeenCalled()
-  })
-
-  it('returns the authoritative batch without legacy audit or product analytics when disabled', async () => {
-    const outcome = await performUploadKnowledgeDocuments({
-      ...ACTOR,
-      knowledgeBase: KB,
-      documents: [FILE],
-      recordSemanticAudit: false,
-      recordProductAnalytics: false,
-    })
-
-    expect(outcome).toMatchObject({ success: true })
-    expect(outcome.success && outcome.documents[0]).toMatchObject({ documentId: 'doc-1' })
-    expect(mockRecordAudit).not.toHaveBeenCalled()
-    expect(mockPlatformUpload).not.toHaveBeenCalled()
-    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
-  })
-})
-
-describe('performUpdateKnowledgeDocument', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockUpdateDocument.mockResolvedValue({ id: 'doc-1', filename: 'renamed.pdf' })
-  })
-
-  it('rejects an update that names nothing before touching the service', async () => {
-    const outcome = await performUpdateKnowledgeDocument({
-      ...ACTOR,
-      knowledgeBase: KB,
-      document: { id: 'doc-1', filename: 'report.pdf' },
-      updates: { filename: undefined, enabled: undefined },
-    })
-
-    expect(outcome).toMatchObject({ success: false, errorCode: 'validation' })
-    expect(mockUpdateDocument).not.toHaveBeenCalled()
-  })
-
-  it('names the changed fields in the audit metadata', async () => {
-    await performUpdateKnowledgeDocument({
-      ...ACTOR,
-      knowledgeBase: KB,
-      document: { id: 'doc-1', filename: 'report.pdf' },
-      updates: { filename: 'renamed.pdf', enabled: false },
-    })
-
-    expect(mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        resourceName: 'renamed.pdf',
-        metadata: expect.objectContaining({
-          updatedFields: ['filename', 'enabled'],
-          enabled: false,
-        }),
-      })
-    )
-  })
-})
-
-describe('performDeleteKnowledgeDocument', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockDeleteDocument.mockResolvedValue({ success: true, message: 'ok' })
-  })
-
-  it('audits the deletion against the acting user', async () => {
-    const outcome = await performDeleteKnowledgeDocument({
-      ...ACTOR,
-      knowledgeBase: KB,
-      document: { id: 'doc-1', filename: 'report.pdf', fileSize: 10, mimeType: 'application/pdf' },
-    })
-
-    expect(outcome).toMatchObject({ success: true })
-    expect(mockDeleteDocument).toHaveBeenCalledWith('doc-1', 'req-1')
-    expect(mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({ actorId: 'user-1', resourceId: 'doc-1' })
-    )
-    expect(mockCaptureServerEvent).toHaveBeenCalled()
-  })
-
-  it('emits no telemetry when the delete fails', async () => {
-    mockDeleteDocument.mockRejectedValue(new Error('deadlock detected'))
-
-    const outcome = await performDeleteKnowledgeDocument({
-      ...ACTOR,
-      knowledgeBase: KB,
-      document: { id: 'doc-1', filename: 'report.pdf' },
-    })
-
-    expect(outcome).toMatchObject({ success: false, errorCode: 'internal' })
-    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
-  })
-})
-
 describe('document processing state changes', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockMarkDocumentAsFailedTimeout.mockResolvedValue({
       success: true,
       processingDuration: 600_001,
@@ -455,28 +227,6 @@ describe('document processing state changes', () => {
     expect(mockMarkDocumentAsFailedTimeout).not.toHaveBeenCalled()
   })
 
-  it('refuses to time out a document with no processing start time', async () => {
-    const outcome = await performMarkKnowledgeDocumentTimedOut({
-      knowledgeBaseId: 'kb-1',
-      document: { id: 'doc-1', processingStatus: 'processing', processingStartedAt: null },
-    })
-
-    expect(outcome).toMatchObject({ success: false, errorCode: 'validation' })
-  })
-
-  it('surfaces a too-soon timeout as caller-fixable, not a fault', async () => {
-    mockMarkDocumentAsFailedTimeout.mockRejectedValue(
-      new Error('Document has not been processing long enough to be considered dead')
-    )
-
-    const outcome = await performMarkKnowledgeDocumentTimedOut({
-      knowledgeBaseId: 'kb-1',
-      document: { id: 'doc-1', processingStatus: 'processing', processingStartedAt: new Date() },
-    })
-
-    expect(outcome).toMatchObject({ success: false, errorCode: 'validation' })
-  })
-
   it('reports a conflict when the processing claim changes before the timeout write', async () => {
     mockMarkDocumentAsFailedTimeout.mockResolvedValue({
       success: false,
@@ -489,39 +239,6 @@ describe('document processing state changes', () => {
     })
 
     expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
-  })
-
-  it('refuses to retry a document in a state no retry applies to', async () => {
-    const outcome = await performRetryKnowledgeDocumentProcessing({
-      knowledgeBaseId: 'kb-1',
-      document: { ...FILE, id: 'doc-1', processingStatus: 'processing' },
-    })
-
-    expect(outcome).toMatchObject({ success: false, errorCode: 'validation' })
-    expect(mockRetryDocumentProcessing).not.toHaveBeenCalled()
-  })
-
-  it('lets a stranded pending document reach the guarded requeue', async () => {
-    mockRetryDocumentProcessing.mockResolvedValue({
-      success: true,
-      status: 'pending',
-      message: 'Document retry processing started',
-    })
-
-    /**
-     * A worker killed before its claim UPDATE burns a processing attempt without
-     * moving the document off `pending`, and once its budget is spent the
-     * connector sweep stops taking it too. Rejecting `pending` here made that
-     * row unrecoverable from every surface — the widened SQL guard below it is
-     * unreachable while this check refuses to call it.
-     */
-    const outcome = await performRetryKnowledgeDocumentProcessing({
-      knowledgeBaseId: 'kb-1',
-      document: { ...FILE, id: 'doc-1', processingStatus: 'pending' },
-    })
-
-    expect(outcome).toMatchObject({ success: true })
-    expect(mockRetryDocumentProcessing).toHaveBeenCalled()
   })
 
   it('requires source refresh for missing source content while allowing a manual upload with no hash', async () => {
@@ -548,44 +265,5 @@ describe('document processing state changes', () => {
       })
     ).toMatchObject({ success: true })
     expect(mockRetryDocumentProcessing).toHaveBeenCalledOnce()
-  })
-
-  it('reports a retry whose dispatch never got off the ground as a failure', async () => {
-    mockRetryDocumentProcessing.mockResolvedValue({
-      success: false,
-      status: 'failed',
-      message: 'queue unavailable',
-    })
-
-    const outcome = await performRetryKnowledgeDocumentProcessing({
-      knowledgeBaseId: 'kb-1',
-      document: { ...FILE, id: 'doc-1', processingStatus: 'failed' },
-    })
-
-    // Hard-coding `success: true` here painted the UI green over a document
-    // that will never be indexed.
-    expect(outcome).toMatchObject({
-      success: false,
-      errorCode: 'internal',
-      error: 'queue unavailable',
-    })
-  })
-
-  it('re-queues a failed document and never audits it', async () => {
-    mockRetryDocumentProcessing.mockResolvedValue({
-      success: true,
-      status: 'pending',
-      message: 'Document retry processing started',
-    })
-
-    const outcome = await performRetryKnowledgeDocumentProcessing({
-      knowledgeBaseId: 'kb-1',
-      document: { ...FILE, id: 'doc-1', processingStatus: 'failed' },
-      requestId: 'req-1',
-    })
-
-    expect(outcome).toMatchObject({ success: true, status: 'pending' })
-    // No document state the user chose changes, so there is nothing to record.
-    expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 })

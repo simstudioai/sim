@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
@@ -90,7 +87,6 @@ function forgedWorkflowContext() {
 
 describe('Assistant integration execution boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     encryptedTokens.clear()
     assistantContext.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([], {
       userId: 'caller',

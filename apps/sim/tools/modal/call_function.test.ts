@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { modalCallFunctionTool } from '@/tools/modal/call_function'
 import type { ModalCallFunctionParams } from '@/tools/modal/types'

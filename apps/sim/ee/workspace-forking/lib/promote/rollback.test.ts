@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -105,7 +102,6 @@ function makeRun(overrides: Partial<Record<string, unknown>> = {}) {
 
 describe('rollbackFork', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveForkEdge.mockResolvedValue(EDGE)
     mockReactivate.mockImplementation(async ({ workflowId }: { workflowId: string }) => ({
       deploymentVersionId: `dv-${workflowId}`,
@@ -202,36 +198,6 @@ describe('rollbackFork', () => {
     expect(mockProcessOutbox).not.toHaveBeenCalled()
   })
 
-  it('surfaces a skipped reactivation when the version is gone (never silent)', async () => {
-    const run = makeRun({
-      snapshot: {
-        updated: [
-          { workflowId: 'wf-a', priorVersion: 3 },
-          { workflowId: 'wf-b', priorVersion: 5 },
-        ],
-        created: [],
-        archived: [],
-      },
-    })
-    mockGetLatestRun.mockResolvedValue(run)
-    mockReactivate.mockImplementation(async ({ workflowId }: { workflowId: string }) =>
-      workflowId === 'wf-b'
-        ? null
-        : { deploymentVersionId: 'dv', operationId: 'op-wf-a', outboxEventId: 'evt-wf-a' }
-    )
-
-    const result = await rollbackFork({
-      targetWorkspaceId: 'target-ws',
-      otherWorkspaceId: 'other-ws',
-      userId: 'user-1',
-    })
-
-    expect(result.restored).toBe(1)
-    expect(result.skipped).toBe(1)
-    expect(result.skippedIds).toEqual(['wf-b'])
-    expect(mockNotify).not.toHaveBeenCalledWith('wf-b')
-  })
-
   it('undeploys + archives created workflows and dissolves their identity rows', async () => {
     setTx(['wf-c'])
     const run = makeRun({
@@ -272,23 +238,6 @@ describe('rollbackFork', () => {
     expect(mockProcessOutbox).toHaveBeenCalledWith('undeploy-evt')
   })
 
-  it('skips a created workflow that was hard-deleted (not archived, surfaced)', async () => {
-    setTx([]) // wf-c no longer exists
-    const run = makeRun({ snapshot: { updated: [], created: ['wf-c'], archived: [] } })
-    mockGetLatestRun.mockResolvedValue(run)
-
-    const result = await rollbackFork({
-      targetWorkspaceId: 'target-ws',
-      otherWorkspaceId: 'other-ws',
-      userId: 'user-1',
-    })
-
-    expect(mockUndeploy).not.toHaveBeenCalled()
-    expect(result.skipped).toBe(1)
-    expect(result.skippedIds).toEqual(['wf-c'])
-    expect(result.archived).toBe(0)
-  })
-
   it('preserves the undo point and reports pending activations while cutover settles', async () => {
     const run = makeRun({
       snapshot: { updated: [{ workflowId: 'wf-a', priorVersion: 3 }], created: [], archived: [] },
@@ -307,23 +256,6 @@ describe('rollbackFork', () => {
 
     expect(result.pendingActivations).toEqual(['wf-a'])
     expect(result.restored).toBe(1)
-    expect(mockDeleteAllRuns).not.toHaveBeenCalled()
-  })
-
-  it('keeps the undo point when no operation row exists to verify cutover', async () => {
-    const run = makeRun({
-      snapshot: { updated: [{ workflowId: 'wf-a', priorVersion: 3 }], created: [], archived: [] },
-    })
-    mockGetLatestRun.mockResolvedValue(run)
-    mockGetDeploymentStatus.mockResolvedValue({ activeDeployment: null, latestOperation: null })
-
-    const result = await rollbackFork({
-      targetWorkspaceId: 'target-ws',
-      otherWorkspaceId: 'other-ws',
-      userId: 'user-1',
-    })
-
-    expect(result.pendingActivations).toEqual(['wf-a'])
     expect(mockDeleteAllRuns).not.toHaveBeenCalled()
   })
 

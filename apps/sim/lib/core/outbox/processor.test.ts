@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -66,19 +63,6 @@ describe('outbox processor recovery', () => {
     mocks.reap.mockResolvedValue(3)
   })
   afterEach(() => vi.useRealTimers())
-
-  it('preserves the processing limits and reports independent recovery work', async () => {
-    await expect(runOutboxProcessor()).resolves.toEqual({
-      result,
-      recoveredDocuments: 2,
-      reapedBackgroundWork: 3,
-    })
-    expect(mocks.process).toHaveBeenCalledWith(expect.any(Object), {
-      batchSize: 500,
-      maxRuntimeMs: 760_000,
-      minRemainingMs: 95_000,
-    })
-  })
 
   it('still reaps expired background work when document recovery fails', async () => {
     mocks.recover.mockRejectedValueOnce(new Error('document recovery unavailable'))

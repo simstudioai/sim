@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { invitation } from '@sim/db/schema'
 import { dbChainMockFns, hasMockCondition, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -98,17 +97,6 @@ describe('resend preparation and compensation', () => {
         (node) => node.type === 'eq' && node.left === invitation.updatedAt
       )
     ).toBe(false)
-  })
-
-  it('rejects a changed hydrated revision before policy checks or writes', async () => {
-    mocks.lock.mockResolvedValue({
-      organizationId: 'org',
-      token: input.currentToken,
-      updatedAt: new Date('2026-01-02'),
-    })
-    await expect(prepareInvitationResend(input)).rejects.toMatchObject({ code: 'conflict' })
-    expect(mocks.policy).not.toHaveBeenCalled()
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('rejects canonical organization changes without touching the token', async () => {

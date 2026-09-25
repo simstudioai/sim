@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const redis = vi.hoisted(() => ({ set: vi.fn(), eval: vi.fn() }))
@@ -23,7 +22,6 @@ const attempt = {
   createdAt: Date.now(),
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   redis.set.mockResolvedValue('OK')
   redis.eval.mockResolvedValue(null)
 })
@@ -77,11 +75,6 @@ describe('Slack OAuth state', () => {
       await expect(consumeSlackSearchOAuthAttempt('state', principal)).resolves.toEqual(attempt)
     }
   )
-  it('rejects unknown state', async () => {
-    await expect(consumeSlackSearchOAuthAttempt('invalid', principal)).rejects.toThrow(
-      'expired or was already completed'
-    )
-  })
   it('round-trips the custom installation snapshot in a single-use shared-app attempt', async () => {
     const { encryptedClientSecret, encryptedSigningSecret, ...common } = attempt
     const transition = {

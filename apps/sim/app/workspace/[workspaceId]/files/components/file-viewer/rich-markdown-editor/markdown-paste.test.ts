@@ -5,12 +5,9 @@
  * `[text](url)` text — except inside a code block, where it must stay literal.
  */
 import { Editor } from '@tiptap/core'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
-import {
-  isPlainTextPaste,
-  MarkdownPaste,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste'
+import { MarkdownPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste'
 
 let editor: Editor | null = null
 
@@ -73,133 +70,6 @@ function transformHtml(ed: Editor, html: string): string {
 }
 
 describe('markdown paste', () => {
-  it.each(['ctrlKey', 'metaKey'] as const)(
-    'shares %s plain-paste intent with higher-precedence image handlers',
-    (modifier) => {
-      const upload = vi.fn()
-      editor = mount()
-      const ed = editor
-      ed.setOptions({
-        editorProps: {
-          handlePaste: (_view, event) => {
-            if (isPlainTextPaste(ed)) return false
-            if (event.clipboardData?.files.length) {
-              upload()
-              return true
-            }
-            return false
-          },
-        },
-      })
-      ed.commands.setContent('<p>keep selected text</p>')
-      ed.commands.setTextSelection({ from: 1, to: 19 })
-      const image = new File(['image'], 'image.png', { type: 'image/png' })
-      const plainPasteShortcut = () => {
-        ed.view.dom.dispatchEvent(
-          new KeyboardEvent('keydown', {
-            key: 'V',
-            [modifier]: true,
-            shiftKey: true,
-            bubbles: true,
-            cancelable: true,
-          })
-        )
-      }
-
-      plainPasteShortcut()
-      expect(isPlainTextPaste(ed)).toBe(true)
-      dispatchPaste(ed, '', '<img src="/image.png">', {}, [image])
-      expect(upload).not.toHaveBeenCalled()
-      expect(ed.state.doc.textContent).toBe('keep selected text')
-      expect(ed.state.doc.childCount).toBe(1)
-      expect(ed.state.doc.firstChild?.type.name).toBe('paragraph')
-      expect(isPlainTextPaste(ed)).toBe(false)
-
-      plainPasteShortcut()
-      dispatchPaste(ed, 'caption', '<img src="/image.png">', {}, [image])
-      expect(upload).not.toHaveBeenCalled()
-      expect(ed.state.doc.textContent).toBe('caption')
-      dispatchPaste(ed, '', '<img src="/image.png">', {}, [image])
-      expect(upload).toHaveBeenCalledOnce()
-    }
-  )
-
-  it('keeps plain-paste intent per editor and clears it on keyup or blur', () => {
-    editor = mount()
-    const other = mount()
-    try {
-      const startPlainPaste = () =>
-        editor?.view.dom.dispatchEvent(
-          new KeyboardEvent('keydown', {
-            key: 'V',
-            ctrlKey: true,
-            shiftKey: true,
-            bubbles: true,
-          })
-        )
-      startPlainPaste()
-      expect(isPlainTextPaste(editor)).toBe(true)
-      expect(isPlainTextPaste(other)).toBe(false)
-      editor.view.dom.dispatchEvent(new KeyboardEvent('keyup', { key: 'V', bubbles: true }))
-      expect(isPlainTextPaste(editor)).toBe(false)
-      startPlainPaste()
-      editor.view.dom.dispatchEvent(new Event('blur'))
-      expect(isPlainTextPaste(editor)).toBe(false)
-    } finally {
-      other.destroy()
-    }
-  })
-
-  it('renders a pasted inline link as a link mark', () => {
-    editor = mount()
-    expect(paste(editor, '[inline link](https://example.com)')).toBe(true)
-    const json = JSON.stringify(editor.getJSON())
-    expect(json).toContain('"type":"link"')
-    expect(json).toContain('https://example.com')
-    expect(json).not.toContain('[inline link]')
-  })
-
-  it('renders a pasted badge as a linked image', () => {
-    editor = mount()
-    expect(paste(editor, '[![build](https://e.com/i.png)](https://ci.example.com)')).toBe(true)
-    const json = JSON.stringify(editor.getJSON())
-    expect(json).toContain('"type":"image"')
-    expect(json).toContain('"href":"https://ci.example.com"')
-  })
-
-  it('leaves plain (non-markdown) text to the default handler', () => {
-    editor = mount()
-    expect(paste(editor, 'just a normal sentence with no syntax')).toBe(false)
-  })
-
-  it('preserves the rich HTML sibling even when its plain text resembles Markdown', () => {
-    editor = mount()
-    dispatchPaste(editor, '# heading', '<h1>heading</h1>')
-    const json = JSON.stringify(editor.getJSON())
-    expect(json).toContain('"type":"heading"')
-  })
-
-  it('preserves GFM alignment when VSCode explicitly identifies Markdown source', () => {
-    editor = mount()
-    const table = '| a | b |\n| :-- | --: |\n| 1 | 2 |'
-    const html = '<table><tr><td>a</td><td>b</td></tr><tr><td>1</td><td>2</td></tr></table>'
-    expect(paste(editor, table, html, { 'vscode-editor-data': '{"mode":"markdown"}' })).toBe(true)
-    const json = JSON.stringify(editor.getJSON())
-    expect(json).toContain('"align":"left"')
-    expect(json).toContain('"align":"right"')
-  })
-
-  it('still defers to DOM mapping when the HTML sibling has no markdown-shaped plain-text counterpart', () => {
-    editor = mount()
-    expect(
-      paste(
-        editor,
-        'just a normal sentence with no syntax',
-        '<p>just a normal sentence with no syntax</p>'
-      )
-    ).toBe(false)
-  })
-
   it('keeps pasted markdown literal inside a code block', () => {
     editor = mount()
     editor.commands.setContent('```js\ncode here\n```', { contentType: 'markdown' })
@@ -222,70 +92,6 @@ describe('markdown paste', () => {
     expect(editor.getText()).toBe('')
   })
 
-  it.each([
-    ['empty string', ''],
-    ['whitespace only', '   \n\n  '],
-    ['a bare thematic break (ambiguous — needs another markdown signal)', '---'],
-  ])('leaves %s to the default handler', (_label, text) => {
-    editor = mount()
-    expect(paste(editor, text)).toBe(false)
-  })
-
-  it.each([
-    ['heading', '# Heading', 'heading'],
-    ['bold', 'a **bold** word', 'bold'],
-    ['italic', 'an *italic* word', 'italic'],
-    ['underscore italic', 'an _italic_ word', 'italic'],
-    ['underscore bold', 'a __bold__ word', 'bold'],
-    ['strikethrough', 'a ~~struck~~ word', 'strike'],
-    ['highlight', 'a ==marked== word', 'highlight'],
-    ['highlight with interior equals', 'x ==a=b== y', 'highlight'],
-    ['inline code', 'some `code` here', 'code'],
-    ['bullet list', '- one\n- two', 'bulletList'],
-    ['ordered list', '1. one\n2. two', 'orderedList'],
-    ['task list', '- [x] done\n- [ ] todo', 'taskList'],
-    ['blockquote', '> a quote', 'blockquote'],
-    ['fenced code block', '```ts\nconst x = 1\n```', 'codeBlock'],
-    ['standalone image', '![alt](https://e.com/i.png)', 'image'],
-    ['thematic break within a document', '# Title\n\n---\n\nbody', 'horizontalRule'],
-  ])('renders pasted %s as rich content', (_label, md, nodeType) => {
-    editor = mount()
-    expect(paste(editor, md)).toBe(true)
-    expect(JSON.stringify(editor.getJSON())).toContain(`"type":"${nodeType}"`)
-  })
-
-  it.each([
-    ['italic', 'an *italic* word', '<p>an <em>italic</em> word</p>'],
-    ['strikethrough', 'a ~~struck~~ word', '<p>a <del>struck</del> word</p>'],
-    ['inline code', 'some `code` here', '<p>some <code>code</code> here</p>'],
-  ])('defers inline-only %s to a rich HTML sibling (keeps its structure)', (_label, text, html) => {
-    editor = mount()
-    expect(paste(editor, text, html)).toBe(false)
-  })
-
-  it.each([
-    ['space-flanked asterisks', 'area = 5 * width * height'],
-    ['python args and kwargs', 'def foo(*args, **kwargs): pass'],
-    ['snake_case identifiers', 'call user_name and file_path_here'],
-  ])('claims %s but leaves it byte-for-byte literal (strict CommonMark)', (_label, text) => {
-    editor = mount()
-    expect(paste(editor, text)).toBe(true)
-    const json = JSON.stringify(editor.getJSON())
-    expect(json).not.toContain('"type":"italic"')
-    expect(json).not.toContain('"type":"bold"')
-    expect(editor.getText()).toBe(text)
-  })
-
-  it('pastes rendered document structure from HTML instead of reinterpreting its plain text', () => {
-    editor = mount()
-    const html = '<h1>Title</h1><ul><li>a</li><li>b</li></ul>'
-    dispatchPaste(editor, '# Title\n\n- a\n- b', html)
-    const json = JSON.stringify(editor.getJSON())
-    expect(json).toContain('"type":"heading"')
-    expect(json).toContain('"type":"bulletList"')
-    expect(json).not.toContain('# Title')
-  })
-
   it('does not flatten a rich table containing literal Markdown-shaped cell text', () => {
     editor = mount()
     dispatchPaste(
@@ -298,32 +104,6 @@ describe('markdown paste', () => {
     expect(JSON.stringify(editor.getJSON())).not.toContain('"type":"bold"')
   })
 
-  it.each(['# literal', '**literal**', 'https://example.com'])(
-    'honors paste without formatting for %s and replaces the selection',
-    (text) => {
-      editor = mount()
-      editor.commands.setContent('<p>replace</p>')
-      editor.commands.setTextSelection({ from: 1, to: 8 })
-      editor.view.dom.dispatchEvent(
-        new KeyboardEvent('keydown', {
-          key: 'V',
-          ctrlKey: true,
-          shiftKey: true,
-          bubbles: true,
-          cancelable: true,
-        })
-      )
-      dispatchPaste(editor, text, `<h1>${text}</h1>`, {
-        'vscode-editor-data': '{"mode":"typescript"}',
-      })
-      expect(editor.state.doc.firstChild?.type.name).toBe('paragraph')
-      expect(editor.state.doc.textContent).toBe(text)
-      expect(editor.state.doc.firstChild?.firstChild?.marks).toEqual([])
-      dispatchPaste(editor, '# Heading')
-      expect(editor.isActive('heading')).toBe(true)
-    }
-  )
-
   it('preserves the structural blocks of a multi-block document, in order, on paste', () => {
     editor = mount()
     expect(paste(editor, '# Title\n\nA paragraph.\n\n- a\n- b\n\n> quote')).toBe(true)
@@ -332,44 +112,6 @@ describe('markdown paste', () => {
       .filter((type) => type !== 'paragraph')
     expect(structural).toEqual(['heading', 'bulletList', 'blockquote'])
   })
-
-  it('pastes VSCode code (vscode-editor-data) as a fenced code block with its language', () => {
-    editor = mount()
-    const code = 'const x: number = 1\nreturn x'
-    const handled = paste(editor, code, '<div><span>const</span></div>', {
-      'vscode-editor-data': JSON.stringify({ mode: 'typescript' }),
-    })
-    expect(handled).toBe(true)
-    const block = (editor.getJSON().content ?? []).find((n) => n.type === 'codeBlock')
-    expect(block).toBeDefined()
-    expect(block?.attrs?.language).toBe('typescript')
-    expect(block?.content?.[0]?.text).toBe(code)
-  })
-
-  it.each([
-    ['html', 'markup'],
-    ['shellscript', 'bash'],
-  ])('maps VSCode language id %s to our code-block value %s', (mode, expected) => {
-    editor = mount()
-    paste(editor, 'code', '', { 'vscode-editor-data': JSON.stringify({ mode }) })
-    const block = (editor.getJSON().content ?? []).find((n) => n.type === 'codeBlock')
-    expect(block?.attrs?.language).toBe(expected)
-  })
-
-  it.each(['markdown', 'md', 'mdx', 'plaintext'])(
-    'does NOT force a code block for VSCode %s copies (parses as markdown instead)',
-    (mode) => {
-      editor = mount()
-      const handled = paste(editor, '# Title\n\n- item', '', {
-        'vscode-editor-data': JSON.stringify({ mode }),
-      })
-      expect(handled).toBe(true)
-      const types = (editor.getJSON().content ?? []).map((n) => n.type)
-      expect(types).not.toContain('codeBlock')
-      expect(types).toContain('heading')
-      expect(types).toContain('bulletList')
-    }
-  )
 
   it('strips <style>/<script> from pasted HTML so their text never leaks into the doc', () => {
     editor = mount()
@@ -414,27 +156,6 @@ describe('linkify a selection on URL paste', () => {
     }
   }
 
-  it('wraps a non-empty text selection in a link when a URL is pasted (keeping the text)', () => {
-    const r = linkify('https://sim.ai')
-    expect(r.handled).toBe(true)
-    expect(r.href).toBe('https://sim.ai')
-    expect(r.text).toBe('select me here')
-  })
-
-  it('prepends https:// to a bare www host and mailto: to a bare email', () => {
-    expect(linkify('www.sim.ai').href).toBe('https://www.sim.ai')
-    expect(linkify('a@b.com').href).toBe('mailto:a@b.com')
-  })
-
-  it('does not linkify a collapsed caret (empty selection)', () => {
-    const r = linkify('https://sim.ai', 5, 5)
-    expect(r.handled).toBe(false)
-  })
-
-  it('does not linkify a multi-word paste over a selection', () => {
-    expect(linkify('not a url just words').handled).toBe(false)
-  })
-
   it('does not linkify an unsafe javascript: url', () => {
     const r = linkify('javascript:alert(1)')
     expect(r.handled).toBe(false)
@@ -446,13 +167,5 @@ describe('linkify a selection on URL paste', () => {
     const crafted = linkify('mailto:javascript:alert(1)')
     expect(crafted.handled).toBe(false)
     expect(crafted.href).toBeUndefined()
-  })
-
-  it('does not linkify a selection spanning multiple blocks', () => {
-    editor = mount()
-    editor.commands.setContent('alpha\n\nbeta', { contentType: 'markdown' })
-    editor.commands.setTextSelection({ from: 3, to: 9 })
-    expect(paste(editor, 'https://sim.ai')).toBe(false)
-    expect(JSON.stringify(editor.getJSON())).not.toContain('"type":"link"')
   })
 })

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn(), encrypt: vi.fn(), decrypt: vi.fn() }))
@@ -38,7 +37,6 @@ const envelope = {
 
 describe('GitLab personal token verification', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.fetch.mockResolvedValueOnce(respond(user)).mockResolvedValueOnce(respond(token))
   })
   it('binds verified identity to the exact normalized custom host without redirects', async () => {

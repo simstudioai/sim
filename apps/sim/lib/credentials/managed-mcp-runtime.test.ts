@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -35,7 +34,6 @@ const scope = { kind: 'organization', organizationId: 'org' } as const
 
 describe('personal scoped MCP runtime', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.decrypt.mockResolvedValue({
       decrypted: JSON.stringify({

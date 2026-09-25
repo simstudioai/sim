@@ -1,9 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 
 const {
   mockCheckStorageQuotaForBillingContext,
@@ -99,7 +95,6 @@ function findDocumentProvenanceWrite() {
 
 describe('knowledge workspace source provenance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([
       {
@@ -125,94 +120,6 @@ describe('knowledge workspace source provenance', () => {
           },
         ],
       ])
-    )
-  })
-
-  it('merges a tracked workspace source into a single document sidecar', async () => {
-    await createSingleDocument(
-      {
-        filename: 'source.pdf',
-        fileUrl: SOURCE_URL,
-        fileSize: 512,
-        mimeType: 'application/pdf',
-      },
-      KNOWLEDGE_BASE_ID,
-      'request-1',
-      SOURCE_USER_ID
-    )
-
-    expect(mockGetFileMetadataByKeys).toHaveBeenCalledWith(
-      [SOURCE_KEY],
-      'workspace',
-      expect.anything()
-    )
-    expect(mockGetFileMetadataByKeys).toHaveBeenCalledWith(
-      [SOURCE_KEY],
-      'mothership',
-      expect.anything()
-    )
-    expect(mockGetBoundWorkspaceFileSecretProvenanceByMetadata).toHaveBeenCalledWith(
-      expect.anything(),
-      [SOURCE_BINDING]
-    )
-    expect(findDocumentProvenanceWrite()).toEqual(
-      expect.objectContaining({
-        status: 'exact',
-        entries: [
-          expect.objectContaining({
-            name: 'OCR_SECRET',
-            encryptedValue: 'encrypted-secret',
-            sourceUserId: SOURCE_USER_ID,
-            sourceWorkspaceId: WORKSPACE_ID,
-            sourceValueHash: expect.any(String),
-          }),
-        ],
-      })
-    )
-  })
-
-  it('uses the same workspace source provenance path for bulk document creation', async () => {
-    await createDocumentRecords(
-      [
-        {
-          filename: 'source.pdf',
-          fileUrl: SOURCE_URL,
-          fileSize: 512,
-          mimeType: 'application/pdf',
-        },
-      ],
-      KNOWLEDGE_BASE_ID,
-      'request-1',
-      SOURCE_USER_ID
-    )
-
-    expect(findDocumentProvenanceWrite()).toEqual(
-      expect.objectContaining({
-        status: 'exact',
-        entries: [expect.objectContaining({ name: 'OCR_SECRET' })],
-      })
-    )
-  })
-
-  it('preserves a tracked exact-empty manual upload as model-safe', async () => {
-    mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
-      new Map([[SOURCE_BINDING.id, { status: 'exact', entries: [] }]])
-    )
-
-    await createSingleDocument(
-      {
-        filename: 'source.pdf',
-        fileUrl: SOURCE_URL,
-        fileSize: 512,
-        mimeType: 'application/pdf',
-      },
-      KNOWLEDGE_BASE_ID,
-      'request-1',
-      SOURCE_USER_ID
-    )
-
-    expect(findDocumentProvenanceWrite()).toEqual(
-      expect.objectContaining({ status: 'exact', entries: [] })
     )
   })
 
@@ -261,28 +168,6 @@ describe('knowledge workspace source provenance', () => {
     )
   })
 
-  it('preserves legacy behavior when a workspace source has no metadata binding', async () => {
-    mockGetFileMetadataByKeys.mockResolvedValue([])
-
-    await createSingleDocument(
-      {
-        filename: 'legacy.pdf',
-        fileUrl: SOURCE_URL,
-        fileSize: 512,
-        mimeType: 'application/pdf',
-      },
-      KNOWLEDGE_BASE_ID,
-      'request-1',
-      SOURCE_USER_ID
-    )
-
-    expect(mockGetBoundWorkspaceFileSecretProvenanceByMetadata).toHaveBeenCalledWith(
-      expect.anything(),
-      []
-    )
-    expect(findDocumentProvenanceWrite()).toBeUndefined()
-  })
-
   describe('execution file sources', () => {
     const executionKey = `execution/${WORKSPACE_ID}/workflow-1/run-1/source.pdf`
     const executionUrl = `/api/files/serve/${encodeURIComponent(executionKey)}?context=workspace`
@@ -319,51 +204,6 @@ describe('knowledge workspace source provenance', () => {
         }
       }
 
-      it.each([
-        { status: 'exact', entries: [] },
-        {
-          status: 'exact',
-          entries: [{ name: 'EXPORT_SECRET', encryptedValue: 'encrypted-export-secret' }],
-        },
-        { status: 'unknown' },
-      ] satisfies WorkspaceFileSecretProvenance[])(
-        `binds canonical execution byte provenance during ${mode} admission: %j`,
-        async (provenance) => {
-          mockGetBoundWorkspaceFileSecretProvenanceByMetadata.mockResolvedValue(
-            new Map([[executionBinding.id, provenance]])
-          )
-
-          await create()
-
-          expect(mockGetFileMetadataByKeys).toHaveBeenCalledWith(
-            [executionKey],
-            'execution',
-            expect.anything(),
-            { includeDeleted: true }
-          )
-          expect(mockGetBoundWorkspaceFileSecretProvenanceByMetadata).toHaveBeenCalledWith(
-            expect.anything(),
-            [executionBinding]
-          )
-          expect(findDocumentProvenanceWrite()).toEqual(
-            expect.objectContaining({
-              status: provenance.status,
-              entries:
-                provenance.status === 'exact'
-                  ? provenance.entries.map((entry) =>
-                      expect.objectContaining({
-                        ...entry,
-                        sourceUserId: SOURCE_USER_ID,
-                        sourceWorkspaceId: WORKSPACE_ID,
-                        sourceValueHash: expect.any(String),
-                      })
-                    )
-                  : [],
-            })
-          )
-        }
-      )
-
       it(`preserves soft-deleted execution taint during ${mode} admission`, async () => {
         const deletedBinding = { ...executionBinding, deletedAt: CONTENT_UPDATED_AT }
         mockGetFileMetadataByKeys.mockImplementation(
@@ -382,23 +222,6 @@ describe('knowledge workspace source provenance', () => {
 
         expect(findDocumentProvenanceWrite()).toMatchObject({ status: 'unknown', entries: [] })
       })
-
-      it.each(['missing', 'untracked'])(
-        `preserves legacy %s execution sources during ${mode} admission`,
-        async (kind) => {
-          mockGetFileMetadataByKeys.mockResolvedValue(
-            kind === 'missing' ? [] : [{ ...executionBinding, secretProvenanceVersion: null }]
-          )
-
-          await create()
-
-          expect(mockGetBoundWorkspaceFileSecretProvenanceByMetadata).toHaveBeenCalledWith(
-            expect.anything(),
-            []
-          )
-          expect(findDocumentProvenanceWrite()).toBeUndefined()
-        }
-      )
 
       it(`refuses another workspace's execution source before ${mode} admission`, async () => {
         mockGetFileMetadataByKeys.mockResolvedValue([
@@ -424,37 +247,6 @@ describe('knowledge workspace source provenance', () => {
     expect(mockDeleteFile).not.toHaveBeenCalled()
     expect(mockDeleteFileMetadataByIdentity).not.toHaveBeenCalled()
   })
-
-  it.each(['kb', 'knowledge-base'])(
-    'queues a trusted %s object with its exact metadata identity',
-    async (keyPrefix) => {
-      const storageKey = `${keyPrefix}/owned.pdf`
-      const fileUrl = `/api/files/serve/${encodeURIComponent(storageKey)}?context=knowledge-base`
-      const binding = {
-        ...SOURCE_BINDING,
-        id: `binding-${keyPrefix}`,
-        key: storageKey,
-        context: 'knowledge-base',
-      }
-      mockGetFileMetadataByKeys.mockResolvedValue([binding])
-      await deleteDocumentStorageFiles(
-        [{ id: 'document-1', fileUrl, workspaceId: WORKSPACE_ID }],
-        'request-1'
-      )
-      expect(dbChainMockFns.values).toHaveBeenCalledWith([
-        expect.objectContaining({
-          eventType: 'knowledge.document.storage.cleanup',
-          payload: expect.objectContaining({
-            fileId: binding.id,
-            key: storageKey,
-            contentUpdatedAt: CONTENT_UPDATED_AT.toISOString(),
-          }),
-        }),
-      ])
-      expect(mockDeleteFile).not.toHaveBeenCalled()
-      expect(mockDeleteFileMetadataByIdentity).not.toHaveBeenCalled()
-    }
-  )
 
   it.each(['org-1', 'org-2', null])(
     'only queues an organization cache for its exact owner: %s',

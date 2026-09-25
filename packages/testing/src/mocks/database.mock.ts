@@ -79,7 +79,7 @@ export function createMockSql() {
 /**
  * Creates mock SQL operators (eq, and, or, etc.).
  */
-export function createMockSqlOperators() {
+function createMockSqlOperators() {
   return {
     eq: vi.fn((a, b) => ({ type: 'eq', left: a, right: b })),
     ne: vi.fn((a, b) => ({ type: 'ne', left: a, right: b })),

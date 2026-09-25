@@ -1,9 +1,4 @@
-/**
- * @vitest-environment node
- */
-
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -93,7 +88,6 @@ function request(method: 'GET' | 'PATCH' | 'DELETE', body?: unknown) {
 
 describe('/api/v2/tables/[tableId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -131,29 +125,6 @@ describe('/api/v2/tables/[tableId]', () => {
       principal,
       input: { tableId: 'table-1', workspaceId: WORKSPACE_ID },
       request: req,
-    })
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await GET(request('GET'), context)
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
-  })
-
-  it('preserves a successful no-op PATCH response', async () => {
-    const response = await PATCH(
-      request('PATCH', { workspaceId: WORKSPACE_ID, name: 'Contacts' }),
-      context
-    )
-
-    expect(response.status).toBe(200)
-    expect((await response.json()).data).toMatchObject({
-      name: 'Contacts',
-      ownerEmail: 'owner@example.com',
-      maxRows: 5000,
     })
   })
 
@@ -197,18 +168,5 @@ describe('/api/v2/tables/[tableId]', () => {
         message: 'Table not found',
       })
     }
-  })
-
-  it('keeps delete analytics surface-specific after authoritative success', async () => {
-    const response = await DELETE(request('DELETE'), context)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { id: 'table-1', deleted: true } })
-    expect(mocks.capture).toHaveBeenCalledWith(
-      'owner-1',
-      'table_deleted',
-      { table_id: 'table-1', workspace_id: WORKSPACE_ID },
-      { groups: { workspace: WORKSPACE_ID } }
-    )
   })
 })

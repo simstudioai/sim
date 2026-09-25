@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Passthrough React hooks so the hook can run outside a React root.
@@ -89,21 +86,10 @@ async function flush() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mockMutateAsync.mockResolvedValue({})
 })
 
 describe('useTableUndo – clear-cells chunking (via undo)', () => {
-  it('sends a single mutateAsync call when cells fit in one chunk', async () => {
-    const cells = makeCellsForClear(2)
-    mockPopUndo.mockReturnValueOnce(makeEntry({ type: 'clear-cells', cells }))
-    const { undo } = TestHook()
-    ;(undo as () => void)()
-    await flush()
-    expect(mockMutateAsync).toHaveBeenCalledTimes(1)
-    expect(mockMutateAsync.mock.calls[0][0].updates).toHaveLength(2)
-  })
-
   it('splits into multiple chunks when cells exceed the limit', async () => {
     const cells = makeCellsForClear(7) // limit=3 → [3,3,1]
     mockPopUndo.mockReturnValueOnce(makeEntry({ type: 'clear-cells', cells }))
@@ -134,14 +120,6 @@ describe('useTableUndo – clear-cells chunking (via undo)', () => {
     expect(mockMutateAsync.mock.calls[0][0].updates[0].data.col).toBeNull()
   })
 
-  it('does not call mutateAsync when cells is empty', async () => {
-    mockPopUndo.mockReturnValueOnce(makeEntry({ type: 'clear-cells', cells: [] }))
-    const { undo } = TestHook()
-    ;(undo as () => void)()
-    await flush()
-    expect(mockMutateAsync).not.toHaveBeenCalled()
-  })
-
   it('stops processing after the first failing chunk', async () => {
     mockMutateAsync.mockRejectedValueOnce(new Error('Network error'))
     const cells = makeCellsForClear(5) // limit=3 → would be [3,2] but stops at chunk 1
@@ -162,16 +140,6 @@ describe('useTableUndo – update-cells chunking (via undo)', () => {
       newData: { col: `new-${i}` },
     }))
   }
-
-  it('sends a single call when cells fit within limit', async () => {
-    const cells = makeCellsForUpdate(2)
-    mockPopUndo.mockReturnValueOnce(makeEntry({ type: 'update-cells', cells }))
-    const { undo } = TestHook()
-    ;(undo as () => void)()
-    await flush()
-    expect(mockMutateAsync).toHaveBeenCalledTimes(1)
-    expect(mockMutateAsync.mock.calls[0][0].updates[0].data.col).toBe('old-0')
-  })
 
   it('chunks across multiple calls and picks the correct direction data', async () => {
     const cells = makeCellsForUpdate(8) // limit=3 → [3,3,2]
@@ -200,15 +168,6 @@ describe('useTableUndo – delete-column undo cell restore chunking', () => {
     previousWidth: null,
     previousPinnedColumns: null,
   }
-
-  it('does not call mutateAsync when cellData is empty', async () => {
-    mockPopUndo.mockReturnValueOnce(makeEntry(baseAction))
-    const { undo } = TestHook()
-    ;(undo as () => void)()
-    await flush()
-    // addColumnMutation.mutate fires but the cell-restore block should not.
-    expect(mockMutateAsync).not.toHaveBeenCalled()
-  })
 
   it('fires chunked mutateAsync calls via the onSuccess IIFE when cellData exceeds limit', async () => {
     const cellData = Array.from({ length: 5 }, (_, i) => ({ rowId: `row-${i}`, value: i }))

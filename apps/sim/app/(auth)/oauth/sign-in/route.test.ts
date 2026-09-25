@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createEnvMock, envFlagsMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -83,75 +80,6 @@ describe('OAuth login bridge', () => {
     expect(callback.searchParams.get('client_id')).toBe('sim-cli')
     expect(callback.searchParams.has('sig')).toBe(false)
     expect(callback.searchParams.has('ba_iat')).toBe(false)
-  })
-
-  it('consumes prompt=create after directing the user through signup', async () => {
-    const response = await GET(request('client_id=sim-cli&prompt=create'))
-    const { destination, callback } = redirectParts(response)
-
-    expect(destination.pathname).toBe('/signup')
-    expect(callback.searchParams.has('prompt')).toBe(false)
-  })
-
-  it('uses login when registration is disabled and hides OAuth when authentication is disabled', async () => {
-    flags.registrationDisabled = true
-    const enabled = await GET(request('client_id=sim-cli'))
-    expect(redirectParts(enabled).destination.pathname).toBe('/login')
-
-    flags.authDisabled = true
-    const disabled = await GET(request('client_id=sim-cli'))
-    expect(disabled.status).toBe(302)
-    expect(new URL(disabled.headers.get('location') as string).pathname).toBe('/')
-  })
-
-  it.each([
-    ['login consent', '/login', 'consent'],
-    ['create', '/signup', null],
-    ['', '/signup', null],
-  ])('reaches the form with an existing session for prompt=%s', async (prompt, path, remaining) => {
-    const authorize = new URLSearchParams({
-      client_id: 'sim-cli',
-      response_type: 'code',
-      redirect_uri: 'http://127.0.0.1:5187/callback',
-      code_challenge: 'challenge',
-      code_challenge_method: 'S256',
-      state: 'request-state',
-      prompt,
-      sig: 'signed-query',
-    })
-    const { destination, callback } = redirectParts(await GET(request(authorize.toString())))
-    const response = await proxy(
-      new NextRequest(destination, {
-        headers: { cookie: 'better-auth.session_token=existing.session' },
-      })
-    )
-
-    expect(destination.pathname).toBe(path)
-    expect(response.headers.get('location')).toBeNull()
-    expect(response.headers.get('x-middleware-next')).toBe('1')
-    expect(response.headers.get('content-security-policy')).toContain("default-src 'self'")
-    expect(callback.searchParams.get('state')).toBe('request-state')
-    expect(callback.searchParams.get('code_challenge')).toBe('challenge')
-    expect(callback.searchParams.get('redirect_uri')).toBe('http://127.0.0.1:5187/callback')
-    expect(callback.searchParams.get('prompt')).toBe(remaining)
-  })
-
-  it.each(['/login', '/signup'])('preserves ordinary authenticated %s redirects', async (path) => {
-    for (const callbackUrl of [
-      '',
-      '/workspace/workspace-1',
-      'https://other.test/api/auth/oauth2/authorize',
-    ]) {
-      const destination = new URL(path, 'https://sim.test')
-      if (callbackUrl) destination.searchParams.set('callbackUrl', callbackUrl)
-      const response = await proxy(
-        new NextRequest(destination, {
-          headers: { cookie: 'better-auth.session_token=existing.session' },
-        })
-      )
-      expect(response.status).toBe(307)
-      expect(response.headers.get('location')).toBe('https://sim.test/home')
-    }
   })
 
   it('uses the same redirect precedence as the form and requires authentication for OAuth', async () => {

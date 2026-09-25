@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockBindInternalExecutorDelegation, mockReadWorkflowDefinition } = vi.hoisted(() => ({
   mockBindInternalExecutorDelegation: vi.fn(),
@@ -20,10 +17,6 @@ import { readWorkflowDefinitionAsExecutor } from '@/lib/internal/workflows/read-
 import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
 
 describe('readWorkflowDefinitionAsExecutor', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('binds the trusted workflow execution origin before reading the child', async () => {
     const principal = {
       kind: 'delegated',

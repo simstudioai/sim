@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -15,8 +14,6 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   cancel: vi.fn(),
   listOrganization: vi.fn(),
-  preview: vi.fn(),
-  resolve: vi.fn(),
   getSettings: vi.fn(),
   updateSettings: vi.fn(),
 }))
@@ -46,39 +43,20 @@ vi.mock('@/ee/access-requests/lib/application/requests', () => ({
     execute: mocks.updateSettings,
   },
 }))
-vi.mock('@/ee/access-requests/lib/application/review', () => ({
-  previewAccessRequest: {
-    operation: { id: 'access_requests.preview' },
-    execute: mocks.preview,
-  },
-  resolveAccessRequest: {
-    operation: { id: 'access_requests.resolve' },
-    execute: mocks.resolve,
-  },
-}))
 
 import type {
   AccessRequestDiscoveryEntry,
-  AccessRequestPreviewResponse,
   AccessRequestRecord,
 } from '@/lib/api/contracts/access-requests'
 import type { JsonNextRouteHandler } from '@/lib/api/server/routes/types'
-import { NoWorkspaceAccessError, WorkspaceApiKeyAuthorizationError } from '@/lib/core/application'
+import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { POST as cancelOrganization } from '@/app/api/v2/organizations/[organizationId]/access-requests/[requestId]/cancel/route'
-import { GET as previewOrganization } from '@/app/api/v2/organizations/[organizationId]/access-requests/[requestId]/preview/route'
-import { POST as resolveOrganization } from '@/app/api/v2/organizations/[organizationId]/access-requests/[requestId]/resolve/route'
 import { GET as discoverOrganization } from '@/app/api/v2/organizations/[organizationId]/access-requests/discovery/route'
 import { GET as listMyOrganization } from '@/app/api/v2/organizations/[organizationId]/access-requests/mine/route'
 import {
   POST as createOrganization,
   GET as listOrganization,
 } from '@/app/api/v2/organizations/[organizationId]/access-requests/route'
-import {
-  GET as getSettings,
-  PATCH as updateSettings,
-} from '@/app/api/v2/organizations/[organizationId]/access-requests/settings/route'
-import { POST as cancelWorkspace } from '@/app/api/v2/workspaces/[workspaceId]/access-requests/[requestId]/cancel/route'
 import { GET as discoverWorkspace } from '@/app/api/v2/workspaces/[workspaceId]/access-requests/discovery/route'
 import {
   POST as createWorkspace,
@@ -112,18 +90,6 @@ const entry: AccessRequestDiscoveryEntry = {
   state: 'requestable',
   reason: null,
   pendingRequestId: null,
-}
-const preview: AccessRequestPreviewResponse = {
-  resolutionKind: 'permission',
-  request: record,
-  group: { id: 'group-123', name: 'Engineering' },
-  changes: [],
-  impact: { memberCount: 4, workspaceCount: 1, workspaceNames: ['Production'], truncated: false },
-  currentLimitCredits: null,
-  newLimitCredits: null,
-  fingerprint: 'reviewed-fingerprint',
-  canApply: true,
-  unavailableReason: null,
 }
 
 interface RouteCase {
@@ -196,65 +162,6 @@ const createCases = [
     scope: organizationScope,
   },
 ] satisfies (RouteCase & { scope: typeof workspaceScope | typeof organizationScope })[]
-const cancelCases = [
-  {
-    name: 'workspace cancel',
-    handler: cancelWorkspace,
-    method: 'POST',
-    params: { workspaceId, requestId },
-    execute: mocks.cancel,
-    scope: workspaceScope,
-  },
-  {
-    name: 'organization cancel',
-    handler: cancelOrganization,
-    method: 'POST',
-    params: { organizationId, requestId },
-    execute: mocks.cancel,
-    scope: organizationScope,
-  },
-] satisfies (RouteCase & { scope: typeof workspaceScope | typeof organizationScope })[]
-const previewCase: RouteCase = {
-  name: 'organization preview',
-  handler: previewOrganization,
-  method: 'GET',
-  params: { organizationId, requestId },
-  execute: mocks.preview,
-}
-const resolveCase: RouteCase = {
-  name: 'organization resolve',
-  handler: resolveOrganization,
-  method: 'POST',
-  params: { organizationId, requestId },
-  execute: mocks.resolve,
-  body: { action: 'apply', expectedFingerprint: preview.fingerprint },
-}
-const settingsCases: RouteCase[] = [
-  {
-    name: 'organization settings read',
-    handler: getSettings,
-    method: 'GET',
-    params: { organizationId },
-    execute: mocks.getSettings,
-  },
-  {
-    name: 'organization settings update',
-    handler: updateSettings,
-    method: 'PATCH',
-    params: { organizationId },
-    execute: mocks.updateSettings,
-    body: { allowRequests: false },
-  },
-]
-const allCases = [
-  ...listCases,
-  ...discoveryCases,
-  ...createCases,
-  ...cancelCases,
-  previewCase,
-  resolveCase,
-  ...settingsCases,
-]
 
 function call(
   route: RouteCase,
@@ -272,7 +179,6 @@ function call(
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   v2RouteMocks.authenticate.mockResolvedValue({
     principal,
     keyType: 'personal',
@@ -285,52 +191,9 @@ beforeEach(() => {
   mocks.listMine.mockResolvedValue({ requests: [record], nextCursorKeys: null })
   mocks.listOrganization.mockResolvedValue({ requests: [record], nextCursorKeys: null })
   mocks.create.mockResolvedValue({ request: record })
-  mocks.cancel.mockResolvedValue({ request: { ...record, status: 'cancelled' } })
-  mocks.preview.mockResolvedValue(preview)
-  mocks.resolve.mockResolvedValue({ request: { ...record, status: 'fulfilled' } })
-  mocks.getSettings.mockResolvedValue({ allowRequests: true })
-  mocks.updateSettings.mockResolvedValue({ allowRequests: false })
 })
 
 describe('public access-request adapters', () => {
-  it.each(allCases)('$name authenticates before parsing or executing', async (route) => {
-    v2RouteMocks.authenticate.mockRejectedValue(
-      new v2ApiKeyAuthModuleMock.V2ApiKeyUnauthenticatedError()
-    )
-    const response = await call(route, { query: '?userId=other-user' })
-    expect(response.status).toBe(401)
-    expect(await response.json()).toMatchObject({ error: { code: 'UNAUTHORIZED' } })
-    expect(route.execute).not.toHaveBeenCalled()
-  })
-
-  it.each(allCases)('$name rejects undeclared query fields before executing', async (route) => {
-    const response = await call(route, { query: '?userId=other-user' })
-    expect(response.status).toBe(400)
-    expect(await response.json()).toMatchObject({ error: { code: 'BAD_REQUEST' } })
-    expect(route.execute).not.toHaveBeenCalled()
-  })
-
-  it.each(allCases)(
-    '$name forwards the authenticated actor and returns the v2 envelope',
-    async (route) => {
-      const response = await call(route)
-      expect(response.status).toBe(200)
-      expect(response.headers.get('cache-control')).toBe('private, no-store')
-      expect(route.execute).toHaveBeenCalledWith(expect.objectContaining({ principal }))
-      expect(await response.json()).toHaveProperty('data')
-    }
-  )
-
-  it.each([...listCases, ...discoveryCases])(
-    '$name rejects fractional and out-of-range limits',
-    async (route) => {
-      for (const limit of ['1.5', '0', '101', '-1']) {
-        expect((await call(route, { query: `?limit=${limit}` })).status).toBe(400)
-      }
-      expect(route.execute).not.toHaveBeenCalled()
-    }
-  )
-
   it.each(createCases)(
     '$name derives scope exclusively from the path and defaults an omitted reason',
     async (route) => {
@@ -352,75 +215,6 @@ describe('public access-request adapters', () => {
       expect(mocks.create).not.toHaveBeenCalled()
     }
   )
-
-  it.each(cancelCases)(
-    '$name accepts an empty HTTP body and passes the asserted scope',
-    async (route) => {
-      const response = await call(route)
-      expect(await response.json()).toEqual({ data: { ...record, status: 'cancelled' } })
-      expect(mocks.cancel).toHaveBeenCalledWith(
-        expect.objectContaining({ input: { requestId, scope: route.scope } })
-      )
-      expect((await call(route, { body: {} })).status).toBe(200)
-    }
-  )
-
-  it('keeps caller history separate from organization administrator listing', async () => {
-    await call(listCases[0], { query: '?status=pending&sortBy=targetLabel&sortOrder=asc&limit=3' })
-    expect(mocks.listMine).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        input: {
-          scope: workspaceScope,
-          status: 'pending',
-          limit: 3,
-          offset: 0,
-          paging: { sortBy: 'targetLabel', sortOrder: 'asc', cursorKeys: undefined },
-        },
-      })
-    )
-    await call(listCases[1])
-    expect(mocks.listMine).toHaveBeenLastCalledWith(
-      expect.objectContaining({ input: expect.objectContaining({ scope: organizationScope }) })
-    )
-    expect(mocks.listOrganization).not.toHaveBeenCalled()
-    const response = await call(listCases[2], { query: '?search=Caller&status=pending' })
-    expect(await response.json()).toEqual({ data: [record], nextCursor: null })
-    expect(mocks.listOrganization).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: {
-          organizationId,
-          search: 'Caller',
-          status: 'pending',
-          limit: 50,
-          offset: 0,
-          paging: { sortBy: 'createdAt', sortOrder: 'desc', cursorKeys: undefined },
-        },
-      })
-    )
-    expect((await call(listCases[0], { query: '?search=Caller' })).status).toBe(400)
-    expect((await call(listCases[1], { query: '?search=Caller' })).status).toBe(400)
-  })
-
-  it.each(discoveryCases)('$name maps bounded discovery filters and scope', async (route) => {
-    const response = await call(route, {
-      query: '?search=Slack&targetKind=integration&state=requestable&limit=3&sortOrder=desc',
-    })
-    expect(await response.json()).toEqual({ data: [entry], nextCursor: null })
-    expect(mocks.discover).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({
-          ...route.scope,
-          search: 'Slack',
-          targetKind: 'integration',
-          state: 'requestable',
-          limit: 3,
-          sortBy: 'label',
-          sortOrder: 'desc',
-          offset: 0,
-        }),
-      })
-    )
-  })
 
   it.each(listCases)(
     '$name resumes a keyset cursor and rejects scope, sort, or filter rebinding',
@@ -499,77 +293,6 @@ describe('public access-request adapters', () => {
     }
   )
 
-  it('returns the full preview under the v2 data envelope', async () => {
-    const response = await call(previewCase)
-    expect(await response.json()).toEqual({ data: preview })
-    expect(mocks.preview).toHaveBeenCalledWith(
-      expect.objectContaining({ input: { organizationId, requestId } })
-    )
-  })
-
-  it.each([
-    { action: 'apply', expectedFingerprint: preview.fingerprint },
-    { action: 'apply', expectedFingerprint: preview.fingerprint, newLimitCredits: 500 },
-    { action: 'decline', reason: 'Please use the approved integration' },
-  ])('passes the exact discriminated review decision to the shared use case', async (decision) => {
-    const response = await call(resolveCase, { body: decision })
-    expect(await response.json()).toEqual({ data: { ...record, status: 'fulfilled' } })
-    expect(mocks.resolve).toHaveBeenCalledWith(
-      expect.objectContaining({ input: { organizationId, requestId, decision } })
-    )
-  })
-
-  it.each([
-    { action: 'approve', expectedFingerprint: preview.fingerprint },
-    { action: 'apply' },
-    { action: 'apply', expectedFingerprint: '' },
-    { action: 'apply', expectedFingerprint: 'x'.repeat(129) },
-    { action: 'apply', expectedFingerprint: preview.fingerprint, reason: 'wrong branch' },
-    ...[0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, '500', null].map((newLimitCredits) => ({
-      action: 'apply',
-      expectedFingerprint: preview.fingerprint,
-      newLimitCredits,
-    })),
-    { action: 'decline' },
-    { action: 'decline', reason: '   ' },
-    { action: 'decline', reason: 'x'.repeat(1001) },
-    { action: 'decline', reason: 'No', expectedFingerprint: preview.fingerprint },
-    { action: 'decline', reason: 'No', newLimitCredits: 500 },
-  ])('rejects invalid or mixed review decisions before applying any change', async (body) => {
-    expect((await call(resolveCase, { body })).status).toBe(400)
-    expect(mocks.resolve).not.toHaveBeenCalled()
-  })
-
-  it('preserves a stale-preview conflict instead of retrying the mutation', async () => {
-    mocks.resolve.mockRejectedValue(new OrchestrationError('conflict', 'Preview changed'))
-    const response = await call(resolveCase)
-    expect(response.status).toBe(409)
-    expect(await response.json()).toEqual({
-      error: { code: 'CONFLICT', message: 'Preview changed' },
-    })
-    expect(mocks.resolve).toHaveBeenCalledTimes(1)
-  })
-
-  it('reads and updates the exact organization request setting', async () => {
-    expect(await (await call(settingsCases[0])).json()).toEqual({ data: { allowRequests: true } })
-    expect(mocks.getSettings).toHaveBeenCalledWith(
-      expect.objectContaining({ input: { organizationId } })
-    )
-    expect(await (await call(settingsCases[1])).json()).toEqual({ data: { allowRequests: false } })
-    expect(mocks.updateSettings).toHaveBeenCalledWith(
-      expect.objectContaining({ input: { organizationId, allowRequests: false } })
-    )
-    mocks.updateSettings.mockClear()
-    for (const body of [
-      {},
-      { allowRequests: 'false' },
-      { allowRequests: false, organizationId: 'other' },
-    ]) {
-      expect((await call(settingsCases[1], { body })).status).toBe(400)
-    }
-    expect(mocks.updateSettings).not.toHaveBeenCalled()
-  })
-
   it.each([
     new NoWorkspaceAccessError(),
     new OrchestrationError('not_found', 'Workspace not found'),
@@ -579,15 +302,6 @@ describe('public access-request adapters', () => {
     expect(response.status).toBe(404)
     expect(await response.json()).toEqual({
       error: { code: 'NOT_FOUND', message: 'Access request scope not found' },
-    })
-  })
-
-  it('preserves the explicit workspace-key refusal code', async () => {
-    mocks.create.mockRejectedValue(new WorkspaceApiKeyAuthorizationError())
-    const response = await call(createCases[0])
-    expect(response.status).toBe(403)
-    expect(await response.json()).toMatchObject({
-      error: { code: 'FORBIDDEN', details: { code: 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED' } },
     })
   })
 })

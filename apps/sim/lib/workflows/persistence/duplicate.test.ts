@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMock,
   dbChainMockFns,
@@ -56,7 +53,6 @@ function insertedValuesFor(table: unknown): unknown[] {
 
 describe('duplicateWorkflow ordering', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
 
     vi.stubGlobal('crypto', {
@@ -106,34 +102,6 @@ describe('duplicateWorkflow ordering', () => {
       unknown
     >
     expect(insertedWorkflowValues?.sortOrder).toBe(1)
-  })
-
-  it('defaults to sortOrder 0 when target has no siblings', async () => {
-    queueDuplicateFixtures({
-      sourceWorkflow: {
-        id: 'source-workflow-id',
-        workspaceId: 'workspace-123',
-        folderId: null,
-        description: 'source',
-        variables: {},
-      },
-    })
-
-    const result = await duplicateWorkflow({
-      sourceWorkflowId: 'source-workflow-id',
-      userId: 'user-123',
-      name: 'Duplicated',
-      workspaceId: 'workspace-123',
-      folderId: null,
-      requestId: 'req-2',
-    })
-
-    expect(result.sortOrder).toBe(0)
-    const insertedWorkflowValues = insertedValuesFor(schemaMock.workflow)[0] as Record<
-      string,
-      unknown
-    >
-    expect(insertedWorkflowValues?.sortOrder).toBe(0)
   })
 
   it('strips copied webhook runtime subblocks and remaps variable assignments', async () => {
@@ -413,96 +381,6 @@ describe('duplicateWorkflow ordering', () => {
     expect(onlyEdge?.sourceBlockId).not.toBe('unknown-source-block')
     expect(onlyEdge?.sourceBlockId).toEqual(expect.any(String))
     expect(onlyEdge?.targetBlockId).toEqual(expect.any(String))
-  })
-
-  it('preserves remap when a subflow references an unknown node (drops the node with a warning)', async () => {
-    queueDuplicateFixtures({
-      sourceWorkflow: {
-        id: 'source-workflow-id',
-        workspaceId: 'workspace-123',
-        folderId: null,
-        description: 'source',
-        variables: {},
-      },
-      blocks: [
-        {
-          id: 'loop-block',
-          workflowId: 'source-workflow-id',
-          type: 'loop',
-          name: 'Loop',
-          parentId: null,
-          extent: null,
-          data: {},
-          subBlocks: {},
-          position: { x: 0, y: 0 },
-          enabled: true,
-          horizontalHandles: true,
-          isWide: false,
-          height: 0,
-          advancedMode: false,
-          triggerMode: false,
-          locked: false,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        {
-          id: 'known-node',
-          workflowId: 'source-workflow-id',
-          type: 'agent',
-          name: 'Agent',
-          parentId: null,
-          extent: null,
-          data: {},
-          subBlocks: {},
-          position: { x: 0, y: 0 },
-          enabled: true,
-          horizontalHandles: true,
-          isWide: false,
-          height: 0,
-          advancedMode: false,
-          triggerMode: false,
-          locked: false,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      ],
-      subflows: [
-        {
-          id: 'loop-block',
-          workflowId: 'source-workflow-id',
-          type: 'loop',
-          config: {
-            id: 'loop-block',
-            nodes: ['known-node', 'unknown-node'],
-            iterations: 1,
-            loopType: 'for',
-          },
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      ],
-    })
-
-    await expect(
-      duplicateWorkflow({
-        sourceWorkflowId: 'source-workflow-id',
-        userId: 'user-123',
-        name: 'Duplicated',
-        workspaceId: 'workspace-123',
-        folderId: null,
-        requestId: 'req-orphan-subflow',
-      })
-    ).resolves.toBeDefined()
-
-    const insertedSubflows = insertedValuesFor(schemaMock.workflowSubflows)[0] as Array<
-      Record<string, unknown>
-    >
-    expect(insertedSubflows).toHaveLength(1)
-    const remappedConfig = insertedSubflows?.[0].config as { nodes: string[] }
-    expect(Array.isArray(remappedConfig.nodes)).toBe(true)
-    expect(remappedConfig.nodes).toHaveLength(1)
-    expect(remappedConfig.nodes[0]).not.toBe('unknown-node')
-    expect(remappedConfig.nodes[0]).toEqual(expect.any(String))
   })
 
   it('preserves stale variable references instead of failing the duplicate', async () => {

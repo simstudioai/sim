@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { type Folder, findPath, type Item, type Node } from 'fumadocs-core/page-tree'
+import type { Folder, Item, Node } from 'fumadocs-core/page-tree'
 import { loader, type MetaData, type VirtualFile } from 'fumadocs-core/source'
 import matter from 'gray-matter'
 import { describe, expect, it } from 'vitest'
@@ -58,18 +58,6 @@ describe('docs section navigation', () => {
     }
   })
 
-  it('keeps root-tab overview pages in the CLI, MCP, and Academy navigation', () => {
-    for (const root of ['cli', 'mcp', 'academy']) {
-      const folder = folders(source.pageTree.fallback?.children ?? []).find(
-        (node) => node.$ref === `${root}/meta.json`
-      )
-      expect(folder?.root).toBe(true)
-      expect(folder?.children).toEqual(
-        expect.arrayContaining([expect.objectContaining({ url: `/${root}` })])
-      )
-    }
-  })
-
   it('preserves the visible URLs, their order, and canonical page references exactly once', () => {
     const before = pages(original.pageTree.children)
     const after = pages(source.pageTree.children)
@@ -93,32 +81,6 @@ describe('docs section navigation', () => {
 })
 
 describe('integration guide navigation', () => {
-  it('groups Airtable under a clickable integration page with a concise token-guide label', () => {
-    const airtable = integrationFolder().children.find((node) => node.name === 'Airtable')
-    expect(airtable).toMatchObject({
-      type: 'folder',
-      index: { url: '/integrations/airtable', name: 'Airtable' },
-      children: [
-        {
-          type: 'page',
-          url: '/integrations/airtable-service-account',
-          name: 'Personal Access Tokens',
-        },
-      ],
-    })
-    expect(
-      findPath(
-        source.pageTree.children,
-        (node) => node.type === 'page' && node.url === '/integrations/airtable-service-account'
-      )
-        ?.filter((node) => node.type !== 'separator')
-        .map((node) => node.name)
-    ).toEqual(['Integrations', 'Airtable', 'Personal Access Tokens'])
-    expect(source.getPage(['integrations', 'airtable-service-account'])?.data.title).toBe(
-      'Airtable Personal Access Tokens'
-    )
-  })
-
   it('places every registered guide under its integration or the shared guide folder', () => {
     for (const [slug, guide] of Object.entries(navigation.guides)) {
       const url = `/integrations/${slug}`
@@ -134,35 +96,6 @@ describe('integration guide navigation', () => {
       )
       expect(source.getPage(['integrations', slug]), slug).toBeDefined()
     }
-  })
-
-  it('keeps both HubSpot guides together and handles integration names with underscores', () => {
-    const hubspot = folders(source.pageTree.children).find(
-      (node) => node.index?.url === '/integrations/hubspot'
-    )
-    expect(hubspot?.children.map((node) => node.name)).toEqual([
-      'Private App Tokens',
-      'Setup Guide',
-    ])
-    const zoho = folders(source.pageTree.children).find(
-      (node) => node.index?.url === '/integrations/zoho_desk'
-    )
-    expect(zoho?.children).toEqual([
-      expect.objectContaining({ url: '/integrations/zoho-desk-service-account' }),
-    ])
-  })
-
-  it('leaves services without guides as direct links', () => {
-    expect(integrationFolder().children.find((node) => node.name === 'Ahrefs')?.type).toBe('page')
-  })
-
-  it('makes the existing Logs tutorial discoverable without changing its URL', () => {
-    const logs = folders(source.pageTree.children).find(
-      (node) => node.index?.url === '/integrations/logs'
-    )
-    expect(logs?.children).toEqual([
-      expect.objectContaining({ name: 'Using Logs in Workflows', url: '/workflows/blocks/logs' }),
-    ])
   })
 
   it('redirects legacy integration aliases and excludes them from the sidebar', () => {

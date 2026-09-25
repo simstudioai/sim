@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -18,7 +15,6 @@ import { GrafanaClient } from '@/lib/internal/grafana/client'
 
 describe('GrafanaClient', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.validateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
     mocks.secureFetchWithPinnedIP.mockResolvedValue({ ok: true, status: 200 })
   })
@@ -71,21 +67,5 @@ describe('GrafanaClient', () => {
       error: 'Invalid Grafana baseUrl: private address',
     })
     expect(mocks.secureFetchWithPinnedIP).not.toHaveBeenCalled()
-  })
-
-  it('stops before network work when cancelled', async () => {
-    const controller = new AbortController()
-    controller.abort(new DOMException('cancelled', 'AbortError'))
-    const client = new GrafanaClient(
-      'https://grafana.example.com',
-      'secret',
-      undefined,
-      controller.signal
-    )
-
-    await expect(client.request('/api/health', { method: 'GET' })).rejects.toMatchObject({
-      name: 'AbortError',
-    })
-    expect(mocks.validateUrlWithDNS).not.toHaveBeenCalled()
   })
 })

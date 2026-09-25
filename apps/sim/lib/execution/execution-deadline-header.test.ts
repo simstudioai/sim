@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   INTERNAL_EXECUTION_DEADLINE_HEADER,

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => ({
@@ -56,7 +55,6 @@ const input = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   m.authorize.mockResolvedValue({ organizationId: 'org', userId: 'person', role: 'member' })
   m.resolve.mockResolvedValue({ name: 'Slack', target })
   m.group.mockResolvedValue({

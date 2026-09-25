@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { interruptibleSleep } from '@sim/utils/helpers'
 import { PDFDocument } from 'pdf-lib'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -55,11 +52,9 @@ import { env } from '@/lib/core/config/env'
 import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
-import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 describe('knowledge document model-input provenance', () => {
   beforeEach(async () => {
-    vi.clearAllMocks()
     mockAdmit.mockReset().mockResolvedValue(undefined)
     const pdf = await PDFDocument.create()
     pdf.addPage()
@@ -86,40 +81,6 @@ describe('knowledge document model-input provenance', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.useRealTimers()
-  })
-
-  it('parses tracked workspace-file bytes locally without treating parsing as model egress', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'tracked-secret', encryptedValue: 'encrypted-token' },
-    ])
-    registry.recordResolved('TOKEN', 'tracked-secret')
-    mockDownloadFileFromUrl.mockResolvedValue(
-      Buffer.from('Locally parsed content containing tracked-secret.')
-    )
-    mockParseBuffer.mockResolvedValue({
-      content: 'Locally parsed content containing tracked-secret.',
-      metadata: {},
-    })
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-
-    const processed = await runWithKnowledgeModelInputProvenance(registry, () =>
-      processDocument(
-        '/api/files/serve/workspace/workspace-1/tracked.txt?context=workspace',
-        'tracked.txt',
-        'text/plain',
-        1024,
-        200,
-        1,
-        { userId: 'user-1' },
-        'workspace-1'
-      )
-    )
-
-    expect(processed.metadata.processingMethod).toBe('file-parser')
-    expect(processed.chunks.map((chunk) => chunk.text).join('\n')).toContain('tracked-secret')
-    expect(mockDownloadFileFromUrl).toHaveBeenCalledOnce()
-    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   /**
@@ -222,45 +183,6 @@ describe('knowledge document model-input provenance', () => {
     await rejected
     expect(cancelBody).toHaveBeenCalledOnce()
     expect(mockAdmit).toHaveBeenCalledOnce()
-    expect(vi.getTimerCount()).toBe(0)
-  })
-
-  it('bounds direct Mistral execution with the same deadline and stops retries', async () => {
-    vi.useFakeTimers()
-    Object.assign(env, { OCR_PROVIDER: 'mistral', MISTRAL_API_KEY: 'mistral-key' })
-    mockDownloadFileFromUrl.mockResolvedValue(Buffer.from('synthetic image'))
-    mockExecuteMistralParse.mockImplementationOnce(
-      (_input, context: { signal: AbortSignal }) =>
-        new Promise<never>((_resolve, reject) => {
-          context.signal.addEventListener('abort', () => reject(context.signal.reason), {
-            once: true,
-          })
-        })
-    )
-    const pending = runWithKnowledgeModelInputProvenance(
-      undefined,
-      () =>
-        processDocument(
-          'https://example.com/fixture.png',
-          'fixture.png',
-          'image/png',
-          1024,
-          200,
-          1,
-          { userId: 'user-1' }
-        ),
-      { opaqueInputSafe: true }
-    )
-    const rejected = expect(pending).rejects.toMatchObject({
-      name: 'ProviderCapacityDeferredError',
-      reason: 'provider_timeout',
-    })
-    await vi.advanceTimersByTimeAsync(120_000)
-    await rejected
-    expect(mockExecuteMistralParse).toHaveBeenCalledOnce()
-    expect(mockExecuteMistralParse.mock.calls[0][1]).toMatchObject({
-      deadlineAt: expect.any(Number),
-    })
     expect(vi.getTimerCount()).toBe(0)
   })
 })

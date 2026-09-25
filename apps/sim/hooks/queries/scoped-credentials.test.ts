@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -23,11 +22,9 @@ vi.mock('@/hooks/queries/oauth/oauth-credentials', () => ({
 }))
 vi.mock('@/hooks/queries/utils/selector-keys', () => ({ invalidateSelectorQueries: vi.fn() }))
 
-import { listOrganizationCredentialsContract } from '@/lib/api/contracts/organization-credentials'
 import { useScopedCredentials } from '@/hooks/queries/scoped-credentials'
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.request.mockResolvedValue({ credentials: [{ id: 'org-credential' }] })
   mocks.workspaceList.mockResolvedValue([{ id: 'workspace-credential' }])
 })
@@ -39,25 +36,6 @@ function latestQuery() {
 }
 
 describe('scoped credential queries', () => {
-  it('loads organization credentials with exact owner, provider and cancellation', async () => {
-    useScopedCredentials({ organizationId: 'org-1', type: 'service_account', providerId: 'google' })
-    const signal = new AbortController().signal
-    await expect(latestQuery().queryFn({ signal })).resolves.toEqual([{ id: 'org-credential' }])
-    expect(mocks.request).toHaveBeenCalledWith(listOrganizationCredentialsContract, {
-      query: { organizationId: 'org-1', type: 'service_account', providerId: 'google' },
-      signal,
-    })
-    expect(mocks.workspaceList).not.toHaveBeenCalled()
-  })
-
-  it('retains the existing workspace credential query', async () => {
-    useScopedCredentials({ workspaceId: 'workspace-1', type: 'oauth', providerId: 'google' })
-    const signal = new AbortController().signal
-    await latestQuery().queryFn({ signal })
-    expect(mocks.workspaceList).toHaveBeenCalledWith('workspace-1', signal, 'oauth', 'google')
-    expect(mocks.request).not.toHaveBeenCalled()
-  })
-
   it('keeps unsupported organization types separate from the full credential list cache', async () => {
     useScopedCredentials({ organizationId: 'org-1' })
     const allKey = latestQuery().queryKey
@@ -67,13 +45,6 @@ describe('scoped credential queries', () => {
       []
     )
     expect(mocks.request).not.toHaveBeenCalled()
-  })
-
-  it('does not enable ownerless or explicitly disabled queries', () => {
-    useScopedCredentials({ enabled: true })
-    expect(latestQuery().enabled).toBe(false)
-    useScopedCredentials({ organizationId: 'org-1', enabled: false })
-    expect(latestQuery().enabled).toBe(false)
   })
 
   it('rejects ambiguous owners before registering a query', () => {

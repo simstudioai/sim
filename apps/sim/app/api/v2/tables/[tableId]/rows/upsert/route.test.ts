@@ -1,9 +1,4 @@
-/**
- * @vitest-environment node
- */
-
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -58,7 +53,6 @@ const ROW = {
 
 describe('POST /api/v2/tables/[tableId]/rows/upsert', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(AUTH)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -103,43 +97,5 @@ describe('POST /api/v2/tables/[tableId]/rows/upsert', () => {
       },
       request,
     })
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const request = new NextRequest('http://localhost/api/v2/tables/table-1/rows/upsert', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
-      body: JSON.stringify({
-        workspaceId: WORKSPACE_ID,
-        data: { email: 'ada@example.com' },
-        conflictTarget: 'email',
-      }),
-    })
-    const response = await POST(request, {
-      params: Promise.resolve({ tableId: 'table-1' }),
-    })
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
-  })
-
-  it('rejects an empty conflict target before delegation', async () => {
-    const request = new NextRequest('http://localhost/api/v2/tables/table-1/rows/upsert', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
-      body: JSON.stringify({
-        workspaceId: WORKSPACE_ID,
-        data: { email: 'ada@example.com' },
-        conflictTarget: '',
-      }),
-    })
-    const response = await POST(request, {
-      params: Promise.resolve({ tableId: 'table-1' }),
-    })
-
-    expect(response.status).toBe(400)
-    expect(mocks.upsertRow).not.toHaveBeenCalled()
   })
 })

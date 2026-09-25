@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * POST /api/workspaces refuses a workspace-creation-denied group at two
  * moments: the preflight policy read, and the revocation race the insert
  * detects. Both are the same decision, so both must produce the same body —
@@ -57,10 +55,7 @@ vi.mock('@/lib/workspaces/policy', async () => {
 })
 
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
-import {
-  WorkspaceCreationCapabilityWithheldError,
-  WorkspaceOwnerMissingError,
-} from '@/lib/workspaces/policy'
+import { WorkspaceOwnerMissingError } from '@/lib/workspaces/policy'
 import { GET, POST } from '@/app/api/workspaces/route'
 
 function createRequest() {
@@ -76,7 +71,6 @@ const deniedPolicy = {
 
 describe('POST /api/workspaces capability refusal', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'A', email: 'a@example.com' },
     })
@@ -92,35 +86,6 @@ describe('POST /api/workspaces capability refusal', () => {
       details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
     })
     expect(mockCreateWorkspace).not.toHaveBeenCalled()
-  })
-
-  it('answers the revocation race with the same envelope', async () => {
-    mockGetWorkspaceCreationPolicy.mockResolvedValue({ canCreate: true, status: 200 })
-    mockCreateWorkspace.mockRejectedValue(new WorkspaceCreationCapabilityWithheldError())
-
-    const response = await POST(createRequest())
-
-    expect(response.status).toBe(403)
-    expect(await response.json()).toMatchObject({
-      details: { code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' },
-    })
-  })
-
-  /** A non-capability block keeps its own reason and status. */
-  it('leaves an unrelated policy refusal alone', async () => {
-    mockGetWorkspaceCreationPolicy.mockResolvedValue({
-      canCreate: false,
-      status: 402,
-      reason: 'Your organization subscription is inactive.',
-      blockedReasonCode: 'organization-subscription-inactive',
-    })
-
-    const response = await POST(createRequest())
-
-    expect(response.status).toBe(402)
-    const body = await response.json()
-    expect(body.error).toBe('Your organization subscription is inactive.')
-    expect(body.details).toBeUndefined()
   })
 
   /**

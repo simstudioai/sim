@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { scanSecretReferences } from '@/lib/secrets/references/scan'
 
 /** A stored block row as the scan reads it, with one short-input sub-block. */
@@ -27,7 +24,6 @@ function shortInput(key: string, value: unknown) {
 
 describe('scanSecretReferences', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

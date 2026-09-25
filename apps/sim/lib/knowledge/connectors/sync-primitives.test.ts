@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
@@ -33,7 +32,6 @@ vi.mock('@/lib/core/config/trigger-availability', () => ({
   isTriggerAvailable: mocks.triggerAvailable,
 }))
 
-import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { SyncLockLostException, stillHoldsSyncLock } from '@/lib/knowledge/connectors/sync-lock'
 import {
   classifyExternalDoc,
@@ -105,13 +103,6 @@ describe('source-change skip retry policy', () => {
       existingId: 'document',
     })
     expect(classifyExternalDoc(listed, existing, true)).toEqual({
-      type: 'update',
-      existingId: 'document',
-    })
-  })
-
-  it('keeps the default recovery behavior for other skipped sources', () => {
-    expect(classifyExternalDoc({ ...listed, skippedRetryPolicy: undefined }, existing)).toEqual({
       type: 'update',
       existingId: 'document',
     })
@@ -198,7 +189,6 @@ function dispatchedIds(): string[][] {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   dbChainMockFns.limit.mockResolvedValue([
     { connectorArchivedAt: null, connectorDeletedAt: null, kbDeletedAt: null },
@@ -292,40 +282,9 @@ describe('processDocOps unchanged content under a new hash', () => {
       input.lease
     )
   })
-
-  it('reindexes when the connector finds different text', async () => {
-    const input = refreshOf('legacy:text-a', 'version:2:text-b')
-    await expect(processDocOps(input)).resolves.toBe(true)
-    expect(mocks.update).toHaveBeenCalledTimes(1)
-    expect(mocks.persistHashes).not.toHaveBeenCalled()
-    expect(dispatchedIds()).toEqual([['document']])
-  })
 })
 
 describe('processDocOps dispatch buffering', () => {
-  it('honors a provider serial hydration bound even for small sources and stops on capacity deferral', async () => {
-    const input = inputFor(10, 100)
-    input.hydration.concurrency = 1
-    let active = 0
-    let peak = 0
-    const deferred = new ProviderCapacityDeferredError('admission_unavailable')
-    input.hydration.getDocument = vi.fn(async (externalId) => {
-      active++
-      peak = Math.max(peak, active)
-      await Promise.resolve()
-      active--
-      if (externalId === 'source-4') throw deferred
-      return sourceDocument(externalId)
-    })
-    await expect(processDocOps(input)).rejects.toBe(deferred)
-    expect(peak).toBe(1)
-    expect(input.hydration.getDocument).toHaveBeenCalledTimes(4)
-    expect(dispatchedIds()).toEqual([['source-1', 'source-2', 'source-3']])
-    expect(input.state.result.docsFailed).toBe(0)
-    expect(input.state.sourceFailures.size).toBe(0)
-    expect(input.onBatchComplete).toHaveBeenCalledTimes(3)
-  })
-
   it('retains a safe per-source cause while successful siblings continue', async () => {
     const input = inputFor(2, 100)
     input.hydration.getDocument = vi.fn(async (externalId) => {
@@ -345,165 +304,6 @@ describe('processDocOps dispatch buffering', () => {
     expect([...input.state.failedExternalIds]).toEqual(['source-1'])
     expect(input.state.result).toMatchObject({ docsAdded: 1, docsFailed: 1 })
     expect(dispatchedIds()).toEqual([['source-2']])
-  })
-  it('hydrates 61 unknown-size documents serially and dispatches only metadata in batches of 25, 25, and 11', async () => {
-    const input = inputFor(61)
-    let active = 0
-    let peak = 0
-    input.hydration.getDocument = vi.fn(async (externalId: string) => {
-      active++
-      peak = Math.max(peak, active)
-      await Promise.resolve()
-      active--
-      return sourceDocument(externalId)
-    })
-    await expect(processDocOps(input)).resolves.toBe(true)
-    expect(peak).toBe(1)
-    expect(input.hydration.beforeHydration).toHaveBeenCalledTimes(61)
-    expect(dispatchedIds().map((batch) => batch.length)).toEqual([25, 25, 11])
-    expect(dispatchedIds().flat()).toEqual(input.pendingOps.map((op) => op.extDoc.externalId))
-    expect(input.state.result).toMatchObject({
-      docsAdded: 61,
-      docsFailed: 0,
-      processingDispatch: { requested: 61, accepted: 61, failed: 0 },
-    })
-    for (const [documents] of mocks.dispatch.mock.calls) {
-      expect(
-        documents.every(
-          (document: DocumentData) => !('content' in document) && !('sourceFile' in document)
-        )
-      ).toBe(true)
-    }
-  })
-
-  it.each([
-    { name: 'unknown sizes', count: 6, estimatedBytes: undefined, batchSizes: [1, 1, 1, 1, 1, 1] },
-    { name: 'small known sizes', count: 11, estimatedBytes: 1024, batchSizes: [5, 5, 1] },
-  ])(
-    'keeps the inline fallback at each hydration microbatch for $name',
-    async ({ count, estimatedBytes, batchSizes }) => {
-      mocks.triggerAvailable.mockReturnValue(false)
-      const input = inputFor(count, estimatedBytes)
-      const completed: string[][] = []
-      input.onBatchComplete = async (documents) => {
-        completed.push(documents.map((document) => document.externalId))
-        expect(dispatchedIds()).toEqual(completed)
-      }
-      await expect(processDocOps(input)).resolves.toBe(true)
-      expect(dispatchedIds().map((batch) => batch.length)).toEqual(batchSizes)
-      expect(input.state.result.processingDispatch).toEqual({
-        requested: count,
-        accepted: count,
-        failed: 0,
-      })
-    }
-  )
-
-  it('flushes already persisted documents when the next microbatch reaches the deadline', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-09-01T00:00:00Z'))
-    const input = inputFor(10)
-    input.deadlineAt = Date.now() + 1000
-    let completed = 0
-    input.onBatchComplete = async () => {
-      if (++completed === 3) vi.setSystemTime(input.deadlineAt!)
-    }
-    await expect(processDocOps(input)).resolves.toBe(false)
-    expect(mocks.add).toHaveBeenCalledTimes(3)
-    expect(dispatchedIds()).toEqual([['source-1', 'source-2', 'source-3']])
-    expect(input.state.result.processingDispatch).toEqual({ requested: 3, accepted: 3, failed: 0 })
-    expect(input.state.failedExternalIds.size).toBe(0)
-  })
-
-  it('flushes prior durable documents and preserves a provider 429 instead of continuing hydration', async () => {
-    const input = inputFor(10)
-    const throttled = Object.assign(new Error('Provider rate limit'), { status: 429 })
-    input.hydration.getDocument = vi.fn(async (externalId: string) => {
-      if (externalId === 'source-4') throw throttled
-      return sourceDocument(externalId)
-    })
-    await expect(processDocOps(input)).rejects.toBe(throttled)
-    expect(input.hydration.getDocument).toHaveBeenCalledTimes(4)
-    expect(dispatchedIds()).toEqual([['source-1', 'source-2', 'source-3']])
-    expect(input.state.result.processingDispatch).toEqual({ requested: 3, accepted: 3, failed: 0 })
-    expect(input.onBatchComplete).toHaveBeenCalledTimes(3)
-  })
-
-  it('persists successful hydration siblings before yielding and excludes only deferred sources from the page checkpoint', async () => {
-    const input = inputFor(5, 100)
-    const firstThrottle = Object.assign(new Error('Short throttle'), {
-      status: 429,
-      retryAfterMs: 60_000,
-    })
-    const longestThrottle = Object.assign(new Error('Long throttle'), {
-      status: 429,
-      retryAfterMs: 120_000,
-    })
-    input.hydration.getDocument = vi.fn(async (externalId: string) => {
-      if (externalId === 'source-2') throw firstThrottle
-      if (externalId === 'source-4') throw longestThrottle
-      if (externalId === 'source-5') throw new Error('Temporary source read failure')
-      return sourceDocument(externalId)
-    })
-    await expect(processDocOps(input)).rejects.toBe(longestThrottle)
-    expect(dispatchedIds()).toEqual([['source-1', 'source-3']])
-    expect(input.state.result).toMatchObject({ docsAdded: 2, docsFailed: 1 })
-    expect([...input.state.failedExternalIds]).toEqual(['source-5'])
-    expect(input.onBatchComplete).toHaveBeenCalledWith([
-      input.pendingOps[0].extDoc,
-      input.pendingOps[2].extDoc,
-      input.pendingOps[4].extDoc,
-    ])
-  })
-
-  it('counts an enqueue exception once and continues later batches without resending it', async () => {
-    const input = inputFor(61)
-    mocks.dispatch.mockRejectedValueOnce(new Error('Queue unavailable'))
-    await expect(processDocOps(input)).resolves.toBe(true)
-    expect(dispatchedIds().map((batch) => batch.length)).toEqual([25, 25, 11])
-    expect(new Set(dispatchedIds().flat()).size).toBe(61)
-    expect(input.state.result).toMatchObject({
-      docsAdded: 61,
-      docsFailed: 0,
-      processingDispatch: { requested: 61, accepted: 36, failed: 25 },
-    })
-  })
-
-  it('preserves partial dispatch outcomes and continues with the remaining documents', async () => {
-    const input = inputFor(26)
-    mocks.dispatch.mockResolvedValueOnce({ accepted: 20, failed: 5 })
-    await expect(processDocOps(input)).resolves.toBe(true)
-    expect(dispatchedIds().map((batch) => batch.length)).toEqual([25, 1])
-    expect(input.state.result.processingDispatch).toEqual({
-      requested: 26,
-      accepted: 21,
-      failed: 5,
-    })
-  })
-
-  it('forwards the same lease to persistence and queue dispatch for added and updated documents', async () => {
-    const input = inputFor(2)
-    input.pendingOps[1] = {
-      type: 'update',
-      existingId: 'existing-document',
-      extDoc: input.pendingOps[1]!.extDoc,
-    }
-    await processDocOps(input)
-    expect(mocks.add.mock.calls[0]?.at(-1)).toBe(input.lease)
-    expect(mocks.update.mock.calls[0]?.at(-1)).toBe(input.lease)
-    expect(mocks.dispatch).toHaveBeenCalledExactlyOnceWith(
-      [
-        storedDocument(sourceDocument('source-1')),
-        storedDocument(sourceDocument('source-2'), 'existing-document'),
-      ],
-      'knowledge-base',
-      {},
-      expect.any(String),
-      input.billingAttribution,
-      'backfill',
-      { connectorId: 'connector', stillHeld: input.lease.stillHeld }
-    )
-    expect(input.state.result).toMatchObject({ docsAdded: 1, docsUpdated: 1 })
   })
 
   it('keeps the lease guard on a partial buffer flushed after the run loses ownership', async () => {

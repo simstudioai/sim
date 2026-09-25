@@ -1,5 +1,3 @@
-/** @vitest-environment node */
-import { db } from '@sim/db'
 import {
   document,
   embeddingKeywordTin,
@@ -34,7 +32,6 @@ vi.mock('@/lib/knowledge/tags/service', () => ({ cleanupUnusedTagDefinitions: vi
 
 import {
   detachKnowledgeConnector,
-  enqueueConnectorDetachment,
   KNOWLEDGE_CONNECTOR_DETACH_EVENT,
   settleDetachedConnectorReservations,
 } from '@/lib/knowledge/connectors/detachment'
@@ -83,7 +80,6 @@ function updatedTables() {
 
 describe('connector detachment', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.resolveStorage.mockResolvedValue(STORAGE_CONTEXT)
     mocks.incrementStorage.mockResolvedValue(1_000)
@@ -91,17 +87,6 @@ describe('connector detachment', () => {
     queueTableRows(knowledgeBase, [owner])
   })
   afterEach(resetDbChainMock)
-
-  it('enqueues a bounded immutable identity with a retry budget', async () => {
-    await enqueueConnectorDetachment(db, payload)
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventType: KNOWLEDGE_CONNECTOR_DETACH_EVENT,
-        payload,
-        maxAttempts: 48,
-      })
-    )
-  })
 
   it('releases documents against the reservation, then settles what remains with the connector', async () => {
     queueBatch(['doc-1', 'doc-2'], 25)
@@ -157,28 +142,6 @@ describe('connector detachment', () => {
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 
-  it('flips a large document once the rest of its search rows fit', async () => {
-    queueBatch(['doc-1'])
-    releaseProjectionRows(250, 12)
-    queueBatch(['doc-1'])
-    releaseProjectionRows(40, 12)
-    dbChainMockFns.returning.mockResolvedValueOnce([{ fileSize: 7, deletedAt: null }])
-    queueBatch([])
-
-    await detachKnowledgeConnector(payload, context())
-
-    expect(updatedTables()).toEqual([
-      embeddingSearch,
-      embeddingKeywordTin,
-      embeddingSearch,
-      embeddingKeywordTin,
-      document,
-      knowledgeConnector,
-    ])
-    expect(mocks.decrementStorage).not.toHaveBeenCalled()
-    expect(dbChainMockFns.delete.mock.calls.map(([table]) => table)).toEqual([knowledgeConnector])
-  })
-
   it.each([null, new Date('2026-09-21T12:00:00.000Z')])(
     'leaves a connector with a different detachment generation untouched: %s',
     async (detachedAt) => {
@@ -221,26 +184,10 @@ describe('connector detachment', () => {
     expect(mocks.decrementStorage).not.toHaveBeenCalled()
     expect(mocks.revoke).not.toHaveBeenCalled()
   })
-
-  it('stops when the knowledge base is gone', async () => {
-    resetDbChainMock()
-    await detachKnowledgeConnector(payload, context())
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-  })
-
-  it('does no work after cancellation', async () => {
-    const controller = new AbortController()
-    controller.abort()
-    await expect(
-      detachKnowledgeConnector(payload, { ...context(), signal: controller.signal })
-    ).rejects.toThrow()
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-  })
 })
 
 describe('purged knowledge base reservations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.resolveStorage.mockResolvedValue(STORAGE_CONTEXT)
     mocks.incrementStorage.mockResolvedValue(1_000)

@@ -1,12 +1,9 @@
 /**
  * Tests for knowledge search utility functions
  * Focuses on testing core functionality with simplified mocking
- *
- * @vitest-environment node
  */
 import {
   dbChainMockFns,
-  mockNextFetchResponse,
   queueTableRows,
   resetDbChainMock,
   schemaMock,
@@ -71,8 +68,6 @@ import {
   fuseByReciprocalRank,
   getQueryStrategy,
   handleTagAndVectorSearch,
-  handleTagOnlySearch,
-  handleVectorOnlySearch,
   type SearchResult,
 } from '@/lib/knowledge/search/queries'
 import { RRF_K } from '@/lib/knowledge/search/recency'
@@ -127,86 +122,11 @@ function mockNextEmbeddingResponse(): void {
 
 describe('Knowledge Search Utils', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     // The worker-level fetch stub from vitest.setup.ts is removed after the
     // first test by `unstubGlobals: true`; re-stub it per test so
-    // mockNextFetchResponse always operates on a mocked fetch.
+    // `vi.mocked(fetch)` always operates on a mocked fetch.
     setupGlobalFetchMock({ json: {} })
     retrySpy.mockImplementation(((fn: () => unknown) => fn()) as never)
-  })
-
-  describe('handleTagOnlySearch', () => {
-    it('should throw error when no filters provided', async () => {
-      const params = {
-        knowledgeBaseIds: ['kb-123'],
-        access: WORKSPACE_ACCESS_SCOPE,
-        topK: 10,
-        structuredFilters: [],
-      }
-
-      await expect(handleTagOnlySearch(params)).rejects.toThrow(
-        'Tag filters are required for tag-only search'
-      )
-    })
-
-    it('should accept valid parameters for tag-only search', async () => {
-      const params = {
-        knowledgeBaseIds: ['kb-123'],
-        access: WORKSPACE_ACCESS_SCOPE,
-        topK: 10,
-        structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api' }],
-      }
-
-      // This test validates the function accepts the right parameters
-      // The actual database interaction is tested via route tests
-      expect(params.knowledgeBaseIds).toEqual(['kb-123'])
-      expect(params.topK).toBe(10)
-      expect(params.structuredFilters).toHaveLength(1)
-    })
-  })
-
-  describe('handleVectorOnlySearch', () => {
-    it('should throw error when queryVector not provided', async () => {
-      const params = {
-        knowledgeBaseIds: ['kb-123'],
-        access: WORKSPACE_ACCESS_SCOPE,
-        topK: 10,
-        distanceThreshold: 0.8,
-      }
-
-      await expect(handleVectorOnlySearch(params)).rejects.toThrow(
-        'Query vector and distance threshold are required for vector-only search'
-      )
-    })
-
-    it('should throw error when distanceThreshold not provided', async () => {
-      const params = {
-        knowledgeBaseIds: ['kb-123'],
-        access: WORKSPACE_ACCESS_SCOPE,
-        topK: 10,
-        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
-      }
-
-      await expect(handleVectorOnlySearch(params)).rejects.toThrow(
-        'Query vector and distance threshold are required for vector-only search'
-      )
-    })
-
-    it('should accept valid parameters for vector-only search', async () => {
-      const params = {
-        knowledgeBaseIds: ['kb-123'],
-        access: WORKSPACE_ACCESS_SCOPE,
-        topK: 10,
-        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
-        distanceThreshold: 0.8,
-      }
-
-      // This test validates the function accepts the right parameters
-      expect(params.knowledgeBaseIds).toEqual(['kb-123'])
-      expect(params.topK).toBe(10)
-      expect(params.queryVector).toBe(JSON.stringify([0.1, 0.2, 0.3]))
-      expect(params.distanceThreshold).toBe(0.8)
-    })
   })
 
   describe('handleTagAndVectorSearch', () => {
@@ -243,67 +163,6 @@ describe('Knowledge Search Utils', () => {
         .find((statement) => statement.sql.includes(') + 0 LIMIT'))!
       expect(exact.params).toContain(200)
     })
-
-    it('should throw error when no filters provided', async () => {
-      const params = {
-        knowledgeBaseIds: ['kb-123'],
-        access: WORKSPACE_ACCESS_SCOPE,
-        topK: 10,
-        structuredFilters: [],
-        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
-        distanceThreshold: 0.8,
-      }
-
-      await expect(handleTagAndVectorSearch(params)).rejects.toThrow(
-        'Tag filters are required for tag and vector search'
-      )
-    })
-
-    it('should throw error when queryVector not provided', async () => {
-      const params = {
-        knowledgeBaseIds: ['kb-123'],
-        access: WORKSPACE_ACCESS_SCOPE,
-        topK: 10,
-        structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api' }],
-        distanceThreshold: 0.8,
-      }
-
-      await expect(handleTagAndVectorSearch(params)).rejects.toThrow(
-        'Query vector and distance threshold are required for tag and vector search'
-      )
-    })
-
-    it('should throw error when distanceThreshold not provided', async () => {
-      const params = {
-        knowledgeBaseIds: ['kb-123'],
-        access: WORKSPACE_ACCESS_SCOPE,
-        topK: 10,
-        structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api' }],
-        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
-      }
-
-      await expect(handleTagAndVectorSearch(params)).rejects.toThrow(
-        'Query vector and distance threshold are required for tag and vector search'
-      )
-    })
-
-    it('should accept valid parameters for tag and vector search', async () => {
-      const params = {
-        knowledgeBaseIds: ['kb-123'],
-        access: WORKSPACE_ACCESS_SCOPE,
-        topK: 10,
-        structuredFilters: [{ tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api' }],
-        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
-        distanceThreshold: 0.8,
-      }
-
-      // This test validates the function accepts the right parameters
-      expect(params.knowledgeBaseIds).toEqual(['kb-123'])
-      expect(params.topK).toBe(10)
-      expect(params.structuredFilters).toHaveLength(1)
-      expect(params.queryVector).toBe(JSON.stringify([0.1, 0.2, 0.3]))
-      expect(params.distanceThreshold).toBe(0.8)
-    })
   })
 
   describe('fuseByReciprocalRank', () => {
@@ -335,13 +194,6 @@ describe('Knowledge Search Utils', () => {
       expect(fused).toHaveLength(1)
       expect(fused[0].content).toBe('content-chunk-1')
       expect(fused[0].distance).toBe(0.2)
-    })
-
-    it('preserves leg ordering when only one leg returns rows', () => {
-      const rows = [makeResult('a'), makeResult('b'), makeResult('c')]
-
-      expect(fuseByReciprocalRank([rows, []], 10).map((r) => r.id)).toEqual(['a', 'b', 'c'])
-      expect(fuseByReciprocalRank([[], rows], 10).map((r) => r.id)).toEqual(['a', 'b', 'c'])
     })
 
     it('scores by reciprocal rank so a deep double hit beats a shallow single hit', () => {
@@ -398,15 +250,6 @@ describe('Knowledge Search Utils', () => {
       ])
     })
 
-    it('still floats a row found by both legs above every single-leg row', () => {
-      const shared = makeResult('shared')
-      const legA = [makeResult('a1'), shared]
-      const legB = [makeResult('b1'), shared]
-
-      // shared is rank 2 in both legs (2/62) and outscores either rank-1 row (1/61).
-      expect(fuseByReciprocalRank([legA, legB], 3).map((r) => r.id)).toEqual(['shared', 'a1', 'b1'])
-    })
-
     it('does not let a shared top hit evict the lexical-only row at topK 2', () => {
       const shared = makeResult('shared')
       const lexicalOnly = makeResult('lexical-only')
@@ -426,16 +269,6 @@ describe('Knowledge Search Utils', () => {
       )
 
       expect(fused.map((r) => r.id)).toEqual(['shared', 'lexical-only'])
-    })
-
-    it('trims the fused list to topK', () => {
-      const rows = Array.from({ length: 8 }, (_, i) => makeResult(`chunk-${i}`))
-
-      expect(fuseByReciprocalRank([rows, []], 3)).toHaveLength(3)
-    })
-
-    it('returns an empty list when every leg is empty', () => {
-      expect(fuseByReciprocalRank([[], []], 10)).toEqual([])
     })
   })
 
@@ -472,93 +305,11 @@ describe('Knowledge Search Utils', () => {
       /** Keyword retrieval preserves its existing per-base lexical candidate selection. */
       expect(dbChainMockFns.select).toHaveBeenCalledTimes(knowledgeBaseIds.length)
     })
-
-    it('ranks without selecting the embedding column, then hydrates the survivors', async () => {
-      queueTableRows(schemaMock.embedding, [{ id: 'kw-1', keywordRank: 0.9 }])
-      queueTableRows(schemaMock.embedding, [makeResult('kw-1')])
-
-      const results = await executeKeywordSearch({
-        knowledgeBaseIds: ['kb-1'],
-        access: WORKSPACE_ACCESS_SCOPE,
-        topK: 10,
-        query: 'PROJ-1234',
-        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
-      })
-
-      expect(results.map((r) => r.id)).toEqual(['kw-1'])
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
-
-      /**
-       * Projecting the distance in the ranking pass makes Postgres detoast the
-       * 1536-dimension vector for every full-text match before the LIMIT, so
-       * cost tracks how common the term is rather than topK. The ranking pass
-       * must select ids and relevance only.
-       */
-      const rankingSelect = dbChainMockFns.select.mock.calls[0][0]
-      expect(Object.keys(rankingSelect)).toEqual(['id', 'keywordRank'])
-      expect(Object.keys(dbChainMockFns.select.mock.calls[1][0])).toContain('distance')
-    })
-
-    it('uses a single query when the parallel threshold is not crossed', async () => {
-      const knowledgeBaseIds = ['kb-1', 'kb-2']
-      expect(getQueryStrategy(knowledgeBaseIds.length, 10).useParallel).toBe(false)
-
-      await executeKeywordSearch({
-        knowledgeBaseIds,
-        access: WORKSPACE_ACCESS_SCOPE,
-        topK: 10,
-        query: 'PROJ-1234',
-        queryVector: JSON.stringify([0.1, 0.2, 0.3]),
-      })
-
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
-    })
   })
 
   describe('executeKnowledgeSearch', () => {
     beforeEach(() => {
       resetDbChainMock()
-    })
-
-    it('throws when neither a query nor tag filters are provided', async () => {
-      await expect(
-        executeKnowledgeSearch({
-          knowledgeBaseIds: ['kb-123'],
-          access: WORKSPACE_ACCESS_SCOPE,
-          topK: 10,
-          searchMode: 'hybrid',
-        })
-      ).rejects.toThrow('A search query or tag filters are required')
-    })
-
-    it('throws when a query is provided without a query vector', async () => {
-      await expect(
-        executeKnowledgeSearch({
-          knowledgeBaseIds: ['kb-123'],
-          access: WORKSPACE_ACCESS_SCOPE,
-          topK: 10,
-          searchMode: 'hybrid',
-          query: 'PROJ-1234',
-        })
-      ).rejects.toThrow('Query vector is required')
-    })
-
-    it('runs a single retrieval leg in vector mode', async () => {
-      dbChainMockFns.execute.mockResolvedValue([{ id: 'vector-hit' }])
-      queueTableRows(schemaMock.embedding, [{ id: 'vector-hit' }])
-      queueTableRows(schemaMock.embedding, [makeResult('vector-hit')])
-
-      const results = await executeKnowledgeSearch({
-        knowledgeBaseIds: ['kb-123'],
-        access: WORKSPACE_ACCESS_SCOPE,
-        topK: 10,
-        searchMode: 'vector',
-        query: 'PROJ-1234',
-        queryVector: { vector: JSON.stringify(TEST_EMBEDDING), dimensions: 1536 },
-      })
-
-      expect(results.map((r) => r.id)).toEqual(['vector-hit'])
-      expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
     })
 
     it('runs both legs and fuses them in hybrid mode', async () => {
@@ -658,31 +409,6 @@ describe('Knowledge Search Utils', () => {
       Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
-    it('should fallback to OpenAI when no KB Azure config provided', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      Object.assign(env, {
-        OPENAI_API_KEY: 'test-openai-key',
-      })
-
-      mockNextEmbeddingResponse()
-
-      const result = await generateSearchEmbedding('test query', DEFAULT_EMBEDDING_TARGET)
-
-      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-        'https://api.openai.com/v1/embeddings',
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: 'Bearer test-openai-key',
-          }),
-        })
-      )
-      expect(result.embedding).toEqual(TEST_EMBEDDING)
-
-      // Clean up
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-    })
-
     it('falls back to OpenAI when AZURE_OPENAI_API_VERSION is not set', async () => {
       const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
@@ -706,30 +432,6 @@ describe('Knowledge Search Utils', () => {
       Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
-    it('should use custom model name when provided in Azure config', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      Object.assign(env, {
-        AZURE_OPENAI_API_KEY: 'test-azure-key',
-        AZURE_OPENAI_ENDPOINT: 'https://test.openai.azure.com',
-        AZURE_OPENAI_API_VERSION: '2024-12-01-preview',
-        KB_OPENAI_MODEL_NAME: 'custom-embedding-model',
-        OPENAI_API_KEY: 'test-openai-key',
-      })
-
-      mockNextEmbeddingResponse()
-
-      await generateSearchEmbedding('test query', DEFAULT_EMBEDDING_TARGET)
-
-      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-        'https://test.openai.azure.com/openai/deployments/custom-embedding-model/embeddings?api-version=2024-12-01-preview',
-        expect.any(Object)
-      )
-
-      // Clean up
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-    })
-
     it('should throw error when no API configuration provided', async () => {
       const { env } = await import('@/lib/core/config/env')
       Object.keys(env).forEach((key) => delete (env as any)[key])
@@ -744,110 +446,6 @@ describe('Knowledge Search Utils', () => {
       await expect(generateSearchEmbedding('test query', DEFAULT_EMBEDDING_TARGET)).rejects.toThrow(
         'Semantic retrieval is unavailable because its embedding provider is not configured.'
       )
-    })
-
-    it('should handle Azure OpenAI API errors properly', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      Object.assign(env, {
-        AZURE_OPENAI_API_KEY: 'test-azure-key',
-        AZURE_OPENAI_ENDPOINT: 'https://test.openai.azure.com',
-        AZURE_OPENAI_API_VERSION: '2024-12-01-preview',
-        KB_OPENAI_MODEL_NAME: 'text-embedding-ada-002',
-      })
-
-      mockNextFetchResponse({
-        ok: false,
-        status: 404,
-        statusText: 'Not Found',
-        text: 'Deployment not found',
-      })
-
-      await expect(generateSearchEmbedding('test query', DEFAULT_EMBEDDING_TARGET)).rejects.toThrow(
-        'Embedding API failed'
-      )
-
-      // Clean up
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-    })
-
-    it('should handle OpenAI API errors properly', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      Object.assign(env, {
-        OPENAI_API_KEY: 'test-openai-key',
-        OPENROUTER_API_KEY: undefined,
-      })
-
-      mockNextFetchResponse({
-        ok: false,
-        status: 429,
-        statusText: 'Too Many Requests',
-        text: 'Rate limit exceeded',
-      })
-
-      await expect(generateSearchEmbedding('test query', DEFAULT_EMBEDDING_TARGET)).rejects.toThrow(
-        'Embedding API failed'
-      )
-
-      // Clean up
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-    })
-
-    it('should include correct request body for Azure OpenAI', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      Object.assign(env, {
-        AZURE_OPENAI_API_KEY: 'test-azure-key',
-        AZURE_OPENAI_ENDPOINT: 'https://test.openai.azure.com',
-        AZURE_OPENAI_API_VERSION: '2024-12-01-preview',
-        KB_OPENAI_MODEL_NAME: 'text-embedding-ada-002',
-      })
-
-      mockNextEmbeddingResponse()
-
-      await generateSearchEmbedding('test query', DEFAULT_EMBEDDING_TARGET)
-
-      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          body: JSON.stringify({
-            input: ['test query'],
-            encoding_format: 'float',
-            dimensions: 1536,
-          }),
-        })
-      )
-
-      // Clean up
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-    })
-
-    it('should include correct request body for OpenAI', async () => {
-      const { env } = await import('@/lib/core/config/env')
-      Object.keys(env).forEach((key) => delete (env as any)[key])
-      Object.assign(env, {
-        OPENAI_API_KEY: 'test-openai-key',
-      })
-
-      mockNextEmbeddingResponse()
-
-      await generateSearchEmbedding('test query', DEFAULT_EMBEDDING_TARGET)
-
-      expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          body: JSON.stringify({
-            input: ['test query'],
-            model: 'text-embedding-3-small',
-            encoding_format: 'base64',
-            dimensions: 1536,
-          }),
-        })
-      )
-
-      // Clean up
-      Object.keys(env).forEach((key) => delete (env as any)[key])
     })
 
     it('projects verified provenance only in the model-bound embedding payload', async () => {

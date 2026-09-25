@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { execFile } from 'node:child_process'
 import { mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -31,7 +30,6 @@ const execute = promisify(execFile)
 let directory = ''
 let staged = ''
 beforeEach(async () => {
-  vi.clearAllMocks()
   directory = await realpath(await mkdtemp(join(tmpdir(), 'scratch-snapshot-')))
   staged = join(directory, 'snapshot')
   mocks.find.mockResolvedValue({

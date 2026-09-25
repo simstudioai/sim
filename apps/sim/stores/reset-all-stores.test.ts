@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -72,7 +69,6 @@ describe('resetAllStores', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
-    vi.clearAllMocks()
     queryClient = new QueryClient()
     mockGetQueryClient.mockReturnValue(queryClient)
     mockConsolePersist.mockResolvedValue(undefined)

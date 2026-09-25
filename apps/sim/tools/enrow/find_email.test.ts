@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Only `sleep` is stubbed because it is the sole `@sim/utils/helpers` export the
@@ -75,10 +72,6 @@ const submittedFindResult: EnrowFindEmailResponse = {
 const MAX_POLLS = 40
 
 describe('enrow_find_email', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   afterEach(() => {
     vi.unstubAllGlobals()
   })
@@ -152,10 +145,6 @@ describe('enrow_find_email', () => {
 })
 
 describe('enrow_verify_email', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   afterEach(() => {
     vi.unstubAllGlobals()
   })

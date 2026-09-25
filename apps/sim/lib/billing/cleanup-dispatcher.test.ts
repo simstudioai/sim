@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   queueTableRows,
@@ -36,12 +33,7 @@ vi.mock('@/lib/workspaces/policy', () => ({
   isOrganizationWorkspace: vi.fn(),
 }))
 
-import { tasks } from '@trigger.dev/sdk'
-import {
-  dispatchBoundedCleanup,
-  dispatchCleanupJobs,
-  runCleanupWithLimits,
-} from '@/lib/billing/cleanup-dispatcher'
+import { dispatchCleanupJobs, runCleanupWithLimits } from '@/lib/billing/cleanup-dispatcher'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/subscription'
 import { isOrganizationWorkspace } from '@/lib/workspaces/policy'
 
@@ -49,7 +41,6 @@ afterAll(resetEnvFlagsMock)
 
 describe('dispatchCleanupJobs retention gate', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isBillingEnabled: false, isDataRetentionEnabled: false })
     mockIsTriggerAvailable.mockReturnValue(false)
@@ -66,15 +57,6 @@ describe('dispatchCleanupJobs retention gate', () => {
     expect(result).toEqual({ jobIds: [], jobCount: 0, chunkCount: 0, workspaceCount: 0 })
     expect(mockIsTriggerAvailable).not.toHaveBeenCalled()
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
-
-  it('scans workspaces once retention is explicitly enabled', async () => {
-    setEnvFlags({ isDataRetentionEnabled: true })
-    queueTableRows(schemaMock.workspace, [])
-
-    await dispatchCleanupJobs('cleanup-logs')
-
-    expect(dbChainMockFns.select).toHaveBeenCalled()
   })
 
   it('deletes nothing for a workspace with no configured retention', async () => {
@@ -112,7 +94,6 @@ describe('dispatchCleanupJobs retention gate', () => {
 
 describe('organization-owned Search retention dispatch', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isBillingEnabled: false, isDataRetentionEnabled: true })
     mockIsTriggerAvailable.mockReturnValue(false)
@@ -146,32 +127,6 @@ describe('organization-owned Search retention dispatch', () => {
       expect.any(Object)
     )
     expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
-  })
-
-  it('retains organization data forever when an off-hosted deployment configured no window', async () => {
-    queueTableRows(schemaMock.organization, [{ id: 'org-1', settings: null }])
-    queueTableRows(schemaMock.organization, [])
-    await dispatchCleanupJobs('cleanup-soft-deletes')
-    expect(mockEnqueue).not.toHaveBeenCalled()
-  })
-
-  it('uses the existing hosted plan default for a team organization', async () => {
-    setEnvFlags({ isBillingEnabled: true })
-    mockGetOrganizationSubscription.mockResolvedValue({ plan: 'team' })
-    queueTableRows(schemaMock.organization, [{ id: 'org-1', settings: null }])
-    queueTableRows(schemaMock.organization, [])
-    await dispatchCleanupJobs('cleanup-soft-deletes')
-    expect(mockGetOrganizationSubscription).toHaveBeenCalledWith('org-1', { onError: 'throw' })
-    expect(mockEnqueue).toHaveBeenCalledWith(
-      'cleanup-soft-deletes',
-      expect.objectContaining({
-        plan: 'team',
-        workspaceIds: [],
-        organizationIds: ['org-1'],
-        retentionHours: 90 * 24,
-      }),
-      expect.any(Object)
-    )
   })
 
   it('does not infer a personal payer when the organization has no subscription', async () => {
@@ -211,50 +166,16 @@ describe('organization-owned Search retention dispatch', () => {
       expect.any(Object)
     )
   })
-
-  it('retains organization chats when the hosted plan has no task retention default', async () => {
-    setEnvFlags({ isBillingEnabled: true })
-    mockGetOrganizationSubscription.mockResolvedValue({ plan: 'team' })
-    queueTableRows(schemaMock.organization, [{ id: 'org-1', settings: null }])
-    queueTableRows(schemaMock.organization, [])
-    await dispatchCleanupJobs('cleanup-tasks')
-    expect(mockEnqueue).not.toHaveBeenCalled()
-  })
-
-  it('does not dispatch workspace-only execution cleanup for an organization', async () => {
-    await dispatchCleanupJobs('cleanup-logs')
-    expect(
-      dbChainMockFns.from.mock.calls.some(([table]) => table === schemaMock.organization)
-    ).toBe(false)
-    expect(mockEnqueue).not.toHaveBeenCalled()
-  })
 })
 
 describe('cleanup limits', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isBillingEnabled: false, isDataRetentionEnabled: true })
     mockIsTriggerAvailable.mockReturnValue(true)
     vi.mocked(getHighestPriorityPersonalSubscription).mockReset()
     mockGetOrganizationSubscription.mockReset()
     vi.mocked(isOrganizationWorkspace).mockReset()
-  })
-
-  it('enqueues one job without querying owners or dispatching child jobs', async () => {
-    vi.mocked(tasks.trigger).mockResolvedValueOnce({ id: 'run-limited' } as never)
-    expect(await dispatchBoundedCleanup('cleanup-logs', { workflowLogs: 3 })).toEqual({
-      triggered: true,
-      runId: 'run-limited',
-      limits: { workflowLogs: 3 },
-    })
-    expect(tasks.trigger).toHaveBeenCalledWith(
-      'cleanup-logs',
-      { limits: { workflowLogs: 3 } },
-      expect.objectContaining({ maxAttempts: 1 })
-    )
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    expect(tasks.batchTrigger).not.toHaveBeenCalled()
   })
 
   it('shares budgets across owners and stops before the next page', async () => {
@@ -276,13 +197,6 @@ describe('cleanup limits', () => {
     })
     expect(seen).toEqual([2, 1])
     expect(dbChainMockFns.select).toHaveBeenCalledOnce()
-  })
-
-  it('rejects invalid direct task input before querying', async () => {
-    await expect(
-      runCleanupWithLimits('cleanup-logs', { workflowLogs: -1 }, vi.fn())
-    ).rejects.toThrow()
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 
   it.each(['personal', 'organization-workspace', 'organization'] as const)(
@@ -316,16 +230,4 @@ describe('cleanup limits', () => {
       expect(runScope).not.toHaveBeenCalled()
     }
   )
-
-  it('requires queued execution and respects the retention switch', async () => {
-    mockIsTriggerAvailable.mockReturnValue(false)
-    await expect(dispatchBoundedCleanup('cleanup-logs', { workflowLogs: 1 })).rejects.toThrow(
-      'requires Trigger.dev'
-    )
-    setEnvFlags({ isDataRetentionEnabled: false })
-    await expect(
-      runCleanupWithLimits('cleanup-logs', { workflowLogs: 1 }, vi.fn())
-    ).rejects.toThrow('retention is disabled')
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
 })

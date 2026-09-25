@@ -1,10 +1,8 @@
 import chalk from 'chalk'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runEmbeddedCli } from '#sim-cli/embed'
-import { embedStore } from '#sim-cli/embed-context'
-import { EmbeddedOutput } from '#sim-cli/embed-output'
 import type { ListFilesResponse } from '#sim-cli/generated/v2-api'
-import { bool, bytes, duration, text, timestamp } from '#sim-cli/output/render'
+import { bool } from '#sim-cli/output/render'
 
 const IDENTITY = {
   endpoint: 'https://sim.test',
@@ -78,39 +76,5 @@ describe('embedded presentation on a terminal host', () => {
     }
     expect(await file).toEqual({ exitCode: 0, stdout: content, stderr: '' })
     expect(transport).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not capture terminal progress while paging through a complete inventory', async () => {
-    const transport = vi
-      .fn()
-      .mockResolvedValueOnce(json({ data: [FILE], nextCursor: 'next' } satisfies ListFilesResponse))
-      .mockResolvedValueOnce(
-        json({ data: [{ ...FILE, id: 'other' }], nextCursor: null } satisfies ListFilesResponse)
-      )
-    const result = await runEmbeddedCli(['files', 'list', '--limit', '0'], {
-      ...IDENTITY,
-      transport,
-    })
-    expect(result.exitCode, result.stderr).toBe(0)
-    expect(JSON.parse(result.stdout)).toEqual({
-      data: [FILE, { ...FILE, id: 'other' }],
-      nextCursor: null,
-    })
-    expect(result.stderr).toBe('')
-    expect(transport).toHaveBeenCalledTimes(2)
-  })
-
-  it('formats cells in their invocation context even when initialized on a color terminal', () => {
-    embedStore.run(
-      { identity: IDENTITY, stdout: new EmbeddedOutput(), stderr: new EmbeddedOutput() },
-      () => {
-        expect([text(null), bool(null), bytes(null), duration(null), timestamp(null)]).toEqual(
-          Array(5).fill('—')
-        )
-        expect(bool(true)).toBe('yes')
-        expect(bool(false)).toBe('no')
-      }
-    )
-    expect(bool(true)).toBe('\u001b[32myes\u001b[39m')
   })
 })

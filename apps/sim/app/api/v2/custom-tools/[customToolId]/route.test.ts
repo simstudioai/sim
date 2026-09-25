@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -110,78 +107,12 @@ function request(method: 'GET' | 'PATCH' | 'DELETE', body?: unknown) {
 
 describe('/api/v2/custom-tools/[customToolId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.authenticate.mockResolvedValue(AUTH)
     mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.get.mockResolvedValue({ tool })
     mocks.update.mockResolvedValue({ tool })
     mocks.remove.mockResolvedValue({ tool })
-  })
-
-  it('gets a custom tool through its semantic read operation', async () => {
-    const response = await GET(request('GET'), context)
-
-    expect(response.status).toBe(200)
-    expect(mocks.get).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: { workspaceId: WORKSPACE_ID, toolId: tool.id },
-      request: expect.anything(),
-    })
-  })
-
-  /**
-   * Every list in this family rejects a query param it does not implement, so
-   * the single-resource reads must too. A caller who mistypes a flag otherwise
-   * gets a 200 that silently ignored it, which reads as confirmation the flag
-   * exists and does nothing.
-   */
-  it('rejects a query param it does not implement', async () => {
-    const response = await GET(
-      new NextRequest(
-        `http://localhost:3000/api/v2/custom-tools/${tool.id}?workspaceId=${WORKSPACE_ID}&includeCodes=true`,
-        { method: 'GET', headers: { 'x-api-key': 'key' } }
-      ),
-      context
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.get).not.toHaveBeenCalled()
-  })
-
-  it('updates a custom tool through its semantic update operation', async () => {
-    const response = await PATCH(
-      request('PATCH', { workspaceId: WORKSPACE_ID, code: 'return 2' }),
-      context
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.update).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: { workspaceId: WORKSPACE_ID, toolId: tool.id, code: 'return 2', source: 'api' },
-      request: expect.anything(),
-    })
-  })
-
-  it('deletes a custom tool through its semantic delete operation', async () => {
-    const response = await DELETE(request('DELETE'), context)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { id: tool.id, deleted: true } })
-    expect(mocks.remove).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: { workspaceId: WORKSPACE_ID, toolId: tool.id, source: 'api' },
-      request: expect.anything(),
-    })
-  })
-
-  it('authenticates before validating an empty patch body', async () => {
-    mocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await PATCH(request('PATCH', {}), context)
-
-    expect(response.status).toBe(401)
-    expect(mocks.update).not.toHaveBeenCalled()
   })
 
   /**

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createAttributedBillingRequestEnvelope } from '@/lib/billing/core/billing-attribution'
@@ -26,7 +25,6 @@ const context = {
   billingAttribution: attribution,
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   setEnvFlags({ isHosted: true })
   mocks.standing.mockResolvedValue({ blocked: false })
 })

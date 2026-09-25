@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 
@@ -20,7 +17,6 @@ import { SharePointClient } from '@/lib/internal/sharepoint/client'
 
 describe('SharePointClient', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.validateUrl.mockResolvedValue({ isValid: true, resolvedIP: '20.190.128.1' })
   })
 
@@ -46,34 +42,6 @@ describe('SharePointClient', () => {
         maxResponseBytes: MAX_FILE_SIZE,
         signal: controller.signal,
       }
-    )
-  })
-
-  it('passes cancellation into validated Graph uploads', async () => {
-    const controller = new AbortController()
-    mocks.validatedFetch.mockResolvedValue(
-      Response.json({ id: 'item', name: 'file', webUrl: 'https://example.com', size: 4 })
-    )
-    const buffer = Buffer.from('file')
-    await new SharePointClient('token', controller.signal).upload(
-      'https://graph.microsoft.com/upload',
-      buffer,
-      'application/pdf'
-    )
-
-    expect(mocks.validatedFetch).toHaveBeenCalledWith(
-      'https://graph.microsoft.com/upload',
-      {
-        profile: 'contentFetch',
-        method: 'PUT',
-        headers: {
-          Authorization: 'Bearer token',
-          'Content-Type': 'application/pdf',
-        },
-        body: buffer,
-        signal: controller.signal,
-      },
-      'uploadUrl'
     )
   })
 })

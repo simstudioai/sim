@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMock,
   dbChainMockFns,
@@ -45,7 +42,6 @@ import { archiveWorkflow } from '@/lib/workflows/lifecycle'
 
 describe('workflow lifecycle', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     urlsMockFns.mockGetSocketServerUrl.mockReturnValue('http://socket.test')
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }))

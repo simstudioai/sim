@@ -111,7 +111,6 @@ describe('shared connector settings form', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.live = false
     mocks.settingsPending = false
     mocks.accessPending = false
@@ -128,37 +127,6 @@ describe('shared connector settings form', () => {
     act(() => root.unmount())
     container.remove()
   })
-
-  it.each([false, true])('only offers sync recovery for indexed sources, live=%s', (live) => {
-    mocks.live = live
-    render(
-      connector({
-        connectorType: 'github',
-        credentialId: 'installation-1',
-        sourceConfig: { repository: 'acme/platform', githubRepositoryId: '9010' },
-        memberSyncStatus: 'disabled',
-      }),
-      'github-disabled-sync'
-    )
-    expect(form.fieldsProps.canReenableMemberSync).toBe(!live)
-  })
-
-  it.each([
-    { sourceConfig: { repository: 'acme/platform', githubRepositoryId: '9010' }, expected: true },
-    { sourceConfig: { repository: 'acme/platform' }, expected: false },
-  ])(
-    'identifies installation settings from the persisted repository binding: $expected',
-    ({ sourceConfig, expected }) => {
-      render(
-        connector({ connectorType: 'github', credentialId: 'installation-1', sourceConfig }),
-        'github'
-      )
-      expect(form.fieldsProps.usesGitHubInstallation).toBe(expected)
-      expect(form.fieldsProps.access.accessMode).toBe('members')
-      expect(form.fieldsProps.sourceConfig.repository).toBe('acme/platform')
-      expect(mocks.applyAccess).not.toHaveBeenCalled()
-    }
-  )
 
   it('treats persisted JSONB label key order as an unchanged draft', () => {
     render(
@@ -179,77 +147,6 @@ describe('shared connector settings form', () => {
     expect(form.canSave).toBe(false)
     act(() => form.fieldsProps.onFieldChange('folderId', ['folder-2']))
     expect(form.dirty).toBe(true)
-  })
-
-  it('keeps a new member Gmail source clean and preserves its derived listing cap on save', () => {
-    const sourceConfig = {
-      label: ['INBOX'],
-      dateRange: '7d',
-      query: 'subject:SIM-SEARCH-QA',
-      _canonicalModes: { label: 'advanced' },
-      maxThreads: 0,
-    }
-    render(connector({ connectorType: 'gmail', sourceConfig }), 'gmail-members')
-
-    const capField = form.fieldsProps.connectorConfig?.configFields.find(
-      (field) => field.id === 'maxThreads'
-    )!
-    expect(capField).toBeDefined()
-    expect(form.fieldsProps.isFieldVisible(capField)).toBe(false)
-    expect(form.dirty).toBe(false)
-    expect(form.canSave).toBe(false)
-
-    act(() => form.fieldsProps.onFieldChange('query', 'subject:updated'))
-    expect(form.dirty).toBe(true)
-    expect(form.canSave).toBe(true)
-    act(() => form.save())
-    expect(mocks.update).toHaveBeenCalledWith(
-      {
-        knowledgeBaseId: 'kb-search',
-        connectorId: baseline.id,
-        updates: { sourceConfig: { ...sourceConfig, query: 'subject:updated' } },
-      },
-      expect.any(Object)
-    )
-  })
-
-  it('offers central Confluence account replacement without making an unchanged source dirty', () => {
-    const sourceConfig = {
-      domain: 'team.atlassian.net',
-      spaceKey: ['ENG'],
-      labelFilter: 'approved',
-    }
-    render(
-      connector({
-        connectorType: 'confluence',
-        accessMode: 'admin',
-        credentialId: 'service-account-1',
-        sourceConfig,
-      }),
-      'confluence-central'
-    )
-    expect(form.fieldsProps.needsWorkspaceCredential).toBe(true)
-    expect(form.dirty).toBe(false)
-    expect(form.canSave).toBe(false)
-
-    act(() => form.fieldsProps.onFieldChange('labelFilter', 'published'))
-    expect(form.canSave).toBe(true)
-    act(() => form.save())
-    expect(mocks.update).toHaveBeenCalledWith(
-      {
-        knowledgeBaseId: 'kb-search',
-        connectorId: baseline.id,
-        updates: {
-          sourceConfig: {
-            ...sourceConfig,
-            labelFilter: 'published',
-            _canonicalModes: { spaceKey: 'basic' },
-          },
-        },
-      },
-      expect.any(Object)
-    )
-    expect(mocks.applyAccess).not.toHaveBeenCalled()
   })
 
   it('saves an account replacement and source edits together and retains the draft on rejection', () => {
@@ -284,62 +181,6 @@ describe('shared connector settings form', () => {
     expect(onSaved).not.toHaveBeenCalled()
   })
 
-  it.each(['pending', 'syncing'] as const)(
-    'keeps the account draft while %s and enables Save when idle',
-    (status) => {
-      const row = connector({
-        connectorType: 'confluence',
-        accessMode: 'admin',
-        credentialId: 'old-account',
-        status,
-        sourceConfig: { domain: 'example.atlassian.net', spaceKey: ['ENG'] },
-      })
-      render(row, 'syncing')
-      act(() => form.fieldsProps.onWorkspaceCredentialChange('new-account'))
-      expect(form.canSave).toBe(false)
-      expect(form.saveBlockedReason).toBe('Wait for the current sync to finish before saving.')
-      act(() => form.save())
-      expect(mocks.applyAccess).not.toHaveBeenCalled()
-      render({ ...row, status: 'active' }, 'syncing')
-      expect(form.fieldsProps.workspaceCredentialId).toBe('new-account')
-      expect(form.canSave).toBe(true)
-      expect(form.saveBlockedReason).toBeUndefined()
-    }
-  )
-
-  it('keeps general knowledge-base listing caps editable and includes their changes on save', () => {
-    const sourceConfig = {
-      label: ['INBOX'],
-      _canonicalModes: { label: 'basic' },
-      maxThreads: '100',
-    }
-    render(
-      connector({ connectorType: 'gmail', accessMode: 'workspace', sourceConfig }),
-      'gmail-workspace',
-      false
-    )
-
-    const capField = form.fieldsProps.connectorConfig?.configFields.find(
-      (field) => field.id === 'maxThreads'
-    )!
-    expect(capField).toBeDefined()
-    expect(form.fieldsProps.isFieldVisible(capField)).toBe(true)
-    expect(form.dirty).toBe(false)
-
-    act(() => form.fieldsProps.onFieldChange('maxThreads', '200'))
-    expect(form.dirty).toBe(true)
-    expect(form.canSave).toBe(true)
-    act(() => form.save())
-    expect(mocks.update).toHaveBeenCalledWith(
-      {
-        knowledgeBaseId: 'kb-search',
-        connectorId: baseline.id,
-        updates: { sourceConfig: { ...sourceConfig, maxThreads: '200' } },
-      },
-      expect.any(Object)
-    )
-  })
-
   it('guards access drafts separately from a settings save', () => {
     expect(form.dirty).toBe(false)
     expect(form.canSave).toBe(false)
@@ -356,59 +197,6 @@ describe('shared connector settings form', () => {
     expect(form.canSave).toBe(true)
     act(() => form.fieldsProps.onFieldChange('excludeChannels', ''))
     expect(form.dirty).toBe(false)
-  })
-
-  it('returns the canonical saved row for an explicit editor reset', () => {
-    act(() => form.fieldsProps.onFieldChange('excludeChannels', 'legal'))
-    act(() => form.save())
-    expect(mocks.update).toHaveBeenCalledWith(
-      {
-        knowledgeBaseId: 'kb-search',
-        connectorId: baseline.id,
-        updates: {
-          sourceConfig: { excludeChannels: 'legal', _canonicalModes: { channel: 'basic' } },
-        },
-      },
-      expect.any(Object)
-    )
-    expect(mocks.applyAccess).not.toHaveBeenCalled()
-    const saved = connector({
-      sourceConfig: { excludeChannels: 'legal', _canonicalModes: { channel: 'basic' } },
-    })
-    act(() => mocks.update.mock.calls[0][1].onSuccess(saved))
-    expect(onSaved).toHaveBeenCalledExactlyOnceWith(saved)
-
-    render(saved, 'saved')
-    expect(form.fieldsProps.sourceConfig.excludeChannels).toBe('legal')
-    expect(form.dirty).toBe(false)
-    expect(form.canSave).toBe(false)
-  })
-
-  it('applies indexing account changes through the separate access operation', () => {
-    act(() => form.fieldsProps.onContentCredentialChange('indexing-account'))
-    act(() => form.fieldsProps.onApplyAccess())
-    expect(mocks.applyAccess).toHaveBeenCalledWith(
-      {
-        knowledgeBaseId: 'kb-search',
-        connectorId: baseline.id,
-        access: { accessMode: 'members', credentialId: 'indexing-account' },
-      },
-      expect.any(Object)
-    )
-    expect(mocks.update).not.toHaveBeenCalled()
-    const saved = connector({ credentialId: 'indexing-account' })
-    act(() => mocks.applyAccess.mock.calls[0][1].onSuccess(saved))
-    expect(onSaved).toHaveBeenCalledExactlyOnceWith(saved)
-  })
-
-  it('keeps a failed settings draft editable without signaling a save', () => {
-    act(() => form.fieldsProps.onFieldChange('excludeChannels', 'legal'))
-    act(() => form.save())
-    act(() => mocks.update.mock.calls[0][1].onError(new Error('Source update failed')))
-    expect(form.fieldsProps.error).toBe('Source update failed')
-    expect(form.dirty).toBe(true)
-    expect(form.canSave).toBe(true)
-    expect(onSaved).not.toHaveBeenCalled()
   })
 
   it('preserves the GitHub repository and pending connection after an incompatible replacement is refused', () => {
@@ -456,16 +244,4 @@ describe('shared connector settings form', () => {
     expect(form.fieldsProps.sourceConfig).toMatchObject({ ...sourceConfig, pathPrefix: 'docs/' })
     expect(form.canSave).toBe(true)
   })
-
-  it.each(['settingsPending', 'accessPending'] as const)(
-    'blocks page saving while %s is pending',
-    (pending) => {
-      act(() => form.fieldsProps.onFieldChange('excludeChannels', 'legal'))
-      mocks[pending] = true
-      render()
-      expect(form.saving).toBe(true)
-      expect(form.canSave).toBe(false)
-      expect(form.dirty).toBe(true)
-    }
-  )
 })

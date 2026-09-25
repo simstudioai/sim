@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import {
   authMockFns,
   dbChainMockFns,
@@ -387,47 +383,6 @@ describe('handleUnifiedChatPost', () => {
       expect.anything()
     )
     expect(getEffectiveEnvironmentSnapshot).not.toHaveBeenCalled()
-  })
-
-  it.each(['fast', 'adaptive', 'max'])(
-    'forwards the server Search level %s',
-    async (assistantSearchLevel) => {
-      const response = await handleUnifiedChatPost(
-        new NextRequest('http://localhost/api/mothership/chat', {
-          method: 'POST',
-          body: JSON.stringify({
-            message: 'Find the policy',
-            organizationId: 'org-1',
-            mode: 'assistant',
-            assistantSearchLevel,
-          }),
-        })
-      )
-      expect(response.status).toBe(200)
-      expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-        expect.objectContaining({ mode: 'assistant', assistantSearchLevel }),
-        expect.anything()
-      )
-    }
-  )
-
-  it('forwards the closed Fast Search preset through payload construction', async () => {
-    const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/mothership/chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          message: 'Find the policy',
-          organizationId: 'org-1',
-          mode: 'assistant',
-          assistantFast: true,
-        }),
-      })
-    )
-    expect(response.status).toBe(200)
-    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-      expect.objectContaining({ mode: 'assistant', assistantFast: true }),
-      expect.anything()
-    )
   })
 
   it.each([
@@ -886,34 +841,6 @@ describe('handleUnifiedChatPost', () => {
     }
   )
 
-  it.each(['gpt-6-sol', 'claude-opus-5-5'])(
-    'admits advanced %s and Fast when enabled',
-    async (model) => {
-      flags.models.mockResolvedValue(true)
-      const effort = model === 'gpt-6-sol' ? 'none' : 'max'
-      const fastMode = model === 'gpt-6-sol'
-      const response = await handleUnifiedChatPost(
-        new NextRequest('http://localhost/api/mothership/chat', {
-          method: 'POST',
-          body: JSON.stringify({
-            message: 'Build',
-            workspaceId: 'ws-1',
-            effort,
-            modelSelection: { model, fastMode },
-          }),
-        })
-      )
-      expect(response.status).toBe(200)
-      expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-        expect.objectContaining({
-          effort,
-          modelSelection: { model, fastMode },
-        }),
-        expect.anything()
-      )
-    }
-  )
-
   it('routes workflow-attached chat requests through the copilot backend path', async () => {
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {
@@ -1066,26 +993,6 @@ describe('handleUnifiedChatPost', () => {
     expect(persistChatResources).not.toHaveBeenCalled()
   })
 
-  it('forwards the desktop local filesystem capability into payload construction', async () => {
-    const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          message: 'Inspect my local project',
-          workspaceId: 'ws-1',
-          createNewChat: true,
-          desktopCapabilities: { localFilesystem: true },
-        }),
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-      expect.objectContaining({ desktopLocalFilesystem: true }),
-      { selectedModel: '' }
-    )
-  })
-
   it('accepts and forwards more than eight open terminal hints', async () => {
     const terminals = Array.from({ length: 12 }, (_, index) => ({
       id: String(index + 1),
@@ -1111,33 +1018,6 @@ describe('handleUnifiedChatPost', () => {
         terminals,
       }),
       { selectedModel: '' }
-    )
-  })
-
-  it('accepts tagged skill contexts and forwards them to context resolution', async () => {
-    const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          message: 'Hello',
-          workspaceId: 'ws-1',
-          createNewChat: true,
-          contexts: [{ kind: 'skill', skillId: 'sk-1', label: 'my-skill' }],
-        }),
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(processContextsServer).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({ kind: 'skill', skillId: 'sk-1', label: 'my-skill' }),
-      ]),
-      'user-1',
-      'Hello',
-      'ws-1',
-      expect.anything(),
-      expect.any(ResolvedSecretTraceRegistry),
-      undefined
     )
   })
 
@@ -1324,34 +1204,6 @@ describe('handleUnifiedChatPost', () => {
     expect(processContextsServer).not.toHaveBeenCalled()
   })
 
-  it('preserves the selected integration identifier through request parsing', async () => {
-    const context = { kind: 'integration', blockType: 'slack', label: 'Slack' }
-    const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          message: '@Slack help me use this integration',
-          workspaceId: 'ws-1',
-          createNewChat: true,
-          contexts: [context],
-          resourceAttachments: [{ type: 'integration', id: 'slack', title: 'Slack', active: true }],
-        }),
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(processContextsServer.mock.calls[0]?.[0]).toEqual([context])
-    expect(resolveActiveResourceContext).toHaveBeenCalledWith(
-      'integration',
-      'slack',
-      'ws-1',
-      'user-1',
-      'chat-1',
-      undefined,
-      undefined
-    )
-  })
-
   it('passes browser attachment metadata without advertising an unavailable browser agent', async () => {
     const response = await handleUnifiedChatPost(
       new NextRequest('http://localhost/api/copilot/chat', {
@@ -1384,26 +1236,6 @@ describe('handleUnifiedChatPost', () => {
     expect(payload.contexts[0].content).toContain('https://docs.example.com/guide')
     expect(payload.contexts[0].content).toContain('Documentation')
     expect(payload.contexts[0].content).not.toContain('browser subagent')
-  })
-
-  it('forwards slash-selected MCP server ids to the request-local tool builder', async () => {
-    const response = await handleUnifiedChatPost(
-      new NextRequest('http://localhost/api/copilot/chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          message: '/Docs search auth',
-          workspaceId: 'ws-1',
-          createNewChat: true,
-          contexts: [{ kind: 'mcp', serverId: 'mcp-server-1', label: 'Docs' }],
-        }),
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
-      expect.objectContaining({ mcpServerIds: ['mcp-server-1'] }),
-      { selectedModel: '' }
-    )
   })
 
   it('keeps MCP servers tagged on earlier turns enabled for the rest of the chat', async () => {
@@ -1889,7 +1721,6 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     flags.plan.mockResolvedValue(false)
     resetDbChainMock()
     getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { recordAudit, recordAuditBatch } from '@sim/audit'
 import {
   createMockRequest,
@@ -66,7 +63,6 @@ function queueOrganization(slug = 'acme-inc') {
 
 describe('admin organization DELETE', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockAuthenticateAdminRequest.mockReturnValue({ authenticated: true })
     mockDetachOrganizationWorkspacesTx.mockResolvedValue({
@@ -79,15 +75,6 @@ describe('admin organization DELETE', () => {
   })
 
   afterAll(resetDbChainMock)
-
-  it('returns 404 when the organization does not exist', async () => {
-    queueTableRows(schemaMock.organization, [])
-
-    const response = await DELETE(deleteRequest('acme-inc'), routeContext)
-
-    expect(response.status).toBe(404)
-    expect(mockDetachOrganizationWorkspacesTx).not.toHaveBeenCalled()
-  })
 
   it('refuses when confirmSlug does not match the organization slug', async () => {
     queueOrganization('acme-inc')

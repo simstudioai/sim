@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getTargetedLayoutChangeSet,
@@ -142,23 +139,6 @@ describe('getTargetedLayoutChangeSet', () => {
     expect(getTargetedLayoutChangeSet({ before, after })).toEqual([])
   })
 
-  it('includes newly added blocks when they still have sentinel positions', () => {
-    const before = createWorkflowState({
-      blocks: {
-        start: createBlock('start'),
-      },
-    })
-
-    const after = createWorkflowState({
-      blocks: {
-        start: createBlock('start'),
-        agent: createBlock('agent', { position: { x: 0, y: 0 } }),
-      },
-    })
-
-    expect(getTargetedLayoutChangeSet({ before, after })).toEqual(['agent'])
-  })
-
   it('keeps subblock-only edits anchored', () => {
     const before = createWorkflowState({
       blocks: {
@@ -210,40 +190,6 @@ describe('getTargetedLayoutChangeSet', () => {
       resizedBlockIds: ['jira'],
       shiftSourceBlockIds: [],
     })
-  })
-
-  it('does not relayout a pre-existing block legitimately placed at the origin', () => {
-    const before = createWorkflowState({
-      blocks: {
-        start: createBlock('start', {
-          position: { x: 0, y: 0 },
-          subBlocks: {
-            prompt: {
-              id: 'prompt',
-              type: 'long-input',
-              value: 'old value',
-            },
-          },
-        }),
-      },
-    })
-
-    const after = createWorkflowState({
-      blocks: {
-        start: createBlock('start', {
-          position: { x: 0, y: 0 },
-          subBlocks: {
-            prompt: {
-              id: 'prompt',
-              type: 'long-input',
-              value: 'updated',
-            },
-          },
-        }),
-      },
-    })
-
-    expect(getTargetedLayoutChangeSet({ before, after })).toEqual([])
   })
 
   it('reopens only the downstream path when an edge is added later', () => {

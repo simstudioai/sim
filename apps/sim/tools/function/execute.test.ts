@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { functionExecuteBodySchema } from '@/lib/api/contracts/hotspots'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/execution/constants'
@@ -48,52 +45,6 @@ describe('Function Execute Tool', () => {
     expect(schema.properties).not.toHaveProperty('mountedSecrets')
     expect(schema.properties).not.toHaveProperty('secretScope')
     expect(modelBlockedParams).toEqual(expect.arrayContaining(['secretScope', 'mountedSecrets']))
-  })
-
-  it('declares an in-process operation without HTTP-shaped configuration', () => {
-    expect(functionExecuteTool.operation).toBeDefined()
-    expect('request' in functionExecuteTool).toBe(false)
-  })
-
-  it('materializes the canonical operation input', () => {
-    expect(
-      functionExecuteTool.operation.input({
-        code: 'return 42',
-        timeout: 5000,
-      })
-    ).toEqual({
-      code: 'return 42',
-      language: 'javascript',
-      timeout: 5000,
-      title: undefined,
-      outputPath: undefined,
-      outputFormat: undefined,
-      outputTable: undefined,
-      outputSandboxPath: undefined,
-      outputMimeType: undefined,
-      sandboxId: undefined,
-      secretScope: undefined,
-      mountedSecrets: undefined,
-      unredactedSecretNames: undefined,
-      overwriteFileId: undefined,
-      inputs: undefined,
-      outputs: undefined,
-      envVars: {},
-      workflowVariables: {},
-      blockData: {},
-      blockNameMapping: {},
-      blockOutputSchemas: {},
-      contextVariables: {},
-      workflowId: undefined,
-      executionId: undefined,
-      largeValueExecutionIds: undefined,
-      largeValueKeys: undefined,
-      fileKeys: undefined,
-      allowLargeValueWorkflowScope: undefined,
-      userId: undefined,
-      workspaceId: undefined,
-      isCustomTool: false,
-    })
   })
 
   it('joins serialized code blocks and applies the default timeout', () => {

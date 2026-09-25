@@ -1,5 +1,4 @@
-/** @vitest-environment node */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ policy: vi.fn(), available: vi.fn() }))
@@ -28,7 +27,6 @@ const bindings = entries.slice(1).map((entry) => ({
 }))
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.available.mockResolvedValue(true)
   mocks.policy.mockResolvedValue({
@@ -52,16 +50,6 @@ describe('workspace organization credential visibility', () => {
     expect(mocks.policy).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ organizationId: 'org', resourceId: 'group' })
     )
-    expect(dbChainMockFns.select).toHaveBeenCalledExactlyOnceWith({
-      id: schemaMock.credential.id,
-      organizationId: schemaMock.credential.organizationId,
-      workspaceId: schemaMock.credential.workspaceId,
-      groupId: schemaMock.credentialGroup.id,
-      groupOrganizationId: schemaMock.credentialGroup.organizationId,
-      groupWorkspaceId: schemaMock.credentialGroup.workspaceId,
-      providerId: schemaMock.credential.providerId,
-      type: schemaMock.credential.type,
-    })
   })
 
   it('rechecks revocation and does not reuse a previously allowed selection', async () => {

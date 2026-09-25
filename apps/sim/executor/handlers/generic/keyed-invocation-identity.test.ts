@@ -14,10 +14,8 @@
  *
  * `nodeMetadata.executionOrder` carries both halves because the block executor
  * assigns it once per invocation, before the retry wrapper.
- *
- * @vitest-environment node
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockExecuteTool } = vi.hoisted(() => ({ mockExecuteTool: vi.fn() }))
 
@@ -29,10 +27,6 @@ vi.mock('@/tools', () => ({
 import { deriveDeliveryKey } from '@/lib/core/http/derive-key'
 
 describe('keyed invocation identity', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('derives the same token for every retry layer of one invocation', () => {
     const context = {
       executionId: 'exec-1',

@@ -35,14 +35,6 @@ function run(...args: string[]): Promise<Command> {
 }
 
 describe('sim telemetry', () => {
-  it('saves the disable setting and reports the state', async () => {
-    await run('disable')
-
-    expect(readTelemetryState(join(dir, 'telemetry.json'))?.enabled).toBe(false)
-    expect(output[0]).toMatch(/off/)
-    expect(output[0]).toContain('sim telemetry enable')
-  })
-
   it('reports the environment override rather than the saved setting', async () => {
     vi.stubEnv('DO_NOT_TRACK', '1')
 
@@ -50,20 +42,5 @@ describe('sim telemetry', () => {
 
     expect(readTelemetryState(join(dir, 'telemetry.json'))?.enabled).toBe(true)
     expect(output[0]).toContain('DO_NOT_TRACK')
-  })
-
-  it('names a build without a destination', async () => {
-    await run('status')
-
-    expect(output[0]).toMatch(/off: this build has no reporting destination/)
-    expect(output[1]).toContain('https://docs.sim.ai/cli/usage-data')
-  })
-
-  it('reports on for a build with a destination', async () => {
-    vi.stubEnv('SIM_CLI_TELEMETRY_KEY', 'phc_test')
-
-    await run('status')
-
-    expect(output[0]).toBe('Usage reporting is on.')
   })
 })

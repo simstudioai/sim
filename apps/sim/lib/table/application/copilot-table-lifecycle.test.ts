@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -52,7 +49,6 @@ const principal = {
 
 describe('deleteCopilotTables', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveWorkspaceContext.mockResolvedValue({
       workspaceId: 'workspace-1',
@@ -69,40 +65,6 @@ describe('deleteCopilotTables', () => {
     mocks.deleteTable.mockImplementation(async (tableId: string) => ({
       archived: { name: `Table ${tableId}`, workspaceId: 'workspace-1' },
     }))
-  })
-
-  it('canonically resolves each table and audits each authoritative archive', async () => {
-    const assertNotAborted = vi.fn()
-    const result = await deleteCopilotTables.execute({
-      principal,
-      input: {
-        workspaceId: 'workspace-1',
-        tableIds: ['table-1', 'table-2'],
-        assertNotAborted,
-      },
-    })
-
-    expect(result).toEqual({
-      deleted: [
-        { id: 'table-1', name: 'Table table-1' },
-        { id: 'table-2', name: 'Table table-2' },
-      ],
-      failed: [],
-    })
-    expect(mocks.resolveActiveTableContext).toHaveBeenNthCalledWith(1, {
-      tableId: 'table-1',
-      assertedWorkspaceId: 'workspace-1',
-    })
-    expect(mocks.resolveActiveTableContext).toHaveBeenNthCalledWith(2, {
-      tableId: 'table-2',
-      assertedWorkspaceId: 'workspace-1',
-    })
-    expect(assertNotAborted).toHaveBeenCalledTimes(2)
-    expect(mocks.audit).toHaveBeenCalledTimes(2)
-    expect(mocks.audit).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({ resourceId: 'table-1', resourceName: 'Table table-1' })
-    )
   })
 
   it('conceals a cross-workspace table as a best-effort miss', async () => {

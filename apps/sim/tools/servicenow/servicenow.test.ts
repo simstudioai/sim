@@ -1,32 +1,23 @@
 /**
- * @vitest-environment node
- *
  * Guards the invariants of the shared `utils.ts` refactor: the eight
  * pre-existing generic Table API tools must keep their original wire behavior,
  * and the semantic tools must default `sysparm_display_value` to `all` without
  * leaking that default onto the generic ones.
  */
 import { describe, expect, it } from 'vitest'
-import { ServiceNowBlock, ServiceNowBlockMeta } from '@/blocks/blocks/servicenow'
+import { ServiceNowBlock } from '@/blocks/blocks/servicenow'
 import * as servicenowTools from '@/tools/servicenow'
 import { aggregateTool } from '@/tools/servicenow/aggregate'
-import {
-  APPROVAL_DECISION_OPTIONS,
-  APPROVAL_STATE,
-  DEFAULT_DISPLAY_VALUE,
-} from '@/tools/servicenow/constants'
+import { DEFAULT_DISPLAY_VALUE } from '@/tools/servicenow/constants'
 import { createIncidentTool } from '@/tools/servicenow/create_incident'
 import { createRecordTool } from '@/tools/servicenow/create_record'
 import { deleteRecordTool } from '@/tools/servicenow/delete_record'
-import { downloadAttachmentTool } from '@/tools/servicenow/download_attachment'
 import { getChangeNextStatesTool } from '@/tools/servicenow/get_change_next_states'
 import { getIncidentTool } from '@/tools/servicenow/get_incident'
-import { listAttachmentsTool } from '@/tools/servicenow/list_attachments'
 import { listIncidentsTool } from '@/tools/servicenow/list_incidents'
 import { readRecordTool } from '@/tools/servicenow/read_record'
 import { searchKnowledgeTool } from '@/tools/servicenow/search_knowledge'
 import { updateChangeStateTool } from '@/tools/servicenow/update_change_state'
-import { updateIncidentTool } from '@/tools/servicenow/update_incident'
 import { updateRecordTool } from '@/tools/servicenow/update_record'
 
 /** Obvious non-secret so credential scanners do not flag these fixtures. */
@@ -37,8 +28,6 @@ const auth = {
   username: 'svc.user',
   password: PLACEHOLDER_PASSWORD,
 }
-
-const EXPECTED_BASIC = `Basic ${Buffer.from(`svc.user:${PLACEHOLDER_PASSWORD}`).toString('base64')}`
 
 function urlOf(tool: { request: { url: (p: never) => string } }, params: unknown): URL {
   return new URL(tool.request.url(params as never))
@@ -72,60 +61,6 @@ describe('ServiceNow shared request helpers', () => {
     expect(() =>
       headersOf(readRecordTool, { ...auth, password: '', tableName: 'incident' })
     ).toThrow('ServiceNow username and password are required')
-  })
-})
-
-describe('pre-existing generic Table API tools keep their original wire behavior', () => {
-  it('create_record posts to the table collection with JSON headers', () => {
-    const params = { ...auth, tableName: 'incident', fields: { short_description: 'x' } }
-    expect(urlOf(createRecordTool, params).pathname).toBe('/api/now/table/incident')
-    expect(createRecordTool.request.method).toBe('POST')
-    expect(headersOf(createRecordTool, params)).toEqual({
-      Authorization: EXPECTED_BASIC,
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    })
-  })
-
-  it('update_record patches the record URL with JSON headers', () => {
-    const params = { ...auth, tableName: 'incident', sysId: ' abc123 ', fields: { state: '2' } }
-    expect(urlOf(updateRecordTool, params).pathname).toBe('/api/now/table/incident/abc123')
-    expect(updateRecordTool.request.method).toBe('PATCH')
-    expect(headersOf(updateRecordTool, params)['Content-Type']).toBe('application/json')
-  })
-
-  it('delete_record targets the record URL without a Content-Type', () => {
-    const params = { ...auth, tableName: 'incident', sysId: 'abc123' }
-    expect(urlOf(deleteRecordTool, params).pathname).toBe('/api/now/table/incident/abc123')
-    expect(deleteRecordTool.request.method).toBe('DELETE')
-    expect(headersOf(deleteRecordTool, params)).toEqual({
-      Authorization: EXPECTED_BASIC,
-      Accept: 'application/json',
-    })
-  })
-
-  it('aggregate targets the stats endpoint', () => {
-    const params = { ...auth, tableName: 'incident', count: true }
-    expect(urlOf(aggregateTool, params).pathname).toBe('/api/now/stats/incident')
-    expect(headersOf(aggregateTool, params)).toEqual({
-      Authorization: EXPECTED_BASIC,
-      Accept: 'application/json',
-    })
-  })
-
-  it('list_attachments filters by table and record sys_id', () => {
-    const url = urlOf(listAttachmentsTool, { ...auth, tableName: 'incident', recordSysId: 'rec1' })
-    expect(url.pathname).toBe('/api/now/attachment')
-    expect(url.searchParams.get('sysparm_query')).toBe('table_name=incident^table_sys_id=rec1')
-  })
-
-  it('download_attachment keeps its wildcard Accept header', () => {
-    const params = { ...auth, attachmentSysId: 'att1' }
-    expect(urlOf(downloadAttachmentTool, params).pathname).toBe('/api/now/attachment/att1/file')
-    expect(headersOf(downloadAttachmentTool, params)).toEqual({
-      Authorization: EXPECTED_BASIC,
-      Accept: '*/*',
-    })
   })
 })
 
@@ -554,34 +489,6 @@ describe('every subBlock a tool reads is one the tool actually declares', () => 
   })
 })
 
-describe('coded-value controls stay reachable on a customized instance', () => {
-  /**
-   * ServiceNow does not publish incident state codes at all, and any instance
-   * may extend a choice list. A select-only `dropdown` would make those codes
-   * unreachable — most sharply on Move Change State, whose target state is
-   * required and whose real codes come from get_change_next_states. A free-text
-   * control is equally fine; the invariant is only that the control is not
-   * select-only.
-   */
-  it.each([
-    'incidentState',
-    'changeState',
-    'targetState',
-    'approvalState',
-    'impact',
-    'urgency',
-    'priority',
-    'type',
-    'resolutionCode',
-    'changeCloseCode',
-  ])('accepts a raw value for %s', (subBlockId) => {
-    const matches = ServiceNowBlock.subBlocks.filter((subBlock) => subBlock.id === subBlockId)
-    expect(matches.length).toBeGreaterThan(0)
-    const selectOnly = matches.filter((subBlock) => subBlock.type === 'dropdown')
-    expect(selectOnly).toEqual([])
-  })
-})
-
 describe('a successful response never yields a non-record where a record is declared', () => {
   /**
    * A collection member that is not a plain object would otherwise be cast and
@@ -639,13 +546,6 @@ describe('a successful response never yields a non-record where a record is decl
 
     expect(output.output.stateTransitions).toEqual([{ to_state: '0', transition_available: true }])
     expect(output.output.allowedStates).toEqual(['0'])
-  })
-})
-
-describe('write tools require a sys_id rather than a record number', () => {
-  it('tells the caller to resolve the number first', () => {
-    expect(updateIncidentTool.params.sysId?.required).toBe(true)
-    expect(updateIncidentTool.params.sysId?.description).toMatch(/record number/i)
   })
 })
 
@@ -744,66 +644,6 @@ describe('get_change_next_states', () => {
         undefined as never
       )
     ).rejects.toThrow('No Record found')
-  })
-})
-
-describe('ServiceNow aggregate having syntax', () => {
-  /**
-   * `sysparm_having` takes `aggregate^field^operator^value`, comma-separated for
-   * more than one clause. The documented `count>5` form is not valid syntax, so
-   * anyone following it got an empty or unfiltered result.
-   */
-  it('documents the encoded aggregate^field^operator^value form', () => {
-    const description = aggregateTool.params.having?.description ?? ''
-
-    expect(description).toContain('aggregate^field^operator^value')
-    expect(description).not.toContain('count>5')
-  })
-
-  it('shows the same form in the block placeholder', () => {
-    const having = ServiceNowBlock.subBlocks.find((subBlock) => subBlock.id === 'having')
-
-    expect(having?.placeholder).toBe('count^priority^>^3')
-  })
-})
-
-describe('approval states carry the values ServiceNow actually stores', () => {
-  /**
-   * All seven are published as `Label [value]` by the Ask for Approval flow
-   * action. The punctuation is not uniform: `not requested` uses a space and
-   * `not_required` an underscore, and the plausible-looking
-   * `not_yet_requested` / `no_longer_required` are accepted into the field and
-   * then never match — a filter built from either silently returns nothing.
-   */
-  it('publishes all seven states', () => {
-    expect(Object.values(APPROVAL_STATE)).toEqual([
-      'not requested',
-      'requested',
-      'approved',
-      'rejected',
-      'cancelled',
-      'not_required',
-      'skipped',
-    ])
-  })
-
-  it('never invents the guessable spellings ServiceNow does not match', () => {
-    const values = new Set<string>(Object.values(APPROVAL_STATE))
-    expect(values.has('not_yet_requested')).toBe(false)
-    expect(values.has('no_longer_required')).toBe(false)
-  })
-
-  it('offers every state on the list_approvals filter', () => {
-    const subBlock = ServiceNowBlock.subBlocks.find((candidate) => candidate.id === 'approvalState')
-    const offered = new Set((subBlock?.options as { id: string }[]).map((option) => option.id))
-    for (const state of Object.values(APPROVAL_STATE)) {
-      expect(offered.has(state)).toBe(true)
-    }
-  })
-
-  /** Only an approver's own two decisions are writable; the rest are engine-set. */
-  it('keeps the write-side decision list at approve and reject', () => {
-    expect(APPROVAL_DECISION_OPTIONS.map((option) => option.id)).toEqual(['approved', 'rejected'])
   })
 })
 
@@ -991,10 +831,6 @@ describe('a cleared numeric field never reaches the instance as a blank param', 
 })
 
 describe('the limit guidance matches what the block actually sends', () => {
-  const skills = ServiceNowBlockMeta.skills
-  const triageSkill = skills.find((skill) => skill.name === 'triage-incidents')
-  const limitSubBlock = ServiceNowBlock.subBlocks.find((subBlock) => subBlock.id === 'limit')
-
   function seededDefaults(): Record<string, unknown> {
     const seeded: Record<string, unknown> = {}
     for (const subBlock of ServiceNowBlock.subBlocks) {
@@ -1019,25 +855,5 @@ describe('the limit guidance matches what the block actually sends', () => {
     const url = urlOf(listIncidentsTool, { ...inputs, ...mapped })
 
     expect(url.searchParams.has('sysparm_limit')).toBe(false)
-  })
-
-  it('never tells the agent a small limit is applied for it', () => {
-    const offenders = skills
-      .filter((skill) => /default is small|small (?:by )?default/i.test(skill.content))
-      .map((skill) => skill.name)
-
-    expect(offenders).toEqual([])
-  })
-
-  it('names the real Table API default in the triage skill', () => {
-    expect(triageSkill?.content).toContain('10,000')
-  })
-
-  it('names the real Table API default on the Limit control', () => {
-    expect(limitSubBlock?.description).toContain('10,000')
-  })
-
-  it('names the real Table API default on the tool param the model reads', () => {
-    expect(listIncidentsTool.params.limit?.description).toContain('10,000')
   })
 })

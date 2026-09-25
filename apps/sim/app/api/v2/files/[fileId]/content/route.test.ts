@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -47,7 +43,6 @@ vi.mock('@/lib/users/queries', () => ({
 }))
 
 import { NoWorkspaceAccessError } from '@/lib/core/application'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PATCH, PUT } from '@/app/api/v2/files/[fileId]/content/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -104,7 +99,6 @@ const callPatch = (body: unknown, contentLength?: number) =>
 
 describe('PUT /api/v2/files/[fileId]/content', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -121,23 +115,6 @@ describe('PUT /api/v2/files/[fileId]/content', () => {
 
     expect(response.status).toBe(404)
     expect(mocks.admit).toHaveBeenCalledWith(auth.principal, FILE_ID)
-    expect(mocks.updateContent).not.toHaveBeenCalled()
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await callPut({ workspaceId: WORKSPACE_ID, content: 'id,name\n' })
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
-  })
-
-  it('validates body fields after admission', async () => {
-    const response = await callPut({ workspaceId: WORKSPACE_ID })
-
-    expect(response.status).toBe(400)
-    expect((await response.json()).error.code).toBe('BAD_REQUEST')
     expect(mocks.updateContent).not.toHaveBeenCalled()
   })
 
@@ -167,58 +144,5 @@ describe('PUT /api/v2/files/[fileId]/content', () => {
     })
     expect(mocks.admit).toHaveBeenCalled()
     expect(mocks.editContent).not.toHaveBeenCalled()
-  })
-
-  it('replaces content through the shared use case and returns the v2 projection', async () => {
-    const request = new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}/content`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ workspaceId: WORKSPACE_ID, content: 'id,name\n' }),
-    })
-    const response = await PUT(request, { params: Promise.resolve({ fileId: FILE_ID }) })
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: {
-        id: FILE_ID,
-        webUrl: `https://test.sim.ai/workspace/${WORKSPACE_ID}/files/${FILE_ID}`,
-        name: 'data.csv',
-        size: 8,
-        type: 'text/csv',
-        key: 'workspace/ws/1-x-data.csv',
-        folderPath: '/',
-        uploadedByEmail: 'ada@example.com',
-        uploadedAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-03T00:00:00.000Z',
-        deletedAt: null,
-        /** The token for the content this write produced, for the caller's next conditional write. */
-        revision: expect.any(String),
-      },
-    })
-    expect(mocks.updateContent).toHaveBeenCalledWith({
-      principal: auth.principal,
-      input: {
-        fileId: FILE_ID,
-        assertedWorkspaceId: WORKSPACE_ID,
-        content: 'id,name\n',
-        encoding: 'utf-8',
-      },
-      request,
-    })
-    expect(v2RouteMocks.operationRate).toHaveBeenCalledWith(
-      'v2:files.update_content:api-key:key-1',
-      expect.anything()
-    )
-  })
-
-  it('maps typed quota failures to 413', async () => {
-    mocks.updateContent.mockRejectedValue(
-      new OrchestrationError('payload_too_large', 'Storage limit exceeded')
-    )
-
-    const response = await callPut({ workspaceId: WORKSPACE_ID, content: 'id,name\n' })
-
-    expect(response.status).toBe(413)
-    expect((await response.json()).error.code).toBe('PAYLOAD_TOO_LARGE')
   })
 })

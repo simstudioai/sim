@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type Anthropic from '@anthropic-ai/sdk'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'

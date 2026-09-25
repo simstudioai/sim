@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Pins where a write spends its admission: after the spec has validated and
  * the name is known to be free, immediately before the write that schedules a
  * build. A refused line or a name collision builds nothing, so it must not
@@ -113,7 +111,6 @@ const admit = vi.fn(async () => {
 
 describe('sandbox write admission', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     calls.length = 0
     mockInsert.mockReturnValue({
       values: async () => {

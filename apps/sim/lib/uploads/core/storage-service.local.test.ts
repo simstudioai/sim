@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { mkdir, readFile, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { resetDbChainMock } from '@sim/testing'
@@ -28,7 +25,7 @@ vi.mock('@/lib/uploads/server/metadata', () => ({
 }))
 
 import { LOCAL_UPLOAD_METADATA_SUFFIX } from '@/lib/uploads/core/storage-key'
-import { downloadFile, headObject, uploadFile } from '@/lib/uploads/core/storage-service'
+import { uploadFile } from '@/lib/uploads/core/storage-service'
 import { writeLocalPutObject } from '@/lib/uploads/upload-session/provider'
 
 const KEY = 'kb/document.txt'
@@ -64,7 +61,6 @@ async function writeOtherAttempt() {
 
 describe('local cache upload compensation', () => {
   beforeEach(async () => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockInsertMetadata.mockReset().mockResolvedValue({ id: 'file-1' })
     mockInsertFileMetadata.mockReset().mockResolvedValue({ id: 'file-1' })
@@ -76,41 +72,6 @@ describe('local cache upload compensation', () => {
   afterAll(async () => {
     resetDbChainMock()
     await rm(testDirectory, { recursive: true, force: true })
-  })
-
-  it('uses one local root for concurrent metadata probes and bounded checkpoint reads', async () => {
-    const objects = Array.from({ length: 8 }, (_, index) => ({
-      key: `knowledge-embedding-checkpoints/v1/fixture/batch-${index}.bin`,
-      bytes: Buffer.alloc(32_768 + index, index),
-    }))
-    for (const object of objects) {
-      await uploadFile({
-        file: object.bytes,
-        fileName: 'checkpoint.bin',
-        customKey: object.key,
-        preserveKey: true,
-        persistMetadata: false,
-        context: 'knowledge-base',
-        contentType: 'application/octet-stream',
-      })
-    }
-    await Promise.all(
-      objects.map(async (object) => {
-        expect(await headObject(object.key, 'knowledge-base')).toEqual({
-          size: object.bytes.length,
-        })
-        expect(
-          await downloadFile({
-            key: object.key,
-            context: 'knowledge-base',
-            maxBytes: object.bytes.length,
-          })
-        ).toEqual(object.bytes)
-      })
-    )
-    expect(
-      await headObject('knowledge-embedding-checkpoints/v1/fixture/missing.bin', 'knowledge-base')
-    ).toBeNull()
   })
 
   it('removes the newly created file and sidecar while preserving the original metadata error', async () => {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS,

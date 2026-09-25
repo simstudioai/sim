@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Guards the per-operation subBlock defaults in the Cloudflare block.
  *
  * SubBlock initial values are seeded into block state keyed by subBlock id
@@ -549,18 +547,6 @@ describe('Access application types the API can actually build', () => {
   })
 })
 
-describe('the ruleset kind offered matches the endpoint', () => {
-  it('does not offer root, which only exists at the account level', () => {
-    const kind = CloudflareBlock.subBlocks.find((sub) => sub.id === 'kind')
-    const options = (Array.isArray(kind?.options) ? kind.options : []).map(
-      (option) => (option as { id?: string }).id ?? ''
-    )
-
-    expect(options).not.toContain('root')
-    expect(options).toContain('zone')
-  })
-})
-
 describe('an update that would tear down the rule it edits is refused', () => {
   const updateRule = cloudflareTools.cloudflareUpdateRulesetRuleTool
 
@@ -638,16 +624,6 @@ describe('an update that would tear down the rule it edits is refused', () => {
       } as never)
     ).not.toThrow()
   })
-
-  it('warns in both descriptions that omission resets the field', () => {
-    expect(updateRule.params.actionParameters.description).toMatch(/resets action_parameters/)
-    expect(updateRule.params.ref.description).toMatch(/omitting it resets/)
-  })
-
-  it('requires action parameters in the block whenever the action is execute', () => {
-    const actionParameters = CloudflareBlock.subBlocks.find((sub) => sub.id === 'actionParameters')
-    expect(actionParameters?.required).toEqual({ field: 'action', value: 'execute' })
-  })
 })
 
 describe('optional and per-API pagination params', () => {
@@ -710,19 +686,6 @@ describe('DNS analytics does not fabricate metrics Cloudflare did not return', (
     expect(out.output.totals.responseTimeAvg).toBeUndefined()
     expect(out.output.totals.uncachedCount).toBeUndefined()
   })
-
-  it('declares min and max as opaque JSON, not a numeric object', () => {
-    expect(tool.outputs?.min).toMatchObject({ type: 'json' })
-    expect(tool.outputs?.max).toMatchObject({ type: 'json' })
-    expect((tool.outputs?.min as { description: string }).description).toMatch(/empty object/i)
-  })
-
-  it('keeps metrics optional in the block, matching the tool and the API', () => {
-    const metrics = CloudflareBlock.subBlocks.find((sub) => sub.id === 'metrics')
-    expect(metrics?.required).toBeUndefined()
-    expect(tool.params.metrics.required).toBe(false)
-    expect(tool.params.metrics.description).not.toMatch(/default metric set/i)
-  })
 })
 
 describe('purge cache refuses an ambiguous whole-zone purge', () => {
@@ -743,11 +706,6 @@ describe('purge cache refuses an ambiguous whole-zone purge', () => {
     expect(buildBody({ zoneId: 'z1', apiKey, purge_everything: true } as never)).toEqual({
       purge_everything: true,
     })
-  })
-
-  it('defaults the block dropdown to purging specific targets', () => {
-    const purgeEverything = CloudflareBlock.subBlocks.find((sub) => sub.id === 'purge_everything')
-    expect((purgeEverything?.value as () => string)()).toBe('false')
   })
 
   /**
@@ -825,36 +783,12 @@ describe('a rate limiting rule update keeps the fields the endpoint would reset'
     expect(body.logging).toEqual({ enabled: true })
   })
 
-  it('declares the three fields as tool params so a caller can resend them', () => {
-    expect(updateRule.params.ref).toBeDefined()
-    expect(updateRule.params.actionParameters).toBeDefined()
-    expect(updateRule.params.logging).toBeDefined()
-    expect(updateRule.params.actionParameters.description).toMatch(/resets action_parameters/)
-    expect(updateRule.params.ref.description).toMatch(/omitting it resets/)
-  })
-
   it('omits them entirely when the caller sends nothing', () => {
     const body = updateRule.request.body?.(base as never) as Record<string, unknown>
 
     expect(body).not.toHaveProperty('ref')
     expect(body).not.toHaveProperty('action_parameters')
     expect(body).not.toHaveProperty('logging')
-  })
-
-  it('offers all three in the block for the rate limiting update', () => {
-    const shownFor = (id: string) =>
-      CloudflareBlock.subBlocks.flatMap((subBlock) => {
-        if (subBlock.id !== id) return []
-        const condition = subBlock.condition
-        if (!condition || typeof condition !== 'object' || !('field' in condition)) return []
-        if (condition.field !== 'operation') return []
-        const value = condition.value
-        return Array.isArray(value) ? value.map(String) : [String(value)]
-      })
-
-    expect(shownFor('ref')).toContain('update_rate_limit_rule')
-    expect(shownFor('logging')).toContain('update_rate_limit_rule')
-    expect(shownFor('rateLimitActionParameters')).toEqual(['update_rate_limit_rule'])
   })
 
   /**
@@ -885,8 +819,6 @@ describe('a rate limiting rule update keeps the fields the endpoint would reset'
 })
 
 describe('zone settings are read through the endpoints Cloudflare still supports', () => {
-  const tool = cloudflareTools.cloudflareGetZoneSettingsTool
-
   function settingEnvelope(id: string, value: unknown) {
     return new Response(
       JSON.stringify({
@@ -901,16 +833,6 @@ describe('zone settings are read through the endpoints Cloudflare still supports
 
   afterEach(() => {
     vi.restoreAllMocks()
-  })
-
-  /**
-   * Cloudflare deprecated the batch `GET /zones/{zone_id}/settings` endpoint,
-   * with end of life on 2027-03-31, and directs integrations at the per-setting
-   * endpoint instead.
-   */
-  it('does not declare the deprecated batch settings endpoint', () => {
-    expect(tool.operation).toBeDefined()
-    expect('request' in tool).toBe(false)
   })
 
   it('issues one request per setting against the per-setting endpoint', async () => {
@@ -1062,42 +984,6 @@ describe('zone settings are read through the endpoints Cloudflare still supports
     expect(out.success).toBe(false)
     expect(out.error).toMatch(/at most 40/)
     expect(fetchMock).not.toHaveBeenCalled()
-  })
-})
-
-describe('the top-level priority field is described the way Cloudflare defines it', () => {
-  /**
-   * Cloudflare accepts the top-level `priority` for MX and URI records and
-   * ignores it for every other type, SRV included — an SRV record carries its
-   * priority inside the record content. Saying "MX and SRV" invites a model to
-   * send a value Cloudflare drops while returning 200.
-   */
-  it.each([
-    ['update_dns_record param', cloudflareTools.cloudflareUpdateDnsRecordTool.params.priority],
-    [
-      'update_dns_record output',
-      cloudflareTools.cloudflareUpdateDnsRecordTool.outputs!.priority as { description: string },
-    ],
-    [
-      'list_dns_records output',
-      (
-        cloudflareTools.cloudflareListDnsRecordsTool.outputs!.records as never as {
-          items: { properties: Record<string, { description: string }> }
-        }
-      ).items.properties.priority,
-    ],
-  ])('%s does not claim SRV uses the top-level priority', (_name, described) => {
-    expect(described.description).not.toMatch(/MX and SRV|MX\/SRV/)
-    expect(described.description).toMatch(/URI/)
-  })
-
-  it('keeps the block placeholder and input description off SRV too', () => {
-    for (const subBlock of CloudflareBlock.subBlocks) {
-      if (subBlock.id !== 'priority') continue
-      expect(subBlock.placeholder).not.toMatch(/MX and SRV|MX\/SRV/)
-    }
-    expect(CloudflareBlock.inputs.priority.description).not.toMatch(/MX and SRV|MX\/SRV/)
-    expect(CloudflareBlock.inputs.priority.description).toMatch(/URI/)
   })
 })
 

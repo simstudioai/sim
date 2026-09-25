@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockGetUserEmailById } = vi.hoisted(() => ({
   mockGetUserEmailById: vi.fn(),
@@ -14,10 +11,6 @@ vi.mock('@/lib/users/queries', () => ({
 import { resolveStartBlockRunIdentity } from '@/lib/workflows/executor/start-run-identity'
 
 describe('resolveStartBlockRunIdentity', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('identifies the owner of a personal API key', async () => {
     mockGetUserEmailById.mockResolvedValue('owner@example.com')
 

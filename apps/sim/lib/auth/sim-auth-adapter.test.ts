@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { db } from '@sim/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,7 +29,6 @@ import { createSimAuthAdapter } from '@/lib/auth/sim-auth-adapter'
 
 describe('createSimAuthAdapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     const tx = { insert: mocks.insert }
     mocks.transaction.mockImplementation(async (callback) => callback(tx))
     mocks.insert.mockReturnValue({

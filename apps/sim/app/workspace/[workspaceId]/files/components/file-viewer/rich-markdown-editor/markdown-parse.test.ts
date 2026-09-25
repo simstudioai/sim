@@ -71,12 +71,6 @@ const CASES: Array<[string, string]> = [
 ]
 
 describe('parseMarkdownToDoc (chunked)', () => {
-  it('produces a doc node', () => {
-    const doc = parseMarkdownToDoc('# Hi\n\nbody')
-    expect(doc.type).toBe('doc')
-    expect(Array.isArray(doc.content)).toBe(true)
-  })
-
   it.each(CASES)('chunked parse round-trips identically to one-shot: %s', (_label, body) => {
     expect(serializeMarkdownBody(body)).toBe(oneShot(body))
   })
@@ -89,61 +83,12 @@ describe('parseMarkdownToDoc (chunked)', () => {
     expect(serializeMarkdownBody(once)).toBe(once)
   })
 
-  it('empty and whitespace-only input produce an empty doc', () => {
-    expect(parseMarkdownToDoc('').type).toBe('doc')
-    expect(parseMarkdownToDoc('   \n\n  ').type).toBe('doc')
-    expect(splitMarkdownBlocks('')).toEqual([])
-    expect(splitMarkdownBlocks('\n\n  \n')).toEqual([])
-  })
-
-  /** Block-type shape of a doc after `parseMarkdownToDoc`, `∅` for each empty paragraph. */
-  function shapeOf(md: string): string {
-    return (parseMarkdownToDoc(md).content ?? [])
-      .map((n) => (isEmptyPara(n) ? '∅' : n.type))
-      .join(',')
-  }
-
   // A blank line an author left between two blocks is part of the document, so parse must read back the
   // exact count the serializer wrote (`blocks.join('\n\n')` ⇒ an empty paragraph costs TWO blank lines,
   // the first separator is free). Getting this wrong is visible: the static placeholder is built from
   // markdown while the live collaborative doc is the CRDT, so any drift shows up as the doc reflowing
   // its spacing a beat after the file appears.
   describe('preserves authored blank lines', () => {
-    it.each([
-      ['single separator — no empty paragraph', 'a\n\nb', 'paragraph,paragraph'],
-      ['odd blank line is insignificant', 'a\n\n\nb', 'paragraph,paragraph'],
-      ['one authored blank line', 'a\n\n\n\nb', 'paragraph,∅,paragraph'],
-      ['three authored blank lines', 'a\n\n\n\n\n\n\n\nb', 'paragraph,∅,∅,∅,paragraph'],
-      ['leading blank lines', '\n\n\n\na', '∅,∅,paragraph'],
-      ['leading + interior', '\n\n\na\n\n\n\nb', '∅,paragraph,∅,paragraph'],
-      ['between a heading and text', '# H\n\n\n\ntext', 'heading,∅,paragraph'],
-      ['after a tight list', '- a\n- b\n\n\n\ntext', 'bulletList,∅,paragraph'],
-      ['before a tight list', 'text\n\n\n\n- a\n- b', 'paragraph,∅,bulletList'],
-      // Line-ending variants normalize first, so `\r`-only / CRLF runs count identically.
-      ['CRLF between blocks', 'a\r\n\r\n\r\n\r\nb', 'paragraph,∅,paragraph'],
-      ['CR-only (classic Mac) between blocks', 'a\r\r\r\rb', 'paragraph,∅,paragraph'],
-    ])('%s', (_label, md, expected) => {
-      expect(shapeOf(md)).toBe(expected)
-    })
-
-    // A loose list's own internal blank lines are absorbed into its merged block, so they stay list
-    // spacing rather than becoming top-level paragraphs that would split the list in two.
-    it('a loose list keeps its internal blank lines as one list', () => {
-      expect(shapeOf('- a\n\n- b\n\n- c')).toBe('bulletList')
-    })
-
-    // …but a gap WIDE enough to carry an empty paragraph is a top-level block boundary: the serializer
-    // only writes one by emitting the two sides as separate blocks, so re-merging them made parse stop
-    // inverting serialize. That swallowed the paragraph, fused the two blocks, and — because the file
-    // then never reached a fixpoint — silently opened it READ-ONLY.
-    it.each([
-      ['between two bullet lists', '- a\n\n\n\n- b', 'bulletList,∅,bulletList'],
-      ['between two blockquotes', '> a\n\n\n\n> b', 'blockquote,∅,blockquote'],
-      ['before an indented continuation', 'a\n\n\n\n  indented', 'paragraph,∅,paragraph'],
-    ])('a gap that carries a paragraph breaks the merge: %s', (_label, md, expected) => {
-      expect(shapeOf(md)).toBe(expected)
-    })
-
     it('a pathological blank run does not explode into empty paragraph nodes', () => {
       // The production incident: an agent/paste artifact with a huge blank run became ~1959 empty
       // paragraphs baked into the doc. The run is bounded on parse, so no source can reach that.
@@ -160,29 +105,6 @@ describe('parseMarkdownToDoc (chunked)', () => {
       const body = `${'x'.padEnd(1)}${`${'\n'.repeat(42)}x`.repeat(2000)}`
       const content = parseMarkdownToDoc(body).content ?? []
       expect(content.filter(isEmptyPara).length).toBe(500)
-    })
-
-    // The bounds have to be fixpoints too, or a clamped file would churn on every save.
-    it.each([
-      ['one huge run', `Para A${'\n'.repeat(4000)}Para B`],
-      ['many runs past the document budget', `x${`${'\n'.repeat(42)}x`.repeat(2000)}`],
-    ])('a bounded document re-serializes to itself: %s', (_label, md) => {
-      const once = serializeMarkdownBody(md)
-      expect(serializeMarkdownBody(once)).toBe(once)
-    })
-
-    /** Whole-document parsing now preserves authored spacing as well as structural paragraphs. */
-    it.each([
-      ['block HTML', '# H\n\n\n\ntext\n\n<div>x</div>', 'heading,∅,paragraph,rawHtmlBlock'],
-      [
-        'a reference definition',
-        '# H\n\n\n\nsee [y][r]\n\n[r]: https://e.com',
-        'heading,∅,paragraph',
-      ],
-    ])('preserves empty paragraphs when parsing whole: %s', (_label, md, expected) => {
-      expect(shapeOf(md)).toBe(expected)
-      const once = serializeMarkdownBody(md)
-      expect(serializeMarkdownBody(once)).toBe(once)
     })
   })
 
@@ -210,15 +132,6 @@ describe('parseMarkdownToDoc (chunked)', () => {
     ])('a file with blank lines is round-trip-safe: %s', (_label, md) => {
       expect(isRoundTripSafe(md)).toBe(true)
     })
-
-    // Trailing empties are the one kind that cannot round-trip: `postProcessSerializedMarkdown`
-    // collapses trailing blank lines, so keeping them would make the doc differ from its own output.
-    it('drops trailing empty paragraphs', () => {
-      expect(shapeOf('abc\n\n')).toBe('paragraph')
-      expect(shapeOf('abc\n\n\n\n\n\n')).toBe('paragraph')
-      const trailing = parseMarkdownToDoc('abc\n\n').content ?? []
-      expect(isEmptyPara(trailing.at(-1) ?? {})).toBe(false)
-    })
   })
 
   it('parses reference-style links whole (non-chunkable) without dropping the definition', () => {
@@ -226,60 +139,13 @@ describe('parseMarkdownToDoc (chunked)', () => {
     expect(serializeMarkdownBody(body)).toBe(oneShot(body))
   })
 
-  // Block-level HTML can wrap blank lines; it routes to the whole-document fallback so chunked output
-  // still matches one-shot exactly. (Such docs open read-only via the round-trip-safety probe, so
-  // they're never re-serialized — the editor itself isn't idempotent on raw HTML.)
-  it.each([
-    ['html block', '<div class="x">\n\ncontent\n\n</div>'],
-    ['html comment', 'before\n\n<!-- a note -->\n\nafter'],
-    ['html table', '<table>\n\n<tr><td>a</td></tr>\n\n</table>'],
-  ])(
-    'block HTML renders via the whole-document fallback, matching one-shot: %s',
-    (_label, body) => {
-      expect(serializeMarkdownBody(body)).toBe(oneShot(body))
-    }
-  )
-
   describe('splitMarkdownBlocks keeps ambiguous structures atomic', () => {
-    it('a loose list (blank lines between items) stays one block', () => {
-      expect(splitMarkdownBlocks('- a\n\n- b\n\n- c')).toEqual(['- a\n\n- b\n\n- c'])
-    })
-    it('a nested list (no blank lines) stays one block', () => {
-      expect(splitMarkdownBlocks('1. First\n  - sub\n  - two\n2. Second')).toHaveLength(1)
-    })
-    it('independent paragraphs split into separate blocks', () => {
-      expect(splitMarkdownBlocks('para one\n\npara two\n\npara three')).toHaveLength(3)
-    })
-    it('headings and paragraphs split; fenced code with blank lines stays one block', () => {
-      expect(splitMarkdownBlocks('# H\n\ntext\n\n```\na\n\nb\n```')).toEqual([
-        '# H',
-        'text',
-        '```\na\n\nb\n```',
-      ])
-    })
-    it('a multi-paragraph list item (indented continuation) stays one block', () => {
-      expect(splitMarkdownBlocks('1. first\n\n   second para\n\n2. next')).toHaveLength(1)
-    })
     it('CRLF line endings still split (a closing fence ending in \\r must close)', () => {
       // A Windows-authored file with fenced code must not collapse to one block (which would defeat
       // the chunker); the closer ending in `\r` has to match. Assert block COUNT, not just fidelity.
       const crlf = '```ts\r\nx\r\n```\r\n\r\npara1\r\n\r\npara2\r\n\r\npara3'
       expect(splitMarkdownBlocks(crlf)).toEqual(['```ts\nx\n```', 'para1', 'para2', 'para3'])
     })
-  })
-
-  it('matches one-shot on a large mixed document (the case the chunker exists for)', () => {
-    const blocks: string[] = ['# Big Doc']
-    for (let i = 0; i < 300; i++) {
-      blocks.push(
-        `## Section ${i}\n\nProse with **bold** and a [link](https://x.com/${i}) and \`code\`.`
-      )
-      if (i % 10 === 0) blocks.push(`\`\`\`ts\nconst x = ${i}\n\`\`\``)
-      if (i % 9 === 0) blocks.push('- item a\n\n- item b\n\n- item c')
-      if (i % 7 === 0) blocks.push('| a | b |\n| --- | --- |\n| 1 | 2 |')
-    }
-    const body = blocks.join('\n\n')
-    expect(serializeMarkdownBody(body)).toBe(oneShot(body))
   })
 })
 

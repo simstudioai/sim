@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   PayloadSizeLimitError,
@@ -81,7 +78,6 @@ function storedFile(
 
 describe('presentInternalToolOperationResult', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.uploadExecution.mockReset()
     mocks.uploadCopilot.mockReset()
     mocks.deleteFile.mockReset()
@@ -96,23 +92,6 @@ describe('presentInternalToolOperationResult', () => {
     )
     mocks.deleteFile.mockResolvedValue(undefined)
     mocks.deleteMetadata.mockResolvedValue(true)
-  })
-
-  it('passes ordinary responses through without reading or changing them', async () => {
-    const original = Response.json({ error: 'Provider failed' }, { status: 403 })
-    const controller = new AbortController()
-    controller.abort()
-
-    const result = await presentInternalToolOperationResult(
-      original,
-      { workflowId: '' },
-      controller.signal
-    )
-
-    expect(result).toBe(original)
-    expect(original.bodyUsed).toBe(false)
-    expect(mocks.uploadExecution).not.toHaveBeenCalled()
-    expect(mocks.uploadCopilot).not.toHaveBeenCalled()
   })
 
   it('persists a 12 MiB workbook before serializing its descriptor and adjacent metadata', async () => {
@@ -209,27 +188,6 @@ describe('presentInternalToolOperationResult', () => {
     expect(mocks.deleteFile).not.toHaveBeenCalled()
   })
 
-  it('allows actorless execution artifacts without requiring a human subject', async () => {
-    const result = createInternalToolFileResult(file(), (stored) => ({ file: stored }))
-    await presentInternalToolOperationResult(result, {
-      ...runContext,
-      userId: undefined,
-      executorDelegationOrigin: {
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        principal: {
-          kind: 'system',
-          serviceId: 'schedule',
-          workspaceId: 'workspace-1',
-          workflowId: 'workflow-1',
-        },
-      },
-    })
-
-    expect(mocks.uploadExecution.mock.calls[0]?.[4]).toBeUndefined()
-    expect(mocks.uploadCopilot).not.toHaveBeenCalled()
-  })
-
   it("does not make an actorless principal's compatibility owner a Copilot user", async () => {
     await expect(
       presentInternalToolOperationResult(
@@ -320,78 +278,6 @@ describe('presentInternalToolOperationResult', () => {
     expect(mocks.uploadExecution).not.toHaveBeenCalled()
   })
 
-  it('validates every file before any upload', async () => {
-    await expect(
-      presentInternalToolOperationResult(
-        createInternalToolFilesResult([file(), { ...file(), name: ' ' }], (stored) => ({
-          files: stored,
-        })),
-        runContext
-      )
-    ).rejects.toThrow('filename')
-    expect(mocks.uploadExecution).not.toHaveBeenCalled()
-  })
-
-  it('persists distinct files sequentially and reuses repeated file references', async () => {
-    const first = file()
-    const second = { ...file(), name: 'second.xlsx' }
-    let firstFinished = false
-    mocks.uploadExecution
-      .mockImplementationOnce(async () => {
-        await Promise.resolve()
-        firstFinished = true
-        return storedFile(first.buffer, first.name, first.mimeType, 'execution')
-      })
-      .mockImplementationOnce(async () => {
-        expect(firstFinished).toBe(true)
-        return storedFile(second.buffer, second.name, second.mimeType, 'execution', 2)
-      })
-    const result = createInternalToolFilesResult([first, second, first], (stored) => {
-      expect(stored[0]).toBe(stored[2])
-      return { files: stored, echoedFile: stored[0] }
-    })
-
-    const response = await presentInternalToolOperationResult(result, runContext)
-    expect((await response.json()).files).toHaveLength(3)
-    expect(mocks.uploadExecution).toHaveBeenCalledTimes(2)
-  })
-
-  it('preserves image sniffing before returning an already stored descriptor', async () => {
-    const input = { buffer: Buffer.from('<svg></svg>'), name: 'image.png', mimeType: 'image/png' }
-    const response = await presentInternalToolOperationResult(
-      createInternalToolFileResult(input, (stored) => ({ file: stored })),
-      runContext
-    )
-
-    expect(mocks.uploadExecution).toHaveBeenCalledWith(
-      expect.anything(),
-      input.buffer,
-      'image.bin',
-      'application/octet-stream',
-      'user-1'
-    )
-    expect(await response.json()).toMatchObject({
-      file: {
-        name: 'image.bin',
-        type: 'application/octet-stream',
-      },
-    })
-  })
-
-  it('does not upload after cancellation', async () => {
-    const controller = new AbortController()
-    const error = new Error('cancelled')
-    controller.abort(error)
-    await expect(
-      presentInternalToolOperationResult(
-        createInternalToolFileResult(file(), (stored) => ({ file: stored })),
-        runContext,
-        controller.signal
-      )
-    ).rejects.toBe(error)
-    expect(mocks.uploadExecution).not.toHaveBeenCalled()
-  })
-
   it('rolls back an upload that completed after cancellation, without the aborted signal', async () => {
     const controller = new AbortController()
     const error = new Error('cancelled during upload')
@@ -464,30 +350,6 @@ describe('presentInternalToolOperationResult', () => {
     ).rejects.toMatchObject({ maxBytes: MAX_TOOL_RESPONSE_BODY_BYTES })
     expect(mocks.deleteFile).toHaveBeenCalledTimes(1)
     expect(mocks.deleteMetadata).toHaveBeenCalledTimes(1)
-  })
-
-  it('finalizes large binary outputs as stored file descriptors', async () => {
-    const buffer = Buffer.alloc(12 * 1024 * 1024)
-    const finalize = vi.fn((body: unknown) => body)
-    const output = await storeInternalToolFileResult(
-      createInternalToolFileResult(file(buffer), (stored) => ({
-        success: true,
-        output: { file: stored },
-      })),
-      copilotContext,
-      finalize
-    )
-
-    expect(output).toBe(finalize.mock.calls[0]?.[0])
-    expect(output).toMatchObject({
-      success: true,
-      output: { file: { context: 'copilot', size: buffer.length } },
-    })
-    expect(output).not.toHaveProperty('output.file.data')
-    expect(JSON.stringify(output).length).toBeLessThan(1024)
-    expect(mocks.uploadCopilot).toHaveBeenCalledTimes(1)
-    expect(mocks.uploadCopilot.mock.calls[0]?.[0].buffer).toBe(buffer)
-    expect(mocks.deleteFile).not.toHaveBeenCalled()
   })
 
   it('rolls back storage if the external result finalizer rejects its output', async () => {

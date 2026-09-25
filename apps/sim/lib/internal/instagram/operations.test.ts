@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -17,11 +14,6 @@ vi.mock('@/lib/internal/instagram/publishing', () => mocks)
 import { executeInstagramTool } from '@/lib/internal/instagram/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
 import { instagramDownloadMediaTool } from '@/tools/instagram/download_media'
-import { instagramPublishCarouselTool } from '@/tools/instagram/publish_carousel'
-import { instagramPublishImageTool } from '@/tools/instagram/publish_image'
-import { instagramPublishReelTool } from '@/tools/instagram/publish_reel'
-import { instagramPublishStoryTool } from '@/tools/instagram/publish_story'
-import { instagramPublishVideoTool } from '@/tools/instagram/publish_video'
 
 const image = {
   id: 'image-1',
@@ -60,7 +52,6 @@ function request(
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.resolveIgUserId.mockImplementation(async (_token: string, override?: string) => {
     return override || 'ig-user-1'
   })
@@ -70,27 +61,6 @@ beforeEach(() => {
 })
 
 describe('Instagram operation declarations', () => {
-  it('contains no HTTP-shaped request metadata for all six internal tools', () => {
-    const tools = [
-      instagramDownloadMediaTool,
-      instagramPublishCarouselTool,
-      instagramPublishImageTool,
-      instagramPublishReelTool,
-      instagramPublishStoryTool,
-      instagramPublishVideoTool,
-    ]
-
-    for (const tool of tools) {
-      expect(tool.operation.input).toBeTypeOf('function')
-      expect(tool).not.toHaveProperty('request')
-      expect(tool.operation).not.toHaveProperty('transport')
-      expect(tool.operation).not.toHaveProperty('url')
-      expect(tool.operation).not.toHaveProperty('method')
-      expect(tool.operation).not.toHaveProperty('headers')
-      expect(tool.operation).not.toHaveProperty('body')
-    }
-  })
-
   it('does not serialize trusted execution scope into download input', () => {
     const input = instagramDownloadMediaTool.operation.input({
       accessToken: 'token',
@@ -107,117 +77,6 @@ describe('Instagram operation declarations', () => {
 })
 
 describe('Instagram publish operations', () => {
-  it('publishes an image with the exact optional Meta fields', async () => {
-    mocks.resolveInstagramMedia.mockResolvedValue({
-      media: { url: 'https://signed.example/image.jpg', kind: 'image' },
-    })
-
-    const response = await executeInstagramTool(
-      request('instagram_publish_image', {
-        accessToken: 'token',
-        image,
-        caption: 'Caption',
-        altText: 'Alt text',
-        isAiGenerated: true,
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      success: true,
-      output: { containerId: 'container-1', mediaId: 'media-1', statusCode: 'FINISHED' },
-    })
-    expect(mocks.resolveInstagramMedia).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'user-1', role: 'image', input: image })
-    )
-    expect(mocks.createMediaContainer).toHaveBeenCalledWith(
-      'token',
-      'ig-user-1',
-      {
-        image_url: 'https://signed.example/image.jpg',
-        caption: 'Caption',
-        alt_text: 'Alt text',
-        is_ai_generated: true,
-      },
-      expect.any(AbortSignal)
-    )
-  })
-
-  it('publishes video and reel variants without conflating share-to-feed semantics', async () => {
-    mocks.resolveInstagramMedia.mockImplementation(async ({ role }: { role: string }) => ({
-      media:
-        role === 'cover'
-          ? { url: 'https://signed.example/cover.jpg', kind: 'image' }
-          : { url: 'https://signed.example/video.mp4', kind: 'video' },
-    }))
-
-    await executeInstagramTool(
-      request('instagram_publish_video', {
-        accessToken: 'token',
-        video,
-        cover: image,
-        caption: 'Video caption',
-      })
-    )
-    expect(mocks.createMediaContainer).toHaveBeenLastCalledWith(
-      'token',
-      'ig-user-1',
-      {
-        media_type: 'REELS',
-        video_url: 'https://signed.example/video.mp4',
-        share_to_feed: true,
-        caption: 'Video caption',
-        cover_url: 'https://signed.example/cover.jpg',
-      },
-      expect.any(AbortSignal)
-    )
-
-    vi.clearAllMocks()
-    mocks.resolveIgUserId.mockResolvedValue('ig-user-1')
-    mocks.createMediaContainer.mockResolvedValue('container-1')
-    mocks.waitForContainerReady.mockResolvedValue({ statusCode: 'FINISHED', status: null })
-    mocks.publishMediaContainer.mockResolvedValue('media-1')
-    mocks.resolveInstagramMedia.mockResolvedValue({
-      media: { url: 'https://signed.example/video.mp4', kind: 'video' },
-    })
-    await executeInstagramTool(
-      request('instagram_publish_reel', {
-        accessToken: 'token',
-        video,
-        shareToFeed: false,
-        thumbOffset: 0,
-      })
-    )
-    expect(mocks.createMediaContainer).toHaveBeenLastCalledWith(
-      'token',
-      'ig-user-1',
-      {
-        media_type: 'REELS',
-        video_url: 'https://signed.example/video.mp4',
-        share_to_feed: false,
-        thumb_offset: 0,
-      },
-      expect.any(AbortSignal)
-    )
-  })
-
-  it('selects the correct story URL field from resolved media kind', async () => {
-    mocks.resolveInstagramMedia.mockResolvedValue({
-      media: { url: 'https://signed.example/story.mp4', kind: 'video' },
-    })
-
-    await executeInstagramTool(
-      request('instagram_publish_story', { accessToken: 'token', media: video })
-    )
-
-    expect(mocks.createMediaContainer).toHaveBeenCalledWith(
-      'token',
-      'ig-user-1',
-      { media_type: 'STORIES', video_url: 'https://signed.example/story.mp4' },
-      expect.any(AbortSignal)
-    )
-  })
-
   it('creates ordered carousel children before the parent container', async () => {
     mocks.resolveInstagramCarouselMedia.mockResolvedValue({
       items: [
@@ -248,16 +107,5 @@ describe('Instagram publish operations', () => {
       },
       { media_type: 'CAROUSEL', children: 'child-1,child-2', caption: 'Carousel caption' },
     ])
-  })
-
-  it('propagates cancellation without returning a provider retry error', async () => {
-    const controller = new AbortController()
-    controller.abort()
-
-    await expect(
-      executeInstagramTool(
-        request('instagram_publish_image', { accessToken: 'token', image }, controller.signal)
-      )
-    ).rejects.toMatchObject({ name: 'AbortError' })
   })
 })

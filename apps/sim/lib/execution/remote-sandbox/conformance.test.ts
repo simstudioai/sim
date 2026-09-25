@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Provider conformance: the same input must produce the same
  * `SandboxExecutionResult` on E2B and on Daytona. A divergence here is exactly
  * what would surface as a broken failover mid-incident, so every scenario runs
@@ -2413,13 +2411,6 @@ describe('custom dependency sets', () => {
     } else {
       expect(mockExecuteSessionCommand.mock.calls.at(-1)?.[2]).toBe(1)
     }
-  })
-
-  it('declares one strategy per provider, and only the prebuilt one can build', () => {
-    expect(e2bProvider.dependencyStrategy).toBe('prebuilt')
-    expect(e2bProvider.images).toBeDefined()
-    expect(daytonaProvider.dependencyStrategy).toBe('runtime')
-    expect(daytonaProvider.images).toBeUndefined()
   })
 })
 

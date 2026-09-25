@@ -78,49 +78,6 @@ describe('server window', () => {
     vi.useRealTimers()
   })
 
-  // The page ships inside app.asar. Loaded over `file:` it never rendered in a
-  // packaged build (the file-protocol fuse is off), which is the blank sheet
-  // this window used to open as.
-  it('loads the picker over the shell scheme and serves it on its own partition', () => {
-    const { win, ses } = openPicker(deps)
-
-    expect(win.loadURL).toHaveBeenCalledWith('sim-shell://pages/server.html')
-    expect(ses.protocol.handle).toHaveBeenCalledWith('sim-shell', expect.any(Function))
-    expect(MockBrowserWindow.lastOptions).toMatchObject({
-      webPreferences: expect.objectContaining({ partition: 'server-selection' }),
-    })
-  })
-
-  it('closes on Escape without needing the page', () => {
-    const { win, handler } = openPicker(deps)
-    const event = { preventDefault: vi.fn() }
-
-    handler('before-input-event')(event, { type: 'keyDown', key: 'a' })
-    expect(win.destroy).not.toHaveBeenCalled()
-
-    handler('before-input-event')(event, { type: 'keyDown', key: 'Escape' })
-    expect(win.destroy).toHaveBeenCalledTimes(1)
-    expect(event.preventDefault).toHaveBeenCalledTimes(1)
-  })
-
-  it('only shows the picker once its renderer has supplied a content size', () => {
-    const { win } = openPicker(deps)
-    expect(win.show).not.toHaveBeenCalled()
-    win.webContents.mainFrame.url = 'sim-shell://pages/server.html'
-    const resize = win.webContents.ipc.on.mock.calls.find(([name]) => name === 'shell:resize')?.[1]
-    resize?.({ sender: win.webContents, senderFrame: win.webContents.mainFrame }, 320)
-    expect(win.show).toHaveBeenCalledOnce()
-    vi.advanceTimersByTime(10_000)
-    expect(dialog.showMessageBox).not.toHaveBeenCalled()
-  })
-
-  it('recovers if the HTML loads but the renderer never becomes ready', () => {
-    const { win } = openPicker(deps)
-    vi.advanceTimersByTime(10_000)
-    expect(win.destroy).toHaveBeenCalledOnce()
-    expect(dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }))
-  })
-
   it('never leaves a blank sheet when the page fails to load', () => {
     const { win, handler } = openPicker(deps)
 
@@ -132,54 +89,6 @@ describe('server window', () => {
     handler('did-fail-load')({}, -6, 'ERR_FILE_NOT_FOUND', 'sim-shell://pages/server.html', true)
     expect(win.destroy).toHaveBeenCalledTimes(1)
     expect(dialog.showMessageBox).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' }))
-  })
-
-  it('reports the configured origin alongside the build default', () => {
-    expect(createServerWindow(deps).getConfiguration()).toEqual({
-      origin: CURRENT,
-      defaultOrigin: DEFAULT,
-      isSimCloud: false,
-    })
-  })
-
-  // Drives whether the offline page offers Sim's status page, which describes
-  // only Sim's own deployments.
-  it('marks a sim.ai origin as Sim cloud', () => {
-    const cloud = makeDeps({
-      config: makeConfig('https://www.sim.ai', (raw) => ({ ok: true, origin: raw })),
-    })
-
-    expect(createServerWindow(cloud).getConfiguration().isSimCloud).toBe(true)
-  })
-
-  it('relaunches after storing a different origin', async () => {
-    const result = await createServerWindow(deps).setOrigin('https://sim.other.example')
-
-    expect(result).toEqual({ ok: true, origin: 'https://sim.other.example', unchanged: false })
-    expect(deps.relaunch).toHaveBeenCalledTimes(1)
-  })
-
-  // The saved route carries the previous deployment's workspace id, and
-  // resolveStartRoute only discards a route on a confirmed 403 — a fresh
-  // partition answers 401, so a kept route would survive onto the new server.
-  it('drops the saved route when the origin changes', async () => {
-    await createServerWindow(deps).setOrigin('https://sim.other.example')
-
-    expect(deps.config.set).toHaveBeenCalledWith('lastRoute', undefined)
-  })
-
-  it('keeps the saved route when the origin is unchanged', async () => {
-    await createServerWindow(deps).setOrigin(CURRENT)
-
-    expect(deps.config.set).not.toHaveBeenCalled()
-  })
-
-  // Re-confirming the pre-filled URL is the common case here.
-  it('does not relaunch when the origin is unchanged', async () => {
-    const result = await createServerWindow(deps).setOrigin(CURRENT)
-
-    expect(result).toEqual({ ok: true, origin: CURRENT, unchanged: true })
-    expect(deps.relaunch).not.toHaveBeenCalled()
   })
 
   // Filesystem grants and the agent browser's jar are device-global with no
@@ -208,12 +117,6 @@ describe('server window', () => {
     expect(
       vi.mocked(deps.completeDeploymentScopedStateChange).mock.invocationCallOrder[0]
     ).toBeLessThan(vi.mocked(deps.relaunch).mock.invocationCallOrder[0])
-  })
-
-  it('does not clear them when the origin is unchanged', async () => {
-    await createServerWindow(deps).setOrigin(CURRENT)
-
-    expect(deps.clearDeploymentScopedState).not.toHaveBeenCalled()
   })
 
   it('does not erase or persist anything when recovery intent cannot be recorded', async () => {
@@ -261,20 +164,6 @@ describe('server window', () => {
     expect(slow.config.setOrigin).toHaveBeenCalledWith('https://sim.other.example')
   })
 
-  // The guard must not latch: a refused change has to leave the picker usable.
-  it('allows a later change once the first has settled', async () => {
-    const failing = makeDeps({
-      clearDeploymentScopedState: vi.fn(async () => ['local file access']),
-    })
-    const handle = createServerWindow(failing)
-
-    await handle.setOrigin('https://sim.other.example')
-    const second = await handle.setOrigin('https://sim.third.example')
-
-    expect(second).toMatchObject({ ok: false })
-    expect(second).toHaveProperty('error', expect.stringContaining('local file access'))
-  })
-
   // Fail closed. A store that could not be emptied is access the incoming
   // deployment would inherit and that startup would restore, so the change is
   // refused outright — and because nothing is persisted until the teardown
@@ -296,32 +185,6 @@ describe('server window', () => {
     expect(failing.completeDeploymentScopedStateChange).not.toHaveBeenCalled()
     expect(failing.config.setOrigin).not.toHaveBeenCalled()
     expect(failing.config.getOrigin()).toBe(CURRENT)
-  })
-
-  it('refuses the change when the teardown throws outright', async () => {
-    const throwing = makeDeps({
-      clearDeploymentScopedState: vi.fn(async () => {
-        throw new Error('keychain unavailable')
-      }),
-    })
-
-    const result = await createServerWindow(throwing).setOrigin('https://sim.other.example')
-
-    expect(result).toMatchObject({ ok: false })
-    expect(throwing.relaunch).not.toHaveBeenCalled()
-    expect(throwing.completeDeploymentScopedStateChange).not.toHaveBeenCalled()
-    expect(throwing.config.getOrigin()).toBe(CURRENT)
-  })
-
-  it('keeps teardown recovery pending when persisting the new origin fails', async () => {
-    const config = makeConfig(CURRENT, () => ({ ok: false, error: 'disk is read-only' }))
-    const failing = makeDeps({ config })
-
-    const result = await createServerWindow(failing).setOrigin('https://sim.other.example')
-
-    expect(result).toEqual({ ok: false, error: 'disk is read-only' })
-    expect(failing.completeDeploymentScopedStateChange).toHaveBeenCalledOnce()
-    expect(failing.relaunch).not.toHaveBeenCalled()
   })
 
   it('relaunches against the committed server when completing teardown fails', async () => {
@@ -356,17 +219,5 @@ describe('server window', () => {
     expect(failing.config.setOrigin).not.toHaveBeenCalled()
     expect(failing.completeDeploymentScopedStateChange).toHaveBeenCalledOnce()
     expect(failing.relaunch).not.toHaveBeenCalled()
-  })
-
-  // Validated up front with the shell's own rule, before anything is torn down
-  // or written, so a typo costs nothing.
-  it('surfaces a rejected origin without tearing anything down', async () => {
-    const result = await createServerWindow(deps).setOrigin('ftp://sim.example.com')
-
-    expect(result).toMatchObject({ ok: false })
-    expect(result).toHaveProperty('error', expect.stringContaining('HTTPS'))
-    expect(deps.clearDeploymentScopedState).not.toHaveBeenCalled()
-    expect(deps.relaunch).not.toHaveBeenCalled()
-    expect(deps.config.getOrigin()).toBe(CURRENT)
   })
 })

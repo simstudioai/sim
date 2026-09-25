@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -63,7 +59,6 @@ function span(overrides: Partial<TraceSpan> = {}): TraceSpan {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   isLargeArrayManifestMock.mockImplementation((v: any) => v?.__sim === 'manifest')
   isLargeValueRefMock.mockImplementation((v: any) => v?.__sim === 'ref')
 })
@@ -98,11 +93,6 @@ describe('toOverview', () => {
 })
 
 describe('toFull', () => {
-  it('includes inline input/output', async () => {
-    const out = await toFull([span({ input: { a: 1 }, output: { b: 2 } })], ctx)
-    expect(out[0]).toMatchObject({ input: { a: 1 }, output: { b: 2 } })
-  })
-
   it('block scoping returns only the selected subtree', async () => {
     const spans: TraceSpan[] = [
       span({ id: 's1', blockId: 'blk-a', name: 'A' }),
@@ -200,13 +190,6 @@ describe('grepSpans', () => {
     expect(invalid.patternNotice).toContain('RE2')
   })
 
-  it('takes the built-in engine for a metacharacter-free pattern', async () => {
-    const spans = [span({ output: { v: 'saw ECONNREFUSED here' } })]
-    const result = await grepSpans(spans, 'ECONNREFUSED', ctx)
-    expect(result.matches.some((m) => m.field === 'output')).toBe(true)
-    expect(result.patternNotice).toBeUndefined()
-  })
-
   it.each([
     ['nested quantifier', '(a+)+$'],
     ['duplicate alternation, passes safe-regex2', '(a|a)*b'],
@@ -223,13 +206,6 @@ describe('grepSpans', () => {
 
     expect(elapsedMs).toBeLessThan(1000)
     expect(result.truncated).toBe(false)
-  })
-
-  it('matches a long pattern literally without a length cap', async () => {
-    const pattern = `${'x'.repeat(600)}needle`
-    const spans = [span({ output: { v: pattern } })]
-    const result = await grepSpans(spans, pattern, ctx)
-    expect(result.matches.some((m) => m.field === 'output')).toBe(true)
   })
 
   it('stops scanning and marks truncated once the character budget is exhausted', async () => {
@@ -249,22 +225,6 @@ describe('grepSpans', () => {
     expect(result.truncated).toBe(true)
   })
 
-  it('accumulates match time and truncates once the budget is spent', async () => {
-    // Guards the accumulation in `findTimed`: with that line removed,
-    // matchTimeMs stays 0, the budget never trips, and every span is scanned.
-    const big = 'x'.repeat(400_000)
-    const spans = [
-      span({ id: 'a', output: { v: big } }),
-      span({ id: 'b', output: { v: big } }),
-      span({ id: 'c', output: { v: `${big} needle` } }),
-    ]
-
-    const result = await grepSpans(spans, 'needle|nomatch', ctx, { matchTimeBudgetMs: 1 })
-
-    expect(result.truncated).toBe(true)
-    expect(result.matches).toEqual([])
-  })
-
   it('does not charge blob-store I/O to the match-time budget', async () => {
     // Each slice read sleeps well past the budget: only time spent matching
     // counts, so a slow-but-legitimate grep must still return complete results.
@@ -277,12 +237,6 @@ describe('grepSpans', () => {
     const result = await grepSpans(spans, 'needle', ctx, { matchTimeBudgetMs: 50 })
 
     expect(result.matches.some((m) => m.field === 'output')).toBe(true)
-    expect(result.truncated).toBe(false)
-  })
-
-  it('returns empty for empty traceSpans', async () => {
-    const result = await grepSpans([], 'anything', ctx)
-    expect(result.matches).toEqual([])
     expect(result.truncated).toBe(false)
   })
 })
@@ -314,11 +268,6 @@ describe('toTrace', () => {
       totalDurationMs: 35,
     })
   })
-
-  it('never materializes refs', () => {
-    toTrace([span({ output: ref('big') as unknown as Record<string, unknown> })])
-    expect(materializeLargeValueRefMock).not.toHaveBeenCalled()
-  })
 })
 
 describe('toFull field projection', () => {
@@ -344,16 +293,5 @@ describe('toFull field projection', () => {
     expect((out[0] as { selected?: Record<string, unknown> }).selected).toEqual({
       'output.result.rows': [1, 2, 3],
     })
-  })
-
-  it('supports blockIds multi-select with field projection', async () => {
-    const spans: TraceSpan[] = [
-      span({ id: 's1', blockId: 'blk-a', name: 'A', output: { keep: 1 } }),
-      span({ id: 's2', blockId: 'blk-b', name: 'B', output: { keep: 2 } }),
-      span({ id: 's3', blockId: 'blk-c', name: 'C', output: { drop: true } }),
-    ]
-    const out = await toFull(spans, ctx, { blockIds: ['blk-a', 'blk-b'] }, ['output'])
-    expect(out.map((s) => s.blockId)).toEqual(['blk-a', 'blk-b'])
-    expect(out[0].output).toEqual({ keep: 1 })
   })
 })

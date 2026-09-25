@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import { createReadableStreamFromGeminiStream } from '@/providers/google/utils'
 import type { AgentStreamEvent } from '@/providers/stream-events'

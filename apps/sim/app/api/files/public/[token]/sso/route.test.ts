@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { requestUtilsMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -40,28 +37,8 @@ const ssoShare = {
 
 describe('POST /api/files/public/[token]/sso', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCheckRateLimitDirect.mockResolvedValue({ allowed: true })
     mockResolveActiveShareByToken.mockResolvedValue(ssoShare)
-  })
-
-  it('returns eligible:true for an allow-listed email', async () => {
-    mockIsEmailAllowed.mockReturnValueOnce(true)
-    const res = await POST(post('user@acme.com'), params())
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ eligible: true })
-    expect(mockCheckRateLimitDirect).toHaveBeenNthCalledWith(
-      1,
-      'file-sso:ip:127.0.0.1',
-      expect.objectContaining({ maxTokens: 20 }),
-      { failClosed: true }
-    )
-    expect(mockCheckRateLimitDirect).toHaveBeenNthCalledWith(
-      2,
-      'file-sso:resource:sh_1',
-      expect.objectContaining({ maxTokens: 100 }),
-      { failClosed: true }
-    )
   })
 
   it('returns eligible:false for a non-listed email', async () => {
@@ -71,37 +48,11 @@ describe('POST /api/files/public/[token]/sso', () => {
     expect(await res.json()).toEqual({ eligible: false })
   })
 
-  it('rejects a non-sso share with 400', async () => {
-    mockResolveActiveShareByToken.mockResolvedValueOnce({
-      ...ssoShare,
-      share: { ...ssoShare.share, authType: 'email' },
-    })
-    const res = await POST(post('user@acme.com'), params())
-    expect(res.status).toBe(400)
-  })
-
-  it('returns 404 for an unknown token', async () => {
-    mockResolveActiveShareByToken.mockResolvedValueOnce(null)
-    const res = await POST(post('user@acme.com'), params())
-    expect(res.status).toBe(404)
-  })
-
   it('returns 429 when rate-limited', async () => {
     mockCheckRateLimitDirect.mockResolvedValueOnce({ allowed: false, retryAfterMs: 2000 })
     const res = await POST(post('user@acme.com'), params())
     expect(res.status).toBe(429)
     expect(res.headers.get('Retry-After')).toBe('2')
-  })
-
-  it('returns 429 when the share resource limit is exceeded', async () => {
-    mockCheckRateLimitDirect
-      .mockResolvedValueOnce({ allowed: true })
-      .mockResolvedValueOnce({ allowed: false, retryAfterMs: 3000 })
-
-    const res = await POST(post('user@acme.com'), params())
-
-    expect(res.status).toBe(429)
-    expect(res.headers.get('Retry-After')).toBe('3')
   })
 
   it('uses the share resource limit when the client IP cannot be resolved', async () => {

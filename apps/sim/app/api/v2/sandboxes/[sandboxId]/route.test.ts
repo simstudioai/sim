@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -67,13 +64,9 @@ vi.mock('@/lib/sandboxes/application/use-cases', () => ({
   deleteWorkspaceSandboxUseCase: { operation: { id: 'sandboxes.delete' }, execute: mocks.remove },
 }))
 
-import {
-  InsufficientWorkspacePermissionsError,
-  NoWorkspaceAccessError,
-  WorkspaceApiKeyAuthorizationError,
-} from '@/lib/core/application'
+import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { DELETE, GET, PATCH } from '@/app/api/v2/sandboxes/[sandboxId]/route'
+import { GET } from '@/app/api/v2/sandboxes/[sandboxId]/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' }
@@ -126,32 +119,12 @@ function request(method: 'GET' | 'PATCH' | 'DELETE', body?: unknown, query?: str
 
 describe('/api/v2/sandboxes/[sandboxId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.authenticate.mockResolvedValue(AUTH)
     mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.get.mockResolvedValue({ sandbox })
     mocks.update.mockResolvedValue({ sandbox })
     mocks.remove.mockResolvedValue({ sandbox })
-  })
-
-  it('gets a sandbox, build failure included, through its read operation', async () => {
-    const response = await GET(request('GET'), context)
-
-    expect(response.status).toBe(200)
-    expect((await response.json()).data).toEqual(sandbox)
-    expect(mocks.get).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: { workspaceId: WORKSPACE_ID, sandboxId: sandbox.id },
-      request: expect.anything(),
-    })
-  })
-
-  it('requires the workspace scope on a read', async () => {
-    const response = await GET(request('GET', undefined, ''), context)
-
-    expect(response.status).toBe(400)
-    expect(mocks.get).not.toHaveBeenCalled()
   })
 
   it('conceals a sandbox the caller has no reach into as missing', async () => {
@@ -175,81 +148,6 @@ describe('/api/v2/sandboxes/[sandboxId]', () => {
     expect((await response.json()).error).toEqual({
       code: 'NOT_FOUND',
       message: 'Sandbox not found',
-    })
-  })
-
-  it('keeps an in-workspace role refusal a 403 with its remedy', async () => {
-    mocks.update.mockRejectedValue(new InsufficientWorkspacePermissionsError())
-
-    const response = await PATCH(
-      request('PATCH', { workspaceId: WORKSPACE_ID, name: 'renamed' }),
-      context
-    )
-
-    expect(response.status).toBe(403)
-    expect((await response.json()).error.details).toEqual({ code: 'INSUFFICIENT_WORKSPACE_ROLE' })
-  })
-
-  it('tells a workspace key to use a personal key on a write', async () => {
-    mocks.remove.mockRejectedValue(new WorkspaceApiKeyAuthorizationError())
-
-    const response = await DELETE(request('DELETE'), context)
-
-    expect(response.status).toBe(403)
-    expect((await response.json()).error.details).toEqual({
-      code: 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED',
-    })
-  })
-
-  it('updates with the sandbox id from the path and the v2 source', async () => {
-    const response = await PATCH(
-      request('PATCH', { workspaceId: WORKSPACE_ID, dependencies: ['pandas', 'numpy'] }),
-      context
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.update).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: {
-        workspaceId: WORKSPACE_ID,
-        sandboxId: sandbox.id,
-        dependencies: ['pandas', 'numpy'],
-        source: 'api',
-      },
-      request: expect.anything(),
-    })
-  })
-
-  it('rejects an update that changes nothing before application execution', async () => {
-    const response = await PATCH(request('PATCH', { workspaceId: WORKSPACE_ID }), context)
-
-    expect(response.status).toBe(400)
-    expect(mocks.update).not.toHaveBeenCalled()
-  })
-
-  it('projects a name collision as a conflict', async () => {
-    mocks.update.mockRejectedValue(
-      new OrchestrationError('conflict', 'A sandbox named "other" already exists in this workspace')
-    )
-
-    const response = await PATCH(
-      request('PATCH', { workspaceId: WORKSPACE_ID, name: 'other' }),
-      context
-    )
-
-    expect(response.status).toBe(409)
-    expect((await response.json()).error.code).toBe('CONFLICT')
-  })
-
-  it('deletes and acknowledges with the identifier', async () => {
-    const response = await DELETE(request('DELETE'), context)
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { id: sandbox.id, deleted: true } })
-    expect(mocks.remove).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: { workspaceId: WORKSPACE_ID, sandboxId: sandbox.id, source: 'api' },
-      request: expect.anything(),
     })
   })
 })

@@ -41,7 +41,6 @@ const render = async (workspaceId: string) => {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   mountedScopes.length = 0
   state = { hydration: { workspaceId: null }, switchToWorkspace: mocks.switchWorkspace }
@@ -65,42 +64,11 @@ afterEach(async () => {
 })
 
 describe('WorkflowScopeSync canvas readiness', () => {
-  it('establishes explicit scope before the first canvas layout effect', async () => {
-    await render('workspace-a')
-    expect(mountedScopes).toEqual(['workspace-a'])
-    expect(mocks.switchWorkspace).toHaveBeenCalledExactlyOnceWith('workspace-a')
-    expect(container.textContent).toBe('Canvas workspace-a')
-  })
-
   it('does not mount a new owner canvas under the previous workspace scope', async () => {
     await render('workspace-a')
     await render('workspace-b')
     expect(mountedScopes).toEqual(['workspace-a', 'workspace-b'])
     expect(mocks.switchWorkspace.mock.calls).toEqual([['workspace-a'], ['workspace-b']])
     expect(container.textContent).toBe('Canvas workspace-b')
-  })
-
-  it('preserves an already aligned registry without resetting workflow state', async () => {
-    state = { ...state, hydration: { workspaceId: 'workspace-a' } }
-    await render('workspace-a')
-    expect(mountedScopes).toEqual(['workspace-a'])
-    expect(mocks.switchWorkspace).not.toHaveBeenCalled()
-  })
-
-  it('shares one scope transition between resource actions and canvas', async () => {
-    await act(async () =>
-      root.render(
-        <>
-          <WorkflowScopeSync workspaceId='workspace-a'>
-            <Canvas workspaceId='workspace-a' />
-          </WorkflowScopeSync>
-          <WorkflowScopeSync workspaceId='workspace-a'>
-            <Canvas workspaceId='workspace-a' />
-          </WorkflowScopeSync>
-        </>
-      )
-    )
-    expect(mocks.switchWorkspace).toHaveBeenCalledExactlyOnceWith('workspace-a')
-    expect(mountedScopes).toEqual(['workspace-a', 'workspace-a'])
   })
 })

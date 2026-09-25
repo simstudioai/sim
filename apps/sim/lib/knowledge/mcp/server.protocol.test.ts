@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
@@ -32,7 +31,6 @@ import { createKnowledgeMcpServer } from '@/lib/knowledge/mcp/server'
 
 describe('Search MCP protocol', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetEnvFlagsMock()
   })
 

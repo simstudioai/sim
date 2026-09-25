@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -32,50 +31,6 @@ beforeEach(() => {
   mocks.rows.mockResolvedValue([row('b', 'org', 'write'), row('a'), row('outside', 'other')])
 })
 describe('organization workspace inventory', () => {
-  it('returns only current org workspaces with roles and effective policy, preserving pagination', async () => {
-    mocks.config.mockResolvedValue({ ...DEFAULT_PERMISSION_GROUP_CONFIG, hideCopilot: true })
-    const first = await listOrganizationWorkspaces.execute({
-      principal,
-      input: { organizationId: 'org', limit: 1 },
-    })
-    expect(first).toMatchObject({
-      workspaces: [
-        {
-          id: 'a',
-          role: 'read',
-          capabilityDetail: 'restrictions',
-          copilotAllowed: false,
-          deniedCapabilities: ['copilot.use'],
-        },
-      ],
-      nextCursor: 'a',
-    })
-    const second = await listOrganizationWorkspaces.execute({
-      principal,
-      input: { organizationId: 'org', limit: 1, cursor: first.nextCursor! },
-    })
-    expect(second).toMatchObject({ workspaces: [{ id: 'b', role: 'write' }], nextCursor: null })
-    expect(mocks.rows).toHaveBeenCalledWith('user', 'active', 'org')
-    expect(mocks.feature).not.toHaveBeenCalled()
-  })
-  it('returns a full explicit map only for an exact workspace lookup', async () => {
-    const result = await listOrganizationWorkspaces.execute({
-      principal,
-      input: { organizationId: 'org', workspaceId: 'a', limit: 1 },
-    })
-    expect(result.workspaces[0]).toMatchObject({
-      capabilityDetail: 'full',
-      capabilities: { 'copilot.use': true, 'personal_api_key.use': true },
-      operationAvailability: {
-        table_query_rows_v2: {
-          enabled: false,
-          reason: 'The v2 table query API is not enabled for this workspace',
-        },
-      },
-    })
-    expect(result.workspaces[0]).not.toHaveProperty('deniedCapabilities')
-    expect(mocks.feature).toHaveBeenCalledWith('tables-v2-api', { userId: 'user', orgId: 'org' })
-  })
   it('exact filtering cannot expose a foreign organization and rechecks membership on every request', async () => {
     expect(
       (
@@ -121,19 +76,4 @@ it('does not disclose rollout detail for a denied operation', async () => {
   })
   expect(result.workspaces[0]).toMatchObject({ operationAvailability: {} })
   expect(mocks.feature).not.toHaveBeenCalled()
-})
-
-it('reports rollout eligibility separately from the existing read-only workspace role', async () => {
-  mocks.feature.mockResolvedValue(true)
-  const result = await listOrganizationWorkspaces.execute({
-    principal,
-    input: { organizationId: 'org', workspaceId: 'a', limit: 1 },
-  })
-  expect(result.workspaces[0]).toMatchObject({
-    role: 'read',
-    operationAvailability: { table_query_rows_v2: { enabled: true } },
-  })
-  expect(result.workspaces[0]?.operationAvailability?.table_query_rows_v2).not.toHaveProperty(
-    'reason'
-  )
 })

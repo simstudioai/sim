@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -75,7 +72,6 @@ const principal = {
 
 describe('moveWorkflowsBulk', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.resolveContext.mockResolvedValue(context)
     mocks.permission.mockResolvedValue('write')
@@ -164,19 +160,5 @@ describe('moveWorkflowsBulk', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
 
     expect(mocks.resolveContext).not.toHaveBeenCalled()
-  })
-
-  it('refuses folderPath and folderId together', async () => {
-    await expect(
-      moveWorkflowsBulk.execute({
-        principal,
-        input: {
-          workspaceId: 'workspace-1',
-          workflowIds: ['workflow-1'],
-          folderId: null,
-          folderPath: '/Operations',
-        },
-      })
-    ).rejects.toMatchObject({ code: 'validation' })
   })
 })

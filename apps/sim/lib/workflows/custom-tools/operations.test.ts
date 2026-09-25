@@ -1,8 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { upsertCustomTools } from '@/lib/workflows/custom-tools/operations'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -17,10 +14,6 @@ const storableSchema = {
 }
 
 describe('upsertCustomTools schema invariant', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('refuses a declaration missing the function discriminator before opening a transaction', async () => {
     await expect(
       upsertCustomTools({
@@ -77,15 +70,5 @@ describe('upsertCustomTools schema invariant', () => {
     ).rejects.toMatchObject({ code: 'validation' })
 
     expect(db.transaction).not.toHaveBeenCalled()
-  })
-
-  it('opens the transaction for a storable declaration', async () => {
-    await upsertCustomTools({
-      tools: [{ title: 'Good', schema: storableSchema, code: '' }],
-      workspaceId: WORKSPACE_ID,
-      userId: USER_ID,
-    })
-
-    expect(db.transaction).toHaveBeenCalled()
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeManagedAgentRunSessionOperation } from '@/lib/internal/managed-agent/operations/run-session'
 import * as runSessionModule from '@/lib/managed-agents/run-session'
@@ -28,7 +25,6 @@ const run = (params: Partial<ManagedAgentRunSessionParams>) =>
   } as ManagedAgentRunSessionParams)
 
 beforeEach(() => {
-  vi.clearAllMocks()
   runManagedAgentSession.mockResolvedValue({
     ok: true,
     content: 'hello',

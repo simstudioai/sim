@@ -17,7 +17,7 @@ import type { z } from 'zod'
 
 const CONTRACTS_DIR = path.resolve(import.meta.dirname, '..', '..')
 
-export interface SweptContract {
+interface SweptContract {
   method: string
   path: string
   params?: z.ZodType

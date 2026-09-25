@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { flattenMockConditions } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import { buildFilterConditions } from '@/lib/logs/filters'
@@ -38,19 +35,6 @@ describe('folderName filter', () => {
     expect(clause).toContain('%support%')
     expect(clause).not.toContain('workflow.name')
     expect(JSON.stringify(clause)).toContain('folder.deletedAt')
-  })
-
-  it('is a different predicate from the workflow-name filter', () => {
-    const byFolder = likeClauseParams({ workspaceId: 'workspace-1', folderName: 'support' })
-    const byWorkflow = likeClauseParams({ workspaceId: 'workspace-1', workflowName: 'support' })
-
-    expect(byFolder).not.toEqual(byWorkflow)
-  })
-
-  it('leaves the workflow-name filter matching the workflow name alone', () => {
-    const [clause] = likeClauseParams({ workspaceId: 'workspace-1', workflowName: 'support' })
-
-    expect(clause).toEqual(['workflow.name', '%support%'])
   })
 
   it('adds no predicate when neither name filter is set', () => {

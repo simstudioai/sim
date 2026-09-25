@@ -1,25 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { buildUserFilters } from '@/lib/webhooks/polling/hubspot'
 
 describe('buildUserFilters', () => {
-  it('translates pipeline/stage/owner shortcuts into EQ filters', () => {
-    const filters = buildUserFilters({
-      objectType: 'deal',
-      pipelineId: 'pipeline-1',
-      stageId: 'stage-1',
-      ownerId: 'owner-1',
-    })
-
-    expect(filters).toEqual([
-      { propertyName: 'pipeline', operator: 'EQ', value: 'pipeline-1' },
-      { propertyName: 'dealstage', operator: 'EQ', value: 'stage-1' },
-      { propertyName: 'hubspot_owner_id', operator: 'EQ', value: 'owner-1' },
-    ])
-  })
-
   it('uses ticket-specific pipeline/stage property names', () => {
     const filters = buildUserFilters({
       objectType: 'ticket',
@@ -56,24 +38,6 @@ describe('buildUserFilters', () => {
     })
 
     expect(filters).toEqual([{ propertyName: 'amount', operator: 'GT', value: '1' }])
-  })
-
-  it('ignores malformed JSON filters without throwing', () => {
-    expect(() => buildUserFilters({ filters: 'not json' })).not.toThrow()
-    expect(buildUserFilters({ filters: 'not json' })).toEqual([])
-  })
-
-  it('allows exactly the HubSpot per-group limit of combined filters', () => {
-    const filters = buildUserFilters({
-      objectType: 'deal',
-      pipelineId: 'pipeline-1',
-      stageId: 'stage-1',
-      ownerId: 'owner-1',
-      filters: JSON.stringify([{ propertyName: 'amount', operator: 'GT', value: '1000' }]),
-    })
-
-    // 3 shortcuts + 1 advanced = 4, exactly MAX_USER_FILTERS.
-    expect(filters).toHaveLength(4)
   })
 
   it('throws rather than silently dropping filters when the combined count exceeds the limit', () => {

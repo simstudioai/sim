@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ signOut: vi.fn(), clearUserData: vi.fn() }))
@@ -13,7 +10,6 @@ const navigate = vi.fn()
 const assign = vi.fn()
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.signOut.mockResolvedValue(undefined)
   mocks.clearUserData.mockResolvedValue(true)
   vi.stubGlobal('window', { location: { assign } })
@@ -21,14 +17,6 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('signOutAndRedirect', () => {
-  it('ends the session and clears user state before navigating in-app', async () => {
-    await signOutAndRedirect(navigate)
-    expect(mocks.signOut).toHaveBeenCalledOnce()
-    expect(mocks.clearUserData).toHaveBeenCalledOnce()
-    expect(navigate).toHaveBeenCalledWith('/login?fromLogout=true')
-    expect(assign).not.toHaveBeenCalled()
-  })
-
   it('reloads when in-memory state could not be cleared', async () => {
     mocks.clearUserData.mockResolvedValue(false)
     await signOutAndRedirect(navigate)

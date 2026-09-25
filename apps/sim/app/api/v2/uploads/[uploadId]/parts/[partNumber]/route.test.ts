@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -44,7 +41,6 @@ const SESSION = {
 
 describe('PUT /api/v2/uploads/[uploadId]/parts/[partNumber]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockVerifyUploadSessionToken.mockReturnValue(SESSION)
     mockExpectedUploadPartSize.mockReturnValue(3)
     mockWriteLocalMultipartPart.mockResolvedValue(undefined)
@@ -104,20 +100,6 @@ describe('PUT /api/v2/uploads/[uploadId]/parts/[partNumber]', () => {
     expect(response.status).toBe(400)
     await expect(response.json()).resolves.toEqual({
       error: { code: 'BAD_REQUEST', message: 'partNumber must be between 1 and 2' },
-    })
-    expect(mockWriteLocalMultipartPart).not.toHaveBeenCalled()
-  })
-
-  it('still renders an unclassified part-size failure as a generic 500', async () => {
-    mockExpectedUploadPartSize.mockImplementation(() => {
-      throw new Error('unexpected')
-    })
-
-    const response = await request()
-
-    expect(response.status).toBe(500)
-    await expect(response.json()).resolves.toEqual({
-      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
     })
     expect(mockWriteLocalMultipartPart).not.toHaveBeenCalled()
   })

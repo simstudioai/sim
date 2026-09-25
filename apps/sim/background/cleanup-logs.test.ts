@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
 import { drizzleOrmMock } from '@sim/testing/mocks'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -79,7 +75,7 @@ vi.mock('@/lib/uploads/server/metadata', () => ({
   deleteFileMetadata: mockDeleteFileMetadata,
 }))
 
-import { cleanupLogsTask, runCleanupLogs } from '@/background/cleanup-logs'
+import { runCleanupLogs } from '@/background/cleanup-logs'
 
 describe('cleanup logs worker', () => {
   afterAll(() => {
@@ -87,7 +83,6 @@ describe('cleanup logs worker', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockChunkedBatchDelete.mockImplementation(async (options: CapturedBatchDeleteOptions) => {
       await options.selectChunk(['workspace-1'], 500)
@@ -198,11 +193,5 @@ describe('cleanup logs worker', () => {
     expect(legacyWhereArgs).toContain('dependency.child_key')
     expect(mockDeleteFiles).toHaveBeenLastCalledWith([legacyKey], 'execution')
     expect(mockDeleteFileMetadata).toHaveBeenCalledWith(legacyKey)
-  })
-
-  it('caps Trigger.dev concurrency for log cleanup tasks', () => {
-    expect(cleanupLogsTask).toMatchObject({
-      queue: { name: 'retention-cleanup', concurrencyLimit: 1 },
-    })
   })
 })

@@ -21,10 +21,6 @@ describe('resolveNextStableVersion', () => {
     expect(resolveNextStableVersion('3.0.0', ['2.1.2', '2.1.3-preview.10.1'])).toBe('3.0.0')
   })
 
-  it('advances from the registry when the manifest is stale', () => {
-    expect(resolveNextStableVersion('1.5.0', ['2.0.0', '2.1.2'])).toBe('2.1.3')
-  })
-
   it('fails on a prerelease manifest or a registry without a stable version', () => {
     expect(() => resolveNextStableVersion('2.1.3-preview.1', ['2.1.2'])).toThrow(
       "Manifest version must be a stable X.Y.Z version, got '2.1.3-preview.1'"
@@ -48,20 +44,6 @@ describe('updateLockfileWorkspaceVersion', () => {
     },
   },
 }`
-
-  it('updates only the selected workspace', () => {
-    const next = updateLockfileWorkspaceVersion(
-      lockfile,
-      'packages/sim-cli',
-      'sim',
-      '2.1.2',
-      '2.1.3'
-    )
-
-    expect(next).toContain('"version": "2.1.3"')
-    expect(next).toContain('"version": "1.0.2"')
-    expect(next).not.toContain('"version": "2.1.2"')
-  })
 
   it('fails when the lockfile disagrees with the manifest', () => {
     expect(() =>

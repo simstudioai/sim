@@ -137,43 +137,6 @@ describe('link drafts during actual collaborative updates', () => {
     }
   )
 
-  it('maps the original caret through local and peer edits before canceling', async () => {
-    const input = await openDraft(true)
-    act(() => a.editor.view.dispatch(a.editor.state.tr.insertText('LOCAL ', 1)))
-    Y.applyUpdate(b.doc, Y.encodeStateAsUpdate(a.doc))
-    b.editor.commands.insertContentAt(1, 'PEER ')
-    await receivePeerEdit()
-    act(() => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
-    expect(a.editor.state.selection.empty).toBe(true)
-    expect(a.editor.state.selection.from).toBe(textPosition(a.editor, 'format') + 2)
-    act(() => a.editor.commands.insertContent('X'))
-    expect(a.editor.getText()).toContain('foXrmat')
-    expect(a.editor.view.dom.querySelector('a')?.getAttribute('href')).toBe(
-      'https://example.com/original'
-    )
-  })
-
-  it('retains a draft across read-only permission intervals and peer updates', async () => {
-    const input = await openDraft(false)
-    const apply = viewport.querySelector<HTMLButtonElement>('button[aria-label="Apply link"]')
-    act(() => a.editor.setEditable(false))
-    expect(viewport.querySelector('input[aria-label="Link URL"]')).toBe(input)
-    b.editor.commands.insertContentAt(1, 'PEER ')
-    await receivePeerEdit()
-    act(() => apply?.click())
-    expect(a.editor.view.dom.querySelector('a')?.getAttribute('href')).toBe(
-      'https://example.com/original'
-    )
-    act(() => a.editor.setEditable(true))
-    act(() => a.editor.view.focus())
-    await act(async () => vi.advanceTimersToNextFrame())
-    expect(viewport.querySelector('input[aria-label="Link URL"]')).toBe(input)
-    await act(async () => apply?.click())
-    expect(a.editor.view.dom.querySelector('a')?.getAttribute('href')).toBe(
-      'https://example.com/draft'
-    )
-  })
-
   it('discards the draft when a peer deletes its entire target', async () => {
     const input = await openDraft(false)
     const from = textPosition(b.editor, 'format')

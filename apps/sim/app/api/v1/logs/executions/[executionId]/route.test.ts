@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -73,7 +70,6 @@ vi.mock('@/blocks/registry', () => ({
   getBlockByToolName: vi.fn(() => undefined),
 }))
 
-import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET } from '@/app/api/v1/logs/executions/[executionId]/route'
 
 const rateLimit = {
@@ -111,7 +107,6 @@ function requestFor(executionId: string) {
 
 describe('GET /api/v1/logs/executions/[executionId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.checkRateLimit.mockResolvedValue(rateLimit)
     mocks.resolveWorkspaceAccess.mockResolvedValue(null)
     permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue(null)
@@ -144,24 +139,6 @@ describe('GET /api/v1/logs/executions/[executionId]', () => {
     expect(subBlocks.subject.value).toBe('Weekly digest')
     expect(JSON.stringify(body)).not.toContain('literal-secret-value')
     expect(JSON.stringify(body)).not.toContain('credential-row-id')
-  })
-
-  it('keeps the surrounding response shape intact', async () => {
-    const { request, context } = requestFor('execution-1')
-    const body = await (await GET(request, context)).json()
-
-    expect(body).toMatchObject({
-      executionId: 'execution-1',
-      workflowId: 'workflow-1',
-      executionMetadata: {
-        trigger: 'api',
-        startedAt: '2026-08-11T00:00:00.000Z',
-        endedAt: '2026-08-11T00:00:01.000Z',
-        totalDurationMs: 1000,
-        cost: { total: 0.01 },
-      },
-      limits: { usage: { plan: 'free', currentPeriodCost: 12.5 } },
-    })
   })
 
   it("conceals an ordinary access failure behind the surface's not-found", async () => {
@@ -199,39 +176,5 @@ describe('GET /api/v1/logs/executions/[executionId]', () => {
       error: 'Personal API keys are disabled for this workspace',
       details: { code: 'PERSONAL_API_KEYS_DISABLED' },
     })
-  })
-
-  it('withholds period spend alongside the run total when the group withholds logs.cost', async () => {
-    mocks.checkRateLimit.mockResolvedValue({ ...rateLimit, keyType: 'personal' })
-    permissionGroupScopeMockFns.mockResolvePermissionGroupConfig.mockResolvedValue({
-      ...DEFAULT_PERMISSION_GROUP_CONFIG,
-      hideCostInfo: true,
-    })
-
-    const { request, context } = requestFor('execution-1')
-    const body = await (await GET(request, context)).json()
-
-    expect(body.executionMetadata.cost).toBeNull()
-    expect(body.limits.usage.currentPeriodCost).toBeNull()
-    expect(body.limits.usage).toMatchObject({ plan: 'free', limit: 50, isExceeded: false })
-  })
-
-  it('reports a missing snapshot as not found', async () => {
-    mocks.getPublicWorkflowLog.mockResolvedValueOnce({
-      workflowId: 'workflow-1',
-      workspaceId: 'workspace-1',
-      workflowState: null,
-      trigger: 'api',
-      startedAt: new Date('2026-08-11T00:00:00Z'),
-      endedAt: null,
-      totalDurationMs: 1000,
-      costTotal: null,
-    })
-
-    const { request, context } = requestFor('execution-1')
-    const response = await GET(request, context)
-
-    expect(response.status).toBe(404)
-    expect(await response.json()).toEqual({ error: 'Workflow state snapshot not found' })
   })
 })

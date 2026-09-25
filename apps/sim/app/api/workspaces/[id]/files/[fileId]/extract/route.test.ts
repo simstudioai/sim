@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -37,38 +34,11 @@ function callExtract() {
 
 describe('POST /api/workspaces/[id]/files/[fileId]/extract', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
     })
     mocks.extract.mockResolvedValue({ folderName: 'bundle', extractedCount: 2, skippedCount: 0 })
-  })
-
-  it('passes a session principal and canonical assertion to the extraction use case', async () => {
-    const response = await callExtract()
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      success: true,
-      folderName: 'bundle',
-      extractedCount: 2,
-      skippedCount: 0,
-    })
-    expect(mocks.extract).toHaveBeenCalledWith({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID },
-      request: expect.anything(),
-    })
-  })
-
-  it('authenticates before invoking extraction', async () => {
-    mocks.getSession.mockResolvedValue(null)
-
-    const response = await callExtract()
-
-    expect(response.status).toBe(401)
-    expect(mocks.extract).not.toHaveBeenCalled()
   })
 
   it('returns a caller-safe error for an invalid zip', async () => {

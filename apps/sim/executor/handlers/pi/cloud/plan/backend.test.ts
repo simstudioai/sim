@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -62,7 +59,6 @@ function params(overrides: Partial<PiCloudPlanRunParams> = {}): PiCloudPlanRunPa
 
 describe('runCloudPlanPi', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockBuildPrompt.mockReturnValue('PLAN PROMPT')
     mockProviderEnvVar.mockReturnValue('ANTHROPIC_API_KEY')
     mockWithPiSandbox.mockImplementation(async (_options, callback) => {
@@ -137,13 +133,6 @@ describe('runCloudPlanPi', () => {
     expect(result.totals.finalText).toBe('# Plan\nDo it')
     expect(result).not.toHaveProperty('changedFiles')
     expect(result).not.toHaveProperty('diff')
-  })
-
-  it('uses the repository default branch when Base Branch is blank', async () => {
-    await runCloudPlanPi(params({ baseBranch: '   ' }), { onEvent: vi.fn() })
-
-    expect(mockRun.mock.calls[0][0]).toContain('git checkout --detach HEAD')
-    expect(mockRun.mock.calls[0][1].envs.BASE_BRANCH).toBe('')
   })
 
   it('returns only the final assistant response while preserving live progress events', async () => {

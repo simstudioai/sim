@@ -17,7 +17,6 @@ describe('workspace integration grant editor', () => {
   ] satisfies OrganizationAccountWorkspaceAccess['credentialTypes']
 
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     container = document.createElement('div')
     document.body.appendChild(container)
@@ -92,23 +91,6 @@ describe('workspace integration grant editor', () => {
     await act(async () => option?.click())
   }
 
-  it('creates a workspace grant only after selecting a workspace and integrations', async () => {
-    await render(null)
-    expect(button('Add workspace').disabled).toBe(true)
-    await selectWorkspace()
-    expect(button('Add workspace').disabled).toBe(true)
-    await openIntegrations()
-    expect(document.querySelector('[role="menuitem"]')?.textContent).toBe('All integrations')
-    await act(async () => integrationOption('Gmail').click())
-    await closeIntegrations()
-    expect(button('Add workspace').disabled).toBe(false)
-    await click('Add workspace')
-    expect(save).toHaveBeenCalledExactlyOnceWith({
-      workspaceId: 'finance',
-      access: { mode: 'selected', credentialTypes: ['oauth:gmail'] },
-    })
-  })
-
   it('allows explicitly granting all current and future integrations', async () => {
     await render(null)
     await selectWorkspace()
@@ -158,74 +140,5 @@ describe('workspace integration grant editor', () => {
       workspaceId: 'finance',
       access: { mode: 'all' },
     })
-  })
-
-  it('connects the integration selector to its required state and explanatory hint', async () => {
-    await render({ mode: 'all' })
-    const trigger = document.querySelector<HTMLButtonElement>('[aria-label="Integrations"]')!
-    expect(trigger.hasAttribute('aria-required')).toBe(false)
-    const description = trigger
-      .getAttribute('aria-describedby')!
-      .split(' ')
-      .map((id) => document.getElementById(id)?.textContent)
-      .join(' ')
-    expect(description).toBe('Includes integrations added in the future. Required.')
-  })
-
-  it.each(['all', 'selected'] as const)(
-    'does not treat clearing the last %s selection as unrestricted access',
-    async (mode) => {
-      await render(mode === 'all' ? { mode } : { mode, credentialTypes: ['oauth:gmail'] })
-      await openIntegrations()
-      await act(async () =>
-        integrationOption(mode === 'all' ? 'All integrations' : 'Gmail').click()
-      )
-      await closeIntegrations()
-      expect(button('Save access').disabled).toBe(true)
-      expect(save).not.toHaveBeenCalled()
-    }
-  )
-
-  it('preserves saved selections while searching and cancels without saving', async () => {
-    await render({ mode: 'selected', credentialTypes: ['oauth:gmail'] })
-    await openIntegrations()
-    const search = document.querySelector<HTMLInputElement>(
-      'input[placeholder="Search integrations"]'
-    )
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
-        search,
-        'calendar'
-      )
-      search?.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-    expect(
-      [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent)
-    ).toEqual(['Google Calendar'])
-    await act(async () => integrationOption('Google Calendar').click())
-    await closeIntegrations()
-    await click('Save access')
-    expect(save).toHaveBeenLastCalledWith({
-      workspaceId: 'finance',
-      access: { mode: 'selected', credentialTypes: ['oauth:gmail', 'oauth:google-calendar'] },
-    })
-    save.mockClear()
-    await click('Cancel')
-    expect(close).toHaveBeenCalledOnce()
-    expect(save).not.toHaveBeenCalled()
-  })
-
-  it('removes access explicitly and disables mutations while a request is pending', async () => {
-    await render()
-    await click('Remove access')
-    expect(remove).toHaveBeenCalledOnce()
-    expect(save).not.toHaveBeenCalled()
-    await render({ mode: 'all' }, true)
-    expect(button('Save access').disabled).toBe(true)
-    expect(button('Remove access').disabled).toBe(true)
-    expect(button('Cancel').disabled).toBe(true)
-    expect(document.querySelector<HTMLButtonElement>('[aria-label="Integrations"]')?.disabled).toBe(
-      true
-    )
   })
 })

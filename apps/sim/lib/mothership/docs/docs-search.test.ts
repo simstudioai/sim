@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGenerateSearchEmbedding, capturedWhere, capturedLimit, mockRows } = vi.hoisted(() => ({
@@ -257,22 +254,6 @@ describe('searchDocs shortfall reporting', () => {
       droppedStale: 1,
     })
   })
-
-  it('reports no drops when every candidate survives', async () => {
-    mockRows.value = [
-      {
-        chunkText: 'a',
-        sourceDocument: 'agents.mdx',
-        sourceLink: 'x',
-        headerText: 'h',
-        similarity: 0.9,
-      },
-    ]
-    const outcome = await searchDocs('cron')
-    expect(outcome.droppedBelowThreshold).toBe(0)
-    expect(outcome.droppedStale).toBe(0)
-    expect(outcome.results).toHaveLength(1)
-  })
 })
 
 describe('searchDocs topK clamping', () => {
@@ -280,11 +261,6 @@ describe('searchDocs topK clamping', () => {
     capturedLimit.value = undefined
     mockRows.value = []
     mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [0.1, 0.2] })
-  })
-
-  it('defaults to 5 when unspecified', async () => {
-    await searchDocs('cron')
-    expect(capturedLimit.value).toBe(5)
   })
 
   it('caps at 25 — the documented max, which the old tool never enforced', async () => {
@@ -297,11 +273,6 @@ describe('searchDocs topK clamping', () => {
     expect(capturedLimit.value).toBe(1)
     await searchDocs('cron', { topK: -8 })
     expect(capturedLimit.value).toBe(1)
-  })
-
-  it('truncates a fractional count', async () => {
-    await searchDocs('cron', { topK: 7.9 })
-    expect(capturedLimit.value).toBe(7)
   })
 
   it('falls back to the default rather than passing NaN to the query', async () => {

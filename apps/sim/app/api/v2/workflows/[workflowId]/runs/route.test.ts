@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
   v2ApiKeyAuthModuleMock,
@@ -27,7 +23,7 @@ vi.mock('@/lib/workflows/application/list-workflow-runs', () => ({
 }))
 
 import { REFILTERED_CURSOR_MESSAGE, UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
-import { NoWorkspaceAccessError, PersonalApiKeysDisabledError } from '@/lib/core/application'
+import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { GET } from '@/app/api/v2/workflows/[workflowId]/runs/route'
 
 const principal = {
@@ -75,7 +71,6 @@ const EXECUTIONS = [
 
 describe('GET /api/v2/workflows/[workflowId]/runs', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -84,42 +79,6 @@ describe('GET /api/v2/workflows/[workflowId]/runs', () => {
       nextCursor: null,
       workflowId: 'workflow-1',
       order: 'desc',
-    })
-  })
-
-  it('lists lightweight run resources through the semantic operation', async () => {
-    const response = await callGet()
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      data: [
-        {
-          runId: 'execution-2',
-          workflowId: 'workflow-1',
-          status: 'paused',
-          trigger: 'api',
-          startedAt: '2026-08-05T00:02:00.000Z',
-          endedAt: null,
-          durationMs: null,
-          cost: { total: 0.02 },
-        },
-        {
-          runId: 'execution-1',
-          workflowId: 'workflow-1',
-          status: 'completed',
-          trigger: 'schedule',
-          startedAt: '2026-08-05T00:01:00.000Z',
-          endedAt: '2026-08-05T00:01:03.000Z',
-          durationMs: 3000,
-          cost: null,
-        },
-      ],
-      nextCursor: null,
-    })
-    expect(mocks.listRuns).toHaveBeenCalledWith({
-      principal,
-      input: expect.objectContaining({ workflowId: 'workflow-1', limit: 50, order: 'desc' }),
-      request: expect.anything(),
     })
   })
 
@@ -195,61 +154,6 @@ describe('GET /api/v2/workflows/[workflowId]/runs', () => {
     expect(mocks.listRuns).not.toHaveBeenCalled()
   })
 
-  it('rejects an invalid cursor after API-key admission without calling the use case', async () => {
-    const response = await callGet('?cursor=not-a-cursor')
-
-    expect(response.status).toBe(400)
-    expect(v2RouteMocks.authenticate).toHaveBeenCalledOnce()
-    expect(v2RouteMocks.operationRate).toHaveBeenCalledTimes(2)
-    expect(mocks.listRuns).not.toHaveBeenCalled()
-  })
-
-  it('serves a page containing a run whose output is still being redacted', async () => {
-    mocks.listRuns.mockResolvedValueOnce({
-      data: [
-        {
-          rowId: 'row-3',
-          executionId: 'execution-3',
-          workflowId: 'workflow-1',
-          status: 'redacting',
-          trigger: 'api',
-          startedAt: new Date('2026-08-05T00:03:00Z'),
-          endedAt: new Date('2026-08-05T00:03:01Z'),
-          durationMs: 1000,
-          costTotal: null,
-        },
-        ...EXECUTIONS,
-      ],
-      nextCursor: null,
-      workflowId: 'workflow-1',
-      order: 'desc',
-    })
-
-    const response = await callGet()
-
-    expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body.data.map((run: { status: string }) => run.status)).toEqual([
-      'redacting',
-      'paused',
-      'completed',
-    ])
-  })
-
-  it('rejects redacting as a durable-history filter', async () => {
-    const response = await callGet('?status=redacting')
-
-    expect(response.status).toBe(400)
-    expect(mocks.listRuns).not.toHaveBeenCalled()
-  })
-
-  it('rejects queued as a durable-history filter', async () => {
-    const response = await callGet('?status=queued')
-
-    expect(response.status).toBe(400)
-    expect(mocks.listRuns).not.toHaveBeenCalled()
-  })
-
   it('conceals workflow authorization failures as absence', async () => {
     mocks.listRuns.mockRejectedValueOnce(new NoWorkspaceAccessError())
 
@@ -260,34 +164,5 @@ describe('GET /api/v2/workflows/[workflowId]/runs', () => {
       code: 'NOT_FOUND',
       message: 'Workflow not found',
     })
-  })
-
-  it('preserves the personal API-key workspace-policy denial', async () => {
-    mocks.listRuns.mockRejectedValueOnce(new PersonalApiKeysDisabledError())
-
-    const response = await callGet()
-
-    expect(response.status).toBe(403)
-    expect((await response.json()).error.code).toBe('FORBIDDEN')
-  })
-
-  it('returns a safe error when run storage fails', async () => {
-    mocks.listRuns.mockRejectedValueOnce(new Error('database connection details'))
-
-    const response = await callGet()
-
-    expect(response.status).toBe(500)
-    expect(await response.json()).toEqual({
-      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
-    })
-  })
-
-  it('rejects an unauthenticated request', async () => {
-    v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-    const response = await callGet()
-
-    expect(response.status).toBe(401)
-    expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import type { StreamingExecution } from '@/executor/types'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'

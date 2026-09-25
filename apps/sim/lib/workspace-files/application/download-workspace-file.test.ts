@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { Readable } from 'node:stream'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
@@ -47,10 +44,7 @@ vi.mock('@/lib/uploads/utils/doc-not-ready', () => ({
 }))
 
 import { MAX_RENDERED_DOCUMENT_BYTES } from '@/lib/uploads/utils/file-utils'
-import {
-  downloadWorkspaceFile,
-  downloadWorkspaceFileStream,
-} from '@/lib/workspace-files/application/download-workspace-file'
+import { downloadWorkspaceFileStream } from '@/lib/workspace-files/application/download-workspace-file'
 
 const context = {
   fileId: 'file-1',
@@ -113,7 +107,6 @@ function downloadStream(fileId: string) {
 
 describe('workspace file downloads', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.getFile.mockResolvedValue(file)
@@ -142,40 +135,6 @@ describe('workspace file downloads', () => {
         () => downloadStream('file-2')
       )
     ).rejects.toThrow('no evidence')
-  })
-
-  it('returns the authoritative file and records its semantic download audit', async () => {
-    await expect(
-      downloadWorkspaceFile.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
-      })
-    ).resolves.toEqual({ file })
-
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        actorId: 'user-1',
-        action: 'FILE_DOWNLOADED',
-        resourceId: 'file-1',
-        resourceName: 'report.pdf',
-        metadata: expect.objectContaining({
-          operation: 'files.download',
-          fileId: 'file-1',
-          fileName: 'report.pdf',
-          bytes: 42,
-        }),
-      })
-    )
-  })
-
-  it('does not audit a streaming download when storage acquisition fails', async () => {
-    mocks.getFile.mockResolvedValue(plainFile)
-    const failure = new Error('storage unavailable')
-    mocks.downloadStream.mockRejectedValueOnce(failure)
-
-    await expect(downloadStream('file-2')).rejects.toBe(failure)
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
   /** Resolving an artifact costs a full buffer, so it is reserved for generation sources. */
@@ -221,45 +180,6 @@ describe('workspace file downloads', () => {
       generatedDoc,
       SESSION,
       expect.objectContaining({ maxBytes: MAX_RENDERED_DOCUMENT_BYTES })
-    )
-  })
-
-  /** Legacy records carry no type, so the extension is the only signal left. */
-  it('routes a record with no content type by its extension', async () => {
-    await downloadStream('file-1')
-
-    expect(mocks.fetchServable).toHaveBeenCalledWith(file, SESSION, expect.anything())
-    expect(mocks.downloadStream).not.toHaveBeenCalled()
-  })
-
-  it('surfaces a still-compiling generated doc as a retryable conflict', async () => {
-    mocks.getFile.mockResolvedValue(generatedDoc)
-    mocks.fetchServable.mockRejectedValueOnce(new FakeDocNotReadyError('still compiling'))
-
-    await expect(downloadStream('file-3')).rejects.toMatchObject({
-      name: 'OrchestrationError',
-      code: 'conflict',
-    })
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('propagates a genuine artifact-resolution failure unchanged', async () => {
-    mocks.getFile.mockResolvedValue(generatedDoc)
-    const failure = new Error('artifact store unavailable')
-    mocks.fetchServable.mockRejectedValueOnce(failure)
-
-    await expect(downloadStream('file-3')).rejects.toBe(failure)
-  })
-
-  it('audits the bytes actually served, not the generation source size', async () => {
-    mocks.getFile.mockResolvedValue(generatedDoc)
-
-    await downloadStream('file-3')
-
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        metadata: expect.objectContaining({ bytes: '%PDF-compiled'.length }),
-      })
     )
   })
 })

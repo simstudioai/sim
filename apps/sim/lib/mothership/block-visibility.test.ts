@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ visibility: vi.fn(), workspace: vi.fn() }))

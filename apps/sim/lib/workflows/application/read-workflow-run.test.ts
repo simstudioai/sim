@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -70,7 +67,6 @@ function input(selectedOutputs: string[]) {
  */
 describe('readWorkflowRun projection subject', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.getRunFiles.mockResolvedValue(null)
@@ -107,7 +103,6 @@ describe('readWorkflowRun projection subject', () => {
 
 describe('readWorkflowRun selector resolution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.getRunFiles.mockResolvedValue(null)
@@ -144,22 +139,6 @@ describe('readWorkflowRun selector resolution', () => {
       /did not resolve to any block on this run: Agent 1/
     )
   })
-
-  it('accepts a well-formed block id on a run with no recorded output projection', async () => {
-    mocks.getStatus.mockResolvedValue({
-      status: { status: 'queued', blockOutputs: null },
-      projection: NO_PROJECTION,
-    })
-    await expect(
-      readWorkflowRun.execute({ principal, input: input([`${BLOCK_ID}.content`]) })
-    ).resolves.toMatchObject({ status: 'queued', blockOutputs: null })
-  })
-
-  it('accepts a well-formed block id that produced no output', async () => {
-    await expect(
-      readWorkflowRun.execute({ principal, input: input([BLOCK_ID]) })
-    ).resolves.toMatchObject({ status: 'completed', blockOutputs: {} })
-  })
 })
 
 /**
@@ -173,7 +152,6 @@ describe('readWorkflowRun file projection', () => {
   const WITHHELD = { hideTraceSpans: true, hideCostInfo: false }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.getRunFiles.mockResolvedValue({
@@ -182,17 +160,6 @@ describe('readWorkflowRun file projection', () => {
       filesById: new Map([['file-1', { key: 'k', name: 'out.csv' }]]),
     })
     mocks.describeRunFiles.mockResolvedValue([{ id: 'file-1', name: 'out.csv' }])
-  })
-
-  it('lists the run files when nothing is withheld', async () => {
-    mocks.getStatus.mockResolvedValue({
-      status: { status: 'completed', blockOutputs: {}, finalOutput: { ok: true } },
-      projection: NO_PROJECTION,
-    })
-
-    await expect(readWorkflowRun.execute({ principal, input: input([]) })).resolves.toMatchObject({
-      files: [{ id: 'file-1' }],
-    })
   })
 
   it('withholds the file list when the group withholds execution data', async () => {

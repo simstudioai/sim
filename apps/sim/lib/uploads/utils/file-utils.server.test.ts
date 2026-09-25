@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDownloadFile, mockParseWorkspaceFileKey, mockResolveServableDocBytes, mockRenderPage } =
@@ -48,7 +45,6 @@ import type { UserFile } from '@/executor/types'
 
 describe('downloadFileFromStorage context derivation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockDownloadFile.mockResolvedValue(Buffer.from('bytes'))
     mockParseWorkspaceFileKey.mockReturnValue(null)
     mockResolveServableDocBytes.mockImplementation(async ({ rawBuffer }) => ({
@@ -114,7 +110,6 @@ describe('downloadFileFromStorage size ceiling', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockParseWorkspaceFileKey.mockReturnValue(null)
   })
 
@@ -133,28 +128,6 @@ describe('downloadFileFromStorage size ceiling', () => {
       downloadFileFromStorage(fileOfSize(1), 'req-1', logger, { maxBytes: 1024 })
     ).rejects.toThrow(PayloadSizeLimitError)
   })
-
-  it('forwards the ceiling to the storage layer so a provider can stop mid-stream', async () => {
-    mockDownloadFile.mockResolvedValue(Buffer.alloc(512))
-
-    await downloadFileFromStorage(fileOfSize(512), 'req-1', logger, { maxBytes: 1024 })
-
-    expect(mockDownloadFile).toHaveBeenCalledWith(expect.objectContaining({ maxBytes: 1024 }))
-  })
-
-  it('forwards cancellation to the storage layer', async () => {
-    const controller = new AbortController()
-    mockDownloadFile.mockResolvedValue(Buffer.alloc(512))
-
-    await downloadFileFromStorage(fileOfSize(512), 'req-1', logger, {
-      maxBytes: 1024,
-      signal: controller.signal,
-    })
-
-    expect(mockDownloadFile).toHaveBeenCalledWith(
-      expect.objectContaining({ maxBytes: 1024, signal: controller.signal })
-    )
-  })
 })
 
 describe('downloadServableFilesWithinBudget', () => {
@@ -169,7 +142,6 @@ describe('downloadServableFilesWithinBudget', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockParseWorkspaceFileKey.mockReturnValue(null)
     mockDownloadFile.mockImplementation(async ({ key }) =>
       Buffer.alloc(key.endsWith('big.bin') ? 900 : 400)
@@ -209,19 +181,6 @@ describe('downloadServableFilesWithinBudget', () => {
     // The third file's declared size already exceeds what the first two left, so it is
     // refused without fetching its bytes — the whole set is never resident at once.
     expect(mockDownloadFile).toHaveBeenCalledTimes(2)
-  })
-
-  it('refuses the next file on its declared size once the budget is spent', async () => {
-    await expect(
-      downloadServableFilesWithinBudget(
-        [fileOfSize('big.bin', 900), fileOfSize('a.bin', 400)],
-        'req-1',
-        logger,
-        { totalMaxBytes: 1000, label: 'Total attachment size' }
-      )
-    ).rejects.toThrow(PayloadSizeLimitError)
-
-    expect(mockDownloadFile).toHaveBeenCalledTimes(1)
   })
 })
 

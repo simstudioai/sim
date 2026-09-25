@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { encryptionMock, encryptionMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMountedFileSecretProvenanceScanner } from '@/lib/execution/mounted-file-secret-provenance'
@@ -9,7 +6,6 @@ vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 describe('mounted file output provenance scanner', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     encryptionMockFns.mockDecryptSecret.mockImplementation(async (value: string) => ({
       decrypted:
         value === 'encrypted-a' ? 'first secret' : value === 'encrypted-b' ? 'line\n"quoted"' : '',

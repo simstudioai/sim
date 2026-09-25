@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { crunchbaseAutocompleteTool } from '@/tools/crunchbase/autocomplete'
 import { crunchbaseGetEntityTool } from '@/tools/crunchbase/get_entity'

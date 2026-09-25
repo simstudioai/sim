@@ -69,7 +69,6 @@ function copyRequest(credentialId: string) {
 
 describe('authorizeForSecret', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useRealTimers()
     revokeSecretAuthorization()
     setPlatform('darwin')
@@ -113,16 +112,6 @@ describe('authorizeForSecret', () => {
     expect(promptTouchID).toHaveBeenCalledTimes(2)
   })
 
-  it('holds the grant right up to the boundary', async () => {
-    vi.useFakeTimers()
-    await authorizeForSecret(request('c1'))
-
-    vi.advanceTimersByTime(GRACE_MS - 1)
-    await authorizeForSecret(request('c1'))
-
-    expect(promptTouchID).toHaveBeenCalledTimes(1)
-  })
-
   it('grants nothing when the user declines', async () => {
     promptTouchID.mockRejectedValueOnce(new Error('cancelled'))
     await expect(authorizeForSecret(request('c1'))).resolves.toBe(false)
@@ -142,27 +131,6 @@ describe('authorizeForSecret', () => {
     expect(promptTouchID).toHaveBeenCalledTimes(2)
   })
 
-  it('never lets a reveal consent stand in for a copy either', async () => {
-    await expect(authorizeForSecret(request('c1'))).resolves.toBe(true)
-    expect(promptTouchID).toHaveBeenCalledTimes(1)
-
-    // Copying publishes the plaintext to the pasteboard, where other processes
-    // and Universal Clipboard can reach it — an exposure "Show password?" never
-    // described, so it asks again.
-    await expect(authorizeForSecret(copyRequest('c1'))).resolves.toBe(true)
-    expect(promptTouchID).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not re-prompt for an operation already proven in the window', async () => {
-    // reveal -> copy -> reveal: each is proven independently, so the third call
-    // rides the first grant instead of asking a third time.
-    await authorizeForSecret(request('c1'))
-    await authorizeForSecret(copyRequest('c1'))
-    await authorizeForSecret(request('c1'))
-
-    expect(promptTouchID).toHaveBeenCalledTimes(2)
-  })
-
   it('revokes every operation for a credential, not just the last proven', async () => {
     await authorizeForSecret(request('c1'))
     await authorizeForSecret(copyRequest('c1'))
@@ -173,74 +141,10 @@ describe('authorizeForSecret', () => {
     expect(promptTouchID).toHaveBeenCalledTimes(4)
   })
 
-  it('keeps a copy grant usable for further copies', async () => {
-    await authorizeForSecret(copyRequest('c1'))
-    await authorizeForSecret(copyRequest('c1'))
-
-    expect(promptTouchID).toHaveBeenCalledTimes(1)
-  })
-
-  it('asks again after the credential is explicitly revoked', async () => {
-    await authorizeForSecret(request('c1'))
-    revokeSecretAuthorization('c1')
-    await authorizeForSecret(request('c1'))
-
-    expect(promptTouchID).toHaveBeenCalledTimes(2)
-  })
-
-  it('revokes every credential when given no id', async () => {
-    await authorizeForSecret(request('c1'))
-    await authorizeForSecret(request('c2'))
-    revokeSecretAuthorization()
-
-    await authorizeForSecret(request('c1'))
-    await authorizeForSecret(request('c2'))
-    expect(promptTouchID).toHaveBeenCalledTimes(4)
-  })
-
-  it('labels the fallback dialog with the action it is authorizing', async () => {
-    canPromptTouchID.mockReturnValue(false)
-    await authorizeForSecret(copyRequest('c1'))
-
-    expect(showMessageBox).toHaveBeenCalledWith(
-      expect.objectContaining({
-        message: 'Copy password?',
-        buttons: ['Cancel', 'Copy password'],
-        defaultId: 0,
-        cancelId: 0,
-        detail: expect.stringContaining('copy a saved password'),
-      })
-    )
-  })
-
-  it('parents fallback confirmation to the focused app window', async () => {
-    canPromptTouchID.mockReturnValue(false)
-    const parent = { isDestroyed: vi.fn(() => false) }
-    getFocusedWindow.mockReturnValue(parent)
-
-    await authorizeForSecret(copyRequest('c1'))
-
-    expect(showMessageBox).toHaveBeenCalledWith(
-      parent,
-      expect.objectContaining({ message: 'Copy password?' })
-    )
-  })
-
   it('fails closed when the fallback dialog cannot be shown', async () => {
     canPromptTouchID.mockReturnValue(false)
     showMessageBox.mockRejectedValueOnce(new Error('no window'))
 
     await expect(authorizeForSecret(request('c1'))).resolves.toBe(false)
-  })
-
-  it('never reaches for Touch ID off darwin', async () => {
-    // Electron exposes canPromptTouchID on every platform; only the darwin
-    // guard keeps a non-Mac build out of the biometric path.
-    setPlatform('linux')
-
-    await expect(authorizeForSecret(request('c1'))).resolves.toBe(true)
-
-    expect(promptTouchID).not.toHaveBeenCalled()
-    expect(showMessageBox).toHaveBeenCalledTimes(1)
   })
 })

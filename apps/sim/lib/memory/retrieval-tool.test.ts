@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -22,7 +19,6 @@ import { createAgentMemoryRetrievalTool } from '@/lib/memory/retrieval-tool'
 
 describe('trusted Agent memory tool binding', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.principal.mockResolvedValue({ kind: 'delegated', workspaceId: 'workspace-1' })
     mocks.retrieve.mockResolvedValue({
       source: 'history',

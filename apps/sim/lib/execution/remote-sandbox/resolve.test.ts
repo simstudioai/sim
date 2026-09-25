@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Resolution is the fail-closed boundary: a selection that cannot be honored has
  * to surface as an explicit error, never as a baffling ModuleNotFoundError
  * inside the user's code. These cases pin that contract down.
@@ -128,7 +126,6 @@ const SANDBOX_ROW = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   invalidateSandboxResolution()
   mockProviderStrategy.current = 'prebuilt'
   mockLocalGeneration.current = 1785792000000001

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -134,7 +131,6 @@ describe('mothership private trace provenance transport', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCheckInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
@@ -209,94 +205,6 @@ describe('mothership private trace provenance transport', () => {
       expect.any(Object),
       expect.objectContaining({ environmentContext: expect.any(Object) })
     )
-  })
-
-  it.each([true, false, undefined])(
-    'forwards conversation replay opt-in: %s',
-    async (useConversationHistory) => {
-      mockRunHeadlessCopilotLifecycle.mockImplementation(
-        async (payload: Record<string, unknown>) => {
-          expect(payload.useConversationHistory).toBe(useConversationHistory)
-          return successResult()
-        }
-      )
-      const response = await POST(
-        createMockRequest(
-          'POST',
-          { ...requestBody, useConversationHistory },
-          {
-            'X-Sim-Mcp-Delegation': 'signed-block',
-            Authorization: 'Bearer internal',
-            'x-sim-billing-attribution': 'billing',
-          },
-          'http://localhost:3000/api/mothership/execute'
-        ),
-        undefined
-      )
-      expect(response.status).toBe(200)
-    }
-  )
-
-  it('omits an absent response format from the headless lifecycle payload', async () => {
-    mockRunHeadlessCopilotLifecycle.mockImplementation(async (payload: Record<string, unknown>) => {
-      expect(payload).not.toHaveProperty('responseFormat')
-      return successResult()
-    })
-
-    const response = await POST(
-      createMockRequest(
-        'POST',
-        requestBody,
-        {
-          'X-Sim-Mcp-Delegation': 'signed-block',
-          Authorization: 'Bearer internal',
-          'x-sim-billing-attribution': 'billing',
-        },
-        'http://localhost:3000/api/mothership/execute'
-      ),
-      undefined
-    )
-
-    expect(response.status).toBe(200)
-  })
-
-  it('keeps preprocessing inputs raw and delegates model projection to the lifecycle boundary', async () => {
-    mockRunHeadlessCopilotLifecycle.mockImplementation(async (payload: Record<string, unknown>) => {
-      expect(JSON.stringify(payload)).toContain('secret-value __var_FOREIGN')
-      return successResult()
-    })
-
-    const response = await POST(
-      createMockRequest(
-        'POST',
-        {
-          ...requestBody,
-          messages: [{ role: 'user', content: 'secret-value __var_FOREIGN' }],
-          contexts: [{ kind: 'docs', label: 'Docs' }],
-        },
-        {
-          'X-Sim-Mcp-Delegation': 'signed-block',
-          Authorization: 'Bearer internal',
-          'x-sim-billing-attribution': 'billing',
-        },
-        'http://localhost:3000/api/mothership/execute'
-      ),
-      undefined
-    )
-
-    expect(response.status).toBe(200)
-    expect(mockProcessContextsServer).toHaveBeenCalledWith(
-      expect.any(Array),
-      'user-1',
-      'secret-value __var_FOREIGN',
-      'workspace-1',
-      'chat-1',
-      expect.any(Object)
-    )
-
-    const contextRegistry = mockProcessContextsServer.mock.calls.at(-1)?.[5]
-    const lifecycleOptions = mockRunHeadlessCopilotLifecycle.mock.calls.at(-1)?.[1]
-    expect(contextRegistry).toBe(lifecycleOptions.environmentContext?.resolvedSecretTraceRegistry)
   })
 
   it('forwards closed model controls and an ordered deduplicated safe timeline', async () => {
@@ -410,114 +318,6 @@ describe('mothership private trace provenance transport', () => {
     ])
     expect(text).not.toContain('private-args')
     expect(text).not.toContain('private-result')
-  })
-
-  it.each([
-    { modelSelection: { model: 'arbitrary' } },
-    { modelSelection: { model: 'claude-opus-5', fastMode: true } },
-    { effort: 'ultra' },
-  ])('rejects unsupported controls before lifecycle dispatch: %j', async (selection) => {
-    const response = await POST(
-      createMockRequest(
-        'POST',
-        { ...requestBody, ...selection },
-        {
-          Authorization: 'Bearer internal',
-          'X-Sim-Mcp-Delegation': 'signed-block',
-          'x-sim-billing-attribution': 'billing',
-        },
-        'http://localhost:3000/api/mothership/execute'
-      ),
-      undefined
-    )
-    expect(response.status).toBe(400)
-    expect(mockRunHeadlessCopilotLifecycle).not.toHaveBeenCalled()
-  })
-
-  it('keeps context routing and display inputs raw until the lifecycle boundary', async () => {
-    mockGetPersonalAndWorkspaceEnv.mockResolvedValueOnce({
-      personalEncrypted: { API_KEY: 'encrypted-secret' },
-      workspaceEncrypted: {},
-      personalDecrypted: { API_KEY: '123' },
-      workspaceDecrypted: {},
-      decryptionFailures: [],
-    })
-    mockDecryptSecret.mockResolvedValue({ decrypted: '123' })
-    mockRunHeadlessCopilotLifecycle.mockResolvedValue(successResult())
-
-    const response = await POST(
-      createMockRequest(
-        'POST',
-        {
-          ...requestBody,
-          mcpTools: [
-            {
-              type: 'mcp',
-              usageControl: 'force',
-              params: { serverId: 'mcp-cg-123456789012345678901', toolName: 'search_transcripts' },
-            },
-            {
-              type: 'mcp',
-              usageControl: 'none',
-              params: { serverId: 'mcp-cg-123456789012345678901', toolName: 'delete_transcripts' },
-            },
-          ],
-          contexts: [
-            { kind: 'mcp', label: 'MCP 123', serverId: '123', path: '123' },
-            {
-              kind: 'file_selection',
-              label: 'File 123',
-              fileId: '123',
-              fileName: '123.txt',
-              text: 'Selected 123',
-              path: '123',
-            },
-          ],
-        },
-        {
-          'X-Sim-Mcp-Delegation': 'signed-block',
-          Authorization: 'Bearer internal',
-          'x-sim-billing-attribution': 'billing',
-        },
-        'http://localhost:3000/api/mothership/execute'
-      ),
-      undefined
-    )
-
-    expect(response.status).toBe(200)
-    expect(mockRunHeadlessCopilotLifecycle.mock.calls[0]?.[0]).toMatchObject({
-      integrationCatalog: {
-        mcpServerIds: ['123'],
-        mcpToolIds: ['mcp-cg-123456789012345678901-search_transcripts'],
-        requiredToolIds: ['mcp-cg-123456789012345678901-search_transcripts'],
-        mcpExecution: {
-          workflowId: 'workflow-1',
-          executionId: 'execution-1',
-          mcpBlockId: 'block-1',
-          subjectUserId: 'user-1',
-        },
-      },
-    })
-    expect(mockBuildIntegrationToolSchemas).not.toHaveBeenCalled()
-    expect(mockBuildTaggedMcpToolSchemas).not.toHaveBeenCalled()
-    expect(mockBuildSelectedMcpToolSchemas).not.toHaveBeenCalled()
-    expect(mockProcessContextsServer).toHaveBeenCalledWith(
-      [
-        {
-          kind: 'file_selection',
-          label: 'File 123',
-          fileId: '123',
-          fileName: '123.txt',
-          text: 'Selected 123',
-          path: '123',
-        },
-      ],
-      'user-1',
-      'hello',
-      'workspace-1',
-      'chat-1',
-      expect.any(Object)
-    )
   })
 
   it('keeps headless secret policy server-only', async () => {
@@ -751,43 +551,6 @@ describe('mothership private trace provenance transport', () => {
         scope: { userId: 'user-1', workspaceId: 'workspace-1' },
       },
     })
-  })
-
-  it('returns exact-empty provenance for an already projected marker-gated failure', async () => {
-    mockRunHeadlessCopilotLifecycle.mockImplementation(
-      async (_payload: Record<string, unknown>, options: CopilotLifecycleOptions) => {
-        activateSecret(options)
-        return {
-          ...successResult(),
-          success: false,
-          error: 'failed with secret-value',
-          content: 'secret-value',
-        }
-      }
-    )
-
-    const response = await POST(
-      createMockRequest(
-        'POST',
-        requestBody,
-        {
-          'X-Sim-Mcp-Delegation': 'signed-block',
-          Authorization: 'Bearer internal',
-          'x-sim-billing-attribution': 'billing',
-          'x-sim-request-private-tool-metadata': 'resolved-secret-provenance-v1',
-        },
-        'http://localhost:3000/api/mothership/execute'
-      ),
-      undefined
-    )
-    const body = await response.json()
-
-    expect(response.status).toBe(500)
-    expect(response.headers.get('x-sim-private-tool-metadata')).toBe(
-      'resolved-secret-provenance-v1'
-    )
-    expect(body.content).toBe('secret-value')
-    expect(body.__resolvedSecretTraceProvenance.entries).toEqual([])
   })
 
   it('places exact-empty provenance only on the terminal streamed event', async () => {

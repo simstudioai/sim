@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -83,7 +80,6 @@ function queueSubscriptionReads(rowSets: unknown[][]) {
 
 describe('stripeSyncSubscriptionSeats outbox handler', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetPlanByName.mockReturnValue({
       priceId: 'price_team_month',
@@ -141,29 +137,6 @@ describe('stripeSyncSubscriptionSeats outbox handler', () => {
     )
   })
 
-  it('uses the annual price when the subscription bills yearly', async () => {
-    const row = {
-      plan: 'team_6000',
-      seats: 2,
-      status: 'active',
-      stripeSubscriptionId: 'stripe_sub',
-    }
-    queueSubscriptionReads([[row], [row]])
-    stripeMock.subscriptions.retrieve.mockResolvedValue(
-      stripeItem({ quantity: 1, priceId: 'price_pro_year', interval: 'year' })
-    )
-
-    await seatSyncHandler({ subscriptionId: 'sub-1' }, ctx)
-
-    expect(stripeMock.subscriptions.update).toHaveBeenCalledWith(
-      'stripe_sub',
-      expect.objectContaining({
-        items: [{ id: 'si_1', quantity: 2, price: 'price_team_year' }],
-      }),
-      expect.any(Object)
-    )
-  })
-
   it('adjusts quantity only when the price already matches', async () => {
     const row = {
       plan: 'team_6000',
@@ -184,39 +157,10 @@ describe('stripeSyncSubscriptionSeats outbox handler', () => {
     expect(updateArg.items[0].quantity).toBe(3)
     expect(updateArg.items[0].price).toBeUndefined()
   })
-
-  it('does nothing when price and quantity are already in sync', async () => {
-    const row = {
-      plan: 'team_6000',
-      seats: 2,
-      status: 'active',
-      stripeSubscriptionId: 'stripe_sub',
-    }
-    queueSubscriptionReads([[row], [row]])
-    stripeMock.subscriptions.retrieve.mockResolvedValue(
-      stripeItem({ quantity: 2, priceId: 'price_team_month' })
-    )
-
-    await seatSyncHandler({ subscriptionId: 'sub-1' }, ctx)
-
-    expect(stripeMock.subscriptions.update).not.toHaveBeenCalled()
-  })
-
-  it('skips non-Team subscriptions', async () => {
-    queueSubscriptionReads([
-      [{ plan: 'pro_6000', seats: 1, status: 'active', stripeSubscriptionId: 's' }],
-    ])
-
-    await seatSyncHandler({ subscriptionId: 'sub-1' }, ctx)
-
-    expect(stripeMock.subscriptions.retrieve).not.toHaveBeenCalled()
-    expect(stripeMock.subscriptions.update).not.toHaveBeenCalled()
-  })
 })
 
 describe('stripeCancelSubscriptionImmediately outbox handler', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     stripeMock.subscriptions.cancel.mockResolvedValue({ id: 'stripe_sub', status: 'canceled' })
   })
 

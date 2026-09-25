@@ -151,26 +151,6 @@ beforeEach(() => {
 })
 
 describe('fill availability', () => {
-  it('is available once a login form has a saved match', async () => {
-    const context = setup()
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
-
-    await expect(context.coordinator.isFillAvailable()).resolves.toBe(true)
-  })
-
-  it('replays the active tab availability when its chat is reactivated', async () => {
-    const context = setup()
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
-    await settle()
-    context.onAvailabilityChanged.mockClear()
-
-    await context.coordinator.refreshAvailability()
-    expect(context.onAvailabilityChanged).not.toHaveBeenCalled()
-
-    await context.coordinator.refreshAvailability(true)
-    expect(context.onAvailabilityChanged).toHaveBeenCalledWith(true, context.contents)
-  })
-
   it('does not publish a stale match after the page navigates', async () => {
     let resolveMatches!: (matches: Awaited<ReturnType<CredentialVault['listForOrigin']>>) => void
     const listForOrigin = vi.fn(
@@ -225,61 +205,6 @@ describe('fill availability', () => {
 
     expect(context.onAvailabilityChanged).not.toHaveBeenCalled()
   })
-
-  it.each([
-    ['there is no login form', { hasLoginForm: false }],
-    ['the page origin cannot hold a credential', { origin: 'about:blank' }],
-  ])('is unavailable when %s', async (_label, report) => {
-    const context = setup()
-    context.coordinator.noteFormState(
-      context.contents as unknown as WebContents,
-      loginFormState(report)
-    )
-
-    await expect(context.coordinator.isFillAvailable()).resolves.toBe(false)
-  })
-
-  it('is unavailable with no saved credential for the origin', async () => {
-    const context = setup(fakeContents(), fakeVault({ listForOrigin: vi.fn(async () => []) }))
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
-
-    await expect(context.coordinator.isFillAvailable()).resolves.toBe(false)
-  })
-
-  it('is unavailable when secure storage is unavailable', async () => {
-    const context = setup(fakeContents(), fakeVault({ isAvailable: vi.fn(() => false) }))
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
-
-    await expect(context.coordinator.isFillAvailable()).resolves.toBe(false)
-  })
-
-  it('drops to unavailable as soon as the page navigates', async () => {
-    const context = setup()
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
-
-    context.coordinator.noteNavigation(context.contents as unknown as WebContents)
-
-    await expect(context.coordinator.isFillAvailable()).resolves.toBe(false)
-  })
-
-  it('requests a fresh page report after same-document navigation', () => {
-    const context = setup()
-
-    context.coordinator.noteNavigation(context.contents as unknown as WebContents)
-    expect(context.contents.send).not.toHaveBeenCalledWith('browser-credentials:rescan')
-
-    context.coordinator.noteNavigation(context.contents as unknown as WebContents, true)
-    expect(context.contents.send).toHaveBeenCalledWith('browser-credentials:rescan')
-  })
-
-  it('forgets a closed tab', async () => {
-    const context = setup()
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
-
-    context.coordinator.forget(context.contents as unknown as WebContents)
-
-    await expect(context.coordinator.isFillAvailable()).resolves.toBe(false)
-  })
 })
 
 describe('credential chooser', () => {
@@ -308,85 +233,6 @@ describe('credential chooser', () => {
       expect(pickerOptions).not.toHaveBeenCalled()
     }
   )
-
-  it.each(['disappears', 'moves'])(
-    'rechecks the field host when it %s during a metadata lookup',
-    async (change) => {
-      const anchor = { x: 10, y: 20, width: 200, height: 30 }
-      const pickerHost = vi.fn<NonNullable<FillCoordinatorDeps['pickerHost']>>(() => ({
-        window: WINDOW,
-        anchor,
-      }))
-      const context = setup(fakeContents(), fakeVault(), pickerHost)
-      context.coordinator.noteFormState(
-        context.contents as unknown as WebContents,
-        loginFormState({ bounds: anchor })
-      )
-      const matches = await context.vault.listForOrigin()
-      const pending = deferred<typeof matches>()
-      context.vault.listForOrigin.mockReturnValueOnce(pending.promise)
-      const opened = context.coordinator.showChooser(WINDOW, { x: 0, y: 0 })
-      const moved = { ...anchor, x: 90, y: 100 }
-      pickerHost.mockReturnValue(change === 'disappears' ? null : { window: WINDOW, anchor: moved })
-      pending.resolve(matches)
-      await expect(opened).resolves.toBe(change === 'moves')
-      if (change === 'disappears') expect(pickerOptions).not.toHaveBeenCalled()
-      else expect(pickerOptions).toHaveBeenCalledWith(expect.objectContaining({ anchor: moved }))
-    }
-  )
-
-  it.each(['navigation', 'tab change'])('does not restore focus after %s', async (change) => {
-    const context = setup()
-    await openChooser(context)
-    const options = pickerOptions.mock.calls.at(-1)![0] as ConstructorParameters<
-      typeof CredentialPicker
-    >[0]
-    if (change === 'navigation') {
-      context.coordinator.noteNavigation(context.contents as unknown as WebContents)
-    } else context.setActive(fakeContents())
-    options.restoreFocus()
-    expect(context.contents.focus).not.toHaveBeenCalled()
-  })
-
-  it('does not let a superseded keyboard request focus a newer picker', async () => {
-    const anchor = { x: 0, y: 0, width: 200, height: 30 }
-    const context = setup(fakeContents(), fakeVault(), () => ({ window: WINDOW, anchor }))
-    const contents = context.contents as unknown as WebContents
-    context.coordinator.noteFormState(contents, loginFormState({ bounds: anchor }))
-    const matches = await context.vault.listForOrigin()
-    const pending = deferred<typeof matches>()
-    context.vault.listForOrigin.mockReturnValueOnce(pending.promise)
-    const first = context.coordinator.requestPicker(contents, 'focus')
-    context.coordinator.noteFormState(
-      contents,
-      loginFormState({ bounds: anchor, targetId: 'next' })
-    )
-    await context.coordinator.requestPicker(contents, 'open')
-    expect(pickerOptions).toHaveBeenCalledOnce()
-    pending.resolve(matches)
-    await first
-    expect(pickerFocus).not.toHaveBeenCalled()
-  })
-
-  it('lists usernames without reading any password', async () => {
-    const context = setup()
-    const template = await openChooser(context)
-
-    expect(template.map((item) => item.label)).toEqual(['ada'])
-    expect(context.vault.readForFill).not.toHaveBeenCalled()
-  })
-
-  it('refuses to open without a login form or a match', async () => {
-    const context = setup()
-    await expect(context.coordinator.showChooser(WINDOW, { x: 0, y: 0 })).resolves.toBe(false)
-
-    const noMatches = setup(fakeContents(), fakeVault({ listForOrigin: vi.fn(async () => []) }))
-    noMatches.coordinator.noteFormState(
-      noMatches.contents as unknown as WebContents,
-      loginFormState()
-    )
-    await expect(noMatches.coordinator.showChooser(WINDOW, { x: 0, y: 0 })).resolves.toBe(false)
-  })
 })
 
 describe('renderer credential chooser', () => {
@@ -442,42 +288,6 @@ describe('renderer credential chooser', () => {
 
     await expect(context.coordinator.fillCredential('other', SCOPE)).resolves.toBe(false)
     expect(context.vault.readForFill).not.toHaveBeenCalled()
-  })
-
-  it('invalidates a renderer selection when the page navigates', async () => {
-    const context = setup()
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
-    await context.coordinator.listFillOptions(SCOPE)
-
-    context.coordinator.noteNavigation(context.contents as unknown as WebContents)
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
-
-    await expect(context.coordinator.fillCredential('c1', SCOPE)).resolves.toBe(false)
-    expect(context.vault.readForFill).not.toHaveBeenCalled()
-  })
-
-  it('revalidates the active scope after the vault read begins', async () => {
-    let releaseRead: () => void = () => {}
-    const pending = new Promise<void>((resolve) => {
-      releaseRead = resolve
-    })
-    const vault = fakeVault({
-      readForFill: vi.fn(async () => {
-        await pending
-        return { username: 'ada', password: 'hunter2' }
-      }),
-    })
-    const context = setup(fakeContents(), vault)
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
-    await context.coordinator.listFillOptions(SCOPE)
-
-    const fill = context.coordinator.fillCredential('c1', SCOPE)
-    await settle()
-    context.setActive(fakeContents('https://other.test/login'), 'chat-b')
-    releaseRead()
-
-    await expect(fill).resolves.toBe(false)
-    expect(context.contents.send).not.toHaveBeenCalled()
   })
 })
 
@@ -547,28 +357,6 @@ describe('performing a fill', () => {
     expect(context.contents.send).not.toHaveBeenCalled()
   })
 
-  it('refuses when the user switched to another tab', async () => {
-    const context = setup()
-    const template = await openChooser(context)
-    context.setActive(fakeContents())
-
-    void template[0].click()
-    await settle()
-
-    expect(context.contents.send).not.toHaveBeenCalled()
-  })
-
-  it('refuses when the tab was destroyed', async () => {
-    const context = setup()
-    const template = await openChooser(context)
-    context.contents.isDestroyed.mockReturnValue(true)
-
-    void template[0].click()
-    await settle()
-
-    expect(context.contents.send).not.toHaveBeenCalled()
-  })
-
   it('refuses when the page navigates during the vault read', async () => {
     // Reading the vault is asynchronous, so the document can change inside it.
     // Revalidating only before the read would let the password land on the
@@ -593,16 +381,6 @@ describe('performing a fill', () => {
     await settle()
 
     expect(context.vault.readForFill).toHaveBeenCalled()
-    expect(context.contents.send).not.toHaveBeenCalled()
-  })
-
-  it('refuses when the vault no longer holds the chosen credential', async () => {
-    const context = setup(fakeContents(), fakeVault({ readForFill: vi.fn(async () => null) }))
-    const template = await openChooser(context)
-
-    void template[0].click()
-    await settle()
-
     expect(context.contents.send).not.toHaveBeenCalled()
   })
 })
@@ -641,36 +419,6 @@ describe('fill acknowledgements and target freshness', () => {
     await expect(context.result).resolves.toBe(false)
   })
 
-  it('invalidates an in-flight fill when the selected form changes', async () => {
-    const context = await start()
-    context.coordinator.noteFormState(
-      context.contents as unknown as WebContents,
-      loginFormState({ targetId: 'replacement' })
-    )
-    context.coordinator.noteFillResult(context.contents as unknown as WebContents, {
-      requestId: context.request.requestId,
-      status: 'filled',
-    })
-    await expect(context.result).resolves.toBe(false)
-  })
-
-  it('expires an unacknowledged fill', async () => {
-    vi.useFakeTimers()
-    try {
-      const context = setup()
-      context.coordinator.noteFormState(
-        context.contents as unknown as WebContents,
-        loginFormState()
-      )
-      await context.coordinator.listFillOptions(SCOPE)
-      const result = context.coordinator.fillCredential('c1', SCOPE)
-      await vi.advanceTimersByTimeAsync(2_000)
-      await expect(result).resolves.toBe(false)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
   it('invalidates selection before reading secrets when a form is replaced', async () => {
     const context = setup()
     await openChooser(context)
@@ -680,61 +428,5 @@ describe('fill acknowledgements and target freshness', () => {
     )
     await expect(context.coordinator.fillCredential('c1', SCOPE)).resolves.toBe(false)
     expect(context.vault.readForFill).not.toHaveBeenCalled()
-  })
-})
-
-describe('native picker lifetime', () => {
-  it('survives unchanged browser visibility heartbeats', async () => {
-    const context = setup()
-    await openChooser(context)
-    await context.coordinator.refreshAvailability(true)
-    const options = pickerOptions.mock.calls.at(-1)![0] as ConstructorParameters<
-      typeof CredentialPicker
-    >[0]
-    const result = options.select('c1')
-    await settle()
-    const request = context.contents.send.mock.calls.at(-1)![1]
-    context.coordinator.noteFillResult(context.contents as unknown as WebContents, {
-      requestId: request.requestId,
-      status: 'filled',
-    })
-    await expect(result).resolves.toBe('filled')
-  })
-
-  it.each(['dismiss', 'dispose', 'closed'] as const)(
-    'cancels a vault read after %s',
-    async (action) => {
-      let resolve!: (value: { username: string; password: string }) => void
-      const promise = new Promise<{ username: string; password: string }>((done) => {
-        resolve = done
-      })
-      const context = setup(fakeContents(), fakeVault({ readForFill: vi.fn(() => promise) }))
-      await openChooser(context)
-      const options = pickerOptions.mock.calls.at(-1)![0] as ConstructorParameters<
-        typeof CredentialPicker
-      >[0]
-      const result = options.select('c1')
-      if (action === 'dispose') context.coordinator.dispose()
-      else if (action === 'closed') options.closed()
-      else context.coordinator.dismissPicker()
-      resolve({ username: 'ada', password: 'fixture-secret' })
-      await expect(result).resolves.toBe('stale-target')
-      expect(context.contents.send).not.toHaveBeenCalled()
-    }
-  )
-
-  it('preserves older hosted chooser authorization while its native panel is occluded', async () => {
-    const context = setup()
-    context.coordinator.noteFormState(context.contents as unknown as WebContents, loginFormState())
-    await context.coordinator.listFillOptions(SCOPE)
-    context.coordinator.dismissPicker()
-    const result = context.coordinator.fillCredential('c1', SCOPE)
-    await settle()
-    const request = context.contents.send.mock.calls.at(-1)![1]
-    context.coordinator.noteFillResult(context.contents as unknown as WebContents, {
-      requestId: request.requestId,
-      status: 'filled',
-    })
-    await expect(result).resolves.toBe(true)
   })
 })

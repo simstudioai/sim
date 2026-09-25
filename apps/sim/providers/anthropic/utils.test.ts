@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Anthropic adapter emits AgentStreamEvent objects (thinking + text)
  * from Messages stream fixtures; tool_use deltas are handled by the tool loop.
  */

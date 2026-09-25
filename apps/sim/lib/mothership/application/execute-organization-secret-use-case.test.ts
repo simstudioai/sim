@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { copilotChats, member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

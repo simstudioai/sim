@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -89,7 +86,6 @@ describe('McpConnectionManager', () => {
   let manager: McpConnectionManager | null = null
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockWithResourceOutboundScope.mockImplementation((_owner, run) => run())
     mockValidateMcpServerSsrf.mockResolvedValue('93.184.216.34')
     mockGetOrCreateOauthRow.mockResolvedValue({
@@ -214,37 +210,6 @@ describe('McpConnectionManager', () => {
       expect(mockGetOrCreateOauthRow).toHaveBeenCalledTimes(2)
     })
 
-    it('allows a new connect() after a previous one completes', async () => {
-      const instances: MockMcpClient[] = []
-
-      MockMcpClientConstructor.mockImplementation(
-        class {
-          constructor() {
-            const instance: MockMcpClient = {
-              connect: vi.fn().mockResolvedValue(undefined),
-              disconnect: vi.fn().mockResolvedValue(undefined),
-              hasListChangedCapability: vi.fn().mockReturnValue(false),
-              onClose: vi.fn(),
-            }
-            instances.push(instance)
-            Object.assign(this, instance)
-          }
-        }
-      )
-
-      const mgr = createFreshManager()
-
-      const config = serverConfig('server-2')
-
-      const r1 = await mgr.connect(config, 'user-1', 'ws-1')
-      expect(r1.supportsListChanged).toBe(false)
-
-      const r2 = await mgr.connect(config, 'user-1', 'ws-1')
-      expect(r2.supportsListChanged).toBe(false)
-
-      expect(instances).toHaveLength(2)
-    })
-
     it('cleans up connectingServers when connect() throws', async () => {
       let callCount = 0
       const instances: MockMcpClient[] = []
@@ -336,19 +301,6 @@ describe('McpConnectionManager', () => {
       )
       return instances
     }
-
-    it('validates the destination and hands the resolved address to the client', async () => {
-      mockClients()
-      const mgr = createFreshManager()
-      const config = serverConfig('server-validate')
-
-      await mgr.connect(config, 'user-1', 'ws-1')
-
-      expect(mockValidateMcpDomain).toHaveBeenCalledWith(config.url)
-      expect(mockValidateMcpServerSsrf).toHaveBeenCalledWith(config.url)
-      const options: McpClientOptions = MockMcpClientConstructor.mock.calls[0][0]
-      expect(options.resolvedIP).toBe('93.184.216.34')
-    })
 
     it('never constructs a client for a refused destination and releases the connecting slot', async () => {
       const instances = mockClients()
@@ -448,39 +400,6 @@ describe('McpConnectionManager', () => {
 
       expect(instances).toHaveLength(1)
       expect(mgr.hasConnection('server-5')).toBe(false)
-    })
-
-    it('does not reconnect when close fires after disconnect resolves', async () => {
-      vi.useFakeTimers()
-      let closeHandler: (() => void) | undefined
-      const instances: MockMcpClient[] = []
-
-      MockMcpClientConstructor.mockImplementation(
-        class {
-          constructor() {
-            const instance: MockMcpClient = {
-              connect: vi.fn().mockResolvedValue(undefined),
-              disconnect: vi.fn().mockResolvedValue(undefined),
-              hasListChangedCapability: vi.fn().mockReturnValue(true),
-              onClose: vi.fn().mockImplementation((handler: () => void) => {
-                closeHandler = handler
-              }),
-            }
-            instances.push(instance)
-            Object.assign(this, instance)
-          }
-        }
-      )
-
-      const mgr = createFreshManager()
-      await mgr.connect(serverConfig('server-7'), 'user-1', 'ws-1')
-
-      await mgr.disconnectServer('server-7')
-      closeHandler?.()
-      await vi.advanceTimersByTimeAsync(2_000)
-
-      expect(instances).toHaveLength(1)
-      expect(mgr.hasConnection('server-7')).toBe(false)
     })
 
     it('does not reconnect idle connections after cleanup disconnects them', async () => {

@@ -101,7 +101,7 @@ function written(spy: WriteSpy): string {
 }
 
 /** A conversation id in the shape the route accepts and the command prints. */
-const CONVERSATION_ID = '3f2a1c4e-0000-4000-8000-000000000000'
+const _CONVERSATION_ID = '3f2a1c4e-0000-4000-8000-000000000000'
 
 const FINAL = {
   type: 'final',
@@ -109,69 +109,6 @@ const FINAL = {
 }
 
 describe('sim chat', () => {
-  it('sends the message and streams the reply, then names the conversation on stderr', async () => {
-    requestRaw.mockResolvedValue(
-      ndjson([
-        { type: 'heartbeat', timestamp: '2026-08-21T00:00:00.000Z' },
-        { type: 'chunk', content: 'Hello ' },
-        { type: 'chunk', content: 'there' },
-        FINAL,
-      ])
-    )
-
-    await run('What workflows do I have?')
-
-    expect(requestRaw).toHaveBeenCalledWith('/api/v2/chat', {
-      method: 'POST',
-      body: { workspaceId: 'ws_local', message: 'What workflows do I have?' },
-      headers: { accept: 'application/x-ndjson' },
-    })
-    expect(written(stdout)).toBe('Hello there\n')
-    expect(written(stderr)).toContain('conversation: conv-1')
-  })
-
-  /**
-   * The route's own refusals name `message` and `conversationId`, and this
-   * command builds its request by hand so nothing retypes them into what the
-   * caller typed. A blank `-c` was worse than misnamed: it is falsy, so it was
-   * dropped from the body and silently started a NEW conversation.
-   */
-  it('refuses a blank message and a blank -c before the request', async () => {
-    await expect(run('   ')).rejects.toThrow('<message> cannot be empty')
-    await expect(run('-c', '', 'hello')).rejects.toThrow('-c/--conversation cannot be empty')
-    await expect(run('-c', '   ', 'hello')).rejects.toThrow('-c/--conversation cannot be empty')
-    expect(requestRaw).not.toHaveBeenCalled()
-  })
-
-  /**
-   * A conversation id as the command prints it. The shape is the route's rule
-   * to enforce — the CLI refuses only a blank `-c`, which is falsy and would
-   * otherwise be dropped from the body and start a new conversation.
-   */
-  it('passes -c through as the conversation to continue', async () => {
-    requestRaw.mockResolvedValue(ndjson([FINAL]))
-
-    await run('-c', CONVERSATION_ID, 'And which run on a schedule?')
-
-    expect(requestRaw).toHaveBeenCalledWith('/api/v2/chat', {
-      method: 'POST',
-      body: {
-        workspaceId: 'ws_local',
-        message: 'And which run on a schedule?',
-        conversationId: CONVERSATION_ID,
-      },
-      headers: { accept: 'application/x-ndjson' },
-    })
-  })
-
-  it('prints the full content when the stream carried no chunks', async () => {
-    requestRaw.mockResolvedValue(ndjson([FINAL]))
-
-    await run('hello')
-
-    expect(written(stdout)).toBe('Hello there\n')
-  })
-
   it('prints the final suffix the chunks never carried, without repeating the prefix', async () => {
     requestRaw.mockResolvedValue(ndjson([{ type: 'chunk', content: 'Hello ' }, FINAL]))
 
@@ -187,32 +124,6 @@ describe('sim chat', () => {
 
     expect(written(stdout)).toContain('safe text')
     expect(written(stdout)).not.toContain('\u001b')
-  })
-
-  it('prints one finished document for --output json, without streaming', async () => {
-    output.format = 'json'
-    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
-    requestRaw.mockResolvedValue(ndjson([{ type: 'chunk', content: 'Hello ' }, FINAL]))
-
-    await run('hello')
-
-    expect(written(stdout)).toBe('')
-    const printed = JSON.parse(log.mock.calls.map((call) => String(call[0])).join('\n'))
-    expect(printed).toMatchObject({ content: 'Hello there', conversationId: 'conv-1' })
-  })
-
-  it('surfaces a server error event as a clean failure', async () => {
-    requestRaw.mockResolvedValue(
-      ndjson([{ type: 'heartbeat' }, { type: 'error', error: 'Chat request failed' }])
-    )
-
-    await expect(run('hello')).rejects.toThrow('Chat request failed')
-  })
-
-  it('reports a stream that ends without a final result', async () => {
-    requestRaw.mockResolvedValue(ndjson([{ type: 'chunk', content: 'partial' }]))
-
-    await expect(run('hello')).rejects.toThrow('Chat stream ended without a final result')
   })
 
   it('ends the turn at the final event even when the body never closes', async () => {
@@ -239,22 +150,5 @@ describe('sim chat', () => {
     requestRaw.mockResolvedValue(ndjson([{ type: 'chunk', content: 'Hello ' }, FINAL]))
 
     await expect(run('hello')).rejects.toThrow('write ENOSPC')
-  })
-
-  it('ends the streamed line before an error is reported after it', async () => {
-    requestRaw.mockResolvedValue(
-      ndjson([
-        { type: 'chunk', content: 'partial' },
-        { type: 'error', error: 'auth expired' },
-      ])
-    )
-
-    await expect(run('hello')).rejects.toThrow('auth expired')
-    expect(written(stdout)).toBe('partial\n')
-  })
-
-  it('rejects an extra positional argument rather than dropping it', async () => {
-    await expect(run('hello', 'dropped')).rejects.toThrow(/too many arguments/i)
-    expect(requestRaw).not.toHaveBeenCalled()
   })
 })

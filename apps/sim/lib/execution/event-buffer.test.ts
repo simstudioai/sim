@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { redisConfigMockFns, resetEnvMock, resetRedisConfigMock, setEnv } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionEventEntry } from '@/lib/execution/event-buffer'
@@ -106,7 +103,6 @@ function countOccurrences(haystack: string, needle: string): number {
 
 describe('execution event buffer', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearLargeValueCacheForTests()
     setEnv({ REDIS_URL: 'redis://localhost:6379' })
     persistedEntries.length = 0

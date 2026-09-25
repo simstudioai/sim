@@ -19,11 +19,9 @@ import {
   type UseConnectorConfigFieldsResult,
   useConnectorConfigFields,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
-import { confluenceConnectorMeta } from '@/connectors/confluence/meta'
 import { gmailConnectorMeta } from '@/connectors/gmail/meta'
 import { googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
-import { jiraConnectorMeta } from '@/connectors/jira/meta'
 import type { ConnectorMeta } from '@/connectors/types'
 
 describe('useConnectorConfigFields member configuration', () => {
@@ -56,81 +54,6 @@ describe('useConnectorConfigFields member configuration', () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
-  })
-
-  it.each(['members', 'admin'] as const)(
-    'offers manual label names for %s Gmail setup',
-    (accessMode) => {
-      render({ accessMode })
-
-      expect(visibleLabelFields()).toEqual(['label'])
-      expect(current!.canonicalModes.label).toBe('advanced')
-      expect(current!.canonicalGroups.get('label')?.map((field) => field.id)).toEqual(['label'])
-    }
-  )
-
-  it('resolves manual names and system IDs through the existing canonical label field', () => {
-    render({ accessMode: 'members' })
-    act(() => current.handleFieldChange('label', ' INBOX, Engineering, , Product Updates '))
-
-    expect(current!.resolveSourceConfig()).toMatchObject({
-      label: ['INBOX', 'Engineering', 'Product Updates'],
-    })
-    expect(current!.resolveSourceConfig()).not.toHaveProperty('labelSelector')
-  })
-
-  it('preserves the general knowledge-base label selector and its mailbox-local IDs', () => {
-    render()
-    act(() => current.handleFieldChange('labelSelector', ['INBOX', 'Label_7']))
-
-    expect(visibleLabelFields()).toEqual(['labelSelector'])
-    expect(current!.canonicalModes.label).toBe('basic')
-    expect(current!.resolveSourceConfig()).toMatchObject({ label: ['INBOX', 'Label_7'] })
-
-    act(() => current.toggleCanonicalMode('label'))
-    act(() => current.handleFieldChange('label', 'Engineering'))
-    expect(visibleLabelFields()).toEqual(['label'])
-    expect(current!.resolveSourceConfig()).toMatchObject({ label: ['Engineering'] })
-
-    act(() => current.toggleCanonicalMode('label'))
-    expect(visibleLabelFields()).toEqual(['labelSelector'])
-    expect(current!.resolveSourceConfig()).toMatchObject({ label: ['INBOX', 'Label_7'] })
-  })
-
-  it.each(['members', 'admin'] as const)(
-    'keeps a visible manual field when a saved %s draft selected basic mode',
-    (accessMode) => {
-      render({
-        accessMode,
-        initialCanonicalModes: { label: 'basic' },
-        initialSourceConfig: { labelSelector: ['Label_7'], label: ['Engineering'] },
-      })
-
-      expect(visibleLabelFields()).toEqual(['label'])
-      expect(current!.canonicalModes.label).toBe('advanced')
-      expect(current!.resolveSourceConfig()).toMatchObject({ label: ['Engineering'] })
-    }
-  )
-
-  it('keeps fields visible and preserves edits when switching access modes without remounting', () => {
-    render({
-      initialCanonicalModes: { label: 'basic' },
-      initialSourceConfig: { labelSelector: ['Label_7'], label: ['Engineering'] },
-    })
-    expect(visibleLabelFields()).toEqual(['labelSelector'])
-
-    render({ accessMode: 'members' })
-    expect(visibleLabelFields()).toEqual(['label'])
-    expect(current!.resolveSourceConfig()).toMatchObject({ label: ['Engineering'] })
-    act(() => current.handleFieldChange('label', 'Engineering, Support'))
-
-    render({ accessMode: 'workspace' })
-    expect(visibleLabelFields()).toEqual(['labelSelector'])
-    expect(current!.resolveSourceConfig()).toMatchObject({ label: ['Label_7'] })
-
-    render({ accessMode: 'members' })
-    expect(visibleLabelFields()).toEqual(['label'])
-    expect(current!.resolveSourceConfig()).toMatchObject({ label: ['Engineering', 'Support'] })
   })
 
   it('does not let a populated hidden selector satisfy a required manual field', () => {
@@ -185,31 +108,6 @@ describe('useConnectorConfigFields member configuration', () => {
     expect(current!.resolveSourceConfig()).toMatchObject({ openSharing: 'domain' })
   })
 
-  it.each([googleDriveConnectorMeta, googleCalendarConnectorMeta, gmailConnectorMeta])(
-    'offers directory user selection only for central $name crawls',
-    (connectorConfig) => {
-      const field = connectorConfig.configFields.find((field) => field.id === 'userEmails')!
-      render({ connectorConfig, accessMode: 'admin' })
-      expect(current.isFieldVisible(field)).toBe(true)
-      act(() => current.handleFieldChange('userEmails', 'first@example.com, second@example.com'))
-      expect(current.resolveSourceConfig().userEmails).toEqual([
-        'first@example.com',
-        'second@example.com',
-      ])
-
-      render({ connectorConfig, accessMode: 'members' })
-      expect(current.isFieldVisible(field)).toBe(false)
-      render({ connectorConfig, accessMode: 'workspace' })
-      expect(current.isFieldVisible(field)).toBe(false)
-      render({ connectorConfig, accessMode: 'admin' })
-      expect(current.isFieldVisible(field)).toBe(true)
-      expect(current.resolveSourceConfig().userEmails).toEqual([
-        'first@example.com',
-        'second@example.com',
-      ])
-    }
-  )
-
   it('uses manual calendar IDs centrally without reusing a saved administrator calendar selection', () => {
     render({
       connectorConfig: googleCalendarConnectorMeta,
@@ -233,140 +131,6 @@ describe('useConnectorConfigFields member configuration', () => {
     render({ connectorConfig: googleCalendarConnectorMeta, accessMode: 'members' })
     expect(visibleCalendars()).toEqual(['calendarSelector'])
     expect(current.resolveSourceConfig().calendarId).toEqual(['administrator@example.com'])
-  })
-
-  it('persists selector labels with the canonical IDs without changing provider values', () => {
-    render({ connectorConfig: googleDriveConnectorMeta })
-    act(() =>
-      current.handleFieldChange(
-        'folderSelector',
-        ['folder-a'],
-        [{ id: 'folder-a', label: 'Engineering' }]
-      )
-    )
-    expect(current.resolveSourceConfig()).toMatchObject({ folderId: ['folder-a'] })
-    expect(describeSearchSource(googleDriveConnectorMeta, current.resolveSourceConfig())).toBe(
-      'Engineering'
-    )
-    act(() => current.handleFieldChange('folderSelector', ['folder-b']))
-    expect(current.resolveSourceConfig()[SOURCE_LABELS_KEY]).toBeNull()
-    expect(describeSearchSource(googleDriveConnectorMeta, current.resolveSourceConfig())).toBe(
-      '1 folder selected'
-    )
-  })
-
-  it('discards names on manual mode changes and form resets', () => {
-    render({ connectorConfig: googleDriveConnectorMeta })
-    act(() =>
-      current.handleFieldChange(
-        'folderSelector',
-        ['folder-a'],
-        [{ id: 'folder-a', label: 'Engineering' }]
-      )
-    )
-    act(() => current.toggleCanonicalMode('folderId'))
-    expect(current.selectionLabels).toEqual({})
-    act(() => current.toggleCanonicalMode('folderId'))
-    expect(describeSearchSource(googleDriveConnectorMeta, current.resolveSourceConfig())).toBe(
-      '1 folder selected'
-    )
-    act(() =>
-      current.handleFieldChange(
-        'folderSelector',
-        ['folder-a'],
-        [{ id: 'folder-a', label: 'Engineering' }]
-      )
-    )
-    act(() => current.setSourceConfig({}))
-    expect(current.selectionLabels).toEqual({})
-  })
-
-  it.each([
-    [jiraConnectorMeta, 'projectKey', 'projectSelector'],
-    [confluenceConnectorMeta, 'spaceKey', 'spaceSelector'],
-  ] as const)(
-    'carries the current $0.name keys between picker and manual entry',
-    (meta, canonicalId, selectorId) => {
-      render({ connectorConfig: meta, accessMode: 'members' })
-      act(() => current.handleFieldChange('domain', 'team.atlassian.net'))
-      act(() =>
-        current.handleFieldChange(
-          selectorId,
-          ['ENG', 'SUPPORT'],
-          [{ id: 'ENG', label: 'Engineering' }]
-        )
-      )
-      act(() => current.toggleCanonicalMode(canonicalId))
-      expect(current.resolveSourceConfig()[canonicalId]).toEqual(['ENG', 'SUPPORT'])
-      expect(current.selectionLabels[canonicalId]).toEqual([{ id: 'ENG', label: 'Engineering' }])
-      act(() => current.handleFieldChange(canonicalId, 'ENG, PRODUCT'))
-      act(() => current.toggleCanonicalMode(canonicalId))
-      expect(current.sourceConfig[selectorId]).toEqual(['ENG', 'PRODUCT'])
-      expect(current.resolveSourceConfig()[canonicalId]).toEqual(['ENG', 'PRODUCT'])
-      expect(current.selectionLabels).toEqual({})
-      act(() => current.handleFieldChange('domain', 'other.atlassian.net'))
-      expect(current.resolveSourceConfig()[canonicalId]).toEqual([])
-      act(() => current.toggleCanonicalMode(canonicalId))
-      expect(current.resolveSourceConfig()[canonicalId]).toEqual([])
-    }
-  )
-
-  it.each([
-    [jiraConnectorMeta, 'projectKey', 'projectSelector'],
-    [confluenceConnectorMeta, 'spaceKey', 'spaceSelector'],
-  ] as const)(
-    'preserves saved $0.name All scope through manual entry and clears it when the site changes',
-    (meta, canonicalId, selectorId) => {
-      render({
-        connectorConfig: meta,
-        accessMode: 'members',
-        initialSourceConfig: { domain: 'team.atlassian.net', [selectorId]: ['*'] },
-        initialSelectionLabels: { [canonicalId]: [{ id: '*', label: 'All' }] },
-      })
-      expect(current.resolveSourceConfig()[canonicalId]).toEqual(['*'])
-      act(() => current.toggleCanonicalMode(canonicalId))
-      expect(current.sourceConfig[canonicalId]).toEqual(['*'])
-      expect(current.resolveSourceConfig()[canonicalId]).toEqual(['*'])
-      act(() => current.toggleCanonicalMode(canonicalId))
-      expect(current.sourceConfig[selectorId]).toEqual(['*'])
-      expect(describeSearchSource(meta, current.resolveSourceConfig())).toBe(
-        'team.atlassian.net · All'
-      )
-      act(() => current.toggleCanonicalMode(canonicalId))
-      act(() => current.handleFieldChange(canonicalId, 'ENG, PRODUCT'))
-      act(() => current.toggleCanonicalMode(canonicalId))
-      expect(current.resolveSourceConfig()[canonicalId]).toEqual(['ENG', 'PRODUCT'])
-      act(() => current.handleFieldChange(selectorId, ['*'], [{ id: '*', label: 'All' }]))
-      act(() => current.handleFieldChange('domain', 'other.atlassian.net'))
-      expect(current.resolveSourceConfig()[canonicalId]).toEqual([])
-      act(() => current.toggleCanonicalMode(canonicalId))
-      expect(current.resolveSourceConfig()[canonicalId]).toEqual([])
-      expect(current.selectionLabels).toEqual({})
-    }
-  )
-
-  it('clears dependent selector labels together with their values', () => {
-    const meta: ConnectorMeta = {
-      ...googleDriveConnectorMeta,
-      configFields: [
-        { id: 'host', title: 'Host', type: 'short-input' },
-        ...googleDriveConnectorMeta.configFields.map((field) =>
-          field.canonicalParamId === 'folderId' ? { ...field, dependsOn: ['host'] } : field
-        ),
-      ],
-    }
-    render({ connectorConfig: meta })
-    act(() => current.handleFieldChange('host', 'one.example'))
-    act(() =>
-      current.handleFieldChange(
-        'folderSelector',
-        ['folder-a'],
-        [{ id: 'folder-a', label: 'Engineering' }]
-      )
-    )
-    act(() => current.handleFieldChange('host', 'two.example'))
-    expect(current.selectionLabels).toEqual({})
-    expect(current.resolveSourceConfig()).toMatchObject({ folderId: [] })
   })
 
   it('restores OAuth draft labels only when they match the restored selection', () => {

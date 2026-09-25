@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import type { ConversationProtocol } from '@/lib/memory/conversation-types'
 import { providerHistoryAdapters, providerHistoryProtocols } from '@/providers/history-adapters'

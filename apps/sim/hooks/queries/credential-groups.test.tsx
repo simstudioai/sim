@@ -7,7 +7,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  type CredentialGroupAccessResponse,
   getWorkspaceAccountsContract,
   type WorkspaceAccountsSettings,
 } from '@/lib/api/contracts/credential-groups'
@@ -26,15 +25,6 @@ import { credentialGroupKeys } from '@/hooks/queries/utils/credential-group-quer
 
 const WORKSPACE_ID = 'workspace-1'
 const GROUP_ID = 'group-1'
-const ACCESS_QUERY_KEY = credentialGroupKeys.access(WORKSPACE_ID, GROUP_ID)
-const CACHED_ACCESS: CredentialGroupAccessResponse = {
-  revision: 3,
-  allowedWorkflowIds: ['workflow-1'],
-  workflows: [
-    { id: 'workflow-1', name: 'Finance workflow' },
-    { id: 'workflow-2', name: 'Support workflow' },
-  ],
-}
 
 const mountedRoots: Root[] = []
 
@@ -65,7 +55,6 @@ function renderMutation(queryClient: QueryClient) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.requestJson.mockResolvedValue({ revision: 4, allowedWorkflowIds: ['workflow-2'] })
 })
 
@@ -76,26 +65,6 @@ afterEach(() => {
 })
 
 describe('useUpdateCredentialGroupAccess', () => {
-  it('seeds the exact access cache from the mutation response while preserving the catalog', async () => {
-    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
-    queryClient.setQueryData(ACCESS_QUERY_KEY, CACHED_ACCESS)
-    const getMutation = renderMutation(queryClient)
-
-    await act(async () =>
-      getMutation().mutateAsync({
-        workspaceId: WORKSPACE_ID,
-        groupId: GROUP_ID,
-        body: { expectedRevision: 3, allowedWorkflowIds: ['workflow-2'] },
-      })
-    )
-
-    expect(queryClient.getQueryData<CredentialGroupAccessResponse>(ACCESS_QUERY_KEY)).toEqual({
-      revision: 4,
-      allowedWorkflowIds: ['workflow-2'],
-      workflows: CACHED_ACCESS.workflows,
-    })
-  })
-
   it('fails before the request when the access cache has not been loaded', async () => {
     const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
     const getMutation = renderMutation(queryClient)

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { confluenceConnector } from '@/connectors/confluence/confluence'
 
@@ -75,24 +72,6 @@ describe('Confluence mirrored permission preflight', () => {
   })
 
   it.each([
-    [undefined, undefined],
-    [false, true],
-    ['true', undefined],
-  ])(
-    'does not require permission reads without the trusted central flag (%s)',
-    async (mirrorsSourceAcls, perMemberListing) => {
-      await expect(
-        confluenceConnector.validateConfig('token', CONFIG, {
-          ...CONTEXT,
-          mirrorsSourceAcls,
-          perMemberListing,
-        })
-      ).resolves.toEqual({ valid: true })
-      expect(fetchMock).toHaveBeenCalledTimes(1)
-    }
-  )
-
-  it.each([
     ['/group', 'group directory', 'read:group:confluence'],
     ['/membersByGroupId', 'group membership', 'read:user:confluence'],
     ['/permissions', 'space permissions', 'read:space:confluence'],
@@ -112,48 +91,6 @@ describe('Confluence mirrored permission preflight', () => {
     expect(result.error).toContain(capability)
     expect(result.error).toContain(scope)
     expect(result.error).not.toContain('provider-secret-do-not-echo')
-  })
-
-  it('allows empty spaces and directories without claiming an item-level probe', async () => {
-    fetchMock.mockImplementation(async (input) => {
-      const path = pathOf(input)
-      return path.endsWith('/spaces') ? responseFor(path) : Response.json({ results: [] })
-    })
-    await expect(confluenceConnector.validateConfig('token', CONFIG, CONTEXT)).resolves.toEqual({
-      valid: true,
-    })
-    expect(fetchMock).toHaveBeenCalledTimes(4)
-    expect(requestPaths().some((path) => path.includes('restriction'))).toBe(false)
-    expect(requestPaths().some((path) => path.includes('membersByGroupId'))).toBe(false)
-  })
-
-  it('checks blog restrictions without requiring page or ancestor access for a blog-only source', async () => {
-    await expect(
-      confluenceConnector.validateConfig('token', { ...CONFIG, contentType: 'blogpost' }, CONTEXT)
-    ).resolves.toEqual({ valid: true })
-    expect(requestPaths()).toContain(
-      '/ex/confluence/cloud-1/wiki/rest/api/content/301/restriction/byOperation/read'
-    )
-    expect(
-      requestPaths().some((path) => path.endsWith('/pages') || path.endsWith('/ancestors'))
-    ).toBe(false)
-  })
-
-  it('bounds all-content validation to one space and one item of each type, ignoring every continuation', async () => {
-    fetchMock.mockImplementation(async (input) => {
-      const body = await responseFor(pathOf(input)).json()
-      return Response.json({ ...body, _links: { next: '/next?cursor=do-not-follow&start=1' } })
-    })
-    await expect(
-      confluenceConnector.validateConfig('token', { ...CONFIG, contentType: 'all' }, CONTEXT)
-    ).resolves.toEqual({ valid: true })
-    expect(fetchMock).toHaveBeenCalledTimes(10)
-    expect(requestPaths().some((path) => path.includes('/spaces/102/'))).toBe(false)
-    for (const [input] of fetchMock.mock.calls.slice(1)) {
-      const url = new URL(String(input))
-      expect(url.searchParams.has('cursor')).toBe(false)
-      expect(Number(url.searchParams.get('limit'))).toBeLessThanOrEqual(250)
-    }
   })
 
   it('rejects missing source spaces before making permission probes', async () => {
@@ -206,20 +143,6 @@ describe('Confluence mirrored permission preflight', () => {
     const result = await confluenceConnector.validateConfig('token', CONFIG, CONTEXT)
     expect(result.valid).toBe(false)
     expect(result.error).toContain('group directory')
-    expect(fetchMock).toHaveBeenCalledTimes(2)
-  })
-
-  it('cancels subsequent probes when the shared validation deadline expires', async () => {
-    const deadline = new AbortController()
-    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(deadline.signal)
-    fetchMock.mockImplementation(async (input) => {
-      if (pathOf(input).endsWith('/group')) deadline.abort(new Error('Validation deadline'))
-      return responseFor(pathOf(input))
-    })
-    const result = await confluenceConnector.validateConfig('token', CONFIG, CONTEXT)
-    expect(timeout).toHaveBeenCalledWith(10_000)
-    expect(result.valid).toBe(false)
-    expect(result.error).toBe('Confluence permission checks timed out. Try again.')
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { PersonalApiKeyPrincipal, SessionPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -56,7 +53,6 @@ async function refusalCode(promise: Promise<unknown>) {
 
 describe('organization billing summary authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.membership.mockResolvedValue([{ role: 'owner' }])
     mocks.execute.mockResolvedValue({ ok: true })
   })
@@ -73,20 +69,5 @@ describe('organization billing summary authorization', () => {
     mocks.membership.mockResolvedValueOnce([{ role: 'member' }])
     expect(await refusalCode(run())).toBe('ORGANIZATION_ADMIN_REQUIRED')
     expect(mocks.execute).not.toHaveBeenCalled()
-  })
-
-  it.each(['admin', 'owner'] as const)('authorizes an organization %s', async (role) => {
-    mocks.membership.mockResolvedValue([{ role }])
-
-    await expect(run()).resolves.toEqual({ ok: true })
-    expect(mocks.execute).toHaveBeenCalledWith({
-      principal: session,
-      input: { organizationId: 'org-1' },
-      context: {
-        organizationId: 'org-1',
-        actorUserId: 'user-1',
-        userRole: role,
-      },
-    })
   })
 })

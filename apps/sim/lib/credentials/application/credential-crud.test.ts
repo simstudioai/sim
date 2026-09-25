@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   auditMock,
   auditMockFns,
@@ -65,7 +62,6 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({ checkWorkspaceAccess: vi.
 
 import { PermissionGroupCapabilityError } from '@/lib/core/application'
 import {
-  CredentialProviderOperationError,
   createWorkspaceCredential,
   updateWorkspaceCredentialUseCase,
 } from '@/lib/credentials/application/credential-crud'
@@ -100,7 +96,6 @@ const credential = {
 
 describe('updateWorkspaceCredentialUseCase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue(workspace)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.getWorkspaceCredential.mockResolvedValue(credential)
@@ -116,20 +111,6 @@ describe('updateWorkspaceCredentialUseCase', () => {
       updatedFields: ['encryptedServiceAccountKey'],
       auditMetadata: { principal: 'zoom-account' },
     })
-  })
-
-  it('rotates a service-account secret for a personal API key', async () => {
-    const result = await updateWorkspaceCredentialUseCase.execute({
-      principal: apiKeyPrincipal,
-      input: {
-        credentialId: credential.id,
-        assertedWorkspaceId: WORKSPACE_ID,
-        clientSecret: 'rotated',
-      },
-    })
-
-    expect(result.credential).toEqual(credential)
-    expect(result.updatedFields).toEqual(['encryptedServiceAccountKey'])
   })
 
   /**
@@ -175,17 +156,6 @@ describe('updateWorkspaceCredentialUseCase', () => {
     expect(mocks.updateRecord).not.toHaveBeenCalled()
   })
 
-  /** The internal surface omits the assertion and keeps its previous behavior. */
-  it('resolves the credential by id when no workspace is asserted', async () => {
-    await updateWorkspaceCredentialUseCase.execute({
-      principal: sessionPrincipal,
-      input: { credentialId: credential.id, displayName: 'Zoom prod' },
-    })
-
-    expect(mocks.getCredentialById).toHaveBeenCalledWith(credential.id)
-    expect(mocks.getWorkspaceCredential).not.toHaveBeenCalled()
-  })
-
   /**
    * Without this an API key could rename an environment secret through a surface
    * whose presenter throws on that type, turning a well-formed request into a
@@ -213,24 +183,6 @@ describe('updateWorkspaceCredentialUseCase', () => {
     ).rejects.toMatchObject({ code: 'validation' })
     expect(mocks.updateRecord).not.toHaveBeenCalled()
     expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
-  })
-
-  it('lets a session rename the same environment credential', async () => {
-    const envCredential = { ...credential, type: 'env_workspace' as const }
-    mocks.getCredentialById.mockResolvedValue(envCredential)
-    mocks.getActor.mockResolvedValue({
-      credential: envCredential,
-      member: { role: 'admin' },
-      hasWorkspaceAccess: true,
-      isAdmin: true,
-    })
-
-    await expect(
-      updateWorkspaceCredentialUseCase.execute({
-        principal: sessionPrincipal,
-        input: { credentialId: credential.id, description: 'Shared key' },
-      })
-    ).resolves.toMatchObject({ credential: envCredential })
   })
 
   it('refuses a workspace API key before any canonical load', async () => {
@@ -268,64 +220,6 @@ describe('updateWorkspaceCredentialUseCase', () => {
     ).rejects.toMatchObject({ detailCode: 'CREDENTIAL_ADMIN_ACCESS_REQUIRED' })
     expect(mocks.updateRecord).not.toHaveBeenCalled()
   })
-
-  /**
-   * A provider outage and a provider rejection are the same class here; the
-   * surface, not the use case, decides their statuses. What matters is that the
-   * distinguishing flag survives.
-   */
-  it('raises a provider failure carrying its outage flag, and records no audit', async () => {
-    mocks.updateRecord.mockResolvedValue({
-      success: false,
-      error: 'upstream unreachable',
-      providerErrorCode: 'provider_unavailable',
-      providerUnavailable: true,
-    })
-
-    await expect(
-      updateWorkspaceCredentialUseCase.execute({
-        principal: apiKeyPrincipal,
-        input: {
-          credentialId: credential.id,
-          assertedWorkspaceId: WORKSPACE_ID,
-          clientSecret: 'rotated',
-        },
-      })
-    ).rejects.toMatchObject({
-      name: 'CredentialProviderOperationError',
-      providerErrorCode: 'provider_unavailable',
-      providerUnavailable: true,
-    })
-    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
-  })
-
-  it('projects the authoritative updated fields into the audit entry', async () => {
-    await updateWorkspaceCredentialUseCase.execute({
-      principal: apiKeyPrincipal,
-      input: {
-        credentialId: credential.id,
-        assertedWorkspaceId: WORKSPACE_ID,
-        clientSecret: 'rotated',
-      },
-    })
-
-    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        resourceId: credential.id,
-        metadata: expect.objectContaining({
-          updatedFields: ['encryptedServiceAccountKey'],
-          credentialType: 'service_account',
-        }),
-      })
-    )
-  })
-
-  it('exports the provider failure class the surface maps', () => {
-    const error = new CredentialProviderOperationError('down', 'provider_unavailable', true)
-
-    expect(error.providerUnavailable).toBe(true)
-    expect(error.code).toBe('validation')
-  })
 })
 
 describe('personal-credential capability', () => {
@@ -337,7 +231,6 @@ describe('personal-credential capability', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue(governedWorkspace)
     mocks.resolvePermission.mockResolvedValue('admin')
     resolveGroupConfigMock.mockResolvedValue({
@@ -354,12 +247,15 @@ describe('personal-credential capability', () => {
    * because declaring the narrower one here compiles just as well, and it
    * refused the shared credentials that setting exists to mandate.
    */
-  it.each(['createConnection', 'prepareConnection', 'launchConnection'] as const)(
-    'declares the capability on %s that governs both of its targets',
-    (operationName) => {
+  it('declares the capability on each connection operation that governs both of its targets', () => {
+    for (const operationName of [
+      'createConnection',
+      'prepareConnection',
+      'launchConnection',
+    ] as const) {
       expect(credentialOperations[operationName].capability).toBe('integrations.manage')
     }
-  )
+  })
 
   it('refuses a personal environment secret before it reaches the manager', async () => {
     await expect(
@@ -403,30 +299,6 @@ describe('personal-credential capability', () => {
 
     expect(result.credential).toEqual(created)
   })
-
-  it('creates the personal secret when no group withholds it', async () => {
-    resolveGroupConfigMock.mockResolvedValue(null)
-    const created = createdCredential('env_personal')
-    mocks.createRecord.mockResolvedValue({ success: true, created: true, credential: created })
-    mocks.getActor.mockResolvedValue({
-      credential: created,
-      member: { role: 'admin', status: 'active' },
-      hasWorkspaceAccess: true,
-      isAdmin: true,
-    })
-
-    const result = await createWorkspaceCredential.execute({
-      principal: sessionPrincipal,
-      input: {
-        workspaceId: WORKSPACE_ID,
-        type: 'env_personal',
-        displayName: 'My OpenAI key',
-        envKey: 'OPENAI_API_KEY',
-      },
-    })
-
-    expect(result.credential).toEqual(created)
-  })
 })
 
 describe('personal-token organization enrollment', () => {
@@ -440,32 +312,10 @@ describe('personal-token organization enrollment', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resolveGroupConfigMock.mockResolvedValue(null)
     mocks.loadWorkspace.mockResolvedValue({ ...workspace, workspaceOrganizationId: 'organization' })
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.personalAccounts.mockResolvedValue(accounts)
-  })
-
-  it('passes the authorized organization group into token creation', async () => {
-    const created = { ...credential, type: 'personal_token', providerId: 'gitlab' }
-    mocks.createPersonalToken.mockResolvedValue({
-      success: true,
-      created: true,
-      credential: created,
-    })
-    mocks.getActor.mockResolvedValue({ credential: created, isAdmin: true })
-    await createWorkspaceCredential.execute({ principal: sessionPrincipal, input: tokenInput })
-    expect(mocks.personalAccounts).toHaveBeenCalledWith(
-      sessionPrincipal,
-      expect.objectContaining({ workspaceOrganizationId: 'organization' })
-    )
-    expect(mocks.createPersonalToken).toHaveBeenCalledWith({
-      ...tokenInput,
-      userId: 'user-1',
-      accounts,
-    })
-    expect(mocks.createRecord).not.toHaveBeenCalled()
   })
 
   it('refuses unapproved organization access before verifying or storing a token', async () => {

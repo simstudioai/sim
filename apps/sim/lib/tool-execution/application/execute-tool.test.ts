@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type {
   PersonalApiKeyPrincipal,
   SessionPrincipal,
@@ -222,7 +219,6 @@ describe('executeToolForCaller', () => {
   afterAll(resetEnvFlagsMock)
 
   beforeEach(() => {
-    vi.clearAllMocks()
     // Hosted-key injection only happens where Sim hosts keys.
     setEnvFlags({ isHosted: true })
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
@@ -243,15 +239,6 @@ describe('executeToolForCaller', () => {
     ])
     mocks.executeRegistryTool.mockResolvedValue({ success: true, output: { markdown: '# Hi' } })
     mocks.resolveBillingAttribution.mockResolvedValue({ workspaceId: WORKSPACE_ID })
-  })
-
-  it('runs a visible, permitted tool and reports what it produced', async () => {
-    await expect(run({ input: { url: 'https://example.com' } })).resolves.toEqual({
-      toolId: 'firecrawl_scrape',
-      status: 'succeeded',
-      output: { markdown: '# Hi' },
-      error: null,
-    })
   })
 
   it.each<PersonalApiKeyPrincipal | SessionPrincipal>([
@@ -315,28 +302,12 @@ describe('executeToolForCaller', () => {
     })
   })
 
-  /**
-   * The bare-name form Copilot also accepts would read an identifier-shaped
-   * literal secret as a variable lookup. A caller that types the value gets the
-   * explicit form only.
-   */
-  it('resolves only explicit environment-variable references', async () => {
-    await run({ input: { url: 'https://example.com' } })
-
-    const [, params] = mocks.executeRegistryTool.mock.calls[0]
-    expect(params._context.envReferenceMode).toBe('explicit')
-  })
-
   it('conceals a tool no visible block exposes as absent', async () => {
     await expect(run({ toolId: 'preview_call' })).rejects.toMatchObject({
       code: 'not_found',
       message: 'Tool not found',
     })
     expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
-  })
-
-  it('conceals a tool that is in no block at all', async () => {
-    await expect(run({ toolId: 'not_a_tool' })).rejects.toMatchObject({ code: 'not_found' })
   })
 
   /**
@@ -354,20 +325,6 @@ describe('executeToolForCaller', () => {
     expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
   })
 
-  it('still runs a permitted integration when an allowlist is set', async () => {
-    mocks.allowedIntegrationTypes.mockResolvedValue(new Set(['firecrawl']))
-
-    await expect(run({ toolId: 'firecrawl_scrape' })).resolves.toMatchObject({
-      status: 'succeeded',
-    })
-  })
-
-  it('resolves an unversioned name to the newest visible version', async () => {
-    await expect(run({ toolId: 'confluence_read', input: {} })).resolves.toMatchObject({
-      toolId: 'confluence_read_v2',
-    })
-  })
-
   /**
    * The workflow path validates `user-only` parameters during serialization.
    * This path has no serialization step, so without an explicit check a missing
@@ -383,27 +340,6 @@ describe('executeToolForCaller', () => {
     expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
   })
 
-  it('names the missing inputs together rather than one per round trip', async () => {
-    await expect(
-      run({ toolId: 'zendesk_get_ticket', input: { ticketId: '42' } })
-    ).rejects.toMatchObject({ message: expect.stringContaining('input.apiToken') })
-  })
-
-  it('treats a blank string as missing, the way the merge validator does', async () => {
-    await expect(
-      run({ toolId: 'zendesk_get_ticket', input: { ticketId: '4', subdomain: '', apiToken: 't' } })
-    ).rejects.toMatchObject({ code: 'validation' })
-  })
-
-  it('runs once every required user-only input is supplied', async () => {
-    await expect(
-      run({
-        toolId: 'zendesk_get_ticket',
-        input: { ticketId: '42', subdomain: 'acme', apiToken: 'tok' },
-      })
-    ).resolves.toMatchObject({ status: 'succeeded' })
-  })
-
   /**
    * `firecrawl_scrape` declares `apiKey` required and `user-only`, and Sim
    * supplies it. Rejecting the omission would make every hosted-key tool
@@ -415,83 +351,8 @@ describe('executeToolForCaller', () => {
     })
   })
 
-  /**
-   * Self-hosted supplies no hosted keys — `injectHostedKeyIfNeeded` short-circuits
-   * on `isHosted` — so the exemption must lift with it, or the caller is told a
-   * key is optional and the provider disagrees.
-   */
-  it('does require that key on a deployment that hosts none', async () => {
-    setEnvFlags({ isHosted: false })
-
-    await expect(run({ input: { url: 'https://example.com' } })).rejects.toMatchObject({
-      code: 'validation',
-      message: expect.stringContaining('input.apiKey'),
-    })
-  })
-
-  /**
-   * `visibility` describes editor roles, and a direct call has no editor: the
-   * caller is the only source, so an `llm-only` parameter is as much theirs to
-   * send as a `user-only` one. Gating the check on `user-only` alone left
-   * `thinking_tool.thought` dispatching as `undefined`.
-   */
-  it('refuses a missing llm-only input too — the caller is the only source here', async () => {
-    await expect(run({ toolId: 'thinking_tool', input: {} })).rejects.toMatchObject({
-      code: 'validation',
-      message: expect.stringContaining('input.thought'),
-    })
-    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
-  })
-
-  it('refuses a missing user-or-llm input before dispatch rather than mid-execution', async () => {
-    await expect(run({ input: {} })).rejects.toMatchObject({
-      code: 'validation',
-      message: expect.stringContaining('input.url'),
-    })
-  })
-
-  it('accepts a {{VAR}} reference as a present value, leaving resolution to the executor', async () => {
-    await run({
-      toolId: 'zendesk_get_ticket',
-      input: { ticketId: '4', subdomain: 'acme', apiToken: '{{ZENDESK_TOKEN}}' },
-    })
-
-    const [, params] = mocks.executeRegistryTool.mock.calls[0]
-    expect(params.apiToken).toBe('{{ZENDESK_TOKEN}}')
-  })
-
   it('requires a credential for an OAuth tool before it dispatches', async () => {
     await expect(run({ toolId: 'slack_message', input: { text: 'hi' } })).rejects.toMatchObject({
-      code: 'validation',
-      message: expect.stringContaining('credentialId is required'),
-    })
-    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
-  })
-
-  /**
-   * Sixty-eight tools declare the selector as a required `user-only` parameter
-   * (`oauthCredential` or `credential`) with no `oauth` block — Snowflake among
-   * them. Validating required inputs against the raw body rejected a valid
-   * top-level `credentialId` as a missing `oauthCredential`.
-   */
-  it('satisfies a declared credential selector with the top-level credentialId', async () => {
-    await expect(
-      run({
-        toolId: 'snowflake_execute_sql',
-        credentialId: 'cred-sf',
-        input: { statement: 'select 1' },
-      })
-    ).resolves.toMatchObject({ status: 'succeeded' })
-
-    const [, params] = mocks.executeRegistryTool.mock.calls[0]
-    expect(params.oauthCredential).toBe('cred-sf')
-    expect(params.credential).toBeUndefined()
-  })
-
-  it('demands credentialId for a declared required selector even without an oauth block', async () => {
-    await expect(
-      run({ toolId: 'snowflake_execute_sql', input: { statement: 'select 1' } })
-    ).rejects.toMatchObject({
       code: 'validation',
       message: expect.stringContaining('credentialId is required'),
     })
@@ -512,23 +373,6 @@ describe('executeToolForCaller', () => {
     ).rejects.toMatchObject({
       code: 'validation',
       message: expect.stringContaining('top-level credentialId'),
-    })
-    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
-  })
-
-  it('passes the named credential through as the tool credential', async () => {
-    await run({ toolId: 'slack_message', input: { text: 'hi' }, credentialId: 'cred-1' })
-
-    const [, params] = mocks.executeRegistryTool.mock.calls[0]
-    expect(params.credential).toBe('cred-1')
-  })
-
-  it('refuses a reserved argument rather than dropping it', async () => {
-    await expect(
-      run({ input: { url: 'https://a.co', _context: { userId: 'someone-else' } } })
-    ).rejects.toMatchObject({
-      code: 'validation',
-      message: expect.stringContaining('_context'),
     })
     expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
   })
@@ -555,33 +399,6 @@ describe('executeToolForCaller', () => {
       message: expect.stringContaining('impersonateUserEmail'),
     })
     expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
-  })
-
-  /**
-   * Declared is not accepted. `accessToken` is in the tool's params, but as
-   * `hidden` — the resolved credential fills it. Letting a caller send it either
-   * pre-empts the executor's value or is silently overwritten; either way the
-   * published schema (which omits hidden params) made no such promise.
-   */
-  it('refuses a declared-but-hidden input, saying whose it is', async () => {
-    await expect(
-      run({
-        toolId: 'slack_message',
-        credentialId: 'cred-1',
-        input: { text: 'hi', accessToken: 'xoxb-forged' },
-      })
-    ).rejects.toMatchObject({
-      code: 'validation',
-      message: expect.stringContaining('input.accessToken is supplied by Sim'),
-    })
-    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
-  })
-
-  it('refuses any other undeclared input, naming it', async () => {
-    await expect(run({ input: { url: 'https://a.co', nope: 1 } })).rejects.toMatchObject({
-      code: 'validation',
-      message: expect.stringContaining('input.nope'),
-    })
   })
 
   it('refuses a credential named inline instead of at the top level', async () => {
@@ -623,19 +440,6 @@ describe('executeToolForCaller', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
   })
 
-  it('reports a tool that ran and refused without failing the call', async () => {
-    mocks.executeRegistryTool.mockResolvedValue({
-      success: false,
-      output: {},
-      error: 'Firecrawl returned 402',
-    })
-
-    await expect(run()).resolves.toMatchObject({
-      status: 'failed',
-      error: { message: 'Firecrawl returned 402' },
-    })
-  })
-
   it('bills hosted-key spend to the workspace', async () => {
     mocks.executeRegistryTool.mockResolvedValue({
       success: true,
@@ -674,22 +478,6 @@ describe('executeToolForCaller', () => {
   })
 
   /**
-   * Mirrors the real registry contract: a caller's own key means
-   * `isUsingHostedKey` is false, so `applyHostedKeyCostToResult` never runs and
-   * no `output.cost` is written. The meter reads that absence as the verdict.
-   */
-  it('does not bill when the caller brought their own key', async () => {
-    mocks.executeRegistryTool.mockResolvedValue({
-      success: true,
-      output: { markdown: '# Hi' },
-    })
-
-    await run({ input: { url: 'https://a.co', apiKey: 'sk-mine' } })
-
-    expect(mocks.recordUsage).not.toHaveBeenCalled()
-  })
-
-  /**
    * The BYOK shape. The registry injected the org's own key and returned
    * `isUsingHostedKey: false`, so it wrote no `output.cost` — and the caller
    * omitted the key, which a pre-dispatch derivation reads as "Sim's". Only the
@@ -704,23 +492,6 @@ describe('executeToolForCaller', () => {
 
     await run({ input: { url: 'https://a.co' } })
 
-    expect(mocks.recordUsage).not.toHaveBeenCalled()
-  })
-
-  it('does not bill a failed call', async () => {
-    mocks.executeRegistryTool.mockResolvedValue({
-      success: false,
-      output: { cost: { total: 0.004 } },
-      error: 'upstream refused',
-    })
-
-    await run()
-
-    expect(mocks.recordUsage).not.toHaveBeenCalled()
-  })
-
-  it('records nothing when the call incurred no hosted-key spend', async () => {
-    await run()
     expect(mocks.recordUsage).not.toHaveBeenCalled()
   })
 

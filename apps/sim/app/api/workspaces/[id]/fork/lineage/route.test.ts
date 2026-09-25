@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns, createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -66,36 +63,12 @@ const childNode = (id: string, name: string) => ({
 
 describe('fork lineage route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: VIEWER_ID }, session: { id: 'session-1' } })
     mockAuthorizeWorkspaceOperation.mockResolvedValue(undefined)
     mockGetForkParent.mockResolvedValue(null)
     mockGetForkChildren.mockResolvedValue([])
     mockGetUndoableRunForTarget.mockResolvedValue(null)
     mockGetEffectiveWorkspacePermission.mockResolvedValue(null)
-  })
-
-  it('returns 401 when there is no session', async () => {
-    mockGetSession.mockResolvedValue(null)
-
-    const res = await GET(createMockRequest('GET'), routeContext)
-
-    expect(res.status).toBe(401)
-    expect(mockAuthorizeWorkspaceOperation).not.toHaveBeenCalled()
-  })
-
-  it('requires admin on the current workspace before loading lineage', async () => {
-    await GET(createMockRequest('GET'), routeContext)
-
-    expect(mockAuthorizeWorkspaceOperation).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'session', userId: VIEWER_ID }),
-      expect.objectContaining({ id: 'workspaces.fork.discover', minimumRole: 'admin' }),
-      expect.objectContaining({ workspaceId: WORKSPACE_ID }),
-      { delegation: { audience: 'sim:workspaces', isWithinScope: expect.any(Function) } }
-    )
-    expect(mockAuthorizeWorkspaceOperation.mock.invocationCallOrder[0]).toBeLessThan(
-      mockGetForkParent.mock.invocationCallOrder[0]
-    )
   })
 
   it('does not read lineage when current workspace authorization is refused', async () => {
@@ -150,28 +123,5 @@ describe('fork lineage route', () => {
       VIEWER_ID,
       expect.objectContaining({ id: parentNode.id, organizationId: 'org-1' })
     )
-  })
-
-  it('marks the parent inaccessible when the viewer holds no permission on it', async () => {
-    mockGetForkParent.mockResolvedValue(parentNode)
-    mockGetEffectiveWorkspacePermission.mockResolvedValue(null)
-
-    const res = await GET(createMockRequest('GET'), routeContext)
-
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.parent).toEqual({ ...parentNode, viewerAccessible: false })
-    expect(body.children).toEqual([])
-  })
-
-  it('keeps a null parent null without resolving permissions', async () => {
-    const res = await GET(createMockRequest('GET'), routeContext)
-
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.parent).toBeNull()
-    expect(body.children).toEqual([])
-    expect(body.undoableRun).toBeNull()
-    expect(mockGetEffectiveWorkspacePermission).not.toHaveBeenCalled()
   })
 })

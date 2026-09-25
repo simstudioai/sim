@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -15,7 +12,6 @@ import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/t
 
 describe('executeLatexTool', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.compileLatexDocument.mockResolvedValue({ pdfUrl: '/file.pdf' })
   })
 

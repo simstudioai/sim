@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { sleep } from '@sim/utils/helpers'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 

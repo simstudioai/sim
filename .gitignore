@@ -18,6 +18,9 @@ package-lock.json
 # testing
 /coverage
 /apps/**/coverage
+.vitest/
+/apps/*/test-results
+/packages/*/test-results
 
 # next.js
 /.next/

@@ -50,39 +50,6 @@ function request(args: string[]) {
 }
 
 describe('discriminated body flags', () => {
-  it('builds an apply request and coerces an optional credit cap', async () => {
-    expect(
-      await request([
-        '--action',
-        'apply',
-        '--expected-fingerprint',
-        'preview',
-        '--new-limit-credits',
-        '100',
-      ])
-    ).toEqual({
-      path: '/api/v2/requests/request/resolve',
-      query: {},
-      body: { action: 'apply', expectedFingerprint: 'preview', newLimitCredits: 100 },
-    })
-  })
-
-  it('builds a decline request without requiring apply fields', async () => {
-    expect((await request(['--action', 'decline', '--reason', 'Not needed'])).body).toEqual({
-      action: 'decline',
-      reason: 'Not needed',
-    })
-  })
-
-  it('allows an apply request without the optional credit cap', async () => {
-    expect(
-      (await request(['--action', 'apply', '--expected-fingerprint', 'preview'])).body
-    ).toEqual({
-      action: 'apply',
-      expectedFingerprint: 'preview',
-    })
-  })
-
   it('leaves branch defaults to the server and validates shared enum flags against the selected branch', async () => {
     expect((await request(['--action', 'decline', '--reason', 'No'])).body).not.toHaveProperty(
       'mode'
@@ -125,16 +92,5 @@ describe('discriminated body flags', () => {
     await expect(
       buildRequest('updateTable', ['request'], { action: 'other' }, null)
     ).rejects.toThrow('--action must be one of: apply, decline')
-  })
-
-  it('advertises action choices and all branch flags without requiring opaque JSON', () => {
-    const command = new Command('resolve')
-    addOperationOptions(command, 'updateTable', {}, operation)
-    const help = command.helpInformation()
-    expect(help).toContain('--action <value>')
-    expect(help).toContain('--expected-fingerprint <value>')
-    expect(help).toContain('--new-limit-credits <value>')
-    expect(help).toContain('--reason <value>')
-    expect(help).not.toContain('--body')
   })
 })

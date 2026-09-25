@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { DAGExecutor } from '@/executor/execution/executor'

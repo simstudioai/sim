@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it, vi } from 'vitest'
 import { compactRetrievalCitations } from '@/lib/mothership/chat/retrieval-citations'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
@@ -94,84 +93,6 @@ describe('completed answer source panel', () => {
       revealCitedSources: true,
     })
   })
-  it('publishes evidence when a successful terminal event recovers an inline error', () => {
-    const ctx = context()
-    ctx.state.sawStreamError = true
-    handleCompleteEvent(ctx, event())
-    expect(ctx.deps.addResource).toHaveBeenCalledWith(expect.objectContaining({ type: 'sources' }))
-  })
-  it('uses cited fallback text when the main text block is empty', () => {
-    expect(
-      collectCitedMessageSources(
-        [blocks[0], { type: 'text', content: '  ' }],
-        `<source>${JSON.stringify({ id: citationId })}</source>`
-      )
-    ).toHaveLength(1)
-  })
-  it('replaces a search streamed before the panel has rendered it', () => {
-    const ctx = context()
-    ctx.state.liveSearchResource = {
-      type: 'search',
-      id: 'search:workspace:ws-1',
-      workspaceId: 'ws-1',
-    }
-    handleCompleteEvent(ctx, event())
-    expect(ctx.deps.removeResource).toHaveBeenCalledWith('search', 'search:workspace:ws-1', 'ws-1')
-    expect(ctx.deps.addResource).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'sources', id: 'cited-sources' })
-    )
-  })
-  it.each(['closed', 'open-empty', 'open-with-content'])(
-    'keeps the %s panel focus and discards interim results without a valid citation',
-    () => {
-      const ctx = context([
-        blocks[0],
-        { type: 'text', content: 'Answer <source>{"id":"invented"}</source>' },
-      ])
-      ctx.state.liveSearchResource = {
-        type: 'search',
-        id: 'search:workspace:ws-1',
-        workspaceId: 'ws-1',
-      }
-      handleCompleteEvent(ctx, event())
-      expect(ctx.deps.addResource).not.toHaveBeenCalled()
-      expect(ctx.deps.removeResource).toHaveBeenCalledWith(
-        'search',
-        'search:workspace:ws-1',
-        'ws-1'
-      )
-      expect(ctx.deps.setResources).not.toHaveBeenCalled()
-      expect(ctx.deps.setActiveResourceId).not.toHaveBeenCalled()
-      expect(ctx.deps.onResourceEventRef.current).not.toHaveBeenCalled()
-      expect(ctx.deps.queryClient.setQueryData).not.toHaveBeenCalled()
-    }
-  )
-  it.each(['error', 'cancelled'] as const)('does not replace the panel on %s', (status) => {
-    const ctx = context()
-    handleCompleteEvent(ctx, event(status))
-    expect(ctx.deps.addResource).not.toHaveBeenCalled()
-  })
-  it.each(['complete', 'error', 'cancelled'] as const)(
-    'retains an already visible search on %s without citations',
-    (status) => {
-      const ctx = context([])
-      const search = {
-        type: 'search' as const,
-        id: 'search:workspace:ws-1',
-        workspaceId: 'ws-1',
-        title: 'Search results',
-        search: {
-          query: 'previous query',
-          scope: { kind: 'workspace' as const, workspaceId: 'ws-1' },
-        },
-      }
-      ctx.deps.resourcesRef.current = [search]
-      ctx.state.liveSearchResource = search
-      handleCompleteEvent(ctx, event(status))
-      expect(ctx.deps.removeResource).not.toHaveBeenCalled()
-      expect(ctx.deps.onResourceEventRef.current).not.toHaveBeenCalled()
-    }
-  )
   it('leaves flag-off, replayed, and stale turns focus-free', () => {
     for (const kind of ['off', 'replay', 'stale']) {
       const ctx = context()

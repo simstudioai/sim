@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { respondTool, respondV2Tool } from '@/tools/google_calendar/respond'
 import type { GoogleCalendarRespondParams } from '@/tools/google_calendar/types'

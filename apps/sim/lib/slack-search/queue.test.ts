@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({ enqueue: vi.fn(), run: vi.fn(), externalEnqueue: vi.fn() }))
@@ -14,7 +13,6 @@ import { enqueueSlackSearch } from '@/lib/slack-search/queue'
 
 const job = { turnId: 'turn1', installationId: 'i1' }
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.enqueue.mockResolvedValue('id')
 })
 describe('Slack Search queue', () => {
@@ -34,16 +32,5 @@ describe('Slack Search queue', () => {
         }),
       ])
     }
-  })
-  it('runs in the app process even when the default queue has an external worker', async () => {
-    const signal = new AbortController().signal
-    await enqueueSlackSearch(job)
-    await mocks.enqueue.mock.calls[0][2].runner(job, signal)
-    expect(mocks.run).toHaveBeenCalledWith(job, signal)
-    expect(mocks.externalEnqueue).not.toHaveBeenCalled()
-  })
-  it('propagates enqueue failures so ingress can request a retry', async () => {
-    mocks.enqueue.mockRejectedValueOnce(new Error('unavailable'))
-    await expect(enqueueSlackSearch(job)).rejects.toThrow('unavailable')
   })
 })

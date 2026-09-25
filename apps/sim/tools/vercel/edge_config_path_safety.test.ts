@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Guards every Vercel tool against path traversal through an LLM-writable ID
  * that gets interpolated into the request path.
  *

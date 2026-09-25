@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { createPRReviewTool, createPRReviewV2Tool } from '@/tools/github/create_pr_review'
 

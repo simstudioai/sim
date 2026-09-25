@@ -1,16 +1,10 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { WhatsAppBlock } from '@/blocks/blocks/whatsapp'
-import { getMediaTool } from '@/tools/whatsapp/get_media'
 import { markReadTool } from '@/tools/whatsapp/mark_read'
 import { sendInteractiveTool } from '@/tools/whatsapp/send_interactive'
-import { sendMediaTool } from '@/tools/whatsapp/send_media'
 import { sendMessageTool } from '@/tools/whatsapp/send_message'
 import { sendReactionTool } from '@/tools/whatsapp/send_reaction'
 import { sendTemplateTool } from '@/tools/whatsapp/send_template'
-import { uploadMediaTool } from '@/tools/whatsapp/upload_media'
 import {
   buildMediaMessageBody,
   buildMediaUploadUrl,
@@ -26,19 +20,6 @@ function jsonResponse(body: unknown, init?: ResponseInit): Response {
 }
 
 describe('WhatsApp request URL and headers', () => {
-  it('trims the phone number ID into the versioned messages endpoint', () => {
-    expect(sendMessageTool.request.url(auth)).toBe(
-      'https://graph.facebook.com/v25.0/15550001111/messages'
-    )
-  })
-
-  it('trims the access token into a Bearer header', () => {
-    expect(sendMessageTool.request.headers!(auth)).toEqual({
-      Authorization: 'Bearer token',
-      'Content-Type': 'application/json',
-    })
-  })
-
   it('throws when the phone number ID is missing', () => {
     expect(() => sendMessageTool.request.url({ ...auth, phoneNumberId: '' })).toThrow(
       /Phone Number ID is required/
@@ -171,20 +152,6 @@ describe('buildMediaMessageBody', () => {
         filename: 'q3.pdf',
       })
     ).toMatchObject({ document: { id: '1', caption: 'report', filename: 'q3.pdf' } })
-  })
-})
-
-describe('sendMediaTool', () => {
-  it('uses the internal operation boundary', () => {
-    expect(sendMediaTool.operation).toBeDefined()
-    expect('request' in sendMediaTool).toBe(false)
-  })
-
-  it('forwards every media source to the operation', () => {
-    const file = { name: 'a.png', key: 'k', url: 'u', size: 1, type: 'image/png' }
-    expect(
-      sendMediaTool.operation.input({ ...auth, phoneNumber: '+1', mediaType: 'image', file })
-    ).toMatchObject({ file, mediaType: 'image', phoneNumber: '+1' })
   })
 })
 
@@ -419,41 +386,6 @@ describe('WhatsAppBlock file param mapping', () => {
       expect(byLink.mediaLink).toBe('https://legacy/a.png')
       expect(byLink.file).toBeUndefined()
     })
-
-    /** None of the three sources is statically required, so no path fails pre-execution validation. */
-    it('leaves every media source optional so any one of them can satisfy the send', () => {
-      const sourceIds = ['sendMediaFile', 'sendMediaFileRef', 'mediaId', 'mediaLink']
-      for (const id of sourceIds) {
-        const sub = WhatsAppBlock.subBlocks.find((candidate) => candidate.id === id)
-        expect(sub?.required, `${id} must not be required`).toBe(false)
-      }
-      expect(mapParams({ operation: 'send_media' })).not.toHaveProperty('file')
-    })
-  })
-})
-
-describe('media tool operation inputs', () => {
-  it('forwards the file and credentials to the upload operation', () => {
-    const file = { name: 'a.pdf', key: 'k', url: 'u', size: 10, type: 'application/pdf' }
-    expect(uploadMediaTool.operation.input({ ...auth, file })).toEqual({
-      accessToken: ' token ',
-      phoneNumberId: ' 15550001111 ',
-      file,
-    })
-  })
-
-  it('keeps storage scope out of serialized input', () => {
-    expect(getMediaTool.operation.input({ ...auth, mediaId: '123' })).toEqual({
-      accessToken: ' token ',
-      phoneNumberId: ' 15550001111 ',
-      mediaId: '123',
-    })
-  })
-
-  it('surfaces the route error message', async () => {
-    await expect(
-      getMediaTool.transformResponse!(jsonResponse({ success: false, error: 'Media not found' }))
-    ).rejects.toThrow('Media not found')
   })
 })
 

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   redisConfigMockFns,
   resetEnvFlagsMock,
@@ -33,7 +30,6 @@ afterAll(() => {
 
 describe('usage reservation environment overrides', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     evalMock.mockResolvedValue(1)
     redisConfigMockFns.mockGetRedisClient.mockReturnValue({
       eval: evalMock,

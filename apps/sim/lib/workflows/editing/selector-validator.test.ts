@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -25,7 +22,6 @@ import { validateSelectorIds } from '@/lib/workflows/editing/selector-validator'
 
 describe('validateSelectorIds', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockCheckWorkspaceAccess.mockResolvedValue({ canAdmin: false })
   })

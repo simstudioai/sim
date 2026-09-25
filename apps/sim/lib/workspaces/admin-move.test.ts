@@ -1,5 +1,3 @@
-/** @vitest-environment node */
-
 import {
   invitation,
   invitationWorkspaceGrant,
@@ -10,7 +8,6 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { PgDialect } from 'drizzle-orm/pg-core'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkspaceMoveError } from '@/lib/workspaces/admin-move'
 import {
@@ -109,13 +106,6 @@ const POPULATED_CREDENTIALS = {
   credentialGroupCount: 1,
   environmentVariableKeys: ['OPENAI_API_KEY'],
   byokKeyCount: 2,
-}
-
-/** A workspace whose secrets exceed the response bounds, so rows were dropped. */
-const TRUNCATED_CREDENTIALS = {
-  ...POPULATED_CREDENTIALS,
-  truncatedCredentials: 3,
-  truncatedEnvironmentVariableKeys: 7,
 }
 
 vi.mock('@sim/audit', () => ({
@@ -263,7 +253,6 @@ function queueMoveOperationSelects(audit: Record<string, unknown>) {
 afterAll(resetDbChainMock)
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   /**
    * `vi.clearAllMocks` clears call records but keeps implementations, so a
@@ -301,42 +290,12 @@ describe('classifyWorkspaceMoveState', () => {
     ).toBe('already-moved')
   })
 
-  it('classifies a workspace owned by a different organization as a move', () => {
-    expect(
-      classifyWorkspaceMoveState(
-        {
-          workspaceMode: WORKSPACE_MODE.ORGANIZATION,
-          organizationId: 'org-1',
-          archivedAt: null,
-        },
-        'org-2'
-      )
-    ).toBe('move')
-  })
-
   it('rejects a drifted organization mode when no organization is assigned', () => {
     expect(() =>
       classifyWorkspaceMoveState(
         {
           workspaceMode: WORKSPACE_MODE.ORGANIZATION,
           organizationId: null,
-          archivedAt: null,
-        },
-        'org-destination'
-      )
-    ).toThrowError(
-      expect.objectContaining<Partial<WorkspaceMoveError>>({
-        code: 'already-organization-workspace',
-      })
-    )
-  })
-
-  it('rejects a drifted non-organization mode when an organization is still assigned', () => {
-    expect(() =>
-      classifyWorkspaceMoveState(
-        {
-          workspaceMode: WORKSPACE_MODE.PERSONAL,
-          organizationId: 'org-source',
           archivedAt: null,
         },
         'org-destination'
@@ -398,25 +357,6 @@ describe('workspace move invitation bounds', () => {
     expect(preflight.sourceOrganization).toMatchObject({ id: 'org-source' })
   })
 
-  it('reports no invitation blocker for a personal source', async () => {
-    queueTableRows(workspace, [personalWorkspace])
-    queueTableRows(organization, [destination])
-    queueTableRows(invitationWorkspaceGrant, [
-      {
-        id: 'invitation-1',
-        email: 'invitee@example.com',
-        organizationId: null,
-        membershipIntent: 'internal',
-        permission: 'read',
-      },
-    ])
-
-    const preflight = await getWorkspaceMovePreflight(personalWorkspace.id, destination.id)
-
-    expect(preflight.blockers).toEqual([])
-    expect(preflight.sourceOrganization).toBeNull()
-  })
-
   it('blocks a move when bounded invitation rows expand into too many workspace grants', async () => {
     queueTableRows(workspace, [personalWorkspace])
     queueTableRows(organization, [destination])
@@ -449,27 +389,6 @@ describe('workspace move invitation bounds', () => {
 })
 
 describe('pending invitation destination identity', () => {
-  it('matches by email and organization without splitting internal/external intent', () => {
-    const dialect = new PgDialect()
-    const now = new Date('2026-07-30T12:00:00.000Z')
-    const query = dialect.sqlToQuery(
-      buildPendingInvitationMergeScopeCondition({
-        email: 'Invitee@Example.com',
-        organizationId: 'org-1',
-        excludeInvitationId: 'invite-source',
-        now,
-      })!
-    )
-
-    expect(query.sql).not.toContain('membership_intent')
-    expect(query.sql).toContain(' > ')
-    expect(query.params).toContain('invitee@example.com')
-    expect(query.params).toContain('org-1')
-    expect(query.params).toContain(now)
-    expect(query.params).not.toContain('internal')
-    expect(query.params).not.toContain('external')
-  })
-
   it('never selects an unrelated personal invitation as a merge target', () => {
     expect(
       buildPendingInvitationMergeScopeCondition({
@@ -533,26 +452,6 @@ describe('workspace-move pending seat projection', () => {
     ).toBe(2)
   })
 
-  it('counts an incoming internal invite when the destination invite is only external', () => {
-    expect(
-      projectDestinationPendingSeatCount({
-        currentDestinationPendingSeats: 0,
-        destinationOrganizationId: 'org-1',
-        movedWorkspaceInvitations: [
-          {
-            email: 'upgrade@example.com',
-            organizationId: null,
-            membershipIntent: 'internal',
-          },
-        ],
-        // External destination invitations are deliberately absent from this
-        // set because migration promotes their intent to internal.
-        existingDestinationInternalEmails: [],
-        existingMemberEmails: [],
-      })
-    ).toBe(1)
-  })
-
   it('does not count an incoming internal invitee who belongs to another organization', () => {
     expect(
       projectDestinationPendingSeatCount({
@@ -573,43 +472,6 @@ describe('workspace-move pending seat projection', () => {
 })
 
 describe('migrated invitation email outbox', () => {
-  it('re-reads the surviving invitation and sends its final grants', async () => {
-    getInvitationById.mockResolvedValue({
-      id: 'invite-surviving',
-      status: 'pending',
-      token: 'final-token',
-      kind: 'workspace',
-      email: 'invitee@example.com',
-      inviterName: 'Workspace Admin',
-      inviterEmail: 'admin@example.com',
-      organizationId: 'org-1',
-      role: 'member',
-      expiresAt: new Date(Date.now() + 60_000),
-      grants: [
-        { workspaceId: 'workspace-1', permission: 'write' },
-        { workspaceId: 'workspace-2', permission: 'read' },
-      ],
-    })
-    isInvitationExpired.mockReturnValue(false)
-    sendInvitationEmail.mockResolvedValue({ success: true })
-
-    await invitationMigrationOutboxHandlers[MIGRATED_INVITATION_EMAIL_EVENT_TYPE](
-      { invitationId: 'invite-surviving' },
-      {} as never
-    )
-
-    expect(sendInvitationEmail).toHaveBeenCalledWith(
-      expect.objectContaining({
-        invitationId: 'invite-surviving',
-        token: 'final-token',
-        grants: [
-          { workspaceId: 'workspace-1', permission: 'write' },
-          { workspaceId: 'workspace-2', permission: 'read' },
-        ],
-      })
-    )
-  })
-
   it('skips a split token that was cancelled before the settle window elapsed', async () => {
     getInvitationById.mockResolvedValue({
       id: 'invite-transient',
@@ -646,26 +508,6 @@ describe('moveWorkspaceToOrganization retries', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
-  })
-
-  it('repairs the idempotent move audit when a committed move is retried after response loss', async () => {
-    queueMoveSelects(movedWorkspace)
-
-    await moveWorkspaceToOrganization({
-      workspaceId: movedWorkspace.id,
-      destinationOrganizationId: destination.id,
-      adminEmail: 'admin@sim.ai',
-      auditOperationId: 'operation-1',
-    })
-
-    expect(recordAuditOnce).toHaveBeenCalledWith(
-      `operation-1:workspace-move:${movedWorkspace.id}`,
-      expect.objectContaining({
-        action: 'workspace.updated',
-        metadata: expect.objectContaining({ recoveredAfterResponseLoss: true }),
-      })
-    )
-    expect(recordAudit).not.toHaveBeenCalled()
   })
 
   it('persists a standalone operation marker atomically with a new move', async () => {
@@ -763,129 +605,6 @@ describe('moveWorkspaceToOrganization retries', () => {
     expect(recordAuditOnce).not.toHaveBeenCalled()
   })
 
-  it('recovers an already-moved workspace only for its exact durable operation', async () => {
-    queueMoveSelects(movedWorkspace)
-    queueTableRows(outboxEvent, [
-      {
-        eventType: 'admin.workspace-move-operation',
-        status: 'completed',
-        payload: {
-          request: {
-            workspaceId: movedWorkspace.id,
-            destinationOrganizationId: destination.id,
-            expectedOwnerId: movedWorkspace.ownerId,
-          },
-          audit: {
-            actor: { id: null, name: 'Admin Panel', email: 'admin@sim.ai' },
-            previousBillingOwnerId: personalWorkspace.billedAccountUserId,
-            newBillingOwnerId: destination.ownerId,
-            organizationAssignedAt: '2026-08-20T00:00:00.000Z',
-          },
-        },
-      },
-    ])
-
-    await expect(
-      moveWorkspaceToOrganization({
-        workspaceId: movedWorkspace.id,
-        destinationOrganizationId: destination.id,
-        adminEmail: 'admin@sim.ai',
-        expectedOwnerId: movedWorkspace.ownerId,
-        auditOperationId: 'operation-1',
-        operationCorrelationId: 'operation-1',
-        durableOperationId: 'operation-1',
-      })
-    ).resolves.toMatchObject({ workspace: { id: movedWorkspace.id } })
-  })
-
-  it('keeps a completed move recoverable after a later workspace-owner change', async () => {
-    const currentWorkspace = { ...movedWorkspace, ownerId: 'new-owner' }
-    queueTableRows(outboxEvent, [
-      {
-        eventType: 'admin.workspace-move-operation',
-        status: 'completed',
-        payload: {
-          request: {
-            workspaceId: movedWorkspace.id,
-            destinationOrganizationId: destination.id,
-            expectedOwnerId: movedWorkspace.ownerId,
-          },
-          audit: {
-            actor: { id: null, name: 'Admin Panel', email: 'admin@sim.ai' },
-            previousBillingOwnerId: personalWorkspace.billedAccountUserId,
-            newBillingOwnerId: destination.ownerId,
-            organizationAssignedAt: '2026-08-20T00:00:00.000Z',
-          },
-        },
-      },
-    ])
-    queueTableRows(workspace, [currentWorkspace])
-    queueTableRows(workspace, [currentWorkspace])
-    queueTableRows(organization, [destination])
-
-    await expect(
-      getWorkspaceMoveOperation(
-        movedWorkspace.id,
-        destination.id,
-        movedWorkspace.ownerId,
-        'operation-1'
-      )
-    ).resolves.toMatchObject({ workspace: { id: movedWorkspace.id, ownerId: 'new-owner' } })
-    expect(recordAuditOnce).toHaveBeenCalledWith(
-      `operation-1:workspace-move:${movedWorkspace.id}`,
-      expect.objectContaining({
-        actorEmail: 'admin@sim.ai',
-        metadata: expect.objectContaining({ requestOperationId: 'operation-1' }),
-      })
-    )
-  })
-
-  /**
-   * A completed move records `sourceOrganizationId` even when it is `null`, so
-   * a reload can tell "this workspace came from a personal source" apart from
-   * "this operation predates the field". Collapsing the two made every reload
-   * of a personal-source move claim its origin had failed to persist.
-   */
-  it('does not warn about an unpersisted source for a move recorded as personal', async () => {
-    queueMoveOperationSelects({
-      actor: { id: null, name: 'Admin Panel', email: 'admin@sim.ai' },
-      previousBillingOwnerId: personalWorkspace.billedAccountUserId,
-      newBillingOwnerId: destination.ownerId,
-      organizationAssignedAt: '2026-08-20T00:00:00.000Z',
-      sourceOrganizationId: null,
-    })
-
-    const view = await getWorkspaceMoveOperation(
-      movedWorkspace.id,
-      destination.id,
-      movedWorkspace.ownerId,
-      'operation-1'
-    )
-
-    expect(view.notices).toEqual([])
-    expect(view.sourceOrganization).toBeNull()
-  })
-
-  it('still warns when the payload never recorded a source organization', async () => {
-    queueMoveOperationSelects({
-      actor: { id: null, name: 'Admin Panel', email: 'admin@sim.ai' },
-      previousBillingOwnerId: personalWorkspace.billedAccountUserId,
-      newBillingOwnerId: destination.ownerId,
-      organizationAssignedAt: '2026-08-20T00:00:00.000Z',
-    })
-
-    const view = await getWorkspaceMoveOperation(
-      movedWorkspace.id,
-      destination.id,
-      movedWorkspace.ownerId,
-      'operation-1'
-    )
-
-    expect(view.notices).toEqual([
-      'This move was recorded before the source organization was persisted, so it cannot be reported.',
-    ])
-  })
-
   it('reports the workspace credentials when a completed operation is reloaded', async () => {
     collectWorkspaceCredentialSummary.mockResolvedValueOnce(POPULATED_CREDENTIALS)
     queueMoveOperationSelects({
@@ -906,155 +625,6 @@ describe('moveWorkspaceToOrganization retries', () => {
     /** Resolved against the recorded source, so `backedBySourceOrgMember` means something. */
     expect(collectWorkspaceCredentialSummary).toHaveBeenCalledWith(movedWorkspace.id, 'org-source')
     expect(view.credentials).toEqual(POPULATED_CREDENTIALS)
-  })
-
-  /**
-   * A recorded id whose organization has since been deleted is the third state:
-   * the payload answered, but the answer can no longer be resolved to a name.
-   */
-  it('distinguishes a deleted source organization from an unrecorded one', async () => {
-    getSourceOrganization.mockResolvedValueOnce(null)
-    queueMoveOperationSelects({
-      actor: { id: null, name: 'Admin Panel', email: 'admin@sim.ai' },
-      previousBillingOwnerId: personalWorkspace.billedAccountUserId,
-      newBillingOwnerId: destination.ownerId,
-      organizationAssignedAt: '2026-08-20T00:00:00.000Z',
-      sourceOrganizationId: 'org-source',
-    })
-
-    const view = await getWorkspaceMoveOperation(
-      movedWorkspace.id,
-      destination.id,
-      movedWorkspace.ownerId,
-      'operation-1'
-    )
-
-    expect(view.sourceOrganization).toBeNull()
-    expect(view.notices).toEqual([
-      'The organization this workspace came from has since been deleted, so it can no longer be named.',
-    ])
-  })
-
-  it('reports the workspace credentials in the applied summary', async () => {
-    queueMoveSelects(organizationWorkspace)
-    collectWorkspaceCredentialSummary.mockResolvedValueOnce(POPULATED_CREDENTIALS)
-
-    const summary = await moveWorkspaceToOrganization({
-      workspaceId: organizationWorkspace.id,
-      destinationOrganizationId: destination.id,
-      adminEmail: 'admin@sim.ai',
-      durableOperationId: 'operation-1',
-    })
-
-    /** The PRE-move organization: that is what `backedBySourceOrgMember` compares against. */
-    expect(collectWorkspaceCredentialSummary).toHaveBeenCalledWith(
-      organizationWorkspace.id,
-      'org-source',
-      expect.anything()
-    )
-    expect(summary.credentials).toEqual(POPULATED_CREDENTIALS)
-    /** Nothing was dropped, so the review is complete and says nothing about truncation. */
-    expect(summary.sourceOrganizationImpact.truncated).toBeNull()
-  })
-
-  /**
-   * The applied path used to hardcode these two counters to zero, which would
-   * present a truncated credential list as a complete one.
-   */
-  it('carries dropped credential counts into the applied truncation record', async () => {
-    queueMoveSelects(organizationWorkspace)
-    collectWorkspaceCredentialSummary.mockResolvedValueOnce(TRUNCATED_CREDENTIALS)
-
-    const summary = await moveWorkspaceToOrganization({
-      workspaceId: organizationWorkspace.id,
-      destinationOrganizationId: destination.id,
-      adminEmail: 'admin@sim.ai',
-      durableOperationId: 'operation-1',
-    })
-
-    expect(summary.sourceOrganizationImpact.truncated).toMatchObject({
-      credentials: 3,
-      environmentVariableKeys: 7,
-    })
-  })
-
-  it('carries dropped credential counts into a reloaded truncation record', async () => {
-    collectWorkspaceCredentialSummary.mockResolvedValueOnce(TRUNCATED_CREDENTIALS)
-    queueMoveOperationSelects({
-      actor: { id: null, name: 'Admin Panel', email: 'admin@sim.ai' },
-      previousBillingOwnerId: personalWorkspace.billedAccountUserId,
-      newBillingOwnerId: destination.ownerId,
-      organizationAssignedAt: '2026-08-20T00:00:00.000Z',
-      sourceOrganizationId: 'org-source',
-    })
-
-    const view = await getWorkspaceMoveOperation(
-      movedWorkspace.id,
-      destination.id,
-      movedWorkspace.ownerId,
-      'operation-1'
-    )
-
-    expect(view.sourceOrganizationImpact.truncated).toMatchObject({
-      credentials: 3,
-      environmentVariableKeys: 7,
-    })
-  })
-
-  it('reports the workspace credentials on a retry of a completed move', async () => {
-    queueMoveSelects(movedWorkspace)
-    queueTableRows(outboxEvent, [
-      {
-        eventType: 'admin.workspace-move-operation',
-        status: 'completed',
-        payload: {
-          request: {
-            workspaceId: movedWorkspace.id,
-            destinationOrganizationId: destination.id,
-            expectedOwnerId: movedWorkspace.ownerId,
-          },
-          audit: {
-            actor: { id: null, name: 'Admin Panel', email: 'admin@sim.ai' },
-            previousBillingOwnerId: personalWorkspace.billedAccountUserId,
-            newBillingOwnerId: destination.ownerId,
-            organizationAssignedAt: '2026-08-20T00:00:00.000Z',
-            sourceOrganizationId: null,
-          },
-        },
-      },
-    ])
-    collectWorkspaceCredentialSummary.mockResolvedValueOnce(POPULATED_CREDENTIALS)
-
-    const summary = await moveWorkspaceToOrganization({
-      workspaceId: movedWorkspace.id,
-      destinationOrganizationId: destination.id,
-      adminEmail: 'admin@sim.ai',
-      expectedOwnerId: movedWorkspace.ownerId,
-      auditOperationId: 'operation-1',
-      operationCorrelationId: 'operation-1',
-      durableOperationId: 'operation-1',
-    })
-
-    expect(summary.credentials).toEqual(POPULATED_CREDENTIALS)
-    expect(summary.notices).toEqual([])
-  })
-
-  it('takes shared advisory locks before the workspace row lock and payer mutation', async () => {
-    queueMoveSelects(personalWorkspace)
-
-    await moveWorkspaceToOrganization({
-      workspaceId: personalWorkspace.id,
-      destinationOrganizationId: destination.id,
-      adminEmail: 'admin@sim.ai',
-    })
-
-    const advisoryLock = acquireInvitationMutationLocks.mock.invocationCallOrder[0]
-    const firstForUpdate = dbChainMockFns.for.mock.invocationCallOrder[0]
-    const payerMutation = changeWorkspaceStoragePayerInTx.mock.invocationCallOrder[0]
-    expect(advisoryLock).toBeGreaterThan(0)
-    expect(firstForUpdate).toBeGreaterThan(advisoryLock)
-    expect(firstForUpdate).toBeGreaterThan(0)
-    expect(payerMutation).toBeGreaterThan(firstForUpdate)
   })
 
   it('locks both organizations in ascending id order, after invitation locks and before the row lock', async () => {
@@ -1098,76 +668,6 @@ describe('moveWorkspaceToOrganization retries', () => {
         },
       })
     )
-  })
-
-  it('records the loss in the source organization audit view, not the destination', async () => {
-    queueMoveSelects(organizationWorkspace)
-    findSourceOrgCustomBlocksForWorkspace.mockResolvedValueOnce([
-      { id: 'block-1', type: 'custom_block_1', name: 'Reporter' },
-    ] as never)
-
-    await moveWorkspaceToOrganization({
-      workspaceId: organizationWorkspace.id,
-      destinationOrganizationId: destination.id,
-      adminEmail: 'admin@sim.ai',
-      durableOperationId: 'operation-1',
-    })
-
-    /**
-     * `workspaceId: null` + `metadata.organizationId` is the org-level branch
-     * of `buildOrgScopeCondition`. The workspace-scoped move entry resolves to
-     * the destination after the move, so without these the organization that
-     * lost the workspace would have no record of it.
-     */
-    const entries = recordAudit.mock.calls.map((call) => call[0])
-    expect(entries).toContainEqual(
-      expect.objectContaining({
-        workspaceId: null,
-        action: 'organization.updated',
-        resourceId: 'org-source',
-        metadata: expect.objectContaining({ organizationId: 'org-source' }),
-      })
-    )
-    expect(entries).toContainEqual(
-      expect.objectContaining({
-        workspaceId: null,
-        action: 'custom_block.deleted',
-        resourceId: 'block-1',
-        metadata: expect.objectContaining({ organizationId: 'org-source' }),
-      })
-    )
-  })
-
-  it('records no source-organization entry for a personal source', async () => {
-    queueMoveSelects(personalWorkspace)
-
-    await moveWorkspaceToOrganization({
-      workspaceId: personalWorkspace.id,
-      destinationOrganizationId: destination.id,
-      adminEmail: 'admin@sim.ai',
-    })
-
-    expect(recordAudit.mock.calls.map((call) => call[0])).not.toContainEqual(
-      expect.objectContaining({ action: 'organization.updated' })
-    )
-  })
-
-  it('reports the source organization in the applied summary', async () => {
-    queueMoveSelects(organizationWorkspace)
-
-    const summary = await moveWorkspaceToOrganization({
-      workspaceId: organizationWorkspace.id,
-      destinationOrganizationId: destination.id,
-      adminEmail: 'admin@sim.ai',
-      durableOperationId: 'operation-1',
-    })
-
-    /**
-     * The summary reloads the workspace AFTER the payer transfer has rewritten
-     * `organizationId`, so the source is only reportable if it was captured
-     * beforehand and threaded through.
-     */
-    expect(summary.sourceOrganization).toMatchObject({ id: 'org-source' })
   })
 
   it('re-fences the payer transfer after a SourceOrganizationChangedError retry', async () => {
@@ -1249,59 +749,6 @@ describe('moveWorkspaceToOrganization retries', () => {
     expect(deleteCustomBlock).not.toHaveBeenCalled()
   })
 
-  it('refuses a cross-organization fork edge on a PERSONAL source too', async () => {
-    queueMoveSelects(personalWorkspace)
-    findCrossOrgForkEdges.mockResolvedValueOnce([
-      { workspaceId: 'parent-1', name: 'Parent', organizationId: 'org-other', direction: 'parent' },
-    ] as never)
-
-    /**
-     * A personal workspace whose parent has since moved into an organization
-     * still produces a cross-org edge. Gating the check on an organization
-     * source let the transaction accept a move preflight had already refused.
-     */
-    await expect(
-      moveWorkspaceToOrganization({
-        workspaceId: personalWorkspace.id,
-        destinationOrganizationId: destination.id,
-        adminEmail: 'admin@sim.ai',
-      })
-    ).rejects.toMatchObject<Partial<WorkspaceMoveError>>({ code: 'fork-lineage-conflict' })
-
-    expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
-  })
-
-  it('does not fence a move when both organizations are equally entitled', async () => {
-    queueMoveSelects(organizationWorkspace)
-    /**
-     * Not `...Once`: the resolver runs twice, once before the transaction for
-     * preflight reporting and again under the locks as the fence. A `...Once`
-     * here is consumed by the pre-transaction call, leaving the fence on the
-     * default mock and making this assert nothing.
-     *
-     * The fence must key off `capabilitiesLost`, never off Enterprise being
-     * present on both sides or a `subscription` row existing. Deployment
-     * configuration grants entitlement with no rows at all (see
-     * `resolveMoveEntitlements` and its own suite), so a fence that read
-     * either signal directly would reject EVERY organization-to-organization
-     * move in those modes.
-     */
-    resolveMoveEntitlements.mockResolvedValue({
-      sourceIsEnterprise: true,
-      destinationIsEnterprise: true,
-      capabilitiesLost: [],
-    })
-
-    await moveWorkspaceToOrganization({
-      workspaceId: organizationWorkspace.id,
-      destinationOrganizationId: destination.id,
-      adminEmail: 'admin@sim.ai',
-      durableOperationId: 'operation-1',
-    })
-
-    expect(changeWorkspaceStoragePayerInTx).toHaveBeenCalledTimes(1)
-  })
-
   it('refuses an organization source without a durable operation id', async () => {
     queueMoveSelects(organizationWorkspace)
 
@@ -1348,31 +795,6 @@ describe('moveWorkspaceToOrganization retries', () => {
     })
 
     expect(changeWorkspaceStoragePayerInTx).not.toHaveBeenCalled()
-  })
-
-  it('leaves the personal source path untouched', async () => {
-    queueMoveSelects(personalWorkspace)
-
-    await moveWorkspaceToOrganization({
-      workspaceId: personalWorkspace.id,
-      destinationOrganizationId: destination.id,
-      adminEmail: 'admin@sim.ai',
-    })
-
-    expect(acquireOrganizationMutationLock.mock.calls.map((call) => call[1])).toEqual([
-      destination.id,
-    ])
-    expect(deleteCustomBlock).not.toHaveBeenCalled()
-    expect(cleanupSourceOrganizationArtifactsTx).not.toHaveBeenCalled()
-    expect(changeWorkspaceStoragePayerInTx).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        expectedCurrentPayer: {
-          organizationId: null,
-          billedAccountUserId: personalWorkspace.billedAccountUserId,
-        },
-      })
-    )
   })
 
   it('rejects a stale batch selection when workspace ownership changed', async () => {

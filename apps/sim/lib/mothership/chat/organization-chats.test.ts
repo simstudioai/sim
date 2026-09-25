@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -41,7 +40,6 @@ const principal = () =>
 
 describe('private organization chat delegation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authorize.mockResolvedValue({ userId: 'member-1', organizationId: 'org-1', role: 'member' })
   })
@@ -108,7 +106,6 @@ describe('private organization chat delegation', () => {
 describe('organization chat events application boundary', () => {
   const principal = { kind: 'session', userId: 'member-1', sessionId: 'session-1' } as const
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     authorize.mockResolvedValue({ userId: 'member-1', organizationId: 'org-1', role: 'member' })
     requireSearch.mockResolvedValue(undefined)
@@ -184,7 +181,6 @@ afterAll(resetEnvFlagsMock)
 describe('organization Build admission', () => {
   const session = { kind: 'session', userId: 'member-1', sessionId: 'session-1' } as const
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     permissionConfig.mockResolvedValue(null)
     setEnvFlags({ isBillingEnabled: true })

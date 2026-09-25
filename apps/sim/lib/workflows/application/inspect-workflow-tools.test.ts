@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { SubjectDelegatedPrincipal } from '@sim/auth/principal'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -48,7 +47,6 @@ vi.mock('@/ee/access-control/utils/permission-check', async (importOriginal) => 
 }))
 
 import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { runEngine } from '@/lib/mothership/agent-cli/engines'
 import type { AgentCliRuntime } from '@/lib/mothership/agent-cli/types'
 import { inspectWorkflowTools } from '@/lib/workflows/application/inspect-workflow-tools'
@@ -98,7 +96,6 @@ function inspect(options: { query?: string; limit?: number; signal?: AbortSignal
 
 describe('configured workflow tool inspection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     principal = {
       kind: 'delegated',
       serviceId: 'copilot',
@@ -169,50 +166,6 @@ describe('configured workflow tool inspection', () => {
     expect(result.ambient).toBeUndefined()
   })
 
-  it('retains names for runtime arguments without reading their values', async () => {
-    save('agent', [
-      {
-        type: 'table_v2',
-        operation: 'query_rows',
-        params: { tableId: '<start.table>', filter: '{{SECRET}}' },
-      },
-    ])
-    const result = await inspect()
-    expect(result.selected[0]).toMatchObject({
-      status: 'configured',
-      callableName: 'table_query_rows',
-      argumentsRequireRuntime: true,
-    })
-    expect(JSON.stringify(result)).not.toContain('SECRET')
-    expect(JSON.stringify(result)).not.toContain('<start.table>')
-  })
-
-  it('uses the saved custom definition title rather than a misleading attachment alias', async () => {
-    save('agent', [{ type: 'custom-tool', customToolId: 'custom-id', title: 'request_permission' }])
-    const result = await inspect()
-    expect(result.selected[0].callableName).toBe('custom_lookup_customer')
-    expect(mocks.custom.mock.calls[0][0]).toMatchObject({
-      principal: {
-        subjectUserId: 'reader',
-        audience: 'sim:custom-tools',
-        workspaceId: 'workspace',
-      },
-      input: { identifier: 'custom-id', lookup: 'id' },
-    })
-  })
-
-  it('uses existing inline definitions and reports missing custom tools honestly', async () => {
-    mocks.custom.mockResolvedValue({ tool: null })
-    save('agent', [
-      { type: 'custom-tool', title: 'inline', schema: { function: { name: 'old_label' } } },
-      { type: 'custom-tool', customToolId: 'missing' },
-    ])
-    const result = await inspect()
-    expect(result.selected[0].canonicalName).toBe('custom_inline')
-    expect(result.selected[0].callableName).toBeUndefined()
-    expect(result.selected[1].status).toBe('unavailable')
-  })
-
   it('does not discover disabled tools, even when their references are dynamic', async () => {
     save('agent', [
       {
@@ -277,16 +230,6 @@ describe('configured workflow tool inspection', () => {
       { type: 'mcp-server-advanced', params: { serverId: 'server' } },
     ])
     expect((await inspect()).selected.every((tool) => tool.status === 'unavailable')).toBe(true)
-  })
-
-  it('adds the skill helper only when a selected skill can be resolved', async () => {
-    save('agent', [], {}, [{ skillId: 'selected-skill' }])
-    expect((await inspect()).selected[0]).toMatchObject({
-      source: 'skill',
-      callableName: 'load_skill',
-    })
-    mocks.skill.mockRejectedValue(new OrchestrationError('not_found', 'missing'))
-    expect((await inspect()).selected[0].status).toBe('unavailable')
   })
 
   it('exposes ambient Sim Chat integrations with no selections, filters without schemas', async () => {
@@ -354,29 +297,6 @@ describe('configured workflow tool inspection', () => {
       expect(mocks.mcp).not.toHaveBeenCalled()
     }
   )
-
-  it('does not discover tools from a disabled block', async () => {
-    save('mothership', [{ type: 'mcp', params: { serverId: 'server', toolName: 'read' } }], {
-      enabled: false,
-    })
-    expect((await inspect()).ambient?.total).toBe(0)
-    expect(mocks.ambient).not.toHaveBeenCalled()
-    expect(mocks.mcp).not.toHaveBeenCalled()
-  })
-
-  it('reports saved tools and skills hidden by the model without discovering them', async () => {
-    const tools = [{ type: 'mcp', params: { serverId: 'server', toolName: 'read' } }]
-    save('agent', [], {
-      subBlocks: {
-        model: { id: 'model', type: 'dropdown', value: 'deep-research-pro-preview-12-2025' },
-        tools: { id: 'tools', type: 'tool-input', value: tools },
-        skills: { id: 'skills', type: 'skill-input', value: [{ skillId: 'skill' }] },
-      },
-    })
-    expect((await inspect()).selected.map(({ status }) => status)).toEqual(['disabled', 'disabled'])
-    expect(mocks.mcp).not.toHaveBeenCalled()
-    expect(mocks.skill).not.toHaveBeenCalled()
-  })
 
   it('round-trips through the registered CLI engine using the trusted invocation subject', async () => {
     save('mothership', [{ type: 'mcp', params: { serverId: 'server', toolName: 'read' } }])

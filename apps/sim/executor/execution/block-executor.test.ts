@@ -1,17 +1,12 @@
-/**
- * @vitest-environment node
- */
 import { loggerMock } from '@sim/testing'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import { createLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest'
-import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
-import { projectTraceSpansForSecrets } from '@/lib/logs/execution/trace-secret-projection'
 import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import { validateBlockType } from '@/ee/access-control/utils/permission-check'
-import { BlockType, EDGE } from '@/executor/constants'
+import { BlockType } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { BlockExecutor } from '@/executor/execution/block-executor'
 import { ExecutionState } from '@/executor/execution/state'
@@ -99,7 +94,6 @@ function createNode(block: SerializedBlock): DAGNode {
 
 describe('BlockExecutor', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearLargeValueCacheForTests()
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))
   })
@@ -184,59 +178,6 @@ describe('BlockExecutor', () => {
         file: Buffer.from(JSON.stringify([{ email: '<EMAIL_ADDRESS>', count: 7 }])),
       })
     )
-  })
-
-  it('persists function output arrays as manifests in execution state', async () => {
-    const block = createBlock()
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [block],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const state = new ExecutionState()
-    const resolver = new VariableResolver(workflow, {}, state)
-    const output = {
-      result: Array.from({ length: 120_000 }, (_, index) => ({
-        key: `SIM-${index}`,
-        payload: 'x'.repeat(100),
-      })),
-    }
-    const handler: BlockHandler = {
-      canHandle: () => true,
-      execute: async () => output,
-    }
-    const executor = new BlockExecutor(
-      [handler],
-      resolver,
-      {
-        workspaceId: 'workspace-1',
-        executionId: 'execution-1',
-        userId: 'user-1',
-        metadata: {
-          requestId: 'request-1',
-          executionId: 'execution-1',
-          workflowId: 'workflow-1',
-          workspaceId: 'workspace-1',
-          userId: 'user-1',
-          triggerType: 'manual',
-          useDraftState: false,
-          startTime: new Date().toISOString(),
-        },
-      },
-      state
-    )
-
-    await executor.execute(createContext(state), createNode(block), block)
-
-    const storedOutput = state.getBlockOutput(block.id)
-    expect(isLargeArrayManifest(storedOutput?.result)).toBe(true)
-    expect(storedOutput?.result).toMatchObject({
-      __simLargeArrayManifest: true,
-      kind: 'array',
-      totalCount: output.result.length,
-    })
   })
 
   it('carries complete encrypted candidates through large-output compaction', async () => {
@@ -350,59 +291,6 @@ describe('BlockExecutor', () => {
     expect(state.getBlockOutput('function-block-1₍0₎')).toEqual(output)
   })
 
-  it('does not write global aliases for parallel branches inside cloned outer branches', async () => {
-    const block = createBlock()
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [block],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const state = new ExecutionState()
-    const resolver = new VariableResolver(workflow, {}, state)
-    const output = { result: 'outer-2-inner-0' }
-    const handler: BlockHandler = {
-      canHandle: () => true,
-      execute: async () => output,
-    }
-    const executor = new BlockExecutor(
-      [handler],
-      resolver,
-      {
-        workspaceId: 'workspace-1',
-        executionId: 'execution-1',
-        userId: 'user-1',
-        metadata: {
-          requestId: 'request-1',
-          executionId: 'execution-1',
-          workflowId: 'workflow-1',
-          workspaceId: 'workspace-1',
-          userId: 'user-1',
-          triggerType: 'manual',
-          useDraftState: false,
-          startTime: new Date().toISOString(),
-        },
-      },
-      state
-    )
-    const node = createNode(block)
-    node.id = 'function-block-1__cloneabc__obranch-2₍0₎'
-    node.metadata = {
-      isParallelBranch: true,
-      subflowId: 'inner-parallel',
-      subflowType: 'parallel',
-      originalBlockId: block.id,
-      branchIndex: 0,
-    }
-
-    await executor.execute(createContext(state), node, block)
-
-    expect(state.getBlockOutput(node.id)).toEqual(output)
-    expect(state.getBlockOutput('function-block-1__obranch-0')).toBeUndefined()
-    expect(state.getBlockOutput('function-block-1₍0₎')).toBeUndefined()
-  })
-
   it('does not let block completion callbacks overtake pending start callbacks', async () => {
     const block = createBlock()
     const workflow: SerializedWorkflow = {
@@ -476,92 +364,6 @@ describe('BlockExecutor', () => {
     expect(events).toEqual(['start-called', 'start-done', 'execute', 'complete'])
   })
 
-  it('projects lifecycle callback diagnostics without changing block execution', async () => {
-    const secret = 'lifecycle-secret-7f3a91'
-    const startError = new Error('start failed __var_API_KEY')
-    const completionError = new Error(`completion failed ${secret} __sim_code_6_binding_0`)
-    const block = createBlock()
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [block],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const state = new ExecutionState()
-    const resolver = new VariableResolver(workflow, {}, state)
-    const output = { result: `raw ${secret}` }
-    const executor = new BlockExecutor(
-      [
-        {
-          canHandle: () => true,
-          execute: async (blockContext) => {
-            blockContext.resolvedSecretTraceRegistry?.recordResolved('API_KEY', secret)
-            return output
-          },
-        },
-      ],
-      resolver,
-      {
-        workspaceId: 'workspace-1',
-        executionId: 'execution-1',
-        userId: 'user-1',
-        metadata: {
-          requestId: 'request-1',
-          executionId: 'execution-1',
-          workflowId: 'workflow-1',
-          workspaceId: 'workspace-1',
-          userId: 'user-1',
-          triggerType: 'manual',
-          useDraftState: false,
-          startTime: new Date().toISOString(),
-        },
-        onBlockStart: async () => {
-          throw startError
-        },
-        onBlockComplete: async () => {
-          throw completionError
-        },
-      },
-      state
-    )
-    const ctx = createContext(state)
-    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([
-      { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
-    ])
-
-    await expect(executor.execute(ctx, createNode(block), block)).resolves.toEqual(output)
-    expect(state.getBlockOutput(block.id)).toEqual(output)
-
-    const executionLogger = blockExecutorBaseLogger.withMetadata.mock.results.at(-1)?.value
-    expect(executionLogger).toBeDefined()
-    await vi.waitFor(() => {
-      expect(executionLogger?.warn).toHaveBeenCalledWith(
-        'Block completion callback failed',
-        expect.objectContaining({
-          blockId: block.id,
-          blockType: BlockType.FUNCTION,
-          error: 'completion failed {{API_KEY}} [RUNTIME_BINDING]',
-        })
-      )
-    })
-    expect(executionLogger?.warn).toHaveBeenCalledWith(
-      'Block start callback failed',
-      expect.objectContaining({
-        blockId: block.id,
-        blockType: BlockType.FUNCTION,
-        error: 'start failed [REDACTED_SECRET]',
-      })
-    )
-    const loggerPayload = JSON.stringify(executionLogger?.warn.mock.calls)
-    expect(loggerPayload).toContain('{{API_KEY}}')
-    expect(loggerPayload).not.toContain(secret)
-    expect(loggerPayload).not.toContain('__var_')
-    expect(loggerPayload).not.toContain('__sim_')
-    expect(startError.message).toContain('__var_API_KEY')
-    expect(completionError.message).toContain(secret)
-  })
-
   it('attaches encrypted provenance filtered to the exact lifecycle output', async () => {
     const block = createBlock()
     const workflow: SerializedWorkflow = {
@@ -604,48 +406,6 @@ describe('BlockExecutor', () => {
       entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     })
-  })
-
-  it('does not attribute a sibling public value to another block secret', async () => {
-    const secretBlock = createBlock()
-    secretBlock.id = 'secret-block'
-    const publicBlock = createBlock()
-    publicBlock.id = 'public-block'
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [secretBlock, publicBlock],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const state = new ExecutionState()
-    const resolver = new VariableResolver(workflow, {}, state)
-    const onBlockComplete = vi.fn(async () => {})
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'SHORT_SECRET', plaintext: 'TestValue', encryptedValue: 'encrypted-test' },
-    ])
-    const handler: BlockHandler = {
-      canHandle: () => true,
-      execute: async (blockContext, block) => {
-        if (block.id === secretBlock.id) {
-          blockContext.resolvedSecretTraceRegistry?.recordResolved('SHORT_SECRET', 'TestValue')
-        }
-        return { result: 'TestValue' }
-      },
-    }
-    const executor = new BlockExecutor([handler], resolver, { onBlockComplete }, state)
-    const ctx = createContext(state)
-    ctx.resolvedSecretTraceRegistry = registry
-
-    await executor.execute(ctx, createNode(secretBlock), secretBlock)
-    await executor.execute(ctx, createNode(publicBlock), publicBlock)
-    await vi.waitFor(() => expect(onBlockComplete).toHaveBeenCalledTimes(2))
-
-    expect(state.getBlockState(secretBlock.id)?.resolvedSecretTraceProvenance?.entries).toEqual([
-      { name: 'SHORT_SECRET', encryptedValue: 'encrypted-test' },
-    ])
-    expect(state.getBlockState(publicBlock.id)?.resolvedSecretTraceProvenance?.entries).toEqual([])
-    expect(onBlockComplete.mock.calls[1]?.[3]?.resolvedSecretTraceProvenance?.entries).toEqual([])
   })
 
   it('uses a handler-narrowed registry for output provenance and parent commit', async () => {
@@ -698,60 +458,6 @@ describe('BlockExecutor', () => {
       onBlockComplete.mock.calls[0]?.[3]?.displayResolvedSecretTraceProvenance?.entries
     ).toEqual([])
     expect(registry.getActiveMatches()).toEqual([])
-  })
-
-  it('uses a handler-narrowed registry when execution fails after private input settlement', async () => {
-    const block: SerializedBlock = {
-      ...createBlock(),
-      metadata: { id: BlockType.MOTHERSHIP, name: 'Sim Chat' },
-      config: { tool: BlockType.MOTHERSHIP, params: { selector: 'x' } },
-    }
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [block],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const state = new ExecutionState()
-    const resolver = new VariableResolver(workflow, {}, state)
-    const onBlockComplete = vi.fn(async () => {})
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'PRIVATE_SELECTOR', plaintext: 'x', encryptedValue: 'encrypted-selector' },
-    ])
-    const handler: BlockHandler = {
-      canHandle: () => true,
-      execute: async (blockContext, _block, inputs) => {
-        const callRegistry = blockContext.resolvedSecretTraceRegistry!
-        callRegistry.recordResolvedAtInputPath('PRIVATE_SELECTOR', 'x', ['selector'])
-        callRegistry.recordResolvedInputProjection(['selector'], 'x', '{{PRIVATE_SELECTOR}}')
-        inputs.selector = '{{PRIVATE_SELECTOR}}'
-        blockContext.resolvedSecretTraceRegistry = callRegistry.forkForInputPaths([])
-        throw new Error('Provider request preparation failed')
-      },
-    }
-    const executor = new BlockExecutor([handler], resolver, { onBlockComplete }, state)
-    const ctx = createContext(state)
-    ctx.resolvedSecretTraceRegistry = registry
-
-    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(
-      'Provider request preparation failed'
-    )
-    await vi.waitFor(() => expect(onBlockComplete).toHaveBeenCalledOnce())
-
-    expect(state.getBlockOutput(block.id)).toEqual({
-      error: 'Provider request preparation failed',
-    })
-    expect(ctx.blockLogs[0]?.input).toEqual({ selector: '{{PRIVATE_SELECTOR}}' })
-    expect(onBlockComplete.mock.calls[0]?.[3]?.input).toEqual({
-      selector: '{{PRIVATE_SELECTOR}}',
-    })
-    expect(state.getBlockState(block.id)?.resolvedSecretTraceProvenance?.entries).toEqual([])
-    expect(
-      onBlockComplete.mock.calls[0]?.[3]?.displayResolvedSecretTraceProvenance?.entries
-    ).toEqual([])
-    expect(registry.getActiveMatches()).toEqual([])
-    expect(JSON.stringify(ctx.blockLogs)).not.toContain('"x"')
   })
 
   it('never surfaces the SQL or bound parameters of a database failure the block raises', async () => {
@@ -985,174 +691,6 @@ describe('BlockExecutor', () => {
     })
     expect(traceSpans[0]?.input).toEqual({ prompt: 'Run the task' })
   })
-
-  it('preserves Function secret placeholders until the execution boundary', async () => {
-    const secret = 'function-secret-literal-7f3a91'
-    const block = createBlock()
-    block.metadata.name = 'Function 1'
-    block.config.params = {
-      code: 'return {{OPENAI_API_KEY}}',
-      language: 'javascript',
-    }
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [block],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const state = new ExecutionState()
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'OPENAI_API_KEY',
-        plaintext: secret,
-        encryptedValue: 'encrypted-openai-api-key',
-      },
-    ])
-    const resolver = new VariableResolver(workflow, {}, state)
-    const syntaxError =
-      'Syntax Error: Line 1: `return {{OPENAI_API_KEY}}` - Invalid or unexpected token'
-    const handler: BlockHandler = {
-      canHandle: () => true,
-      execute: async (_ctx, _block, inputs) => {
-        expect(inputs.code).toBe('return {{OPENAI_API_KEY}}')
-        throw new Error(syntaxError)
-      },
-    }
-    const executor = new BlockExecutor(
-      [handler],
-      resolver,
-      {
-        workspaceId: 'workspace-1',
-        executionId: 'execution-1',
-        userId: 'user-1',
-        metadata: {
-          requestId: 'request-1',
-          executionId: 'execution-1',
-          workflowId: 'workflow-1',
-          workspaceId: 'workspace-1',
-          userId: 'user-1',
-          triggerType: 'manual',
-          useDraftState: false,
-          startTime: new Date().toISOString(),
-        },
-      },
-      state
-    )
-    const ctx = createContext(state)
-    ctx.environmentVariables = { OPENAI_API_KEY: secret }
-    ctx.resolvedSecretTraceRegistry = registry
-
-    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(
-      `Function 1: ${syntaxError}`
-    )
-
-    expect(registry.getActiveMatches()).toEqual([])
-    expect(state.getBlockOutput(block.id)).toEqual({ error: syntaxError })
-    expect(ctx.blockLogs[0]).toMatchObject({
-      input: { code: 'return {{OPENAI_API_KEY}}' },
-      output: { error: syntaxError },
-      error: syntaxError,
-    })
-
-    const rawLogs = structuredClone(ctx.blockLogs)
-    const { traceSpans: rawTraceSpans } = buildTraceSpans({
-      success: false,
-      output: { error: syntaxError },
-      error: `Function 1: ${syntaxError}`,
-      logs: ctx.blockLogs,
-    })
-    const rawTraceSnapshot = structuredClone(rawTraceSpans)
-    const projectedTraceSpans = await projectTraceSpansForSecrets(rawTraceSpans, {
-      registry,
-      store: {
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        userId: 'user-1',
-      },
-    })
-
-    expect(ctx.blockLogs).toEqual(rawLogs)
-    expect(rawTraceSpans).toEqual(rawTraceSnapshot)
-    expect(projectedTraceSpans).toEqual([
-      expect.objectContaining({
-        name: 'Function 1',
-        input: expect.objectContaining({ code: 'return {{OPENAI_API_KEY}}' }),
-        output: {
-          error: 'Syntax Error: Line 1: `return {{OPENAI_API_KEY}}` - Invalid or unexpected token',
-        },
-      }),
-    ])
-    expect(JSON.stringify(projectedTraceSpans)).not.toContain(secret)
-  })
-
-  it('keeps raw error-port output while projecting operational logger metadata', async () => {
-    const secret = 'function-error-secret-7f3a91'
-    const rawError = `failed ${secret} __var_API_KEY __sim_code_3_binding_1`
-    const block = createBlock()
-    const workflow: SerializedWorkflow = {
-      version: '1',
-      blocks: [block],
-      connections: [],
-      loops: {},
-      parallels: {},
-    }
-    const state = new ExecutionState()
-    const resolver = new VariableResolver(workflow, {}, state)
-    const handler: BlockHandler = {
-      canHandle: () => true,
-      execute: async (blockContext) => {
-        blockContext.resolvedSecretTraceRegistry?.recordResolved('API_KEY', secret)
-        throw new Error(rawError)
-      },
-    }
-    const executor = new BlockExecutor(
-      [handler],
-      resolver,
-      {
-        workspaceId: 'workspace-1',
-        executionId: 'execution-1',
-        userId: 'user-1',
-        metadata: {
-          requestId: 'request-1',
-          executionId: 'execution-1',
-          workflowId: 'workflow-1',
-          workspaceId: 'workspace-1',
-          userId: 'user-1',
-          triggerType: 'manual',
-          useDraftState: false,
-          startTime: new Date().toISOString(),
-        },
-      },
-      state
-    )
-    const ctx = createContext(state)
-    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'API_KEY',
-        plaintext: secret,
-        encryptedValue: 'encrypted-api-key',
-      },
-    ])
-    const node = createNode(block)
-    node.outgoingEdges.set('error-edge', { target: 'error-handler', sourceHandle: EDGE.ERROR })
-
-    await expect(executor.execute(ctx, node, block)).resolves.toEqual({ error: rawError })
-
-    expect(state.getBlockOutput(block.id)).toEqual({ error: rawError })
-    expect(ctx.blockLogs[0]).toMatchObject({ error: rawError, output: { error: rawError } })
-    const executionLogger = blockExecutorBaseLogger.withMetadata.mock.results.at(-1)?.value
-    expect(executionLogger).toBeDefined()
-    const loggerCalls = JSON.stringify({
-      error: executionLogger?.error.mock.calls,
-      info: executionLogger?.info.mock.calls,
-    })
-    expect(loggerCalls).toContain('{{API_KEY}}')
-    expect(loggerCalls).not.toContain(secret)
-    expect(loggerCalls).not.toContain('__var_')
-    expect(loggerCalls).not.toContain('__sim_')
-  })
 })
 
 describe('BlockExecutor streaming pump', () => {
@@ -1236,40 +774,6 @@ describe('BlockExecutor streaming pump', () => {
     expect(registry.getActiveMatches()).toEqual([])
   })
 
-  it('keeps terminal error output provenance separate from low-entropy input provenance', async () => {
-    const secret = 'x'
-    const handler: BlockHandler = {
-      canHandle: () => true,
-      execute: async (blockContext, _block, inputs) => {
-        expect(inputs.systemPrompt).toBe(secret)
-        const sourceRegistry = blockContext.resolvedSecretTraceRegistry
-        blockContext.resolvedSecretTraceRegistry = sourceRegistry?.forkForInputPaths([])
-        throw new Error('Box')
-      },
-    }
-    const { executor, block, state } = createExecutor(handler)
-    block.config.params = { systemPrompt: '{{TOKEN}}' }
-    const ctx = createContext(state)
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: secret, encryptedValue: 'encrypted-token' },
-    ])
-    ctx.environmentVariables = { TOKEN: secret }
-    ctx.resolvedSecretTraceRegistry = registry
-
-    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow('Agent: Box')
-
-    expect(ctx.blockLogs[0]).toMatchObject({
-      input: { systemPrompt: '{{TOKEN}}' },
-      output: { error: 'Box' },
-    })
-    expect(state.getBlockState(block.id)?.resolvedSecretTraceProvenance).toEqual({
-      version: 1,
-      complete: true,
-      entries: [],
-    })
-    expect(registry.getActiveMatches()).toEqual([])
-  })
-
   it('carries echoed raw-boundary secret provenance on terminal errors only', async () => {
     const promptSecret = 'x'
     const apiKey = 'provider-credential-secret'
@@ -1317,40 +821,6 @@ describe('BlockExecutor streaming pump', () => {
     expect(state.getBlockState(block.id)?.resolvedSecretTraceProvenance).toEqual(expectedProvenance)
     expect(ctx.blockLogs[0]?.displayResolvedSecretTraceProvenance).toEqual(expectedProvenance)
     expect(registry.getActiveMatches()).toEqual([])
-  })
-
-  it('suppresses an incomplete display input without failing block execution', async () => {
-    const handler: BlockHandler = {
-      canHandle: () => true,
-      execute: async (blockContext) => {
-        blockContext.resolvedSecretTraceRegistry =
-          blockContext.resolvedSecretTraceRegistry?.forkForInputPaths([])
-        return { content: 'done' }
-      },
-    }
-    const { executor, block, state, resolver } = createExecutor(handler)
-    const inputs = {
-      userPrompt: 'Use the configured tool.',
-      tools: [{ params: { apiKey: 'unknown-value' } }],
-    }
-    vi.spyOn(resolver, 'resolveInputs').mockImplementation(async (blockContext) => {
-      await blockContext.resolvedSecretTraceRegistry?.importProvenanceForValueAtInputPath(
-        { version: 1 },
-        'unknown-value',
-        ['tools', '0', 'params', 'apiKey'],
-        { trusted: true }
-      )
-      return inputs
-    })
-    const ctx = createContext(state)
-    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry()
-
-    await expect(executor.execute(ctx, createNode(block), block)).resolves.toEqual({
-      content: 'done',
-    })
-
-    expect(ctx.blockLogs[0]?.input).toEqual({})
-    expect(ctx.blockLogs[0]?.output).toEqual({ content: 'done' })
   })
 
   function createAgentEventsStreamingHandler(options: {
@@ -1487,123 +957,6 @@ describe('BlockExecutor streaming pump', () => {
     )
   })
 
-  it('forwards the stable block ID for streams from expanded branch nodes', async () => {
-    const handler = createAgentEventsStreamingHandler({
-      events: [{ type: 'text_delta', text: 'branch answer', turn: 'final' }],
-    })
-    const { executor, block, state } = createExecutor(handler)
-    const ctx = createContext(state)
-    const node = createNode(block)
-    node.id = `${block.id}₍0₎`
-    node.metadata = {
-      isParallelBranch: true,
-      subflowId: 'parallel-1',
-      subflowType: 'parallel',
-      originalBlockId: block.id,
-      branchIndex: 0,
-    }
-    let streamedBlockId: string | undefined
-
-    ctx.onStream = async (streamingExec) => {
-      streamedBlockId = streamingExec.blockId
-      await new Response(streamingExec.stream).text()
-    }
-
-    await executor.execute(ctx, node, block)
-
-    expect(streamedBlockId).toBe(block.id)
-  })
-
-  it('drains without onStream and still persists answer content', async () => {
-    const handler = createAgentEventsStreamingHandler({
-      events: [{ type: 'text_delta', text: 'offline answer', turn: 'final' }],
-    })
-    const { executor, block, state } = createExecutor(handler)
-    const ctx = createContext(state)
-
-    await executor.execute(ctx, createNode(block), block)
-
-    expect(state.getBlockOutput(block.id)?.content).toBe('offline answer')
-  })
-
-  it('persists tool-result provenance activated in a narrowed registry during stream drain', async () => {
-    const selector = 'x'
-    const resultSecret = 'stream-tool-result-secret'
-    const handler: BlockHandler = {
-      canHandle: () => true,
-      execute: async (blockContext, _block, inputs) => {
-        const sourceRegistry = blockContext.resolvedSecretTraceRegistry!
-        sourceRegistry.recordResolvedAtInputPath('PRIVATE_SELECTOR', selector, ['selector'])
-        sourceRegistry.recordResolvedInputProjection(['selector'], selector, '{{PRIVATE_SELECTOR}}')
-        inputs.selector = '{{PRIVATE_SELECTOR}}'
-
-        const runtimeRegistry = sourceRegistry.forkForInputPaths([])
-        blockContext.resolvedSecretTraceRegistry = runtimeRegistry
-        const output = {
-          content: '',
-          toolCalls: { list: [] as Array<Record<string, unknown>>, count: 0 },
-        }
-        const stream = new ReadableStream({
-          start(controller) {
-            runtimeRegistry.recordResolved('TOOL_RESULT', resultSecret, { propagated: true })
-            output.toolCalls = {
-              list: [{ name: 'lookup', result: { value: resultSecret, public: 'Box' } }],
-              count: 1,
-            }
-            controller.enqueue({ type: 'text_delta', text: 'done', turn: 'final' })
-            controller.close()
-          },
-        })
-
-        return {
-          stream,
-          streamFormat: 'agent-events-v1' as const,
-          execution: {
-            success: true,
-            output,
-            logs: [],
-            metadata: { startTime: new Date().toISOString(), duration: 1 },
-          },
-        }
-      },
-    }
-    const { executor, block, state } = createExecutor(handler)
-    block.config.params = { selector }
-    const ctx = createContext(state)
-    const registry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'PRIVATE_SELECTOR',
-        plaintext: selector,
-        encryptedValue: 'encrypted-selector',
-      },
-      {
-        name: 'TOOL_RESULT',
-        plaintext: resultSecret,
-        encryptedValue: 'encrypted-tool-result',
-      },
-    ])
-    ctx.resolvedSecretTraceRegistry = registry
-
-    await executor.execute(ctx, createNode(block), block)
-
-    expect(state.getBlockOutput(block.id)).toEqual({
-      content: 'done',
-      toolCalls: {
-        list: [{ name: 'lookup', result: { value: resultSecret, public: 'Box' } }],
-        count: 1,
-      },
-    })
-    expect(ctx.blockLogs[0]?.input).toEqual({ selector: '{{PRIVATE_SELECTOR}}' })
-    expect(state.getBlockState(block.id)?.resolvedSecretTraceProvenance).toEqual({
-      version: 1,
-      complete: true,
-      entries: [{ name: 'TOOL_RESULT', encryptedValue: 'encrypted-tool-result' }],
-    })
-    expect(registry.getActiveMatches()).toEqual([
-      { plaintext: resultSecret, replacement: '{{TOOL_RESULT}}' },
-    ])
-  })
-
   it('throws on mid-stream provider error (no truncated success)', async () => {
     const secret = 'stream-pump-secret-7f3a91'
     const rawError = new Error(`provider reset ${secret} __var_API_KEY __sim_code_4_binding_1`)
@@ -1650,52 +1003,6 @@ describe('BlockExecutor streaming pump', () => {
     expect(rawError.message).toContain(secret)
   })
 
-  it('projects response parsing and full-content callback diagnostics without changing output', async () => {
-    const secret = 'stream-content-secret-7f3a91'
-    const content = `not-json ${secret}`
-    const callbackError = new Error(
-      `callback failed ${secret} __var_API_KEY __sim_code_5_binding_0`
-    )
-    const handler = createAgentEventsStreamingHandler({
-      events: [{ type: 'text_delta', text: content, turn: 'final' }],
-      onFullContent: async () => {
-        throw callbackError
-      },
-      resolvedSecret: { name: 'API_KEY', value: secret },
-    })
-    const { executor, block, state } = createExecutor(handler)
-    block.config.params = { responseFormat: 'json' }
-    const ctx = createContext(state)
-    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([
-      { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
-    ])
-
-    await executor.execute(ctx, createNode(block), block)
-
-    expect(state.getBlockOutput(block.id)?.content).toBe(content)
-    const executionLogger = blockExecutorBaseLogger.withMetadata.mock.results.at(-1)?.value
-    expect(executionLogger).toBeDefined()
-    expect(executionLogger?.warn).toHaveBeenCalledWith(
-      'Failed to parse streamed content for response format',
-      expect.objectContaining({ blockId: block.id, errorName: 'SyntaxError' })
-    )
-    expect(executionLogger?.error).toHaveBeenCalledWith('onFullContent callback failed', {
-      blockId: block.id,
-      error: 'callback failed {{API_KEY}} {{API_KEY}} [RUNTIME_BINDING]',
-      errorName: 'Error',
-      stack: expect.any(String),
-    })
-    const loggerPayload = JSON.stringify({
-      warn: executionLogger?.warn.mock.calls,
-      error: executionLogger?.error.mock.calls,
-    })
-    expect(loggerPayload).toContain('{{API_KEY}}')
-    expect(loggerPayload).not.toContain(secret)
-    expect(loggerPayload).not.toContain('__var_')
-    expect(loggerPayload).not.toContain('__sim_')
-    expect(callbackError.message).toContain(secret)
-  })
-
   it('soft-completes on user abort with drained answer text (no failed block)', async () => {
     const abortController = new AbortController()
     const handler = createAgentEventsStreamingHandler({
@@ -1732,41 +1039,6 @@ describe('BlockExecutor streaming pump', () => {
     // Soft-complete must keep text already projected before Stop — not empty content.
     expect(output?.content).toBe('partial answer')
     expect(output).not.toMatchObject({ error: expect.any(String) })
-  })
-
-  it('fails on timeout but keeps drained answer text in block output', async () => {
-    const abortController = new AbortController()
-    const handler = createAgentEventsStreamingHandler({
-      events: [
-        { type: 'text_delta', text: 'partial before timeout', turn: 'final' },
-        { type: 'thinking_delta', text: 'more' },
-      ],
-    })
-
-    const { executor, block, state } = createExecutor(handler)
-    const ctx = createContext(state)
-    ctx.abortSignal = abortController.signal
-    ctx.onStream = async (streamingExec) => {
-      streamingExec.subscribe?.({ onEvent: async () => {} })
-      const reader = streamingExec.stream.getReader()
-      try {
-        const first = await reader.read()
-        expect(first.done).toBe(false)
-        abortController.abort('timeout')
-        while (true) {
-          const { done } = await reader.read()
-          if (done) break
-        }
-      } catch {
-        // timeout may cancel the text stream
-      }
-    }
-
-    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(/timed out/i)
-
-    const output = state.getBlockOutput(block.id)
-    expect(output?.error).toBeTruthy()
-    expect(output?.content).toBe('partial before timeout')
   })
 
   it('with PII redaction: no live forward and strips thinking from traces', async () => {

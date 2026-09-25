@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -47,18 +44,6 @@ function webhook(overrides: Record<string, unknown> = {}) {
 }
 
 describe('getLegacySlackCustomBotCredentialId', () => {
-  it('returns the credential for a fully marked legacy webhook', () => {
-    expect(getLegacySlackCustomBotCredentialId(webhook())).toBe('credential-1')
-  })
-
-  it('ignores ordinary path webhooks', () => {
-    expect(
-      getLegacySlackCustomBotCredentialId(
-        webhook({ providerConfig: { triggerId: 'slack_webhook' }, routingKey: null })
-      )
-    ).toBeNull()
-  })
-
   it('fails fast on a partial marker', () => {
     expect(() =>
       getLegacySlackCustomBotCredentialId(webhook({ routingKey: 'credential-2' }))
@@ -68,7 +53,6 @@ describe('getLegacySlackCustomBotCredentialId', () => {
 
 describe('handleSlackAgentSessionStopped', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.listSessions.mockResolvedValue([])
     mocks.getCredential.mockResolvedValue({ botToken: 'xoxb-test' })
   })

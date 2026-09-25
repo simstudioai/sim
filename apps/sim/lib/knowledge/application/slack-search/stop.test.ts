@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { db } from '@sim/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -89,7 +88,6 @@ const job = {
 const stop = () => stopSlackSearchThread.execute({ principal, input })
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.authorize.mockResolvedValue({ installation, secret: { botToken: 'token' } })
   mocks.sender.mockResolvedValue({ email: 'member@fixture.test' })
   mocks.member.mockResolvedValue('member1')

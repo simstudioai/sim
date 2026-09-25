@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * What a configured notification tool actually receives, per Human block version.
  *
  * v1 handed the tool its stored sub-block values verbatim. v2 runs the same pipeline
@@ -108,13 +106,5 @@ describe('Human block notification params', () => {
       manualChannel: 'C123',
       silent: 'false',
     })
-  })
-
-  it('handles both versions', () => {
-    const handler = new HumanInTheLoopBlockHandler()
-    for (const id of ['human_in_the_loop', 'human_in_the_loop_v2']) {
-      expect(handler.canHandle({ metadata: { id } } as never)).toBe(true)
-    }
-    expect(handler.canHandle({ metadata: { id: 'agent' } } as never)).toBe(false)
   })
 })

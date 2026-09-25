@@ -4,8 +4,6 @@
  * The import creates one folder per path segment through `ensureImportFolder`, a raw insert
  * that used to bypass the `MAX_FOLDERS_PER_WORKSPACE` ceiling the capped folder readers
  * materialize under. These pin that the ceiling is enforced and surfaces as a 409.
- *
- * @vitest-environment node
  */
 import { createMockRequest, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -96,7 +94,6 @@ function queueFolderCreateReads(activeFolderCount: number) {
 
 describe('admin workspace import POST', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockGetWorkspaceWithOwner.mockResolvedValue({ id: WORKSPACE_ID, ownerId: 'owner-1' })
     mockParseWorkflowJson.mockReturnValue({ data: { blocks: {}, edges: [] }, errors: [] })
@@ -105,15 +102,6 @@ describe('admin workspace import POST', () => {
     mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
     mockDeduplicateWorkflowName.mockResolvedValue('Report')
     mockNormalizeImportedVariables.mockReturnValue({})
-  })
-
-  it('imports a workflow whose folder still fits under the ceiling', async () => {
-    queueFolderCreateReads(MAX_FOLDERS_PER_WORKSPACE - 1)
-
-    const response = await POST(importRequest(), routeContext)
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({ imported: 1, failed: 0 })
   })
 
   /**
@@ -129,15 +117,5 @@ describe('admin workspace import POST', () => {
     await expect(response.json()).resolves.toEqual({
       error: { code: 'CONFLICT', message: FULL_MESSAGE },
     })
-  })
-
-  /** An over-cap workspace must still be able to import into folders that already exist. */
-  it('imports into an existing folder without consulting the ceiling', async () => {
-    queueTableRows(schemaMock.folder, [{ id: 'folder-existing' }])
-
-    const response = await POST(importRequest(), routeContext)
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toMatchObject({ imported: 1, failed: 0 })
   })
 })

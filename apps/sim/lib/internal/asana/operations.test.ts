@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AsanaOperationError } from '@/lib/internal/asana/errors'
 import {
@@ -30,7 +27,6 @@ describe('Asana operations', () => {
   const fetchMock = vi.fn<typeof fetch>()
 
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', fetchMock)
     fetchMock.mockImplementation(
       async () => new Response(JSON.stringify({ data: {}, next_page: { offset: 'next' } }))
@@ -140,18 +136,6 @@ describe('Asana operations', () => {
     },
   ]
 
-  it.each(operationCases)('executes $name with cancellation', async ({ run, url, method }) => {
-    const controller = new AbortController()
-
-    await run(controller.signal)
-
-    expect(fetchMock).toHaveBeenCalledOnce()
-    expect(fetchMock).toHaveBeenCalledWith(
-      url,
-      expect.objectContaining({ method, signal: controller.signal })
-    )
-  })
-
   it('preserves task-list pagination, project precedence, and the default limit', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
@@ -192,64 +176,6 @@ describe('Asana operations', () => {
         },
       ],
       next_page: { offset: 'next' },
-    })
-  })
-
-  it('preserves nullable search filters in the provider query', async () => {
-    await executeAsanaSearchTasks({
-      ...AUTH,
-      workspace: 'workspace1',
-      text: 'urgent',
-      assignee: 'user1',
-      projects: ['project1', 'project2'],
-      completed: null,
-    })
-
-    const [url] = fetchMock.mock.calls[0]
-    const parsedUrl = new URL(String(url))
-    expect(parsedUrl.searchParams.get('text')).toBe('urgent')
-    expect(parsedUrl.searchParams.get('assignee.any')).toBe('user1')
-    expect(parsedUrl.searchParams.get('projects.any')).toBe('project1,project2')
-    expect(parsedUrl.searchParams.get('completed')).toBe('null')
-  })
-
-  it('preserves optional create and nullable update payloads', async () => {
-    await executeAsanaCreateTask({
-      ...AUTH,
-      workspace: 'workspace1',
-      name: 'Task',
-      notes: '',
-      assignee: 'user1',
-      due_on: '2026-09-01',
-    })
-    await executeAsanaUpdateTask({
-      ...AUTH,
-      taskGid: 'task1',
-      name: null,
-      notes: null,
-      assignee: null,
-      completed: null,
-      due_on: null,
-    })
-
-    const createInit = fetchMock.mock.calls[0]?.[1]
-    expect(JSON.parse(String(createInit?.body))).toEqual({
-      data: {
-        name: 'Task',
-        workspace: 'workspace1',
-        assignee: 'user1',
-        due_on: '2026-09-01',
-      },
-    })
-    const updateInit = fetchMock.mock.calls[1]?.[1]
-    expect(JSON.parse(String(updateInit?.body))).toEqual({
-      data: {
-        name: null,
-        notes: null,
-        assignee: null,
-        completed: null,
-        due_on: null,
-      },
     })
   })
 

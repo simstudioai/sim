@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { decodeCursor, encodeCursor } from '@/lib/table/rows/cursor'
 

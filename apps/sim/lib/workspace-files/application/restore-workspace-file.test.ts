@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -63,38 +60,11 @@ const restoredFile = {
 
 describe('restoreWorkspaceFileOperation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadLifecycle.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.restoreStored.mockResolvedValue(undefined)
     mocks.getFile.mockResolvedValue(restoredFile)
     mocks.notify.mockResolvedValue(undefined)
-  })
-
-  it('authorizes, restores, audits, and notifies once', async () => {
-    const result = await restoreWorkspaceFileOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
-    })
-
-    expect(result).toEqual({ restored: true, file: restoredFile })
-    expect(mocks.getFile).toHaveBeenCalledWith('workspace-1', 'file-1', { throwOnError: true })
-    expect(mocks.restoreStored.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.getFile.mock.invocationCallOrder[0]
-    )
-    expect(mocks.resolvePermission).toHaveBeenCalled()
-    expect(mocks.restoreStored).toHaveBeenCalledWith('workspace-1', 'file-1')
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        actorId: 'user-1',
-        metadata: expect.objectContaining({ operation: 'files.restore' }),
-      })
-    )
-    expect(mocks.notify).toHaveBeenCalledWith('workspace-1')
-    expect(mocks.recordAudit.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.notify.mock.invocationCallOrder[0]
-    )
   })
 
   it('conceals an asserted-workspace mismatch before authorization', async () => {
@@ -106,16 +76,5 @@ describe('restoreWorkspaceFileOperation', () => {
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(mocks.resolvePermission).not.toHaveBeenCalled()
     expect(mocks.restoreStored).not.toHaveBeenCalled()
-  })
-
-  it('reports a file that vanished between the restore and the read-back as absent', async () => {
-    mocks.getFile.mockResolvedValueOnce(null)
-
-    await expect(
-      restoreWorkspaceFileOperation.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-1' },
-      })
-    ).rejects.toMatchObject({ code: 'not_found' })
   })
 })

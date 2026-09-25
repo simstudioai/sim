@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { ElasticsearchBlock } from '@/blocks/blocks/elasticsearch'
 import * as elasticsearchTools from '@/tools/elasticsearch'

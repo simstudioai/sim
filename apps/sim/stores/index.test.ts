@@ -51,7 +51,6 @@ class EnumerableStorage implements Storage {
 
 describe('clearUserData', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('localStorage', new EnumerableStorage())
     vi.stubGlobal('sessionStorage', new EnumerableStorage())
   })

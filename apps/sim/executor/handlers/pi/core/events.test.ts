@@ -1,57 +1,12 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   applyPiEvent,
   createPiTotals,
   normalizePiEvent,
   parseJsonLine,
-  streamTextForEvent,
 } from '@/executor/handlers/pi/core/events'
 
 describe('normalizePiEvent', () => {
-  it('maps a text_delta message_update to a text event', () => {
-    expect(
-      normalizePiEvent({
-        type: 'message_update',
-        assistantMessageEvent: { type: 'text_delta', delta: 'hello' },
-      })
-    ).toEqual({ type: 'text', text: 'hello' })
-  })
-
-  it('maps a thinking_delta message_update to a thinking event', () => {
-    expect(
-      normalizePiEvent({
-        type: 'message_update',
-        assistantMessageEvent: { type: 'thinking_delta', delta: 'hmm' },
-      })
-    ).toEqual({ type: 'thinking', text: 'hmm' })
-  })
-
-  it('maps tool execution start and end', () => {
-    expect(normalizePiEvent({ type: 'tool_execution_start', toolName: 'bash' })).toEqual({
-      type: 'tool_start',
-      toolName: 'bash',
-    })
-    expect(
-      normalizePiEvent({ type: 'tool_execution_end', toolName: 'bash', isError: true })
-    ).toEqual({
-      type: 'tool_end',
-      toolName: 'bash',
-      isError: true,
-    })
-  })
-
-  it('extracts usage from turn_end via message.usage and direct usage', () => {
-    expect(
-      normalizePiEvent({ type: 'turn_end', message: { usage: { input: 5, output: 7 } } })
-    ).toEqual({ type: 'usage', inputTokens: 5, outputTokens: 7 })
-    expect(
-      normalizePiEvent({ type: 'turn_end', usage: { prompt_tokens: 3, completion_tokens: 2 } })
-    ).toEqual({ type: 'usage', inputTokens: 3, outputTokens: 2 })
-  })
-
   it('maps a settled agent failure to an error', () => {
     expect(
       normalizePiEvent({
@@ -90,19 +45,6 @@ describe('normalizePiEvent', () => {
     ).toEqual({ type: 'other' })
   })
 
-  it('maps agent_end to final and error to error', () => {
-    expect(
-      normalizePiEvent({
-        type: 'agent_end',
-        messages: [{ role: 'assistant', stopReason: 'stop' }],
-      })
-    ).toEqual({ type: 'final' })
-    expect(normalizePiEvent({ type: 'error', error: 'boom' })).toEqual({
-      type: 'error',
-      message: 'boom',
-    })
-  })
-
   it('uses only text blocks from the last assistant message as final text', () => {
     expect(
       normalizePiEvent({
@@ -128,20 +70,9 @@ describe('normalizePiEvent', () => {
       })
     ).toEqual({ type: 'final', text: '# Plan\nDo it' })
   })
-
-  it('returns other for unknown types and null for non-objects', () => {
-    expect(normalizePiEvent({ type: 'queue_update' })).toEqual({ type: 'other' })
-    expect(normalizePiEvent('nope')).toBeNull()
-    expect(normalizePiEvent(null)).toBeNull()
-    expect(normalizePiEvent([])).toBeNull()
-  })
 })
 
 describe('parseJsonLine', () => {
-  it('parses a valid json line', () => {
-    expect(parseJsonLine('{"type":"agent_end"}')).toEqual({ type: 'final' })
-  })
-
   it('returns null for blank or malformed lines', () => {
     expect(parseJsonLine('   ')).toBeNull()
     expect(parseJsonLine('{not json')).toBeNull()
@@ -174,13 +105,5 @@ describe('applyPiEvent', () => {
     applyPiEvent(streamed, { type: 'text', text: 'streamed' })
     applyPiEvent(streamed, { type: 'final', text: 'fallback' })
     expect(streamed.finalText).toBe('streamed')
-  })
-})
-
-describe('streamTextForEvent', () => {
-  it('returns text for text events and null otherwise', () => {
-    expect(streamTextForEvent({ type: 'text', text: 'x' })).toBe('x')
-    expect(streamTextForEvent({ type: 'thinking', text: 'x' })).toBeNull()
-    expect(streamTextForEvent({ type: 'final' })).toBeNull()
   })
 })

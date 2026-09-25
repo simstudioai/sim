@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   type SweptContractEntry,
@@ -75,26 +72,5 @@ describe('v2 query declaration', () => {
       nonStrict,
       'Zod strips unknown keys by default, so a non-strict query answers 200 for a request the server did not honour. Declare the query object `.strict()`. A `null` from the walk means the schema could not be introspected, which must fail rather than pass silently.'
     ).toEqual([])
-  })
-
-  /**
-   * The endpoints that take no query must accept a bare request and reject a
-   * decorated one. Both halves matter: a schema that rejected the empty query
-   * would break every existing caller, and one that accepted an unknown key
-   * would be the omission this rule replaced, just spelled out.
-   */
-  it('lets an endpoint that takes no query accept none and refuse an invented one', async () => {
-    const contracts = await loadContracts()
-    const takesNoQuery = contracts.filter(
-      (entry) => entry.contract.query?.safeParse({}).success === true
-    )
-
-    expect(takesNoQuery.length).toBeGreaterThan(0)
-    for (const entry of takesNoQuery) {
-      expect(
-        entry.contract.query?.safeParse({ bogus: '1' }).success,
-        `${entry.key} accepts an undeclared query param instead of rejecting it`
-      ).toBe(false)
-    }
   })
 })

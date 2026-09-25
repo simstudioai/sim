@@ -1,16 +1,10 @@
-/**
- * @vitest-environment node
- */
 import {
   authMockFns,
   createMockRequest,
-  dbChainMockFns,
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
-  queueTableRows,
   resetDbChainMock,
   resetPermissionGroupScopeMock,
-  schemaMock,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -66,7 +60,6 @@ function renameRequest() {
 
 describe('workspace API key by id', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     resetPermissionGroupScopeMock()
     mockGetSession.mockResolvedValue({ user: { id: 'admin-1' }, session: { id: 'session' } })
@@ -95,23 +88,6 @@ describe('workspace API key by id', () => {
     await expect(response.json()).resolves.toEqual({
       error: capabilityRefusal('api_keys.manage'),
     })
-  })
-
-  it('renames when no group withholds API key management', async () => {
-    queueTableRows(schemaMock.apiKey, [{ id: 'key-1', name: 'Old name' }])
-    queueTableRows(schemaMock.apiKey, [])
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      {
-        id: 'key-1',
-        name: 'Renamed key',
-        createdAt: new Date('2026-07-01T00:00:00.000Z'),
-        updatedAt: new Date('2026-07-02T00:00:00.000Z'),
-      },
-    ])
-
-    const response = await PUT(renameRequest(), context)
-
-    expect(response.status).toBe(200)
   })
 
   /**

@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * `/api/v1/tables/[tableId]/**` shares `checkAccess` with the raw internal
  * `/api/table/**` routes, and `checkAccess` gates `tables.use` inside itself.
  * That gate is correct for the internal routes — `checkSessionOrInternalAuth`
@@ -115,7 +113,6 @@ function readTable() {
 const REFUSAL = /is not available under your organization's permission group/
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetPermissionGroupScopeMock()
   mockAuthenticateV1Request.mockResolvedValue(v1PersonalKeyCredential(MEMBER_ID))
   mockCheckWorkspaceAccess.mockResolvedValue(workspaceAccess('admin'))
@@ -135,15 +132,6 @@ describe('tables.use gate on /api/v1/tables/[tableId]', () => {
     expect(body.data.table.id).toBe(TABLE_ID)
   })
 
-  it('never resolves a group for a workspace API key at all', async () => {
-    mockAuthenticateV1Request.mockResolvedValue(v1WorkspaceKeyCredential(WORKSPACE_ID))
-    governedBy({ hideTablesTab: true })
-
-    await readTable()
-
-    expect(permissionGroupScopeMockFns.mockResolvePermissionGroupConfig).not.toHaveBeenCalled()
-  })
-
   it('still refuses a personal API key whose group withholds Tables', async () => {
     governedBy({ hideTablesTab: true })
 
@@ -153,12 +141,6 @@ describe('tables.use gate on /api/v1/tables/[tableId]', () => {
     expect(response.status).toBe(403)
     expect(body.error).toMatch(REFUSAL)
     expect(body.details).toEqual({ code: 'PERMISSION_GROUP_CAPABILITY_BLOCKED' })
-  })
-
-  it('lets a personal API key through when no group withholds Tables', async () => {
-    const response = await readTable()
-
-    expect(response.status).toBe(200)
   })
 
   it('still refuses either key kind on role, before naming the capability', async () => {

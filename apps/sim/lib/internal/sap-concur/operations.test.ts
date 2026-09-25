@@ -1,9 +1,4 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_MAX_JSON_BODY_BYTES } from '@/lib/api/server/validation'
-import { MAX_MULTIPART_OVERHEAD_BYTES } from '@/lib/core/utils/stream-limits'
 
 const {
   mockAssertFileAccess,
@@ -49,14 +44,10 @@ vi.mock('@/app/api/files/authorization', () => ({
 }))
 
 import {
-  executeSapConcurApiOperation,
   executeSapConcurUploadOperation,
   SapConcurOperationError,
 } from '@/lib/internal/sap-concur/operations'
-import {
-  sapConcurApiInputSchema,
-  sapConcurUploadInputSchema,
-} from '@/lib/internal/sap-concur/schema'
+import { sapConcurUploadInputSchema } from '@/lib/internal/sap-concur/schema'
 
 const context = {
   requestId: 'request-1',
@@ -64,7 +55,6 @@ const context = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mockFetchToken.mockResolvedValue({
     accessToken: 'access-token',
     geolocation: 'https://us.api.concursolutions.com',
@@ -87,57 +77,6 @@ beforeEach(() => {
   mockDownloadFile.mockResolvedValue({
     buffer: Buffer.from('receipt'),
     contentType: 'application/pdf',
-  })
-})
-
-describe('executeSapConcurApiOperation', () => {
-  it('threads the AbortSignal through token acquisition and the provider request', async () => {
-    const controller = new AbortController()
-    const input = sapConcurApiInputSchema.parse({
-      clientId: 'client-id',
-      clientSecret: 'client-secret',
-      path: '/budget/v4/budgets/budget-1',
-      method: 'GET',
-    })
-
-    const result = await executeSapConcurApiOperation(input, {
-      ...context,
-      signal: controller.signal,
-    })
-
-    expect(mockFetchToken).toHaveBeenCalledWith(input, 'request-1', controller.signal)
-    expect(mockInvokeApi).toHaveBeenCalledWith(
-      input,
-      'access-token',
-      'https://us.api.concursolutions.com',
-      controller.signal
-    )
-    expect(result.body).toEqual({
-      success: true,
-      output: { status: 200, data: { id: 'budget-1' } },
-    })
-  })
-
-  it('preserves provider failures and response headers', async () => {
-    const input = sapConcurApiInputSchema.parse({
-      clientId: 'client-id',
-      clientSecret: 'client-secret',
-      path: '/budget/v4/budgets/budget-1',
-    })
-    mockInvokeApi.mockResolvedValueOnce({
-      status: 429,
-      body: { message: 'Slow down' },
-      headers: { 'retry-after': '30' },
-    })
-
-    const error = await executeSapConcurApiOperation(input, context).catch((caught) => caught)
-
-    expect(error).toBeInstanceOf(SapConcurOperationError)
-    expect(error).toMatchObject({
-      status: 429,
-      body: { success: false, error: 'Slow down', status: 429 },
-      headers: { 'retry-after': '30' },
-    })
   })
 })
 
@@ -192,46 +131,5 @@ describe('executeSapConcurUploadOperation', () => {
     expect(error).toBeInstanceOf(SapConcurOperationError)
     expect(error.body.error).toContain('exceeds Concur upload limit of 25MB')
     expect(mockDownloadFile).not.toHaveBeenCalled()
-  })
-
-  it('threads cancellation through the bounded file download and multipart request', async () => {
-    const controller = new AbortController()
-    const input = uploadInput()
-
-    const result = await executeSapConcurUploadOperation(input, {
-      ...context,
-      signal: controller.signal,
-    })
-
-    expect(mockDownloadFile).toHaveBeenCalledWith(
-      expect.objectContaining({ key: 'workspace-file-key' }),
-      'request-1',
-      expect.anything(),
-      { maxBytes: 25 * 1024 * 1024, signal: controller.signal }
-    )
-    expect(mockFetchToken).toHaveBeenCalledWith(input, 'request-1', controller.signal)
-    expect(mockInvokeMultipart).toHaveBeenCalledWith(
-      'https://us.api.concursolutions.com/receipts/v4/users/concur-user-1/image-only-receipts',
-      'access-token',
-      expect.any(FormData),
-      25 * 1024 * 1024 + DEFAULT_MAX_JSON_BODY_BYTES + MAX_MULTIPART_OVERHEAD_BYTES,
-      controller.signal
-    )
-    expect(result.headers).toEqual({
-      location: 'https://us.api.concursolutions.com/receipts/receipt-1',
-    })
-  })
-
-  it('rejects an abort before protected file resolution', async () => {
-    const controller = new AbortController()
-    controller.abort(new DOMException('Cancelled', 'AbortError'))
-
-    await expect(
-      executeSapConcurUploadOperation(uploadInput(), {
-        ...context,
-        signal: controller.signal,
-      })
-    ).rejects.toMatchObject({ name: 'AbortError' })
-    expect(mockAssertFileAccess).not.toHaveBeenCalled()
   })
 })

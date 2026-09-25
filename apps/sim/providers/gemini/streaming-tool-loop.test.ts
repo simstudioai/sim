@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createGeminiStreamingToolLoopStream } from '@/providers/gemini/streaming-tool-loop'
 import type { AgentStreamEvent } from '@/providers/stream-events'
@@ -59,7 +56,6 @@ vi.mock('@/providers/utils', () => ({
 
 describe('createGeminiStreamingToolLoopStream', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockExecuteTool.mockResolvedValue({
       success: true,
       output: { ok: true, url: 'https://httpbin.org/get' },

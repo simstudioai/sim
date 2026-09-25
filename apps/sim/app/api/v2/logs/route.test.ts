@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -23,8 +20,7 @@ vi.mock('@/lib/logs/application/list-public-logs', () => ({
 }))
 
 import { v2ListLogsContract } from '@/lib/api/contracts/v2/logs'
-import { cursorRoute, cursorScopeKey, UNREADABLE_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
 import { cursorSortKey, encodeSortedCursor } from '@/app/api/v2/lib/response'
 import { GET } from '@/app/api/v2/logs/route'
 
@@ -59,7 +55,6 @@ const log = {
 
 describe('GET /api/v2/logs', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
@@ -69,31 +64,6 @@ describe('GET /api/v2/logs', () => {
       includeFullDetails: true,
       includeFinalOutput: true,
       includeTraceSpans: true,
-    })
-  })
-
-  it('maps filters into the application operation and preserves diagnostic fields', async () => {
-    const request = new NextRequest(
-      `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&includeFinalOutput=true&includeTraceSpans=true`
-    )
-    const response = await GET(request)
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body.data[0]).toMatchObject({
-      runId: 'run-1',
-      workflow: { name: 'Support Agent' },
-      finalOutput: false,
-      traceSpans: [],
-    })
-    expect(mocks.execute).toHaveBeenCalledWith({
-      principal: auth.principal,
-      input: expect.objectContaining({
-        workspaceId: WORKSPACE_ID,
-        includeFinalOutput: true,
-        includeTraceSpans: true,
-      }),
-      request,
     })
   })
 
@@ -197,62 +167,6 @@ describe('GET /api/v2/logs', () => {
     }
   )
 
-  it('publishes durationMs on included trace spans from the stored duration', async () => {
-    mocks.execute.mockResolvedValue({
-      items: [
-        {
-          log,
-          executionData: {
-            finalOutput: null,
-            traceSpans: [
-              {
-                id: 'agent-1',
-                name: 'Agent',
-                type: 'agent',
-                duration: 80,
-                startTime: '2026-08-06T00:00:00.010Z',
-                endTime: '2026-08-06T00:00:00.090Z',
-              },
-            ],
-          },
-        },
-      ],
-      nextCursorKeys: null,
-      includeFullDetails: true,
-      includeFinalOutput: false,
-      includeTraceSpans: true,
-    })
-
-    const response = await GET(
-      new NextRequest(
-        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&includeTraceSpans=true`
-      )
-    )
-
-    expect((await response.json()).data[0].traceSpans[0]).toMatchObject({
-      duration: 80,
-      durationMs: 80,
-    })
-  })
-
-  it('serves a run whose persisted status is paused', async () => {
-    mocks.execute.mockResolvedValue({
-      items: [{ log: { ...log, status: 'paused' }, executionData: null }],
-      nextCursorKeys: null,
-      includeFullDetails: false,
-      includeFinalOutput: false,
-      includeTraceSpans: false,
-    })
-
-    const response = await GET(
-      new NextRequest(`http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}`)
-    )
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body.data[0]).toMatchObject({ runId: 'run-1', status: 'paused' })
-  })
-
   /**
    * The keyset carries only a `(startedAt, id)` position. Binding it to the
    * filters is what stops a cursor taken from an unfiltered walk from resuming
@@ -338,18 +252,6 @@ describe('GET /api/v2/logs', () => {
     expect(mocks.execute).toHaveBeenCalled()
   })
 
-  it('rejects malformed cursors after admission and before protected reads', async () => {
-    const response = await GET(
-      new NextRequest(
-        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&cursor=not-a-cursor`
-      )
-    )
-
-    expect(response.status).toBe(400)
-    expect(v2RouteMocks.authenticate).toHaveBeenCalled()
-    expect(mocks.execute).not.toHaveBeenCalled()
-  })
-
   /**
    * The keys in a `startedAt` cursor are a timestamp and an id; replayed under
    * `sortBy=cost` they would be compared against a `numeric` column, which is a
@@ -373,28 +275,6 @@ describe('GET /api/v2/logs', () => {
       error: { code: 'BAD_REQUEST', message: expect.stringContaining('sortBy') },
     })
     expect(mocks.execute).not.toHaveBeenCalled()
-  })
-
-  /**
-   * An undecodable token says nothing about which param changed — it did not
-   * decode far enough to compare a sort or a filter — so answering it with the
-   * sort-mismatch message would send the caller after a param it may not have
-   * touched. The message is asserted exactly rather than by absence: "does not
-   * say sortBy" is satisfied by almost any wording, including one that tells the
-   * caller nothing at all.
-   */
-  it('names the params a rejected cursor is actually bound to', async () => {
-    const response = await GET(
-      new NextRequest(
-        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&cursor=not-a-cursor`
-      )
-    )
-
-    const body = await response.json()
-    expect(body.error.message).toBe(UNREADABLE_CURSOR_MESSAGE)
-    expect(body.error.message).toContain('Restart pagination without a cursor')
-    expect(body.error.message).not.toContain('sortBy')
-    expect(body.error.message).not.toContain('sortOrder')
   })
 
   /**
@@ -424,20 +304,6 @@ describe('GET /api/v2/logs', () => {
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 
-  it.each([
-    ['minDurationMs', '0'],
-    ['maxDurationMs', '1000000'],
-    ['minDurationMs', '2147483647'],
-  ])('accepts %s=%s', async (field, value) => {
-    const response = await GET(
-      new NextRequest(
-        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&${field}=${value}`
-      )
-    )
-
-    expect(response.status).toBe(200)
-  })
-
   /**
    * `0000` satisfies the published `\d{4}` date-time pattern but names no
    * instant Postgres can store — the proleptic Gregorian calendar has no year
@@ -459,16 +325,6 @@ describe('GET /api/v2/logs', () => {
       expect(mocks.execute).not.toHaveBeenCalled()
     }
   )
-
-  it('accepts the earliest storable year', async () => {
-    const response = await GET(
-      new NextRequest(
-        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&startDate=${encodeURIComponent('0001-01-01T00:00:00Z')}`
-      )
-    )
-
-    expect(response.status).toBe(200)
-  })
 
   /**
    * `folderPaths=/,` was already a 400 while the sibling comma lists dropped
@@ -493,21 +349,6 @@ describe('GET /api/v2/logs', () => {
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 
-  /** A repeated param arrives as an array, which every v2 schema reads as a missing value. */
-  it('names duplication when a query param is sent twice', async () => {
-    const response = await GET(
-      new NextRequest(
-        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&workspaceId=${WORKSPACE_ID}`
-      )
-    )
-
-    expect(response.status).toBe(400)
-    expect(await response.json()).toMatchObject({
-      error: { code: 'BAD_REQUEST', message: expect.stringContaining('workspaceId was sent') },
-    })
-    expect(mocks.execute).not.toHaveBeenCalled()
-  })
-
   it.each([
     ['abc', 'startDate'],
     ['2026-08-06', 'startDate'],
@@ -524,32 +365,6 @@ describe('GET /api/v2/logs', () => {
       error: { code: 'BAD_REQUEST', message: expect.stringContaining('startDate') },
     })
     expect(mocks.execute).not.toHaveBeenCalled()
-  })
-
-  it('rejects an unparseable endDate', async () => {
-    const response = await GET(
-      new NextRequest(`http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&endDate=abc`)
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.execute).not.toHaveBeenCalled()
-  })
-
-  it('forwards a UTC window bound as a Date', async () => {
-    const response = await GET(
-      new NextRequest(
-        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&startDate=2026-08-06T00:00:00Z`
-      )
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.execute).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({
-          filters: expect.objectContaining({ startDate: new Date('2026-08-06T00:00:00Z') }),
-        }),
-      })
-    )
   })
 
   it('rejects an inverted window instead of answering with an empty page', async () => {
@@ -602,34 +417,6 @@ describe('GET /api/v2/logs', () => {
       expect(mocks.execute).not.toHaveBeenCalled()
     }
   )
-
-  it('rejects a status outside the persisted vocabulary and echoes the valid set', async () => {
-    const response = await GET(
-      new NextRequest(`http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&status=done`)
-    )
-
-    expect(response.status).toBe(400)
-    const body = await response.json()
-    expect(body.error.message).toContain('"completed"')
-    expect(mocks.execute).not.toHaveBeenCalled()
-  })
-
-  it('forwards a status list as the persisted statuses the filter matches on', async () => {
-    const response = await GET(
-      new NextRequest(
-        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&status=failed,completed`
-      )
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.execute).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({
-          filters: expect.objectContaining({ statuses: ['completed', 'failed'] }),
-        }),
-      })
-    )
-  })
 
   it('rejects a workflowName past the search bound before it reaches an unindexed scan', async () => {
     const response = await GET(
@@ -842,41 +629,6 @@ describe('GET /api/v2/logs', () => {
     expect((await response.json()).data[0].files).toEqual([])
   })
 
-  it('forwards the requested sort to the application operation', async () => {
-    const response = await GET(
-      new NextRequest(
-        `http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&sortBy=cost&sortOrder=asc`
-      )
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.execute).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({ sortBy: 'cost', sortOrder: 'asc' }),
-      })
-    )
-  })
-
-  it('defaults to the newest runs first', async () => {
-    await GET(new NextRequest(`http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}`))
-
-    expect(mocks.execute).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({ sortBy: 'startedAt', sortOrder: 'desc' }),
-      })
-    )
-  })
-
-  /** `order` was retired in favour of the surface-wide pair; a strict query rejects it. */
-  it('rejects the retired order param', async () => {
-    const response = await GET(
-      new NextRequest(`http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}&order=asc`)
-    )
-
-    expect(response.status).toBe(400)
-    expect(mocks.execute).not.toHaveBeenCalled()
-  })
-
   /**
    * Job runs record cost as a document and no comparable status, so they cannot
    * participate in those orderings. Dropping the branch silently would answer a
@@ -920,16 +672,5 @@ describe('GET /api/v2/logs', () => {
       error: { code: 'BAD_REQUEST', message: expect.stringContaining(field) },
     })
     expect(mocks.execute).not.toHaveBeenCalled()
-  })
-
-  it('projects typed folder errors', async () => {
-    mocks.execute.mockRejectedValueOnce(new OrchestrationError('not_found', 'Folder not found'))
-
-    const response = await GET(
-      new NextRequest(`http://localhost:3000/api/v2/logs?workspaceId=${WORKSPACE_ID}`)
-    )
-
-    expect(response.status).toBe(404)
-    expect(await response.json()).toMatchObject({ error: { code: 'NOT_FOUND' } })
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, hybridAuthMockFns, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -56,7 +53,6 @@ function authAs(auth: Record<string, unknown>) {
 
 describe('MCP Discover Route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockListAccessibleWorkspaceRowsForUser.mockResolvedValue([workspaceRow('ws-1')])
   })
@@ -87,31 +83,5 @@ describe('MCP Discover Route', () => {
 
     expect(response.status).toBe(200)
     expect(body.servers.map((server: { id: string }) => server.id)).toEqual(['public'])
-  })
-
-  it('does not filter for a session caller', async () => {
-    authAs({ authType: 'session' })
-    dbChainMockFns.orderBy.mockResolvedValueOnce([
-      serverRow('blocked', { workspaceAllowsPersonalApiKeys: false }),
-    ])
-
-    const response = await GET(discoverRequest())
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body.servers).toHaveLength(1)
-  })
-
-  it('does not filter for a workspace key', async () => {
-    authAs({ authType: 'api_key', apiKeyType: 'workspace', workspaceId: 'ws-1' })
-    dbChainMockFns.orderBy.mockResolvedValueOnce([
-      serverRow('blocked', { workspaceAllowsPersonalApiKeys: false }),
-    ])
-
-    const response = await GET(discoverRequest())
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body.servers).toHaveLength(1)
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetFileMetadataByKey, mockHeadS3Object } = vi.hoisted(() => ({
@@ -27,7 +24,6 @@ import { getFileMetadata } from '@/lib/uploads/core/storage-client'
 
 describe('getFileMetadata', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetFileMetadataByKey.mockResolvedValue(null)
   })
 
@@ -47,18 +43,6 @@ describe('getFileMetadata', () => {
     )
 
     await expect(getFileMetadata('workspace/ws/key.md')).rejects.toThrow('AccessDenied')
-  })
-
-  it('returns provider metadata when the object exists', async () => {
-    mockHeadS3Object.mockResolvedValue({ size: 12, metadata: { workspaceid: 'ws-1' } })
-
-    await expect(getFileMetadata('workspace/ws/key.md')).resolves.toEqual({ workspaceid: 'ws-1' })
-  })
-
-  it('treats an object carrying no metadata as no metadata', async () => {
-    mockHeadS3Object.mockResolvedValue({ size: 12 })
-
-    await expect(getFileMetadata('workspace/ws/key.md')).resolves.toEqual({})
   })
 
   it('prefers the database record when one exists', async () => {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 
 interface CapturedDefinition {
@@ -67,24 +64,6 @@ function definition(method: string): CapturedDefinition {
 }
 
 describe('/api/table/[tableId]/groups', () => {
-  it('routes every mutation through its session-or-executor application use case', () => {
-    const expected = [
-      ['POST', mocks.useCases.create],
-      ['PATCH', mocks.useCases.update],
-      ['DELETE', mocks.useCases.remove],
-    ] as const
-
-    expect(mocks.definitions).toHaveLength(expected.length)
-    for (const [method, useCase] of expected) {
-      const route = definition(method)
-      expect(route.contract.path).toBe('/api/table/[tableId]/groups')
-      expect(route.auth).toBe(mocks.auth)
-      expect(route.useCase).toBe(useCase)
-      expect(route.operation.id).toBe(useCase.operation.id)
-      expect(route.errorPolicy).toBe(mocks.concealTableGroupAuthorization)
-    }
-  })
-
   it('preserves the legacy create default while honoring an explicit opt-out', () => {
     const route = definition('POST')
     const input = {

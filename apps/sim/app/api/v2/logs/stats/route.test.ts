@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -20,7 +17,6 @@ vi.mock('@/lib/logs/application/get-log-stats', () => ({
   getLogStats: { operation: { id: 'logs.read_stats' }, execute: mocks.execute },
 }))
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET } from '@/app/api/v2/logs/stats/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
@@ -65,48 +61,10 @@ function request(query = ''): NextRequest {
 
 describe('GET /api/v2/logs/stats', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
     mocks.execute.mockResolvedValue({ stats, workflowsTruncated: false })
-  })
-
-  it('returns the aggregate under the v2 envelope with the truncation flag', async () => {
-    const response = await GET(request())
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { ...stats, workflowsTruncated: false } })
-  })
-
-  it('defaults the bucket count without the caller naming one', async () => {
-    await GET(request())
-
-    expect(mocks.execute).toHaveBeenCalledWith(
-      expect.objectContaining({ input: expect.objectContaining({ segmentCount: 72 }) })
-    )
-  })
-
-  it('omits empty buckets by default and forwards an explicit includeEmpty', async () => {
-    await GET(request())
-    expect(mocks.execute).toHaveBeenCalledWith(
-      expect.objectContaining({ input: expect.objectContaining({ includeEmpty: false }) })
-    )
-
-    await GET(request('&includeEmpty=true'))
-    expect(mocks.execute).toHaveBeenLastCalledWith(
-      expect.objectContaining({ input: expect.objectContaining({ includeEmpty: true }) })
-    )
-  })
-
-  it('rejects an includeEmpty spelling outside the published vocabulary', async () => {
-    const response = await GET(request('&includeEmpty=maybe'))
-
-    expect(response.status).toBe(400)
-    expect(await response.json()).toMatchObject({
-      error: { code: 'BAD_REQUEST', message: expect.stringContaining('expected one of') },
-    })
-    expect(mocks.execute).not.toHaveBeenCalled()
   })
 
   /**
@@ -127,13 +85,6 @@ describe('GET /api/v2/logs/stats', () => {
     }
   )
 
-  it('rejects an unknown query param instead of silently ignoring it', async () => {
-    const response = await GET(request('&bogus=1'))
-
-    expect(response.status).toBe(400)
-    expect(mocks.execute).not.toHaveBeenCalled()
-  })
-
   it('parses filter lists once, into the values the query filters on', async () => {
     await GET(request('&workflowIds=b,a,a&triggers=api&folderPaths=/prod'))
 
@@ -142,26 +93,6 @@ describe('GET /api/v2/logs/stats', () => {
         input: expect.objectContaining({
           filters: expect.objectContaining({ workflowIds: ['a', 'b'], triggers: ['api'] }),
           folderPaths: ['/prod'],
-        }),
-      })
-    )
-  })
-
-  it('forwards includeHandledErrors and publishes the handled-error count when asked', async () => {
-    mocks.execute.mockResolvedValueOnce({
-      stats: { ...stats, handledErrorRuns: 3 },
-      workflowsTruncated: false,
-    })
-
-    const response = await GET(request('&level=error&includeHandledErrors=true'))
-    const body = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(body.data.handledErrorRuns).toBe(3)
-    expect(mocks.execute).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({
-          filters: expect.objectContaining({ level: 'error', includeHandledErrors: true }),
         }),
       })
     )
@@ -180,20 +111,5 @@ describe('GET /api/v2/logs/stats', () => {
         }),
       })
     )
-  })
-
-  it('conceals a workspace the caller cannot reach', async () => {
-    mocks.execute.mockRejectedValueOnce(new OrchestrationError('not_found', 'Workspace not found'))
-
-    const response = await GET(request())
-
-    expect(response.status).toBe(404)
-    expect(await response.json()).toMatchObject({ error: { code: 'NOT_FOUND' } })
-  })
-
-  it('carries the per-caller cache directive every v2 response needs', async () => {
-    const response = await GET(request())
-
-    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
   })
 })

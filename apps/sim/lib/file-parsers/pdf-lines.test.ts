@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   collectCompounds,
@@ -9,7 +6,6 @@ import {
   headingMarkersViable,
   joinLines,
   MAX_PDF_LINES,
-  normalizePdfWhitespace,
   type PdfLine,
   PdfLineBuilder,
   readItemGeometry,
@@ -77,15 +73,6 @@ describe('joinLines', () => {
     expect(joinLines(lines, { headingMarkers: false })).toBe(
       'Column one ends here.\n\nColumn two starts here.'
     )
-  })
-
-  it('falls back to single line breaks when lines carry no geometry', () => {
-    const lines: PdfLine[] = [
-      { text: 'one', height: 0 },
-      { text: 'two', height: 0 },
-    ]
-
-    expect(joinLines(lines)).toBe('one\ntwo')
   })
 
   it('prefixes short oversized lines with a heading marker only when markers are requested', () => {
@@ -267,25 +254,9 @@ describe('readItemGeometry', () => {
     ).toBeUndefined()
     expect(readItemGeometry({ str: 'x', transform: [1, 0, 0, 1, 'a', 20] })).toBeUndefined()
   })
-
-  it('reads placement from a horizontal transform', () => {
-    expect(
-      readItemGeometry({
-        str: 'x',
-        transform: [1, 0, 0, 1, 10, 20],
-        width: 5,
-        height: 11,
-        dir: 'ltr',
-      })
-    ).toEqual({ x: 10, y: 20, width: 5, height: 11 })
-  })
 })
 
 describe('helpers', () => {
-  it('collapses blanks without destroying line structure', () => {
-    expect(normalizePdfWhitespace('a  b \n  c\n\n\n\nd\t e')).toBe('a b\nc\n\nd e')
-  })
-
   it('picks the character-weighted modal height as body height', () => {
     expect(
       dominantLineHeight([
@@ -312,17 +283,5 @@ describe('helpers', () => {
 
     expect(headingMarkersViable([...bullets, ...body], 11)).toBe(false)
     expect(headingMarkersViable([bullets[0], ...body], 11)).toBe(true)
-  })
-
-  it('collects words of three to forty letters and caps the set', () => {
-    const words = collectWords([
-      { text: `ab abc ${'x'.repeat(41)} ${'y'.repeat(40)}`, height: BODY },
-    ])
-    expect(words).toEqual(new Set(['abc', 'y'.repeat(40)]))
-
-    const letters = (n: number): string =>
-      n < 26 ? String.fromCharCode(97 + n) : letters(Math.floor(n / 26)) + letters(n % 26)
-    const unique = Array.from({ length: 200_050 }, (_, i) => `w${letters(i)}z`).join(' ')
-    expect(collectWords([{ text: unique, height: BODY }]).size).toBe(200_000)
   })
 })

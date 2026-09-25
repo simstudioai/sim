@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   FUNCTION_BASE_PYTHON_PACKAGE_IMPORTS,

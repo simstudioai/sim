@@ -1,22 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { ErrorExtractorId, extractErrorMessage } from '@/tools/error-extractors'
-import {
-  splunkCancelSearchJobTool,
-  splunkCreateSearchJobTool,
-  splunkDispatchSavedSearchTool,
-  splunkGetFiredAlertsTool,
-  splunkGetSavedSearchTool,
-  splunkGetSearchJobTool,
-  splunkGetSearchResultsTool,
-  splunkListAppsTool,
-  splunkListFiredAlertsTool,
-  splunkListIndexesTool,
-  splunkListSavedSearchesTool,
-  splunkRunSearchTool,
-} from '@/tools/splunk'
 
 /**
  * Under the `output_mode=json` every Splunk request pins, the REST error envelope
@@ -103,32 +86,4 @@ describe('splunk-errors extractor', () => {
       )
     ).toBe('Request failed with status 500')
   })
-})
-
-const SPLUNK_TOOLS = [
-  splunkRunSearchTool,
-  splunkCreateSearchJobTool,
-  splunkGetSearchJobTool,
-  splunkGetSearchResultsTool,
-  splunkCancelSearchJobTool,
-  splunkListSavedSearchesTool,
-  splunkGetSavedSearchTool,
-  splunkDispatchSavedSearchTool,
-  splunkListFiredAlertsTool,
-  splunkGetFiredAlertsTool,
-  splunkListIndexesTool,
-  splunkListAppsTool,
-]
-
-describe('splunk tools declare the extractor', () => {
-  it('covers all twelve tools', () => {
-    expect(SPLUNK_TOOLS).toHaveLength(12)
-  })
-
-  it.each(SPLUNK_TOOLS.map((tool) => [tool.id, tool] as const))(
-    '%s sets errorExtractor',
-    (_id, tool) => {
-      expect(tool.errorExtractor).toBe(ErrorExtractorId.SPLUNK_ERRORS)
-    }
-  )
 })

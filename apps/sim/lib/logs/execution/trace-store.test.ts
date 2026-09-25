@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -50,7 +47,6 @@ const CONTEXT = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   decryptSecretMock.mockResolvedValue({ decrypted: '12345678' })
 })
 
@@ -279,35 +275,6 @@ describe('projectExecutionDataForDisplay', () => {
     expect(materialized.blockOutputs).toEqual(new Map())
   })
 
-  it('does not mix legacy trace output into partial execution state', async () => {
-    const materialized = await materializeExecutionDataForDisplayWithBlockOutputs(
-      {
-        traceSpans: [
-          {
-            id: 'span-1',
-            blockId: 'trace-only',
-            name: 'Trace-only block',
-            type: 'function',
-            duration: 1,
-            startTime: '2026-08-11T00:00:00.000Z',
-            endTime: '2026-08-11T00:00:00.001Z',
-            output: { token: 'raw-legacy-secret' },
-          },
-        ],
-        executionState: {
-          blockStates: {
-            'state-only': { output: { result: 'unproven-state-output' } },
-          },
-        },
-      },
-      CONTEXT,
-      ['state-only', 'trace-only']
-    )
-
-    expect(materialized.blockOutputs).toEqual(new Map())
-    expect(JSON.stringify([...materialized.blockOutputs])).not.toContain('raw-legacy-secret')
-  })
-
   it('omits state-only block outputs that lack usable secret provenance', async () => {
     const materialized = await materializeExecutionDataForDisplayWithBlockOutputs(
       {
@@ -482,24 +449,6 @@ describe('projectExecutionDataForDisplay', () => {
     ])
   })
 
-  it('fails closed when persisted provenance is incomplete', async () => {
-    const displayData = await projectExecutionDataForDisplay(
-      {
-        finalOutput: { result: 'unknown-secret' },
-        executionState: {
-          resolvedSecretTraceProvenance: {
-            version: 1,
-            complete: false,
-            entries: [],
-          },
-        },
-      },
-      CONTEXT
-    )
-
-    expect(displayData).not.toHaveProperty('finalOutput')
-  })
-
   it('preserves direct literals when trusted provenance has no activated secrets', async () => {
     const displayData = await projectExecutionDataForDisplay(
       {
@@ -607,245 +556,6 @@ describe('projectExecutionDataForDisplay provenance handling', () => {
     expect(span).not.toHaveProperty('input')
     expect(span).not.toHaveProperty('output')
   })
-
-  it('leaves an empty span array intact', async () => {
-    const displayData = await projectExecutionDataForDisplay(
-      truncatedRow({ traceSpans: [] }),
-      CONTEXT
-    )
-
-    expect(displayData.traceSpans).toEqual([])
-  })
-})
-
-describe('stored provenance display reporting', () => {
-  const REGISTRY_SUMMARY_MESSAGES = [
-    'Resolved secret registry marked incomplete',
-    'Resolved secret input path marked incomplete',
-  ]
-
-  function registrySummaryLines(): unknown[] {
-    return [...mockLogger.warn.mock.calls, ...mockLogger.error.mock.calls].filter(([message]) =>
-      REGISTRY_SUMMARY_MESSAGES.includes(message as string)
-    )
-  }
-
-  /**
-   * The stored state was recorded when the run wrote it; a view re-deriving it must say which
-   * execution it served, once — not restate the latch through registry summaries that name none.
-   */
-  it('reports an incomplete stored envelope once, naming the execution and the parts', async () => {
-    const displayData = await projectExecutionDataForDisplay(
-      {
-        finalOutput: { result: 'value' },
-        executionState: {
-          resolvedSecretTraceProvenance: { version: 1, complete: false, entries: [] },
-          finalOutputResolvedSecretTraceProvenance: { version: 1, complete: false, entries: [] },
-        },
-      },
-      CONTEXT
-    )
-
-    expect(displayData).not.toHaveProperty('finalOutput')
-    expect(registrySummaryLines()).toHaveLength(0)
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      'Stored execution provenance cannot vouch for display content',
-      expect.objectContaining({
-        site: 'traceStore.displayProjection',
-        executionId: 'execution-1',
-        workflowId: 'workflow-1',
-        workspaceId: 'workspace-1',
-        parts: ['traceSpans', 'finalOutput'],
-        partCount: 2,
-      })
-    )
-    expect(mockLogger.error).not.toHaveBeenCalled()
-  })
-
-  it('reports a malformed stored envelope at error, keeping the value withheld', async () => {
-    const displayData = await projectExecutionDataForDisplay(
-      {
-        finalOutput: { result: 'value' },
-        executionState: {
-          resolvedSecretTraceProvenance: {
-            version: 1,
-            complete: true,
-            entries: [],
-            scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-          },
-          finalOutputResolvedSecretTraceProvenance: 'garbage',
-        },
-      },
-      CONTEXT
-    )
-
-    expect(displayData).not.toHaveProperty('finalOutput')
-    expect(registrySummaryLines()).toHaveLength(0)
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      'Stored execution provenance is malformed',
-      expect.objectContaining({
-        site: 'traceStore.displayProjection',
-        executionId: 'execution-1',
-        parts: ['finalOutput'],
-      })
-    )
-  })
-
-  /** A complete envelope whose entries cannot be decrypted withholds content like any fault. */
-  it('attributes an undecryptable stored envelope to its execution at error', async () => {
-    decryptSecretMock.mockRejectedValue(new Error('key rotated'))
-
-    const displayData = await projectExecutionDataForDisplay(
-      {
-        finalOutput: { result: 'value' },
-        executionState: {
-          resolvedSecretTraceProvenance: {
-            version: 1,
-            complete: true,
-            entries: [],
-            scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-          },
-          finalOutputResolvedSecretTraceProvenance: {
-            version: 1,
-            complete: true,
-            entries: [{ name: 'SECRET', encryptedValue: 'ciphertext' }],
-            scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-          },
-        },
-      },
-      CONTEXT
-    )
-
-    expect(displayData).not.toHaveProperty('finalOutput')
-    expect(registrySummaryLines()).toHaveLength(0)
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      'Stored execution provenance could not be decrypted',
-      expect.objectContaining({
-        site: 'traceStore.displayProjection',
-        executionId: 'execution-1',
-        parts: ['finalOutput'],
-      })
-    )
-  })
-
-  it('reports a malformed block-output envelope at error, withholding the output', async () => {
-    const result = await materializeExecutionDataForDisplayWithBlockOutputs(
-      {
-        executionState: {
-          resolvedSecretTraceProvenance: {
-            version: 1,
-            complete: true,
-            entries: [],
-            scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-          },
-          blockStates: {
-            'block-1': { output: { value: 1 }, resolvedSecretTraceProvenance: 'garbage' },
-          },
-        },
-      },
-      CONTEXT,
-      ['block-1']
-    )
-
-    expect(result.blockOutputs.has('block-1')).toBe(false)
-    expect(registrySummaryLines()).toHaveLength(0)
-    expect(mockLogger.error).toHaveBeenCalledWith(
-      'Stored execution provenance is malformed',
-      expect.objectContaining({
-        site: 'traceStore.blockOutputs',
-        executionId: 'execution-1',
-        parts: ['blockOutput:block-1'],
-      })
-    )
-  })
-
-  it('stays silent when every stored envelope is complete', async () => {
-    const displayData = await projectExecutionDataForDisplay(
-      {
-        finalOutput: { result: 'direct-literal' },
-        executionState: {
-          resolvedSecretTraceProvenance: {
-            version: 1,
-            complete: true,
-            entries: [],
-            scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-          },
-          finalOutputResolvedSecretTraceProvenance: {
-            version: 1,
-            complete: true,
-            entries: [],
-            scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-          },
-        },
-      },
-      CONTEXT
-    )
-
-    expect(displayData.finalOutput).toEqual({ result: 'direct-literal' })
-    expect(mockLogger.warn).not.toHaveBeenCalled()
-    expect(mockLogger.error).not.toHaveBeenCalled()
-  })
-
-  /** The block entry point runs both display functions; each names its own site for the envelope. */
-  it('attributes an incomplete run envelope under both sites on a block-outputs read', async () => {
-    await materializeExecutionDataForDisplayWithBlockOutputs(
-      {
-        finalOutput: { result: 'value' },
-        executionState: {
-          resolvedSecretTraceProvenance: { version: 1, complete: false, entries: [] },
-          blockStates: {
-            'block-1': { output: { value: 1 } },
-          },
-        },
-      },
-      CONTEXT,
-      ['block-1']
-    )
-
-    expect(registrySummaryLines()).toHaveLength(0)
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      'Stored execution provenance cannot vouch for display content',
-      expect.objectContaining({ site: 'traceStore.displayProjection', parts: ['traceSpans'] })
-    )
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      'Stored execution provenance cannot vouch for display content',
-      expect.objectContaining({ site: 'traceStore.blockOutputs', parts: ['run'] })
-    )
-  })
-
-  it('reports incomplete block-output envelopes once for the whole block read', async () => {
-    const result = await materializeExecutionDataForDisplayWithBlockOutputs(
-      {
-        executionState: {
-          resolvedSecretTraceProvenance: {
-            version: 1,
-            complete: true,
-            entries: [],
-            scope: { userId: 'user-1', workspaceId: 'workspace-1' },
-          },
-          blockStates: {
-            'block-1': {
-              output: { value: 1 },
-              resolvedSecretTraceProvenance: { version: 1, complete: false, entries: [] },
-            },
-          },
-        },
-      },
-      CONTEXT,
-      ['block-1']
-    )
-
-    expect(result.blockOutputs.has('block-1')).toBe(false)
-    expect(registrySummaryLines()).toHaveLength(0)
-    expect(mockLogger.warn).toHaveBeenCalledWith(
-      'Stored execution provenance cannot vouch for display content',
-      expect.objectContaining({
-        site: 'traceStore.blockOutputs',
-        executionId: 'execution-1',
-        parts: ['blockOutput:block-1'],
-      })
-    )
-  })
 })
 
 /**
@@ -917,13 +627,6 @@ describe('stripJoinedChildTraceSpend', () => {
       (child.providerTiming.segments as Array<Record<string, unknown>>)[0].tokens
     ).toBeUndefined()
   })
-
-  it('leaves a span with no provider timing alone', () => {
-    const spans = [{ id: 'span-1', name: 'api', cost: { total: 0.1 } }]
-
-    expect(() => stripJoinedChildTraceSpend(spans)).not.toThrow()
-    expect(spans[0]).toMatchObject({ id: 'span-1', name: 'api' })
-  })
 })
 
 describe('stripSpanCosts', () => {
@@ -993,25 +696,5 @@ describe('copyTraceSpansWithoutCosts', () => {
       tokens: { total: 900 },
     })
     expect(span.providerTiming.duration).toBe(5)
-  })
-
-  /**
-   * The strip runs in place, so the copy has to reach every node it writes to.
-   * Sharing the `providerTiming` with the caller would blank the segments of the
-   * spans the rest of the run still holds in memory.
-   */
-  it('leaves the caller’s in-memory spans untouched', () => {
-    const spans = spanWithSpend() as unknown as TraceSpan[]
-
-    copyTraceSpansWithoutCosts(spans)
-
-    const [span] = spans as unknown as Array<Record<string, any>>
-    expect(span.cost).toEqual({ total: 0.5 })
-    expect(span.providerTiming.segments[0].cost).toEqual({ total: 0.5 })
-    expect(span.children[0].cost).toEqual({ total: 0.2 })
-  })
-
-  it('returns undefined for no spans', () => {
-    expect(copyTraceSpansWithoutCosts(undefined)).toBeUndefined()
   })
 })

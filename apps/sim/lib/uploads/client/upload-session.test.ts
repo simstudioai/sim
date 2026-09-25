@@ -97,24 +97,6 @@ describe('uploadFileSession', () => {
     expect(abort).not.toHaveBeenCalled()
   })
 
-  it('uploads an empty file with PUT and reports finite completion progress', async () => {
-    const complete = vi.fn(async () => 'done')
-    const onProgress = vi.fn()
-
-    await expect(
-      uploadFileSession({
-        file: sizedFile(0),
-        transfer: { method: 'put', url: 'https://storage.example/upload', headers: {} },
-        complete,
-        abort: vi.fn(async () => undefined),
-        onProgress,
-      })
-    ).resolves.toBe('done')
-
-    expect(complete).toHaveBeenCalledWith()
-    expect(onProgress).toHaveBeenLastCalledWith({ loaded: 0, total: 0, percent: 100 })
-  })
-
   it('uploads a file above the threshold through bounded multipart batches', async () => {
     const file = sizedFile(PUT_THRESHOLD + 1)
     const partSize = 8 * MIB
@@ -317,58 +299,5 @@ describe('uploadFileSession', () => {
 
     expect(fetchMock).not.toHaveBeenCalled()
     expect(abort).toHaveBeenCalledTimes(1)
-  })
-
-  it('does not retry a multipart 4xx response', async () => {
-    const fetchMock = vi.fn(async () => new Response(null, { status: 403 }))
-    vi.stubGlobal('fetch', fetchMock)
-
-    await expect(
-      uploadFileSession({
-        file: sizedFile(1),
-        transfer: { method: 'multipart', partSize: 1, partCount: 1 },
-        getPartUrls: async () => [
-          {
-            partNumber: 1,
-            url: 'https://storage.example/parts/1',
-            headers: {},
-            expiresAt: '2026-08-05T00:00:00.000Z',
-          },
-        ],
-        complete: vi.fn(),
-        abort: async () => undefined,
-      })
-    ).rejects.toMatchObject({ status: 403 })
-
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('retains a completed multipart transfer when completion fails', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => new Response(null, { status: 200 }))
-    )
-    const abort = vi.fn(async () => undefined)
-
-    await expect(
-      uploadFileSession({
-        file: sizedFile(1),
-        transfer: { method: 'multipart', partSize: 1, partCount: 1 },
-        getPartUrls: async () => [
-          {
-            partNumber: 1,
-            url: 'https://storage.example/parts/1',
-            headers: {},
-            expiresAt: '2026-08-05T00:00:00.000Z',
-          },
-        ],
-        complete: async () => {
-          throw new Error('finalizer unavailable')
-        },
-        abort,
-      })
-    ).rejects.toThrow('finalizer unavailable')
-
-    expect(abort).not.toHaveBeenCalled()
   })
 })

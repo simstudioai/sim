@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { account, credential, credentialMember, workflow } from '@sim/db/schema'
 import { createMockRequest, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -70,7 +67,6 @@ function authorize(credentialId: string, workflowId?: string) {
 
 describe('authorizeCredentialUse', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     actAs('acting-user')
     mockGetUserEntityPermissions.mockResolvedValue('admin')

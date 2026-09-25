@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   PrincipalSubjectUserRequiredError,
   parsePrincipal,

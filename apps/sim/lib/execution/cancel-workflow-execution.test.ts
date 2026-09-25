@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { databaseMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -166,7 +162,6 @@ const REPLACEMENT_ACTIVE_RESUME_TARGET = {
 
 describe('cancelWorkflowExecution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([
       {

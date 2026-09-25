@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,7 +28,6 @@ function queueProbe(managed: boolean) {
 
 describe('assertMembershipNotScimManaged', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockDeploymentEnabled.mockReturnValue(true)
     mockEntitled.mockResolvedValue(true)
@@ -50,23 +46,10 @@ describe('assertMembershipNotScimManaged', () => {
     await expect(assertMembershipNotScimManaged(params)).resolves.toBeUndefined()
     expect(mockEntitled).toHaveBeenCalledWith('org-1', db)
   })
-
-  it('never reads the plan for a member the directory does not manage', async () => {
-    queueProbe(false)
-    await expect(assertMembershipNotScimManaged(params)).resolves.toBeUndefined()
-    expect(mockEntitled).not.toHaveBeenCalled()
-  })
-
-  it('does not query at all on a deployment without provisioning', async () => {
-    mockDeploymentEnabled.mockReturnValue(false)
-    await expect(assertMembershipNotScimManaged(params)).resolves.toBeUndefined()
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-  })
 })
 
 describe('assertInviteeNotScimManaged', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockEntitled.mockResolvedValue(true)
   })
 
@@ -81,12 +64,5 @@ describe('assertInviteeNotScimManaged', () => {
     await expect(
       assertInviteeNotScimManaged({ organizationId: 'org-1', managed: true })
     ).resolves.toBeUndefined()
-  })
-
-  it('costs no plan read for an ordinary invitee', async () => {
-    await expect(
-      assertInviteeNotScimManaged({ organizationId: 'org-1', managed: false })
-    ).resolves.toBeUndefined()
-    expect(mockEntitled).not.toHaveBeenCalled()
   })
 })

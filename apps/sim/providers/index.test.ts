@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { envFlagsMockFns, resetEnvFlagsMock } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -145,7 +142,6 @@ describe('executeProviderRequest — durable Agent continuation', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockExecuteRequest.mockReset().mockImplementation(async () => response())
     mockExecuteTool.mockReset().mockResolvedValue({ success: true, output: { value: 'saved' } })
   })
@@ -483,10 +479,6 @@ describe('executeProviderRequest — durable Agent continuation', () => {
 })
 
 describe('executeProviderRequest — tool identities', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('passes trusted execution context to both attachment authorization stages without serializing it', async () => {
     const executionContext = {
       workflowId: 'workflow-1',
@@ -591,10 +583,6 @@ describe('executeProviderRequest — tool identities', () => {
 })
 
 describe('executeProviderRequest — BYOK regression', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('zeroes block-level model cost for BYOK callers (existing behavior)', async () => {
     mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'sk-byok', isBYOK: true })
     mockExecuteRequest.mockResolvedValue(makeAnthropicResponse())
@@ -878,7 +866,6 @@ describe('executeProviderRequest — BYOK regression', () => {
  */
 describe('executeProviderRequest — streaming cost policy', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'sk-rotating', isBYOK: false })
   })
 
@@ -969,7 +956,6 @@ describe('executeProviderRequest — streaming cost policy', () => {
 
 describe('executeProviderRequest — caller-prepared model input', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockExecuteRequest.mockResolvedValue({
       content: 'ok',
       model: 'test-model',
@@ -1900,7 +1886,6 @@ describe('executeProviderRequest — caller-prepared model input', () => {
  */
 describe('executeProviderRequest — model level normalization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetApiKeyWithBYOK.mockResolvedValue({ apiKey: 'sk-rotating', isBYOK: false })
     mockExecuteRequest.mockResolvedValue({
       content: 'hi',
@@ -2081,7 +2066,6 @@ describe('executeProviderRequest — model level normalization', () => {
 
 describe('native evaluation provider boundary', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     envFlagsMockFns.getCostMultiplier.mockReturnValue(2)
     mockExecuteRequest.mockResolvedValue({
       content: '{"passed":true}',

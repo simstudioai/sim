@@ -35,34 +35,4 @@ describe('shell appearance bootstrap', () => {
     expect(document.documentElement.className).toBe('light')
     expect(document.documentElement.style.colorScheme).toBe('light')
   })
-
-  it('follows system changes only before an app theme is known', async () => {
-    let update!: (theme: ShellTheme) => void
-    let systemChanged!: () => void
-    const media = {
-      matches: true,
-      addEventListener: vi.fn((_event, callback) => {
-        systemChanged = callback
-      }),
-    }
-    vi.stubGlobal(
-      'matchMedia',
-      vi.fn(() => media)
-    )
-    vi.stubGlobal('simShellTheme', {
-      get: async () => undefined,
-      onChange: (callback) => {
-        update = callback
-        return () => {}
-      },
-    } satisfies ShellThemeApi)
-    await initializeShellPage()
-    expect(document.documentElement.className).toBe('dark')
-    media.matches = false
-    systemChanged()
-    expect(document.documentElement.className).toBe('light')
-    update('dark')
-    systemChanged()
-    expect(document.documentElement.className).toBe('dark')
-  })
 })

@@ -5,7 +5,7 @@ import type { RateLimitStorageAdapter } from '@/lib/core/rate-limiter/storage/ad
 import { DbTokenBucket } from '@/lib/core/rate-limiter/storage/db-token-bucket'
 import { RedisTokenBucket } from '@/lib/core/rate-limiter/storage/redis-token-bucket'
 
-const redisUrl = process.env.KNOWLEDGE_ACL_TEST_REDIS_URL
+const redisUrl = process.env.TEST_REDIS_URL
 if (redisUrl) {
   const target = new URL(redisUrl)
   if (

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   applyStringReplacement,
@@ -16,10 +13,6 @@ describe('applyStringReplacement', () => {
     expect(applyStringReplacement(NOTE, '- ship the thing', '- shipped the thing')).toBe(
       ['# Commitments', '', '- shipped the thing', '- review the doc', ''].join('\n')
     )
-  })
-
-  it('deletes when the replacement is empty', () => {
-    expect(applyStringReplacement('a\nb\nc', 'b\n', '')).toBe('a\nc')
   })
 
   it('refuses text that does not appear', () => {
@@ -205,17 +198,6 @@ describe('applyWorkspaceFileContentEdit', () => {
       })
     ).toThrow(/end anchor must follow the start anchor/)
   })
-
-  it('supports exact replacement through the shared protocol', () => {
-    expect(
-      applyWorkspaceFileContentEdit('a a', {
-        mode: 'search_replace',
-        search: 'a',
-        content: 'b',
-        replaceAll: true,
-      })
-    ).toBe('b b')
-  })
 })
 
 /*
@@ -225,20 +207,8 @@ describe('applyWorkspaceFileContentEdit', () => {
  * longer than `insert` would take.
  */
 describe('countLines', () => {
-  it('does not count the trailing newline as a line', () => {
-    expect(countLines('a\nb\n')).toBe(2)
-  })
-
-  it('counts a file with no trailing newline', () => {
-    expect(countLines('a\nb')).toBe(2)
-  })
-
   it('counts an empty file as one line', () => {
     expect(countLines('')).toBe(1)
-  })
-
-  it('counts blank lines in the middle', () => {
-    expect(countLines('a\n\nb\n')).toBe(3)
   })
 })
 

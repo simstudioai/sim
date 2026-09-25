@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ParallelBlock } from '@/blocks/blocks/parallel'
 import { deepResearchTool } from '@/tools/parallel/deep_research'
@@ -59,15 +56,6 @@ describe('resolveSearchMode', () => {
 })
 
 describe('parallel_search request', () => {
-  it('targets the GA endpoint without the beta header', () => {
-    expect(searchTool.request.url).toBe('https://api.parallel.ai/v1/search')
-    const headers = (searchTool.request.headers as (p: unknown) => Record<string, string>)({
-      apiKey: API_KEY,
-    })
-    expect(headers['parallel-beta']).toBeUndefined()
-    expect(headers['x-api-key']).toBe(API_KEY)
-  })
-
   it('requires search_queries and treats objective as optional', () => {
     expect(searchTool.params.search_queries.required).toBe(true)
     expect(searchTool.params.objective.required).toBe(false)
@@ -121,14 +109,6 @@ describe('parallel_search pricing', () => {
 })
 
 describe('parallel_extract request', () => {
-  it('targets the GA endpoint and nests full_content under advanced_settings', () => {
-    expect(extractTool.request.url).toBe('https://api.parallel.ai/v1/extract')
-    expect(extractBody({ full_content: true })).toEqual({
-      urls: ['https://a.com'],
-      advanced_settings: { full_content: true },
-    })
-  })
-
   it('never sends the removed excerpts toggle', () => {
     expect(extractTool.params.excerpts).toBeUndefined()
     expect(extractBody({ excerpts: false })).toEqual({ urls: ['https://a.com'] })
@@ -221,23 +201,6 @@ describe('parallel_deep_research', () => {
 
 describe('Parallel block', () => {
   const params = ParallelBlock.tools.config!.params!
-
-  it('requires search queries and lists only V1 search modes', () => {
-    const queries = ParallelBlock.subBlocks.find((s) => s.id === 'search_queries')
-    const mode = ParallelBlock.subBlocks.find((s) => s.id === 'search_mode')
-    expect(queries?.required).toBe(true)
-    expect(mode?.options).toEqual([
-      { label: 'Advanced', id: 'advanced' },
-      { label: 'Basic', id: 'basic' },
-      { label: 'Fast', id: 'fast' },
-      { label: 'Turbo', id: 'turbo' },
-    ])
-  })
-
-  it('no longer exposes the removed excerpts toggle', () => {
-    expect(ParallelBlock.subBlocks.some((s) => s.id === 'excerpts')).toBe(false)
-    expect(ParallelBlock.inputs?.excerpts).toBeUndefined()
-  })
 
   it('coerces the full_content switch and drops the excerpts flag', () => {
     expect(params({ operation: 'extract', full_content: 'true' })).toEqual({

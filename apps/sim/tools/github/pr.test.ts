@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { listPRsV2Tool } from '@/tools/github/list_prs'
 import { prTool, prV2Tool } from '@/tools/github/pr'

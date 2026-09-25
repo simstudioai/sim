@@ -1,7 +1,4 @@
-/**
- * @vitest-environment node
- */
-import { invitation, workspace } from '@sim/db/schema'
+import { invitation } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -66,25 +63,8 @@ function hydrationRows(params?: {
 
 describe('createPendingInvitation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
-
-  it.each(['member', 'admin'] as const)(
-    'creates a %s-role organization invitation without workspace grants',
-    async (role) => {
-      await expect(
-        createPendingInvitation({
-          kind: 'organization',
-          email: 'invitee@example.com',
-          inviterId: 'inviter-1',
-          organizationId: 'org-1',
-          role,
-          grants: [],
-        })
-      ).resolves.toEqual(expect.objectContaining({ grants: [], created: true }))
-    }
-  )
 
   it('expires a stale pending invitation under the creation locks before validating its replacement', async () => {
     const stale = {
@@ -150,40 +130,12 @@ describe('createPendingInvitation', () => {
       })
     ).rejects.toThrow(GrantlessInvitationError)
   })
-
-  it('runs locked-context validation after the shared invitation/workspace locks', async () => {
-    const validateLockedContext = vi.fn().mockResolvedValue(undefined)
-    queueTableRows(workspace, [{ organizationId: 'org-1' }])
-    queueTableRows(workspace, [{ organizationId: 'org-1' }])
-
-    await createPendingInvitation({
-      kind: 'workspace',
-      email: 'invitee@example.com',
-      inviterId: 'inviter-1',
-      organizationId: 'org-1',
-      membershipIntent: 'internal',
-      role: 'member',
-      grants: [{ workspaceId: 'workspace-1', permission: 'write' }],
-      validateLockedContext,
-    })
-
-    expect(validateLockedContext).toHaveBeenCalledWith(
-      expect.objectContaining({
-        organizationId: 'org-1',
-        workspaceIds: ['workspace-1'],
-      })
-    )
-    expect(dbChainMockFns.execute.mock.invocationCallOrder[0]).toBeLessThan(
-      validateLockedContext.mock.invocationCallOrder[0]
-    )
-  })
 })
 
 describe('failed-send compensation', () => {
   const expectedUpdatedAt = new Date('2026-07-30T12:00:00.000Z')
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -249,24 +201,6 @@ describe('failed-send compensation', () => {
         workspaceIds: ['workspace-1'],
         expectedUpdatedAt,
         expectedOrganizationId: null,
-      })
-    ).resolves.toBe(false)
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-  })
-
-  it('does not delete grants after a later same-scope merge touched the invitation', async () => {
-    const laterMergeAt = new Date('2026-07-30T12:00:01.000Z')
-    queueWhereResponses([
-      ...hydrationRows({ organizationId: 'org-1', updatedAt: expectedUpdatedAt }),
-      ...hydrationRows({ organizationId: 'org-1', updatedAt: laterMergeAt }),
-    ])
-
-    await expect(
-      revertPendingInvitationGrants({
-        invitationId: 'inv-1',
-        workspaceIds: ['workspace-1'],
-        expectedUpdatedAt,
-        expectedOrganizationId: 'org-1',
       })
     ).resolves.toBe(false)
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { readFile, writeFile, embedded } = vi.hoisted(() => ({
   readFile: vi.fn(),
@@ -20,10 +20,6 @@ import { runCli } from '@/lib/mothership/agent-cli/run-cli'
 const identity = { endpoint: 'https://sim.test', apiKey: 'test', workspaceId: 'workspace' }
 
 describe('embedded CLI binary workbench bridge', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('preserves arbitrary bytes in both directions and binds both to the same chat', async () => {
     const bytes = Uint8Array.from([0, 255, 137, 80, 78, 71, 13, 10, 128, 195, 0])
     const stream = new Blob([bytes]).stream()

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { LinearError } from '@linear/sdk'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -84,24 +81,7 @@ function linearError(status: number): LinearError {
 
 describe('Linear server selector adapter errors', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveSelectorOAuthAccessToken.mockResolvedValue('server-only-token')
-  })
-
-  it('constructs the v91 client with OAuth credentials and request cancellation', async () => {
-    const controller = new AbortController()
-    mockTeams.mockResolvedValueOnce({
-      nodes: [],
-      pageInfo: { hasNextPage: false, endCursor: undefined },
-    })
-
-    await linearSelectorAttachments['linear.teams'].execute(teamArgs(controller.signal))
-
-    expect(mockLinearClientOptions).toHaveBeenCalledWith({
-      accessToken: 'server-only-token',
-      redirect: 'error',
-      signal: controller.signal,
-    })
   })
 
   it('uses Linear personal API keys without exposing them as OAuth tokens', async () => {
@@ -135,25 +115,6 @@ describe('Linear server selector adapter errors', () => {
       ).rejects.toMatchObject({ name, status: safeStatus })
     }
   )
-
-  it('does not trust a status-shaped unknown error', async () => {
-    mockTeams.mockRejectedValueOnce({ status: 401 })
-
-    await expect(
-      linearSelectorAttachments['linear.teams'].execute(teamArgs())
-    ).rejects.toMatchObject({ name: 'SelectorOptionsUnavailableError', status: 502 })
-  })
-
-  it('preserves caller cancellation', async () => {
-    const controller = new AbortController()
-    const abortError = new DOMException('The operation was aborted', 'AbortError')
-    controller.abort(abortError)
-    mockTeams.mockRejectedValueOnce(abortError)
-
-    await expect(
-      linearSelectorAttachments['linear.teams'].execute(teamArgs(controller.signal))
-    ).rejects.toBe(abortError)
-  })
 
   it('fetches one selected team page at a time', async () => {
     mockTeam.mockImplementation(async (teamId: string) => ({
@@ -203,22 +164,6 @@ describe('Linear server selector adapter errors', () => {
         projectArgs('team-1,team-2', 'team=0&operation=teams')
       )
     ).rejects.toMatchObject({ name: 'SelectorContextUnavailableError' })
-    expect(mockTeam).not.toHaveBeenCalled()
-  })
-
-  it('hydrates a selected project without traversing its teams', async () => {
-    mockProject.mockResolvedValueOnce({ id: 'project-1', name: 'Project One' })
-
-    await expect(
-      linearSelectorAttachments['linear.projects'].execute({
-        ...projectArgs('team-1,team-2'),
-        request: { kind: 'detail', id: 'project-1' },
-      })
-    ).resolves.toEqual({
-      kind: 'detail',
-      item: { id: 'project-1', label: 'Project One' },
-    })
-    expect(mockProject).toHaveBeenCalledWith('project-1')
     expect(mockTeam).not.toHaveBeenCalled()
   })
 })

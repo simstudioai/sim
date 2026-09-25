@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createLogger } from '@sim/logger'
 import { createWorkflowRecord } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -89,7 +86,6 @@ function feed(pubDate: string) {
 
 describe('RSS delivery across delayed feed updates', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockValidateUrl.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
     mockProcessEvent.mockResolvedValue({ success: true })
     mockUpdateConfig.mockResolvedValue(undefined)

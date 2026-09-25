@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { member, organization, user, userStats } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -82,7 +79,6 @@ afterAll(resetDbChainMock)
 
 describe('grantDashboardOrganizationBalance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.billingSubscriptions = []
     mocks.idempotencyCalls = []
@@ -117,7 +113,6 @@ describe('grantDashboardOrganizationBalance', () => {
 
 describe('grantDashboardUserBalance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.billingSubscriptions = []
     mocks.idempotencyCalls = []

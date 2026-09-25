@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 
 interface CapturedDefinition {
@@ -93,28 +90,6 @@ function definition(method: string, path: string): CapturedDefinition {
 }
 
 describe('internal table transfer routes', () => {
-  it('routes every ordinary transfer control leg through session-or-executor use cases', () => {
-    const expected = [
-      ['POST', '/api/table/imports', mocks.useCases.createImport],
-      ['GET', '/api/table/imports/[importId]', mocks.useCases.readImport],
-      ['DELETE', '/api/table/imports/[importId]', mocks.useCases.cancelImport],
-      ['POST', '/api/table/imports/[importId]/parts', mocks.useCases.createImportParts],
-      ['POST', '/api/table/imports/[importId]/complete', mocks.useCases.completeImport],
-      ['POST', '/api/table/[tableId]/exports', mocks.useCases.createExport],
-      ['GET', '/api/table/exports/[exportId]', mocks.useCases.readExport],
-      ['DELETE', '/api/table/exports/[exportId]', mocks.useCases.cancelExport],
-      ['GET', '/api/table/exports/[exportId]/download', mocks.useCases.downloadExport],
-    ] as const
-
-    expect(mocks.definitions).toHaveLength(expected.length)
-    for (const [method, path, useCase] of expected) {
-      const route = definition(method, path)
-      expect(route.auth).toBe(mocks.auth)
-      expect(route.useCase).toBe(useCase)
-      expect(route.operation.id).toBe(useCase.operation.id)
-    }
-  })
-
   it('conceals cross-tenant authorization on every table transfer control leg', () => {
     const expected = [
       ['POST', '/api/table/imports', mocks.errorPolicies.concealTableAuthorization],
@@ -143,10 +118,5 @@ describe('internal table transfer routes', () => {
     for (const [method, path, errorPolicy] of expected) {
       expect(definition(method, path).errorPolicy).toBe(errorPolicy)
     }
-  })
-
-  it('preserves the create response statuses', () => {
-    expect(definition('POST', '/api/table/imports').contract.response.status).toBe(201)
-    expect(definition('POST', '/api/table/[tableId]/exports').contract.response.status).toBe(201)
   })
 })

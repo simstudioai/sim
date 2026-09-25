@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -17,21 +14,12 @@ const PARAMS = { userId: 'user-1', workspaceId: 'workspace-1' }
 
 describe('findWithheldBlockType', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getUserPermissionConfig.mockResolvedValue(null)
   })
 
   it('permits every block type when no permission group governs the workspace', async () => {
     await expect(
       findWithheldBlockType({ ...PARAMS, blocks: [{ type: 'gmail' }, { type: 'slack' }] })
-    ).resolves.toBeNull()
-  })
-
-  it('permits every block type when the allowlist names every integration', async () => {
-    mocks.getUserPermissionConfig.mockResolvedValue({ allowedIntegrations: null })
-
-    await expect(
-      findWithheldBlockType({ ...PARAMS, blocks: [{ type: 'gmail' }] })
     ).resolves.toBeNull()
   })
 

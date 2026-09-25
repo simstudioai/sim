@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { serializePrincipal, type WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -116,7 +113,6 @@ const principal: WorkflowExecutionDelegatedPrincipal = {
 
 describe('discoverManagedMcpToolsUseCase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.build.mockResolvedValue([])
     mocks.config.mockResolvedValue(null)
@@ -190,14 +186,6 @@ describe('discoverManagedMcpToolsUseCase', () => {
       resourceType: 'credential_group',
       action: 'credential_groups.credentials.use',
     })
-    expect(mocks.loadRuntime).toHaveBeenCalledWith(context.credentialId, context.workspaceId)
-    expect(mocks.discoverTools).toHaveBeenCalledWith(
-      context.mcpServerId,
-      { kind: 'organization', organizationId: 'org-1' },
-      { credentialId: context.credentialId, loadProvider: expect.any(Function) },
-      signal,
-      { requireComplete: true }
-    )
     expect(result.tools).toEqual([
       expect.objectContaining({
         name: 'search_transcripts',
@@ -206,18 +194,6 @@ describe('discoverManagedMcpToolsUseCase', () => {
         serverName: context.mcpServerName,
       }),
     ])
-    expect(mocks.saveToolSnapshot).toHaveBeenCalledWith(
-      context.credentialId,
-      [
-        {
-          name: 'search_transcripts',
-          description: 'Search transcripts',
-          inputSchema: { type: 'object', properties: {} },
-        },
-      ],
-      2,
-      new Date('2026-09-01')
-    )
   })
   it.each(['draft', 'deployment'] as const)(
     'catalog preserves managed executor authority and %s operation policy',

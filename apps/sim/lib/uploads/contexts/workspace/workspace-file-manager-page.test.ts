@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
@@ -49,7 +48,6 @@ import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-
 import { compileSimPage, SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.upload.mockImplementation(async ({ fileName }: { fileName: string }) => ({ key: fileName }))
 })
 

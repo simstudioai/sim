@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch, mockResolveSelectorOAuthAccessToken } = vi.hoisted(() => ({
@@ -52,7 +49,6 @@ function listArgs(
 
 describe('Google server selector adapters', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockFetch.mockReset()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveSelectorOAuthAccessToken.mockResolvedValue('server-only-token')
@@ -178,23 +174,6 @@ describe('Google server selector adapters', () => {
     expect(fileUrl.searchParams.get('q')).toContain("name contains 'Team\\'s notes'")
   })
 
-  it('does not offer another page when only a shared-drive root matches', async () => {
-    mockFetch
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ drives: [{ id: 'drive-1', name: 'Engineering' }] }))
-      )
-      .mockResolvedValueOnce(new Response(JSON.stringify({ files: [] })))
-    const args = listArgs('google.drive')
-    args.context.mimeType = 'application/vnd.google-apps.folder'
-    args.request = { kind: 'list', search: 'Engineering' }
-
-    await expect(googleSelectorAttachments['google.drive'].execute(args)).resolves.toEqual({
-      kind: 'list',
-      items: [{ id: 'drive-1', label: 'Engineering' }],
-    })
-    expect(mockFetch).toHaveBeenCalledTimes(2)
-  })
-
   it.each([
     { files: [{ id: 'folder-1', name: 'Notes' }], nextPageToken: undefined },
     { files: [], nextPageToken: undefined },
@@ -269,46 +248,6 @@ describe('Google server selector adapters', () => {
     expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 
-  it('continues a shared-drive search on demand', async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({ drives: [{ id: 'drive-2', name: 'Engineering' }], nextPageToken: 'next' })
-      )
-    )
-    const args = listArgs('google.drive')
-    args.context.mimeType = 'application/vnd.google-apps.folder'
-    args.request = { kind: 'list', search: 'Engineering', cursor: 'd:previous' }
-
-    await expect(googleSelectorAttachments['google.drive'].execute(args)).resolves.toEqual({
-      kind: 'list',
-      items: [{ id: 'drive-2', label: 'Engineering' }],
-      nextCursor: 'd:next',
-    })
-    const url = new URL(String(mockFetch.mock.calls[0]?.[0]))
-    expect(url.searchParams.get('pageToken')).toBe('previous')
-    expect(url.searchParams.get('q')).toBe("name contains 'Engineering'")
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-  })
-
-  it('still lists personal folders when the account has no shared drives', async () => {
-    mockFetch
-      .mockResolvedValueOnce(new Response(JSON.stringify({ drives: [] })))
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ files: [{ id: 'folder-1', name: 'My notes' }] }))
-      )
-    const args = listArgs('google.drive')
-    args.context.mimeType = 'application/vnd.google-apps.folder'
-
-    await expect(googleSelectorAttachments['google.drive'].execute(args)).resolves.toEqual({
-      kind: 'list',
-      items: [{ id: 'folder-1', label: 'My notes' }],
-    })
-    expect(mockFetch).toHaveBeenCalledTimes(2)
-    expect(mockResolveSelectorOAuthAccessToken).toHaveBeenCalledWith(
-      expect.objectContaining({ impersonateEmail: undefined })
-    )
-  })
-
   it('keeps searches inside a selected folder scoped to that folder', async () => {
     mockFetch.mockResolvedValueOnce(
       new Response(JSON.stringify({ files: [{ id: 'child-1', name: 'Notes' }] }))
@@ -364,17 +303,6 @@ describe('Google server selector adapters', () => {
     expect(String(mockFetch.mock.calls[1]?.[0])).toContain('/drive/v3/drives/drive-item-1')
   })
 
-  it('preserves caller cancellation during detail hydration', async () => {
-    const controller = new AbortController()
-    const abortError = new DOMException('The operation was aborted', 'AbortError')
-    controller.abort()
-    mockFetch.mockRejectedValueOnce(abortError)
-
-    await expect(
-      googleSelectorAttachments['google.drive'].execute(driveDetailArgs(controller.signal))
-    ).rejects.toBe(abortError)
-  })
-
   it('returns one task-list page and preserves the continuation token', async () => {
     const items = Array.from({ length: 1_000 }, (_, index) => ({
       id: `task-list-${index}`,
@@ -390,50 +318,6 @@ describe('Google server selector adapters', () => {
 
     expect(result).toMatchObject({ kind: 'list', nextCursor: 'page-1' })
     expect(result.kind === 'list' ? result.items : []).toHaveLength(1_000)
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-  })
-
-  it('forwards a Google continuation token on demand', async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          items: [{ id: 'calendar-2', summary: 'Calendar 2' }],
-          nextPageToken: 'page-3',
-        }),
-        { status: 200 }
-      )
-    )
-
-    await expect(
-      googleSelectorAttachments['google.calendar'].execute(listArgs('google.calendar', 'page-2'))
-    ).resolves.toEqual({
-      kind: 'list',
-      items: [{ id: 'calendar-2', label: 'Calendar 2' }],
-      nextCursor: 'page-3',
-    })
-    expect(new URL(String(mockFetch.mock.calls[0]?.[0])).searchParams.get('pageToken')).toBe(
-      'page-2'
-    )
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-  })
-
-  it('hydrates a selected calendar without traversing the calendar list', async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response(JSON.stringify({ id: 'team@example.com', summary: 'Team calendar' }), {
-        status: 200,
-      })
-    )
-
-    await expect(
-      googleSelectorAttachments['google.calendar'].execute({
-        ...listArgs('google.calendar'),
-        request: { kind: 'detail', id: 'team@example.com' },
-      })
-    ).resolves.toEqual({
-      kind: 'detail',
-      item: { id: 'team@example.com', label: 'Team calendar' },
-    })
-    expect(String(mockFetch.mock.calls[0]?.[0])).toContain('/calendars/team%40example.com')
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 })

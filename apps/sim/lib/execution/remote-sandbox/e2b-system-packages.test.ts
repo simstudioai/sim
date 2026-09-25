@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
 
@@ -43,7 +40,6 @@ const CHILD_BUILD_ID = '7d9d12d6-5f2a-44df-9cc2-a20203f3813b'
 
 describe('E2B system package image layer', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockBuilder.fromTemplate.mockReturnValue(mockBuilder)
     mockBuilder.makeDir.mockReturnValue(mockBuilder)
     mockBuilder.runCmd.mockReturnValue(mockBuilder)

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
 import {
@@ -33,7 +30,6 @@ const TEST_CONTEXT = {
 
 describe('large array manifests', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     clearLargeValueCacheForTests()
     mockDownloadFile.mockReset()
     mockUploadFile.mockImplementation(async ({ customKey }) => ({ key: customKey }))

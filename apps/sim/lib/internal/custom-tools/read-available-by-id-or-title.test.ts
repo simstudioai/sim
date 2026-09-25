@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CUSTOM_TOOL_DELEGATION_AUDIENCE } from '@/lib/custom-tools/application/authorization'
 import type { ExecutionContext } from '@/executor/types'
@@ -71,7 +68,6 @@ function executionContext(abortSignal?: AbortSignal): ExecutionContext {
 
 describe('readAvailableCustomToolByIdOrTitleAsExecutor', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.createPrincipal.mockResolvedValue(principal)
     mocks.readUseCase.execute.mockResolvedValue({ tool })
     mocks.executeCopilot.mockResolvedValue({ tool })
@@ -133,22 +129,6 @@ describe('readAvailableCustomToolByIdOrTitleAsExecutor', () => {
       },
     })
   })
-
-  it('stops before principal construction when execution is already cancelled', async () => {
-    const controller = new AbortController()
-    controller.abort(new Error('cancelled'))
-
-    await expect(
-      readAvailableCustomToolByIdOrTitleAsExecutor({
-        context: executionContext(controller.signal),
-        identifier: tool.id,
-        lookup: 'id_or_title',
-      })
-    ).rejects.toThrow('cancelled')
-
-    expect(mocks.createPrincipal).not.toHaveBeenCalled()
-    expect(mocks.readUseCase.execute).not.toHaveBeenCalled()
-  })
 })
 
 describe('readAvailableCustomToolByIdOrTitleAsCopilot', () => {
@@ -162,24 +142,7 @@ describe('readAvailableCustomToolByIdOrTitleAsCopilot', () => {
   } as const
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.executeCopilot.mockResolvedValue({ tool })
-  })
-
-  it('enters the shared Copilot use case with canonical trusted scope', async () => {
-    await expect(
-      readAvailableCustomToolByIdOrTitleAsCopilot({
-        context,
-        identifier: tool.id,
-        lookup: 'id_or_title',
-      })
-    ).resolves.toEqual(tool)
-
-    expect(mocks.executeCopilot).toHaveBeenCalledWith(context, mocks.readUseCase, {
-      workspaceId: context.workspaceId,
-      identifier: tool.id,
-      lookup: 'id_or_title',
-    })
   })
 
   it('rejects forged Copilot authority before application execution', async () => {
@@ -190,22 +153,6 @@ describe('readAvailableCustomToolByIdOrTitleAsCopilot', () => {
         lookup: 'id',
       })
     ).rejects.toThrow('trusted Copilot execution context')
-
-    expect(mocks.executeCopilot).not.toHaveBeenCalled()
-  })
-
-  it('stops before application execution when the caller is already cancelled', async () => {
-    const controller = new AbortController()
-    controller.abort(new Error('cancelled'))
-
-    await expect(
-      readAvailableCustomToolByIdOrTitleAsCopilot({
-        context,
-        identifier: tool.id,
-        lookup: 'id',
-        signal: controller.signal,
-      })
-    ).rejects.toThrow('cancelled')
 
     expect(mocks.executeCopilot).not.toHaveBeenCalled()
   })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -57,7 +54,6 @@ const principal: WorkflowExecutionDelegatedPrincipal = {
 
 describe('executeFunction', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue({
       workspaceId: 'workspace-1',
       workspaceOrganizationId: null,

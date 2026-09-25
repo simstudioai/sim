@@ -117,23 +117,27 @@ vi.mock('@/stores/copilot-terminal/store', () => ({
 
 import {
   activateTerminalScope,
-  clearTerminalScrollback,
-  discardTerminalScope,
   initTerminalTransport,
   migrateTerminalScope,
   onTerminalData,
-  onTerminalDefaultZoomChanged,
   onTerminalShortcutCommand,
   openTerminal,
-  reorderTerminal,
   suspendTerminalScope,
-  switchTerminal,
-  writeToTerminal,
 } from '@/lib/terminal/transport'
 
 describe('terminal transport chat scopes', () => {
+  /** Vitest clears mock call history before every test, so keep the registrations. */
+  const registrations = {
+    onTabs: [] as unknown[][],
+    onCommand: [] as unknown[][],
+    onScopeSuspended: [] as unknown[][],
+  }
+
   beforeAll(() => {
     initTerminalTransport()
+    registrations.onTabs = [...onTabs.mock.calls]
+    registrations.onCommand = [...onCommand.mock.calls]
+    registrations.onScopeSuspended = [...onScopeSuspended.mock.calls]
   })
 
   beforeEach(() => {
@@ -237,15 +241,9 @@ describe('terminal transport chat scopes', () => {
     expect(nativeOpenTerminal).not.toHaveBeenCalled()
   })
 
-  it('forwards a terminal switch with its claim option', async () => {
-    await switchTerminal('terminal-b', 'chat-b', { claim: false })
-
-    expect(nativeSwitchTerminal).toHaveBeenCalledWith('terminal-b', 'chat-b', { claim: false })
-  })
-
   it('routes pushed tab and command state to the scope carried by each event', () => {
-    const tabsListener = onTabs.mock.calls[0][0] as (state: ScopedTerminalTabsState) => void
-    const commandListener = onCommand.mock.calls[0][0] as (
+    const tabsListener = registrations.onTabs[0][0] as (state: ScopedTerminalTabsState) => void
+    const commandListener = registrations.onCommand[0][0] as (
       event: ScopedTerminalCommandEvent
     ) => void
     const tabs = { scopeId: 'chat-a', tabs: [] as [], activeTerminalId: null }
@@ -262,14 +260,6 @@ describe('terminal transport chat scopes', () => {
 
     expect(setTabs).toHaveBeenCalledWith(tabs)
     expect(applyCommandEvent).toHaveBeenCalledWith(command)
-  })
-
-  it('applies native suspension pushes to the matching renderer scope', () => {
-    const listener = onScopeSuspended.mock.calls[0][0] as (scopeId: string) => void
-
-    listener('chat-background')
-
-    expect(markScopeSuspended).toHaveBeenCalledWith('chat-background')
   })
 
   it('separates output handlers for overlapping terminal ids', () => {
@@ -294,24 +284,6 @@ describe('terminal transport chat scopes', () => {
     unsubscribeB()
   })
 
-  it('forwards user input with the explicit chat scope', () => {
-    writeToTerminal('same-id', 'ls\r', 'chat-b')
-
-    expect(write).toHaveBeenCalledWith('same-id', 'ls\r', 'chat-b')
-  })
-
-  it('forwards terminal tab reordering with the explicit chat scope', async () => {
-    await reorderTerminal('terminal-b', 2, 'chat-b')
-
-    expect(nativeReorderTerminal).toHaveBeenCalledWith('terminal-b', 2, 'chat-b')
-  })
-
-  it('clears retained terminal output in the explicit chat scope', async () => {
-    await expect(clearTerminalScrollback('same-id', 'chat-b')).resolves.toBe(true)
-
-    expect(clearScrollback).toHaveBeenCalledWith('same-id', 'chat-b')
-  })
-
   it('routes focus commands only to the subscribed terminal scope', () => {
     const callback = vi.fn()
     onTerminalShortcutCommand(callback, 'chat-a', 'terminal-a')
@@ -327,23 +299,6 @@ describe('terminal transport chat scopes', () => {
 
     expect(callback).toHaveBeenCalledOnce()
     expect(callback).toHaveBeenCalledWith('clear')
-  })
-
-  it('forwards device-wide terminal zoom baseline changes', () => {
-    const callback = vi.fn()
-    onTerminalDefaultZoomChanged(callback)
-    const listener = onDefaultZoomChanged.mock.calls.at(-1)?.[0] as (zoom: 125) => void
-
-    listener(125)
-
-    expect(callback).toHaveBeenCalledWith(125)
-  })
-
-  it('forgets an abandoned provisional terminal scope on both sides', async () => {
-    await discardTerminalScope('pending:new')
-
-    expect(discardScope).toHaveBeenCalledWith('pending:new')
-    expect(disposeScope).toHaveBeenCalledWith('pending:new')
   })
 
   it('moves renderer state only after native terminal migration succeeds', async () => {

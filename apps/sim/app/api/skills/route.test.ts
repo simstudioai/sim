@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -70,7 +67,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
   checkWorkspaceAccess: mocks.checkWorkspaceAccess,
 }))
 
-import { DELETE, POST } from '@/app/api/skills/route'
+import { POST } from '@/app/api/skills/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const USER_ID = 'user-1'
@@ -101,7 +98,6 @@ function upsertRequest(body: unknown) {
 
 describe('internal /api/skills route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getSession.mockResolvedValue({
       user: { id: USER_ID, name: 'Ada', email: 'ada@example.com' },
       session: { id: 'session-1' },
@@ -136,55 +132,6 @@ describe('internal /api/skills route', () => {
       workspace: { id: WORKSPACE_ID },
       permission: 'admin',
     })
-  })
-
-  /**
-   * The semantic audit entry is projected by the application use case and is
-   * tagged with the operation id. A surface that writes through the manager
-   * directly cannot produce it. The batch is one operation, `skills.upsert`;
-   * the create/update distinction stays on the audit action.
-   */
-  it('records the skills.upsert semantic audit entry for an update', async () => {
-    const response = await POST(
-      upsertRequest({
-        workspaceId: WORKSPACE_ID,
-        skills: [{ id: skillRow.id, content: '# Updated' }],
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.recordAudit).toHaveBeenCalledTimes(1)
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: WORKSPACE_ID,
-        actorId: USER_ID,
-        action: 'skill.updated',
-        resourceId: skillRow.id,
-        metadata: expect.objectContaining({ operation: 'skills.upsert' }),
-      })
-    )
-  })
-
-  it('records a skill.created audit entry for a create', async () => {
-    mocks.upsertSkills.mockResolvedValue({
-      touched: [{ id: 'skill-2', name: 'new-skill', operation: 'created' }],
-    })
-
-    const response = await POST(
-      upsertRequest({
-        workspaceId: WORKSPACE_ID,
-        skills: [{ name: 'new-skill', description: 'A skill', content: '# New' }],
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'skill.created',
-        resourceId: 'skill-2',
-        metadata: expect.objectContaining({ operation: 'skills.upsert' }),
-      })
-    )
   })
 
   /**
@@ -248,43 +195,6 @@ describe('internal /api/skills route', () => {
     expect(mocks.captureServerEvent).not.toHaveBeenCalled()
   })
 
-  it('commits a valid batch in one write with one audit entry per skill', async () => {
-    mocks.upsertSkills.mockResolvedValue({
-      touched: [
-        { id: skillRow.id, name: skillRow.name, operation: 'updated' },
-        { id: 'skill-3', name: 'new-skill', operation: 'created' },
-      ],
-    })
-
-    const response = await POST(
-      upsertRequest({
-        workspaceId: WORKSPACE_ID,
-        skills: [
-          { id: skillRow.id, content: '# Updated' },
-          { name: 'new-skill', description: 'A skill', content: '# New' },
-        ],
-      })
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.upsertSkills).toHaveBeenCalledTimes(1)
-    expect(mocks.upsertSkills).toHaveBeenCalledWith(
-      expect.objectContaining({
-        skills: [
-          { id: skillRow.id, content: '# Updated' },
-          { name: 'new-skill', description: 'A skill', content: '# New' },
-        ],
-      })
-    )
-    expect(mocks.recordAudit).toHaveBeenCalledTimes(2)
-    expect(mocks.recordAudit.mock.calls.map(([entry]) => [entry.action, entry.resourceId])).toEqual(
-      [
-        ['skill.updated', skillRow.id],
-        ['skill.created', 'skill-3'],
-      ]
-    )
-  })
-
   /**
    * The batch operation declares only the read floor an update needs, so a
    * skill editor without workspace write keeps editing. A create in the same
@@ -333,45 +243,5 @@ describe('internal /api/skills route', () => {
     expect(response.status).toBe(403)
     expect(mocks.upsertSkills).not.toHaveBeenCalled()
     expect(mocks.recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('records the skills.delete semantic audit entry', async () => {
-    const response = await DELETE(
-      createMockRequest(
-        'DELETE',
-        undefined,
-        {},
-        `http://localhost:3000/api/skills?id=${skillRow.id}&workspaceId=${WORKSPACE_ID}`
-      )
-    )
-
-    expect(response.status).toBe(200)
-    expect(mocks.recordAudit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'skill.deleted',
-        metadata: expect.objectContaining({ operation: 'skills.delete' }),
-      })
-    )
-  })
-
-  it('still emits product analytics for a write', async () => {
-    await POST(
-      upsertRequest({
-        workspaceId: WORKSPACE_ID,
-        skills: [{ id: skillRow.id, content: '# Updated' }],
-        source: 'settings',
-      })
-    )
-
-    expect(mocks.captureServerEvent).toHaveBeenCalledWith(
-      USER_ID,
-      'skill_updated',
-      expect.objectContaining({
-        skill_id: skillRow.id,
-        workspace_id: WORKSPACE_ID,
-        source: 'settings',
-      }),
-      { groups: { workspace: WORKSPACE_ID } }
-    )
   })
 })

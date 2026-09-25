@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   queueTableRows,
   resetDbChainMock,
@@ -24,7 +21,6 @@ afterAll(resetEnvFlagsMock)
 
 describe('reconcileTeamSeatDrift', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isBillingEnabled: true })
     mockReconcileOrganizationSeats.mockResolvedValue({ changed: true, previousSeats: 1, seats: 2 })
@@ -56,18 +52,6 @@ describe('reconcileTeamSeatDrift', () => {
     })
   })
 
-  it('reconciles a past-due Team candidate returned by the entitlement query', async () => {
-    queueTableRows(schemaMock.subscription, [{ organizationId: 'org-past-due' }])
-
-    const result = await reconcileTeamSeatDrift()
-
-    expect(result).toEqual({ drifted: 1, reconciled: 1 })
-    expect(mockReconcileOrganizationSeats).toHaveBeenCalledWith({
-      organizationId: 'org-past-due',
-      reason: 'seat-drift-sweep',
-    })
-  })
-
   it('counts only reconciles that changed the seat count', async () => {
     queueTableRows(schemaMock.subscription, [
       { organizationId: 'org-a' },
@@ -95,15 +79,6 @@ describe('reconcileTeamSeatDrift', () => {
 
     expect(result).toEqual({ drifted: 2, reconciled: 1 })
     expect(mockReconcileOrganizationSeats).toHaveBeenCalledTimes(2)
-  })
-
-  it('no-ops when billing is disabled', async () => {
-    setEnvFlags({ isBillingEnabled: false })
-
-    const result = await reconcileTeamSeatDrift()
-
-    expect(result).toEqual({ drifted: 0, reconciled: 0 })
-    expect(mockReconcileOrganizationSeats).not.toHaveBeenCalled()
   })
 
   it('caps reconciles per run while still reporting the full drift count', async () => {

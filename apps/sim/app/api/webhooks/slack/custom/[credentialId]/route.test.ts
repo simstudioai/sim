@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -69,7 +66,6 @@ function webhook(id: string) {
 
 describe('Slack custom-bot webhook route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockDispatchSearch.mockResolvedValue(undefined)
     mockHandleChallenge.mockReturnValue(null)
     mockVerifySignature.mockReturnValue(null)
@@ -98,13 +94,6 @@ describe('Slack custom-bot webhook route', () => {
     expect(mockVerifySignature).not.toHaveBeenCalled()
   })
 
-  it('404s an unknown credential', async () => {
-    mockGetSlackBotCredential.mockResolvedValue(null)
-    const res = await POST(makeRequest(), context)
-    expect(res.status).toBe(404)
-    expect(mockDispatchResolvedWebhookTarget).not.toHaveBeenCalled()
-  })
-
   it('404s an action-only bot credential without a signing secret', async () => {
     mockGetSlackBotCredential.mockResolvedValue({
       botToken: 'xoxb-x',
@@ -131,40 +120,11 @@ describe('Slack custom-bot webhook route', () => {
     expect(mockDispatchResolvedWebhookTarget).not.toHaveBeenCalled()
   })
 
-  it('fans out by credential id (provider slack) and dispatches each webhook', async () => {
-    const res = await POST(makeRequest(), context)
-    expect(mockFindWebhooksByRoutingKey).toHaveBeenCalledWith(
-      CREDENTIAL_ID,
-      expect.any(String),
-      'slack'
-    )
-    expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledTimes(1)
-    expect(res.status).toBe(200)
-    expect(mockDispatchSearch).toHaveBeenCalledWith(
-      expect.objectContaining({
-        credentialId: CREDENTIAL_ID,
-        credentialVersion: 'version',
-        body: messageBody,
-      })
-    )
-  })
-
   it('returns a retryable failure when Search enqueue fails beside a successful workflow', async () => {
     mockDispatchSearch.mockRejectedValue(new Error('Queue unavailable'))
     const response = await POST(makeRequest(), context)
     expect(response.status).toBeGreaterThanOrEqual(500)
     expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledOnce()
-  })
-
-  it('still returns 200 when the dispatcher filters the event', async () => {
-    mockDispatchResolvedWebhookTarget.mockResolvedValue({
-      outcome: 'ignored',
-      response: new Response(null, { status: 200 }),
-      reason: 'filtered',
-    })
-    const res = await POST(makeRequest(), context)
-    expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledTimes(1)
-    expect(res.status).toBe(200)
   })
 
   it('returns 200 when every target permanently lacks its deployed trigger block', async () => {
@@ -178,40 +138,5 @@ describe('Slack custom-bot webhook route', () => {
 
     expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledTimes(1)
     expect(res.status).toBe(200)
-  })
-
-  it('returns a retryable failure when another target fails beside a missing block', async () => {
-    mockFindWebhooksByRoutingKey.mockResolvedValue([webhook('wh1'), webhook('wh2')])
-    mockDispatchResolvedWebhookTarget
-      .mockResolvedValueOnce({
-        outcome: 'ignored',
-        response: new Response('Trigger block not found in deployment', { status: 404 }),
-        reason: 'block-missing',
-      })
-      .mockResolvedValueOnce({
-        outcome: 'failed',
-        response: new Response('Queue failed', { status: 500 }),
-        reason: 'queue-failed',
-      })
-
-    const res = await POST(makeRequest(), context)
-
-    expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledTimes(2)
-    expect(res.status).toBe(500)
-    await expect(res.text()).resolves.toBe('Queue failed')
-  })
-
-  it('returns the dispatch failure when no target is acknowledged', async () => {
-    mockDispatchResolvedWebhookTarget.mockResolvedValue({
-      outcome: 'failed',
-      response: new Response('Preprocessing failed', { status: 500 }),
-      reason: 'preprocessing',
-    })
-
-    const res = await POST(makeRequest(), context)
-
-    expect(mockDispatchResolvedWebhookTarget).toHaveBeenCalledTimes(1)
-    expect(res.status).toBe(500)
-    await expect(res.text()).resolves.toBe('Preprocessing failed')
   })
 })

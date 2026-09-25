@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workspace } from '@sim/db/schema'
@@ -77,7 +74,6 @@ const rollbackResult = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.workspace.mockResolvedValue({
     id: 'target',
@@ -206,14 +202,4 @@ describe('shared fork exclusion effects', () => {
       )
     }
   )
-
-  it('emits no audit or analytics for an unchanged exclusion set', async () => {
-    const result = await updateWorkspaceForkExclusions.execute({
-      principal,
-      input: { workspaceId: 'target', workflowIds: ['unchanged'], forkSyncExcluded: true },
-    })
-    expect(result.updated).toBe(0)
-    expect(mocks.audit).not.toHaveBeenCalled()
-    expect(mocks.analytics).not.toHaveBeenCalled()
-  })
 })

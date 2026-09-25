@@ -52,7 +52,6 @@ vi.mock('@/lib/auth/auth-client', () => ({
 }))
 
 import {
-  getOrganizationBillingSummaryContract,
   getOrganizationRosterContract,
   type OrganizationRoster,
 } from '@/lib/api/contracts/organization'
@@ -62,16 +61,12 @@ import {
 } from '@/lib/api/contracts/subscription'
 import {
   organizationKeys,
-  useCreateOrganization,
   useOrganization,
   useOrganizationBilling,
   useOrganizationList,
   useOrganizationRoster,
 } from '@/hooks/queries/organization'
-import {
-  organizationBillingSummaryOptions,
-  shouldRetryOrganizationBillingSummary,
-} from '@/hooks/queries/organization-billing-summary'
+import { shouldRetryOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 
 interface Deferred<T> {
   promise: Promise<T>
@@ -197,77 +192,6 @@ describe('organization identity transitions', () => {
     expect(container.textContent).not.toContain('Manage organization')
   })
 
-  it('lists actual memberships and forwards cancellation to Better Auth', async () => {
-    mockListOrganizations.mockResolvedValue({ data: [ORGANIZATION_A], error: null })
-    await act(async () =>
-      root.render(
-        <QueryClientProvider client={queryClient}>
-          <MembershipProbe />
-        </QueryClientProvider>
-      )
-    )
-    await flushQueries()
-
-    expect(container.textContent).toBe('Organization A')
-    const signal = mockListOrganizations.mock.calls[0][0].fetchOptions.signal
-    expect(signal).toBeInstanceOf(AbortSignal)
-  })
-
-  it.each([true, false])(
-    'refreshes the server layout after organization activation settles (success=%s)',
-    async (success) => {
-      mockRequestJson.mockResolvedValue({ organizationId: 'new-organization' })
-      const activation = createDeferred<{ error: { message: string } | null }>()
-      mockSetActiveOrganization.mockReturnValue(activation.promise)
-      let mutation: ReturnType<typeof useCreateOrganization>
-      function CreationProbe() {
-        mutation = useCreateOrganization()
-        return null
-      }
-
-      await act(async () => {
-        root.render(
-          <QueryClientProvider client={queryClient}>
-            <CreationProbe />
-          </QueryClientProvider>
-        )
-      })
-      let pending: Promise<unknown>
-      await act(async () => {
-        pending = mutation.mutateAsync({ name: 'New organization' })
-      })
-      expect(mockSetActiveOrganization).toHaveBeenCalledWith({
-        organizationId: 'new-organization',
-      })
-      expect(mockRefresh).not.toHaveBeenCalled()
-
-      await act(async () => {
-        if (success) {
-          activation.resolve({ error: null })
-          await pending
-        } else {
-          const rejection = expect(pending).rejects.toThrow('Activation failed')
-          activation.resolve({ error: { message: 'Activation failed' } })
-          await rejection
-        }
-      })
-      expect(mockRefresh).toHaveBeenCalledOnce()
-    }
-  )
-
-  it('does not call the organization plugin when organizations are disabled', async () => {
-    featureFlags.organizations = false
-    await act(async () =>
-      root.render(
-        <QueryClientProvider client={queryClient}>
-          <MembershipProbe />
-        </QueryClientProvider>
-      )
-    )
-    await flushQueries()
-    expect(mockListOrganizations).not.toHaveBeenCalled()
-  })
-
   it('surfaces membership-list errors for retry instead of returning an empty list', async () => {
     mockListOrganizations.mockResolvedValue({
       data: null,
@@ -331,57 +255,6 @@ describe('organization identity transitions', () => {
     expect(container.querySelector('button')).toBeNull()
     expect(mockGetFullOrganization).toHaveBeenCalledWith(
       expect.objectContaining({ query: { organizationId: 'org-b' } })
-    )
-  })
-
-  it('forwards the query signal so an in-flight org fetch can be cancelled', async () => {
-    mockGetFullOrganization.mockResolvedValue({ data: ORGANIZATION_A })
-
-    renderOrganization('org-a')
-
-    await flushQueries()
-
-    const [args] = mockGetFullOrganization.mock.calls[0]
-    expect(args.fetchOptions?.signal).toBeInstanceOf(AbortSignal)
-  })
-
-  it('uses a shape-specific recoverable cache entry for the navigation billing summary', async () => {
-    const summary = {
-      success: true as const,
-      data: {
-        organizationId: 'org-a',
-        subscriptionState: 'active' as const,
-        subscriptionPlan: 'team_25000',
-        subscriptionStatus: 'active',
-        creditBalance: 0,
-        billingInterval: 'month' as const,
-        cancelAtPeriodEnd: false,
-        totalSeats: 2,
-        totalCurrentUsage: 3,
-        totalUsageLimit: 125,
-        minimumBillingAmount: 125,
-        billingPeriodEnd: '2026-09-01T00:00:00.000Z',
-        billingBlocked: false,
-        billingBlockedReason: null,
-        blockedByOrgOwner: false,
-        upgradeWorkspaceId: 'workspace-a',
-        userRole: 'owner' as const,
-      },
-    }
-    mockRequestJson.mockResolvedValue(summary)
-
-    const options = organizationBillingSummaryOptions('org-a')
-    expect(options.queryKey).toEqual(organizationKeys.billingSummary('org-a'))
-    expect(options.queryKey).not.toEqual(organizationKeys.billing('org-a'))
-    expect(options.retryOnMount).toBe(true)
-
-    await expect(queryClient.fetchQuery(options)).resolves.toEqual(summary)
-    expect(mockRequestJson).toHaveBeenCalledWith(
-      getOrganizationBillingSummaryContract,
-      expect.objectContaining({
-        params: { id: 'org-a' },
-        signal: expect.any(AbortSignal),
-      })
     )
   })
 

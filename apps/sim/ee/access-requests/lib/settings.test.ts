@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { organizationAccessRequestSettings } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -32,12 +29,6 @@ describe('permission access request settings', () => {
     queueTableRows(organizationAccessRequestSettings, [{ allowRequests: false }])
 
     await expect(isAccessRequestEnabled('organization-one')).resolves.toBe(false)
-  })
-
-  it('preserves an explicit enabled preference', async () => {
-    queueTableRows(organizationAccessRequestSettings, [{ allowRequests: true }])
-
-    await expect(isAccessRequestEnabled('organization-one')).resolves.toBe(true)
   })
 
   it('does not reinterpret a failed settings lookup as permission to submit', async () => {

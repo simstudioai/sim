@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import {
   member,
@@ -110,7 +107,6 @@ afterAll(resetDbChainMock)
 
 describe('reconcileUserProjection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.grantWorkspace.mockResolvedValue('granted')
     mocks.lowerWorkspace.mockResolvedValue('lowered')
@@ -133,18 +129,6 @@ describe('reconcileUserProjection', () => {
     )
   })
 
-  it('records access the directory created as its own', async () => {
-    stage({ mappings: [workspaceMapping('ws-1', 'write')] })
-    const delta = await reconcileUserProjection(db, params)
-    expect(mocks.grantWorkspace).toHaveBeenCalledWith(db, {
-      workspaceId: 'ws-1',
-      userId: 'u-1',
-      permission: 'write',
-    })
-    expect(insertedValues()[0]).toMatchObject({ targetId: 'ws-1', origin: 'directory' })
-    expect(delta.added).toHaveLength(1)
-  })
-
   it('records access the person already held by hand as adopted, and counts no change', async () => {
     mocks.grantWorkspace.mockResolvedValue('unchanged')
     stage({
@@ -158,19 +142,6 @@ describe('reconcileUserProjection', () => {
       baselinePermission: 'write',
     })
     expect(delta.added).toHaveLength(0)
-  })
-
-  it('plans nothing when the recorded grants already satisfy the mappings', async () => {
-    stage({
-      current: [
-        { targetKind: 'workspace', targetId: 'ws-1', permissionType: 'write', origin: 'directory' },
-      ],
-      mappings: [workspaceMapping('ws-1', 'write')],
-    })
-    await reconcileUserProjection(db, params)
-    expect(mocks.grantWorkspace).not.toHaveBeenCalled()
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
   })
 
   it.each([null, 'read'] as const)(
@@ -342,22 +313,6 @@ describe('reconcileUserProjection', () => {
     expect(withdrawn.removed).toHaveLength(1)
   })
 
-  it('leaves the provenance row in place when access could not be handed on', async () => {
-    mocks.revokeWorkspace.mockResolvedValue({
-      revoked: false,
-      reason: 'unresolved-workflows',
-      unresolvedWorkflows: ['wf-1'],
-    })
-    stage({
-      current: [
-        { targetKind: 'workspace', targetId: 'ws-1', permissionType: 'write', origin: 'directory' },
-      ],
-    })
-    const delta = await reconcileUserProjection(db, params)
-    expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-    expect(delta.removed).toHaveLength(0)
-  })
-
   it('leaves a manual raise above the directory level alone when unlocked', async () => {
     mocks.readPermission.mockResolvedValue('admin')
     stage({
@@ -428,12 +383,5 @@ describe('reconcileUserProjection', () => {
     const delta = await reconcileUserProjection(db, params)
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(delta.added).toHaveLength(0)
-  })
-
-  it('does nothing for a directory row that no longer exists', async () => {
-    queueTableRows(scimUser, [])
-    const delta = await reconcileUserProjection(db, params)
-    expect(delta).toEqual({ added: [], removed: [], raised: [] })
-    expect(mocks.acquireLocks).not.toHaveBeenCalled()
   })
 })

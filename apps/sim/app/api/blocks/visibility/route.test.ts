@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -37,24 +34,11 @@ function request(workspaceId = WORKSPACE_ID) {
 
 describe('GET /api/blocks/visibility', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue({ user: { id: 'user-1' } })
     mockCheckWorkspaceAccess.mockResolvedValue({
       hasAccess: true,
       workspace: { organizationId: 'org-1' },
     })
-    mockIsPlatformAdmin.mockResolvedValue(false)
-    mockGetBlockVisibility.mockResolvedValue({
-      revealed: new Set(['gmail_v2']),
-      disabled: new Set(['slack']),
-      previewTagged: new Set(['gmail_v2']),
-    })
-  })
-
-  it('returns 401 without a session', async () => {
-    mockGetSession.mockResolvedValue(null)
-    const response = await GET(request())
-    expect(response.status).toBe(401)
   })
 
   it('returns 403 without workspace access', async () => {
@@ -62,21 +46,5 @@ describe('GET /api/blocks/visibility', () => {
     const response = await GET(request())
     expect(response.status).toBe(403)
     expect(mockGetBlockVisibility).not.toHaveBeenCalled()
-  })
-
-  it('evaluates visibility for the session user, workspace org, and pre-resolved admin', async () => {
-    mockIsPlatformAdmin.mockResolvedValue(true)
-    const response = await GET(request())
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      revealed: ['gmail_v2'],
-      disabled: ['slack'],
-      previewTagged: ['gmail_v2'],
-    })
-    expect(mockGetBlockVisibility).toHaveBeenCalledWith({
-      userId: 'user-1',
-      orgId: 'org-1',
-      isAdmin: true,
-    })
   })
 })

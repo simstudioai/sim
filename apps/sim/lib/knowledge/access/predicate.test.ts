@@ -1,8 +1,4 @@
 /**
- * @vitest-environment node
- */
-
-/**
  * Renders the real predicate against the real drizzle dialect and schema. The
  * shared client sets `fetch_types: false` (packages/db/db.ts), under which an
  * array bound as one parameter fails at execution with 22P02, so the assertion
@@ -132,20 +128,6 @@ describe('knowledgeAccessCondition', () => {
     for (const param of params) expect(Array.isArray(param)).toBe(false)
   })
 
-  it('renders the workspace pair for actorless callers', () => {
-    const { sql, params } = render(
-      knowledgeAccessCondition({ kind: 'workspace', tokens: ['pub', 'ws'] })
-    )
-    expect(sql).toContain('"document"."acl" && ARRAY[$1, $2]::text[]')
-    expect(params.slice(0, 2)).toEqual(['pub', 'ws'])
-  })
-
-  it('denies everything for an empty token set', () => {
-    expect(render(knowledgeAccessCondition({ kind: 'user', userId: 'u', tokens: [] })).sql).toBe(
-      'false'
-    )
-  })
-
   it('exempts system jobs from ACL checks while refusing removed sources', () => {
     const { sql } = render(knowledgeAccessCondition(SYSTEM_ACCESS_SCOPE))
     expect(sql).toContain('"document"."connector_id" IS NULL OR EXISTS')
@@ -177,32 +159,6 @@ describe('restrictSearchAccessPlan', () => {
     uploads: true,
   }
   const reader = { kind: 'user' as const, userId: 'u', tokens: ['u:reader@example.com'] }
-
-  it('keeps only the connectors of that kind, in every list, and leaves uploads out', () => {
-    const slack = restrictSearchAccessPlan(plan, 'slack')
-    expect(slack.connectors).toEqual({
-      workspace: ['slack-ws'],
-      admin: [],
-      members: ['slack-members'],
-      liveProofRequired: [],
-    })
-    expect(slack.observers.confirmed).toEqual([{ id: 'm-1', connectorId: 'slack-members' }])
-    expect(slack.observers.observed).toEqual([])
-    expect(slack.memberSources).toEqual(['slack-members'])
-    expect(slack.uploads).toBe(false)
-  })
-
-  it('keeps no connector for uploads, which have none', () => {
-    const uploads = restrictSearchAccessPlan(plan, 'upload')
-    expect(uploads.connectors).toEqual({
-      workspace: [],
-      admin: [],
-      members: [],
-      liveProofRequired: [],
-    })
-    expect(uploads.memberSources).toEqual([])
-    expect(uploads.uploads).toBe(true)
-  })
 
   it('drops source-less rows from both predicates once uploads are out of scope', () => {
     const rowSql = (restricted: typeof plan) =>

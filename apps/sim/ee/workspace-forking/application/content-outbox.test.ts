@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
@@ -87,7 +84,6 @@ function copyControl(options: Parameters<typeof runForkContentCopy>[1]): ForkCop
 
 describe('fork content outbox checkpoints', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockRunForkContentCopy.mockReset()
   })

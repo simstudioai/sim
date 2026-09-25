@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { executeNetsuiteBatchCreateRecordsOperation } from '@/lib/internal/netsuite/operations/batch-create-records'
 import { executeNetsuiteCreateRecordOperation } from '@/lib/internal/netsuite/operations/create-record'

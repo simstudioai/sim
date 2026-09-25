@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -90,7 +86,6 @@ const ACTORLESS_DEPLOYED_PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
 
 describe('Memory application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.loadWorkspace.mockResolvedValue({
       workspaceId: WORKSPACE_ID,

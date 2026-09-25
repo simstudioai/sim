@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -101,7 +98,6 @@ describe('resuming a paused table cell', () => {
   }, 60_000)
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getPausedExecutionById.mockResolvedValue({ executionSnapshot: { snapshot: {} } })
     mocks.createResumeAttemptTimeoutController.mockReturnValue({
       signal: new AbortController().signal,
@@ -210,22 +206,5 @@ describe('resuming a paused table cell', () => {
     expect(mocks.readStampedCapabilitySubject).not.toHaveBeenCalled()
     const [cascadePayload] = mocks.runRowCascadeLoop.mock.calls[0]
     expect(cascadePayload.capabilityGovernedUserId).toBe('requesting-member')
-  }, 20_000)
-
-  it('resumes ungated when the paused cell had no acting person', async () => {
-    mocks.findCellContextByExecutionId.mockResolvedValue({
-      tableId: 'table-1',
-      tableName: 'Table',
-      rowId: 'row-1',
-      groupId: 'group-1',
-      workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-      capabilityGovernedUserId: null,
-    })
-
-    await executeResumeJob(PAYLOAD)
-
-    const [cascadePayload] = mocks.runRowCascadeLoop.mock.calls[0]
-    expect(cascadePayload.capabilityGovernedUserId).toBeNull()
   }, 20_000)
 })

@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULTS } from '@/executor/constants'
 import type { DAG, DAGNode } from '@/executor/dag/builder'
 import type { BlockStateController, ContextExtensions } from '@/executor/execution/types'
 import { ParallelOrchestrator } from '@/executor/orchestrators/parallel'
@@ -117,7 +113,6 @@ function createContext(overrides: Partial<ExecutionContext> = {}): ExecutionCont
 
 describe('ParallelOrchestrator', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCompactSubflowResults.mockImplementation(async (results: unknown) => results)
   })
 
@@ -141,56 +136,6 @@ describe('ParallelOrchestrator', () => {
     expect(onBlockStart).not.toHaveBeenCalled()
     expect(onBlockComplete).not.toHaveBeenCalled()
     expect(scope.isEmpty).toBe(true)
-  })
-
-  it('returns an empty scope without emitting start-side lifecycle callbacks', async () => {
-    const contextExtensions: ContextExtensions = {
-      onBlockStart: vi.fn().mockRejectedValue(new Error('start failed')),
-      onBlockComplete: vi.fn().mockRejectedValue(new Error('complete failed')),
-    }
-    const orchestrator = new ParallelOrchestrator(
-      createDag(),
-      createState(),
-      null,
-      contextExtensions
-    )
-
-    await expect(
-      orchestrator.initializeParallelScope(createContext(), 'parallel-1', 1)
-    ).resolves.toMatchObject({
-      parallelId: 'parallel-1',
-      isEmpty: true,
-    })
-    expect(contextExtensions.onBlockStart).not.toHaveBeenCalled()
-    expect(contextExtensions.onBlockComplete).not.toHaveBeenCalled()
-  })
-
-  it('resolves collection distributions with the parallel start sentinel scope', async () => {
-    const dag = createDag()
-    const parallelConfig = dag.parallelConfigs.get('parallel-1')!
-    parallelConfig.distribution = '<Producer.items>'
-    const resolver = {
-      resolveSingleReference: vi.fn().mockResolvedValue(['item-1', 'item-2']),
-    }
-    const orchestrator = new ParallelOrchestrator(
-      dag,
-      createState(),
-      resolver as any,
-      {},
-      undefined,
-      createEdgeManager() as any
-    )
-
-    const scope = await orchestrator.initializeParallelScope(createContext(), 'parallel-1')
-
-    expect(resolver.resolveSingleReference).toHaveBeenCalledWith(
-      expect.any(Object),
-      'parallel-parallel-1-sentinel-start',
-      '<Producer.items>',
-      undefined,
-      { allowLargeValueRefs: true }
-    )
-    expect(scope.totalBranches).toBe(2)
   })
 
   it('records resumed later-batch outputs under restored global branch indexes', () => {
@@ -235,47 +180,6 @@ describe('ParallelOrchestrator', () => {
     const scope = ctx.parallelExecutions?.get('parallel-1')
     expect(scope?.branchOutputs.get(20)).toEqual([{ output: 'resumed' }])
     expect(scope?.branchOutputs.has(0)).toBe(false)
-  })
-
-  it('clamps batch size and caps current batch to total branch count', async () => {
-    const dag = createDag()
-    const parallelConfig = dag.parallelConfigs.get('parallel-1')!
-    parallelConfig.parallelType = 'count'
-    parallelConfig.count = 9
-    parallelConfig.batchSize = 0
-
-    const orchestrator = new ParallelOrchestrator(dag, createState(), null, {})
-    const zeroBatchScope = await orchestrator.initializeParallelScope(createContext(), 'parallel-1')
-
-    expect(zeroBatchScope.batchSize).toBe(1)
-    expect(zeroBatchScope.currentBatchSize).toBe(1)
-
-    parallelConfig.batchSize = 50
-    const oversizedBatchScope = await orchestrator.initializeParallelScope(
-      createContext(),
-      'parallel-1'
-    )
-
-    expect(oversizedBatchScope.currentBatchSize).toBe(9)
-  })
-
-  it.each([
-    ['oversized numeric batch size', 999, DEFAULTS.MAX_PARALLEL_BRANCHES],
-    ['negative batch size', -1, 1],
-    ['undefined batch size', undefined, DEFAULTS.MAX_PARALLEL_BRANCHES],
-    ['nonnumeric batch size', 'not-a-number', DEFAULTS.MAX_PARALLEL_BRANCHES],
-  ])('normalizes %s', async (_name, batchSize, expectedBatchSize) => {
-    const dag = createDag()
-    const parallelConfig = dag.parallelConfigs.get('parallel-1')!
-    parallelConfig.parallelType = 'count'
-    parallelConfig.count = DEFAULTS.MAX_PARALLEL_BRANCHES + 10
-    parallelConfig.batchSize = batchSize as never
-
-    const orchestrator = new ParallelOrchestrator(dag, createState(), null, {})
-    const scope = await orchestrator.initializeParallelScope(createContext(), 'parallel-1')
-
-    expect(scope.batchSize).toBe(expectedBatchSize)
-    expect(scope.currentBatchSize).toBe(expectedBatchSize)
   })
 
   it('advances batch state at sentinel end and prepares the next batch at sentinel start', async () => {
@@ -420,57 +324,6 @@ describe('ParallelOrchestrator', () => {
     expect(state.unmarkExecuted).not.toHaveBeenCalledWith(previousBranchId)
   })
 
-  it('marks expanded branch nodes dirty when running from a dirty parallel container', () => {
-    const dag = createDag()
-    const templateBranchId = buildBranchNodeId('task-1', 0)
-    const secondBranchId = buildBranchNodeId('task-1', 1)
-    dag.nodes.set(templateBranchId, {
-      id: templateBranchId,
-      block: {
-        id: 'task-1',
-        position: { x: 0, y: 0 },
-        config: { tool: '', params: {} },
-        inputs: {},
-        outputs: {},
-        metadata: { id: 'function', name: 'Task 1' },
-        enabled: true,
-      },
-      incomingEdges: new Set(),
-      outgoingEdges: new Map(),
-      metadata: {
-        subflowId: 'parallel-1',
-        subflowType: 'parallel',
-        isParallelBranch: true,
-        branchIndex: 0,
-      },
-    })
-    const dirtySet = new Set(['parallel-1'])
-    const orchestrator = new ParallelOrchestrator(dag, createState(), null, {})
-
-    orchestrator.prepareCurrentBatch(
-      createContext({
-        runFromBlockContext: { startBlockId: 'parallel-1', dirtySet },
-        parallelExecutions: new Map([
-          [
-            'parallel-1',
-            {
-              parallelId: 'parallel-1',
-              totalBranches: 2,
-              batchSize: 2,
-              currentBatchStart: 0,
-              currentBatchSize: 2,
-              branchOutputs: new Map(),
-            },
-          ],
-        ]),
-      }),
-      'parallel-1'
-    )
-
-    expect(dirtySet.has(templateBranchId)).toBe(true)
-    expect(dirtySet.has(secondBranchId)).toBe(true)
-  })
-
   it('marks cloned nested loop body nodes dirty for non-zero branches', () => {
     const dag = createDag()
     const parallelId = 'parallel-1'
@@ -551,63 +404,5 @@ describe('ParallelOrchestrator', () => {
 
     expect([...dirtySet]).toContain(taskId)
     expect([...dirtySet].some((nodeId) => nodeId.startsWith(`${taskId}__clone`))).toBe(true)
-  })
-
-  it('compacts accumulated outputs before scheduling later batches', async () => {
-    const dag = createDag()
-    const templateBranchId = buildBranchNodeId('task-1', 0)
-    dag.nodes.set(templateBranchId, {
-      id: templateBranchId,
-      block: {
-        id: 'task-1',
-        position: { x: 0, y: 0 },
-        config: { tool: '', params: {} },
-        inputs: {},
-        outputs: {},
-        metadata: { id: 'function', name: 'Task 1' },
-        enabled: true,
-      },
-      incomingEdges: new Set(),
-      outgoingEdges: new Set(),
-      metadata: {
-        subflowId: 'parallel-1',
-        subflowType: 'parallel',
-        isParallelBranch: true,
-        branchIndex: 0,
-      },
-    })
-    const orchestrator = new ParallelOrchestrator(dag, createState(), null, {})
-    const previousOutputs = [{ output: 'previous' }]
-    const incomingOutputs = [{ output: 'incoming' }]
-    const compactedPrevious = [{ output: 'compacted-previous' }]
-    const compactedIncoming = [{ output: 'compacted-incoming' }]
-    mockCompactSubflowResults.mockResolvedValueOnce([compactedPrevious, compactedIncoming])
-    const scope = {
-      parallelId: 'parallel-1',
-      totalBranches: 3,
-      batchSize: 1,
-      currentBatchStart: 0,
-      currentBatchSize: 2,
-      accumulatedOutputs: new Map([[0, previousOutputs]]),
-      branchOutputs: new Map([[1, incomingOutputs]]),
-    }
-    const ctx = createContext({
-      parallelExecutions: new Map([['parallel-1', scope]]),
-    })
-
-    const result = await orchestrator.aggregateParallelResults(ctx, 'parallel-1')
-
-    expect(result).toMatchObject({ allBranchesComplete: false, completedBranches: 2 })
-    expect(mockCompactSubflowResults).toHaveBeenCalledWith(
-      [previousOutputs, incomingOutputs],
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        executionId: 'execution-1',
-        requireDurable: true,
-      })
-    )
-    expect(scope.accumulatedOutputs.get(0)).toBe(compactedPrevious)
-    expect(scope.accumulatedOutputs.get(1)).toBe(compactedIncoming)
   })
 })

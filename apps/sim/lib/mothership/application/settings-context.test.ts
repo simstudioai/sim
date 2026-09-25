@@ -25,7 +25,6 @@ const organization = { ...workspace, workspaceId: undefined, organizationId: 'or
 
 describe('settings conversation scope', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     boundary.workspace.mockResolvedValue({ workspaceId: 'workspace-a' })
     boundary.context.mockResolvedValue({
       workspaceId: 'workspace-a',

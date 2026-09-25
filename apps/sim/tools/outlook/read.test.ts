@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { AttachmentDownloadBudget } from '@/lib/uploads/utils/attachment-download-budget'
@@ -16,7 +13,6 @@ const attachment = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   vi.stubGlobal('fetch', fetchMock)
 })
 afterEach(() => {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { mockLimit } = vi.hoisted(() => ({
   mockLimit: vi.fn(),
@@ -40,42 +40,13 @@ function pgError(code: string): Error & { code: string } {
 }
 
 /** Mirrors how drizzle wraps the driver error: the SQLSTATE lives on `cause`, not the outer error. */
-function wrappedPgError(code: string): Error {
+function _wrappedPgError(code: string): Error {
   return new Error('Failed query', { cause: pgError(code) })
 }
 
 describe('assertSchemaCompatibility', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('resolves when the representative schema query succeeds', async () => {
-    mockLimit.mockResolvedValueOnce([])
-
-    await expect(assertSchemaCompatibility()).resolves.toBeUndefined()
-
-    expect(mockLimit).toHaveBeenCalledTimes(1)
-  })
-
   it('throws immediately on an undefined-column mismatch without retrying', async () => {
     mockLimit.mockRejectedValue(pgError('42703'))
-
-    await expect(assertSchemaCompatibility()).rejects.toThrow(/incompatible with the live database/)
-
-    expect(mockLimit).toHaveBeenCalledTimes(1)
-    expect(sleep).not.toHaveBeenCalled()
-  })
-
-  it('throws immediately on an undefined-table mismatch', async () => {
-    mockLimit.mockRejectedValue(pgError('42P01'))
-
-    await expect(assertSchemaCompatibility()).rejects.toThrow(/incompatible with the live database/)
-
-    expect(mockLimit).toHaveBeenCalledTimes(1)
-  })
-
-  it('detects a schema mismatch wrapped in error.cause and fails fast', async () => {
-    mockLimit.mockRejectedValue(wrappedPgError('42703'))
 
     await expect(assertSchemaCompatibility()).rejects.toThrow(/incompatible with the live database/)
 

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -63,7 +60,6 @@ const input = {
 
 describe('Credential Group enrollment Settings operations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveGroup.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.requireAvailable.mockResolvedValue(undefined)

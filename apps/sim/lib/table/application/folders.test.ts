@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -67,7 +63,6 @@ const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } 
 
 describe('listTableFoldersUseCase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveWorkspaceContext.mockResolvedValue({
       workspaceId: 'ws-1',
       billedAccountUserId: 'owner-1',
@@ -122,7 +117,6 @@ describe('restoreTableFolderUseCase', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveWorkspaceContext.mockResolvedValue({
       workspaceId: 'ws-1',
       billedAccountUserId: 'owner-1',
@@ -182,7 +176,6 @@ describe('restoreTableFolderUseCase', () => {
 
 describe('updateTableFolderUseCase', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveWorkspaceContext.mockResolvedValue({
       workspaceId: 'ws-1',
       billedAccountUserId: 'owner-1',

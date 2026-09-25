@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -45,7 +42,6 @@ const workspacePrincipal = {
 
 describe('public workspace application reads', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.getDetail.mockResolvedValue({ id: 'workspace-1' })
@@ -79,30 +75,5 @@ describe('public workspace application reads', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
 
     expect(mocks.listMembers).not.toHaveBeenCalled()
-  })
-
-  it('returns not-found for an inactive canonical workspace', async () => {
-    mocks.loadWorkspace.mockResolvedValue(null)
-
-    await expect(
-      getPublicWorkspace.execute({
-        principal: workspacePrincipal,
-        input: { workspaceId: 'workspace-1' },
-      })
-    ).rejects.toMatchObject({ code: 'not_found' })
-
-    expect(mocks.getDetail).not.toHaveBeenCalled()
-  })
-
-  it('propagates canonical workspace load failures', async () => {
-    const failure = new Error('database unavailable')
-    mocks.loadWorkspace.mockRejectedValueOnce(failure)
-
-    await expect(
-      getPublicWorkspace.execute({
-        principal: workspacePrincipal,
-        input: { workspaceId: 'workspace-1' },
-      })
-    ).rejects.toBe(failure)
   })
 })

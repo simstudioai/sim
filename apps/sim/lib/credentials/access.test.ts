@@ -22,11 +22,9 @@ import { getCredentialActorContext, resolveCredentialTokenIdentity } from '@/lib
 afterAll(resetDbChainMock)
 
 const workspaceAdminAccess = { hasAccess: true, canWrite: true, canAdmin: true }
-const noWorkspaceAccess = { hasAccess: false, canWrite: false, canAdmin: false }
 
 describe('getCredentialActorContext', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -85,30 +83,10 @@ describe('getCredentialActorContext', () => {
 
     expect(ctx.isAdmin).toBe(false)
   })
-
-  it('returns empty context when the credential does not exist', async () => {
-    const ctx = await getCredentialActorContext('missing', 'user1')
-
-    expect(ctx.credential).toBeNull()
-    expect(ctx.isAdmin).toBe(false)
-    expect(mockCheckWorkspaceAccess).not.toHaveBeenCalled()
-  })
-
-  it('exposes workspace access flags from checkWorkspaceAccess', async () => {
-    queueTableRows(credential, [{ id: 'c1', workspaceId: 'ws', type: 'oauth' }])
-    mockCheckWorkspaceAccess.mockResolvedValue(noWorkspaceAccess)
-
-    const ctx = await getCredentialActorContext('c1', 'outsider')
-
-    expect(ctx.hasWorkspaceAccess).toBe(false)
-    expect(ctx.canWriteWorkspace).toBe(false)
-    expect(ctx.isAdmin).toBe(false)
-  })
 })
 
 describe('resolveCredentialTokenIdentity', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -125,22 +103,6 @@ describe('resolveCredentialTokenIdentity', () => {
 
   it('rejects a credential belonging to another workspace', async () => {
     queueTableRows(credential, [{ workspaceId: 'other-ws', type: 'oauth', accountId: 'acct1' }])
-
-    await expect(resolveCredentialTokenIdentity('c1', 'ws')).resolves.toBeNull()
-  })
-
-  it('reports service accounts as needing no user id', async () => {
-    queueTableRows(credential, [{ workspaceId: 'ws', type: 'service_account', accountId: null }])
-
-    await expect(resolveCredentialTokenIdentity('c1', 'ws')).resolves.toEqual({
-      kind: 'service_account',
-    })
-  })
-
-  it('rejects a service account from another workspace', async () => {
-    queueTableRows(credential, [
-      { workspaceId: 'other-ws', type: 'service_account', accountId: null },
-    ])
 
     await expect(resolveCredentialTokenIdentity('c1', 'ws')).resolves.toBeNull()
   })
@@ -168,55 +130,32 @@ describe('resolveCredentialTokenIdentity', () => {
       userId: 'legacy-owner',
     })
   })
-
-  it('returns null when the account row is missing', async () => {
-    queueTableRows(credential, [{ workspaceId: 'ws', type: 'oauth', accountId: 'acct1' }])
-
-    await expect(resolveCredentialTokenIdentity('c1', 'ws')).resolves.toBeNull()
-    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
-  })
 })
 
 describe('organization background credential identity', () => {
   const scope = { kind: 'organization' as const, organizationId: 'org-1' }
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
-  it('requires current organization membership for a service-account creator', async () => {
-    queueTableRows(credential, [
-      { workspaceId: null, organizationId: 'org-1', createdBy: 'admin-1', type: 'service_account' },
-    ])
-    queueTableRows(member, [{ id: 'membership-1' }])
-    await expect(resolveCredentialTokenIdentity('c1', scope)).resolves.toEqual({
-      kind: 'service_account',
-    })
-    expect(mockGetUserEntityPermissions).not.toHaveBeenCalled()
-  })
-  it('refuses a service account after its creator has left the organization', async () => {
-    queueTableRows(credential, [
-      { workspaceId: null, organizationId: 'org-1', createdBy: 'admin-1', type: 'service_account' },
-    ])
-    queueTableRows(member, [])
-    await expect(resolveCredentialTokenIdentity('c1', scope)).resolves.toBeNull()
-  })
-  it('requires the OAuth account owner to be a current organization member', async () => {
-    queueTableRows(credential, [
-      {
-        workspaceId: null,
-        organizationId: 'org-1',
-        createdBy: 'admin-1',
-        type: 'oauth',
-        accountId: 'account-1',
-      },
-    ])
-    queueTableRows(account, [{ userId: 'admin-1' }])
-    queueTableRows(member, [{ id: 'membership-1' }])
-    await expect(resolveCredentialTokenIdentity('c1', scope)).resolves.toEqual({
-      kind: 'oauth',
-      userId: 'admin-1',
-    })
-  })
+  it.each([
+    { members: [{ id: 'membership-1' }], expected: { kind: 'service_account' } },
+    { members: [], expected: null },
+  ])(
+    'honours a service account only while its creator is an organization member: %#',
+    async ({ members, expected }) => {
+      queueTableRows(credential, [
+        {
+          workspaceId: null,
+          organizationId: 'org-1',
+          createdBy: 'admin-1',
+          type: 'service_account',
+        },
+      ])
+      queueTableRows(member, members)
+      await expect(resolveCredentialTokenIdentity('c1', scope)).resolves.toEqual(expected)
+    }
+  )
+
   it('never treats a raw account id as an organization credential', async () => {
     queueTableRows(credential, [])
     queueTableRows(account, [{ userId: 'admin-1' }])

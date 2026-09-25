@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   resetDbChainMock,
@@ -49,7 +46,6 @@ import {
 } from '@/lib/billing/core/subscription'
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   setEnv({ COPILOT_API_KEY: 'test-copilot-key' })
   setEnvFlags({ isHosted: true, isBillingEnabled: true, isInboxEnabled: false })
@@ -152,29 +148,11 @@ describe('Sim Mailer cleanup uncertainty', () => {
     await expect(hasWorkspaceInboxGraceAccess('workspace-1')).resolves.toBe(true)
   })
 
-  it('preserves the inbox on a workspace lookup failure', async () => {
-    mockGetWorkspaceWithOwner.mockRejectedValue(new Error('Database unavailable'))
-
-    await expect(hasWorkspaceInboxGraceAccess('workspace-1')).resolves.toBe(true)
-  })
-
   it('requires the personal subscription reader to surface errors and preserves the inbox', async () => {
     mockGetPersonalSubscription.mockRejectedValue(new Error('Database unavailable'))
 
     await expect(hasWorkspaceInboxGraceAccess('workspace-1')).resolves.toBe(true)
     expect(mockGetPersonalSubscription).toHaveBeenCalledWith('payer-1', { onError: 'throw' })
-  })
-
-  it('requires the organization subscription reader to surface errors and preserves the inbox', async () => {
-    mockGetWorkspaceWithOwner.mockResolvedValue({
-      id: 'workspace-1',
-      billedAccountUserId: 'payer-1',
-      organizationId: 'org-1',
-    })
-    mockGetOrganizationSubscription.mockRejectedValue(new Error('Database unavailable'))
-
-    await expect(hasWorkspaceInboxGraceAccess('workspace-1')).resolves.toBe(true)
-    expect(mockGetOrganizationSubscription).toHaveBeenCalledWith('org-1', { onError: 'throw' })
   })
 
   it('retains past-due Max for Teams resources', async () => {

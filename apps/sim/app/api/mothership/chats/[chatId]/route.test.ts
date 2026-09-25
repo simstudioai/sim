@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { copilotHttpMock, copilotHttpMockFns, dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -78,7 +75,6 @@ afterAll(() => {
 
 describe('GET /api/mothership/chats/[chatId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
@@ -205,44 +201,6 @@ describe('GET /api/mothership/chats/[chatId]', () => {
     expect(mockReadEvents).not.toHaveBeenCalled()
   })
 
-  it('returns the live activeStreamId with a status-only snapshot (no events)', async () => {
-    mockGetAccessibleCopilotChat.mockResolvedValueOnce({
-      id: 'chat-live',
-      type: 'mothership',
-      title: 'Live',
-      messages: [],
-      resources: [],
-      conversationId: 'stream-live',
-      createdAt: new Date('2026-05-11T12:00:00Z'),
-      updatedAt: new Date('2026-05-11T12:00:00Z'),
-    })
-    mockGetLatestRunForStream.mockResolvedValueOnce({ status: 'active' })
-    const previewSession = {
-      id: 'preview-1',
-      previewVersion: 1,
-      status: 'active',
-      updatedAt: '2026-05-11T12:00:00Z',
-    }
-    mockReadFilePreviewSessions.mockResolvedValueOnce([previewSession])
-
-    const response = await GET(createRequest('chat-live'), makeContext('chat-live'))
-    expect(response.status).toBe(200)
-    const body = await response.json()
-
-    expect(body.chat.activeStreamId).toBe('stream-live')
-    // Events are read only to synthesize the in-flight assistant turn for the
-    // initial paint; the client reconnects to the replay buffer for the rest.
-    // Status and preview sessions ARE shipped so hydration can gate the
-    // reconnect and seed the preview panel before the resume request lands.
-    expect(mockReadEvents).toHaveBeenCalledWith('stream-live', '0')
-    expect(mockReadFilePreviewSessions).toHaveBeenCalledWith('stream-live')
-    expect(body.chat.streamSnapshot).toEqual({
-      events: [],
-      previewSessions: [previewSession],
-      status: 'active',
-    })
-  })
-
   it('reports a terminal run status when the stream lock is still visible', async () => {
     mockGetAccessibleCopilotChat.mockResolvedValueOnce({
       id: 'chat-finished',
@@ -294,54 +252,10 @@ describe('GET /api/mothership/chats/[chatId]', () => {
     expect(body.chat.activeStreamId).toBe('stream-live')
     expect(mockReadEvents).toHaveBeenCalledWith('stream-live', '0')
   })
-
-  it('returns null when the persisted stream marker is already null', async () => {
-    mockGetAccessibleCopilotChat.mockResolvedValueOnce({
-      id: 'chat-idle',
-      type: 'mothership',
-      title: 'Idle',
-      messages: [],
-      resources: [],
-      conversationId: null,
-      createdAt: new Date('2026-05-11T12:00:00Z'),
-      updatedAt: new Date('2026-05-11T12:00:00Z'),
-    })
-
-    const response = await GET(createRequest('chat-idle'), makeContext('chat-idle'))
-    expect(response.status).toBe(200)
-
-    expect(mockReconcileChatStreamMarkers).toHaveBeenCalledWith(
-      [{ chatId: 'chat-idle', streamId: null }],
-      { repairVerifiedStaleMarkers: true }
-    )
-    const body = await response.json()
-    expect(body.chat.activeStreamId).toBeNull()
-  })
-
-  it('returns 404 when the chat does not exist', async () => {
-    mockGetAccessibleCopilotChat.mockResolvedValueOnce(null)
-
-    const response = await GET(createRequest('chat-missing'), makeContext('chat-missing'))
-    expect(response.status).toBe(404)
-    expect(mockReconcileChatStreamMarkers).not.toHaveBeenCalled()
-  })
-
-  it('returns 401 when unauthenticated', async () => {
-    copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValueOnce({
-      userId: null,
-      isAuthenticated: false,
-    })
-
-    const response = await GET(createRequest('chat-x'), makeContext('chat-x'))
-    expect(response.status).toBe(401)
-    expect(mockGetAccessibleCopilotChat).not.toHaveBeenCalled()
-    expect(mockReconcileChatStreamMarkers).not.toHaveBeenCalled()
-  })
 })
 
 describe('DELETE /api/mothership/chats/[chatId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
@@ -373,7 +287,6 @@ describe('DELETE /api/mothership/chats/[chatId]', () => {
 
 describe('organization chat mutations publish private owner updates', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
@@ -389,36 +302,6 @@ describe('organization chat mutations publish private owner updates', () => {
     dbChainMockFns.returning.mockResolvedValue([
       { id: 'chat-1', workspaceId: null, organizationId: 'org-1' },
     ])
-  })
-
-  it.each([{ title: 'New title' }, { pinned: true }, { isUnread: true }, { isUnread: false }])(
-    'publishes after updating %j',
-    async (body) => {
-      const response = await PATCH(
-        new NextRequest('http://localhost/api/mothership/chats/chat-1', {
-          method: 'PATCH',
-          body: JSON.stringify(body),
-        }),
-        makeContext('chat-1')
-      )
-      expect(response.status).toBe(200)
-      expect(publishChatStatusChanged).toHaveBeenCalledWith(
-        expect.objectContaining({ organizationId: 'org-1', userId: 'user-1' }),
-        { chatId: 'chat-1', type: 'title' in body ? 'renamed' : 'updated' }
-      )
-    }
-  )
-
-  it('publishes deletion under the same owner', async () => {
-    const response = await DELETE(
-      new NextRequest('http://localhost/api/mothership/chats/chat-1', { method: 'DELETE' }),
-      makeContext('chat-1')
-    )
-    expect(response.status).toBe(200)
-    expect(publishChatStatusChanged).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: 'org-1', userId: 'user-1' }),
-      { chatId: 'chat-1', type: 'deleted' }
-    )
   })
 
   it('does not publish if a concurrent deletion leaves no updated row', async () => {

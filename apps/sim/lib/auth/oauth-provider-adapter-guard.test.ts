@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -48,7 +45,6 @@ function mockUpsert(rows: Record<string, unknown>[]) {
 
 describe('guardOAuthProviderWrites', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.isCapabilityWithheldForUser.mockResolvedValue(false)
     mocks.delete.mockReturnValue({ where: vi.fn(async () => undefined) })
   })

@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * OpenAI prompt caching is automatic, so the only lever is routing stickiness:
  * a `prompt_cache_key` that is stable for one agent block and distinct between
  * blocks. Sharing a key across blocks with different prefixes would lower the
@@ -45,7 +43,6 @@ describe('executeResponsesProviderRequest prompt cache key', () => {
   let fetchMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
-    vi.clearAllMocks()
     // A Response body reads once, so each call needs its own instance.
     fetchMock = vi.fn(
       async () =>

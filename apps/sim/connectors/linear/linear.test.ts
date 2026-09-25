@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetchWithRetry } = vi.hoisted(() => ({
@@ -16,7 +13,6 @@ import { linearConnector } from '@/connectors/linear/linear'
 
 describe('linearConnector authentication', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockFetchWithRetry.mockResolvedValue(
       new Response(JSON.stringify({ data: { teams: { nodes: [{ id: 'team-1' }] } } }), {
         status: 200,

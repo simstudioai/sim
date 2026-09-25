@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { credential } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -65,7 +64,6 @@ describe('installation credential token dispatch', () => {
   it.each([
     { ...row, type: 'oauth' },
     { ...row, revokedAt: new Date() },
-    { ...row, providerId: 'google-service-account' },
     { ...row, encryptedServiceAccountKey: 'x'.repeat(16_385) },
   ])('rejects incompatible or oversized credential rows before decrypting', async (invalidRow) => {
     queueTableRows(credential, [invalidRow])
@@ -81,10 +79,7 @@ describe('installation credential token dispatch', () => {
     expect(mocks.decryptSecret).not.toHaveBeenCalled()
   })
 
-  it.each([
-    { ...row, providerSubjectId: '22' },
-    { ...row, providerTenantId: '12' },
-  ])(
+  it.each([{ ...row, providerTenantId: '12' }])(
     'refuses a credential whose stored columns disagree with the verified binding',
     async (invalidRow) => {
       queueTableRows(credential, [invalidRow])

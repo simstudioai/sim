@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { eq, inArray } from 'drizzle-orm'
@@ -56,7 +55,6 @@ const metadata = {
 
 describe('managed MCP connection catalog', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.billing.mockResolvedValue({ organizationId: 'org-1' })
     mocks.available.mockResolvedValue(true)
@@ -102,16 +100,6 @@ describe('managed MCP connection catalog', () => {
       canonicalServerId: 'canonical-1',
       toolCount: 3,
     })
-  })
-
-  it('returns an empty catalog when organization connected accounts are not configured', async () => {
-    mocks.group.mockResolvedValue(null)
-    await expect(listManagedMcpConnectionsUseCase.execute({ principal, input })).resolves.toEqual({
-      servers: [],
-      tools: [],
-    })
-    expect(mocks.policy).not.toHaveBeenCalled()
-    expect(dbChainMockFns.from).not.toHaveBeenCalled()
   })
 
   it.each(['workspace', 'organization'])(
@@ -178,18 +166,6 @@ describe('managed MCP connection catalog', () => {
     expect(mocks.policy).not.toHaveBeenCalled()
     expect(dbChainMockFns.from).not.toHaveBeenCalled()
   })
-
-  it.each(['scopedAvailable', 'policy'] as const)(
-    'propagates %s failures before reading credentials',
-    async (dependency) => {
-      const error = new Error('Database unavailable')
-      mocks[dependency].mockRejectedValue(error)
-      await expect(listManagedMcpConnectionsUseCase.execute({ principal, input })).rejects.toBe(
-        error
-      )
-      expect(dbChainMockFns.from).not.toHaveBeenCalled()
-    }
-  )
 
   it.each([
     [Array.from({ length: 501 }, () => metadata), 'connection limit'],

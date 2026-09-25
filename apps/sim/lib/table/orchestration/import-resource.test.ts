@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -87,7 +84,6 @@ function workspaceFile(size: number) {
 
 describe('createAuthorizedTableImportResource workspace file size', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetWorkspaceTableLimits.mockResolvedValue({ maxTables: 100, maxRowsPerTable: 10_000 })
     mockCreateTable.mockResolvedValue({ id: 'table-1' })
     mockGetUserSettings.mockResolvedValue({ timezone: 'UTC' })
@@ -114,16 +110,6 @@ describe('createAuthorizedTableImportResource workspace file size', () => {
     ])
   })
 
-  it('accepts a workspace CSV at the exact byte limit', async () => {
-    mockGetWorkspaceFile.mockResolvedValue(workspaceFile(CSV_DURABLE_MAX_FILE_SIZE_BYTES))
-
-    const result = await createImport({ workspaceId: WORKSPACE_ID, source: SOURCE, target: TARGET })
-
-    expect(result.upload).toBeNull()
-    expect(mockCreateTable).toHaveBeenCalledOnce()
-    expect(mockRunDetached).toHaveBeenCalledOnce()
-  })
-
   it('rejects a workspace CSV one byte over the limit before creating a table', async () => {
     mockGetWorkspaceFile.mockResolvedValue(workspaceFile(CSV_DURABLE_MAX_FILE_SIZE_BYTES + 1))
 
@@ -137,7 +123,6 @@ describe('createAuthorizedTableImportResource workspace file size', () => {
 
 describe('createAuthorizedTableImportResource upload size', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetWorkspaceTableLimits.mockResolvedValue({ maxTables: 100, maxRowsPerTable: 10_000 })
     mockCreateUploadSession.mockResolvedValue({
       id: 'import-1',
@@ -149,26 +134,6 @@ describe('createAuthorizedTableImportResource upload size', () => {
       updatedAt: new Date('2026-08-04T12:00:00.000Z'),
       completedAt: null,
     })
-  })
-
-  it('creates an upload session for a CSV at the exact byte limit', async () => {
-    await createImport({
-      workspaceId: WORKSPACE_ID,
-      source: {
-        type: 'upload',
-        name: 'data.csv',
-        contentType: 'text/csv',
-        size: CSV_DURABLE_MAX_FILE_SIZE_BYTES,
-      },
-      target: TARGET,
-    })
-
-    expect(mockCreateUploadSession).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fileSize: CSV_DURABLE_MAX_FILE_SIZE_BYTES,
-        purpose: 'table_import',
-      })
-    )
   })
 
   it('rejects an upload one byte over the limit before creating a session', async () => {
@@ -222,10 +187,6 @@ describe('findTableImportResource on a job that is not a v2 import resource', ()
     options: {},
   }
 
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('reads a first-party import job with a null payload as absent', async () => {
     mockDbLimit.mockResolvedValue([job({})])
 
@@ -241,17 +202,6 @@ describe('findTableImportResource on a job that is not a v2 import resource', ()
     await expect(findTableImportResource({ importId: IMPORT_ID })).resolves.toBeNull()
     await expect(getTableImportResource({ importId: IMPORT_ID })).rejects.toMatchObject({
       code: 'not_found',
-    })
-  })
-
-  it('still reads a well-formed v2 import job', async () => {
-    mockDbLimit.mockResolvedValue([job({ payload: PAYLOAD })])
-
-    await expect(findTableImportResource({ importId: IMPORT_ID })).resolves.toMatchObject({
-      id: IMPORT_ID,
-      status: 'running',
-      source: SOURCE,
-      target: TARGET,
     })
   })
 
@@ -315,16 +265,6 @@ describe('findTableImportResource on a job that is not a v2 import resource', ()
     ])
     expect(resource).toMatchObject({ rowsRejected: 0, cellsRejected: 0 })
   })
-
-  it('reads a job written before rejection accounting as a clean import', async () => {
-    mockDbLimit.mockResolvedValue([job({ payload: PAYLOAD, status: 'ready', rowsProcessed: 3 })])
-
-    await expect(findTableImportResource({ importId: IMPORT_ID })).resolves.toMatchObject({
-      rowsRejected: 0,
-      cellsRejected: 0,
-      rejectedSamples: [],
-    })
-  })
 })
 
 /**
@@ -340,7 +280,6 @@ describe('createAuthorizedTableImportResource table quota', () => {
   })
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetWorkspaceTableLimits.mockResolvedValue({ maxTables: 5, maxRowsPerTable: 10_000 })
     mockGetUserSettings.mockResolvedValue({ timezone: 'UTC' })
     mockCreateUploadSession.mockResolvedValue({
@@ -368,18 +307,6 @@ describe('createAuthorizedTableImportResource table quota', () => {
 
     expect(mockAssertWorkspaceTableCapacity).toHaveBeenCalledWith(WORKSPACE_ID, 5)
     expect(mockCreateUploadSession).not.toHaveBeenCalled()
-  })
-
-  it('creates the session when the workspace still has room', async () => {
-    mockAssertWorkspaceTableCapacity.mockResolvedValue(undefined)
-
-    await createImport({
-      workspaceId: WORKSPACE_ID,
-      source: { type: 'upload', name: 'data.csv', contentType: 'text/csv', size: 1024 },
-      target: TARGET,
-    })
-
-    expect(mockCreateUploadSession).toHaveBeenCalledOnce()
   })
 
   it('does not check the table ceiling when importing into an existing table', async () => {

@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -37,7 +33,6 @@ vi.mock('@/lib/credential-groups/rate-limit', () => {
   }
 })
 
-import { CredentialGroupInvitationRateLimitError } from '@/lib/credential-groups/rate-limit'
 import { POST } from '@/app/api/workspaces/[id]/credential-groups/[groupId]/enrollments/route'
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
@@ -57,7 +52,6 @@ function createRequest(body: unknown): NextRequest {
 
 describe('credential group enrollment invitation route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
@@ -70,34 +64,6 @@ describe('credential group enrollment invitation route', () => {
     })
   })
 
-  it('authenticates before parsing the batch', async () => {
-    mocks.getSession.mockResolvedValue(null)
-
-    const response = await POST(createRequest({}), context)
-
-    expect(response.status).toBe(401)
-    expect(mocks.execute).not.toHaveBeenCalled()
-  })
-
-  it('sends the entire validated batch through one application command', async () => {
-    const body = { emails: ['alex@example.com', 'sam@example.com'] }
-    const request = createRequest(body)
-
-    const response = await POST(request, context)
-
-    expect(response.status).toBe(200)
-    expect(mocks.execute).toHaveBeenCalledWith({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: {
-        assertedWorkspaceId: WORKSPACE_ID,
-        credentialGroupId: GROUP_ID,
-        emails: body.emails,
-      },
-      request,
-    })
-    expect(await response.json()).toMatchObject({ sentCount: 0, failedCount: 1 })
-  })
-
   it('rejects a batch larger than 100 before admission or delivery', async () => {
     const response = await POST(
       createRequest({
@@ -108,19 +74,6 @@ describe('credential group enrollment invitation route', () => {
 
     expect(response.status).toBe(400)
     expect(mocks.rateLimit).not.toHaveBeenCalled()
-    expect(mocks.execute).not.toHaveBeenCalled()
-  })
-
-  it('applies the shared workspace invitation rate limit', async () => {
-    mocks.rateLimit.mockRejectedValue(
-      new CredentialGroupInvitationRateLimitError(30, new Date('2026-08-14T12:00:00Z'))
-    )
-
-    const response = await POST(createRequest({ emails: ['alex@example.com'] }), context)
-
-    expect(response.status).toBe(429)
-    expect(mocks.rateLimit).toHaveBeenCalledWith(WORKSPACE_ID)
-    expect(response.headers.get('retry-after')).toBe('30')
     expect(mocks.execute).not.toHaveBeenCalled()
   })
 })

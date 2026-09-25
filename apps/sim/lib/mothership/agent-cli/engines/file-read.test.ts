@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { Principal } from '@sim/auth/principal'
 import { PDFDocument } from 'pdf-lib'
 import sharp from 'sharp'
@@ -72,7 +71,6 @@ function textResponse(name = 'notes.txt') {
 
 describe('content-aware files read augmentation', () => {
   beforeEach(async () => {
-    vi.clearAllMocks()
     mocks.resolve.mockResolvedValue(file)
     mocks.artifact.mockResolvedValue({
       file,
@@ -266,7 +264,6 @@ describe('content-aware files read augmentation', () => {
 })
 
 describe('scratch files read and explicit inline publication', () => {
-  beforeEach(() => vi.clearAllMocks())
   it('reads an authorized scratch PNG with no workspace lookup, persistence or resource', async () => {
     const buffer = await sharp({ create: { width: 2, height: 2, channels: 3, background: 'blue' } })
       .png()
@@ -299,7 +296,6 @@ describe('scratch files read and explicit inline publication', () => {
 })
 
 describe('original knowledge document observations', () => {
-  beforeEach(() => vi.clearAllMocks())
   it('reads failed-index originals through the existing text decoder with line bounds and no workspace materialization', async () => {
     mocks.original.mockResolvedValue({
       buffer: Buffer.from('first\nsecond\nthird'),

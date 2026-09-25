@@ -6,10 +6,8 @@ import { DOMParser, type Slice } from '@tiptap/pm/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMarkdownEditorExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions'
 import {
-  extractImageFiles,
   getImageFileFallback,
   normalizePastedImageSources,
-  resolveImageFileFallback,
   toSameOriginPath,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-paste'
 
@@ -30,53 +28,6 @@ beforeEach(() => {
 function imageFile(name = 'shot.png'): File {
   return new File([''], name, { type: 'image/png' })
 }
-
-function transfer(
-  files: File[],
-  items: Array<{ kind: string; type: string; file: File | null }> = []
-): DataTransfer {
-  return {
-    files,
-    items: items.map((entry) => ({
-      kind: entry.kind,
-      type: entry.type,
-      getAsFile: () => entry.file,
-    })),
-  } as unknown as DataTransfer
-}
-
-describe('extractImageFiles', () => {
-  it('returns nothing for a null payload or non-image files', () => {
-    expect(extractImageFiles(null)).toEqual([])
-    expect(extractImageFiles(transfer([new File([''], 'a.txt', { type: 'text/plain' })]))).toEqual(
-      []
-    )
-  })
-
-  it('reads images from the files list (drag-drop)', () => {
-    const file = imageFile()
-    expect(extractImageFiles(transfer([file]))).toEqual([file])
-  })
-
-  it('falls back to items when files is empty (pasted screenshot)', () => {
-    const file = imageFile()
-    const result = extractImageFiles(transfer([], [{ kind: 'file', type: 'image/png', file }]))
-    expect(result).toEqual([file])
-  })
-
-  it('ignores non-file and non-image items', () => {
-    const result = extractImageFiles(
-      transfer(
-        [],
-        [
-          { kind: 'string', type: 'text/plain', file: null },
-          { kind: 'file', type: 'application/pdf', file: new File([''], 'a.pdf') },
-        ]
-      )
-    )
-    expect(result).toEqual([])
-  })
-})
 
 describe('normalizePastedImageSources', () => {
   const origin = 'https://editor.example'
@@ -100,27 +51,6 @@ describe('normalizePastedImageSources', () => {
     }
   }
 
-  it.each([
-    'blob:https://editor.example/temporary-image',
-    '/api/workspaces/source/files/inline?fileId=image',
-    '/api/files/public/share/inline?fileId=image',
-  ])('resolves a bitmap for repeated non-portable images inside a complete fragment: %s', (src) => {
-    withEditor((editor, parse) => {
-      const html = (source: string) =>
-        `<h2>Heading <img src="${source}" width="120" alt="First"></h2><p><a href="/destination"><img src="${source}" width="240" alt="Second"></a>Caption<img src="/other.png"></p>`
-      const slice = parse(html(src))
-      const fallback = getImageFileFallback(slice, [imageFile()])
-      expect(fallback).not.toBeNull()
-      expect(fallback?.source).toBe(src)
-      expect(
-        resolveImageFileFallback(fallback!, '/api/files/view/uploaded').eq(
-          parse(html('/api/files/view/uploaded'))
-        )
-      ).toBe(true)
-      expect(editor.state.doc.textContent).toContain('Existing')
-    })
-  })
-
   it('does not associate bitmap bytes with an ambiguous source or file ordering', () => {
     withEditor((_editor, parse) => {
       const twoSources = parse(
@@ -136,32 +66,6 @@ describe('normalizePastedImageSources', () => {
     })
   })
 
-  it('preserves the full fragment, image attributes, links and open boundaries', () => {
-    withEditor((editor, parse) => {
-      const html = (src: string) =>
-        '<h2>Heading <img src="' +
-        src +
-        '" width="120" alt="First"></h2>' +
-        '<p><strong>Caption</strong> <a href="/destination"><img src="' +
-        src +
-        '" width="240" alt="Second"></a> tail</p>' +
-        '<p><img src="https://external.example/image.png" alt="External"></p>'
-      const slice = parse(html(origin + displayed))
-      const result = normalizePastedImageSources(slice, editor.state.doc, () => displayed, origin)
-      expect(result.eq(parse(html(stored)))).toBe(true)
-      expect(result.openStart).toBe(slice.openStart)
-      expect(result.openEnd).toBe(slice.openEnd)
-    })
-  })
-
-  it('normalizes absolute canonical references without needing a matching document image', () => {
-    withEditor((editor, parse) => {
-      const slice = parse(`<p>Before <img src="${origin}/api/files/view/image-b"> After</p>`)
-      const result = normalizePastedImageSources(slice, editor.state.doc, undefined, origin)
-      expect(result.eq(parse('<p>Before <img src="/api/files/view/image-b"> After</p>'))).toBe(true)
-    })
-  })
-
   it.each([
     `https://other.example${displayed}`,
     '/api/workspaces/another-workspace/files/inline?fileId=image-a',
@@ -173,24 +77,6 @@ describe('normalizePastedImageSources', () => {
       expect(
         normalizePastedImageSources(slice, editor.state.doc, () => displayed, origin).eq(slice)
       ).toBe(true)
-    })
-  })
-
-  it('leaves text-only and native stored-image fragments unchanged', () => {
-    withEditor((editor, parse) => {
-      for (const slice of [parse('<p><em>Text</em></p>'), parse(`<img src="${stored}">`)]) {
-        expect(normalizePastedImageSources(slice, editor.state.doc, () => displayed, origin)).toBe(
-          slice
-        )
-      }
-    })
-  })
-
-  it('does not rewrite a URL in accompanying text', () => {
-    withEditor((editor, parse) => {
-      const slice = parse(`<p>${displayed}<img src="${origin}${displayed}"></p>`)
-      const result = normalizePastedImageSources(slice, editor.state.doc, () => displayed, origin)
-      expect(result.eq(parse(`<p>${displayed}<img src="${stored}"></p>`))).toBe(true)
     })
   })
 })

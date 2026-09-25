@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -112,7 +109,6 @@ const session: SessionPrincipal = {
 
 describe('organization billing summary query routing', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.primaryRows.clear()
     mocks.selectedPrimaryTables.length = 0
 

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   auditMock,
   auditMockFns,
@@ -27,7 +24,6 @@ import { getOAuthRefreshCoordinationIdentity } from '@/lib/oauth/refresh-coordin
 
 describe('handleCreateCredentialFromDraft', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -94,7 +90,6 @@ describe('handleCreateCredentialFromDraft', () => {
 
 describe('handleReconnectCredential', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

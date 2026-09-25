@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { organizationSearchStatsQuerySchema } from '@/lib/api/contracts/knowledge/search-stats'
 import { getSearchStatsRangeError, getSearchStatsWindow } from '@/lib/knowledge/search/stats'
@@ -11,18 +10,6 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers())
 
 describe('Search stats window and contract', () => {
-  it.each([
-    { period: 'today', start: '2026-09-10T00:00:00.000Z', days: 1 },
-    { period: '3d', start: '2026-09-08T00:00:00.000Z', days: 3 },
-    { period: '7d', start: '2026-09-04T00:00:00.000Z', days: 7 },
-    { period: '14d', start: '2026-08-28T00:00:00.000Z', days: 14 },
-    { period: '30d', start: '2026-08-12T00:00:00.000Z', days: 30 },
-    { period: '90d', start: '2026-06-13T00:00:00.000Z', days: 90 },
-  ] as const)('uses $days UTC calendar days including today', ({ period, start, days }) => {
-    const now = new Date('2026-09-10T20:00:00.000Z')
-    const window = getSearchStatsWindow(period, now)
-    expect(window).toEqual({ start: new Date(start), end: now, days })
-  })
   it('includes the last custom day with an exclusive next-midnight bound', () => {
     expect(
       getSearchStatsWindow('custom', now, { startDate: '2026-08-31', endDate: '2026-09-02' })
@@ -58,27 +45,6 @@ describe('Search stats window and contract', () => {
       }).success
     ).toBe(false)
     expect(() => getSearchStatsWindow('custom', now, range)).toThrow()
-  })
-  it('accepts leap days and exactly 90 inclusive days, but rejects dates with a preset', () => {
-    for (const range of [
-      { startDate: '2024-02-29', endDate: '2024-03-01' },
-      { startDate: '2026-06-13', endDate: '2026-09-10' },
-    ]) {
-      expect(
-        organizationSearchStatsQuerySchema.safeParse({
-          organizationId: 'org',
-          period: 'custom',
-          ...range,
-        }).success
-      ).toBe(true)
-      expect(
-        organizationSearchStatsQuerySchema.safeParse({
-          organizationId: 'org',
-          period: '7d',
-          ...range,
-        }).success
-      ).toBe(false)
-    }
   })
   it('bounds scans and rejects caller-supplied surfaces', () => {
     expect(

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -25,7 +24,6 @@ import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scope
 
 describe('owner-scoped connected accounts availability', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.feature.mockResolvedValue(true)
     mocks.subscription.mockResolvedValue({ plan: 'enterprise', status: 'active' })
     mocks.blocked.mockResolvedValue(false)

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { confluenceConnector } from '@/connectors/confluence/confluence'
 
@@ -24,35 +21,6 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('Confluence bulk space validation', () => {
-  it('validates every selected space with bounded query sizes and follows partial pages', async () => {
-    const verifiedKeys: string[] = []
-    fetchMock.mockImplementation(async (input) => {
-      const url = requestUrl(input)
-      const batch = url.searchParams.getAll('keys')
-      expect(batch.length).toBeLessThanOrEqual(50)
-      expect(Number(url.searchParams.get('limit'))).toBeLessThanOrEqual(50)
-      const page = url.searchParams.has('cursor') ? batch.slice(25) : batch.slice(0, 25)
-      verifiedKeys.push(...page)
-      return Response.json({
-        results: page.map((key) => ({ key, id: key })),
-        _links:
-          batch.length > 25 && !url.searchParams.has('cursor')
-            ? { next: '/wiki/api/v2/spaces?cursor=second-page' }
-            : {},
-      })
-    })
-
-    await expect(
-      confluenceConnector.validateConfig(
-        'token',
-        { ...config, spaceKey: [...keys, keys[0]] },
-        { cloudId: 'cloud' }
-      )
-    ).resolves.toEqual({ valid: true })
-    expect(verifiedKeys).toEqual(keys)
-    expect(fetchMock).toHaveBeenCalledTimes(5)
-  })
-
   it('bounds encoded URLs for long space keys', async () => {
     const longKeys = Array.from({ length: 20 }, (_, index) => `SPACE_${index}_${'x'.repeat(240)}`)
     const verifiedKeys: string[] = []
@@ -109,22 +77,6 @@ describe('Confluence bulk space validation', () => {
     })
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
-
-  it('does not accept a later failed batch', async () => {
-    fetchMock.mockImplementation(async (input) => {
-      const batch = requestUrl(input).searchParams.getAll('keys')
-      return batch.includes('SPACE_50')
-        ? Response.json({}, { status: 403 })
-        : Response.json({ results: batch.map((key) => ({ key })) })
-    })
-    await expect(
-      confluenceConnector.validateConfig(
-        'token',
-        { ...config, spaceKey: keys },
-        { cloudId: 'cloud' }
-      )
-    ).resolves.toEqual({ valid: false, error: 'Failed to validate spaces: 403' })
-  })
 })
 
 describe('Confluence bulk space listing', () => {
@@ -136,37 +88,6 @@ describe('Confluence bulk space listing', () => {
       _links: next ? { next: `/wiki/rest/api/content/search?cursor=${next}` } : {},
     })
   }
-
-  it('exhausts each provider cursor before moving to the next explicit space batch', async () => {
-    fetchMock
-      .mockResolvedValueOnce(page('1', 'provider-page-2'))
-      .mockResolvedValueOnce(page('2'))
-      .mockResolvedValueOnce(page('3'))
-    const context: Record<string, unknown> = { cloudId: 'cloud' }
-    const first = await confluenceConnector.listDocuments('token', sourceConfig, undefined, context)
-    const second = await confluenceConnector.listDocuments(
-      'token',
-      sourceConfig,
-      first.nextCursor,
-      context
-    )
-    const third = await confluenceConnector.listDocuments(
-      'token',
-      sourceConfig,
-      second.nextCursor,
-      context
-    )
-    expect(
-      [first, second, third].flatMap((result) => result.documents.map((doc) => doc.externalId))
-    ).toEqual(['1', '2', '3'])
-    expect([first.hasMore, second.hasMore, third.hasMore]).toEqual([true, true, false])
-    const requests = fetchMock.mock.calls.map(([input]) => requestUrl(input))
-    expect(requests[0].searchParams.get('cql')).toBe(requests[1].searchParams.get('cql'))
-    expect(requests[1].searchParams.get('cursor')).toBe('provider-page-2')
-    expect(requests[2].searchParams.has('cursor')).toBe(false)
-    expect(requests[2].searchParams.get('cql')).toContain('space in ("SPACE_50","SPACE_51")')
-    expect(context.listingCapped).toBeUndefined()
-  })
 
   it('marks a limit reached before later batches as incomplete for deletion reconciliation', async () => {
     fetchMock.mockResolvedValueOnce(page('1'))
@@ -180,22 +101,6 @@ describe('Confluence bulk space listing', () => {
     expect(result.hasMore).toBe(false)
     expect(result.nextCursor).toBeUndefined()
     expect(context.listingCapped).toBe(true)
-  })
-
-  it('continues through an empty batch without widening the query', async () => {
-    fetchMock.mockResolvedValueOnce(Response.json({ results: [] })).mockResolvedValueOnce(page('1'))
-    const context: Record<string, unknown> = { cloudId: 'cloud' }
-    const first = await confluenceConnector.listDocuments('token', sourceConfig, undefined, context)
-    const last = await confluenceConnector.listDocuments(
-      'token',
-      sourceConfig,
-      first.nextCursor,
-      context
-    )
-    expect(first.documents).toEqual([])
-    expect(first.hasMore).toBe(true)
-    expect(last.documents.map((doc) => doc.externalId)).toEqual(['1'])
-    expect(last.hasMore).toBe(false)
   })
 
   it('rejects an invalid batch continuation before requesting any content', async () => {

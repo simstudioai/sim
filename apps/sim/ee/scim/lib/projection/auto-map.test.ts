@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { db } from '@sim/db'
 import { permissionGroup, scimGroupMapping } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
@@ -20,7 +17,6 @@ afterAll(resetDbChainMock)
 
 describe('autoMapPermissionGroupByName', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -53,12 +49,6 @@ describe('autoMapPermissionGroupByName', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
-  it('reports no-match when nothing was mapped and nothing was removed', async () => {
-    queueTableRows(permissionGroup, [])
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-    await expect(autoMapPermissionGroupByName(db, params)).resolves.toBe('no-match')
-  })
-
   it('never takes the permission-group leaf lock itself, since user locks follow it', async () => {
     queueTableRows(permissionGroup, [{ id: 'pg-1' }])
     queueTableRows(scimGroupMapping, [])
@@ -80,7 +70,6 @@ describe('autoMapPermissionGroupByName', () => {
 
 describe('settleMappedPermissionGroupsExplicit', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 

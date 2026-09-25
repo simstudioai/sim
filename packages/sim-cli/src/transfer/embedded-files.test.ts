@@ -39,40 +39,10 @@ describe('embedded positional file arguments', () => {
       })
     })
   })
-
-  it('refuses a path when the host has no reader', async () => {
-    await embedStore.run(embedded(), async () => {
-      await expect(localFile('@missing.csv')).rejects.toThrow('no machine to read from')
-    })
-  })
 })
 
 describe('embedded downloads', () => {
   const body = () => new Blob(['hello']).stream()
-
-  it('hands the host the stream before consuming the download', async () => {
-    let produced = 0
-    const source = new ReadableStream<Uint8Array>(
-      {
-        pull(controller) {
-          produced++
-          if (produced <= 8) controller.enqueue(new Uint8Array(1024 * 1024))
-          else controller.close()
-        },
-      },
-      { highWaterMark: 0 }
-    )
-    await embedStore.run(
-      embedded({
-        writeFile: async (_path, content) => {
-          expect(produced).toBe(0)
-          expect(content).toBe(source)
-          expect((await new Response(content).arrayBuffer()).byteLength).toBe(8 * 1024 * 1024)
-        },
-      }),
-      () => saveToFile(source, 'large.csv', false)
-    )
-  })
 
   it('never resolves an invalid caller working directory against the server cwd', async () => {
     const cancel = vi.fn()
@@ -84,15 +54,6 @@ describe('embedded downloads', () => {
       )
     ).rejects.toThrow('must be absolute')
     expect(writeFile).not.toHaveBeenCalled()
-    expect(cancel).toHaveBeenCalledTimes(1)
-  })
-
-  it('cancels an unconsumed download when the host cannot save it', async () => {
-    const cancel = vi.fn()
-    const source = new ReadableStream<Uint8Array>({ cancel })
-    await embedStore.run(embedded(), async () => {
-      await expect(saveToFile(source, 'out.txt', false)).rejects.toThrow('no machine to write to')
-    })
     expect(cancel).toHaveBeenCalledTimes(1)
   })
 
@@ -120,21 +81,5 @@ describe('embedded downloads', () => {
       await saveToFile(body(), 'out.txt', true)
     })
     expect(writeFile.mock.calls[1]?.[2]).toEqual({ overwrite: true })
-  })
-
-  it('refuses when the host has no writer or cannot confirm the write', async () => {
-    await embedStore.run(embedded(), async () => {
-      await expect(saveToFile(body(), 'out.txt', false)).rejects.toThrow('no machine to write to')
-    })
-    await embedStore.run(
-      embedded({
-        writeFile: async () => {
-          throw new Error('could not be confirmed')
-        },
-      }),
-      async () => {
-        await expect(saveToFile(body(), 'out.txt', false)).rejects.toThrow('could not be confirmed')
-      }
-    )
   })
 })

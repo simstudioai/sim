@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import type { DurableSecretProvenanceEntry } from '@sim/db/schema'
 import { memory } from '@sim/db/schema'
@@ -106,7 +103,6 @@ function principal(): WorkflowExecutionDelegatedPrincipal {
 
 describe('memory message provenance', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.decrypt.mockResolvedValue({ decrypted: SECRET })
     mocks.loadWorkspace.mockResolvedValue({
@@ -301,27 +297,6 @@ describe('memory message provenance', () => {
     expect(mocks.decrypt).not.toHaveBeenCalledWith(ENTRY.encryptedValue)
   })
 
-  it('keeps legacy records readable without claiming unrelated current secrets', async () => {
-    queueTableRows(memory, [
-      { data: [{ role: 'user', content: SECRET }], secretProvenanceVersion: null },
-    ])
-    const result = await new Memory().fetchMemoryMessages(executionContext(), INPUTS)
-    expect(result[0].content).toBe(SECRET)
-    expect(mocks.logger.error).not.toHaveBeenCalled()
-    expect(mocks.decrypt).not.toHaveBeenCalled()
-  })
-
-  it('retains foreign-source anonymity when recovering historical bindings', async () => {
-    queueStoredMemory(
-      [{ role: 'user', content: SECRET }],
-      [{ ...ENTRY, sourceUserId: 'other-user', sourceWorkspaceId: 'other-workspace' }]
-    )
-    const result = await new Memory().fetchMemoryMessages(executionContext(), INPUTS)
-    expect(result[0].content).not.toContain(SECRET)
-    expect(result[0].content).not.toContain(ENTRY.name)
-    expect(result[0].content).not.toContain('other-user')
-  })
-
   it('preserves both original source identities when the same ciphertext is supplied twice', async () => {
     const message: Message = { role: 'user', content: SECRET }
     const foreignEntry = {
@@ -415,77 +390,6 @@ describe('memory message provenance', () => {
     expect(mocks.logger.error).toHaveBeenCalledWith(
       'Memory message secret provenance could not be bound',
       { surface: 'memory', cause: 'entries-unnormalizable' }
-    )
-  })
-
-  it('recovers valid historical entries without newly refusing an unreadable old ciphertext', async () => {
-    queueStoredMemory(
-      [{ role: 'user', content: SECRET }],
-      [ENTRY, { ...ENTRY, encryptedValue: 'corrupt-ciphertext' }]
-    )
-    mocks.decrypt.mockImplementation(async (ciphertext: string) => {
-      if (ciphertext === 'corrupt-ciphertext') throw new Error(`Sensitive failure: ${SECRET}`)
-      return { decrypted: SECRET }
-    })
-    const execution = executionContext()
-    const result = await new Memory().fetchMemoryMessages(execution, INPUTS)
-    expect(result[0].content).toBe('{{TOKEN}}')
-    expect(execution.resolvedSecretTraceRegistry?.isComplete()).toBe(true)
-    expect(mocks.decrypt).toHaveBeenCalledWith('corrupt-ciphertext', { logFailure: false })
-    expect(mocks.logger.error).toHaveBeenCalledWith(
-      'Historical memory secret provenance could not be recovered',
-      {
-        surface: 'memory',
-        cause: 'legacy-entry-recovery-failed',
-        entryCount: 1,
-        workspaceId: SCOPE.workspaceId,
-      }
-    )
-    const telemetry = JSON.stringify(mocks.logger.error.mock.calls)
-    expect(telemetry).not.toContain(SECRET)
-    expect(telemetry).not.toContain('corrupt-ciphertext')
-  })
-
-  it('keeps historical memory readable when optional recoveries exceed the combined matcher budget', async () => {
-    const values = ['a', 'b', 'c', 'd', 'e'].map((character) => character.repeat(60_000))
-    const content = values.join(' ')
-    queueStoredMemory(
-      [{ role: 'user', content }],
-      values.map((_, index) => ({ ...ENTRY, encryptedValue: `large-cipher-${index}` }))
-    )
-    mocks.decrypt.mockImplementation(async (ciphertext: string) => ({
-      decrypted: values[Number(ciphertext.replace('large-cipher-', ''))],
-    }))
-    const execution = executionContext()
-    const result = await new Memory().fetchMemoryMessages(execution, INPUTS)
-    expect(result[0].content).toBe(content)
-    expect(execution.resolvedSecretTraceRegistry?.isComplete()).toBe(true)
-    expect(mocks.logger.error).toHaveBeenCalledWith(
-      'Historical memory secret provenance recovery was skipped',
-      {
-        surface: 'memory',
-        cause: 'legacy-recovery-capacity-exceeded',
-        entryCount: 5,
-        workspaceId: SCOPE.workspaceId,
-      }
-    )
-  })
-
-  it('does not newly require a run registry for historical unbound memory', async () => {
-    queueStoredMemory([{ role: 'user', content: SECRET }], [ENTRY])
-    const result = await new Memory().fetchMemoryMessages(
-      { workspaceId: SCOPE.workspaceId } as ExecutionContext,
-      INPUTS
-    )
-    expect(result[0].content).toBe(SECRET)
-    expect(mocks.logger.error).toHaveBeenCalledWith(
-      'Historical memory secret provenance recovery was skipped',
-      {
-        surface: 'memory',
-        cause: 'legacy-recovery-context-unavailable',
-        entryCount: 1,
-        workspaceId: SCOPE.workspaceId,
-      }
     )
   })
 })

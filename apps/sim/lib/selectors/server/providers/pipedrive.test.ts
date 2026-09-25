@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch, mockResolveSelectorCredentialBundle } = vi.hoisted(() => ({
@@ -33,7 +30,6 @@ function args(): ExecuteServerSelectorArgs {
 
 describe('Pipedrive server selector adapter', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveSelectorCredentialBundle.mockResolvedValue({ accessToken: 'server-only-token' })
   })

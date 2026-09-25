@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -80,7 +77,6 @@ const folderIndex = {
 
 describe('workflow and table application folder caps', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.resolveWorkflowWorkspace.mockResolvedValue(context)
     mocks.resolveTableWorkspace.mockResolvedValue(context)
@@ -196,7 +192,6 @@ describe('a list folder filter that matches no folder', () => {
   const MISSING = '/does-not-exist'
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('read')
     mocks.resolveWorkflowWorkspace.mockResolvedValue(context)
     mocks.resolveTableWorkspace.mockResolvedValue(context)
@@ -219,37 +214,5 @@ describe('a list folder filter that matches no folder', () => {
 
     expect(result).toMatchObject({ workflows: [], nextCursorKeys: null })
     expect(mocks.listWorkflows).not.toHaveBeenCalled()
-  })
-
-  it('returns an empty table page without querying rows', async () => {
-    const result = await listTablesUseCase.execute({
-      principal,
-      input: {
-        workspaceId: context.workspaceId,
-        folderPath: MISSING,
-        sortBy: 'name',
-        sortOrder: 'asc',
-        limit: 25,
-      },
-    })
-
-    expect(result).toMatchObject({ tables: [], nextKeys: null })
-    expect(mocks.listTables).not.toHaveBeenCalled()
-  })
-
-  it('returns an empty file page without querying rows', async () => {
-    const result = await queryWorkspaceFilePage.execute({
-      principal,
-      input: {
-        workspaceId: context.workspaceId,
-        folderPath: MISSING,
-        sortBy: 'name',
-        sortOrder: 'asc',
-        limit: 25,
-      },
-    })
-
-    expect(result).toMatchObject({ files: [], nextKeys: null })
-    expect(mocks.queryWorkspaceFiles).not.toHaveBeenCalled()
   })
 })

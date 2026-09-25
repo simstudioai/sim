@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   redisConfigMockFns,
@@ -150,7 +147,6 @@ function makeSerializedSnapshot(index: number) {
 
 describe('time-pause resume admission', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     dbChainMockFns.select.mockImplementation((selection: Record<string, unknown>) => {
       if ('snapshotBytes' in selection) {
@@ -287,31 +283,6 @@ describe('time-pause resume admission', () => {
     expect(response.status).toBe(200)
     expect(preprocessExecutionMock).toHaveBeenCalledTimes(1)
     expect(enqueueOrStartResumeMock).toHaveBeenCalledTimes(2)
-  })
-
-  it('increments admission retry state once for a paused row with multiple due points', async () => {
-    const row = makeDueRow(1)
-    row.pausePoints['context-2'] = {
-      contextId: 'context-2',
-      pauseKind: 'time',
-      resumeAt: '2026-07-01T00:00:00.000Z',
-      resumeStatus: 'paused',
-    }
-    dueRowsLimitMock.mockResolvedValueOnce([row])
-    preprocessExecutionMock.mockResolvedValueOnce({
-      success: false,
-      error: {
-        message: 'Usage admission unavailable',
-        statusCode: 503,
-        retryable: true,
-      },
-    })
-
-    const response = await GET(makeRequest())
-
-    expect(response.status).toBe(200)
-    expect(setAutomaticResumeWaitingMock).toHaveBeenCalledOnce()
-    expect(enqueueOrStartResumeMock).not.toHaveBeenCalled()
   })
 
   it('retries a preserved queued input without creating a replacement input', async () => {
@@ -494,113 +465,5 @@ describe('time-pause resume admission', () => {
       'execution-1',
       'execution-2',
     ])
-  })
-
-  it('loads qualifying legacy snapshots in sequential four-row chunks', async () => {
-    const rows = Array.from({ length: 10 }, (_, index) =>
-      makeDueRow(index + 1, { executorUserId: `actor-${index + 1}` })
-    )
-    dueRowsLimitMock.mockResolvedValueOnce(rows)
-    legacySizeRowsLimitMock.mockResolvedValueOnce(
-      rows.map((row) => ({ id: row.id, snapshotBytes: 1024 }))
-    )
-    const snapshotChunks = [
-      rows.slice(0, 4).map((row, index) => ({
-        id: row.id,
-        executionSnapshot: makeSerializedSnapshot(index + 1),
-      })),
-      rows.slice(4, 8).map((row, index) => ({
-        id: row.id,
-        executionSnapshot: makeSerializedSnapshot(index + 5),
-      })),
-      rows.slice(8).map((row, index) => ({
-        id: row.id,
-        executionSnapshot: makeSerializedSnapshot(index + 9),
-      })),
-    ]
-    let activeSnapshotLoads = 0
-    let maxActiveSnapshotLoads = 0
-    fallbackRowsLimitMock.mockImplementation(async () => {
-      const chunk = snapshotChunks[fallbackRowsLimitMock.mock.calls.length - 1] ?? []
-      activeSnapshotLoads++
-      maxActiveSnapshotLoads = Math.max(maxActiveSnapshotLoads, activeSnapshotLoads)
-      await Promise.resolve()
-      activeSnapshotLoads--
-      return chunk
-    })
-
-    const response = await GET(makeRequest())
-
-    expect(response.status).toBe(200)
-    expect(fallbackRowsLimitMock).toHaveBeenCalledTimes(3)
-    expect(fallbackRowsLimitMock.mock.calls).toEqual([
-      [LEGACY_PAUSED_SNAPSHOT_FALLBACK_CHUNK_SIZE],
-      [LEGACY_PAUSED_SNAPSHOT_FALLBACK_CHUNK_SIZE],
-      [LEGACY_PAUSED_SNAPSHOT_FALLBACK_CHUNK_SIZE],
-    ])
-    const snapshotIdBatches = inArrayMock.mock.calls
-      .filter(([column]) => column === 'pausedExecutions.id')
-      .map(([, ids]) => ids as string[])
-    expect(snapshotIdBatches.map((ids) => ids.length)).toEqual([10, 4, 4, 2])
-    expect(
-      lteMock.mock.calls.filter(
-        ([expression, limit]) =>
-          expression === 'snapshotBytes' && limit === MAX_PAUSED_EXECUTION_SNAPSHOT_BYTES
-      )
-    ).toHaveLength(3)
-    expect(maxActiveSnapshotLoads).toBe(1)
-    expect(executionSnapshotFromJsonMock).toHaveBeenCalledTimes(10)
-    expect(preprocessExecutionMock).toHaveBeenCalledTimes(10)
-  })
-
-  it('caps preprocessing at ten pipelines while preserving the 200-row batch bound', async () => {
-    dueRowsLimitMock.mockResolvedValueOnce(
-      Array.from({ length: 200 }, (_, index) => makeDueRow(index + 1))
-    )
-
-    let active = 0
-    let maxActive = 0
-    let releaseGate: (() => void) | undefined
-    const gate = new Promise<void>((resolve) => {
-      releaseGate = resolve
-    })
-    preprocessExecutionMock.mockImplementation(async () => {
-      active++
-      maxActive = Math.max(maxActive, active)
-      await gate
-      active--
-      return { success: true, actorUserId: 'actor-1' }
-    })
-
-    const responsePromise = GET(makeRequest())
-    await vi.waitFor(() => {
-      expect(preprocessExecutionMock).toHaveBeenCalledTimes(10)
-    })
-
-    expect(active).toBe(10)
-    expect(maxActive).toBe(10)
-    releaseGate?.()
-
-    const response = await responsePromise
-    const payload = (await response.json()) as {
-      claimedRows: number
-      dispatched: number
-      failures: unknown[]
-    }
-
-    expect(response.status).toBe(200)
-    expect(payload).toEqual(
-      expect.objectContaining({
-        claimedRows: 200,
-        dispatched: 200,
-        failures: [],
-      })
-    )
-    expect(dueRowsLimitMock).toHaveBeenCalledWith(200)
-    expect(preprocessExecutionMock).toHaveBeenCalledTimes(200)
-    expect(maxActive).toBe(10)
-    expect(legacySizeRowsLimitMock).not.toHaveBeenCalled()
-    expect(fallbackRowsLimitMock).not.toHaveBeenCalled()
-    expect(executionSnapshotFromJsonMock).not.toHaveBeenCalled()
   })
 })

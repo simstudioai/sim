@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { redisConfigMockFns, resetEnvMock, setEnv } from '@sim/testing'
 import { generateId } from '@sim/utils/id'
 import Redis from 'ioredis'

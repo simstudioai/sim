@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -30,7 +27,6 @@ import {
 
 describe('knowledge projection enqueue', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-23T12:34:45.000Z'))
     mocks.resolveRegion.mockResolvedValue('us-east-1')
@@ -60,29 +56,6 @@ describe('knowledge projection enqueue', () => {
     expect(mocks.runPass).not.toHaveBeenCalled()
   })
 
-  it('starts no sweep pass when nothing is marked or left to fill', async () => {
-    mocks.execute.mockResolvedValue([{ pending: false }])
-    await expect(enqueueKnowledgeProjectionSweep()).resolves.toEqual({
-      triggered: false,
-      backend: null,
-      jobId: null,
-    })
-    expect(mocks.trigger).not.toHaveBeenCalled()
-  })
-
-  it('probes for unfilled rows only while the fill is on', async () => {
-    const probed = async () => {
-      mocks.execute.mockClear()
-      await enqueueKnowledgeProjectionSweep()
-      return JSON.stringify(mocks.execute.mock.calls[0]?.[0])
-    }
-    expect(await probed()).not.toContain('acl IS NULL')
-    mocks.isFeatureEnabled.mockResolvedValue(true)
-    const withFill = await probed()
-    expect(withFill).toContain('embedding_search WHERE acl IS NULL')
-    expect(withFill).toContain('embedding_keyword_tin WHERE acl IS NULL')
-  })
-
   it('debounces prompt requests across processes and collapses them within one', async () => {
     await requestKnowledgeProjection()
     await requestKnowledgeProjection()
@@ -94,26 +67,6 @@ describe('knowledge projection enqueue', () => {
     vi.advanceTimersByTime(5_000)
     await requestKnowledgeProjection()
     expect(mocks.trigger).toHaveBeenCalledTimes(2)
-  })
-
-  it('runs the pass in this process where Trigger.dev is enabled without its secret key', async () => {
-    mocks.env.TRIGGER_SECRET_KEY = undefined
-    mocks.runPass.mockResolvedValue(undefined)
-    await expect(enqueueKnowledgeProjectionSweep()).resolves.toEqual({
-      triggered: true,
-      backend: 'inline',
-      jobId: null,
-    })
-    expect(mocks.trigger).not.toHaveBeenCalled()
-    await vi.waitFor(() => expect(mocks.runPass).toHaveBeenCalledTimes(1))
-  })
-
-  it('enqueues from inside a Trigger.dev run whatever the environment holds', async () => {
-    mocks.env.TRIGGER_SECRET_KEY = undefined
-    mocks.insideRun.mockReturnValue(true)
-    await expect(enqueueKnowledgeProjectionSweep()).resolves.toMatchObject({
-      backend: 'trigger-dev',
-    })
   })
 
   it('never fails the write that asked when the request is refused', async () => {

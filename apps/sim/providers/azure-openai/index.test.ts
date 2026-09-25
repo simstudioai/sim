@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentStreamEvent } from '@/providers/stream-events'
@@ -120,7 +117,6 @@ afterAll(resetEnvMock)
 
 describe('azureOpenAIProvider — SSRF pinning', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     azureOpenAIArgs.length = 0
     setEnv({ AZURE_OPENAI_ENDPOINT: undefined, AZURE_OPENAI_API_VERSION: undefined })
     mockIsChatCompletionsEndpoint.mockReturnValue(false)

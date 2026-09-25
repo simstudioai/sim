@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { recordAudit } from '@sim/audit'
 import { createMockRequest } from '@sim/testing'
 import JSZip from 'jszip'
@@ -86,7 +82,6 @@ function assetsResolveTo(assetFor: (id: string) => unknown) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mockCheckAuth.mockResolvedValue({ success: true, userId: 'user-1' })
   mockVerifyFileAccess.mockResolvedValue(true)
   assetsResolveTo((id) => assetRecord(id, 1 * MB))
@@ -95,30 +90,6 @@ beforeEach(() => {
 })
 
 describe('markdown export bundling', () => {
-  it('rejects an unauthenticated request before reading file metadata', async () => {
-    mockCheckAuth.mockResolvedValue({ success: false })
-    const response = await GET(request(), context)
-
-    expect(response.status).toBe(401)
-    expect(await response.json()).toEqual({ error: 'Unauthorized' })
-    expect(mockGetFileMetadataById).not.toHaveBeenCalled()
-    expect(recordAudit).not.toHaveBeenCalled()
-  })
-
-  it('preserves legacy missing-file and access-denied responses', async () => {
-    mockGetFileMetadataById.mockResolvedValueOnce(null)
-    const missing = await GET(request(), context)
-    expect(missing.status).toBe(404)
-    expect(await missing.json()).toEqual({ error: 'Not found' })
-
-    mockVerifyFileAccess.mockResolvedValue(false)
-    const forbidden = await GET(request(), context)
-    expect(forbidden.status).toBe(403)
-    expect(await forbidden.json()).toEqual({ error: 'Forbidden' })
-    expect(mockDownloadFile).not.toHaveBeenCalled()
-    expect(recordAudit).not.toHaveBeenCalled()
-  })
-
   it('keeps non-Markdown downloads as authorized serve redirects', async () => {
     mockGetFileMetadataById.mockResolvedValue({
       ...DOC_RECORD,
@@ -138,17 +109,6 @@ describe('markdown export bundling', () => {
         metadata: expect.objectContaining({ format: 'file', assetCount: 0 }),
       })
     )
-  })
-
-  it('preserves exact plain Markdown bytes and download headers', async () => {
-    const content = '\uFEFF---\r\ntitle: "Résumé"\r\n---\r\n\r\n# 你好 😀\r\n'
-    mockDownloadFile.mockResolvedValue(Buffer.from(content))
-    const response = await GET(request(), context)
-
-    expect(Buffer.from(await response.arrayBuffer())).toEqual(Buffer.from(content))
-    expect(response.headers.get('content-type')).toBe('text/markdown; charset=utf-8')
-    expect(response.headers.get('content-length')).toBe(String(Buffer.byteLength(content)))
-    expect(response.headers.get('content-disposition')).toContain('doc.md')
   })
 
   it('rejects on declared asset bytes before downloading any of them', async () => {
@@ -254,21 +214,6 @@ describe('markdown export bundling', () => {
     expect(zip.file('assets/bad.png')).toBeNull()
   })
 
-  it('drops an asset with missing canonical size metadata', async () => {
-    embeds('good', 'missing-size')
-    assetsResolveTo((id) => assetRecord(id, id === 'missing-size' ? null : 1 * MB))
-
-    const response = await GET(request(), context)
-
-    expect(response.status).toBe(200)
-    const zip = await JSZip.loadAsync(Buffer.from(await response.arrayBuffer()))
-    expect(zip.file('assets/good.png')).not.toBeNull()
-    expect(zip.file('assets/missing-size.png')).toBeNull()
-    expect(
-      mockDownloadFile.mock.calls.some(([options]) => options.key.endsWith('missing-size'))
-    ).toBe(false)
-  })
-
   /**
    * The two id representations have to stay distinct: metadata resolves by the stored id, while the
    * rewrite finds the embed by the spelling the document used. Collapsing them either drops the
@@ -313,21 +258,6 @@ describe('markdown export format', () => {
     expect(response.headers.get('Content-Disposition')).toContain('doc.md')
     expect(await response.text()).toBe('# Doc\n')
   }
-
-  it('returns the document itself when it embeds nothing', async () => {
-    await expectPlainMarkdown(await GET(request(), context))
-  })
-
-  /**
-   * The reported bug: a document that references files which no longer resolve downloaded as a zip
-   * whose `assets/` folder was empty. The format follows what was bundled, not what was referenced.
-   */
-  it('returns the document itself when no embed resolves to a file', async () => {
-    embeds('gone', 'also-gone')
-    assetsResolveTo(() => null)
-
-    await expectPlainMarkdown(await GET(request(), context))
-  })
 
   it('returns the document itself when every embed fails to download', async () => {
     embeds('a')

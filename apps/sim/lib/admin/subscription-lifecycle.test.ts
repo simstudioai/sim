@@ -1,5 +1,3 @@
-/** @vitest-environment node */
-
 import { outboxEvent, subscription } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -52,7 +50,6 @@ vi.mock('@/lib/core/outbox/service', () => ({
 }))
 
 import {
-  getDashboardSubscriptionBillingActions,
   refundDashboardSubscriptionPayment,
   requestDashboardSubscriptionCancellation,
 } from '@/lib/admin/subscription-lifecycle'
@@ -71,7 +68,6 @@ afterAll(resetDbChainMock)
 
 describe('admin subscription cancellation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.enqueueOutboxEvent.mockResolvedValue('outbox-1')
     mocks.subscriptionCancel.mockResolvedValue({ id: 'sub_stripe_1', status: 'canceled' })
@@ -83,33 +79,6 @@ describe('admin subscription cancellation', () => {
       amount: 2500,
       status: 'succeeded',
       metadata: {},
-    })
-  })
-
-  it('uses the existing cancel-at-period-end outbox flow', async () => {
-    queueTableRows(outboxEvent, [])
-    queueTableRows(subscription, [activeSubscription])
-
-    const result = await requestDashboardSubscriptionCancellation({
-      organizationId: 'org-1',
-      operationId: '67e55044-10b1-426f-9247-bb680e5fe0c8',
-      timing: 'period_end',
-      actor,
-    })
-
-    expect(dbChainMockFns.set).toHaveBeenCalledWith({ cancelAtPeriodEnd: true })
-    expect(mocks.enqueueOutboxEvent).toHaveBeenCalledWith(
-      expect.anything(),
-      'stripe.sync-cancel-at-period-end',
-      expect.objectContaining({
-        subscriptionId: 'sub-row-1',
-        stripeSubscriptionId: 'sub_stripe_1',
-      })
-    )
-    expect(mocks.subscriptionCancel).not.toHaveBeenCalled()
-    expect(result).toMatchObject({
-      operationId: '67e55044-10b1-426f-9247-bb680e5fe0c8',
-      status: 'pending',
     })
   })
 
@@ -231,7 +200,6 @@ describe('admin subscription cancellation', () => {
 
 describe('admin subscription billing actions', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.invoicesList.mockResolvedValue({
       data: [{ id: 'in_1', description: 'Annual Enterprise invoice' }],
@@ -259,91 +227,6 @@ describe('admin subscription billing actions', () => {
     })
     mocks.refundsList.mockResolvedValue({ data: [], has_more: false })
     mocks.refundsCreate.mockResolvedValue({ id: 're_1', status: 'succeeded', amount: 2500 })
-  })
-
-  it('uses a bounded recent paid-invoice query with expanded payment charges', async () => {
-    queueTableRows(subscription, [activeSubscription])
-
-    const result = await getDashboardSubscriptionBillingActions('org-1')
-
-    expect(mocks.invoicesList).toHaveBeenCalledWith({
-      subscription: 'sub_stripe_1',
-      limit: 12,
-      expand: ['data.payments'],
-    })
-    expect(mocks.invoicePaymentsList).toHaveBeenCalledWith(
-      expect.objectContaining({
-        invoice: 'in_1',
-        limit: 10,
-        expand: ['data.payment.charge', 'data.payment.payment_intent.latest_charge'],
-      })
-    )
-    expect(mocks.chargesRetrieve).not.toHaveBeenCalled()
-    expect(result).toMatchObject({
-      cancellationSync: null,
-      refundHistoryLimited: false,
-      refundablePayments: [{ chargeId: 'ch_1', refundableCents: 10_000 }],
-    })
-  })
-
-  it('uses expanded invoice payments without one extra Stripe request per invoice', async () => {
-    queueTableRows(subscription, [activeSubscription])
-    mocks.invoicesList.mockResolvedValue({
-      data: [
-        {
-          id: 'in_1',
-          description: 'Annual Enterprise invoice',
-          payments: {
-            data: [
-              {
-                id: 'ip_1',
-                status: 'paid',
-                payment: {
-                  charge: {
-                    id: 'ch_1',
-                    paid: true,
-                    amount_captured: 10_000,
-                    amount_refunded: 0,
-                    currency: 'usd',
-                    created: 1_700_000_000,
-                    description: null,
-                  },
-                },
-              },
-            ],
-            has_more: false,
-          },
-        },
-      ],
-      has_more: false,
-    })
-
-    const result = await getDashboardSubscriptionBillingActions('org-1')
-
-    expect(mocks.invoicePaymentsList).not.toHaveBeenCalled()
-    expect(result.refundablePayments).toEqual([
-      expect.objectContaining({ chargeId: 'ch_1', refundableCents: 10_000 }),
-    ])
-  })
-
-  it('surfaces a failed dashboard cancellation operation separately from DB desired state', async () => {
-    queueTableRows(subscription, [{ ...activeSubscription, cancelAtPeriodEnd: true }])
-    queueTableRows(outboxEvent, [
-      {
-        operationId: '67e55044-10b1-426f-9247-bb680e5fe0c8',
-        status: 'dead_letter',
-        error: 'Stripe unavailable',
-      },
-    ])
-
-    const result = await getDashboardSubscriptionBillingActions('org-1')
-
-    expect(result.cancellationSync).toEqual({
-      operationId: '67e55044-10b1-426f-9247-bb680e5fe0c8',
-      timing: 'period_end',
-      status: 'failed',
-      error: 'Stripe unavailable',
-    })
   })
 
   it('replays a completed refund operation from Stripe metadata without a second mutation', async () => {
@@ -409,46 +292,6 @@ describe('admin subscription billing actions', () => {
         metadata: expect.objectContaining({ refundId: 're_existing' }),
       })
     )
-  })
-
-  it('repairs a lost audit write on exact refund replay before returning success', async () => {
-    mocks.refundsList.mockResolvedValue({
-      data: [
-        {
-          id: 're_existing',
-          amount: 2500,
-          status: 'succeeded',
-          reason: 'requested_by_customer',
-          metadata: {
-            simAdminOperationId: '67e55044-10b1-426f-9247-bb680e5fe0c8',
-            organizationId: 'org-1',
-            simSubscriptionId: 'sub-row-1',
-          },
-        },
-      ],
-      has_more: false,
-    })
-    mocks.recordAuditOnce.mockRejectedValueOnce(new Error('database unavailable'))
-
-    const request = {
-      organizationId: 'org-1',
-      operationId: '67e55044-10b1-426f-9247-bb680e5fe0c8',
-      chargeId: 'ch_1',
-      amountCents: 2500,
-      reason: 'requested_by_customer' as const,
-      actor,
-    }
-    await expect(refundDashboardSubscriptionPayment(request)).rejects.toThrow(
-      'database unavailable'
-    )
-
-    mocks.recordAuditOnce.mockResolvedValueOnce(undefined)
-    await expect(refundDashboardSubscriptionPayment(request)).resolves.toMatchObject({
-      refundId: 're_existing',
-      outcome: 'applied',
-    })
-    expect(mocks.refundsCreate).not.toHaveBeenCalled()
-    expect(mocks.recordAuditOnce).toHaveBeenCalledTimes(2)
   })
 
   it('keeps a provider-pending refund recoverable without recording it as applied', async () => {

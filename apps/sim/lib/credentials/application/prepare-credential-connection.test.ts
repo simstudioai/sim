@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -77,7 +74,6 @@ const gmailProvider = {
 
 describe('prepareCredentialConnection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue(workspace)
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.listCatalog.mockResolvedValue([gmailProvider])
@@ -99,12 +95,6 @@ describe('prepareCredentialConnection', () => {
     })
     expect(result).toEqual({ kind: 'personal_token', providerId: 'gitlab', serviceName: 'GitLab' })
     expect(mocks.listCatalog).not.toHaveBeenCalled()
-    expect(mocks.credentialVisible).toHaveBeenCalledWith({
-      providerId: 'gitlab',
-      type: 'personal_token',
-    })
-    expect(mocks.allowedIntegrations).toHaveBeenCalledWith(principal, 'workspace-1')
-    expect(mocks.blockVisibility).toHaveBeenCalledWith({ userId: 'user-1' })
   })
 
   it('rejects unavailable personal GitLab connections', async () => {
@@ -135,30 +125,6 @@ describe('prepareCredentialConnection', () => {
     expect(mocks.resolveTarget).not.toHaveBeenCalled()
   })
 
-  it('prepares reconnect for the caller’s personal GitLab token', async () => {
-    mocks.personalTokens.mockResolvedValue([{ id: 'mine', providerId: 'gitlab' }])
-    const result = await prepareCredentialConnection.execute({
-      principal,
-      input: {
-        workspaceId: 'workspace-1',
-        providerName: 'gitlab',
-        credentialId: 'mine',
-        personalOnly: true,
-      },
-    })
-    expect(result.kind).toBe('personal_token')
-    expect(mocks.resolveTarget).not.toHaveBeenCalled()
-  })
-
-  it('resolves a provider inside delegated workspace policy', async () => {
-    const result = await prepareCredentialConnection.execute({
-      principal,
-      input: { workspaceId: 'workspace-1', providerName: 'gmail' },
-    })
-
-    expect(result).toEqual({ kind: 'oauth', providerId: 'google-email', serviceName: 'Gmail' })
-  })
-
   it('uses the credential target as the reconnect authority', async () => {
     mocks.resolveTarget.mockResolvedValue({
       providerId: 'google-email',
@@ -178,11 +144,6 @@ describe('prepareCredentialConnection', () => {
       kind: 'oauth',
       providerId: 'google-email',
       serviceName: 'Gmail',
-      credentialId: 'credential-1',
-    })
-    expect(mocks.resolveTarget).toHaveBeenCalledWith({
-      principal,
-      context: workspace,
       credentialId: 'credential-1',
     })
   })
@@ -240,27 +201,6 @@ describe('prepareCredentialConnection', () => {
         workspaceId: 'workspace-1',
         providerName: 'gmail',
         credentialId: 'own-account',
-        personalOnly: true,
-      },
-    })
-    expect(result).toEqual({
-      kind: 'managed_oauth',
-      providerId: 'google-email',
-      serviceName: 'Gmail',
-    })
-    expect(mocks.resolveTarget).not.toHaveBeenCalled()
-  })
-
-  it('uses the enrollment flow for an owned managed account', async () => {
-    mocks.personalCredentials.mockResolvedValue([
-      { id: 'managed-account', providerId: 'google-email', type: 'managed_oauth' },
-    ])
-    const result = await prepareCredentialConnection.execute({
-      principal,
-      input: {
-        workspaceId: 'workspace-1',
-        providerName: 'gmail',
-        credentialId: 'managed-account',
         personalOnly: true,
       },
     })

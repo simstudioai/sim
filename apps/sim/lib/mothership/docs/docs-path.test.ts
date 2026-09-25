@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { docsSourceCandidates, foldDocsIndexPath } from '@/lib/mothership/docs/docs-path'
 import { DOCS_MANIFEST } from '@/lib/mothership/generated/docs-manifest'

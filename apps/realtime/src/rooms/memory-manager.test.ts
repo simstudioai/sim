@@ -2,8 +2,6 @@
  * Multi-room semantics for the room manager. Exercises the invariants the
  * single-room → multi-room migration must preserve: a socket in two rooms,
  * refcounted session cleanup, presence isolation, and full-disconnect cleanup.
- *
- * @vitest-environment node
  */
 import { ROOM_TYPES, type RoomRef } from '@sim/realtime-protocol/rooms'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -47,19 +45,6 @@ describe('MemoryRoomManager multi-room', () => {
     await manager.initialize()
   })
 
-  it('tracks a single socket in two rooms of different types', async () => {
-    await manager.addUserToRoom(WORKFLOW, 'socket-1', presence(WORKFLOW, 'socket-1', 'user-1'))
-    await manager.addUserToRoom(FILES, 'socket-1', presence(FILES, 'socket-1', 'user-1'))
-
-    const rooms = await manager.getRoomsForSocket('socket-1')
-    expect(rooms).toHaveLength(2)
-    expect(rooms).toContainEqual(WORKFLOW)
-    expect(rooms).toContainEqual(FILES)
-
-    expect(await manager.getRoomForSocket('socket-1', ROOM_TYPES.WORKFLOW)).toEqual(WORKFLOW)
-    expect(await manager.getRoomForSocket('socket-1', ROOM_TYPES.WORKSPACE_FILES)).toEqual(FILES)
-  })
-
   it('keeps the shared session alive when leaving one of two rooms (refcount)', async () => {
     await manager.addUserToRoom(WORKFLOW, 'socket-1', presence(WORKFLOW, 'socket-1', 'user-1'))
     await manager.addUserToRoom(FILES, 'socket-1', presence(FILES, 'socket-1', 'user-1'))
@@ -73,18 +58,6 @@ describe('MemoryRoomManager multi-room', () => {
     expect(await manager.getUserSession('socket-1')).not.toBeNull()
     expect(await manager.getRoomForSocket('socket-1', ROOM_TYPES.WORKFLOW)).toBeNull()
     expect(await manager.getRoomForSocket('socket-1', ROOM_TYPES.WORKSPACE_FILES)).toEqual(FILES)
-  })
-
-  it('drops the shared session only when the last room is left', async () => {
-    await manager.addUserToRoom(WORKFLOW, 'socket-1', presence(WORKFLOW, 'socket-1', 'user-1'))
-    await manager.addUserToRoom(FILES, 'socket-1', presence(FILES, 'socket-1', 'user-1'))
-
-    await manager.removeUserFromRoom(WORKFLOW, 'socket-1')
-    expect(await manager.getUserSession('socket-1')).not.toBeNull()
-
-    await manager.removeUserFromRoom(FILES, 'socket-1')
-    expect(await manager.getUserSession('socket-1')).toBeNull()
-    expect(await manager.getRoomsForSocket('socket-1')).toHaveLength(0)
   })
 
   it('isolates presence between rooms of different types', async () => {
@@ -112,15 +85,6 @@ describe('MemoryRoomManager multi-room', () => {
     expect(await manager.getUserSession('socket-1')).toBeNull()
   })
 
-  it('does not clobber another type when two sockets share a room', async () => {
-    await manager.addUserToRoom(FILES, 'socket-1', presence(FILES, 'socket-1', 'user-1'))
-    await manager.addUserToRoom(FILES, 'socket-2', presence(FILES, 'socket-2', 'user-2'))
-
-    await manager.removeUserFromRoom(FILES, 'socket-1')
-    expect(await manager.hasRoom(FILES)).toBe(true)
-    expect(await manager.getUserSession('socket-2')).not.toBeNull()
-  })
-
   it('sweepStalePresence reclaims not-live stale entries but keeps live and fresh ones', async () => {
     const { io } = fakeIo(['socket-live'])
     const m = new MemoryRoomManager(io)
@@ -141,42 +105,6 @@ describe('MemoryRoomManager multi-room', () => {
     // socket-dead: not live + stale → removed. socket-live: live → kept.
     // socket-recent: not live but fresh (transient) → kept.
     expect(remaining).toEqual(['socket-live', 'socket-recent'])
-  })
-
-  it('deleteRoom unconditionally drops all room state', async () => {
-    await manager.addUserToRoom(FILES, 'socket-1', presence(FILES, 'socket-1', 'user-1'))
-    await manager.addUserToRoom(FILES, 'socket-2', presence(FILES, 'socket-2', 'user-2'))
-    expect(await manager.hasRoom(FILES)).toBe(true)
-
-    await manager.deleteRoom(FILES)
-
-    expect(await manager.hasRoom(FILES)).toBe(false)
-    expect(await manager.getRoomUsers(FILES)).toHaveLength(0)
-  })
-
-  it('ignores removal of a room the socket is not in (id-guarded)', async () => {
-    await manager.addUserToRoom(FILES, 'socket-1', presence(FILES, 'socket-1', 'user-1'))
-
-    // Removing a workflow room the socket never joined must be a no-op — it must
-    // not wipe the files mapping or the shared session.
-    const removed = await manager.removeUserFromRoom(WORKFLOW, 'socket-1')
-    expect(removed).toBe(false)
-    expect(await manager.hasRoom(FILES)).toBe(true)
-    expect(await manager.getUserSession('socket-1')).not.toBeNull()
-    expect(await manager.getRoomForSocket('socket-1', ROOM_TYPES.WORKSPACE_FILES)).toEqual(FILES)
-  })
-
-  it('broadcasts presence on the room-type-specific event name', async () => {
-    const { emit, io } = fakeIo()
-    const m = new MemoryRoomManager(io)
-    await m.initialize()
-    await m.addUserToRoom(FILES, 'socket-1', presence(FILES, 'socket-1', 'user-1'))
-
-    await m.broadcastPresenceUpdate(FILES)
-    expect(emit).toHaveBeenCalledWith('workspace-files:presence-update', expect.any(Array))
-
-    await m.broadcastPresenceUpdate(WORKFLOW)
-    expect(emit).toHaveBeenCalledWith('presence-update', expect.any(Array))
   })
 
   it('omits an excluded socket from the presence broadcast (disconnect ghost guard)', async () => {

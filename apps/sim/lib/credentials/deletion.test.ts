@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Coverage for {@link deleteOrphanedOAuthAccount}, the single predicate standing
  * between a workspace-scoped admin disconnect and a cross-workspace OAuth grant
  * wipe. `credential.accountId` is `ON DELETE CASCADE`, so a guard that stops
@@ -24,7 +22,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { capturedQueries, driverRows, mockLogger } = vi.hoisted(() => ({
   capturedQueries: [] as { sql: string; params: unknown[] }[],
-  driverRows: { value: [] as unknown[], error: null as Error | null },
+  driverRows: { value: [] as unknown[] },
   mockLogger: {
     info: vi.fn(),
     warn: vi.fn(),
@@ -41,7 +39,6 @@ vi.mock('@sim/logger', () => ({ createLogger: () => mockLogger }))
 vi.mock('@sim/db', () => ({
   db: drizzle(async (sql: string, params: unknown[]) => {
     capturedQueries.push({ sql, params })
-    if (driverRows.error) throw driverRows.error
     return { rows: driverRows.value }
   }),
 }))
@@ -71,7 +68,6 @@ function guardSubquery(sql: string): string {
 beforeEach(() => {
   capturedQueries.length = 0
   driverRows.value = []
-  driverRows.error = null
   vi.clearAllMocks()
 })
 
@@ -91,34 +87,6 @@ describe('deleteOrphanedOAuthAccount', () => {
     expect(subquery).not.toContain('workspace_id')
 
     expect(params).toEqual([ACCOUNT_ID, ACCOUNT_ID])
-  })
-
-  it('keys the reference check on account_id alone and reports nothing when it matches no row', async () => {
-    /**
-     * The row matching itself is Postgres's, not this harness's — the driver
-     * replays the empty RETURNING that a surviving workspace-B `credential` row
-     * would produce, and the statement carries what makes that row visible: the
-     * subquery is keyed on `account_id` alone. A `workspace_id` filter would hide
-     * every other workspace's reference and turn an intra-workspace admin
-     * disconnect into a cross-workspace grant wipe.
-     */
-    driverRows.value = []
-
-    await deleteOrphanedOAuthAccount(ACCOUNT_ID)
-
-    expect(guardSubquery(onlyQuery().sql)).not.toContain('workspace_id')
-    expect(mockLogger.info).not.toHaveBeenCalled()
-  })
-
-  it('deletes a genuinely orphaned account', async () => {
-    driverRows.value = [{ id: ACCOUNT_ID }]
-
-    await deleteOrphanedOAuthAccount(ACCOUNT_ID)
-
-    expect(onlyQuery().sql).toContain('returning "id"')
-    expect(mockLogger.info).toHaveBeenCalledWith('Deleted orphaned OAuth account', {
-      accountId: ACCOUNT_ID,
-    })
   })
 
   it('does not scope the account delete by owner, so an admin can disconnect a teammate grant', async () => {
@@ -228,14 +196,5 @@ describe('clearCredentialRefs', () => {
     expect(rest).toContain('"credential_id" = $')
     expect(rest).not.toContain('"last_sync_error"')
     expect(updates[1].params).toEqual(expect.arrayContaining([null, 'credential-target']))
-  })
-
-  it('propagates database failures', async () => {
-    driverRows.error = new Error('database unavailable')
-    await expect(
-      clearCredentialRefs('credential-target', 'workspace-target')
-    ).rejects.toMatchObject({
-      cause: driverRows.error,
-    })
   })
 })

@@ -179,7 +179,6 @@ let container: HTMLDivElement
 let rows: SearchSourceSummary[]
 let queryOverrides: Record<string, unknown>
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.live = false
   vi.spyOn(toast, 'error').mockReturnValue('toast')
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)

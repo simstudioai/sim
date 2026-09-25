@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMock,
   dbChainMockFns,
@@ -153,7 +150,6 @@ const WORKSPACE = {
 
 describe('Inbox execution actor', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockBuildIntegrationToolSchemas.mockResolvedValue([
       { name: 'gmail_search_v2', input_schema: { type: 'object' } },

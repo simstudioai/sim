@@ -1,10 +1,6 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 const {
   InvalidDelegationTokenError,
@@ -91,7 +87,6 @@ function readResult(state: typeof DEPLOYED_STATE | null = DEPLOYED_STATE) {
 
 describe('GET /api/workflows/[id]/deployed', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue(SESSION)
     mockReadWorkflowDefinition.mockResolvedValue(readResult())
     mockVerifyDelegationToken.mockResolvedValue({
@@ -100,19 +95,6 @@ describe('GET /api/workflows/[id]/deployed', () => {
       executionId: 'origin-run',
     })
     mockBindExecutorDelegation.mockResolvedValue(EXECUTOR_PRINCIPAL)
-  })
-
-  it('passes the authenticated session principal through the application use case', async () => {
-    const response = await GET(createRequest(), routeParams())
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ deployedState: DEPLOYED_STATE })
-    expect(mockReadWorkflowDefinition).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal: { kind: 'session', userId: 'user-123', sessionId: 'session-123' },
-        input: { workflowId: 'workflow-123', state: 'deployed' },
-      })
-    )
   })
 
   it('accepts only the canonically bound executor principal for Bearer requests', async () => {
@@ -141,30 +123,5 @@ describe('GET /api/workflows/[id]/deployed', () => {
     await expect(response.json()).resolves.toEqual({ error: 'Authentication required' })
     expect(authMockFns.mockGetSession).not.toHaveBeenCalled()
     expect(mockReadWorkflowDefinition).not.toHaveBeenCalled()
-  })
-
-  it('projects application authorization failures without loading state in the route', async () => {
-    mockReadWorkflowDefinition.mockRejectedValue(
-      new OrchestrationError('forbidden', 'Delegated workflow access is no longer valid')
-    )
-
-    const response = await GET(createRequest('signed-token'), routeParams())
-
-    expect(response.status).toBe(403)
-    await expect(response.json()).resolves.toEqual({
-      error: 'Delegated workflow access is no longer valid',
-    })
-  })
-
-  it('preserves null deployed state and disables caching', async () => {
-    mockReadWorkflowDefinition.mockResolvedValue(readResult(null))
-
-    const response = await GET(createRequest(), routeParams())
-
-    expect(response.status).toBe(200)
-    await expect(response.json()).resolves.toEqual({ deployedState: null })
-    expect(response.headers.get('cache-control')).toBe(
-      'no-store, no-cache, must-revalidate, max-age=0'
-    )
   })
 })

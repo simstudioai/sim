@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StreamingExecution } from '@/executor/types'
 import { basetenProvider } from '@/providers/baseten/index'
@@ -400,7 +397,6 @@ function expectModelIterations(result: StreamingExecution, expectedIterations: n
 
 describe('settled provider tool streams', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCreate.mockReset()
     mockExecuteTool.mockReset()
     mockExecuteTool.mockResolvedValue({ success: true, output: { value: 'found' } })

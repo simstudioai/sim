@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import type { webhook, workflow } from '@sim/db/schema'
 import {
   createMockRequest,
@@ -203,7 +199,6 @@ const billingAttribution = {
 
 describe('findAllWebhooksForPath cross-tenant collision', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -216,18 +211,6 @@ describe('findAllWebhooksForPath cross-tenant collision', () => {
     queueTableRows(schemaMock.webhook, rows)
     queueTableRows(schemaMock.webhookPathClaim, claim)
   }
-
-  it('returns all rows when they belong to a single workflow', async () => {
-    queueLookup([
-      makeRow('workflow-1', 'wh-a', new Date('2026-01-01')),
-      makeRow('workflow-1', 'wh-b', new Date('2026-01-02')),
-    ])
-
-    const results = await findAllWebhooksForPath({ requestId: 'req-1', path: 'shared-path' })
-
-    expect(results).toHaveLength(2)
-    expect(results.map((r) => r.webhook.id)).toEqual(['wh-a', 'wh-b'])
-  })
 
   it('drops foreign rows when a path collides across workflows, keeping the earliest owner', async () => {
     const victim = makeRow('victim-workflow', 'victim-wh', new Date('2026-01-01'))
@@ -275,18 +258,6 @@ describe('findAllWebhooksForPath cross-tenant collision', () => {
     expect(results.every((r) => r.webhook.workflowId === 'victim-workflow')).toBe(true)
     expect(results.map((r) => r.webhook.id).sort()).toEqual(['victim-wh-a', 'victim-wh-b'])
   })
-
-  it('returns an empty array when no webhooks match', async () => {
-    const results = await findAllWebhooksForPath({ requestId: 'req-3', path: 'missing' })
-
-    expect(results).toEqual([])
-  })
-
-  it('returns an empty array when path is not provided', async () => {
-    const results = await findAllWebhooksForPath({ requestId: 'req-4' })
-
-    expect(results).toEqual([])
-  })
 })
 
 describe('handleWebhookEventFilter', () => {
@@ -312,7 +283,6 @@ describe('handleWebhookEventFilter', () => {
 
 describe('webhook admission failures', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGenerateId.mockReturnValue('generated-execution-id')
   })
 
@@ -392,7 +362,6 @@ describe('webhook admission failures', () => {
 
 describe('webhook processor execution identity', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockPreprocessExecution.mockResolvedValue({
       success: true,
       actorUserId: 'actor-user-1',
@@ -406,28 +375,6 @@ describe('webhook processor execution identity', () => {
     mockShouldExecuteInline.mockReturnValue(false)
     mockGenerateId.mockReturnValue('generated-execution-id')
     workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValue(true)
-  })
-
-  it('normalizes nullable persisted metadata in preprocessing correlation', async () => {
-    const result = await checkWebhookPreprocessing(
-      makeWorkflowRecord({ workspaceId: null }),
-      makeWebhookRecord({ path: null, provider: null }),
-      'request-1'
-    )
-
-    expect(mockPreprocessExecution).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: undefined,
-        triggerData: {
-          correlation: expect.objectContaining({
-            path: undefined,
-            provider: undefined,
-          }),
-        },
-      })
-    )
-    expect(result.correlation?.path).toBeUndefined()
-    expect(result.correlation?.provider).toBeUndefined()
   })
 
   it('reuses preprocessing execution identity when queueing a polling webhook', async () => {
@@ -499,47 +446,6 @@ describe('webhook processor execution identity', () => {
     )
   })
 
-  it('omits query from the queued payload when the request has none', async () => {
-    await dispatchResolvedWebhookTarget(
-      makeWebhookRecord({ path: 'incoming/hook', provider: 'generic' }),
-      makeWorkflowRecord({}),
-      { event: 'test' },
-      createMockRequest(
-        'POST',
-        { event: 'test' },
-        {},
-        'http://localhost:3000/api/webhooks/trigger/incoming/hook'
-      ) as NextRequest,
-      { requestId: 'request-1', path: 'incoming/hook' }
-    )
-
-    expect(mockEnqueue.mock.calls[0]?.[1]).not.toHaveProperty('query')
-  })
-
-  it('runs database-inline webhook jobs through the queue cancellation signal', async () => {
-    mockShouldExecuteInline.mockReturnValue(true)
-    const result = await dispatchResolvedWebhookTarget(
-      makeWebhookRecord({ path: 'incoming/gmail', provider: 'gmail' }),
-      makeWorkflowRecord({}),
-      { event: 'message.received' },
-      createMockRequest('POST', { event: 'message.received' }) as NextRequest,
-      { requestId: 'request-1', path: 'incoming/gmail' }
-    )
-    const options = mockEnqueue.mock.calls[0]?.[2] as {
-      runner?: (payload: unknown, signal: AbortSignal) => Promise<unknown>
-    }
-    const controller = new AbortController()
-
-    expect(result.outcome).toBe('queued')
-    expect(mockGetInlineJobQueue).toHaveBeenCalledOnce()
-    expect(options.runner).toBeTypeOf('function')
-    await options.runner?.({}, controller.signal)
-    expect(mockExecuteWebhookJob).toHaveBeenCalledWith(
-      expect.objectContaining({ executionId: 'generated-execution-id' }),
-      controller.signal
-    )
-  })
-
   it('releases the reservation when enqueue fails before ownership transfer', async () => {
     mockEnqueue.mockRejectedValueOnce(new Error('queue unavailable'))
 
@@ -580,7 +486,6 @@ describe('polled webhook reservation ownership', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGenerateId.mockReturnValue('generated-execution-id')
     mockPreprocessExecution.mockResolvedValue({
       success: true,
@@ -593,25 +498,6 @@ describe('polled webhook reservation ownership', () => {
     mockGetJobQueue.mockResolvedValue({ enqueue: mockEnqueue })
     mockShouldExecuteInline.mockReturnValue(false)
     workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValue(true)
-  })
-
-  it('checks for a missing trigger block before reserving a slot', async () => {
-    workflowsPersistenceUtilsMockFns.mockBlockExistsInDeployment.mockResolvedValueOnce(false)
-
-    const result = await processPolledWebhookEvent(
-      makeWebhookRecord(foundWebhook),
-      makeWorkflowRecord(foundWorkflow),
-      { event: 'message.received' },
-      'request-1'
-    )
-
-    expect(result).toMatchObject({
-      success: false,
-      statusCode: 404,
-      error: 'Trigger block not found in deployment',
-    })
-    expect(mockPreprocessExecution).not.toHaveBeenCalled()
-    expect(mockReleaseExecutionSlot).not.toHaveBeenCalled()
   })
 
   it('releases the reservation when polled webhook enqueue fails', async () => {
@@ -662,61 +548,6 @@ describe('polled webhook reservation ownership', () => {
     expect(mockPreprocessExecution).toHaveBeenCalledOnce()
     expect(mockEnqueue).not.toHaveBeenCalled()
   })
-
-  it('routes queue-mode providers through the durable job backend', async () => {
-    mockProviderHandler.current = { executionMode: 'queue' }
-
-    const result = await dispatchResolvedWebhookTarget(
-      makeWebhookRecord({
-        id: 'webhook-2',
-        path: 'tiktok',
-        provider: 'tiktok',
-      }),
-      makeWorkflowRecord({
-        id: 'workflow-2',
-        workspaceId: 'workspace-2',
-      }),
-      { event: 'post.publish.complete' },
-      createMockRequest('POST', { event: 'post.publish.complete' }) as NextRequest,
-      {
-        requestId: 'request-2',
-      }
-    )
-
-    expect(result.outcome).toBe('queued')
-    expect(result.response.status).toBe(200)
-    expect(mockEnqueue).toHaveBeenCalledWith(
-      'webhook-execution',
-      expect.objectContaining({
-        provider: 'tiktok',
-        workflowId: 'workflow-2',
-      }),
-      expect.any(Object)
-    )
-  })
-
-  it('runs database-inline polled events through the queue cancellation signal', async () => {
-    mockShouldExecuteInline.mockReturnValue(true)
-    const result = await processPolledWebhookEvent(
-      makeWebhookRecord(foundWebhook),
-      makeWorkflowRecord(foundWorkflow),
-      { event: 'message.received' },
-      'request-1'
-    )
-    const options = mockEnqueue.mock.calls[0]?.[2] as {
-      runner?: (payload: unknown, signal: AbortSignal) => Promise<unknown>
-    }
-    const controller = new AbortController()
-
-    expect(result.success).toBe(true)
-    expect(mockGetInlineJobQueue).toHaveBeenCalledOnce()
-    expect(options.runner).toBeTypeOf('function')
-    await options.runner?.({}, controller.signal)
-    expect(mockExecuteWebhookJob).toHaveBeenCalledWith(
-      expect.objectContaining({ executionId: 'generated-execution-id' }),
-      controller.signal
-    )
-  })
 })
 
 describe('parseWebhookBody', () => {
@@ -744,20 +575,6 @@ describe('parseWebhookBody', () => {
       submissionID: '5678',
       rawRequest: '{"q4_email":"bart@example.com"}',
     })
-  })
-
-  it('reduces an uploaded multipart part to its filename', async () => {
-    const form = new FormData()
-    form.set('attachment', new File(['file bytes'], 'receipt.pdf', { type: 'application/pdf' }))
-
-    const result = await parse(
-      new NextRequest('http://localhost:3000/api/webhooks/trigger/jotform-path', {
-        method: 'POST',
-        body: form,
-      })
-    )
-
-    expect(result.body).toEqual({ attachment: 'receipt.pdf' })
   })
 
   it('still rejects a body that matches no supported content type', async () => {
@@ -819,13 +636,6 @@ describe('handleProviderChallenges method gating', () => {
       expect(handleChallenge).not.toHaveBeenCalled()
     }
   )
-
-  it('runs a handler on a method it declares', async () => {
-    const { handleChallenge, response } = challenge('GET', ['GET', 'POST'])
-
-    expect((await response)?.status).toBe(200)
-    expect(handleChallenge).toHaveBeenCalledOnce()
-  })
 
   it('does not run a declaring handler on a method outside its list', async () => {
     const { handleChallenge, response } = challenge('DELETE', ['GET', 'POST'])

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -22,7 +19,6 @@ import { updateWorkspaceFileDimensionsOperation } from '@/lib/workspace-files/ap
 
 describe('updateWorkspaceFileDimensionsOperation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue({
       fileId: 'file-1',
       workspaceId: 'workspace-1',

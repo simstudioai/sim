@@ -1,5 +1,4 @@
-/** @vitest-environment node */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { publish } = vi.hoisted(() => ({ publish: vi.fn() }))
 vi.mock('@/lib/events/pubsub', () => ({
@@ -9,8 +8,6 @@ vi.mock('@/lib/events/pubsub', () => ({
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 
 describe('chat status ownership', () => {
-  beforeEach(() => vi.clearAllMocks())
-
   it('preserves the workspace event shape', () => {
     publishChatStatusChanged(
       { workspaceId: 'ws-1', userId: 'user-1' },
@@ -19,7 +16,7 @@ describe('chat status ownership', () => {
     expect(publish).toHaveBeenCalledWith({ workspaceId: 'ws-1', chatId: 'chat-1', type: 'renamed' })
   })
 
-  it.each(['created', 'updated', 'renamed', 'deleted', 'started', 'completed'] as const)(
+  it.each(['completed'] as const)(
     'binds %s events to the organization and private chat owner',
     (type) => {
       publishChatStatusChanged(

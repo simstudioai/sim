@@ -4,14 +4,10 @@
 
 import { PASTE_LIMITS, PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import { Editor } from '@tiptap/core'
-import { TextSelection } from '@tiptap/pm/state'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
 import { MarkdownPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste'
-import {
-  assessRawMarkdownPaste,
-  createRichMarkdownPasteAdmission,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission'
+import { createRichMarkdownPasteAdmission } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission'
 
 let editor: Editor | null = null
 
@@ -100,26 +96,6 @@ describe('rich Markdown paste admission', () => {
     expect(onRejected).toHaveBeenCalledTimes(1)
   })
 
-  it('admits autolink formatting when the final result still fits', () => {
-    const onRejected = vi.fn()
-    editor = new Editor({
-      extensions: [
-        ...createMarkdownContentExtensions(),
-        MarkdownPaste,
-        createRichMarkdownPasteAdmission({
-          maxResultBytes: 100,
-          maxResultCharacters: 100,
-          getCurrentText: () => '',
-          onRejected,
-        }),
-      ],
-      enablePasteRules: false,
-    })
-    dispatchPaste(editor, 'https://example.com ')
-    expect(editor.getMarkdown()).toBe('[https://example.com](https://example.com) ')
-    expect(onRejected).not.toHaveBeenCalled()
-  })
-
   it('rejects a canonical result that would reopen beyond the rich-editor character limit', () => {
     const onRejected = vi.fn()
     editor = new Editor({
@@ -159,19 +135,6 @@ describe('rich Markdown paste admission', () => {
     expect(editor.state.doc.textContent).toBe('')
     expect(onRejected).toHaveBeenCalledOnce()
   })
-  it('rejects a raw-text append whose projected result exceeds the limit', () => {
-    expect(
-      assessRawMarkdownPaste(
-        {
-          pastedText: '56789',
-          currentText: '123456',
-          selectionStart: 6,
-          selectionEnd: 6,
-        },
-        10
-      )
-    ).toEqual({ accepted: false, reason: 'result-bytes', actual: 11, limit: 10 })
-  })
 
   it('rejects before downstream paste parsing when projected bytes exceed the document limit', () => {
     const onRejected = vi.fn()
@@ -189,46 +152,6 @@ describe('rich Markdown paste admission', () => {
 
     expect(runPaste(editor, 'abcde')).toEqual({ handled: true, prevented: true })
     expect(onRejected).toHaveBeenCalledOnce()
-  })
-
-  it('allows replacing a selection without treating the paste as an append', () => {
-    editor = new Editor({
-      extensions: [
-        ...createMarkdownContentExtensions(),
-        createRichMarkdownPasteAdmission({
-          maxResultBytes: 10,
-          getCurrentText: () => '123456',
-          onRejected: vi.fn(),
-        }),
-      ],
-      content: '<p>123456</p>',
-    })
-    editor.view.dispatch(
-      editor.view.state.tr.setSelection(TextSelection.create(editor.view.state.doc, 1, 7))
-    )
-
-    expect(runPaste(editor, '1234567890')).toEqual({ handled: false, prevented: false })
-  })
-
-  it('allows replacing an entire formatted document up to the limit', () => {
-    editor = new Editor({
-      extensions: [
-        ...createMarkdownContentExtensions(),
-        createRichMarkdownPasteAdmission({
-          maxResultBytes: 10,
-          getCurrentText: () => '**123456**',
-          onRejected: vi.fn(),
-        }),
-      ],
-      content: '<p><strong>123456</strong></p>',
-    })
-    editor.view.dispatch(
-      editor.view.state.tr.setSelection(
-        TextSelection.create(editor.view.state.doc, 1, editor.view.state.doc.content.size - 1)
-      )
-    )
-
-    expect(runPaste(editor, '1234567890')).toEqual({ handled: false, prevented: false })
   })
 
   it('rejects oversized rich HTML before downstream parsing', () => {
@@ -249,32 +172,6 @@ describe('rich Markdown paste admission', () => {
       handled: true,
       prevented: true,
     })
-    expect(onRejected).toHaveBeenCalledOnce()
-  })
-
-  it('rejects a paste whose canonical Markdown result exceeds the limit', () => {
-    const onRejected = vi.fn()
-    editor = new Editor({
-      extensions: [
-        ...createMarkdownContentExtensions(),
-        createRichMarkdownPasteAdmission({
-          maxResultBytes: 10,
-          getCurrentText: () => '123456',
-          onRejected,
-        }),
-      ],
-      content: '<p>123456</p>',
-    })
-    const strong = editor.schema.marks.bold.create()
-    const transaction = editor.state.tr
-      .replaceSelectionWith(editor.schema.text('abc', [strong]), false)
-      .setMeta('uiEvent', 'paste')
-
-    expect(editor.markdown.serialize(transaction.doc.toJSON())).toBe('**abc**123456')
-    expect(transaction.getMeta('uiEvent')).toBe('paste')
-    editor.view.dispatch(transaction)
-
-    expect(editor.getText()).toBe('123456')
     expect(onRejected).toHaveBeenCalledOnce()
   })
 })

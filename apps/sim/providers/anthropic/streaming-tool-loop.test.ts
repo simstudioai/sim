@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Anthropic streaming tool loop — live tool_call_start/end, live `pending`
  * text classified by turn_end, abort → cancelled, per-turn usage accumulation.
  */
@@ -88,7 +86,6 @@ describe('createAnthropicStreamingToolLoopStream', () => {
   } as any
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mockPrepareToolExecution.mockReturnValue({
       toolParams: { city: 'San Francisco' },
       executionParams: { city: 'San Francisco' },

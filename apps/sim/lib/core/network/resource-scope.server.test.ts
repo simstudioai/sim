@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -22,7 +21,6 @@ import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.ser
 
 describe('canonical resource outbound scope', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.enabled.mockReturnValue(true)
   })
 

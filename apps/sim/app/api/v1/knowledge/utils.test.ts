@@ -1,5 +1,4 @@
-/** @vitest-environment node */
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { createUserProvider } = vi.hoisted(() => ({ createUserProvider: vi.fn() }))
 vi.mock('@/lib/knowledge/access/scope', () => ({
@@ -10,8 +9,6 @@ vi.mock('@/lib/knowledge/service', () => ({ getKnowledgeBaseById: vi.fn() }))
 vi.mock('@/app/api/v1/middleware', () => ({ validateWorkspaceAccess: vi.fn() }))
 
 import { resolveV1KnowledgeReadAccess } from '@/app/api/v1/knowledge/utils'
-
-beforeEach(() => vi.clearAllMocks())
 
 describe('v1 knowledge reader identity', () => {
   it.each(['personal', 'oauth_access_token'] as const)(

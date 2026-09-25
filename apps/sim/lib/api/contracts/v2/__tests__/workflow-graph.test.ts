@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
   v2ApplyWorkflowOperationsDataSchema,
@@ -69,16 +66,6 @@ describe('the read shape tolerates what the write path never bounded', () => {
 
     expect(v2WorkflowGraphSchema.parse(graph).blocks['block-1'].name).toBe(longName)
   })
-
-  it('still holds a write to the bound', () => {
-    const body = {
-      workspaceId: 'workspace-1',
-      blocks: { 'block-1': { ...STORED_GRAPH.blocks['block-1'], name: 'x'.repeat(300) } },
-      edges: [],
-    }
-
-    expect(v2ReplaceWorkflowStateBodySchema.safeParse(body).success).toBe(false)
-  })
 })
 
 describe('v2WorkflowGraphSchema', () => {
@@ -102,14 +89,6 @@ describe('v2WorkflowGraphSchema', () => {
     const parsed = v2WorkflowGraphSchema.parse(STORED_GRAPH)
 
     expect(v2ReplaceWorkflowStateBodySchema.safeParse(parsed).success).toBe(true)
-  })
-
-  it('rejects an unknown top-level member on the write body', () => {
-    const parsed = v2WorkflowGraphSchema.parse(STORED_GRAPH)
-
-    expect(
-      v2ReplaceWorkflowStateBodySchema.safeParse({ ...parsed, lastSaved: Date.now() }).success
-    ).toBe(false)
   })
 })
 

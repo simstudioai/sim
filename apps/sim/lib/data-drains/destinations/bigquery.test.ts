@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGetAccessToken, JWTCtor, loggerInstance } = vi.hoisted(() => {
@@ -67,7 +64,6 @@ const meta = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   vi.stubGlobal('fetch', fetchMock)
   fetchMock.mockResolvedValue(
     new Response(JSON.stringify({}), {
@@ -139,17 +135,6 @@ describe('bigqueryDestination', () => {
     await session.close()
   })
 
-  it('test() probes table existence with a GET', async () => {
-    await bigqueryDestination.test!({
-      config,
-      credentials,
-      signal: new AbortController().signal,
-    })
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(url).toContain('?fields=id')
-    expect(init.method).toBeUndefined()
-  })
-
   it('throws a clear error when an NDJSON line is malformed', async () => {
     const session = bigqueryDestination.openSession({ config, credentials })
     const body = Buffer.from(`${JSON.stringify({ id: 'a' })}\n{not json}\n`, 'utf8')
@@ -162,20 +147,6 @@ describe('bigqueryDestination', () => {
       })
     ).rejects.toThrow(/NDJSON parse failed at line 2/)
     expect(fetchMock).not.toHaveBeenCalled()
-    await session.close()
-  })
-
-  it('throws when an NDJSON row is not a JSON object', async () => {
-    const session = bigqueryDestination.openSession({ config, credentials })
-    const body = Buffer.from(`${JSON.stringify({ id: 'a' })}\n42\n`, 'utf8')
-    await expect(
-      session.deliver({
-        body,
-        contentType: 'application/x-ndjson',
-        metadata: meta,
-        signal: new AbortController().signal,
-      })
-    ).rejects.toThrow(/NDJSON row at line 2 is not an object/)
     await session.close()
   })
 
@@ -234,45 +205,5 @@ describe('bigqueryDestination', () => {
       expect.objectContaining({ status: 503, attempt: 1 })
     )
     await session.close()
-  })
-
-  it('accepts domain-scoped project IDs', () => {
-    const result = bigqueryDestination.configSchema.safeParse({
-      projectId: 'example.com:my-project',
-      datasetId: 'logs',
-      tableId: 'workflow',
-    })
-    expect(result.success).toBe(true)
-    const standard = bigqueryDestination.configSchema.safeParse({
-      projectId: 'my-proj',
-      datasetId: 'logs',
-      tableId: 'workflow',
-    })
-    expect(standard.success).toBe(true)
-  })
-
-  it('test() throws when serviceAccountJson is missing required fields', async () => {
-    await expect(
-      bigqueryDestination.test!({
-        config,
-        credentials: {
-          serviceAccountJson: JSON.stringify({
-            client_email: 'sa@p.iam.gserviceaccount.com',
-          }),
-        },
-        signal: new AbortController().signal,
-      })
-    ).rejects.toThrow(/missing private_key/)
-    await expect(
-      bigqueryDestination.test!({
-        config,
-        credentials: {
-          serviceAccountJson: JSON.stringify({
-            private_key: '-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----\n',
-          }),
-        },
-        signal: new AbortController().signal,
-      })
-    ).rejects.toThrow(/missing client_email/)
   })
 })

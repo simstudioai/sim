@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProviderRequest } from '@/providers/types'
 
@@ -41,7 +38,6 @@ function request(overrides: Partial<ProviderRequest> = {}): ProviderRequest {
 
 describe('vertexProvider location and project validation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     genAIArgs.length = 0
     mockExecuteGeminiRequest.mockResolvedValue({ content: 'ok' })
   })

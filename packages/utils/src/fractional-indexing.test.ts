@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Locks in the BYTEWISE ordering the rest of the stack depends on: `order_key` is
  * stored `COLLATE "C"` (migration 0228) so Postgres compares keys the same way this
  * library does. If the library's order ever diverged from ASCII byte order — e.g.

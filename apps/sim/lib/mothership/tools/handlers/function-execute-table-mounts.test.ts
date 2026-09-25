@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ToolExecutionContext } from '@/lib/mothership/tool-executor/types'
 import type { TableDefinition } from '@/lib/table/types'

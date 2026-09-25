@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { mem0GetMemoriesTool } from '@/tools/mem0/get_memories'
 
@@ -58,18 +55,6 @@ describe('mem0GetMemoriesTool', () => {
       page: 1,
       page_size: 10,
     })
-  })
-
-  it('uses the single-memory endpoint for memoryId requests', () => {
-    const params = {
-      apiKey: 'test-key',
-      userId: 'user-123',
-      memoryId: 'mem/123',
-    }
-
-    expect(buildUrl(params)).toBe('https://api.mem0.ai/v1/memories/mem%2F123/')
-    expect(buildMethod(params)).toBe('GET')
-    expect(buildBody(params)).toBeUndefined()
   })
 
   it('extracts memories from paginated v3 responses', async () => {

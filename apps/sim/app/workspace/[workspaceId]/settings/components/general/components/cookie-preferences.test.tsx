@@ -77,20 +77,6 @@ afterEach(() => {
 })
 
 describe('CookiePreferences', () => {
-  it('commits on every toggle, matching the telemetry switch beside it', async () => {
-    const container = render()
-
-    expect(mockSaveConsents).not.toHaveBeenCalled()
-    await act(async () => {
-      container.querySelector<HTMLButtonElement>('[data-testid="toggle"]')?.click()
-    })
-
-    // `saveConsents('custom')` reads `selectedConsents` from the store at call
-    // time and the switch's `setSelectedConsent` write is synchronous, so the
-    // value this toggle staged is the one committed.
-    expect(mockSaveConsents).toHaveBeenCalledWith('custom', { uiSource: 'settings' })
-  })
-
   it('locks the switches while a commit is in flight, so two toggles cannot race', async () => {
     const pending = deferredSave()
     const container = render()

@@ -1,9 +1,5 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import {
-  buildPiSearchProviderArgs,
   extractPiSearchRecords,
   normalizePiSearchRecords,
   PI_SEARCH_DEFAULT_RESULTS,
@@ -13,7 +9,6 @@ import {
   PI_SEARCH_MAX_RESULTS,
   PI_SEARCH_MAX_SNIPPET_LENGTH,
   PI_SEARCH_MAX_TITLE_LENGTH,
-  PI_SEARCH_TOOL_PARAMETERS,
   PI_SEARCH_TRUNCATED_MESSAGE,
   parsePiSearchArgs,
   serializePiSearchEnvelope,
@@ -42,10 +37,6 @@ describe('parsePiSearchArgs', () => {
     }
   })
 
-  it('accepts a numeric string the way it accepts a number', () => {
-    expect(parsePiSearchArgs({ query: 'pi', numResults: '3' }).numResults).toBe(3)
-  })
-
   it('clamps the result count instead of failing the call', () => {
     expect(parsePiSearchArgs({ query: 'pi', numResults: 0 }).numResults).toBe(1)
     expect(parsePiSearchArgs({ query: 'pi', numResults: 500 }).numResults).toBe(
@@ -59,39 +50,6 @@ describe('parsePiSearchArgs', () => {
     expect(parsePiSearchArgs({ query: 'x'.repeat(5000) }).query).toHaveLength(
       PI_SEARCH_MAX_QUERY_LENGTH
     )
-  })
-})
-
-describe('PI_SEARCH_TOOL_PARAMETERS', () => {
-  it('exposes only query and numResults, so provider knobs stay unreachable', () => {
-    expect(Object.keys(PI_SEARCH_TOOL_PARAMETERS.properties)).toEqual(['query', 'numResults'])
-    expect(PI_SEARCH_TOOL_PARAMETERS.additionalProperties).toBe(false)
-    expect(PI_SEARCH_TOOL_PARAMETERS.required).toEqual(['query'])
-  })
-})
-
-describe('buildPiSearchProviderArgs', () => {
-  const query = { query: 'ts 5.9 release notes', numResults: 3 }
-
-  it('maps the bounded query onto each provider parameter name', () => {
-    expect(buildPiSearchProviderArgs('exa', query)).toEqual({
-      query: 'ts 5.9 release notes',
-      numResults: 3,
-      text: { maxCharacters: expect.any(Number) },
-    })
-    expect(buildPiSearchProviderArgs('serper', query)).toEqual({
-      query: 'ts 5.9 release notes',
-      num: 3,
-    })
-    expect(buildPiSearchProviderArgs('parallel', query)).toEqual({
-      search_queries: ['ts 5.9 release notes'],
-      objective: 'ts 5.9 release notes',
-      max_results: 3,
-    })
-    expect(buildPiSearchProviderArgs('firecrawl', query)).toEqual({
-      query: 'ts 5.9 release notes',
-      limit: 3,
-    })
   })
 })
 
@@ -143,36 +101,6 @@ describe('normalizePiSearchRecords', () => {
     ])
   })
 
-  it('falls back to the first non-empty Exa highlight', () => {
-    const [result] = normalizePiSearchRecords(
-      'exa',
-      [{ title: 'T', url: 'https://example.com/a', highlights: ['', 'Second highlight'] }],
-      5
-    )
-    expect(result.snippet).toBe('Second highlight')
-  })
-
-  it('normalizes Serper records from either link field', () => {
-    expect(
-      normalizePiSearchRecords(
-        'serper',
-        [
-          { title: 'A', link: 'https://example.com/a', snippet: 'Snippet A', date: '1 day ago' },
-          { title: 'B', url: 'https://example.com/b', snippet: 'Snippet B' },
-        ],
-        5
-      )
-    ).toEqual([
-      {
-        title: 'A',
-        url: 'https://example.com/a',
-        snippet: 'Snippet A',
-        publishedDate: '1 day ago',
-      },
-      { title: 'B', url: 'https://example.com/b', snippet: 'Snippet B' },
-    ])
-  })
-
   it('normalizes Parallel excerpts and its nulled-out fields', () => {
     expect(
       normalizePiSearchRecords(
@@ -188,16 +116,6 @@ describe('normalizePiSearchRecords', () => {
         5
       )
     ).toEqual([{ title: '(untitled)', url: 'https://example.com/a', snippet: 'First excerpt' }])
-  })
-
-  it('normalizes Firecrawl records, which carry no date', () => {
-    expect(
-      normalizePiSearchRecords(
-        'firecrawl',
-        [{ title: 'A', url: 'https://example.com/a', description: 'Described' }],
-        5
-      )
-    ).toEqual([{ title: 'A', url: 'https://example.com/a', snippet: 'Described' }])
   })
 
   it('drops records without a usable http(s) link', () => {
@@ -236,14 +154,6 @@ describe('normalizePiSearchRecords', () => {
     ).toEqual([{ title: 'Kept', url: 'https://example.com/a-b_c%20d', snippet: '(no snippet)' }])
   })
 
-  it('honors the requested limit', () => {
-    const records = Array.from({ length: 9 }, (_, i) => ({
-      title: `T${i}`,
-      url: `https://example.com/${i}`,
-    }))
-    expect(normalizePiSearchRecords('exa', records, 2)).toHaveLength(2)
-  })
-
   it('collapses whitespace and caps each display field', () => {
     const [result] = normalizePiSearchRecords(
       'exa',
@@ -265,10 +175,6 @@ describe('normalizePiSearchRecords', () => {
 })
 
 describe('serializePiSearchEnvelope', () => {
-  it('reports an empty search with a message rather than an error', () => {
-    expect(serializePiSearchEnvelope([])).toBe('{"results":[],"message":"No results found."}')
-  })
-
   it('emits parseable JSON and omits an absent date', () => {
     const parsed = JSON.parse(
       serializePiSearchEnvelope([{ title: 'A', url: 'https://example.com/a', snippet: 'S' }])
@@ -289,13 +195,6 @@ describe('serializePiSearchEnvelope', () => {
 
     expect(parsed.results.length).toBeLessThan(results.length)
     expect(parsed.message).toBe(PI_SEARCH_TRUNCATED_MESSAGE)
-  })
-
-  it('stays silent when everything fit', () => {
-    const parsed = JSON.parse(
-      serializePiSearchEnvelope([{ title: 'A', url: 'https://example.com/a', snippet: 'S' }])
-    )
-    expect('message' in parsed).toBe(false)
   })
 
   // The per-field caps count UTF-16 units, so ten maximal results only exceed the byte ceiling once

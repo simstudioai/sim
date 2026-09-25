@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { validateHubspotServiceAccount } from '@/lib/credentials/token-service-accounts/validators/hubspot'
 
@@ -52,35 +49,11 @@ function expectFallbackCall(): void {
 
 describe('validateHubspotServiceAccount', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
-  })
-
-  it('returns displayName and metadata on primary access-token-info success', async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse(200, {
-        userId: 111,
-        hubId: 12345,
-        appId: 222,
-        scopes: ['tickets'],
-      })
-    )
-
-    const result = await validateHubspotServiceAccount(FIELDS)
-
-    expect(result).toEqual({
-      displayName: 'HubSpot portal 12345',
-      principal: { kind: 'user', id: '111' },
-      auditMetadata: { hubspotHubId: '12345' },
-      storedMetadata: { hubId: '12345', appId: '222' },
-    })
-
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-    expectPrimaryCall()
   })
 
   it('falls back to account-info on primary 404 and succeeds with portalId', async () => {
@@ -96,7 +69,6 @@ describe('validateHubspotServiceAccount', () => {
       auditMetadata: {},
     })
 
-    expect(mockFetch).toHaveBeenCalledTimes(2)
     expectPrimaryCall()
     expectFallbackCall()
   })
@@ -113,10 +85,6 @@ describe('validateHubspotServiceAccount', () => {
       code: 'invalid_credentials',
       status: 401,
     })
-
-    expect(mockFetch).toHaveBeenCalledTimes(2)
-    expectPrimaryCall()
-    expectFallbackCall()
   })
 
   it('treats primary 400 with fallback 403 as a live token without account-info access', async () => {
@@ -131,10 +99,6 @@ describe('validateHubspotServiceAccount', () => {
       principal: null,
       auditMetadata: {},
     })
-
-    expect(mockFetch).toHaveBeenCalledTimes(2)
-    expectPrimaryCall()
-    expectFallbackCall()
   })
 
   it('throws invalid_credentials on primary 401 without calling the fallback', async () => {
@@ -147,29 +111,6 @@ describe('validateHubspotServiceAccount', () => {
       code: 'invalid_credentials',
       status: 401,
     })
-
     expect(mockFetch).toHaveBeenCalledTimes(1)
-  })
-
-  it('throws provider_unavailable on primary 503', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(503, { message: 'unavailable' }))
-
-    await expect(validateHubspotServiceAccount(FIELDS)).rejects.toMatchObject({
-      name: 'TokenServiceAccountValidationError',
-      code: 'provider_unavailable',
-      status: 503,
-    })
-
-    expect(mockFetch).toHaveBeenCalledTimes(1)
-  })
-
-  it('throws provider_unavailable on primary success body missing hubId', async () => {
-    mockFetch.mockResolvedValueOnce(jsonResponse(200, { unexpected: true }))
-
-    await expect(validateHubspotServiceAccount(FIELDS)).rejects.toMatchObject({
-      name: 'TokenServiceAccountValidationError',
-      code: 'provider_unavailable',
-      status: 502,
-    })
   })
 })

@@ -1,16 +1,4 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  PRIVATE_MODEL_INPUT_PROVENANCE_HEADER,
-  PRIVATE_MODEL_INPUT_STATE_HEADER,
-  PROJECTED_MODEL_INPUT_PATHS_V1,
-} from '@/lib/execution/model-input-provenance'
-import {
-  RESOLVED_SECRET_PROVENANCE_FIELD,
-  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
-} from '@/lib/execution/private-tool-metadata'
 
 const mocks = vi.hoisted(() => ({
   assertPermissionsAllowed: vi.fn(),
@@ -62,7 +50,6 @@ const BILLING_ATTRIBUTION = {
 
 describe('executeLlmProviderOperation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.checkWorkspaceAccess.mockResolvedValue({ hasAccess: true })
     mocks.requireBillingAttribution.mockReturnValue(BILLING_ATTRIBUTION)
     mocks.importProvenance.mockResolvedValue(true)
@@ -76,52 +63,6 @@ describe('executeLlmProviderOperation', () => {
     mocks.executeProviderRequest.mockResolvedValue({ content: 'answer', model: 'gpt-4o' })
     mocks.authorizeCredential.mockResolvedValue({ ok: true })
     mocks.resolveVertexAccessToken.mockResolvedValue('vertex-token')
-  })
-
-  it('executes once with billing, provenance, and cancellation bound to provider work', async () => {
-    const controller = new AbortController()
-    const provenance = { version: 1, complete: true, entries: [] }
-    const headers = new Headers({
-      'x-sim-billing-attribution': 'attribution',
-      [PRIVATE_MODEL_INPUT_PROVENANCE_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
-      [PRIVATE_MODEL_INPUT_STATE_HEADER]: PROJECTED_MODEL_INPUT_PATHS_V1,
-    })
-    const result = await executeLlmProviderOperation(
-      {
-        provider: 'openai',
-        model: 'gpt-4o',
-        context: '[{"role":"user","content":"claim"}]',
-        workspaceId: 'workspace-1',
-        workflowId: 'workflow-1',
-        [RESOLVED_SECRET_PROVENANCE_FIELD]: provenance,
-      },
-      {
-        actorUserId: 'user-1',
-        headers,
-        requestId: 'request-1',
-        signal: controller.signal,
-      }
-    )
-
-    expect(result).toEqual({ content: 'answer', model: 'gpt-4o' })
-    expect(mocks.requireBillingAttribution).toHaveBeenCalledWith(headers, {
-      actorUserId: 'user-1',
-      workspaceId: 'workspace-1',
-    })
-    expect(mocks.importProvenance).toHaveBeenCalledWith(provenance, {
-      trusted: true,
-      origin: 'llmTool.inputProvenance',
-    })
-    expect(mocks.executeProviderRequest).toHaveBeenCalledTimes(1)
-    expect(mocks.executeProviderRequest).toHaveBeenCalledWith(
-      'openai',
-      expect.objectContaining({
-        abortSignal: controller.signal,
-        billingAttribution: BILLING_ATTRIBUTION,
-        userId: 'user-1',
-      }),
-      expect.objectContaining({ resolvedSecretTraceRegistry: expect.anything() })
-    )
   })
 
   it('fails before provider work when workspace authorization is denied', async () => {

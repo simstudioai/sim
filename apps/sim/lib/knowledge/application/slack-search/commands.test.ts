@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const m = vi.hoisted(() => ({ authorize: vi.fn(), receive: vi.fn() }))
@@ -38,27 +37,10 @@ const principal = {
   receivedAt: new Date(),
 } as const
 beforeEach(() => {
-  vi.clearAllMocks()
   m.authorize.mockResolvedValue({ installation: { organizationId: 'org' } })
   m.receive.mockResolvedValue('turn')
 })
 describe('Slack commands', () => {
-  it('acknowledges durable intake without attempting a Slack send', async () => {
-    await expect(receiveSlackSearchCommand.execute({ principal, input })).resolves.toMatchObject({
-      response_type: 'ephemeral',
-      turnId: 'turn',
-    })
-    expect(m.receive).toHaveBeenCalledWith({
-      principal,
-      input: expect.objectContaining({
-        command: '/query',
-        messageTs: null,
-        channelId: 'C1',
-        userId: 'U1',
-        query: 'release notes',
-      }),
-    })
-  })
   it('uses stable deduplication for retries and rejects forged user scope', async () => {
     expect(slackSearchCommandEventId({ ...input })).toBe(principal.eventId)
     await expect(

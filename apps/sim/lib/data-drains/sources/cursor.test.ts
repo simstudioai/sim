@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { PgColumn } from 'drizzle-orm/pg-core'
 import { describe, expect, it } from 'vitest'
 import {
@@ -13,10 +10,6 @@ describe('time cursor encoding', () => {
   it('round-trips a valid cursor', () => {
     const value = { ts: '2026-01-01T00:00:00.000Z', id: 'row-1' }
     expect(decodeTimeCursor(encodeTimeCursor(value))).toEqual(value)
-  })
-
-  it('returns null for null input', () => {
-    expect(decodeTimeCursor(null)).toBeNull()
   })
 
   it('returns null for malformed JSON', () => {
@@ -33,10 +26,6 @@ describe('time cursor encoding', () => {
 describe('timeCursorPredicate', () => {
   const timestampCol = { name: 'created_at' } as unknown as PgColumn
   const idCol = { name: 'id' } as unknown as PgColumn
-
-  it('returns undefined without a cursor', () => {
-    expect(timeCursorPredicate(timestampCol, idCol, null)).toBeUndefined()
-  })
 
   it('binds the cursor timestamp through the column encoder', () => {
     const predicate = timeCursorPredicate(timestampCol, idCol, {

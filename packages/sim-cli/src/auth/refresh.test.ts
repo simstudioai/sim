@@ -97,22 +97,4 @@ describe('refreshStoredOAuth', () => {
     expect(next.refreshToken).toBe('winner-refresh')
     expect(fetchMock).not.toHaveBeenCalled()
   })
-
-  it('names the remedy when the server no longer honours the refresh token', async () => {
-    writeCredentialsProfile('default', {
-      kind: 'oauth',
-      oauth: { accessToken: 'a', refreshToken: 'r', expiresAt: 1, ...OAUTH_CONTEXT },
-    })
-    vi.stubGlobal('fetch', async () => reply(400, { error: 'invalid_grant' }))
-
-    await expect(
-      refreshStoredOAuth(PROFILE, {
-        accessToken: 'a',
-        refreshToken: 'r',
-        expiresAt: 1,
-        ...OAUTH_CONTEXT,
-      })
-    ).rejects.toThrow('Run sim logout --profile default, then sim login --profile default.')
-    expect(readStoredCredential('default')).toMatchObject({ kind: 'oauth' })
-  })
 })

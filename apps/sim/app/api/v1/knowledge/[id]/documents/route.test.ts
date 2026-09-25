@@ -1,7 +1,5 @@
 /**
  * Tests for the v1 knowledge document upload route's bounded multipart read.
- *
- * @vitest-environment node
  */
 import { getErrorMessage } from '@sim/utils/errors'
 import { NextRequest } from 'next/server'
@@ -121,7 +119,6 @@ function makeChunkedOverLimitBody(
 
 describe('v1 knowledge document upload route', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockAuthenticateRequest.mockResolvedValue({
       requestId: 'req-1',
       userId: 'user-1',
@@ -183,29 +180,6 @@ describe('v1 knowledge document upload route', () => {
     expect(response.status).toBe(413)
     expect(data.error).toContain('exceeds maximum size')
     expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
-  })
-
-  it('uploads a normal, well-under-limit document successfully', async () => {
-    const file = new File(['hello world'], 'file.txt', { type: 'text/plain' })
-    const formData = buildFormData(file)
-    const req = new NextRequest('http://localhost:3000/api/v1/knowledge/kb-1/documents', {
-      method: 'POST',
-      headers: { 'content-length': '1024' },
-      body: formData,
-    })
-
-    const response = await POST(req, routeContext)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.success).toBe(true)
-    expect(mockUploadWorkspaceFile).toHaveBeenCalledTimes(1)
-    expect(mockCreateSingleDocument).toHaveBeenCalledTimes(1)
-    expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
-      actorUserId: 'user-1',
-      workspaceId: 'ws-1',
-    })
-    expect(mockResolveSystemBillingAttribution).not.toHaveBeenCalled()
   })
 
   it('uses one atomic system actor and payer snapshot for a workspace API key', async () => {

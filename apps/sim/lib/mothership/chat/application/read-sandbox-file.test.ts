@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createCopilotChatFilePrincipal } from '@/lib/mothership/auth/file-delegation'
@@ -40,7 +39,6 @@ const principal: Principal = { kind: 'session', userId: 'u', sessionId: 's' }
 const input = { workspaceId: 'ws', chatId: 'chat', path: '/tmp/image.png' }
 const machine = { providerId: 'e2b', sandboxId: 'physical' }
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.permission.mockResolvedValue('read')
   mocks.context.mockResolvedValue({
     workspaceId: 'ws',

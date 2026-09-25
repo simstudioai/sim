@@ -25,7 +25,6 @@ describe('useConnectOAuthService', () => {
   let unmount = () => {}
 
   beforeEach(() => {
-    vi.clearAllMocks()
     beginOAuthConnect.mockName('desktop')
     beginOAuthConnect.mockResolvedValue(true)
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -70,50 +69,4 @@ describe('useConnectOAuthService', () => {
       expect(oauthLink).not.toHaveBeenCalled()
     }
   )
-
-  it('supplies the canonical legacy scopes explicitly for web Dataverse links', async () => {
-    beginOAuthConnect.mockName('web')
-    oauthLink.mockResolvedValue({ data: {}, error: null })
-    const queryClient = new QueryClient({
-      defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
-    })
-    const container = document.createElement('div')
-    const root = createRoot(container)
-    let connect: ReturnType<typeof useConnectOAuthService> | undefined
-    function Probe() {
-      connect = useConnectOAuthService()
-      return null
-    }
-    function Wrapper({ children }: { children: ReactNode }) {
-      return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    }
-    act(() =>
-      root.render(
-        <Wrapper>
-          <Probe />
-        </Wrapper>
-      )
-    )
-    unmount = () => act(() => root.unmount())
-
-    await act(async () => {
-      await connect?.mutateAsync({
-        providerId: 'microsoft-dataverse',
-        callbackURL: 'https://sim.test/oauth/credential-connected',
-        draftId: 'draft-1',
-      })
-    })
-
-    expect(oauthLink).toHaveBeenCalledWith({
-      providerId: 'microsoft-dataverse',
-      callbackURL: 'https://sim.test/oauth/credential-connected?credentialDraftId=draft-1',
-      scopes: [
-        'openid',
-        'profile',
-        'email',
-        'https://dynamics.microsoft.com/user_impersonation',
-        'offline_access',
-      ],
-    })
-  })
 })

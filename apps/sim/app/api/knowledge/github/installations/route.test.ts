@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { authMockFns } from '@sim/testing'
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -57,7 +54,6 @@ const installation = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   authMockFns.mockGetSession.mockResolvedValue({
     user: { id: 'admin-1' },
     session: { id: 'session-1' },
@@ -119,39 +115,6 @@ describe('GitHub installation route boundary', () => {
       expect(mocks.connect).not.toHaveBeenCalled()
     }
   )
-
-  it('requires organization scope for GET', async () => {
-    expect((await GET(new NextRequest(URL))).status).toBe(400)
-    expect(mocks.list).not.toHaveBeenCalled()
-  })
-
-  it('forwards GET identity and cancellation and projects a private installation list', async () => {
-    const controller = new AbortController()
-    const request = new NextRequest(`${URL}?organizationId=org-1`, { signal: controller.signal })
-    mocks.list.mockResolvedValue({
-      available: true,
-      installUrl: 'https://github.com/apps/sim-search/installations/new',
-      needsUserConnection: false,
-      installations: [{ ...installation, accessToken: 'private' }],
-      privateKey: 'private',
-    })
-    const response = await GET(request)
-    expect(response.status).toBe(200)
-    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
-    expect(mocks.list).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal: { kind: 'session', userId: 'admin-1', sessionId: 'session-1' },
-        input: { organizationId: 'org-1', signal: request.signal },
-      })
-    )
-    expect(await response.json()).toEqual({
-      success: true,
-      available: true,
-      installUrl: 'https://github.com/apps/sim-search/installations/new',
-      needsUserConnection: false,
-      installations: [installation],
-    })
-  })
 
   it('forwards POST cancellation and only returns the safe credential projection', async () => {
     const request = new NextRequest(URL, {

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
 import { describe, expect, it } from 'vitest'
 import { assertOperationPrincipal, defineOperation } from '@/lib/core/application/operation'

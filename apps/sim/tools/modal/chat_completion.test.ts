@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { modalChatCompletionTool } from '@/tools/modal/chat_completion'
 import type { ModalChatCompletionParams } from '@/tools/modal/types'

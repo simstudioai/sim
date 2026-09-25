@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type {
   OrganizationDelegatedPrincipal,
   Principal,
@@ -62,10 +61,6 @@ import {
   GET as getRetentionRoute,
   PUT as updateRetentionRoute,
 } from '@/app/api/organizations/[id]/data-retention/route'
-import {
-  GET as getWhitelabelRoute,
-  PUT as updateWhitelabelRoute,
-} from '@/app/api/organizations/[id]/whitelabel/route'
 
 const session: SessionPrincipal = { kind: 'session', userId: 'actor', sessionId: 'session' }
 function delegated(): OrganizationDelegatedPrincipal {
@@ -82,7 +77,6 @@ function delegated(): OrganizationDelegatedPrincipal {
   }
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   setEnvFlags({ isBillingEnabled: true })
   mocks.entitled.mockResolvedValue(true)
@@ -96,48 +90,6 @@ beforeEach(() => {
 
 describe('organization configuration HTTP adapters', () => {
   const routeContext = { params: Promise.resolve({ id: 'org' }) }
-
-  it.each([getWhitelabelRoute, getRetentionRoute])(
-    'authenticates member reads before data access',
-    async (route) => {
-      authMockFns.mockGetSession.mockResolvedValue(null)
-      const response = await route(createMockRequest('GET'), routeContext)
-      expect(response.status).toBe(401)
-      expect(dbChainMockFns.from).not.toHaveBeenCalled()
-    }
-  )
-
-  it.each([updateWhitelabelRoute, updateRetentionRoute])(
-    'authenticates updates before parsing invalid bodies',
-    async (route) => {
-      authMockFns.mockGetSession.mockResolvedValue(null)
-      const response = await route(createMockRequest('PUT', []), routeContext)
-      expect(response.status).toBe(401)
-      expect(dbChainMockFns.from).not.toHaveBeenCalled()
-    }
-  )
-
-  it('retains the whitelabel envelope, trims incoming names and clears only explicit nulls', async () => {
-    queueTableRows(member, [{ role: 'member' }])
-    queueTableRows(organization, [{ settings: { brandName: 'Old' } }])
-    const read = await getWhitelabelRoute(createMockRequest('GET'), routeContext)
-    expect(read.status).toBe(200)
-    expect(await read.json()).toEqual({ success: true, data: { brandName: 'Old' } })
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(organization, [
-      { name: 'Acme', settings: { brandName: 'Old', logoUrl: '/logo' } },
-    ])
-    dbChainMockFns.returning.mockResolvedValueOnce([{ settings: { brandName: 'New' } }])
-    const response = await updateWhitelabelRoute(
-      createMockRequest('PUT', { brandName: '  New  ', logoUrl: null }),
-      routeContext
-    )
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ success: true, data: { brandName: 'New' } })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({ whitelabelSettings: { brandName: 'New' } })
-    )
-  })
 
   it('preserves retention member read and enterprise denial before update', async () => {
     queueTableRows(member, [{ role: 'member' }])
@@ -228,37 +180,6 @@ describe('organization configuration authorization', () => {
 })
 
 describe('organization configuration behavior', () => {
-  it('merges whitelabel omissions, deletes nulls, and audits the delegated actor', async () => {
-    queueTableRows(member, [{ role: 'admin' }])
-    queueTableRows(organization, [
-      { name: 'Acme', settings: { brandName: 'Old', logoUrl: '/logo', hidePoweredBySim: true } },
-    ])
-    dbChainMockFns.returning.mockResolvedValueOnce([
-      { settings: { brandName: 'New', hidePoweredBySim: true } },
-    ])
-    const result = await updateOrganizationWhitelabel.execute({
-      principal: delegated(),
-      input: { organizationId: 'org', settings: { brandName: 'New', logoUrl: null } },
-    })
-    expect(result.data).toEqual({ brandName: 'New', hidePoweredBySim: true })
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        whitelabelSettings: { brandName: 'New', hidePoweredBySim: true },
-      })
-    )
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        actorId: 'actor',
-        resourceId: 'org',
-        resourceName: 'Acme',
-        metadata: expect.objectContaining({
-          changes: ['brandName', 'logoUrl'],
-          operation: 'organizations.whitelabel.update',
-        }),
-      })
-    )
-  })
-
   it('retains untouched retention values and rejects foreign targets before update', async () => {
     queueTableRows(member, [{ role: 'owner' }])
     queueTableRows(organization, [
@@ -316,18 +237,5 @@ describe('organization configuration behavior', () => {
     expect(mocks.invalidateSession).not.toHaveBeenCalled()
     expect(mocks.invalidateSecurity).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
-  })
-
-  it('reports non-enterprise configured retention separately from effective defaults', async () => {
-    queueTableRows(member, [{ role: 'member' }])
-    queueTableRows(organization, [{ settings: { logRetentionHours: 24 } }])
-    mocks.entitled.mockResolvedValue(false)
-    const result = await getOrganizationDataRetention.execute({
-      principal: session,
-      input: { organizationId: 'org' },
-    })
-    expect(result.isEnterprise).toBe(false)
-    expect(result.configured.logRetentionHours).toBe(24)
-    expect(result.effective).toEqual(result.defaults)
   })
 })

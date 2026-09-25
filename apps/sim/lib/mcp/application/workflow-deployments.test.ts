@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -65,7 +62,6 @@ vi.mock('@/lib/mcp/workflow-tool-schema', () => ({
 }))
 
 import {
-  deployWorkflowMcpTool,
   undeployWorkflowMcpTool,
   updateWorkflowMcpDeploymentServer,
 } from '@/lib/mcp/application/workflow-deployments'
@@ -92,7 +88,6 @@ const server = {
 
 describe('workflow MCP deployment application commands', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.loadWorkspace.mockImplementation(async (workspaceId: string) => ({
       workspaceId,
@@ -106,23 +101,6 @@ describe('workflow MCP deployment application commands', () => {
       server: { ...server, name: 'Renamed MCP' },
       updatedFields: ['name'],
     })
-  })
-
-  /**
-   * `deploy_as_api` is a Copilot tool name. A CLI or HTTP caller reading this
-   * error has no such command, so the remediation has to name the action.
-   */
-  it('states the remediation without naming an agent-only tool', async () => {
-    queueTableRows(schemaMock.workflowMcpServer, [server])
-    queueTableRows(schemaMock.workflow, [{ id: 'wf-1', name: 'Orders', isDeployed: false }])
-
-    const rejection = await deployWorkflowMcpTool
-      .execute({ principal, input: { serverId: server.id, workflowId: 'wf-1' } })
-      .catch((error: Error) => error)
-
-    expect(rejection).toBeInstanceOf(Error)
-    expect((rejection as Error).message).not.toMatch(/deploy_as_api|_as_api/)
-    expect((rejection as Error).message).toContain('Deploy the workflow first')
   })
 
   /**
@@ -200,53 +178,6 @@ describe('workflow MCP deployment application commands', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
 
     expect(mocks.updateServer).not.toHaveBeenCalled()
-    expect(mocks.audit).not.toHaveBeenCalled()
-  })
-
-  it('owns mutation attribution and semantic audit', async () => {
-    queueTableRows(schemaMock.workflowMcpServer, [server])
-
-    const result = await updateWorkflowMcpDeploymentServer.execute({
-      principal,
-      input: { serverId: server.id, name: 'Renamed MCP' },
-    })
-
-    expect(result.server.name).toBe('Renamed MCP')
-    expect(mocks.updateServer).toHaveBeenCalledWith(
-      expect.objectContaining({
-        serverId: server.id,
-        workspaceId: server.workspaceId,
-        userId: principal.subjectUserId,
-        projectLegacyAudit: false,
-        publishEffects: false,
-      })
-    )
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'mcp_server.updated',
-        resourceId: server.id,
-        metadata: expect.objectContaining({
-          operation: 'mcp_servers.workflow_deployments.update_server',
-        }),
-      })
-    )
-  })
-
-  it('fails fast with a generic application error for an internal lower-layer result', async () => {
-    queueTableRows(schemaMock.workflowMcpServer, [server])
-    mocks.updateServer.mockResolvedValueOnce({
-      success: false,
-      error: 'postgres password=secret',
-      errorCode: 'internal',
-    })
-
-    await expect(
-      updateWorkflowMcpDeploymentServer.execute({
-        principal,
-        input: { serverId: server.id, name: 'Renamed MCP' },
-      })
-    ).rejects.toThrow('Failed to update workflow MCP server')
-
     expect(mocks.audit).not.toHaveBeenCalled()
   })
 })

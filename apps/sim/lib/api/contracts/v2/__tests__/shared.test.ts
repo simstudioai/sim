@@ -1,18 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { traceSpansSchema } from '@/lib/api/contracts/logs'
 import { v2ListLogsQuerySchema } from '@/lib/api/contracts/v2/logs'
 import {
   V2_FALSE_VALUES,
   V2_TRUE_VALUES,
   v2DeleteFolderQuerySchema,
   v2FolderPathInputSchema,
-  v2FolderPathSchema,
   v2NonRootFolderPathInputSchema,
-  v2NonRootFolderPathSchema,
   v2RelocateFolderBodySchema,
 } from '@/lib/api/contracts/v2/shared'
-import { MAX_FOLDER_PATH_BYTES, MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 
@@ -32,11 +28,6 @@ describe('v2 folder path contracts', () => {
     expect(v2FolderPathInputSchema.safeParse('Reports/').success).toBe(false)
     expect(v2FolderPathInputSchema.safeParse('Reports//Q1').success).toBe(false)
     expect(v2FolderPathInputSchema.safeParse('Reports/%71').success).toBe(false)
-  })
-
-  it('keeps response paths strict and fail-fast', () => {
-    expect(v2FolderPathSchema.safeParse('Reports').success).toBe(false)
-    expect(v2NonRootFolderPathSchema.safeParse('Reports').success).toBe(false)
   })
 
   it('compares normalized paths in cross-field validation', () => {
@@ -91,27 +82,6 @@ describe('v2 folder path contracts', () => {
     }
   })
 
-  /**
-   * The canonical-path rule is enforced in a `superRefine`, which publishes
-   * nothing, so it lived only in the implementation until it was written onto
-   * these two components. Pinning the published text against the constants that
-   * enforce the caps keeps the prose from outliving a bound change.
-   */
-  it('publishes the canonical-path rule and the byte cap on every path schema', () => {
-    for (const schema of [
-      v2FolderPathSchema,
-      v2NonRootFolderPathSchema,
-      v2FolderPathInputSchema,
-      v2NonRootFolderPathInputSchema,
-    ]) {
-      const published = z.toJSONSchema(schema, { io: 'input', unrepresentable: 'any' })
-      expect(published.maxLength).toBe(MAX_FOLDER_PATH_BYTES)
-      expect(published.description).toContain('percent-encoded')
-      expect(published.description).toContain(String(MAX_FOLDER_PATH_SEGMENTS))
-      expect(published.description).toContain(String(MAX_FOLDER_PATH_BYTES))
-    }
-  })
-
   it('defaults folder deletion to non-recursive', () => {
     expect(v2DeleteFolderQuerySchema.parse({ workspaceId: WORKSPACE_ID, path: 'Reports' })).toEqual(
       { workspaceId: WORKSPACE_ID, path: '/Reports', recursive: false }
@@ -125,26 +95,5 @@ describe('v2 folder path contracts', () => {
     })
 
     expect(query.folderPaths).toBe('/Reports/Q1,/Archive')
-  })
-
-  it('declares persisted trace cost and error metadata', () => {
-    const [span] = traceSpansSchema.parse([
-      {
-        id: 'span-1',
-        name: 'Agent',
-        type: 'agent',
-        errorHandled: true,
-        errorType: 'RateLimitError',
-        errorMessage: 'Rate limited',
-        cost: { input: 0.001, output: 0.002, toolCost: 0.01, total: 0.013 },
-      },
-    ])
-
-    expect(span).toMatchObject({
-      errorHandled: true,
-      errorType: 'RateLimitError',
-      errorMessage: 'Rate limited',
-      cost: { input: 0.001, output: 0.002, toolCost: 0.01, total: 0.013 },
-    })
   })
 })

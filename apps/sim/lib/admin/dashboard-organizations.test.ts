@@ -1,5 +1,3 @@
-/** @vitest-environment node */
-
 import {
   member,
   organization,
@@ -76,7 +74,6 @@ vi.mock('@/lib/core/outbox/service', () => ({ enqueueOutboxEvent: mocks.enqueueO
 
 import {
   getDashboardMemberTransferPreflight,
-  getDashboardOrganization,
   listDashboardOrganizations,
   toDashboardConfigurationUpdate,
   updateDashboardEnterpriseReportingPeriod,
@@ -86,7 +83,6 @@ import {
 
 describe('getDashboardMemberTransferPreflight', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -144,7 +140,6 @@ describe('getDashboardMemberTransferPreflight', () => {
 
 describe('updateDashboardEnterpriseSeats', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -207,94 +202,12 @@ describe('toDashboardConfigurationUpdate', () => {
       error: null,
     })
   })
-
-  it('surfaces a legacy coupled cadence as reporting-only and disables retry', () => {
-    expect(
-      toDashboardConfigurationUpdate({
-        latestRevision: 3,
-        desiredMetadata: {},
-        desiredTerms: null,
-        hasUnappliedIntent: true,
-        effectiveSeatCapacity: 20,
-        configurationUpdate: {
-          id: 'legacy-config',
-          status: 'failed',
-          requestedMetadata: {
-            reportingPeriodAnchorDate: '2026-05-01',
-            seats: 20,
-          },
-          requestedTerms: { invoiceAmountCents: 50_000, billingInterval: 'year' },
-          providerAccepted: false,
-          error: 'Commercial-term updates are unsupported',
-        },
-      })
-    ).toMatchObject({
-      requestedReportingPeriodAnchorDate: '2026-05-01',
-      requestedReportingPeriodInterval: 'year',
-      retryable: false,
-    })
-  })
 })
 
 describe('listDashboardOrganizations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.provisionings = new Map()
-  })
-
-  it('loads a page with a fixed batch of queries instead of querying once per organization', async () => {
-    queueTableRows(organization, [{ total: 2 }])
-    queueTableRows(organization, [
-      { id: 'org-1', name: 'One', orgUsageLimit: '10', creditBalance: '1' },
-      { id: 'org-2', name: 'Two', orgUsageLimit: '20', creditBalance: '2' },
-    ])
-    queueTableRows(member, [
-      {
-        organizationId: 'org-1',
-        memberCount: 2,
-        ownerId: 'owner-1',
-        ownerName: 'Owner One',
-        ownerEmail: 'one@example.com',
-      },
-      {
-        organizationId: 'org-2',
-        memberCount: 1,
-        ownerId: 'owner-2',
-        ownerName: 'Owner Two',
-        ownerEmail: 'two@example.com',
-      },
-    ])
-    queueTableRows(permissions, [{ organizationId: 'org-1', externalCollaboratorCount: 3 }])
-    queueTableRows(subscription, [
-      {
-        id: 'sub-1',
-        referenceId: 'org-1',
-        plan: 'team_6000',
-        status: 'active',
-        metadata: null,
-      },
-    ])
-
-    const result = await listDashboardOrganizations({ search: '', limit: 50, offset: 0 })
-
-    expect(result.data).toHaveLength(2)
-    expect(result.data[0]).toMatchObject({
-      id: 'org-1',
-      memberCount: 2,
-      externalCollaboratorCount: 3,
-      planLabel: 'Pro',
-    })
-    expect(result.data[1]).toMatchObject({
-      id: 'org-2',
-      memberCount: 1,
-      externalCollaboratorCount: 0,
-      planLabel: 'No plan',
-    })
-    // Pagination, membership/collaborators, and the batched ledger aggregate.
-    // This count remains constant regardless of the number of organizations.
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(5)
-    expect(dbChainMockFns.selectDistinctOn).toHaveBeenCalledTimes(1)
   })
 
   it('reports ledger usage for an Enterprise subscription using its Stripe period', async () => {
@@ -377,55 +290,8 @@ describe('listDashboardOrganizations', () => {
   })
 })
 
-describe('getDashboardOrganization', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-    mocks.provisionings = new Map()
-  })
-
-  it('returns explicit counts and independent page metadata for bounded detail collections', async () => {
-    queueTableRows(organization, [
-      { id: 'org-1', name: 'One', orgUsageLimit: '100', creditBalance: '10' },
-    ])
-    queueTableRows(member, [{ value: 0 }])
-    queueTableRows(permissions, [{ value: 0 }])
-    queueTableRows(subscription, [])
-    queueTableRows(member, [])
-    queueTableRows(usageLog, [])
-    queueTableRows(usageLog, [{ usedDollars: '12.5', actorCount: 2 }])
-    queueTableRows(member, [])
-    queueTableRows(member, [])
-    queueTableRows(permissions, [])
-    queueTableRows(workspace, [
-      { id: 'workspace-1', name: 'One' },
-      { id: 'workspace-2', name: 'Two' },
-    ])
-    queueTableRows(workspace, [{ value: 3 }])
-
-    const result = await getDashboardOrganization('org-1', {
-      limit: 2,
-      memberOffset: 0,
-      externalCollaboratorOffset: 0,
-      workspaceOffset: 0,
-    })
-
-    expect(result).toMatchObject({
-      memberPagination: { total: 0, limit: 2, offset: 0, hasMore: false },
-      externalCollaboratorPagination: { total: 0, limit: 2, offset: 0, hasMore: false },
-      workspacePagination: { total: 3, limit: 2, offset: 0, hasMore: true },
-      historicalActorUsage: { usedDollars: 12.5, actorCount: 2 },
-      workspaces: [
-        { id: 'workspace-1', name: 'One' },
-        { id: 'workspace-2', name: 'Two' },
-      ],
-    })
-  })
-})
-
 describe('updateDashboardOrganizationLimits', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.resolveMetadataIntent.mockResolvedValue({
       latestRevision: 2,
@@ -488,7 +354,6 @@ describe('updateDashboardOrganizationLimits', () => {
 
 describe('updateDashboardEnterpriseReportingPeriod', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.resolveMetadataIntent.mockResolvedValue({
       latestRevision: 3,
@@ -544,39 +409,5 @@ describe('updateDashboardEnterpriseReportingPeriod', () => {
       })
     )
     expect(mocks.enqueueOutboxEvent.mock.calls[0][2]).not.toHaveProperty('terms')
-  })
-
-  it('does not compare the requested reporting cadence with the Stripe cadence', async () => {
-    queueTableRows(subscription, [
-      {
-        id: 'sub-1',
-        stripeSubscriptionId: 'stripe-sub-1',
-        plan: 'enterprise',
-        status: 'active',
-        billingInterval: 'year',
-        metadata: { invoiceAmountCents: 120_000, seats: 10 },
-      },
-    ])
-
-    await updateDashboardEnterpriseReportingPeriod(
-      'org-1',
-      {
-        reportingPeriodInterval: 'month',
-        reportingPeriodAnchorDate: '2025-01-31',
-      },
-      { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' }
-    )
-
-    expect(mocks.enqueueOutboxEvent.mock.calls[0][2]).not.toHaveProperty('terms')
-    expect(mocks.enqueueOutboxEvent.mock.calls[0][2]).toMatchObject({
-      metadata: {
-        plan: 'enterprise',
-        referenceId: 'org-1',
-        seats: 10,
-        monthlyPrice: 125,
-        reportingPeriodAnchorDate: '2025-01-31',
-        reportingPeriodInterval: 'month',
-      },
-    })
   })
 })

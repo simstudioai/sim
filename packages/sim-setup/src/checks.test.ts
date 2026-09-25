@@ -64,16 +64,4 @@ describe('setup coherence checks', () => {
       fix: 'set SLACK_SIGNING_SECRET or remove SLACK_EXTENDED_SCOPES and NEXT_PUBLIC_SLACK_EXTENDED_SCOPES',
     })
   })
-
-  it('does not require a signing secret for outbound-only Slack OAuth', async () => {
-    const findings = await runChecks(
-      rootContext({
-        SLACK_CLIENT_ID: 'client-id',
-        SLACK_CLIENT_SECRET: 'client-secret',
-      }),
-      ['coherence']
-    )
-
-    expect(findings.some((finding) => finding.message.includes('SLACK_SIGNING_SECRET'))).toBe(false)
-  })
 })

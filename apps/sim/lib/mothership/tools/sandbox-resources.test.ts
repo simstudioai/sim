@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StreamEvent } from '@/lib/mothership/request/types'
 
@@ -81,7 +80,6 @@ const effect = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   values.clear()
   lists.clear()
   seen.clear()

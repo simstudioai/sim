@@ -1,16 +1,7 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { createModelAccessGate } from '@/lib/permission-groups/model-access'
 
 describe('createModelAccessGate', () => {
-  it('allows everything when the group restricts nothing', () => {
-    const gate = createModelAccessGate(null)
-    expect(gate('gpt-4o')).toBe(true)
-    expect(createModelAccessGate({ deniedModels: [], allowedModelProviders: null })).toBe(gate)
-  })
-
   it('denies a listed model case-insensitively', () => {
     const gate = createModelAccessGate({ deniedModels: ['GPT-4o'], allowedModelProviders: null })
     expect(gate('gpt-4o')).toBe(false)

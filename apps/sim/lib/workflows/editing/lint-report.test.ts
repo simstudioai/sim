@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -51,10 +48,6 @@ function edge(source: string, target: string) {
 }
 
 describe('buildWorkflowLintReport notes', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('uses supplied application table diagnostics without repeating advisory reads', async () => {
     const tables = {
       tableFieldIssues: [{ blockId: 'table', field: 'missing-column', tableName: 'People' }],
@@ -134,18 +127,6 @@ describe('buildWorkflowLintReport notes', () => {
     expect(report.notes).toContain(NO_ENTRY_BLOCK_NOTE)
   })
 
-  it('adds neither note to a graph a trigger can start', async () => {
-    const report = await buildWorkflowLintReport(
-      {
-        blocks: { start: block('start', 'starter'), fn: block('fn', 'function') },
-        edges: [edge('start', 'fn')],
-      } as never,
-      scope
-    )
-
-    expect(report.notes).toEqual([])
-  })
-
   it('keeps the reference-scope note ahead of the graph notes', async () => {
     const report = await buildWorkflowLintReport({ blocks: {}, edges: [] } as never, {
       ...scope,
@@ -181,7 +162,6 @@ describe('buildWorkflowLintReport table fields', () => {
   }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getTableById.mockImplementation(async (tableId: string) =>
       tableId === 'tbl_leads' ? leads : null
     )

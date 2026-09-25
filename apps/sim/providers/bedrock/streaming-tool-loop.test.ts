@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { ConverseStreamCommand } from '@aws-sdk/client-bedrock-runtime'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createBedrockStreamingToolLoopStream } from '@/providers/bedrock/streaming-tool-loop'
@@ -49,7 +46,6 @@ vi.mock('@/providers/utils', () => ({
 
 describe('createBedrockStreamingToolLoopStream', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockExecuteTool.mockResolvedValue({
       success: true,
       output: { ok: true },

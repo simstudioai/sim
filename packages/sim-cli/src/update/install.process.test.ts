@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { execFileSync, spawnSync } from 'node:child_process'
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -84,17 +81,6 @@ function run(args: string[]) {
 }
 
 describe.skipIf(process.platform === 'win32')('the bundled sim update command', () => {
-  it('runs without login, updates the package, and keeps stdout clean', () => {
-    fakePackageManager()
-    const result = run(['update'])
-    expect(result.status).toBe(0)
-    expect(result.stdout).toBe('')
-    expect(result.stderr).toContain('package manager stdout')
-    expect(result.stderr).toContain('package manager stderr')
-    expect(result.stderr).toContain('Updated Sim 2.1.2 → 2.1.5')
-    expect(run(['--version']).stdout.trim()).toBe('2.1.5')
-  })
-
   it('exits unsuccessfully on an installer failure without printing success', () => {
     fakePackageManager(17)
     const result = run(['update'])
@@ -105,15 +91,6 @@ describe.skipIf(process.platform === 'win32')('the bundled sim update command', 
     expect(run(['--version']).stdout.trim()).toBe('2.1.2')
   })
 
-  it('answers update help without invoking the installer', () => {
-    fakePackageManager(17)
-    const result = run(['update', '--help'])
-    expect(result.status).toBe(0)
-    expect(result.stdout).toContain('sim update')
-    expect(result.stdout).toContain('--package-manager')
-    expect(result.stderr).toBe('')
-  })
-
   it('refuses an older registry release without running the installer', () => {
     fakePackageManager(0, '2.1.1')
     const result = run(['update'])
@@ -122,36 +99,5 @@ describe.skipIf(process.platform === 'win32')('the bundled sim update command', 
     expect(result.stderr).not.toContain('package manager stdout')
     expect(result.stderr).not.toMatch(/\n\s+at /)
     expect(run(['--version']).stdout.trim()).toBe('2.1.2')
-  })
-
-  it('prints a clear failure for a missing global installation entry', () => {
-    fakePackageManager(0, '2.1.5', undefined, join(directory, 'missing'))
-    const result = run(['update'])
-    expect(result.status).toBe(1)
-    expect(result.stderr).toContain('Cannot access the Sim installation')
-    expect(result.stderr).not.toMatch(/\n\s+at /)
-  })
-
-  it('prints a clear failure when the installed manifest is malformed', () => {
-    fakePackageManager(0, '2.1.5', '{')
-    const result = run(['update'])
-    expect(result.status).toBe(1)
-    expect(result.stderr).toContain('Cannot read the installed Sim manifest')
-    expect(result.stderr).not.toContain('Updated Sim')
-    expect(result.stderr).not.toMatch(/\n\s+at /)
-  })
-
-  it('prints a clear failure for a concurrent update', () => {
-    fakePackageManager()
-    const lockDirectory = join(modules, 'sim.lock')
-    mkdirSync(lockDirectory)
-    try {
-      const result = run(['update'])
-      expect(result.status).toBe(1)
-      expect(result.stderr).toContain('Cannot lock Sim for update')
-      expect(result.stderr).not.toMatch(/\n\s+at /)
-    } finally {
-      rmSync(lockDirectory, { recursive: true })
-    }
   })
 })

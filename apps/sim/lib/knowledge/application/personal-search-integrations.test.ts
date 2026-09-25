@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { user } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -90,7 +89,6 @@ const source = {
   hasViewerDocuments: false,
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   resetEnvFlagsMock()
   m.scoped.mockResolvedValue(true)

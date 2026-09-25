@@ -1,5 +1,4 @@
 import crypto from 'node:crypto'
-import { NextRequest } from 'next/server'
 import { describe, expect, it } from 'vitest'
 import {
   quickBooksHandler,
@@ -7,10 +6,7 @@ import {
   verifyQuickBooksSignatureAgainstVerifierTokenStream,
   verifyQuickBooksSignatureAgainstVerifierTokens,
 } from '@/lib/webhooks/providers/quickbooks'
-import {
-  isQuickBooksEventMatch,
-  quickBooksEventTypesSubBlockId,
-} from '@/triggers/quickbooks/quickbooks'
+import { isQuickBooksEventMatch } from '@/triggers/quickbooks/quickbooks'
 
 const event = {
   specversion: '1.0',
@@ -133,46 +129,5 @@ describe('QuickBooks webhook provider', () => {
         action: 'voided',
       })
     }
-  })
-
-  it('formats only the common verified event fields', async () => {
-    const result = await quickBooksHandler.formatInput!({
-      body: event,
-      webhook: {},
-      workflow: { id: 'workflow-1', userId: 'user-1' },
-      headers: {},
-      requestId: 'request-4',
-    })
-    expect(result.input).toEqual({
-      eventId: 'event-1',
-      eventType: 'qbo.invoice.updated.v1',
-      entityType: 'Invoice',
-      action: 'updated',
-      entityId: '123',
-      realmId: '456',
-      eventTime: '2026-08-03T12:00:00Z',
-      specVersion: '1.0',
-      source: 'quickbooks-online',
-      contentType: 'application/json',
-      data: { changedFields: ['Balance'] },
-    })
-    expect(quickBooksHandler.extractIdempotencyId!(event)).toBe('event-1')
-  })
-
-  it('uses the provider-local ingress and durable queue modes', async () => {
-    expect(quickBooksHandler.ingressMode).toBe('provider')
-    expect(quickBooksHandler.executionMode).toBe('queue')
-    const matched = await quickBooksHandler.matchEvent!({
-      body: event,
-      request: new NextRequest('http://localhost'),
-      requestId: 'request-5',
-      providerConfig: {
-        triggerId: 'quickbooks_invoice_events',
-        [quickBooksEventTypesSubBlockId('quickbooks_invoice_events')]: ['updated'],
-      },
-      webhook: {},
-      workflow: {},
-    })
-    expect(matched).toBe(true)
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { listReviewThreadsTool } from '@/tools/github/list_review_threads'
 import type { ListReviewThreadsParams } from '@/tools/github/types'

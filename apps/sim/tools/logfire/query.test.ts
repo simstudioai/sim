@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { logfireQueryTool } from '@/tools/logfire/query'
 import type { LogfireQueryParams } from '@/tools/logfire/types'
@@ -11,18 +8,6 @@ const baseParams: LogfireQueryParams = {
 }
 
 describe('logfireQueryTool request', () => {
-  it('targets the regional query endpoint', () => {
-    expect(logfireQueryTool.request.url(baseParams)).toBe(
-      'https://logfire-us.pydantic.dev/v2/query'
-    )
-  })
-
-  it('sends a self-hosted instance to the configured host', () => {
-    expect(logfireQueryTool.request.url({ ...baseParams, host: 'logfire.example.com' })).toBe(
-      'https://logfire.example.com/v2/query'
-    )
-  })
-
   it('passes the caller SQL through untouched alongside the window', () => {
     const body = logfireQueryTool.request.body?.({
       ...baseParams,

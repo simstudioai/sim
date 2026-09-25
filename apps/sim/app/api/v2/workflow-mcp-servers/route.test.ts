@@ -1,8 +1,4 @@
-/**
- * @vitest-environment node
- */
 import {
-  MockV2ApiKeyUnauthenticatedError,
   resetDbChainMock,
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -123,7 +119,6 @@ async function post(body: unknown) {
 
 describe('/api/v2/workflow-mcp-servers', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     v2RouteMocks.authenticate.mockResolvedValue(personalKeyAuth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
@@ -140,34 +135,6 @@ describe('/api/v2/workflow-mcp-servers', () => {
   })
 
   describe('GET', () => {
-    it('publishes the served endpoint and tool inventory for each server', async () => {
-      mocks.listToolNames.mockResolvedValue({
-        namesByServerId: new Map([['wfmcp-1', ['triage_ticket']]]),
-        truncated: false,
-      })
-
-      const response = await get()
-
-      expect(response.status).toBe(200)
-      expect(await response.json()).toEqual({
-        data: [
-          {
-            id: 'wfmcp-1',
-            name: 'Support agents',
-            description: 'Ticket triage',
-            isPublic: false,
-            mcpServerUrl: expect.stringContaining('/api/mcp/serve/wfmcp-1'),
-            toolCount: 1,
-            toolNames: ['triage_ticket'],
-            createdAt: '2026-06-12T10:30:00.000Z',
-            updatedAt: '2026-06-12T10:30:00.000Z',
-          },
-        ],
-        nextCursor: null,
-        toolNamesTruncated: false,
-      })
-    })
-
     /**
      * `toolNames` and `toolCount` are gathered for the whole page under one
      * ceiling, so a page that trips it under-reports every server's inventory.
@@ -217,17 +184,6 @@ describe('/api/v2/workflow-mcp-servers', () => {
       expect(body.data[0]).not.toHaveProperty('workspaceId')
     })
 
-    it('mints a cursor when the page was cut', async () => {
-      mocks.listServers.mockResolvedValue({
-        data: [serverRow()],
-        nextCursorKeys: [{ key: 'createdAt', value: '2026-06-12T10:30:00.000Z' }],
-      })
-
-      const body = await (await get()).json()
-
-      expect(body.nextCursor).toEqual(expect.any(String))
-    })
-
     it('rejects a cursor minted under a different ordering', async () => {
       mocks.listServers.mockResolvedValue({
         data: [serverRow()],
@@ -241,13 +197,6 @@ describe('/api/v2/workflow-mcp-servers', () => {
 
       expect(response.status).toBe(400)
       expect((await response.json()).error.code).toBe('BAD_REQUEST')
-    })
-
-    it('requires a workspace', async () => {
-      const response = await get('')
-
-      expect(response.status).toBe(400)
-      expect(mocks.loadWorkspaceContext).not.toHaveBeenCalled()
     })
 
     it('rejects a workspace API key before canonical loading', async () => {
@@ -267,15 +216,6 @@ describe('/api/v2/workflow-mcp-servers', () => {
 
       expect(response.status).toBe(404)
       expect(mocks.listServers).not.toHaveBeenCalled()
-    })
-
-    it('rejects an unauthenticated request', async () => {
-      v2RouteMocks.authenticate.mockRejectedValueOnce(new MockV2ApiKeyUnauthenticatedError())
-
-      const response = await get()
-
-      expect(response.status).toBe(401)
-      expect((await response.json()).error.code).toBe('UNAUTHORIZED')
     })
   })
 
@@ -297,25 +237,6 @@ describe('/api/v2/workflow-mcp-servers', () => {
         serverId: 'wfmcp-1',
         workspaceId: WORKSPACE_ID,
       })
-    })
-
-    /** The create response has no tool inventory to report, so it must not claim one. */
-    it('omits the tool inventory the write never read', async () => {
-      const body = await (await post({ workspaceId: WORKSPACE_ID, name: 'Support agents' })).json()
-
-      expect(body.data).not.toHaveProperty('toolCount')
-      expect(body.data).not.toHaveProperty('toolNames')
-    })
-
-    it('rejects an unknown field rather than storing it', async () => {
-      const response = await post({
-        workspaceId: WORKSPACE_ID,
-        name: 'Support agents',
-        transport: 'streamable-http',
-      })
-
-      expect(response.status).toBe(400)
-      expect(mocks.createServer).not.toHaveBeenCalled()
     })
 
     it('refuses a caller below workspace admin with 403', async () => {

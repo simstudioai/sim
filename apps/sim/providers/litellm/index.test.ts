@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -135,7 +132,6 @@ async function readAgentEvents(stream: ReadableStream<AgentStreamEvent>) {
 
 describe('litellmProvider.executeRequest', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCreate.mockResolvedValue(chat({ content: 'hello' }))
     mockExecuteTool.mockResolvedValue({ success: true, output: { ok: true } })
   })

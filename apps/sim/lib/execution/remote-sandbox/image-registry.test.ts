@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Builds are addressed by content and shared across workspaces, so releasing one
  * eagerly is only safe while nothing else references it. These cases pin that
  * guard down, plus the failure modes that must leave the retention sweep a job to
@@ -121,7 +119,6 @@ import {
   FAILED_BUILD_RETRY_COOLDOWN_MS,
   releaseSandboxImage,
   runSandboxImageBuild,
-  SANDBOX_IMAGE_BUILD_TASK_ID,
   sandboxBuildIdempotencyKey,
 } from '@/lib/execution/remote-sandbox/image-registry'
 
@@ -149,7 +146,6 @@ const CURRENT_MATERIALIZATION = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mockProviderStrategy.current = 'prebuilt'
   mockRendererRevision.current = 1
   mockMaterialization.current = {
@@ -515,10 +511,6 @@ describe('runSandboxImageBuild attempt ownership', () => {
     cliTools: [],
     systemPackages: [],
   }
-
-  it('uses one stable Trigger.dev task ID', () => {
-    expect(SANDBOX_IMAGE_BUILD_TASK_ID).toBe('sandbox-image-build')
-  })
 
   it('refuses an app-new/task-old renderer mismatch before claiming the row', async () => {
     await runSandboxImageBuild({

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { fetchSource } = vi.hoisted(() => ({ fetchSource: vi.fn() }))
@@ -26,7 +25,6 @@ function group(id: number, parent_id: number | null = null): Record<string, unkn
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   version = '18.7.0-ee'
   settings = { external_authorization_service_enabled: false, admin_mode: false }
   groups = new Map([

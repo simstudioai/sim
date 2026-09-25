@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -219,7 +215,6 @@ async function requestSearch(overrides: Partial<typeof requestInput> = {}) {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   env.COHERE_API_KEY = 'synthetic-cohere-key'
   provider.decrypt.mockResolvedValue({ decrypted: SECRET })

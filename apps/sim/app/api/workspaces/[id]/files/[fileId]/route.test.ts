@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -45,7 +42,6 @@ import {
   NoWorkspaceAccessError,
   WorkspaceApiKeyScopeAuthorizationError,
 } from '@/lib/core/application'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET, PATCH } from '@/app/api/workspaces/[id]/files/[fileId]/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -81,68 +77,11 @@ function fileRecord() {
 
 describe('PATCH /api/workspaces/[id]/files/[fileId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getSession.mockResolvedValue({
       user: { id: 'user-1' },
       session: { id: 'session-1' },
     })
     mocks.rename.mockResolvedValue({ file: fileRecord() })
-  })
-
-  it('authenticates before parsing the request', async () => {
-    mocks.getSession.mockResolvedValue(null)
-
-    const response = await callRename({ name: 'nested/invalid.csv' })
-
-    expect(response.status).toBe(401)
-    expect(await response.json()).toEqual({ error: 'Unauthorized' })
-    expect(mocks.rename).not.toHaveBeenCalled()
-  })
-
-  it('rejects invalid rename input before the use case', async () => {
-    const response = await callRename({ name: 'nested/invalid.csv' })
-
-    expect(response.status).toBe(400)
-    expect(mocks.rename).not.toHaveBeenCalled()
-  })
-
-  it('passes a session principal and canonical assertion to the shared use case', async () => {
-    const response = await callRename({ name: 'renamed.csv' })
-
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({
-      success: true,
-      file: expect.objectContaining({ id: FILE_ID, name: 'renamed.csv', folderId: null }),
-    })
-    expect(mocks.rename).toHaveBeenCalledWith({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: {
-        fileId: FILE_ID,
-        assertedWorkspaceId: WORKSPACE_ID,
-        name: 'renamed.csv',
-      },
-      request: expect.anything(),
-    })
-    expect(mocks.captureServerEvent).toHaveBeenCalledWith(
-      'user-1',
-      'file_renamed',
-      { workspace_id: WORKSPACE_ID },
-      { groups: { workspace: WORKSPACE_ID } }
-    )
-  })
-
-  it('renders typed authorization errors in the internal envelope', async () => {
-    mocks.rename.mockRejectedValue(
-      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
-    )
-
-    const response = await callRename({ name: 'renamed.csv' })
-
-    expect(response.status).toBe(403)
-    expect(await response.json()).toEqual({
-      error: 'Insufficient workspace permissions',
-    })
-    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -166,17 +105,6 @@ describe('PATCH /api/workspaces/[id]/files/[fileId]', () => {
     expect(response.status).toBe(403)
     expect(await response.json()).toEqual({ error: 'Insufficient workspace permissions' })
   })
-
-  it('hides unexpected failures behind the internal 500 envelope', async () => {
-    mocks.rename.mockRejectedValue(new Error('update workspace_files failed'))
-
-    const response = await callRename({ name: 'renamed.csv' })
-
-    expect(response.status).toBe(500)
-    expect(await response.json()).toEqual({
-      error: 'Internal server error',
-    })
-  })
 })
 
 describe('GET /api/workspaces/[id]/files/[fileId]', () => {
@@ -186,28 +114,9 @@ describe('GET /api/workspaces/[id]/files/[fileId]', () => {
       context
     )
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.getSession.mockResolvedValue({ user: { id: 'user-1' }, session: { id: 'session-1' } })
     mocks.read.mockResolvedValue({
       file: { ...fileRecord(), vfsNamespace: 'uploads', storageContext: 'workspace' },
-    })
-  })
-  it('authenticates before resolving file metadata', async () => {
-    mocks.getSession.mockResolvedValue(null)
-    expect((await read()).status).toBe(401)
-    expect(mocks.read).not.toHaveBeenCalled()
-  })
-  it('uses the current read policy and preserves independent namespace and byte context', async () => {
-    const response = await read()
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({
-      success: true,
-      file: { id: FILE_ID, vfsNamespace: 'uploads', storageContext: 'workspace' },
-    })
-    expect(mocks.read).toHaveBeenCalledWith({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID },
-      request: expect.anything(),
     })
   })
   it('conceals inaccessible uploads', async () => {

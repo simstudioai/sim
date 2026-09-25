@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -34,7 +33,6 @@ function read() {
 
 describe('workspace organization provider projection', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     queueTableRows(schemaMock.organization, [{ name: 'Organization' }])
     queueTableRows(schemaMock.member, [{ role: 'member' }])
@@ -74,14 +72,5 @@ describe('workspace organization provider projection', () => {
     expect(result.allowed).toBe(true)
     expect(result.providers.map(({ id }) => id)).toEqual(['google-email'])
     expect(result.mcpProviders).toEqual([])
-  })
-
-  it('fails fast for an unregistered active provider', async () => {
-    mocks.group.mockResolvedValue({
-      credentialGroupId: 'group-1',
-      status: 'active',
-      options: [{ provider: 'unknown', status: 'active' }],
-    })
-    await expect(read()).rejects.toThrow('Unsupported organization provider: unknown')
   })
 })

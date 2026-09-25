@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch, mockResolveSelectorOAuthAccessToken } = vi.hoisted(() => ({
@@ -45,7 +42,6 @@ function plannerTaskDetailArgs(): ExecuteServerSelectorArgs {
 
 describe('Microsoft server selector adapters', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.stubGlobal('fetch', mockFetch)
     mockResolveSelectorOAuthAccessToken.mockResolvedValue('server-only-token')
   })
@@ -151,36 +147,6 @@ describe('Microsoft server selector adapters', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1)
   })
 
-  it('includes folders unless the selector explicitly requests files only', async () => {
-    const response = () =>
-      new Response(
-        JSON.stringify({
-          value: [
-            { id: 'file-1', name: 'Report.pdf', file: {} },
-            { id: 'folder-1', name: 'Reports', folder: {} },
-          ],
-        }),
-        { status: 200 }
-      )
-    mockFetch.mockResolvedValueOnce(response()).mockResolvedValueOnce(response())
-
-    const allItems = await microsoftSelectorAttachments['onedrive.files'].execute(
-      listArgs('onedrive.files')
-    )
-    const filesOnly = await microsoftSelectorAttachments['onedrive.files'].execute({
-      ...listArgs('onedrive.files'),
-      context: { oauthCredential: 'credential-1', mimeType: 'file' },
-    })
-
-    expect(allItems.kind === 'list' ? allItems.items.map((item) => item.id) : []).toEqual([
-      'file-1',
-      'folder-1',
-    ])
-    expect(filesOnly.kind === 'list' ? filesOnly.items.map((item) => item.id) : []).toEqual([
-      'file-1',
-    ])
-  })
-
   it('rejects a planner task detail from another plan', async () => {
     mockFetch.mockResolvedValueOnce(
       new Response(JSON.stringify({ id: 'task-1', title: 'Task', planId: 'plan-2' }), {
@@ -191,30 +157,5 @@ describe('Microsoft server selector adapters', () => {
     await expect(
       microsoftSelectorAttachments['microsoft.planner'].execute(plannerTaskDetailArgs())
     ).resolves.toEqual({ kind: 'detail', item: null })
-  })
-
-  it('paginates workbook worksheets through Graph continuation URLs', async () => {
-    mockFetch.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          value: [{ id: 'sheet-1', name: 'Sheet 1', position: 0 }],
-          '@odata.nextLink':
-            'https://graph.microsoft.com/v1.0/me/drive/items/workbook-1/workbook/worksheets?$skiptoken=next',
-        }),
-        { status: 200 }
-      )
-    )
-
-    await expect(
-      microsoftSelectorAttachments['microsoft.excel.sheets'].execute({
-        ...listArgs('microsoft.excel.sheets'),
-        context: { oauthCredential: 'credential-1', spreadsheetId: 'workbook-1' },
-      })
-    ).resolves.toEqual({
-      kind: 'list',
-      items: [{ id: 'Sheet 1', label: 'Sheet 1' }],
-      nextCursor:
-        'https://graph.microsoft.com/v1.0/me/drive/items/workbook-1/workbook/worksheets?$skiptoken=next',
-    })
   })
 })

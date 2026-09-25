@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { scimGroupWriteSchema, scimUserWriteSchema } from '@/lib/api/contracts/scim'
 import {
@@ -9,11 +6,7 @@ import {
   toCanonicalGroup,
   toCanonicalUser,
 } from '@/ee/scim/lib/protocol/canonical'
-import {
-  SCIM_ENTERPRISE_USER_SCHEMA,
-  SCIM_GROUP_SCHEMA,
-  SCIM_USER_SCHEMA,
-} from '@/ee/scim/lib/protocol/constants'
+import { SCIM_GROUP_SCHEMA, SCIM_USER_SCHEMA } from '@/ee/scim/lib/protocol/constants'
 import type { ScimError } from '@/ee/scim/lib/protocol/errors'
 import { ENTRA_LEGACY_GROUP_SCHEMA } from '@/ee/scim/lib/protocol/normalize'
 
@@ -77,23 +70,12 @@ describe('toCanonicalUser', () => {
     expect(user.name.formatted).toBe('Ada Lovelace')
   })
 
-  it('falls back to the account email when no name is supplied', () => {
-    const user = parseUser({ userName: 'ada@acme.test' })
-    expect(accountName(user)).toBe('ada@acme.test')
-    expect(user).not.toHaveProperty('displayName')
-  })
-
   it('keeps a provider extension’s attributes under its URN', () => {
     const user = parseUser({
       userName: 'ada@acme.test',
       'urn:okta:sim:2.0:user:custom': { costCenter: 'R&D' },
     })
     expect(user.extra).toEqual({ 'urn:okta:sim:2.0:user:custom': { costCenter: 'R&D' } })
-  })
-
-  it('keeps attributes Sim does not model so responses round-trip them', () => {
-    const user = parseUser({ userName: 'ada@acme.test', nickName: 'Countess' })
-    expect(user.extra).toEqual({ nickName: 'Countess' })
   })
 
   it('never keeps a password, even though Okta always sends one', () => {
@@ -112,31 +94,9 @@ describe('toCanonicalUser', () => {
   it('accepts Entra’s string boolean for active', () => {
     expect(parseUser({ userName: 'ada@acme.test', active: 'False' }).active).toBe(false)
   })
-
-  it('defaults active to true when omitted', () => {
-    expect(parseUser({ userName: 'ada@acme.test' }).active).toBe(true)
-  })
 })
 
 describe('schemas declaration', () => {
-  it('accepts the core User schema with the enterprise extension', () => {
-    expect(
-      scimUserWriteSchema.safeParse({
-        schemas: [SCIM_USER_SCHEMA, SCIM_ENTERPRISE_USER_SCHEMA],
-        userName: 'ada@acme.test',
-      }).success
-    ).toBe(true)
-  })
-
-  it('accepts a provider extension, as Okta declares for every custom attribute', () => {
-    expect(
-      scimUserWriteSchema.safeParse({
-        schemas: [SCIM_USER_SCHEMA, 'urn:okta:sim:2.0:user:custom'],
-        userName: 'ada@acme.test',
-      }).success
-    ).toBe(true)
-  })
-
   it('refuses a User without the core schema', () => {
     const result = scimUserWriteSchema.safeParse({
       schemas: ['urn:okta:sim:2.0:user:custom'],

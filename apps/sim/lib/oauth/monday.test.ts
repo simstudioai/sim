@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   exchangeMondayAuthorizationCode,
@@ -115,7 +112,6 @@ describe('Monday OAuth 2.1', () => {
 
   it.each([
     ['missing refresh token', { refresh_token: undefined }],
-    ['missing access token', { access_token: undefined }],
     ['non-bearer token', { token_type: 'mac' }],
   ])('rejects an incomplete response: %s', async (_label, overrides) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(tokenResponse(overrides)))

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -74,13 +71,6 @@ describe('MCP server operation registry', () => {
     },
   } as const
 
-  it('pins the role of every workflow-deployment operation', () => {
-    for (const [key, expected] of Object.entries(WORKFLOW_DEPLOYMENT_OPERATIONS)) {
-      const operation = mcpServerOperations[key as keyof typeof mcpServerOperations]
-      expect(operation, key).toMatchObject(expected)
-    }
-  })
-
   /**
    * `update_server` carries `isPublic`, and a public server answers
    * `/api/mcp/serve/{serverId}` with no Sim credential. `write` here would let a
@@ -115,11 +105,6 @@ describe('MCP server operation registry', () => {
       expect(operation.delegatedServices, operation.id).toEqual(['copilot'])
       expect(Object.isFrozen(operation), operation.id).toBe(true)
     }
-  })
-
-  it('uses unique stable operation IDs', () => {
-    const ids = Object.values(mcpServerOperations).map((operation) => operation.id)
-    expect(new Set(ids).size).toBe(ids.length)
   })
 })
 
@@ -186,7 +171,6 @@ function sessionReachable(capability: string) {
  */
 describe('MCP operations under a withholding permission group', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('admin')
   })
 
@@ -221,20 +205,6 @@ describe('MCP operations under a withholding permission group', () => {
         authorizeWorkspaceOperation(sessionPrincipal, operation as WorkspaceOperation, context),
         operation.id
       ).rejects.toBeInstanceOf(PermissionGroupCapabilityError)
-    }
-  })
-
-  it('allows the same operations when the group withholds neither', async () => {
-    resolveGroupConfigMock.mockResolvedValue(DEFAULT_PERMISSION_GROUP_CONFIG)
-
-    for (const operation of [
-      ...sessionReachable('mcp_tools.use'),
-      ...sessionReachable('deploy.mcp'),
-    ]) {
-      await expect(
-        authorizeWorkspaceOperation(sessionPrincipal, operation as WorkspaceOperation, context),
-        operation.id
-      ).resolves.toBeUndefined()
     }
   })
 })

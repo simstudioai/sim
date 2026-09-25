@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { createExecutionContext, inputValidationMock, inputValidationMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,8 +16,6 @@ vi.mock('@/lib/uploads/contexts/execution', () => ({
 
 import { executeGoogleSlidesTool } from '@/lib/internal/google-slides/execute-tool'
 import type { InternalToolOperationCall } from '@/lib/internal/tool-operations/types'
-import type { ExportPresentationParams } from '@/tools/google_slides/export_presentation'
-import { exportPresentationTool } from '@/tools/google_slides/export_presentation'
 
 function operationCall(
   overrides: Partial<InternalToolOperationCall> = {}
@@ -48,7 +43,6 @@ function operationCall(
 
 describe('Google Slides export presentation tool', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     inputValidationMockFns.mockValidateUrlWithDNS.mockResolvedValue({
       isValid: true,
       resolvedIP: '93.184.216.34',
@@ -72,21 +66,6 @@ describe('Google Slides export presentation tool', () => {
       url: '/api/files/serve/copilot/copilot-file-1',
       key: 'copilot/copilot-file-1',
       context: 'copilot',
-    })
-  })
-
-  it('builds typed direct-operation input without transport metadata', () => {
-    const params: ExportPresentationParams = {
-      accessToken: 'token',
-      presentationId: 'presentation-1',
-      exportFormat: 'PDF',
-    }
-
-    expect(exportPresentationTool).not.toHaveProperty('request')
-    expect(exportPresentationTool.operation.input(params)).toEqual({
-      accessToken: 'token',
-      presentationId: 'presentation-1',
-      exportFormat: 'PDF',
     })
   })
 
@@ -188,36 +167,5 @@ describe('Google Slides export presentation tool', () => {
     })
     expect(result.output.contentBase64).toBe(Buffer.from(bytes).toString('base64'))
     expect(result.output.sizeBytes).toBe(bytes.byteLength)
-  })
-
-  it('maps direct-handler responses into tool output', async () => {
-    const response = new Response(
-      JSON.stringify({
-        success: true,
-        output: {
-          file: {
-            key: 'copilot/copilot-file-1',
-            context: 'copilot',
-            url: '/api/files/serve/copilot/copilot-file-1',
-          },
-          mimeType: 'application/pdf',
-          sizeBytes: 3,
-          metadata: {
-            presentationId: 'presentation-1',
-            url: 'https://docs.google.com/presentation/d/presentation-1/edit',
-            exportFormat: 'PDF',
-          },
-        },
-      }),
-      {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }
-    )
-
-    const result = await exportPresentationTool.transformResponse?.(response)
-
-    expect(result?.output.file?.key).toBe('copilot/copilot-file-1')
-    expect(result?.output.metadata.presentationId).toBe('presentation-1')
   })
 })

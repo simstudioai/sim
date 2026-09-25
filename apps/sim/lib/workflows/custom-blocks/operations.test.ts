@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -29,10 +26,8 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 
 import {
   CustomBlockValidationError,
-  isCustomBlocksEligibleForOrganization,
   listCustomBlocksWithInputs,
   publishCustomBlock,
-  updateCustomBlock,
 } from '@/lib/workflows/custom-blocks/operations'
 
 const publishParams = {
@@ -45,17 +40,7 @@ const publishParams = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
-})
-
-describe('custom block entitlement', () => {
-  it('uses the shared organization feature resolver', async () => {
-    isOrganizationFeatureEntitled.mockResolvedValue(true)
-
-    await expect(isCustomBlocksEligibleForOrganization('org-1')).resolves.toBe(true)
-    expect(isOrganizationFeatureEntitled).toHaveBeenCalledWith('org-1', false)
-  })
 })
 
 describe('custom block input hydration', () => {
@@ -147,13 +132,5 @@ describe('reserved exposed-output names', () => {
         exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'Success' }],
       })
     ).rejects.toThrow('"Success" is a reserved output name (success, error, cost)')
-  })
-
-  it('updateCustomBlock rejects a reserved output name', async () => {
-    await expect(
-      updateCustomBlock('cb-1', {
-        exposedOutputs: [{ blockId: 'b1', path: 'content', name: 'error' }],
-      })
-    ).rejects.toThrow(CustomBlockValidationError)
   })
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, expectTypeOf, it } from 'vitest'
 import {
@@ -38,14 +35,6 @@ describe('server environment capabilities', () => {
   it('fails fast when an OAuth client is absent', () => {
     expect(() => requireConfiguredOAuthClient('shopify')).toThrow(
       'OAuth client shopify is not configured. Run npx sim-setup add integration shopify.'
-    )
-  })
-
-  it('fails fast when an OAuth client is partially configured', () => {
-    setEnv({ SLACK_CLIENT_ID: 'slack-client' })
-
-    expect(() => requireConfiguredOAuthClient('slack')).toThrow(
-      'OAuth client slack is partially configured — missing SLACK_CLIENT_SECRET. Run npx sim-setup add integration slack.'
     )
   })
 

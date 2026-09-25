@@ -432,7 +432,7 @@ describe('knowledge document storage ledgers', () => {
       '../../packages/db/scripts/reconcile-workspace-storage.ts'
     )
     const run = promisify(execFile)
-    const databaseUrl = process.env.KNOWLEDGE_ACL_TEST_DATABASE_URL
+    const databaseUrl = process.env.TEST_DATABASE_URL
     if (!databaseUrl) throw new Error('Missing isolated reconciliation database')
     for (let attempt = 0; attempt < 2; attempt++) {
       await run('bun', [script], {

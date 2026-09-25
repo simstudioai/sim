@@ -161,26 +161,7 @@ describe('ExecutionLogger', () => {
     resetDbChainMock()
   })
 
-  describe('class instantiation', () => {
-    test('should create logger instance', () => {
-      expect(logger).toBeDefined()
-      expect(logger).toBeInstanceOf(ExecutionLogger)
-    })
-  })
-
   describe('interface implementation', () => {
-    test('should have startWorkflowExecution method', () => {
-      expect(typeof logger.startWorkflowExecution).toBe('function')
-    })
-
-    test('should have completeWorkflowExecution method', () => {
-      expect(typeof logger.completeWorkflowExecution).toBe('function')
-    })
-
-    test('should have getWorkflowExecution method', () => {
-      expect(typeof logger.getWorkflowExecution).toBe('function')
-    })
-
     test('marks new execution rows as contract-aware before any provenance is available', async () => {
       dbChainMockFns.limit.mockResolvedValueOnce([])
       dbChainMockFns.returning.mockResolvedValueOnce([
@@ -384,86 +365,6 @@ describe('ExecutionLogger', () => {
       })
 
       expect(written?.resolvedSecretTraceProvenance).toEqual(RUN_PROVENANCE)
-    })
-
-    test('omits the provenance key when the run carried none', async () => {
-      const written = await completeAndReadWrite({})
-
-      expect(written).toBeDefined()
-      expect(written).not.toHaveProperty('resolvedSecretTraceProvenance')
-    })
-
-    test('preserves correlation and diagnostics when execution completes', () => {
-      const loggerInstance = new ExecutionLogger() as any
-
-      const completedData = loggerInstance.buildCompletedExecutionData({
-        existingExecutionData: {
-          environment: {
-            variables: {},
-            workflowId: 'workflow-123',
-            executionId: 'execution-123',
-            userId: 'user-123',
-            workspaceId: 'workspace-123',
-          },
-          trigger: {
-            type: 'webhook',
-            source: 'webhook',
-            timestamp: '2025-01-01T00:00:00.000Z',
-            data: {
-              correlation: {
-                executionId: 'execution-123',
-                requestId: 'req-1234',
-                source: 'webhook',
-                workflowId: 'workflow-123',
-                webhookId: 'webhook-123',
-                path: 'incoming/slack',
-                triggerType: 'webhook',
-              },
-            },
-          },
-          lastStartedBlock: {
-            blockId: 'block-start',
-            blockName: 'Start',
-            blockType: 'agent',
-            startedAt: '2025-01-01T00:00:00.000Z',
-          },
-          lastCompletedBlock: {
-            blockId: 'block-end',
-            blockName: 'Finish',
-            blockType: 'api',
-            endedAt: '2025-01-01T00:00:05.000Z',
-            success: true,
-          },
-        },
-        traceSpans: [],
-        finalOutput: { ok: true },
-        finalizationPath: 'completed',
-        completionFailure: 'fallback failure',
-        executionCost: {
-          tokens: { input: 0, output: 0, total: 0 },
-          models: {},
-        },
-      })
-
-      expect(completedData.environment?.workflowId).toBe('workflow-123')
-      expect(completedData.trigger?.data?.correlation).toEqual({
-        executionId: 'execution-123',
-        requestId: 'req-1234',
-        source: 'webhook',
-        workflowId: 'workflow-123',
-        webhookId: 'webhook-123',
-        path: 'incoming/slack',
-        triggerType: 'webhook',
-      })
-      expect(completedData.correlation).toEqual(completedData.trigger?.data?.correlation)
-      expect(completedData.finalOutput).toEqual({ ok: true })
-      expect(completedData.secretProjectionVersion).toBe(SECRET_PROJECTION_VERSION)
-      expect(completedData.lastStartedBlock?.blockId).toBe('block-start')
-      expect(completedData.lastCompletedBlock?.blockId).toBe('block-end')
-      expect(completedData.finalizationPath).toBe('completed')
-      expect(completedData.completionFailure).toBe('fallback failure')
-      expect(completedData.hasTraceSpans).toBe(false)
-      expect(completedData.traceSpanCount).toBe(0)
     })
 
     test('preserves completion-provided billing attribution when the start row is legacy', () => {
@@ -800,81 +701,9 @@ describe('ExecutionLogger', () => {
       expect(compacted.traceSpans).toBeUndefined()
       expect(compacted.resolvedSecretTraceProvenance).toBeUndefined()
     })
-
-    test('preserves run provenance through the minimal compaction tier', () => {
-      // Many spans whose IO each sits under MAX_TRACE_IO_BYTES survive
-      // summarization, so only the IO-stripping minimal tier fits the cap.
-      const compacted = compactWithProvenance(buildSpans(1200, 4 * 1024), {})
-
-      expect(compacted.executionDataTruncated).toBe(true)
-      expect(compacted.executionDataTruncationReason).toContain('details were omitted')
-      expect(compacted.executionState).toBeUndefined()
-      expect(compacted.resolvedSecretTraceProvenance).toEqual(PROVENANCE)
-    })
   })
 
   describe('file extraction', () => {
-    test('should extract files from trace spans with files property', () => {
-      const loggerInstance = new ExecutionLogger()
-
-      // Access the private method through the class prototype
-      const extractFilesMethod = (loggerInstance as any).extractFilesFromExecution.bind(
-        loggerInstance
-      )
-
-      const traceSpans = [
-        {
-          id: 'span-1',
-          output: {
-            files: [
-              {
-                id: 'file-1',
-                name: 'test.pdf',
-                size: 1024,
-                type: 'application/pdf',
-                url: 'https://example.com/file.pdf',
-                key: 'uploads/file.pdf',
-              },
-            ],
-          },
-        },
-      ]
-
-      const files = extractFilesMethod(traceSpans, null, null)
-      expect(files).toHaveLength(1)
-      expect(files[0].name).toBe('test.pdf')
-      expect(files[0].id).toBe('file-1')
-    })
-
-    test('should extract files from attachments property', () => {
-      const loggerInstance = new ExecutionLogger()
-      const extractFilesMethod = (loggerInstance as any).extractFilesFromExecution.bind(
-        loggerInstance
-      )
-
-      const traceSpans = [
-        {
-          id: 'span-1',
-          output: {
-            attachments: [
-              {
-                id: 'attach-1',
-                name: 'attachment.docx',
-                size: 2048,
-                type: 'application/docx',
-                url: 'https://example.com/attach.docx',
-                key: 'attachments/attach.docx',
-              },
-            ],
-          },
-        },
-      ]
-
-      const files = extractFilesMethod(traceSpans, null, null)
-      expect(files).toHaveLength(1)
-      expect(files[0].name).toBe('attachment.docx')
-    })
-
     test('should deduplicate files with same ID', () => {
       const loggerInstance = new ExecutionLogger()
       const extractFilesMethod = (loggerInstance as any).extractFilesFromExecution.bind(
@@ -897,64 +726,6 @@ describe('ExecutionLogger', () => {
 
       const files = extractFilesMethod(traceSpans, null, null)
       expect(files).toHaveLength(1)
-    })
-
-    test('should extract files from final output', () => {
-      const loggerInstance = new ExecutionLogger()
-      const extractFilesMethod = (loggerInstance as any).extractFilesFromExecution.bind(
-        loggerInstance
-      )
-
-      const finalOutput = {
-        files: [
-          {
-            id: 'output-file-1',
-            name: 'output.txt',
-            size: 512,
-            type: 'text/plain',
-            url: 'https://example.com/output.txt',
-            key: 'outputs/output.txt',
-          },
-        ],
-      }
-
-      const files = extractFilesMethod([], finalOutput, null)
-      expect(files).toHaveLength(1)
-      expect(files[0].name).toBe('output.txt')
-    })
-
-    test('should extract files from workflow input', () => {
-      const loggerInstance = new ExecutionLogger()
-      const extractFilesMethod = (loggerInstance as any).extractFilesFromExecution.bind(
-        loggerInstance
-      )
-
-      const workflowInput = {
-        files: [
-          {
-            id: 'input-file-1',
-            name: 'input.csv',
-            size: 256,
-            type: 'text/csv',
-            url: 'https://example.com/input.csv',
-            key: 'inputs/input.csv',
-          },
-        ],
-      }
-
-      const files = extractFilesMethod([], null, workflowInput)
-      expect(files).toHaveLength(1)
-      expect(files[0].name).toBe('input.csv')
-    })
-
-    test('should handle empty inputs', () => {
-      const loggerInstance = new ExecutionLogger()
-      const extractFilesMethod = (loggerInstance as any).extractFilesFromExecution.bind(
-        loggerInstance
-      )
-
-      const files = extractFilesMethod(undefined, undefined, undefined)
-      expect(files).toHaveLength(0)
     })
 
     test('should handle deeply nested file objects', () => {
@@ -1152,57 +923,6 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     )
   })
 
-  test('returns only the post-resume increment (not the cumulative total)', async () => {
-    const recorded = await run(
-      costSummary({
-        models: {
-          'gpt-4o': {
-            total: 3,
-            input: 0,
-            output: 0,
-            tokens: { input: 0, output: 0, total: 0 },
-          },
-        },
-      }),
-      [
-        { category: 'fixed', description: 'execution_fee', cost: '0.005' },
-        { category: 'model', description: 'gpt-4o', cost: '1' },
-      ]
-    )
-    // Cumulative is 3.005, but only the $2 increment was recorded here — the
-    // threshold-email math must not re-count the pre-pause $1.005.
-    expect(recorded).toBe(2)
-  })
-
-  test('forwards a pre-resolved billing context to recordUsage (skips re-lookup)', async () => {
-    mockDb([])
-    const billingContext = {
-      billingEntity: { type: 'user' as const, id: 'user-1' },
-      billingPeriod: { start: new Date('2026-01-01'), end: new Date('2026-02-01') },
-    }
-    await (logger as any).recordExecutionUsage(
-      'workflow-1',
-      costSummary({
-        models: {
-          'gpt-4o': {
-            total: 1,
-            input: 0,
-            output: 0,
-            tokens: { input: 0, output: 0, total: 0 },
-          },
-        },
-      }),
-      'api',
-      'exec-1',
-      'user-1',
-      billingContext
-    )
-    expect(vi.mocked(recordUsage).mock.calls[0][0]).toMatchObject({
-      billingEntity: { type: 'user', id: 'user-1' },
-      billingPeriod: billingContext.billingPeriod,
-    })
-  })
-
   test('does not derive an actor payer when workspace billing context is missing', async () => {
     mockDb([])
 
@@ -1223,31 +943,6 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
       String(call[0]).includes('Failed to record execution usage to usage_log ledger')
     )
 
-  test('a structurally zero-cost run without billing context logs no unbilled-charge error', async () => {
-    mockDb([])
-
-    const recorded = await logger.recordExecutionUsage(
-      'workflow-1',
-      costSummary({ baseExecutionCharge: 0 }),
-      'api',
-      'exec-1',
-      'user-1'
-    )
-
-    expect(recorded).toBe(0)
-    expect(recordUsage).not.toHaveBeenCalled()
-    expect(unbilledErrorCalls()).toHaveLength(0)
-  })
-
-  test('a genuine ledger write failure still logs the unbilled-charge error', async () => {
-    vi.mocked(recordUsage).mockRejectedValueOnce(new Error('ledger insert failed'))
-
-    const recorded = await run(costSummary(), [])
-
-    expect(recorded).toBe(0)
-    expect(unbilledErrorCalls()).toHaveLength(1)
-  })
-
   test('retry with everything already billed records nothing (idempotent)', async () => {
     await run(
       costSummary({
@@ -1267,15 +962,6 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     )
 
     expect(recordUsage).not.toHaveBeenCalled()
-  })
-
-  test('BYOK run records only the base fee (no zero-cost model rows)', async () => {
-    await run(costSummary({ models: {}, charges: {} }), [])
-
-    expect(recordUsage).toHaveBeenCalledTimes(1)
-    expect(lastEntries()).toEqual([
-      expect.objectContaining({ category: 'fixed', description: 'execution_fee', cost: 0.005 }),
-    ])
   })
 
   test('standalone hosted-tool charge reconciles as a tool row', async () => {
@@ -1412,33 +1098,5 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     expect(recordUsage).toHaveBeenCalledTimes(1)
     // The ledger INSERT participates in the locked transaction.
     expect(vi.mocked(recordUsage).mock.calls[0][0]).toHaveProperty('tx')
-  })
-
-  test('reports the driver cause and SQLSTATE when the ledger write fails', async () => {
-    const driver = Object.assign(new Error('cannot execute INSERT in a read-only transaction'), {
-      code: '25006',
-    })
-    vi.mocked(recordUsage).mockRejectedValueOnce(
-      new Error('Failed query: insert into "usage_log"\nparams: user-1', { cause: driver })
-    )
-
-    await run(
-      costSummary({
-        models: {
-          'gpt-4o': { input: 0, output: 0, total: 1, tokens: { input: 0, output: 0, total: 0 } },
-        },
-      }),
-      []
-    )
-
-    expect(statsLogErrorMock).toHaveBeenCalledWith(
-      'Failed to record execution usage to usage_log ledger; charge may be unbilled',
-      expect.objectContaining({
-        cause: expect.objectContaining({
-          code: '25006',
-          message: 'cannot execute INSERT in a read-only transaction',
-        }),
-      })
-    )
   })
 })

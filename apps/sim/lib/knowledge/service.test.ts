@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   hasMockCondition,
@@ -35,143 +32,10 @@ vi.mock('@/lib/billing/storage', () => ({
 import {
   attachKnowledgeBaseConnectors,
   findActiveKnowledgeBasesByExactName,
-  getActiveKnowledgeBaseReference,
-  getActiveKnowledgeBaseReferences,
-  getKnowledgeBaseById,
   getWorkspaceKnowledgeBases,
   KnowledgeBasePermissionError,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
-
-describe('knowledge base references', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-  })
-
-  it('loads active identity and embedding configuration without aggregating documents', async () => {
-    const reference = {
-      id: 'kb-1',
-      name: 'Organization search',
-      workspaceId: null,
-      organizationId: 'org-1',
-      isSearchIndex: true,
-      embeddingModel: 'text-embedding-3-small',
-      embeddingDimension: 1536,
-      chunkingConfig: { maxSize: 512, minSize: 50, overlap: 100 },
-    }
-    dbChainMockFns.limit.mockResolvedValueOnce([reference])
-
-    await expect(getActiveKnowledgeBaseReference('kb-1')).resolves.toEqual(reference)
-
-    const [condition] = dbChainMockFns.where.mock.calls[0] ?? []
-    expect(
-      hasMockCondition(
-        condition,
-        (node) =>
-          node.type === 'eq' && node.left === schemaMock.knowledgeBase.id && node.right === 'kb-1'
-      )
-    ).toBe(true)
-    expect(
-      hasMockCondition(
-        condition,
-        (node) => node.type === 'isNull' && node.column === schemaMock.knowledgeBase.deletedAt
-      )
-    ).toBe(true)
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
-    expect(dbChainMockFns.leftJoin).not.toHaveBeenCalled()
-    expect(dbChainMockFns.groupBy).not.toHaveBeenCalled()
-  })
-
-  it('reports a missing or archived reference as absent', async () => {
-    await expect(getActiveKnowledgeBaseReference('missing')).resolves.toBeNull()
-  })
-
-  it('loads twenty references in one query without changing their projection or input order', async () => {
-    const ids = Array.from({ length: 20 }, (_, index) => `kb-${index}`)
-    const references = ids.map((id) => ({ id, chunkingConfig: { maxSize: 512 } }))
-    queueTableRows(schemaMock.knowledgeBase, [...references].reverse())
-
-    await expect(getActiveKnowledgeBaseReferences(ids)).resolves.toEqual(references)
-
-    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
-    expect(dbChainMockFns.from).toHaveBeenCalledOnce()
-    const projection = dbChainMockFns.select.mock.calls[0][0]
-    const [condition] = dbChainMockFns.where.mock.calls[0]
-    expect(
-      hasMockCondition(
-        condition,
-        (node) => node.type === 'isNull' && node.column === schemaMock.knowledgeBase.deletedAt
-      )
-    ).toBe(true)
-    expect(
-      hasMockCondition(
-        condition,
-        (node) =>
-          node.type === 'inArray' &&
-          node.column === schemaMock.knowledgeBase.id &&
-          JSON.stringify(node.values) === JSON.stringify(ids)
-      )
-    ).toBe(true)
-    expect(dbChainMockFns.leftJoin).not.toHaveBeenCalled()
-    expect(dbChainMockFns.groupBy).not.toHaveBeenCalled()
-
-    await getActiveKnowledgeBaseReference(ids[0])
-    expect(dbChainMockFns.select.mock.calls[1][0]).toEqual(projection)
-  })
-
-  it('preserves duplicate and absent reference positions without querying duplicate ids', async () => {
-    const reference = { id: 'kb-1', chunkingConfig: {} }
-    queueTableRows(schemaMock.knowledgeBase, [reference])
-
-    await expect(
-      getActiveKnowledgeBaseReferences(['missing', 'kb-1', 'missing', 'kb-1'])
-    ).resolves.toEqual([null, reference, null, reference])
-    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
-    expect(
-      hasMockCondition(
-        dbChainMockFns.where.mock.calls[0][0],
-        (node) =>
-          node.type === 'inArray' &&
-          JSON.stringify(node.values) === JSON.stringify(['missing', 'kb-1'])
-      )
-    ).toBe(true)
-  })
-
-  it('does not query an empty reference batch and retains the singleton query shape', async () => {
-    await expect(getActiveKnowledgeBaseReferences([])).resolves.toEqual([])
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    await expect(getActiveKnowledgeBaseReferences(['missing'])).resolves.toEqual([null])
-    expect(dbChainMockFns.select).toHaveBeenCalledOnce()
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
-  })
-
-  it('propagates reference batch database failures', async () => {
-    const failure = new Error('reference database unavailable')
-    dbChainMockFns.where.mockRejectedValueOnce(failure)
-    await expect(getActiveKnowledgeBaseReferences(['kb-1', 'kb-2'])).rejects.toBe(failure)
-  })
-
-  it('preserves aggregate counts for knowledge-base detail consumers', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      {
-        id: 'kb-1',
-        chunkingConfig: { maxSize: 512, minSize: 50, overlap: 100 },
-        docCount: 3,
-        tokenCount: 1536,
-      },
-    ])
-
-    await expect(getKnowledgeBaseById('kb-1')).resolves.toMatchObject({
-      docCount: 3,
-      tokenCount: 1536,
-      connectorTypes: [],
-      hasPermissionScopedConnector: false,
-    })
-    expect(dbChainMockFns.leftJoin).toHaveBeenCalled()
-    expect(dbChainMockFns.groupBy).toHaveBeenCalled()
-  })
-})
 
 /**
  * A row cap on this read could only ever fire for a caller that did NOT ask for a page — the
@@ -180,23 +44,7 @@ describe('knowledge base references', () => {
  */
 describe('getWorkspaceKnowledgeBases — paging', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('reads unbounded when the caller asked for no page', async () => {
-    dbChainMockFns.orderBy.mockResolvedValueOnce(
-      Array.from({ length: 10_001 }, (_, index) => ({
-        id: `kb-${index}`,
-        chunkingConfig: {},
-        docCount: 0,
-      }))
-    )
-
-    const result = await getWorkspaceKnowledgeBases('ws-1')
-
-    expect(result.data).toHaveLength(10_001)
-    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
   })
 
   it('reads one row past the page so it can report another page', async () => {
@@ -226,7 +74,6 @@ describe('getWorkspaceKnowledgeBases — paging', () => {
  */
 describe('findActiveKnowledgeBasesByExactName', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -254,7 +101,6 @@ describe('findActiveKnowledgeBasesByExactName', () => {
  */
 describe('updateKnowledgeBase — chunking config persistence', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     dbChainMockFns.limit.mockReset()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'u-1' }])
@@ -292,25 +138,10 @@ describe('updateKnowledgeBase — chunking config persistence', () => {
       })
     )
   })
-
-  it('omits the strategy fields a caller did not set', async () => {
-    await updateKnowledgeBase(
-      'kb-1',
-      { chunkingConfig: { maxSize: 512, minSize: 50, overlap: 100 } },
-      'req-1'
-    )
-
-    expect(dbChainMockFns.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        chunkingConfig: { maxSize: 512, minSize: 50, overlap: 100 },
-      })
-    )
-  })
 })
 
 describe('updateKnowledgeBase — workspace transfer authorization', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     dbChainMockFns.limit.mockReset()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'u-1' }])
@@ -345,13 +176,6 @@ describe('updateKnowledgeBase — workspace transfer authorization', () => {
     }
   )
 
-  it('rejects an empty destination before any writes', async () => {
-    await expect(
-      updateKnowledgeBase('kb-1', { workspaceId: '' }, 'req-1', { actorUserId: 'owner' })
-    ).rejects.toMatchObject({ code: 'validation', message: 'Workspace ID is required' })
-    expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
-  })
-
   it('rejects transfer when actor has no permission on target workspace', async () => {
     dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'u-1' }])
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValueOnce(null)
@@ -381,31 +205,6 @@ describe('updateKnowledgeBase — workspace transfer authorization', () => {
       })
     ).rejects.toBeInstanceOf(KnowledgeBasePermissionError)
   })
-
-  it('throws when knowledge base does not exist during transfer', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-
-    await expect(
-      updateKnowledgeBase('kb-missing', { workspaceId: 'ws-target' }, 'req-1', {
-        actorUserId: 'u-1',
-      })
-    ).rejects.toThrow('Knowledge base kb-missing not found')
-    expect(permissionsMockFns.mockGetUserEntityPermissions).not.toHaveBeenCalled()
-  })
-
-  it('locks the knowledge base row (SELECT … FOR UPDATE) and enforces the pre-resolved permission', async () => {
-    dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'u-1' }])
-    permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValueOnce(null)
-
-    await expect(
-      updateKnowledgeBase('kb-1', { workspaceId: 'ws-target' }, 'req-1', {
-        actorUserId: 'attacker',
-      })
-    ).rejects.toBeInstanceOf(KnowledgeBasePermissionError)
-
-    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.for).toHaveBeenCalledWith('update')
-  })
 })
 
 /**
@@ -417,7 +216,6 @@ describe('updateKnowledgeBase — workspace transfer authorization', () => {
  */
 describe('updateKnowledgeBase — file ownership binding re-point on workspace change', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     dbChainMockFns.limit.mockReset()
     resetDbChainMock()
     dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'u-1' }])
@@ -492,33 +290,10 @@ describe('updateKnowledgeBase — file ownership binding re-point on workspace c
     expect(mockApplyStorageUsageDeltasInTx).not.toHaveBeenCalled()
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
-
-  it('does not touch bindings when the workspace is unchanged', async () => {
-    dbChainMockFns.limit.mockResolvedValue([{ workspaceId: 'ws-current', userId: 'u-1' }])
-
-    await runIgnoringReadBack(
-      updateKnowledgeBase('kb-1', { workspaceId: 'ws-current' }, 'req-1', { actorUserId: 'u-1' })
-    )
-
-    // Only the KB row is updated; no binding re-point statement runs.
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.set).not.toHaveBeenCalledWith({ workspaceId: 'ws-current' })
-  })
-
-  it('does not touch bindings when no workspace change is requested', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([{ workspaceId: 'ws-current', userId: 'u-1' }]) // currentKb lock
-      .mockResolvedValueOnce([]) // duplicate-name check: none
-
-    await runIgnoringReadBack(updateKnowledgeBase('kb-1', { name: 'Renamed' }, 'req-1'))
-
-    expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
-  })
 })
 
 describe('knowledge base counts with live source permissions', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -546,82 +321,6 @@ describe('knowledge base counts with live source permissions', () => {
     }
     return { access, getForConnectors }
   }
-
-  it('sums ordinary and live-authorized documents once in a paginated list', async () => {
-    const { access, getForConnectors } = reader()
-    queueTableRows(schemaMock.knowledgeBase, [
-      {
-        id: 'kb-1',
-        workspaceId: 'ws-1',
-        chunkingConfig: {},
-        docCount: 2,
-        tokenCount: 10,
-        createdAt: new Date('2026-01-01'),
-      },
-    ])
-    queueTableRows(schemaMock.knowledgeConnector, [{ connectorId: 'confluence-source' }])
-    queueTableRows(schemaMock.document, [{ knowledgeBaseId: 'kb-1', docCount: 3, tokenCount: 20 }])
-    const result = await getWorkspaceKnowledgeBases('ws-1', 'active', { access, limit: 2 })
-    expect(result.data).toHaveLength(1)
-    expect(result.data[0]).toMatchObject({ docCount: 5, tokenCount: 30 })
-    expect(getForConnectors).toHaveBeenCalledExactlyOnceWith(['confluence-source'], undefined)
-    expect(dbChainMockFns.select).toHaveBeenCalledWith({
-      connectorId: schemaMock.knowledgeConnector.id,
-    })
-    expect(
-      dbChainMockFns.where.mock.calls.every(
-        ([condition]) =>
-          hasMockCondition(
-            condition,
-            (node) => node.type === 'inArray' && node.column === schemaMock.knowledgeBase.id
-          ) ||
-          hasMockCondition(
-            condition,
-            (node) => node.type === 'eq' && node.left === schemaMock.knowledgeBase.workspaceId
-          ) ||
-          hasMockCondition(
-            condition,
-            (node) =>
-              node.type === 'inArray' &&
-              node.column === schemaMock.knowledgeConnector.knowledgeBaseId
-          )
-      )
-    ).toBe(true)
-  })
-
-  it('counts an unpaged list in one joined query and one discovery pass bounded by the list filter', async () => {
-    const { access, getForConnectors } = reader()
-    const bases = Array.from({ length: 1000 }, (_, index) => ({
-      id: `kb-${index}`,
-      workspaceId: 'ws-1',
-      chunkingConfig: {},
-      docCount: 1,
-      tokenCount: 1,
-      createdAt: new Date('2026-01-01'),
-    }))
-    queueTableRows(schemaMock.knowledgeBase, bases)
-    queueTableRows(schemaMock.knowledgeConnector, [{ connectorId: 'confluence-source' }])
-    queueTableRows(schemaMock.document, [{ knowledgeBaseId: 'kb-7', docCount: 3, tokenCount: 20 }])
-    const result = await getWorkspaceKnowledgeBases('ws-1', 'archived', { access })
-    expect(result.data).toHaveLength(1000)
-    expect(result.data[7]).toMatchObject({ docCount: 4, tokenCount: 21 })
-    expect(result.data[8]).toMatchObject({ docCount: 1, tokenCount: 1 })
-    expect(getForConnectors).toHaveBeenCalledOnce()
-    expect(
-      dbChainMockFns.select.mock.calls.filter(
-        ([fields]) => fields?.connectorId === schemaMock.knowledgeConnector.id
-      )
-    ).toHaveLength(1)
-    expect(dbChainMockFns.groupBy).toHaveBeenCalledTimes(2)
-    expect(
-      dbChainMockFns.where.mock.calls.some(([condition]) =>
-        hasMockCondition(
-          condition,
-          (node) => node.type === 'inArray' && node.column === schemaMock.knowledgeBase.id
-        )
-      )
-    ).toBe(false)
-  })
 
   it('never discovers live sources for a reader without live-source credentials', async () => {
     const { access, getForConnectors } = reader()

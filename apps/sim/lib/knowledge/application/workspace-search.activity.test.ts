@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { member } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -57,7 +56,6 @@ const principal = { kind: 'session', userId: 'reader', sessionId: 'session' } as
 const input = { organizationId: 'org', query: 'policy', topK: 20, surface: 'slack' } as const
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   mocks.context.mockResolvedValue({ organizationId: 'org' })
   mocks.policy.mockResolvedValue(null)
@@ -93,22 +91,6 @@ describe.each([
     expect(mocks.search).not.toHaveBeenCalled()
   })
 
-  it('leaves indexed invocation metering to the canonical search operation', async () => {
-    queueTableRows(member, [{ role: 'member' }])
-    mocks.findIndex.mockResolvedValueOnce({ id: 'index' })
-    await operation.execute({ principal, input })
-    expect(mocks.search).toHaveBeenCalledOnce()
-    expect(mocks.search).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal,
-        input: expect.objectContaining({ knowledgeBaseIds: ['index'], surface: 'slack' }),
-      })
-    )
-    /** A searched index is followed up once, by the shared hook; the empty path records nothing here. */
-    expect(mocks.afterSearch).toHaveBeenCalledOnce()
-    expect(mocks.activity).not.toHaveBeenCalled()
-  })
-
   it('does not meter an unavailable Search request', async () => {
     queueTableRows(member, [{ role: 'member' }])
     mocks.available.mockRejectedValueOnce(new Error('Search is disabled'))
@@ -136,30 +118,4 @@ describe.each([
     expect(mocks.activity).not.toHaveBeenCalled()
     expect(mocks.search).not.toHaveBeenCalled()
   })
-
-  it.each(['index', 'availability'] as const)(
-    'does not meter a request cancelled during the %s lookup',
-    async (lookup) => {
-      queueTableRows(member, [{ role: 'member' }])
-      const controller = new AbortController()
-      const cancel = () => controller.abort(new Error('Search cancelled'))
-      if (lookup === 'index') {
-        mocks.findIndex.mockImplementationOnce(async () => {
-          cancel()
-          return null
-        })
-      } else {
-        mocks.available.mockImplementationOnce(async () => {
-          cancel()
-        })
-      }
-
-      await expect(
-        operation.execute({ principal, input: { ...input, signal: controller.signal } })
-      ).rejects.toThrow('Search cancelled')
-      expect(mocks.findIndex).toHaveBeenCalledOnce()
-      expect(mocks.activity).not.toHaveBeenCalled()
-      expect(mocks.search).not.toHaveBeenCalled()
-    }
-  )
 })

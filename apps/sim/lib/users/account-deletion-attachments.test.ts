@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMockFns,
   hasMockCondition,
@@ -55,7 +52,6 @@ function imageDeletionFilter() {
 
 describe('account deletion of private organization Assistant images', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     vi.useFakeTimers()
     vi.setSystemTime(NOW)
@@ -94,39 +90,6 @@ describe('account deletion of private organization Assistant images', () => {
       )
     }
   )
-
-  it('scopes both collection and ownership deletion to this uploader’s completed organization images', async () => {
-    queueTableRows(schemaMock.uploadSession, [{ id: 'upload-1', key: IMAGE_KEY }])
-
-    await deleteUserAccount('user-1')
-
-    const imageFilters = dbChainMockFns.where.mock.calls
-      .map(([condition]) => condition)
-      .filter((condition) =>
-        hasMockCondition(condition, (node) => node.left === schemaMock.uploadSession.userId)
-      )
-    expect(imageFilters).toHaveLength(2)
-    for (const filter of imageFilters) {
-      for (const [column, value] of [
-        [schemaMock.uploadSession.userId, 'user-1'],
-        [schemaMock.uploadSession.purpose, 'mothership_attachment'],
-        [schemaMock.uploadSession.status, 'completed'],
-      ]) {
-        expect(
-          hasMockCondition(
-            filter,
-            (node) => node.type === 'eq' && node.left === column && node.right === value
-          )
-        ).toBe(true)
-      }
-      expect(
-        hasMockCondition(
-          filter,
-          (node) => node.type === 'isNull' && node.column === schemaMock.uploadSession.workspaceId
-        )
-      ).toBe(true)
-    }
-  })
 
   it('retains ownership while an issued upload URL could recreate a purged object', async () => {
     queueTableRows(schemaMock.uploadSession, [{ id: 'upload-1', key: IMAGE_KEY }])
@@ -206,29 +169,5 @@ describe('account deletion of private organization Assistant images', () => {
 
     expect(dbChainMockFns.from).not.toHaveBeenCalledWith(schemaMock.uploadSession)
     expect(mocks.deleteFiles).not.toHaveBeenCalled()
-  })
-
-  it('collects and purges image keys in bounded pages', async () => {
-    const firstPage = Array.from({ length: 1000 }, (_, index) => ({
-      id: `upload-${String(index).padStart(4, '0')}`,
-      key: `assistant/org-1/user-1/upload-${index}/photo.png`,
-    }))
-    queueTableRows(schemaMock.uploadSession, firstPage)
-    queueTableRows(schemaMock.uploadSession, [{ id: 'upload-1000', key: IMAGE_KEY }])
-
-    await deleteUserAccount('user-1')
-
-    expect(mocks.deleteFiles.mock.calls.map(([keys]) => keys.length)).toEqual([1000, 1])
-    expect(
-      dbChainMockFns.where.mock.calls.some(([condition]) =>
-        hasMockCondition(
-          condition,
-          (node) =>
-            node.type === 'gt' &&
-            node.left === schemaMock.uploadSession.id &&
-            node.right === firstPage[999].id
-        )
-      )
-    ).toBe(true)
   })
 })

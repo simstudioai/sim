@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { resetEnvMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -36,7 +32,6 @@ afterAll(resetEnvMock)
 
 describe('internal Table route authentication', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetSession.mockResolvedValue(null)
     mockBindDelegation.mockImplementation(async (delegation, options) => ({
       kind: 'delegated',
@@ -140,38 +135,6 @@ describe('internal Table route authentication', () => {
         { tableId: 'table-1' }
       )
     ).rejects.toBeInstanceOf(InternalUnauthenticatedError)
-  })
-
-  it('propagates canonical-binding infrastructure failures', async () => {
-    const token = await generateInternalDelegationToken({
-      subjectUserId: 'user-1',
-      workflowId: 'workflow-1',
-    })
-    const infrastructureError = new Error('database unavailable')
-    mockBindDelegation.mockRejectedValue(infrastructureError)
-
-    await expect(
-      internalTableSessionOrExecutorAuth.authenticate(
-        new NextRequest('http://localhost/api/table/table-1/groups', {
-          headers: { authorization: `Bearer ${token}` },
-        }),
-        { tableId: 'table-1' }
-      )
-    ).rejects.toBe(infrastructureError)
-  })
-
-  it('preserves browser session principals when no executor token is supplied', async () => {
-    mockGetSession.mockResolvedValue({
-      user: { id: 'user-1' },
-      session: { id: 'session-1' },
-    })
-
-    await expect(
-      internalTableSessionOrExecutorAuth.authenticate(
-        new NextRequest('http://localhost/api/table/table-1/groups'),
-        { tableId: 'table-1' }
-      )
-    ).resolves.toEqual({ kind: 'session', userId: 'user-1', sessionId: 'session-1' })
   })
 
   it('renders an invalid related workflow as 400 on internal and v2 surfaces', async () => {

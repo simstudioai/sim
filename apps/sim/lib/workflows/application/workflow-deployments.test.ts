@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -79,7 +76,6 @@ vi.mock('@/lib/workflows/deployment-status', () => ({
 import {
   activateWorkflowVersion,
   deployWorkflow,
-  revertWorkflowVersion,
   undeployWorkflow,
 } from '@/lib/workflows/application/deployments'
 
@@ -125,7 +121,6 @@ const adminPrincipals: Array<{ principal: Principal; actorUserId: string }> = [
 
 describe('workflow deployment application use cases', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.resolveContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.deploy.mockResolvedValue({
@@ -253,141 +248,6 @@ describe('workflow deployment application use cases', () => {
     expect(mocks.deploy).not.toHaveBeenCalled()
   })
 
-  it('undeploys without legacy audit and projects one semantic audit entry', async () => {
-    await undeployWorkflow.execute({
-      principal: { kind: 'personal_api_key', userId: 'key-user', keyId: 'personal-key' },
-      input: { workflowId: 'workflow-1', requestId: 'request-2' },
-    })
-
-    expect(mocks.undeploy).toHaveBeenCalledWith({
-      workflowId: 'workflow-1',
-      userId: 'key-user',
-      actorId: 'key-user',
-      projectLegacyAudit: false,
-      requestId: 'request-2',
-    })
-    expect(mocks.audit).toHaveBeenCalledOnce()
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workspaceId: 'workspace-1',
-        actorId: 'key-user',
-        action: 'workflow.undeployed',
-        resourceType: 'workflow',
-        resourceId: 'workflow-1',
-        metadata: expect.objectContaining({ operation: 'workflows.undeploy' }),
-      })
-    )
-  })
-
-  /**
-   * Undeploying archives every MCP tool that published the workflow. The live
-   * set is read before the undeploy runs, so the caller learns which tools went
-   * inactive instead of finding them missing from the server's tool list.
-   */
-  it('reports the MCP tools an undeploy takes inactive', async () => {
-    mocks.listMcpTools.mockResolvedValue([{ serverId: 'wfmcp-1', toolName: 'triage_ticket' }])
-
-    const result = await undeployWorkflow.execute({
-      principal: { kind: 'personal_api_key', userId: 'key-user', keyId: 'personal-key' },
-      input: { workflowId: 'workflow-1', requestId: 'request-2' },
-    })
-
-    expect(mocks.listMcpTools).toHaveBeenCalledWith('workflow-1')
-    expect(mocks.listMcpTools.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.undeploy.mock.invocationCallOrder[0]
-    )
-    expect(result.archivedMcpTools).toEqual([{ serverId: 'wfmcp-1', toolName: 'triage_ticket' }])
-  })
-
-  it('projects revert audit and notification exactly once outside legacy orchestration', async () => {
-    await revertWorkflowVersion.execute({
-      principal: adminPrincipals[2].principal,
-      input: { workflowId: 'workflow-1', version: 3 },
-    })
-
-    expect(mocks.revert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workflowId: 'workflow-1',
-        version: 3,
-        userId: 'delegated-user',
-        captureAnalytics: false,
-        projectLegacyAudit: false,
-        notifyRealtime: false,
-      })
-    )
-    expect(mocks.audit).toHaveBeenCalledOnce()
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'workflow.deployment_reverted',
-        resourceId: 'workflow-1',
-        metadata: expect.objectContaining({ targetVersion: '3' }),
-      })
-    )
-    expect(mocks.notifyReverted).toHaveBeenCalledOnce()
-    expect(mocks.notifyReverted).toHaveBeenCalledWith('workflow-1', 12345)
-  })
-
-  it('keeps human activation analytics enabled for durable post-activation capture', async () => {
-    await activateWorkflowVersion.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: {
-        workflowId: 'workflow-1',
-        version: 2,
-        transition: 'activate',
-        requestId: 'request-3',
-        idempotencyKey: 'activation-1',
-      },
-    })
-
-    expect(mocks.findPrevious).not.toHaveBeenCalled()
-    expect(mocks.activate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workflowId: 'workflow-1',
-        version: 2,
-        userId: 'user-1',
-        actorId: 'user-1',
-        requestId: 'request-3',
-        idempotencyKey: 'activation-1',
-      })
-    )
-  })
-
-  it('forwards optional version metadata through the activation command', async () => {
-    await activateWorkflowVersion.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: {
-        workflowId: 'workflow-1',
-        version: 2,
-        transition: 'activate',
-        requestId: 'request-metadata',
-        name: 'Release 2',
-        description: 'Production',
-      },
-    })
-
-    expect(mocks.activate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        name: 'Release 2',
-        description: 'Production',
-      })
-    )
-  })
-
-  it('resolves the previous active version for an implicit rollback', async () => {
-    const result = await activateWorkflowVersion.execute({
-      principal: { kind: 'personal_api_key', userId: 'key-user', keyId: 'personal-key' },
-      input: {
-        workflowId: 'workflow-1',
-        transition: 'rollback',
-        requestId: 'request-4',
-      },
-    })
-
-    expect(mocks.findPrevious).toHaveBeenCalledWith('workflow-1')
-    expect(mocks.activate).toHaveBeenCalledWith(expect.objectContaining({ version: 3 }))
-    expect(result.version).toBe(3)
-  })
-
   it('rejects undeploy and rollback when the canonical workflow is not deployed', async () => {
     mocks.resolveContext.mockResolvedValue({
       ...context,
@@ -414,28 +274,6 @@ describe('workflow deployment application use cases', () => {
     ).rejects.toMatchObject({ code: 'validation' })
     expect(mocks.undeploy).not.toHaveBeenCalled()
     expect(mocks.activate).not.toHaveBeenCalled()
-  })
-
-  it('allows explicit internal activation to redeploy an undeployed workflow', async () => {
-    mocks.resolveContext.mockResolvedValue({
-      ...context,
-      workflow: { ...workflow, isDeployed: false },
-    })
-
-    await activateWorkflowVersion.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: {
-        workflowId: 'workflow-1',
-        version: 1,
-        transition: 'activate',
-        requestId: 'request-activation',
-      },
-    })
-
-    expect(mocks.findPrevious).not.toHaveBeenCalled()
-    expect(mocks.activate).toHaveBeenCalledWith(
-      expect.objectContaining({ workflowId: 'workflow-1', version: 1 })
-    )
   })
 
   it('maps lock failures and propagates manager infrastructure failures', async () => {

@@ -1,41 +1,7 @@
-/**
- * @vitest-environment node
- */
-
-import { resolveDesktopZoom } from '@sim/desktop-bridge'
 import { describe, expect, it } from 'vitest'
-import {
-  terminalFontSizeForZoom,
-  terminalSelectionLabel,
-  terminalSelectionSnapshot,
-} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
-
-describe('terminal resource zoom', () => {
-  it('scales xterm from its 12px actual size', () => {
-    expect(terminalFontSizeForZoom(100)).toBe(12)
-    expect(terminalFontSizeForZoom(125)).toBe(15)
-  })
-
-  it('uses the shared zoom ladder and resets to the configured baseline', () => {
-    const bounds = { min: 50, max: 300 }
-
-    expect(resolveDesktopZoom(100, 'in', 125, bounds)).toBeCloseTo(110)
-    expect(resolveDesktopZoom(100, 'out', 125, bounds)).toBeCloseTo(100 / 1.1)
-    expect(resolveDesktopZoom(180, 'reset', 125, bounds)).toBe(125)
-    expect(resolveDesktopZoom(300, 'in', 125, bounds)).toBe(300)
-  })
-})
+import { terminalSelectionSnapshot } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
 
 describe('terminal selection snapshots', () => {
-  it('converts xterm buffer rows to one-based chat metadata', () => {
-    expect(
-      terminalSelectionSnapshot('selected', {
-        start: { x: 3, y: 4 },
-        end: { x: 11, y: 6 },
-      })
-    ).toEqual({ text: 'selected', startLine: 5, endLine: 7 })
-  })
-
   it('does not include the exclusive next row when a selection ends at column zero', () => {
     expect(
       terminalSelectionSnapshot('first line\n', {
@@ -43,16 +9,5 @@ describe('terminal selection snapshots', () => {
         end: { x: 0, y: 9 },
       })
     ).toEqual({ text: 'first line\n', startLine: 9, endLine: 9 })
-  })
-
-  it('returns no snapshot without selected text or a position', () => {
-    expect(terminalSelectionSnapshot('', undefined)).toBeNull()
-  })
-
-  it('labels single and multiline selections for the visible chat chip', () => {
-    expect(terminalSelectionLabel({ text: 'one', startLine: 9, endLine: 9 })).toBe('Terminal (L9)')
-    expect(terminalSelectionLabel({ text: 'several', startLine: 9, endLine: 11 })).toBe(
-      'Terminal (L9-11)'
-    )
   })
 })

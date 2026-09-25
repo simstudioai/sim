@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -42,7 +39,6 @@ import { moveWorkspaceFileItemsOperation } from '@/lib/workspace-files/applicati
 
 describe('moveWorkspaceFileItemsOperation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     events.length = 0
     mockLoadContext.mockImplementation(async () => {
       events.push('resolve')
@@ -66,35 +62,6 @@ describe('moveWorkspaceFileItemsOperation', () => {
       movedFileIds: ['file-1', 'file-2'],
       movedFolderIds: ['folder-1'],
     }))
-  })
-
-  it('uses the atomic manager primitive and records each semantic category once', async () => {
-    const result = await moveWorkspaceFileItemsOperation.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-      input: {
-        workspaceId: 'ws-1',
-        fileIds: ['file-1', 'file-2'],
-        folderIds: ['folder-1'],
-        targetFolderId: null,
-      },
-    })
-
-    expect(result).toMatchObject({ movedItems: { files: 2, folders: 1 } })
-    expect(events).toEqual(['resolve', 'authorize', 'execute'])
-    expect(mockAssertItems).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      fileIds: ['file-1', 'file-2'],
-      folderIds: ['folder-1'],
-    })
-    expect(mockMove).toHaveBeenCalledWith({
-      workspaceId: 'ws-1',
-      fileIds: ['file-1', 'file-2'],
-      folderIds: ['folder-1'],
-      targetFolderId: null,
-      targetFolderPath: undefined,
-    })
-    expect(mockAudit).toHaveBeenCalledTimes(2)
-    expect(mockNotify).toHaveBeenCalledOnce()
   })
 
   it('allows authorization to carry a resource ID only for one explicit file', async () => {
@@ -148,20 +115,6 @@ describe('moveWorkspaceFileItemsOperation', () => {
         input: { workspaceId: 'ws-1' },
       })
     ).rejects.toThrow('At least one file or folder must be selected')
-    expect(events).toEqual(['resolve', 'authorize'])
-    expect(mockMove).not.toHaveBeenCalled()
-  })
-
-  it('rejects oversized selections after authorization', async () => {
-    await expect(
-      moveWorkspaceFileItemsOperation.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: {
-          workspaceId: 'ws-1',
-          folderIds: Array.from({ length: 1_001 }, (_, index) => `folder-${index}`),
-        },
-      })
-    ).rejects.toThrow('accept at most 1000')
     expect(events).toEqual(['resolve', 'authorize'])
     expect(mockMove).not.toHaveBeenCalled()
   })

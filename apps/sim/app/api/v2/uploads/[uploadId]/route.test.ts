@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -60,7 +57,6 @@ const SESSION = {
 
 describe('PUT /api/v2/uploads/[uploadId]', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockGetOwnedUploadSession.mockReturnValue(SESSION)
     mockMetadata.mockReturnValue({ uploadId: 'upload-1', purpose: 'workspace_file' })
     mockWriteLocalPut.mockResolvedValue(undefined)

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 
@@ -33,7 +30,6 @@ const FILE = {
 
 describe('executeTikTokUploadVideoDraft', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.assertToolFileAccess.mockResolvedValue(null)
     mocks.getStoredVideoSize.mockResolvedValue(20_000_000)
     mocks.computeTikTokChunkPlan.mockReturnValue({

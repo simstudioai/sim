@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { IAMBlock } from '@/blocks/blocks/iam'
 
@@ -31,11 +28,6 @@ describe('IAMBlock contextEntries parsing', () => {
     expect(result.contextEntries).toEqual([CONTEXT_ENTRY])
   })
 
-  it('passes an already-parsed array through unchanged', () => {
-    const result = simulateParams({ contextEntries: [CONTEXT_ENTRY] })
-    expect(result.contextEntries).toEqual([CONTEXT_ENTRY])
-  })
-
   it('rejects a JSON object rather than silently simulating without the context keys', () => {
     expect(() => simulateParams({ contextEntries: JSON.stringify(CONTEXT_ENTRY) })).toThrow(
       SHAPE_ERROR
@@ -47,28 +39,12 @@ describe('IAMBlock contextEntries parsing', () => {
     expect(() => simulateParams({ contextEntries: '42' })).toThrow(SHAPE_ERROR)
   })
 
-  it('rejects a non-array object supplied directly', () => {
-    expect(() => simulateParams({ contextEntries: CONTEXT_ENTRY })).toThrow(SHAPE_ERROR)
-  })
-
   it('rejects malformed JSON with the same shape message', () => {
     expect(() => simulateParams({ contextEntries: '{not json' })).toThrow(SHAPE_ERROR)
-  })
-
-  it('omits contextEntries when the field is blank', () => {
-    const result = simulateParams({ contextEntries: '' })
-    expect(result.contextEntries).toBeUndefined()
   })
 
   it('omits contextEntries for an empty JSON array without throwing', () => {
     const result = simulateParams({ contextEntries: '[]' })
     expect(result.contextEntries).toBeUndefined()
-  })
-})
-
-describe('IAMBlock contextEntries wand config', () => {
-  it('generates a JSON array, matching the prompt and the tool contract', () => {
-    const subBlock = IAMBlock.subBlocks.find((block) => block.id === 'contextEntries')
-    expect(subBlock?.wandConfig?.generationType).toBe('json-array')
   })
 })

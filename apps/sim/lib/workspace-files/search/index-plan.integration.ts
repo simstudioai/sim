@@ -1,18 +1,15 @@
-/**
- * @vitest-environment node
- */
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { estimateTrigramKeys } from '@/lib/workspace-files/search/index-plan'
 
 describe('trigram key estimate against pg_trgm', () => {
-  const databaseUrl = process.env.KNOWLEDGE_ACL_TEST_DATABASE_URL
+  const databaseUrl = process.env.TEST_DATABASE_URL
   if (!databaseUrl) throw new Error('Trigram estimate tests require a disposable local database')
   const target = new URL(databaseUrl)
   if (
     !['postgres:', 'postgresql:'].includes(target.protocol) ||
     !['localhost', '127.0.0.1'].includes(target.hostname) ||
-    (!target.pathname.startsWith('/sim_acl_test') && target.pathname !== '/sim_auth_scim')
+    !/(^|_)test(_|$)/.test(target.pathname.slice(1))
   ) {
     throw new Error('File search tests require a disposable local integration database')
   }

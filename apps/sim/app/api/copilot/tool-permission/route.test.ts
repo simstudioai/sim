@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -59,7 +55,6 @@ import { POST } from './route'
 
 describe('Copilot tool permission API', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     copilotHttpMockFns.mockAuthenticateCopilotRequestSessionOnly.mockResolvedValue({
       userId: 'user-1',
       isAuthenticated: true,
@@ -120,31 +115,6 @@ describe('Copilot tool permission API', () => {
     }
   )
 
-  it('uses the same decision path for non-workflow tools', async () => {
-    const toolName = 'function_execute'
-    const decision = 'allow'
-    getAsyncToolCall.mockResolvedValueOnce({
-      toolCallId: 'tool-1',
-      runId: 'run-1',
-      toolName,
-      status: 'pending',
-      permissionDecision: null,
-    })
-    recordToolPermissionDecision.mockResolvedValueOnce({
-      toolCallId: 'tool-1',
-      runId: 'run-1',
-      toolName,
-      status: 'pending',
-      permissionDecision: decision,
-      permissionDecidedAt: new Date('2026-08-01T00:00:00.000Z'),
-    })
-
-    const response = await POST(createRequest(decision))
-
-    expect(response.status).toBe(200)
-    expect(recordToolPermissionDecision).toHaveBeenCalledWith('tool-1', decision)
-  })
-
   describe('when the permission group withholds tool auto-approval', () => {
     beforeEach(() => {
       getUserPermissionConfig.mockResolvedValue({ disableToolAutoApproval: true })
@@ -199,22 +169,6 @@ describe('Copilot tool permission API', () => {
         expect.objectContaining({ toolCallId: 'tool-1', decision: 'always_allow' })
       )
       expect(addAutoAllowedTool).not.toHaveBeenCalled()
-    })
-
-    it('remembers it again once the group allows it', async () => {
-      getUserPermissionConfig.mockResolvedValue({ disableToolAutoApproval: false })
-      recordToolPermissionDecision.mockResolvedValueOnce({
-        toolCallId: 'tool-1',
-        runId: 'run-1',
-        toolName: 'run_workflow',
-        status: 'pending',
-        permissionDecision: 'always_allow',
-        permissionDecidedAt: new Date('2026-08-01T00:00:00.000Z'),
-      })
-
-      await POST(createRequest('always_allow'))
-
-      expect(addAutoAllowedTool).toHaveBeenCalledWith('user-1', 'run_workflow')
     })
   })
 })

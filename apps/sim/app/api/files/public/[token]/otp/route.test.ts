@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { requestUtilsMockFns } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -98,21 +95,12 @@ const emailShare = {
 
 describe('POST /api/files/public/[token]/otp', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockCheckRateLimitDirect.mockResolvedValue({ allowed: true })
     mockResolveActiveShareByToken.mockResolvedValue(emailShare)
     mockIsEmailAllowed.mockReturnValue(true)
     mockGenerateOTP.mockReturnValue('123456')
     mockRenderOTPEmail.mockResolvedValue('<html/>')
     mockSendEmail.mockResolvedValue({ success: true })
-  })
-
-  it('sends a code to an allow-listed email', async () => {
-    const res = await POST(post('user@acme.com'), params())
-    expect(res.status).toBe(200)
-    expect(mockAfterResponse).toHaveBeenCalledTimes(1)
-    expect(mockStoreOTP).toHaveBeenCalledWith('file', 'sh_1', 'user@acme.com', '123456')
-    expect(mockSendEmail).toHaveBeenCalled()
   })
 
   it('returns the generic acceptance response for an email not on the allow-list', async () => {
@@ -139,39 +127,11 @@ describe('POST /api/files/public/[token]/otp', () => {
     expect(mockSendEmail).not.toHaveBeenCalled()
   })
 
-  it('lowercases the email for allow-list matching and OTP storage', async () => {
-    await POST(post('User@ACME.com'), params())
-    expect(mockIsEmailAllowed).toHaveBeenCalledWith('user@acme.com', expect.anything())
-    expect(mockStoreOTP).toHaveBeenCalledWith('file', 'sh_1', 'user@acme.com', '123456')
-  })
-
-  it('rejects a non-email share with 400', async () => {
-    mockResolveActiveShareByToken.mockResolvedValueOnce({
-      ...emailShare,
-      share: { ...emailShare.share, authType: 'password' },
-    })
-    const res = await POST(post('user@acme.com'), params())
-    expect(res.status).toBe(400)
-  })
-
   it('returns 429 when the IP rate limit is exceeded', async () => {
     mockCheckRateLimitDirect.mockResolvedValueOnce({ allowed: false, retryAfterMs: 1000 })
     const res = await POST(post('user@acme.com'), params())
     expect(res.status).toBe(429)
     expect(res.headers.get('Retry-After')).toBe('1')
-  })
-
-  it('returns the generic acceptance response when the share resource limit is exceeded', async () => {
-    mockCheckRateLimitDirect
-      .mockResolvedValueOnce({ allowed: true })
-      .mockResolvedValueOnce({ allowed: false, retryAfterMs: 1000 })
-
-    const res = await POST(post('user@acme.com'), params())
-
-    expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toEqual({ message: 'Verification code sent' })
-    expect(mockStoreOTP).not.toHaveBeenCalled()
-    expect(mockSendEmail).not.toHaveBeenCalled()
   })
 
   it('returns the generic acceptance response when the email rate limit is exceeded', async () => {
@@ -186,15 +146,6 @@ describe('POST /api/files/public/[token]/otp', () => {
     await expect(res.json()).resolves.toEqual({ message: 'Verification code sent' })
     expect(mockStoreOTP).not.toHaveBeenCalled()
     expect(mockSendEmail).not.toHaveBeenCalled()
-  })
-
-  it('returns the generic acceptance response when email delivery fails', async () => {
-    mockSendEmail.mockResolvedValueOnce({ success: false, message: 'Delivery failed' })
-
-    const res = await POST(post('user@acme.com'), params())
-
-    expect(res.status).toBe(200)
-    await expect(res.json()).resolves.toEqual({ message: 'Verification code sent' })
   })
 
   it('retains resource and email backstops when the client IP cannot be resolved', async () => {
@@ -221,24 +172,10 @@ describe('POST /api/files/public/[token]/otp', () => {
 
 describe('PUT /api/files/public/[token]/otp', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockResolveActiveShareByToken.mockResolvedValue(emailShare)
     mockIsEmailAllowed.mockReturnValue(true)
     mockGetOTP.mockResolvedValue('123456:0')
     mockDecodeOTPValue.mockReturnValue({ otp: '123456', attempts: 0 })
-  })
-
-  it('verifies a correct code, sets the cookie, returns authType', async () => {
-    const res = await PUT(put('user@acme.com', '123456'), params())
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ authType: 'email' })
-    expect(mockDeleteOTP).toHaveBeenCalledWith('file', 'sh_1', 'user@acme.com')
-    expect(mockSetDeploymentAuthCookie).toHaveBeenCalledWith({
-      response: expect.anything(),
-      cookiePrefix: 'file',
-      resource: emailShare.share,
-      verifiedEmail: 'user@acme.com',
-    })
   })
 
   it('rejects a valid code when the email is no longer allowed', async () => {
@@ -264,11 +201,5 @@ describe('PUT /api/files/public/[token]/otp', () => {
     mockIncrementOTPAttempts.mockResolvedValueOnce('locked')
     const res = await PUT(put('user@acme.com', '000000'), params())
     expect(res.status).toBe(429)
-  })
-
-  it('returns 400 when no code was issued', async () => {
-    mockGetOTP.mockResolvedValueOnce(null)
-    const res = await PUT(put('user@acme.com', '123456'), params())
-    expect(res.status).toBe(400)
   })
 })

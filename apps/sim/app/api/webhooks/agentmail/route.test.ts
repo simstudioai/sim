@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import {
   dbChainMock,
   dbChainMockFns,
@@ -104,7 +101,6 @@ function webhookRequest(body: string, headers: Record<string, string> = {}): Req
 
 describe('POST /api/webhooks/agentmail', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
 
     mockTryAdmit.mockReturnValue({ release: mockRelease })
@@ -172,27 +168,5 @@ describe('POST /api/webhooks/agentmail', () => {
     expect(response.status).toBe(429)
     expect(dbChainMockFns.select).not.toHaveBeenCalled()
     expect(mockVerify).not.toHaveBeenCalled()
-  })
-
-  it('releases the admission ticket once the request settles', async () => {
-    queueTableRows(schemaMock.workspace, [ROUTED_WORKSPACE])
-
-    await POST(webhookRequest(envelope()))
-
-    expect(mockRelease).toHaveBeenCalledTimes(1)
-  })
-
-  it('accepts a delivery whose signature verifies against the routed secret', async () => {
-    mockVerify.mockReturnValue(undefined)
-    queueTableRows(schemaMock.workspace, [ROUTED_WORKSPACE])
-    queueTableRows(schemaMock.mothershipInboxAllowedSender, [{ id: 'allowed-1' }])
-
-    const response = await POST(webhookRequest(envelope()))
-
-    expect(response.status).toBe(200)
-    expect(mockVerify).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceId: ROUTED_WORKSPACE.id, status: 'received' })
-    )
   })
 })

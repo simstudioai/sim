@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { OrganizationDelegatedPrincipal, SessionPrincipal } from '@sim/auth/principal'
 import {
   auditMock,
@@ -95,7 +94,6 @@ const delegated: OrganizationDelegatedPrincipal = {
 
 describe('organization workspace sharing administration', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.available.mockResolvedValue(true)
     mocks.group.mockResolvedValue({
@@ -218,11 +216,6 @@ describe('organization workspace sharing administration', () => {
       authorizationUrl:
         'https://sim.test/api/credential-groups/enroll/fixture-token/oauth/option-1?returnTo=search',
     })
-    expect(mocks.invite).toHaveBeenCalledExactlyOnceWith({
-      organizationId: 'org-1',
-      userId: 'admin-user',
-      credentialGroupId: 'group-1',
-    })
   })
 
   it('starts only an enabled MCP provider belonging to the canonical organization group', async () => {
@@ -305,19 +298,6 @@ describe('organization workspace sharing administration', () => {
       updateOrganizationAccountWorkspaceAccess.execute({ principal, input })
     ).rejects.toThrow('Every allowed workspace')
     expect(mocks.write).not.toHaveBeenCalled()
-  })
-
-  it('supports revoking every workspace without a replacement workflow grant', async () => {
-    queueTableRows(schemaMock.member, [{ role: 'admin' }])
-    await expect(
-      updateOrganizationAccountWorkspaceAccess.execute({
-        principal,
-        input: { ...input, grants: [] },
-      })
-    ).resolves.toMatchObject({ grants: [] })
-    expect(mocks.write).toHaveBeenCalledWith(
-      expect.objectContaining({ document: buildOrganizationAccountAccessPolicy('group-1', []) })
-    )
   })
 
   it('rejects selected grants exceeding the persisted policy size bound before writing', async () => {

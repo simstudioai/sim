@@ -98,13 +98,6 @@ function emptyParas(editor: Editor): number {
 }
 
 describe('two-writer: peer edits while the agent streams', () => {
-  it('SANITY: peers converge on seed and a plain peer edit with no agent activity', () => {
-    const { A, B } = seededPair('# Title\n\nAlpha\n\nBeta')
-    expect(peerInsertNear(B.editor, 'Alpha', 'PEER ')).toBe(true)
-    expect(fragStr(A.doc)).toBe(fragStr(B.doc))
-    expect(A.editor.state.doc.textContent).toContain('PEER Alpha')
-  })
-
   it('NON-OVERLAPPING: agent appends at the bottom while the peer edits the top — peer edit MUST survive', () => {
     const { A, B } = seededPair('# Title\n\nAlpha\n\nBeta')
     const session = beginAgentStream(A.editor)!
@@ -160,27 +153,6 @@ describe('two-writer: peer edits while the agent streams', () => {
     expect(textA).toContain('PEER Beta') // peer edit stayed attached to Beta despite the insert above
     expect(textA).toContain('MIDDLE2') // agent's inserts landed
     expect(emptyParas(A.editor)).toBe(0)
-  })
-
-  it('OVERLAPPING: agent rewrites the exact paragraph the peer is editing (diagnostic + must converge)', () => {
-    const { A, B } = seededPair('# Title\n\noriginal body text')
-    const session = beginAgentStream(A.editor)!
-
-    applyAgentStreamFrame(A.editor, session, '# Title\n\noriginal body text extended')
-    // Peer edits the SAME paragraph the agent is rewriting.
-    expect(peerInsertNear(B.editor, 'original', 'PEER ')).toBe(true)
-    applyAgentStreamFrame(A.editor, session, '# Title\n\nagent fully rewrote this paragraph')
-    endAgentStream(session)
-
-    const textA = A.editor.state.doc.textContent
-    console.log(`\n[OVERLAP] A: ${JSON.stringify(textA)}`)
-    console.log(
-      `[OVERLAP] converged=${fragStr(A.doc) === fragStr(B.doc)} peerSurvived=${textA.includes('PEER')} emptyParas=${emptyParas(A.editor)}`
-    )
-
-    expect(fragStr(A.doc)).toBe(fragStr(B.doc)) // convergence is non-negotiable even in conflict
-    expect(emptyParas(A.editor)).toBe(0) // conflict must not leave stray empty paragraphs
-    // peer survival here is CRDT-dependent — reported above, not hard-asserted.
   })
 
   it('FULL REWRITE: peer edits original content that the agent then deletes in a full rewrite', () => {

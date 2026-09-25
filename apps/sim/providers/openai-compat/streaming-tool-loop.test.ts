@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions'
 import type { CompletionUsage } from 'openai/resources/completions'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

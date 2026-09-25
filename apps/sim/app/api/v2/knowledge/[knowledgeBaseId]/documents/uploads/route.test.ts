@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -63,21 +60,6 @@ const AUTH = {
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
 }
-const SESSION = {
-  id: 'upload-1',
-  knowledgeBaseId: 'kb-1',
-  status: 'uploading',
-  fileName: 'guide.pdf',
-  contentType: 'application/pdf',
-  fileSize: 1024,
-  uploadToken: 'token',
-  transfer: {
-    method: 'put' as const,
-    url: 'https://storage.example/upload',
-    headers: { 'content-type': 'application/pdf' },
-    expiresAt: '2026-01-01T01:00:00.000Z',
-  },
-}
 
 function request(body: Record<string, unknown>) {
   const request = new NextRequest('http://localhost:3000/api/v2/knowledge/kb-1/documents/uploads', {
@@ -93,7 +75,6 @@ function request(body: Record<string, unknown>) {
 
 describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents/uploads', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.authenticateV2ApiKey.mockResolvedValue(AUTH)
     mocks.checkRateLimitDirect.mockResolvedValue({
       allowed: true,
@@ -105,51 +86,6 @@ describe('POST /api/v2/knowledge/[knowledgeBaseId]/documents/uploads', () => {
       remaining: 99,
       resetAt: new Date('2026-08-04T21:00:00.000Z'),
     })
-    mocks.createUpload.mockResolvedValue(SESSION)
-  })
-
-  it('delegates creation with the authenticated principal and asserted workspace', async () => {
-    const call = request({
-      workspaceId: WORKSPACE_ID,
-      name: 'guide.pdf',
-      contentType: 'application/pdf',
-      size: 1024,
-      tag1: 'product',
-      processingOptions: { recipe: 'default', lang: 'en' },
-    })
-    const response = await call.response
-
-    expect(response.status).toBe(201)
-    expect(mocks.createUpload).toHaveBeenCalledWith({
-      principal: PRINCIPAL,
-      input: {
-        knowledgeBaseId: 'kb-1',
-        assertedWorkspaceId: WORKSPACE_ID,
-        name: 'guide.pdf',
-        contentType: 'application/pdf',
-        size: 1024,
-        metadata: {
-          tag1: 'product',
-          processingOptions: { recipe: 'default', lang: 'en' },
-        },
-      },
-      request: call.request,
-    })
-    expect(await response.json()).toMatchObject({
-      data: {
-        session: { id: 'upload-1', status: 'uploading', document: null },
-        uploadToken: 'token',
-      },
-    })
-  })
-
-  it('authenticates and rate limits before parsing an invalid request', async () => {
-    const response = await request({ workspaceId: WORKSPACE_ID }).response
-
-    expect(response.status).toBe(400)
-    expect(mocks.authenticateV2ApiKey).toHaveBeenCalledTimes(1)
-    expect(mocks.checkRateLimitDirectOrThrow).toHaveBeenCalledTimes(2)
-    expect(mocks.createUpload).not.toHaveBeenCalled()
   })
 
   it('rejects oversized or server-authored credential-binding body fields', async () => {

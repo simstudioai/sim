@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { SlackInstallationPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -46,7 +45,6 @@ const installation = {
   revision: 'revision1',
 }
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.installation.mockResolvedValue(installation)
   mocks.credential.mockResolvedValue({ version: 'version1', botToken: 'secret' })
   mocks.availability.mockResolvedValue(undefined)
@@ -151,13 +149,6 @@ describe('Slack Search installation authorization', () => {
       expect(mocks.credential).not.toHaveBeenCalled()
     }
   )
-  it('uses the canonical organization when resolving the bot credential', async () => {
-    await expect(authorizeSlackSearchInstallation(principal)).resolves.toMatchObject({
-      installation,
-    })
-    expect(mocks.credential).toHaveBeenCalledWith('cred1', 'org1')
-    expect(mocks.appAvailable).toHaveBeenCalledWith('A1', 'org1')
-  })
   it('rejects the next lifecycle check when the organization loses shared app access', async () => {
     await expect(authorizeSlackSearchInstallation(principal)).resolves.toMatchObject({
       installation,

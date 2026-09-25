@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { read, write, open } = vi.hoisted(() => ({ read: vi.fn(), write: vi.fn(), open: vi.fn() }))

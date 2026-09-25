@@ -10,7 +10,6 @@ export default defineConfig({
     },
   },
   test: {
-    environment: 'node',
     include: ['scripts/openapi/**/*.test.ts'],
     /**
      * The determinism check serializes all seven published documents twice —

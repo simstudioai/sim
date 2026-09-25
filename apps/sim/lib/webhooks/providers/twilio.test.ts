@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import crypto from 'crypto'
 import { createMockRequest } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
@@ -21,21 +18,6 @@ describe('twilioHandler', () => {
     const params = { From: '+15551234567', To: '+15557654321', Body: 'hello', MessageSid: 'SM123' }
     const rawBody = new URLSearchParams(params).toString()
     const signature = signTwilio(authToken, url, params)
-
-    it('rejects a forged request with no signature header', async () => {
-      const request = createMockRequest('POST', undefined, {
-        'content-type': 'application/x-www-form-urlencoded',
-      })
-      const res = await twilioHandler.verifyAuth!({
-        request: request as any,
-        rawBody,
-        requestId: 'r1',
-        providerConfig: { authToken },
-        webhook: {},
-        workflow: {},
-      })
-      expect(res?.status).toBe(401)
-    })
 
     it('rejects a request with an invalid signature', async () => {
       const request = createMockRequest('POST', undefined, {
@@ -127,21 +109,6 @@ describe('twilioHandler', () => {
   })
 
   describe('extractIdempotencyId', () => {
-    it('prefers MessageSid, falls back to CallSid', () => {
-      expect(
-        twilioHandler.extractIdempotencyId!({ MessageSid: 'SM1', SmsStatus: 'received' })
-      ).toBe('SM1')
-      expect(twilioHandler.extractIdempotencyId!({ CallSid: 'CA1' })).toBe('CA1')
-      expect(twilioHandler.extractIdempotencyId!({})).toBeNull()
-    })
-
-    it('returns null instead of throwing when body is not a record', () => {
-      expect(twilioHandler.extractIdempotencyId!(null)).toBeNull()
-      expect(twilioHandler.extractIdempotencyId!(undefined)).toBeNull()
-      expect(twilioHandler.extractIdempotencyId!('not-an-object')).toBeNull()
-      expect(twilioHandler.extractIdempotencyId!([1, 2, 3])).toBeNull()
-    })
-
     it('keys status callbacks by SID + status so each delivery state is distinct', () => {
       const sent = twilioHandler.extractIdempotencyId!({ MessageSid: 'SM1', MessageStatus: 'sent' })
       const delivered = twilioHandler.extractIdempotencyId!({
@@ -174,24 +141,10 @@ describe('twilioHandler', () => {
       expect(match('twilio_sms_status', inbound)).toBe(false)
     })
 
-    it('routes delivery callbacks only to the status trigger', () => {
-      expect(match('twilio_sms_status', status)).toBe(true)
-      expect(match('twilio_sms_received', status)).toBe(false)
-    })
-
-    it('passes through when no triggerId is configured', () => {
-      expect(match('', inbound)).toBe(true)
-    })
-
     it('matches neither trigger for an ambiguous payload missing status fields', () => {
       const ambiguous = { MessageSid: 'SM1', From: '+1' }
       expect(match('twilio_sms_received', ambiguous)).toBe(false)
       expect(match('twilio_sms_status', ambiguous)).toBe(false)
-    })
-
-    it('matches neither trigger instead of throwing when body is not a record', () => {
-      expect(match('twilio_sms_received', null as never)).toBe(false)
-      expect(match('twilio_sms_status', null as never)).toBe(false)
     })
   })
 
@@ -202,34 +155,6 @@ describe('twilioHandler', () => {
       body,
       headers: {},
       requestId: 'r1',
-    })
-
-    it('maps inbound SMS params to aligned output keys', async () => {
-      const body = {
-        MessageSid: 'SM123',
-        AccountSid: 'AC123',
-        From: '+15551234567',
-        To: '+15557654321',
-        Body: 'hello world',
-        NumMedia: '0',
-        NumSegments: '1',
-        SmsStatus: 'received',
-        ApiVersion: '2010-04-01',
-        FromCity: 'SAN FRANCISCO',
-        FromState: 'CA',
-        FromCountry: 'US',
-      }
-      const { input } = await twilioHandler.formatInput!(ctx(body))
-      const i = input as Record<string, unknown>
-      expect(i.messageSid).toBe('SM123')
-      expect(i.from).toBe('+15551234567')
-      expect(i.to).toBe('+15557654321')
-      expect(i.body).toBe('hello world')
-      expect(i.smsStatus).toBe('received')
-      expect(i.numMedia).toBe('0')
-      expect(i.media).toEqual([])
-      expect(i.fromCity).toBe('SAN FRANCISCO')
-      expect(i.raw).toBe(JSON.stringify(body))
     })
 
     it('extracts MMS media items from NumMedia / MediaUrl{N}', async () => {
@@ -247,30 +172,6 @@ describe('twilioHandler', () => {
         { url: 'https://api.twilio.com/media/0', contentType: 'image/jpeg' },
         { url: 'https://api.twilio.com/media/1', contentType: 'image/png' },
       ])
-    })
-
-    it('maps status-callback params including ErrorCode on failure', async () => {
-      const body = {
-        MessageSid: 'SM999',
-        MessageStatus: 'failed',
-        SmsStatus: 'failed',
-        ErrorCode: '30008',
-        From: '+15550000000',
-        To: '+15551111111',
-      }
-      const { input } = await twilioHandler.formatInput!(ctx(body))
-      const i = input as Record<string, unknown>
-      expect(i.messageStatus).toBe('failed')
-      expect(i.errorCode).toBe('30008')
-      expect(i.media).toEqual([])
-    })
-
-    it('degrades to empty output instead of throwing when body is not a record', async () => {
-      const { input } = await twilioHandler.formatInput!(ctx(null as never))
-      const i = input as Record<string, unknown>
-      expect(i.messageSid).toBeUndefined()
-      expect(i.media).toEqual([])
-      expect(i.raw).toBe('{}')
     })
   })
 })

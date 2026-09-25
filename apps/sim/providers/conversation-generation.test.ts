@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { isRecordLike } from '@sim/utils/object'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConversationProtocol } from '@/lib/memory/conversation-types'

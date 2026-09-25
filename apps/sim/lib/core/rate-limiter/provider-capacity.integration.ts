@@ -25,7 +25,7 @@ import {
 import { mutateProviderCapacity } from '@/lib/core/rate-limiter/provider-capacity-store'
 import { fetchGitHubWithRetry } from '@/connectors/github/request'
 
-const redisUrl = process.env.KNOWLEDGE_ACL_TEST_REDIS_URL
+const redisUrl = process.env.TEST_REDIS_URL
 if (redisUrl) {
   const target = new URL(redisUrl)
   if (

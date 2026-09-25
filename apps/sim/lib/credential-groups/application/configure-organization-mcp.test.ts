@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import * as audit from '@sim/audit'
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
@@ -84,7 +83,6 @@ const server = {
 
 describe('organization Databricks setup', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.spyOn(audit, 'recordAudit').mockImplementation(() => {})
     resetDbChainMock()
     mocks.available.mockResolvedValue(true)

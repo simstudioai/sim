@@ -35,13 +35,10 @@ import {
   getModelsWithoutMemory,
   getModelsWithPromptCaching,
   getModelsWithReasoningEffort,
-  getModelsWithTemperatureRange,
-  getModelsWithTemperatureSupport,
   getModelsWithThinking,
   getModelsWithVerbosity,
   getProviderDefaultModel as getProviderDefaultModelFromDefinitions,
   getProviderModels as getProviderModelsFromDefinitions,
-  getProvidersWithToolUsageControl,
   getReasoningEffortValuesForModel as getReasoningEffortValuesForModelFromDefinitions,
   getThinkingLevelsForModel as getThinkingLevelsForModelFromDefinitions,
   getVerbosityValuesForModel as getVerbosityValuesForModelFromDefinitions,
@@ -262,18 +259,6 @@ function filterBlacklistedModelsFromProviderMap(
   return filtered
 }
 
-export function getAllModelProviders(): Record<string, ProviderId> {
-  return Object.entries(providers).reduce(
-    (map, [providerId, config]) => {
-      config.models.forEach((model) => {
-        map[model.toLowerCase()] = providerId as ProviderId
-      })
-      return map
-    },
-    {} as Record<string, ProviderId>
-  )
-}
-
 /**
  * The provider that declares `model`, or `null` when none does.
  *
@@ -311,15 +296,6 @@ export function getProviderFromModel(model: string): ProviderId {
 export function getProvider(id: string): ProviderMetadata | undefined {
   const providerId = id.split('/')[0] as ProviderId
   return providers[providerId]
-}
-
-export function getProviderConfigFromModel(model: string): ProviderMetadata | undefined {
-  const providerId = getProviderFromModel(model)
-  return providers[providerId]
-}
-
-export function getAllModels(): string[] {
-  return Object.values(providers).flatMap((provider) => provider.models || [])
 }
 
 export function getAllProviderIds(): ProviderId[] {
@@ -1498,17 +1474,12 @@ export function trackForcedToolUsage(
   }
 }
 
-export const MODELS_TEMP_RANGE_0_2 = getModelsWithTemperatureRange(2)
-export const MODELS_TEMP_RANGE_0_15 = getModelsWithTemperatureRange(1.5)
-export const MODELS_TEMP_RANGE_0_1 = getModelsWithTemperatureRange(1)
-export const MODELS_WITH_TEMPERATURE_SUPPORT = getModelsWithTemperatureSupport()
 export const MODELS_WITH_REASONING_EFFORT = getModelsWithReasoningEffort()
 export const MODELS_WITH_VERBOSITY = getModelsWithVerbosity()
 export const MODELS_WITH_THINKING = getModelsWithThinking()
 export const MODELS_WITH_PROMPT_CACHING = getModelsWithPromptCaching()
 export const MODELS_WITH_DEEP_RESEARCH = getModelsWithDeepResearch()
 export const MODELS_WITHOUT_MEMORY = getModelsWithoutMemory()
-export const PROVIDERS_WITH_TOOL_USAGE_CONTROL = getProvidersWithToolUsageControl()
 
 export function supportsTemperature(model: string): boolean {
   return supportsTemperatureFromDefinitions(model)

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { v2WorkflowVariableSchema } from '@/lib/api/contracts/v2/workflows'
 

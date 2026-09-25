@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { execFile } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { createServer as httpsServer } from 'node:https'

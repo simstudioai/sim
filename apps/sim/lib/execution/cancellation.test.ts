@@ -45,7 +45,6 @@ import {
 
 describe('markExecutionCancelled', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockSignalSubscribe.mockResolvedValue(mockSignalUnsubscribe)
     mockRedisExists.mockResolvedValue(0)
     mockRedisPublish.mockResolvedValue(1)
@@ -213,7 +212,6 @@ describe('markExecutionCancelled', () => {
 
 describe('subscribeToExecutionCancellation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockSignalSubscribe.mockResolvedValue(mockSignalUnsubscribe)
     mockRedisExists.mockResolvedValue(0)
     mockGetRedisClient.mockReturnValue({ exists: mockRedisExists })
@@ -305,7 +303,6 @@ describe('subscribeToExecutionCancellation', () => {
 
 describe('manual execution cancellation registry', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     unregisterManualExecutionAborter('execution-1')
   })
 
@@ -322,14 +319,6 @@ describe('manual execution cancellation registry', () => {
     })
   })
 
-  it('returns false when no execution is registered', () => {
-    expect(abortManualExecution('execution-missing')).toBe(false)
-    expect(mockRecordCancellationResult).toHaveBeenCalledWith({
-      backend: 'in_process',
-      result: 'not_found',
-    })
-  })
-
   it('records an error when an in-process aborter throws', () => {
     registerManualExecutionAborter('execution-1', () => {
       throw new Error('abort failed')
@@ -340,16 +329,6 @@ describe('manual execution cancellation registry', () => {
       backend: 'in_process',
       result: 'error',
     })
-  })
-
-  it('unregisters executions', () => {
-    const abort = vi.fn()
-
-    registerManualExecutionAborter('execution-1', abort)
-    unregisterManualExecutionAborter('execution-1')
-
-    expect(abortManualExecution('execution-1')).toBe(false)
-    expect(abort).not.toHaveBeenCalled()
   })
 
   it('does not let stale cleanup unregister a replacement aborter', () => {

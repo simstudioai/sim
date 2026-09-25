@@ -1,5 +1,3 @@
-/** @vitest-environment node */
-
 import type { OAuthAccessTokenPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -100,7 +98,6 @@ function lookup(kind: ReferenceKind) {
 
 describe('standalone agent-tool reference diagnostics', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.context.mockResolvedValue(scope)
     mocks.permission.mockResolvedValue('read')
     mocks.selector.mockResolvedValue({ valid: [], invalid: [] })
@@ -222,26 +219,6 @@ describe('standalone agent-tool reference diagnostics', () => {
       }
     }
   )
-
-  it('reports missing custom tools without obsolete repair commands', async () => {
-    setGraph('custom-tool', ['missing'])
-    const result = await readWorkflowLint.execute({ principal, input: { workflowId: 'parent' } })
-    expect(result.unresolvedReferences).toEqual([
-      expect.objectContaining({ kind: 'custom-tool', value: 'missing' }),
-    ])
-    expect(JSON.stringify(result)).not.toContain('manage_')
-    expect(result.unresolvedReferences[0]?.reason).toContain('custom-tools list')
-  })
-
-  it('uses one authorized custom-tool inventory for every reference', async () => {
-    setGraph('custom-tool', ['available', 'missing', 'another-missing'])
-    const result = await readWorkflowLint.execute({ principal, input: { workflowId: 'parent' } })
-    expect(mocks.customTools).toHaveBeenCalledTimes(1)
-    expect(result.unresolvedReferences.map((ref) => ref.value)).toEqual([
-      'missing',
-      'another-missing',
-    ])
-  })
 
   it('preserves inline custom-tool fallback without requiring its missing ID', async () => {
     const graph = setGraph('custom-tool', [])

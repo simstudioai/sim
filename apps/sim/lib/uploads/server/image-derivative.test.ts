@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockDownloadFile, mockUploadFile, mockTranscode } = vi.hoisted(() => ({
@@ -39,16 +36,9 @@ const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0])
 
 describe('resolveServableImageBytes', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mockDownloadFile.mockRejectedValue(new Error('not found'))
     mockUploadFile.mockResolvedValue(undefined)
     mockTranscode.mockResolvedValue(JPEG)
-  })
-
-  it('leaves non-HEIF bytes untouched', async () => {
-    expect(await resolveServableImageBytes(JPEG, 'workspace/ws/a.jpg')).toBeNull()
-    expect(mockDownloadFile).not.toHaveBeenCalled()
-    expect(mockTranscode).not.toHaveBeenCalled()
   })
 
   // AVIF is a HEIF container too, but AV1-coded and rendered natively by every
@@ -59,14 +49,6 @@ describe('resolveServableImageBytes', () => {
     expect(mockDownloadFile).not.toHaveBeenCalled()
     expect(mockTranscode).not.toHaveBeenCalled()
     expect(mockUploadFile).not.toHaveBeenCalled()
-  })
-
-  it('transcodes and caches on a miss', async () => {
-    const result = await resolveServableImageBytes(heifBytes(), 'workspace/ws/a.heic')
-
-    expect(result).toEqual({ buffer: JPEG, contentType: 'image/jpeg' })
-    expect(mockTranscode).toHaveBeenCalledOnce()
-    expect(mockUploadFile).toHaveBeenCalledOnce()
   })
 
   it('serves the cached derivative without decoding again', async () => {

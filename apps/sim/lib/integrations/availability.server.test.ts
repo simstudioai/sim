@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/config/env', () => ({ env: {} }))

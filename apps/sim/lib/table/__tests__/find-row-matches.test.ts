@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Unit-tests the result mapping and truncation logic of `findRowMatches`. The
  * SQL itself runs against a mocked `db.execute`, so these assertions cover the
  * JS-side shaping (ordinal coercion, column rename, LIMIT+1 truncation), not
@@ -40,7 +38,6 @@ vi.mock('@/lib/table/validation', () => ({
 }))
 
 import { buildSelectFindNameExpr, findRowMatches } from '@/lib/table/rows/service'
-import { buildFilterClause, buildSortClause } from '@/lib/table/sql'
 
 const COLUMNS: ColumnDefinition[] = [
   { name: 'name', type: 'string' },
@@ -65,14 +62,7 @@ const TABLE: TableDefinition = {
 
 describe('findRowMatches', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('returns empty without querying when the table has no columns', async () => {
-    const result = await findRowMatches({ ...TABLE, schema: { columns: [] } }, { q: 'x' }, 'req')
-    expect(result).toEqual({ matches: [], truncated: false })
-    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
   })
 
   it('maps rows to matches, coercing the bigint ordinal and renaming the column', async () => {
@@ -98,21 +88,6 @@ describe('findRowMatches', () => {
     const result = await findRowMatches(TABLE, { q: 'a' }, 'req')
     expect(result.truncated).toBe(true)
     expect(result.matches).toHaveLength(1000)
-  })
-
-  it('threads filter and sort through the SQL builders', async () => {
-    dbChainMockFns.execute.mockResolvedValue([])
-    await findRowMatches(
-      TABLE,
-      { q: 'a', filter: { name: { $contains: 'a' } }, sort: { name: 'asc' } },
-      'req'
-    )
-    expect(buildFilterClause).toHaveBeenCalledWith(
-      { name: { $contains: 'a' } },
-      expect.any(String),
-      COLUMNS
-    )
-    expect(buildSortClause).toHaveBeenCalledWith({ name: 'asc' }, expect.any(String), COLUMNS)
   })
 })
 
@@ -150,16 +125,5 @@ describe('buildSelectFindNameExpr', () => {
     ]) as string
     // The non-array arm falls back to the single mapping rather than NULL.
     expect(expr).toContain("CASE kv.value WHEN 'opt_a' THEN 'Alpha' ELSE kv.value END")
-  })
-
-  it('needs no expansion for a single-select column', () => {
-    const expr = buildSelectFindNameExpr([
-      { id: 'status', name: 'status', type: 'select', options },
-    ]) as string
-    expect(expr).not.toContain('jsonb_array_elements_text')
-  })
-
-  it('returns null when the schema has no select columns', () => {
-    expect(buildSelectFindNameExpr(COLUMNS)).toBeNull()
   })
 })

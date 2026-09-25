@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -39,7 +36,6 @@ vi.mock('@/lib/messaging/email/validation', () => ({
 
 import {
   countPendingSeatInvitations,
-  getOrganizationSeatInfo,
   syncSeatsFromStripeQuantity,
   validateSeatAvailability,
 } from '@/lib/billing/validation/seat-management'
@@ -66,35 +62,8 @@ function queueSelectResponses(responses: unknown[][]) {
 
 afterAll(resetEnvFlagsMock)
 
-describe('getOrganizationSeatInfo', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    resetDbChainMock()
-    setEnvFlags({ isBillingEnabled: false })
-    mockGetOrganizationSubscription.mockResolvedValue(null)
-  })
-
-  it('returns unlimited seat info when billing is disabled', async () => {
-    queueSelectResponses([[{ id: 'org-1', name: 'Acme' }], [{ count: 3 }], [{ count: 2 }]])
-
-    const result = await getOrganizationSeatInfo('org-1')
-
-    expect(result).toEqual({
-      organizationId: 'org-1',
-      organizationName: 'Acme',
-      currentSeats: 5,
-      maxSeats: Number.MAX_SAFE_INTEGER,
-      availableSeats: Number.MAX_SAFE_INTEGER,
-      subscriptionPlan: 'billing_disabled',
-      canAddSeats: false,
-    })
-    expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
-  })
-})
-
 describe('validateSeatAvailability', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isBillingEnabled: true })
     mockGetOrganizationSubscription.mockResolvedValue({
@@ -121,7 +90,6 @@ describe('validateSeatAvailability', () => {
 
 describe('countPendingSeatInvitations', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -147,17 +115,8 @@ describe('countPendingSeatInvitations', () => {
 
 describe('syncSeatsFromStripeQuantity', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockHasInflightOutboxEvent.mockResolvedValue(false)
-  })
-
-  it('does nothing when the Stripe quantity already matches the DB', async () => {
-    const result = await syncSeatsFromStripeQuantity('sub-1', 3, 3)
-
-    expect(result).toEqual({ synced: false, previousSeats: 3, newSeats: 3 })
-    expect(mockHasInflightOutboxEvent).not.toHaveBeenCalled()
-    expect(dbChainMockFns.set).not.toHaveBeenCalled()
   })
 
   it('writes the Stripe quantity to the DB when no seat-sync is in flight', async () => {

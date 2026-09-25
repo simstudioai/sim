@@ -1,7 +1,3 @@
-/**
- * @vitest-environment node
- */
-
 import { redisConfigMockFns } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -30,7 +26,6 @@ import {
 
 describe('startAbortPoller heartbeat', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.useFakeTimers()
     mockHasAbortMarker.mockResolvedValue(false)
     redisConfigMockFns.mockExtendLock.mockResolvedValue(true)
@@ -177,7 +172,6 @@ describe('startAbortPoller heartbeat', () => {
 
 describe('getChatStreamLockOwners', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     redisConfigMockFns.mockGetRedisClient.mockReturnValue(null)
   })
 

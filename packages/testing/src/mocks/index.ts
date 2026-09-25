@@ -17,31 +17,37 @@
  */
 
 // Audit mocks
-export { auditMock, auditMockFns } from './audit.mock'
+export {
+  auditMock,
+  auditMockFns,
+} from './audit.mock'
 // Auth mocks
-export { authMock, authMockFns, type MockUser } from './auth.mock'
+export {
+  authMock,
+  authMockFns,
+  type MockUser,
+} from './auth.mock'
 // Auth OAuth utils mocks (for @/app/api/auth/oauth/utils)
 export {
   authOAuthUtilsMock,
   authOAuthUtilsMockFns,
-  ServiceAccountTokenErrorMock,
 } from './auth-oauth-utils.mock'
 // Blocks mocks
 export {
   blocksMock,
   createMockGetBlock,
-  createMockGetTool,
   mockBlockConfigs,
-  mockToolConfigs,
   toolsMetadataMock,
   toolsUtilsMock,
 } from './blocks.mock'
 // Copilot HTTP mocks (for @/lib/copilot/request/http)
-export { copilotHttpMock, copilotHttpMockFns } from './copilot-http.mock'
+export {
+  copilotHttpMock,
+  copilotHttpMockFns,
+} from './copilot-http.mock'
 // Database mocks
 export {
   createMockSql,
-  createMockSqlOperators,
   databaseMock,
   dbChainMock,
   dbChainMockFns,
@@ -53,22 +59,21 @@ export {
   resetDbChainMock,
 } from './database.mock'
 // Encryption mocks
-export { encryptionMock, encryptionMockFns } from './encryption.mock'
+export {
+  encryptionMock,
+  encryptionMockFns,
+} from './encryption.mock'
 // Env mocks
 export {
   createEnvMock,
-  createMockGetEnv,
   defaultMockEnv,
-  type EnvMockValue,
   envMock,
   envMockFns,
-  mockEnvObject,
   resetEnvMock,
   setEnv,
 } from './env.mock'
 // Env flag mocks
 export {
-  type EnvFlagsMockState,
   envFlagsMock,
   envFlagsMockFns,
   resetEnvFlagsMock,
@@ -90,10 +95,7 @@ export {
 export {
   createMockFetch,
   createMockResponse,
-  createMultiMockFetch,
   type MockFetchResponse,
-  mockFetchError,
-  mockNextFetchResponse,
   setupGlobalFetchMock,
 } from './fetch.mock'
 export {
@@ -101,13 +103,25 @@ export {
   foldersOrchestrationMockFns,
 } from './folders-orchestration.mock'
 // Hybrid auth mocks
-export { hybridAuthMock, hybridAuthMockFns } from './hybrid-auth.mock'
+export {
+  hybridAuthMock,
+  hybridAuthMockFns,
+} from './hybrid-auth.mock'
 // Input validation mocks
-export { inputValidationMock, inputValidationMockFns } from './input-validation.mock'
+export {
+  inputValidationMock,
+  inputValidationMockFns,
+} from './input-validation.mock'
 // Knowledge API utils mocks (for @/app/api/knowledge/utils)
-export { knowledgeApiUtilsMock, knowledgeApiUtilsMockFns } from './knowledge-api-utils.mock'
+export {
+  knowledgeApiUtilsMock,
+  knowledgeApiUtilsMockFns,
+} from './knowledge-api-utils.mock'
 // Logger mocks
-export { clearLoggerMocks, createMockLogger, getLoggerCalls, loggerMock } from './logger.mock'
+export {
+  createMockLogger,
+  loggerMock,
+} from './logger.mock'
 // Logging session mocks (for @/lib/logs/execution/logging-session)
 export {
   LoggingSessionMock,
@@ -116,7 +130,6 @@ export {
 } from './logging-session.mock'
 // MCP OAuth mocks (for @/lib/mcp/oauth)
 export {
-  McpOauthInsecureUrlErrorMock,
   McpOauthRedirectRequiredMock,
   mcpOauthMock,
   mcpOauthMockFns,
@@ -128,11 +141,14 @@ export {
   permissionGroupScopeMockFns,
   resetPermissionGroupScopeMock,
 } from './permission-group-scope.mock'
-export { permissionsMock, permissionsMockFns } from './permissions.mock'
+export {
+  permissionsMock,
+  permissionsMockFns,
+} from './permissions.mock'
 // PostHog server mocks (for @/lib/posthog/server)
-export { posthogServerMock, posthogServerMockFns } from './posthog-server.mock'
+export { posthogServerMock } from './posthog-server.mock'
 // Redis client mocks (for Redis client objects)
-export { clearRedisMocks, createMockRedis, type MockRedis } from './redis.mock'
+export { createMockRedis } from './redis.mock'
 // Redis config mocks (for @/lib/core/config/redis)
 export {
   redisConfigMock,
@@ -141,31 +157,27 @@ export {
 } from './redis-config.mock'
 // Request mocks
 export {
-  createMockFormDataRequest,
   createMockRequest,
   requestUtilsMock,
   requestUtilsMockFns,
 } from './request.mock'
 // Schema mocks
 export { schemaMock } from './schema.mock'
-// Socket mocks
-export {
-  createMockSocket,
-  createMockSocketServer,
-  type MockSocket,
-  type MockSocketServer,
-} from './socket.mock'
 // Storage mocks (browser localStorage/sessionStorage)
-export { clearStorageMocks, createMockStorage, setupGlobalStorageMocks } from './storage.mock'
+export {
+  createMockStorage,
+  setupGlobalStorageMocks,
+} from './storage.mock'
 // Storage service mocks (for @/lib/uploads/core/storage-service)
-export { storageServiceMock, storageServiceMockFns } from './storage-service.mock'
+export {
+  storageServiceMock,
+  storageServiceMockFns,
+} from './storage-service.mock'
 // Stripe mocks
 export {
   createMockStripeEvent,
   stripeClientMock,
-  stripeClientMockFns,
   stripePaymentMethodMock,
-  stripePaymentMethodMockFns,
 } from './stripe.mock'
 // Telemetry mocks
 export { telemetryMock } from './telemetry.mock'
@@ -176,7 +188,11 @@ export {
   terminalConsoleMockFns,
 } from './terminal-console.mock'
 // URL mocks
-export { LOCALHOST_HOSTNAMES_MOCK, resetUrlsMock, urlsMock, urlsMockFns } from './urls.mock'
+export {
+  resetUrlsMock,
+  urlsMock,
+  urlsMockFns,
+} from './urls.mock'
 // v1 public API ambient request-admission mocks and credential factories
 export {
   v1PersonalKeyCredential,
@@ -194,18 +210,22 @@ export {
   v2RouteMocks,
 } from './v2-route.mock'
 // Workflow authz package mocks (for @sim/platform-authz/workflow)
-export { workflowAuthzMock, workflowAuthzMockFns } from './workflow-authz.mock'
-// Workflows API utils mocks (for @/app/api/workflows/utils)
-export { workflowsApiUtilsMock, workflowsApiUtilsMockFns } from './workflows-api-utils.mock'
-// Workflows orchestration mocks (for @/lib/workflows/orchestration)
 export {
-  workflowsOrchestrationMock,
-  workflowsOrchestrationMockFns,
-} from './workflows-orchestration.mock'
+  workflowAuthzMock,
+  workflowAuthzMockFns,
+} from './workflow-authz.mock'
+// Workflows API utils mocks (for @/app/api/workflows/utils)
+export {
+  workflowsApiUtilsMock,
+  workflowsApiUtilsMockFns,
+} from './workflows-api-utils.mock'
 // Workflows persistence utils mocks (for @/lib/workflows/persistence/utils)
 export {
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
 } from './workflows-persistence-utils.mock'
 // Workflows-utils mocks
-export { workflowsUtilsMock, workflowsUtilsMockFns } from './workflows-utils.mock'
+export {
+  workflowsUtilsMock,
+  workflowsUtilsMockFns,
+} from './workflows-utils.mock'

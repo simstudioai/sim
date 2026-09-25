@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/core/config/env', () => ({ env: { ENCRYPTION_KEY: 'ab'.repeat(32) } }))
@@ -42,7 +41,6 @@ function toolGroup(content = 'result'): Message[] {
 
 describe('durable conversation restoration and continuation', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     vi.mocked(prepareToolExecution).mockReturnValue({ executionParams: {}, toolParams: {} })
     vi.mocked(getConfiguredConversationToolBinding).mockReturnValue('configured-binding')
   })

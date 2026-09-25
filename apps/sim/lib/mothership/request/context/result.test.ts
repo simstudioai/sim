@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
 import { RunFunction } from '@/lib/mothership/generated/tool-catalog-v1'

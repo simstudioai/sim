@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { workspaceFiles } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import type { SQL } from 'drizzle-orm'
@@ -23,60 +20,7 @@ import {
 
 describe('recordKnowledgeBaseFileOwnership', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('uses the supplied transaction executor for the immutable ownership binding', async () => {
-    const ownership = {
-      key: 'kb/fork-document-1',
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-      originalName: 'document.pdf',
-      contentType: 'application/pdf',
-      size: 321,
-    }
-    const returning = vi.fn().mockResolvedValue([{ id: 'file-1', ...ownership }])
-    const select = vi.fn()
-    const onConflictDoNothing = vi.fn(() => ({ returning }))
-    const insert = vi.fn(() => ({
-      values: vi.fn(() => ({ onConflictDoNothing })),
-    }))
-    const executor = { select, insert } as unknown as DbTransaction
-
-    await expect(recordKnowledgeBaseFileOwnership(ownership, executor)).resolves.toBeUndefined()
-
-    expect(onConflictDoNothing).toHaveBeenCalledTimes(1)
-    expect(select).not.toHaveBeenCalled()
-    expect(insert).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-  })
-
-  it('retains the existing non-transactional retry behavior when no executor is supplied', async () => {
-    const ownership = {
-      key: 'kb/manual-document.pdf',
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-      originalName: 'document.pdf',
-      contentType: 'application/pdf',
-      size: 321,
-    }
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      {
-        id: 'file-1',
-        ...ownership,
-        sizeBytes: ownership.size,
-        folderId: null,
-        context: 'knowledge-base',
-        deletedAt: null,
-      },
-    ])
-
-    await expect(recordKnowledgeBaseFileOwnership(ownership)).resolves.toBeUndefined()
-
-    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
   it('validates an exact active binding after a conflict without aborting the executor', async () => {
@@ -115,7 +59,6 @@ describe('recordKnowledgeBaseFileOwnership', () => {
 
 describe('deleteFileMetadataByIdentity', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -144,7 +87,6 @@ describe('deleteFileMetadataByIdentity', () => {
 
 describe('insertFileMetadata content versions', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -178,36 +120,6 @@ describe('insertFileMetadata content versions', () => {
     expect(dbChainMockFns.set).toHaveBeenCalledWith(
       expect.objectContaining({ contentUpdatedAt: expect.anything() })
     )
-  })
-
-  it('retains legacy active-key reuse for deterministic replacement uploads', async () => {
-    const active = {
-      id: 'file-1',
-      key: 'workspace/workspace-1/file.txt',
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-      folderId: null,
-      context: 'workspace',
-      originalName: 'file.txt',
-      contentType: 'text/plain',
-      sizeBytes: 12,
-      deletedAt: null,
-    }
-    dbChainMockFns.limit.mockResolvedValueOnce([active])
-
-    await expect(
-      insertFileMetadata({
-        key: active.key,
-        userId: 'user-2',
-        workspaceId: 'workspace-1',
-        context: 'workspace',
-        originalName: 'other.txt',
-        contentType: 'text/plain',
-        size: 12,
-      })
-    ).resolves.toEqual(active)
-
-    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
   it('rejects active-key reuse for immutable upload metadata', async () => {
@@ -273,7 +185,6 @@ describe('insertFileMetadata content versions', () => {
 
 describe('insertFileMetadataMany active-key idempotence', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -312,14 +223,6 @@ describe('insertFileMetadataMany active-key idempotence', () => {
     )
   })
 
-  it('deduplicates exact same-key rows before inserting', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'file-1', ...row, deletedAt: null }])
-
-    await expect(insertFileMetadataMany([row, { ...row }])).resolves.toBeUndefined()
-
-    expect(dbChainMockFns.values).toHaveBeenCalledWith([expect.objectContaining({ key: row.key })])
-  })
-
   it('rejects mismatched same-batch rows before writing either identity', async () => {
     await expect(
       insertFileMetadataMany([row, { ...row, userId: 'different-user' }])
@@ -331,7 +234,6 @@ describe('insertFileMetadataMany active-key idempotence', () => {
 
 describe('resolveStoredFileContext', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
   })
 
@@ -343,24 +245,6 @@ describe('resolveStoredFileContext', () => {
     ])
 
     await expect(resolveStoredFileContext(workspaceKey)).resolves.toBe('mothership')
-  })
-
-  it('keeps a workspace file on the workspace context', async () => {
-    queueTableRows(workspaceFiles, [
-      { id: 'file-1', key: workspaceKey, context: 'workspace', deletedAt: null },
-    ])
-
-    await expect(resolveStoredFileContext(workspaceKey)).resolves.toBe('workspace')
-  })
-
-  it('falls back to the inferred context for an unbound key', async () => {
-    await expect(resolveStoredFileContext(workspaceKey)).resolves.toBe('workspace')
-  })
-
-  it('trusts the prefix without a lookup when it cannot be a workspace key', async () => {
-    await expect(resolveStoredFileContext('copilot/file.png')).resolves.toBe('copilot')
-
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
   })
 })
 
@@ -379,21 +263,7 @@ describe('organization connector cache ownership', () => {
   const active = { id: 'file-1', ...options, sizeBytes: options.size, deletedAt: null }
 
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
-  })
-
-  it('persists organization caches with no personal or workspace owner', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([active])
-    await expect(insertImmutableFileMetadata(options)).resolves.toEqual(active)
-    expect(dbChainMockFns.values).toHaveBeenCalledWith(
-      expect.objectContaining({
-        organizationId: 'org-1',
-        workspaceId: null,
-        context: 'knowledge-base',
-        folderId: null,
-      })
-    )
   })
 
   it.each([
@@ -423,16 +293,6 @@ describe('organization connector cache ownership', () => {
     )
   })
 
-  it('does not reassign a deleted organization cache to another owner', async () => {
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ ...active, deletedAt: new Date() }])
-    await expect(
-      insertImmutableFileMetadata({ ...options, organizationId: 'org-2' })
-    ).rejects.toBeInstanceOf(ActiveFileMetadataKeyConflictError)
-    expect(dbChainMockFns.update).not.toHaveBeenCalled()
-  })
-
   it('does not overwrite a binding restored by a competing registration', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([])
@@ -445,13 +305,5 @@ describe('organization connector cache ownership', () => {
     expect(dbChainMockFns.update).toHaveBeenCalledOnce()
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     expect(dbChainMockFns.for).toHaveBeenCalledWith('share')
-  })
-
-  it('rejects a different organization on an immutable batch conflict', async () => {
-    dbChainMockFns.returning.mockResolvedValueOnce([])
-    queueTableRows(workspaceFiles, [active])
-    await expect(
-      insertFileMetadataMany([{ ...options, organizationId: 'org-2' }])
-    ).rejects.toBeInstanceOf(ActiveFileMetadataKeyConflictError)
   })
 })

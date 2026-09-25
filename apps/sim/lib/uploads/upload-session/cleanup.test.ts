@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { mkdir, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 

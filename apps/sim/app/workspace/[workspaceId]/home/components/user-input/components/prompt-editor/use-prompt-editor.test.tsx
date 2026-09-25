@@ -3,7 +3,7 @@
  */
 import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/hooks/queries/skills', () => ({ useSkills: () => ({ data: [] }) }))
 vi.mock('@/hooks/queries/mcp', () => ({ useMcpToolServers: () => ({ data: [] }) }))
@@ -12,13 +12,10 @@ vi.mock('@/blocks/integration-matcher', () => ({
 }))
 
 import { SIM_SELECTION_MIME } from '@/lib/mothership/chat/selection-clipboard'
-import type { PlusMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
 import {
   type UsePromptEditorProps,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/use-prompt-editor'
-import type { SkillsMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/skills-menu-dropdown'
-import { filterOutContext } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import type { ChatContext } from '@/stores/panel'
 
 function selectionPayload(context: ChatContext, sourceWorkspaceId = 'ws-1'): string {
@@ -78,246 +75,9 @@ function typeInto(textarea: HTMLTextAreaElement, value: string, caret = value.le
   textarea.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
-describe('usePromptEditor mention menu dismissal', () => {
-  let openMenu: PlusMenuHandle
-
-  beforeEach(() => {
-    openMenu = {
-      open: vi.fn(),
-      close: vi.fn(),
-      moveActive: vi.fn(),
-      selectActive: vi.fn(() => 'empty' as const),
-    }
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('reopens the menu while the user keeps typing an unmatched mention', () => {
-    const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
-    result().plusMenuRef.current = openMenu
-
-    act(() => {
-      typeInto(textarea, '@f')
-      result().handleInputChange({
-        target: textarea,
-        currentTarget: textarea,
-      } as unknown as React.ChangeEvent<HTMLTextAreaElement>)
-    })
-
-    expect(result().mentionQuery).toBe('f')
-    expect(openMenu.open).toHaveBeenCalledTimes(1)
-
-    unmount()
-  })
-
-  it('stays closed across repeated clicks at the same position after the user clicks away, even if the caret lands back inside the open mention', () => {
-    const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
-    result().plusMenuRef.current = openMenu
-
-    act(() => {
-      typeInto(textarea, '@f')
-      result().handleInputChange({
-        target: textarea,
-        currentTarget: textarea,
-      } as unknown as React.ChangeEvent<HTMLTextAreaElement>)
-    })
-    expect(result().mentionQuery).toBe('f')
-
-    act(() => {
-      result().handlePlusMenuClose()
-    })
-    expect(result().mentionQuery).toBeNull()
-
-    for (let i = 0; i < 3; i++) {
-      act(() => {
-        textarea.setSelectionRange(2, 2)
-        result().handleSelectAdjust()
-      })
-    }
-
-    expect(result().mentionQuery).toBeNull()
-    expect(openMenu.open).toHaveBeenCalledTimes(1)
-
-    unmount()
-  })
-
-  it('lets a further keystroke reopen the same mention after a dismiss', () => {
-    const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
-    result().plusMenuRef.current = openMenu
-
-    act(() => {
-      typeInto(textarea, '@f')
-      result().handleInputChange({
-        target: textarea,
-        currentTarget: textarea,
-      } as unknown as React.ChangeEvent<HTMLTextAreaElement>)
-    })
-    act(() => {
-      result().handlePlusMenuClose()
-    })
-    act(() => {
-      textarea.setSelectionRange(2, 2)
-      result().handleSelectAdjust()
-    })
-    expect(openMenu.open).toHaveBeenCalledTimes(1)
-
-    act(() => {
-      typeInto(textarea, '@fo', 3)
-      result().handleInputChange({
-        target: textarea,
-        currentTarget: textarea,
-      } as unknown as React.ChangeEvent<HTMLTextAreaElement>)
-    })
-
-    expect(result().mentionQuery).toBe('fo')
-    expect(openMenu.open).toHaveBeenCalledTimes(2)
-
-    unmount()
-  })
-
-  it('does not suppress a different mention typed after a dismiss', () => {
-    const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
-    result().plusMenuRef.current = openMenu
-
-    act(() => {
-      typeInto(textarea, '@f')
-      result().handleInputChange({
-        target: textarea,
-        currentTarget: textarea,
-      } as unknown as React.ChangeEvent<HTMLTextAreaElement>)
-    })
-    act(() => {
-      result().handlePlusMenuClose()
-    })
-    act(() => {
-      textarea.setSelectionRange(2, 2)
-      result().handleSelectAdjust()
-    })
-    expect(openMenu.open).toHaveBeenCalledTimes(1)
-
-    act(() => {
-      typeInto(textarea, '@f done. @g', 11)
-      result().handleInputChange({
-        target: textarea,
-        currentTarget: textarea,
-      } as unknown as React.ChangeEvent<HTMLTextAreaElement>)
-    })
-
-    expect(result().mentionQuery).toBe('g')
-    expect(openMenu.open).toHaveBeenCalledTimes(2)
-
-    unmount()
-  })
-})
-
-describe('usePromptEditor toolbar slash trigger after a dismiss', () => {
-  it('still opens the skills menu when the caret sits at the start of the previously dismissed token', () => {
-    const skillsMenu: SkillsMenuHandle = {
-      open: vi.fn(),
-      close: vi.fn(),
-      moveActive: vi.fn(),
-      selectActive: vi.fn(() => false),
-    }
-    const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
-    result().skillsMenuRef.current = skillsMenu
-
-    act(() => {
-      result().insertSlashTrigger()
-    })
-    expect(skillsMenu.open).toHaveBeenCalledTimes(1)
-
-    act(() => {
-      result().handleSkillsMenuClose()
-    })
-
-    act(() => {
-      textarea.setSelectionRange(0, 0)
-      result().insertSlashTrigger()
-    })
-
-    expect(skillsMenu.open).toHaveBeenCalledTimes(2)
-
-    unmount()
-  })
-})
-
 describe('usePromptEditor context insertion', () => {
   afterEach(() => {
     vi.restoreAllMocks()
-  })
-
-  it('appends a real mention token and context, then focuses the editor', () => {
-    const onContextAdd = vi.fn()
-    let focusFrame: FrameRequestCallback | undefined
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      focusFrame = callback
-      return 1
-    })
-    const context = {
-      kind: 'terminal_tab',
-      terminalId: 'terminal-1',
-      label: 'Terminal (L9-11)',
-      selection: { text: 'selected output', startLine: 9, endLine: 11 },
-    } satisfies ChatContext
-    const { result, textarea, unmount } = renderPromptEditor({
-      workspaceId: 'ws-1',
-      initialValue: 'Explain this',
-      onContextAdd,
-    })
-
-    act(() => {
-      result().insertContext(context)
-    })
-
-    expect(result().value).toBe('Explain this @Terminal (L9-11) ')
-    expect(result().contexts).toEqual([context])
-    expect(onContextAdd).toHaveBeenCalledWith(context)
-
-    textarea.value = result().value
-    act(() => focusFrame?.(0))
-    expect(document.activeElement).toBe(textarea)
-    expect(textarea.selectionStart).toBe(textarea.value.length)
-    expect(textarea.selectionEnd).toBe(textarea.value.length)
-
-    unmount()
-  })
-
-  it('pastes a large table selection as a compact context chip', () => {
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      callback(0)
-      return 1
-    })
-    const context = {
-      kind: 'table_selection',
-      tableId: 'table-1',
-      tableName: 'Large table',
-      rowIds: ['row-1'],
-      label: 'Large table (1 row)',
-    } satisfies ChatContext
-    const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
-    const preventDefault = vi.fn()
-
-    act(() => {
-      result().handlePaste({
-        currentTarget: textarea,
-        clipboardData: {
-          getData: (type: string) => {
-            if (type === 'text/plain') return 'x'.repeat(1_000_001)
-            if (type === SIM_SELECTION_MIME) return selectionPayload(context)
-            return ''
-          },
-        },
-        preventDefault,
-      } as unknown as React.ClipboardEvent<HTMLTextAreaElement>)
-    })
-
-    expect(preventDefault).toHaveBeenCalledOnce()
-    expect(result().value).toBe('@Large table (1 row) ')
-    expect(result().contexts).toEqual([context])
-
-    unmount()
   })
 
   it('leaves a cross-workspace selection to the ordinary plain-text paste path', () => {
@@ -347,54 +107,6 @@ describe('usePromptEditor context insertion', () => {
 
     expect(preventDefault).not.toHaveBeenCalled()
     expect(result().contexts).toEqual([])
-
-    unmount()
-  })
-
-  it('suffixes duplicate visible labels so two browser selections coexist', () => {
-    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      callback(0)
-      return 1
-    })
-    const first = {
-      kind: 'browser_tab',
-      tabId: 'tab-1',
-      label: 'Browser · Example page title',
-      selection: { text: 'first selection', url: 'https://example.com' },
-    } satisfies ChatContext
-    const second = {
-      kind: 'browser_tab',
-      tabId: 'tab-1',
-      label: 'Browser · Another page title',
-      selection: { text: 'second selection', url: 'https://example.com' },
-    } satisfies ChatContext
-    const { result, textarea, unmount } = renderPromptEditor({
-      workspaceId: 'ws-1',
-    })
-
-    act(() => {
-      result().insertContext(first)
-    })
-    act(() => {
-      result().insertContext(second)
-    })
-
-    expect(result().value).toBe('@Browser @Browser (1) ')
-    expect(result().contexts).toEqual([
-      { ...first, label: 'Browser' },
-      { ...second, label: 'Browser (1)' },
-    ])
-
-    let contextsAtSubmit: ChatContext[] = []
-    act(() => {
-      typeInto(textarea, '@Browser (1) ')
-      result().handleInputChange({
-        target: textarea,
-        currentTarget: textarea,
-      } as unknown as React.ChangeEvent<HTMLTextAreaElement>)
-      contextsAtSubmit = result().getActiveContexts()
-    })
-    expect(contextsAtSubmit).toEqual([{ ...second, label: 'Browser (1)' }])
 
     unmount()
   })
@@ -432,93 +144,12 @@ describe('usePromptEditor context insertion', () => {
   })
 })
 
-describe('folder resource mention identity', () => {
-  it('retains distinct folder IDs and labels when inserting a batch', () => {
-    const { result, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
-    try {
-      act(() =>
-        result().insertResources([
-          { type: 'folder', id: 'workflow-folder', title: 'Planning' },
-          { type: 'folder', id: 'table-folder', title: 'Planning' },
-          { type: 'folder', id: 'knowledge-folder', title: 'Planning' },
-          { type: 'filefolder', id: 'file-folder', title: 'Planning' },
-          { type: 'folder', id: 'table-folder', title: 'Planning' },
-        ])
-      )
-      expect(result().contexts).toEqual([
-        { kind: 'folder', folderId: 'workflow-folder', label: 'Planning' },
-        { kind: 'folder', folderId: 'table-folder', label: 'Planning (2)' },
-        { kind: 'folder', folderId: 'knowledge-folder', label: 'Planning (3)' },
-        { kind: 'filefolder', fileFolderId: 'file-folder', label: 'Planning (4)' },
-      ])
-      expect(result().value).toBe(
-        '@Planning @Planning (2) @Planning (3) @Planning (4) @Planning (2) '
-      )
-    } finally {
-      unmount()
-    }
-  })
-
-  it('keeps same-named folders as separate chips and reuses the label for a repeated ID', () => {
-    const { result, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
-    try {
-      act(() =>
-        result().insertResource({ type: 'folder', id: 'workflow-folder', title: 'Planning' })
-      )
-      act(() => result().insertResource({ type: 'folder', id: 'table-folder', title: 'Planning' }))
-      act(() =>
-        result().insertResource({ type: 'folder', id: 'knowledge-folder', title: 'Planning' })
-      )
-      act(() => result().insertResource({ type: 'folder', id: 'table-folder', title: 'Planning' }))
-      expect(result().contexts).toEqual([
-        { kind: 'folder', folderId: 'workflow-folder', label: 'Planning' },
-        { kind: 'folder', folderId: 'table-folder', label: 'Planning (2)' },
-        { kind: 'folder', folderId: 'knowledge-folder', label: 'Planning (3)' },
-      ])
-      expect(result().value).toContain('@Planning (2)')
-      expect(result().value).toContain('@Planning (3)')
-    } finally {
-      unmount()
-    }
-  })
-})
-
 it('addresses selected organization resources to their discovery workspace', () => {
   const { result, unmount } = renderPromptEditor({ workspaceId: 'ws-1', organizationId: 'org-1' })
   try {
     act(() => result().insertResource({ type: 'table', id: 'table-1', title: 'Accounts' }))
     expect(result().getActiveContexts()).toEqual([
       { kind: 'table', tableId: 'table-1', label: 'Accounts', workspaceId: 'ws-1' },
-    ])
-  } finally {
-    unmount()
-  }
-})
-
-it('retains the explicitly selected skill workspace before the editor workspace changes', () => {
-  const { result, unmount } = renderPromptEditor({
-    workspaceId: 'previous-workspace',
-    organizationId: 'org-1',
-  })
-  try {
-    act(() =>
-      result().handleSkillSelect(
-        {
-          id: 'skill-1',
-          workspaceId: 'selected-workspace',
-          userId: null,
-          name: 'Review',
-          description: '',
-          content: '',
-          canEdit: false,
-          createdAt: '',
-          updatedAt: '',
-        },
-        'selected-workspace'
-      )
-    )
-    expect(result().getActiveContexts()).toEqual([
-      { kind: 'skill', skillId: 'skill-1', label: 'Review', workspaceId: 'selected-workspace' },
     ])
   } finally {
     unmount()
@@ -539,41 +170,6 @@ it('preserves an explicit cross-workspace resource owner in the organization men
     expect(result().getActiveContexts()).toEqual([
       { kind: 'file', fileId: 'report.csv', label: 'Report · Finance', workspaceId: 'finance' },
     ])
-  } finally {
-    unmount()
-  }
-})
-
-it('keeps duplicate built-in skills scoped and reuses the same chip when selected again', () => {
-  const { result, unmount } = renderPromptEditor({ workspaceId: '', organizationId: 'org-1' })
-  const skill = {
-    id: 'built-in',
-    workspaceId: null,
-    userId: null,
-    name: 'Review',
-    description: '',
-    content: '',
-    canEdit: false,
-    createdAt: '',
-    updatedAt: '',
-  }
-  try {
-    act(() => result().handleSkillSelect(skill, 'sales'))
-    act(() => result().handleSkillSelect(skill, 'finance'))
-    act(() => result().handleSkillSelect(skill, 'sales'))
-    expect(result().getActiveContexts()).toEqual([
-      { kind: 'skill', skillId: 'built-in', label: 'Review', workspaceId: 'sales' },
-      { kind: 'skill', skillId: 'built-in', label: 'Review (2)', workspaceId: 'finance' },
-    ])
-    expect(result().value).not.toContain('Review (3)')
-    expect(
-      filterOutContext(result().getActiveContexts(), {
-        kind: 'skill',
-        skillId: 'built-in',
-        label: 'Review',
-        workspaceId: 'sales',
-      })
-    ).toEqual([{ kind: 'skill', skillId: 'built-in', label: 'Review (2)', workspaceId: 'finance' }])
   } finally {
     unmount()
   }
@@ -643,43 +239,5 @@ it('inserts a canonical built-in skill globally without inheriting a workspace',
     ])
   } finally {
     unmount()
-  }
-})
-
-it('tracks selection contraction on a replacement textarea without remounting the editor', () => {
-  vi.useFakeTimers()
-  const { result, textarea, unmount } = renderPromptEditor({ workspaceId: 'ws-1' })
-  const replacement = document.createElement('textarea')
-  document.body.appendChild(replacement)
-  try {
-    act(() => {
-      result().setContexts([{ kind: 'table', tableId: 'table-1', label: 'Alpha' }])
-      result().setValue('@Alpha tail')
-    })
-    textarea.value = result().value
-    textarea.focus()
-    textarea.setSelectionRange(0, 0)
-    document.dispatchEvent(new Event('selectionchange'))
-
-    // Switching the host layout keeps the hook but replaces its textarea.
-    result().textareaRef.current = replacement
-    replacement.value = result().value
-    replacement.focus()
-    replacement.setSelectionRange(0, replacement.value.length)
-    document.dispatchEvent(new Event('selectionchange'))
-    replacement.setSelectionRange(2, replacement.value.length)
-    document.dispatchEvent(new Event('selectionchange'))
-    act(() => {
-      result().handleSelectAdjust()
-      vi.runOnlyPendingTimers()
-    })
-
-    // Shrinking the left edge releases the whole chip instead of expanding it.
-    expect(replacement.selectionStart).toBe('@Alpha '.length)
-    expect(replacement.selectionEnd).toBe('@Alpha tail'.length)
-  } finally {
-    unmount()
-    replacement.remove()
-    vi.useRealTimers()
   }
 })

@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

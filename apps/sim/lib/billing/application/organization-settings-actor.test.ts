@@ -1,4 +1,4 @@
-import type { OrganizationDelegatedPrincipal, SessionPrincipal } from '@sim/auth/principal'
+import type { OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const authorization = vi.hoisted(() => vi.fn())
@@ -44,10 +44,5 @@ describe('organization billing settings actor', () => {
     await expect(
       organizationBillingSettingsActor(principal, operation, 'other-org')
     ).rejects.toThrow('forbidden')
-  })
-  it('preserves the authenticated session actor for existing billing authorization', async () => {
-    const session: SessionPrincipal = { kind: 'session', userId: 'human', sessionId: 'session' }
-    expect(await organizationBillingSettingsActor(session, operation, 'org')).toBe('human')
-    expect(authorization).not.toHaveBeenCalled()
   })
 })

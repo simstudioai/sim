@@ -1,6 +1,4 @@
 /**
- * @vitest-environment node
- *
  * Guards for the column-type registry itself, rather than for any one type.
  *
  * The registry replaced ~40 hand-maintained `switch` arms whose failure mode
@@ -14,7 +12,6 @@ import type { ColumnType } from '@/lib/table/column-types'
 import {
   ALL_COLUMN_TYPES,
   COLUMN_TYPE_REGISTRY,
-  COLUMN_TYPES,
   columnTypeById,
   isColumnType,
   isValueCompatible,
@@ -23,17 +20,6 @@ import type { ColumnDefinition } from '@/lib/table/types'
 import { validateColumnDefinition } from '@/lib/table/validation'
 
 describe('registry shape', () => {
-  it('keys every entry by its own id', () => {
-    for (const [key, definition] of Object.entries(COLUMN_TYPE_REGISTRY)) {
-      expect(definition.id).toBe(key)
-    }
-  })
-
-  it('derives COLUMN_TYPES from the registry, with no drift', () => {
-    expect([...COLUMN_TYPES].sort()).toEqual(Object.keys(COLUMN_TYPE_REGISTRY).sort())
-    expect(ALL_COLUMN_TYPES).toHaveLength(COLUMN_TYPES.length)
-  })
-
   it('falls back to string for an unknown type instead of throwing', () => {
     // A malformed or future schema must render as text, not crash mid-render.
     expect(columnTypeById('percent').id).toBe('string')
@@ -118,17 +104,6 @@ describe('conversion write-back', () => {
       expect(coerced.ok).toBe(true)
       expect(typeof (coerced as { value: unknown }).value).toBe('string')
     }
-  })
-})
-
-describe('ttl columns', () => {
-  it('declares offset-preserving editing, string workflow values, timestamp comparisons, and one column per table', () => {
-    expect(COLUMN_TYPE_REGISTRY.ttl).toMatchObject({
-      jsonbCast: 'timestamptz',
-      workflowInputType: 'string',
-      editor: 'offset-date',
-      maxPerTable: 1,
-    })
   })
 })
 

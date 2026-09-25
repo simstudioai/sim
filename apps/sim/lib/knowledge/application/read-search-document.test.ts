@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { member } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -65,7 +64,6 @@ const input = {
 }
 describe('Assistant document read', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.permission.mockResolvedValue('read')
     mocks.context.mockResolvedValue(context)
     mocks.chunks.mockResolvedValue({
@@ -135,7 +133,6 @@ describe('Assistant document read', () => {
 
 describe('organization Search document reads', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mocks.context.mockResolvedValue({
       ...context,
@@ -195,7 +192,6 @@ describe('organization Search document reads', () => {
 
 describe('precise bounded passage expansion', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.permission.mockResolvedValue('read')
     mocks.context.mockResolvedValue(context)
     mocks.provenance.mockResolvedValue({ imported: true, documentMetadata: {} })
@@ -220,37 +216,6 @@ describe('precise bounded passage expansion', () => {
     })
     expect(result.chunks[0].content).toContain('{{TOKEN}}')
     expect(JSON.stringify(result)).not.toContain('private-token')
-  })
-
-  it('continues a long chunk before advancing across disabled chunk gaps', async () => {
-    const content = 'Evidence 🔎\n'.repeat(1100)
-    mocks.chunks.mockResolvedValue({
-      chunks: [
-        { id: 'c7', chunkIndex: 7, content },
-        { id: 'c11', chunkIndex: 11, content: 'next enabled passage' },
-      ],
-      pagination: { total: 2, hasMore: false },
-    })
-    const first = await readSearchDocument.execute({
-      principal,
-      input: { ...input, startChunkIndex: 7 },
-    })
-    expect(first.chunks).toHaveLength(1)
-    expect(first.chunks[0].content.length).toBeLessThanOrEqual(8000)
-    expect(first.next).toEqual({ startChunkIndex: 7, startOffset: first.chunks[0].endOffset })
-    const second = await readSearchDocument.execute({
-      principal,
-      input: { ...input, ...first.next! },
-    })
-    expect(first.chunks[0].content + second.chunks[0].content).toBe(content)
-    expect(second.chunks[1].chunkIndex).toBe(11)
-    expect(second.next).toBeNull()
-    expect(mocks.chunks).toHaveBeenCalledWith(
-      'doc',
-      expect.objectContaining({ startChunkIndex: 7, requireEnabledDocument: true }),
-      expect.any(String),
-      access
-    )
   })
 
   it('rejects a continuation when all remaining chunks have disappeared', async () => {

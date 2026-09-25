@@ -2,8 +2,6 @@
  * Pins the response-key mappings and Link-header pagination the Circleback tools rely on.
  * Wrong top-level keys fail silently as empty results, and a broken cursor parse would
  * silently end pagination after one page, so both are asserted against realistic payloads.
- *
- * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
 import { getMeetingTool } from '@/tools/circleback/get_meeting'
