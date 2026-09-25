@@ -63,6 +63,7 @@ const PRODUCT_LINKS: FooterItem[] = [
   { label: 'Chat', href: 'https://docs.sim.ai/mothership', external: true },
   { label: 'Workflows', href: '/workflows' },
   { label: 'Knowledge Base', href: '/knowledge' },
+  { label: 'Sim Search', href: '/search' },
   { label: 'Tables', href: '/tables' },
   { label: 'Files', href: '/files' },
   { label: 'Logs', href: '/logs' },
