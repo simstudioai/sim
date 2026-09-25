@@ -47,6 +47,10 @@ declare global {
     __simAgentShownElements?: WeakSet<Element>
     /** Installed by {@link installPageHelpers} before every page function; cached per call. */
     __simAgentIsExemptModal: (element: Element) => boolean
+    /** Installed by {@link installPageHelpers}: the element's id in the current snapshot. */
+    __simAgentRefOf: (element: Element | null) => number | null
+    /** Installed by {@link installPageHelpers}: the snapshot controls of the overlay a blocker belongs to. */
+    __simAgentOverlayControls: (blocker: Element | null) => Array<{ id: number; name: string }>
     /** Why the last __simAgentResolveElement call returned null — read by the
      * shared stale-error producers so a refusal names its cause instead of
      * the blanket "the page changed". Cleared on every successful resolve. */
@@ -83,6 +87,62 @@ export function installPageHelpers(): void {
       exemptModals.set(doc, modal)
     }
     return modal === element
+  }
+  window.__simAgentRefOf = (element: Element | null): number | null => {
+    const index = element ? (window.__simAgentElements ?? []).indexOf(element) : -1
+    return index >= 0 ? index : null
+  }
+  /**
+   * A refusal that names the overlay's own controls lets the agent dismiss it and retry the
+   * same id without another snapshot. Only a real overlay qualifies — a dialog, a modal, or a
+   * fixed or sticky layer — so an ordinary element in the way never lists unrelated page controls.
+   */
+  window.__simAgentOverlayControls = (blocker: Element | null) => {
+    let overlay: Element | null = null
+    for (let current = blocker; current && !overlay; current = current.parentElement) {
+      const role = current.getAttribute('role')
+      const position = current.ownerDocument.defaultView?.getComputedStyle(current).position
+      if (
+        role === 'dialog' ||
+        role === 'alertdialog' ||
+        current.getAttribute('aria-modal') === 'true' ||
+        current.tagName === 'DIALOG' ||
+        position === 'fixed' ||
+        position === 'sticky'
+      ) {
+        overlay = current
+      }
+    }
+    if (!overlay) return []
+    const controls: Array<{ id: number; name: string }> = []
+    const registry = window.__simAgentElements ?? []
+    for (let id = 0; id < registry.length && controls.length < 4; id++) {
+      const element = registry[id]
+      if (!element || !overlay.contains(element)) continue
+      const role = element.getAttribute('role')
+      const tag = element.tagName
+      if (
+        tag !== 'BUTTON' &&
+        tag !== 'A' &&
+        role !== 'button' &&
+        role !== 'link' &&
+        !(tag === 'INPUT' && ['button', 'submit'].includes((element as HTMLInputElement).type))
+      ) {
+        continue
+      }
+      const name = (
+        element.getAttribute('aria-label') ||
+        (element as HTMLElement).innerText ||
+        (element as HTMLInputElement).value ||
+        element.getAttribute('title') ||
+        ''
+      )
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 60)
+      controls.push({ id, name })
+    }
+    return controls
   }
   function findExemptModal(doc: Document): Element | null {
     const rendered: Array<{ modal: Element; hidden: Element[] }> = []
@@ -1361,9 +1421,21 @@ export function clickElement(
       }
     }
     if (nested) {
-      return { error: 'nested-control', blocker: blockerLabel(blocker) }
+      let control = blocker
+      while (control && control !== el && !isIndependentInteractive(control)) {
+        control = composedParent(control)
+      }
+      return {
+        error: 'nested-control',
+        blocker: blockerLabel(blocker),
+        controlId: control && control !== el ? window.__simAgentRefOf(control) : null,
+      }
     }
-    return { error: 'obstructed', blocker: blockerLabel(blocker) }
+    return {
+      error: 'obstructed',
+      blocker: blockerLabel(blocker),
+      blockerControls: window.__simAgentOverlayControls(blocker),
+    }
   }
 
   let pageX = clientX
@@ -1775,7 +1847,11 @@ export function focusElementForTyping(id: number, moveFocus = true): unknown {
     }
   }
   if (!chosenPoint) {
-    return { error: 'obstructed', blocker: blockerLabel(firstBlocker) }
+    return {
+      error: 'obstructed',
+      blocker: blockerLabel(firstBlocker),
+      blockerControls: window.__simAgentOverlayControls(firstBlocker),
+    }
   }
 
   return {

@@ -3683,6 +3683,33 @@ describe('credential protection', () => {
     expect(retried).toMatchObject({ ok: true, result: { dispatched: true } })
   })
 
+  it('names the overlay and nested controls a refused click can use next', async () => {
+    const contents = await openPage()
+    respondWith(contents, {
+      clickElement: {
+        error: 'obstructed',
+        blocker: 'We use cookies',
+        blockerControls: [{ id: 4, name: 'Accept all' }],
+      },
+    })
+    const covered = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+    respondWith(contents, {
+      clickElement: { error: 'nested-control', blocker: 'Delete channel', controlId: 3 },
+    })
+    const nested = await driver.executeTool('chat-test', 'browser_click', { elementId: 0 })
+
+    expect(covered).toEqual({
+      ok: false,
+      error: expect.stringContaining(
+        '[ref=4] "Accept all". Dismiss it with one of those, then retry the same id.'
+      ),
+    })
+    expect(nested).toEqual({
+      ok: false,
+      error: expect.stringContaining('Delete channel [ref=3]'),
+    })
+  })
+
   it('invalidates element ids when the active tab changes', async () => {
     await openPage()
     await driver.executeTool('chat-test', 'browser_open_tab', {})

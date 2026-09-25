@@ -33,7 +33,7 @@ import type { BrowserDownloadsState, BrowserToolbarCommand } from '@sim/desktop-
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
-import { isRecordLike, omit, toRecord } from '@sim/utils/object'
+import { isRecordLike, omit, toArray, toRecord } from '@sim/utils/object'
 import type { BrowserWindow, MenuItemConstructorOptions, WebContents, WebFrameMain } from 'electron'
 import { Menu } from 'electron'
 import * as cdp from '@/main/browser-agent/cdp'
@@ -1440,14 +1440,23 @@ function unwrapPageResult(result: unknown): unknown {
     }
     if (code === 'obstructed') {
       const blocker = String((result as { blocker?: unknown }).blocker || 'another element')
+      const controls = toArray((result as { blockerControls?: unknown }).blockerControls)
+        .map(toRecord)
+        .filter((control) => typeof control.id === 'number')
+        .map((control) => `[ref=${control.id}] "${String(control.name ?? '')}"`)
       throw new ToolError(
-        `That element is covered by ${blocker}. Close or move the overlay, then take a fresh browser_snapshot.`
+        controls.length > 0
+          ? `That element is covered by ${blocker}. The overlay's controls in the current snapshot: ${controls.join(', ')}. Dismiss it with one of those, then retry the same id.`
+          : `That element is covered by ${blocker}. Close or move the overlay, then take a fresh browser_snapshot.`
       )
     }
     if (code === 'nested-control') {
       const blocker = String((result as { blocker?: unknown }).blocker || 'a nested control')
+      const controlId = (result as { controlId?: unknown }).controlId
       throw new ToolError(
-        `The point you targeted lands on ${blocker}, which is its own control inside that element — nothing is covering it. Take a fresh browser_snapshot and use the id of the control you actually want.`
+        typeof controlId === 'number'
+          ? `The point you targeted lands on ${blocker} [ref=${controlId}], which is its own control inside that element — nothing is covering it. Use id ${controlId} if that is the control you want; otherwise target the element through a part that is not a separate control.`
+          : `The point you targeted lands on ${blocker}, which is its own control inside that element — nothing is covering it. Take a fresh browser_snapshot and use the id of the control you actually want.`
       )
     }
     if (code === 'suggestions-open') {

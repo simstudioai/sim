@@ -427,6 +427,7 @@ describe('combobox typing surfaces', () => {
     expect(focusElementForTyping(0)).toEqual({
       error: 'obstructed',
       blocker: 'Mondu',
+      blockerControls: [],
     })
 
     expect(clickElement(0, false)).toMatchObject({
@@ -448,6 +449,7 @@ describe('combobox typing surfaces', () => {
     expect(focusElementForTyping(0)).toEqual({
       error: 'obstructed',
       blocker: 'Mondu',
+      blockerControls: [],
     })
   })
 
@@ -643,6 +645,28 @@ describe('collectSnapshot', () => {
     expect(clicked).toBe(true)
   })
 
+  it('names the covering dialog controls so the agent can dismiss it and retry', () => {
+    document.body.innerHTML = `
+      <button aria-label="Checkout">Checkout</button>
+      <div role="dialog" aria-label="Cookie notice"><p>We use cookies</p>
+        <button>Accept all</button><button aria-label="Close notice">×</button>
+      </div>`
+    for (const element of Array.from(document.body.querySelectorAll('*'))) visible(element)
+    const outline = outlineOf(collectSnapshot())
+    const ref = refFor(outline, 'Checkout')
+    const notice = document.querySelector('p') as HTMLParagraphElement
+    Object.defineProperty(document, 'elementFromPoint', { configurable: true, value: () => notice })
+
+    expect(clickElement(ref, false)).toEqual({
+      error: 'obstructed',
+      blocker: 'We use cookies',
+      blockerControls: [
+        { id: refFor(outline, 'Accept all'), name: 'Accept all' },
+        { id: refFor(outline, 'Close notice'), name: 'Close notice' },
+      ],
+    })
+  })
+
   it('refuses a coordinate click when an overlay owns every hit point', () => {
     document.body.innerHTML =
       '<button aria-label="Delete draft">Delete</button><div aria-label="Confirmation overlay"></div>'
@@ -658,6 +682,7 @@ describe('collectSnapshot', () => {
     expect(clickElement(ref, false)).toEqual({
       error: 'obstructed',
       blocker: 'Confirmation overlay',
+      blockerControls: [],
     })
   })
 
@@ -682,6 +707,7 @@ describe('collectSnapshot', () => {
     expect(clickElement(ref, false)).toEqual({
       error: 'nested-control',
       blocker: 'Delete channel',
+      controlId: 1,
     })
   })
 
