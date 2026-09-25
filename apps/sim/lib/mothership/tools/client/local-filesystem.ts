@@ -14,6 +14,7 @@ import {
 } from '@sim/desktop-bridge/local-filesystem-limits'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { LRUCache } from 'lru-cache'
 import micromatch from 'micromatch'
 import { getDesktopBridge } from '@/lib/desktop'
 import { ASYNC_TOOL_CONFIRMATION_STATUS } from '@/lib/mothership/async-runs/lifecycle'
@@ -38,7 +39,7 @@ const VFS_GLOB_OPTIONS: micromatch.Options = {
   noext: true,
 }
 
-interface LocalFilesystemExecutionContext {
+export interface LocalFilesystemExecutionContext {
   workspaceId?: string
   chatId?: string
   signal?: AbortSignal
@@ -337,12 +338,21 @@ async function execute(
   return executeUserLocalRead(toolCallId, args, context.signal)
 }
 
+/**
+ * Exactly-once guard. A call's chat view and the relay that runs it after the
+ * user leaves can both start it, and a remounted view replays calls still
+ * running. Bounded: a call evicted behind this many newer ones is long settled.
+ */
+const executedToolCallIds = new LRUCache<string, true>({ max: 500 })
+
 export function executeLocalFilesystemTool(
   toolCallId: string,
   toolName: string,
   args: Record<string, unknown>,
   context: LocalFilesystemExecutionContext
 ): void {
+  if (executedToolCallIds.has(toolCallId)) return
+  executedToolCallIds.set(toolCallId, true)
   if (isNativeFileTool(toolName)) {
     void executeNativeFileTool(toolCallId, toolName, context.signal)
     return

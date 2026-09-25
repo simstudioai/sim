@@ -34,7 +34,7 @@ import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { withinDeadline } from '@/lib/core/utils/deadline'
 import { readSSELines } from '@/lib/core/utils/sse'
-import { getDesktopBridge, getDesktopChatCapabilities } from '@/lib/desktop'
+import { getDesktopBridge, getDesktopChatCapabilities, isDesktopApp } from '@/lib/desktop'
 import {
   activateDesktopChatScopes,
   desktopChatScopeId,
@@ -75,6 +75,7 @@ import {
   sanitizeChatResources,
 } from '@/lib/mothership/resources/types'
 import { executeBrowserToolOnClient } from '@/lib/mothership/tools/client/browser-tool-execution'
+import { launchLocalFilesystemTool } from '@/lib/mothership/tools/client/launch-local-filesystem-tool'
 import {
   bindRunToolToExecution,
   executeRunToolOnClient,
@@ -82,7 +83,6 @@ import {
 } from '@/lib/mothership/tools/client/run-tool-execution'
 import { executeTerminalToolOnClient } from '@/lib/mothership/tools/client/terminal-tool-execution'
 import { setCurrentChatTraceparent } from '@/lib/mothership/tools/client/trace-context'
-import { isNativeFileTool, isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
 import { isWorkflowToolName } from '@/lib/mothership/tools/workflow-tools'
 import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
@@ -104,6 +104,10 @@ import {
   dispatchStreamEvent,
   finalizeResidualToolCalls,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream'
+import {
+  detachClientTools,
+  reattachClientTools,
+} from '@/app/workspace/[workspaceId]/home/hooks/stream/detached-client-tools'
 import { useNativeActiveTabIds } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
 import { resolveEffectiveResourceId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
 import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
@@ -166,12 +170,16 @@ import {
 } from './send-handoff'
 import {
   buildReplayStream,
+  buildStreamResumeUrl,
   createStreamSchemaValidationError,
+  getStreamEventCursor,
   isAlreadyProcessedStreamCursor,
   isStreamGoneError,
   isStreamSchemaValidationError,
   parseStreamBatchResponse,
   resolveChatIdFromStreamBatch,
+  STREAM_BATCH_FETCH_TIMEOUT_MS,
+  STREAM_IDLE_TIMEOUT_MS,
   type StreamBatchResponse,
   StreamGoneError,
 } from './stream-protocol'
@@ -286,9 +294,6 @@ const MAX_RECONNECT_ATTEMPTS = 10
 const RECONNECT_BASE_DELAY_MS = 1000
 const RECONNECT_MAX_DELAY_MS = 30_000
 const RECONNECT_EXHAUSTED_RECHECK_MS = 30_000
-const STREAM_BATCH_FETCH_TIMEOUT_MS = 10_000
-/** Both live transports heartbeat every 15s; three missed heartbeats trigger cursor recovery. */
-const STREAM_IDLE_TIMEOUT_MS = 45_000
 const STREAM_CHAT_ID_RESOLVE_TIMEOUT_MS = 10_000
 const CHAT_HISTORY_RECOVERY_TIMEOUT_MS = 10_000
 const STOP_REQUEST_TIMEOUT_MS = 15_000
@@ -905,6 +910,7 @@ export function useChat(
     (reason: 'pageshow' | 'visible' | 'online' | 'exhausted_recheck') => Promise<void>
   >(async () => {})
   const reconnectExhaustedRecheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const detachLiveTurnClientToolsRef = useRef<() => boolean>(() => false)
 
   const abortControllerRef = useRef<AbortController | null>(null)
   const detachedChatResolutionControllersRef = useRef<Set<AbortController>>(new Set())
@@ -960,7 +966,6 @@ export function useChat(
   const streamingContentRef = useRef('')
   const streamingBlocksRef = useRef<ContentBlock[]>([])
   const handledClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
-  const handledClientLocalFilesystemToolIdsRef = useRef<Set<string>>(new Set())
   const recoveringClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
   const isHomePage = pathname.endsWith('/home')
 
@@ -1043,6 +1048,7 @@ export function useChat(
 
   const resetHomeChatState = useCallback(() => {
     const abandonedDesktopScopeId = desktopScopeIdRef.current
+    detachLiveTurnClientToolsRef.current()
     cancelActiveStreamRecovery()
     streamGenRef.current++
     cancelActiveStreamReader()
@@ -1530,61 +1536,13 @@ export function useChat(
 
   const startClientLocalFilesystemTool = useCallback(
     (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>) => {
-      if (
-        !isNativeFileTool(toolName) &&
-        (!workspaceId || !isUserLocalVfsToolCall(toolName, toolArgs))
-      ) {
-        return
-      }
-      if (handledClientLocalFilesystemToolIdsRef.current.has(toolCallId)) {
-        return
-      }
-      handledClientLocalFilesystemToolIdsRef.current.add(toolCallId)
-      const options = {
+      launchLocalFilesystemTool(toolCallId, toolName, toolArgs, {
         workspaceId,
         chatId: chatIdRef.current ?? selectedChatIdRef.current,
         signal: abortControllerRef.current?.signal,
-      }
-      /**
-       * Dynamic on purpose: the local-filesystem executor only runs for desktop-local
-       * VFS tool calls, and a static import kept it in the shared chat chunk on every
-       * surface that mounts the composer. The guard, the dedupe add, and the option
-       * capture above stay synchronous, so re-entrancy behaviour is unchanged. If the
-       * chunk fails to load (deploy skew), the server-side tool call must still settle:
-       * report an error completion rather than leaving it hanging with the dedupe ref
-       * already marked handled.
-       */
-      import('@/lib/mothership/tools/client/local-filesystem').then(
-        (m) => m.executeLocalFilesystemTool(toolCallId, toolName, toolArgs, options),
-        async (error) => {
-          logger.error('Failed to load local filesystem tool executor', { error })
-          /**
-           * The recovery itself can reject (the helper chunks or the completion POST can
-           * fail for the same reason the executor chunk did). Contain it: an unhandled
-           * rejection here would settle nothing and surface as a console error, exactly
-           * like the executor's own report-failure path, which also degrades to a log.
-           */
-          try {
-            const [{ reportClientToolCompletion }, { ASYNC_TOOL_CONFIRMATION_STATUS }] =
-              await Promise.all([
-                import('@/lib/mothership/tools/client/completion'),
-                import('@/lib/mothership/async-runs/lifecycle'),
-              ])
-            await reportClientToolCompletion(
-              toolCallId,
-              ASYNC_TOOL_CONFIRMATION_STATUS.error,
-              'Local filesystem tool failed to load'
-            )
-          } catch (reportError) {
-            logger.error('Failed to report local filesystem tool load failure', {
-              toolCallId,
-              error: reportError,
-            })
-          }
-        }
-      )
+      })
     },
-    [workspaceId, organizationId, scopeKey]
+    [workspaceId]
   )
 
   const getResourceActivityTracker = useCallback(
@@ -1648,6 +1606,38 @@ export function useChat(
     },
     [workspaceId, organizationId, scopeKey]
   )
+
+  /**
+   * Hands the live turn's client tools to a detached relay as the user leaves
+   * its chat, so a desktop run keeps going in the background. Only a turn the
+   * server admitted is detached; a send still awaiting admission is withdrawn
+   * by the unmount cleanup and handed to the next chat surface instead. When a
+   * relay takes the turn, the caller releases the turn's controller without
+   * aborting it, so tools already running report their outcome.
+   *
+   * @returns whether a relay took the turn
+   */
+  detachLiveTurnClientToolsRef.current = (): boolean => {
+    const streamId = streamIdRef.current
+    if (
+      !isDesktopApp() ||
+      requestModeRef.current === 'assistant' ||
+      !sendingRef.current ||
+      !streamId ||
+      pendingChatAdmissionRef.current
+    ) {
+      return false
+    }
+    detachClientTools({
+      streamId,
+      chatId: chatIdRef.current,
+      afterCursor: lastCursorRef.current,
+      traceparent: streamTraceparentRef.current,
+      workspaceId,
+      scopeKey,
+    })
+    return true
+  }
 
   const recoverPendingClientWorkflowTools = useCallback(
     async (nextMessages: ChatMessage[]) => {
@@ -1767,6 +1757,7 @@ export function useChat(
         }
         // Detach the current UI from the old stream without cancelling it on the server.
         // Reopening that chat later will reconnect through the existing chatHistory flow.
+        detachLiveTurnClientToolsRef.current()
         cancelActiveStreamRecovery()
         streamGenRef.current++
         cancelActiveStreamReader()
@@ -2218,6 +2209,7 @@ export function useChat(
         return { sawStreamError: false, sawComplete: false }
       }
       streamReaderRef.current = reader
+      if (streamIdRef.current) reattachClientTools(streamIdRef.current)
 
       try {
         await readSSELines(reader, {
@@ -2247,7 +2239,7 @@ export function useChat(
             if (parsed.stream?.streamId) {
               streamIdRef.current = parsed.stream.streamId
             }
-            const eventCursor = parsed.stream?.cursor ?? String(parsed.seq)
+            const eventCursor = getStreamEventCursor(parsed)
             if (isAlreadyProcessedStreamCursor(eventCursor, lastCursorRef.current)) {
               return
             }
@@ -2366,15 +2358,12 @@ export function useChat(
         createTimeoutSignal(STREAM_BATCH_FETCH_TIMEOUT_MS)
       )
       // boundary-raw-fetch: stream-resume batch endpoint requires dynamic per-request traceparent header propagation that the contract layer does not model, and the response is consumed alongside live SSE tail fetches
-      const response = await fetch(
-        `/api/mothership/chat/stream?streamId=${encodeURIComponent(streamId)}&after=${encodeURIComponent(afterCursor)}&batch=true`,
-        {
-          signal: fetchSignal,
-          ...(streamTraceparentRef.current
-            ? { headers: { traceparent: streamTraceparentRef.current } }
-            : {}),
-        }
-      )
+      const response = await fetch(buildStreamResumeUrl(streamId, afterCursor, { batch: true }), {
+        signal: fetchSignal,
+        ...(streamTraceparentRef.current
+          ? { headers: { traceparent: streamTraceparentRef.current } }
+          : {}),
+      })
       if (response.status === 404) {
         throw new StreamGoneError(streamId)
       }
@@ -2558,15 +2547,12 @@ export function useChat(
           logger.info('Opening live stream tail', { streamId, afterCursor: latestCursor })
 
           // boundary-raw-fetch: live SSE tail endpoint streams events consumed via response.body.getReader() and processSSEStream
-          const sseRes = await fetch(
-            `/api/mothership/chat/stream?streamId=${encodeURIComponent(streamId)}&after=${encodeURIComponent(latestCursor)}`,
-            {
-              signal: activeAbort.signal,
-              ...(streamTraceparentRef.current
-                ? { headers: { traceparent: streamTraceparentRef.current } }
-                : {}),
-            }
-          )
+          const sseRes = await fetch(buildStreamResumeUrl(streamId, latestCursor), {
+            signal: activeAbort.signal,
+            ...(streamTraceparentRef.current
+              ? { headers: { traceparent: streamTraceparentRef.current } }
+              : {}),
+          })
           if (sseRes.status === 404) {
             throw new StreamGoneError(streamId)
           }
@@ -2575,6 +2561,7 @@ export function useChat(
           }
 
           if (isStaleReconnect()) {
+            await sseRes.body.cancel()
             return { error: false, aborted: true }
           }
 
@@ -4892,11 +4879,12 @@ export function useChat(
 
   useEffect(() => {
     return () => {
+      const detachedToRelay = detachLiveTurnClientToolsRef.current()
       cancelActiveStreamRecovery()
       clearQueueDispatchState()
       streamGenRef.current++
       cancelActiveStreamReader()
-      abortControllerRef.current?.abort('unmount:client_cleanup')
+      if (!detachedToRelay) abortControllerRef.current?.abort('unmount:client_cleanup')
       abortControllerRef.current = null
       for (const controller of detachedChatResolutionControllersRef.current) {
         controller.abort('unmount:detached_chat_resolution')

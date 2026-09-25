@@ -25,6 +25,9 @@ const logger = createLogger('CopilotTerminalToolExecution')
 
 /** Tool events older than this are replays, not live instructions. */
 const MAX_EVENT_AGE_MS = 120_000
+/** A stale call never ran in this client; the waiter must hear so or the turn hangs. */
+const STALE_EVENT_MESSAGE =
+  'This terminal command was delivered too late to run safely, so it was not run. Ask again to retry it.'
 const EXECUTED_STORAGE_PREFIX = 'sim:copilot:terminal-tool-executed:'
 
 /**
@@ -121,6 +124,17 @@ export function executeTerminalToolOnClient(
   const age = eventAgeMs(eventTs)
   if (age !== null && age > MAX_EVENT_AGE_MS) {
     logger.info('Skipping stale terminal tool event', { toolCallId, operation, age })
+    void reportClientToolCompletion(
+      toolCallId,
+      ASYNC_TOOL_CONFIRMATION_STATUS.error,
+      STALE_EVENT_MESSAGE,
+      { error: STALE_EVENT_MESSAGE, staleEvent: true }
+    ).catch((reportErr) => {
+      logger.error('Failed to report stale terminal tool event', {
+        toolCallId,
+        error: toError(reportErr).message,
+      })
+    })
     return
   }
   markExecuted(toolCallId)

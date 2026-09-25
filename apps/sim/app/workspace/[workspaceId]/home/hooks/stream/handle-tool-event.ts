@@ -1,23 +1,23 @@
-import { isCurrentBrowserToolName } from '@sim/browser-protocol'
-import { isTerminalToolName } from '@sim/terminal-protocol'
-import {
-  MothershipStreamV1ToolPhase,
-  MothershipStreamV1ToolStatus,
-} from '@/lib/mothership/generated/mothership-stream-v1'
+import { MothershipStreamV1ToolPhase } from '@/lib/mothership/generated/mothership-stream-v1'
 import {
   ApplyFileEdit,
   ConnectSlackBot,
   PrepareFileEdit,
 } from '@/lib/mothership/generated/tool-catalog-v1'
-import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import {
   extractResourcesFromToolResult,
   isResourceToolName,
 } from '@/lib/mothership/resources/extraction'
-import { isNativeFileTool, isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
-import { isWorkflowToolName } from '@/lib/mothership/tools/workflow-tools'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
-import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
+import {
+  type ClientToolStart,
+  resolveClientToolStart,
+  type ToolEvent,
+} from '@/app/workspace/[workspaceId]/home/hooks/stream/client-tool-start'
+import type {
+  StreamLoopContext,
+  StreamLoopDeps,
+} from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
 import {
   DEPLOY_TOOL_NAMES,
   FILE_SUBAGENT_ID,
@@ -36,8 +36,6 @@ import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
-
-type ToolEvent = Extract<PersistedStreamEventEnvelope, { type: 'tool' }>
 
 /** The display agent id for a tool's owning span (undefined on the main lane). */
 function agentIdForSpan(ctx: StreamLoopContext, spanId: string): string | undefined {
@@ -148,10 +146,29 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode, replay
   }
 }
 
+/** Hands a client-executed tool call to the executor for its kind. */
+function startClientTool(deps: StreamLoopDeps, start: ClientToolStart): void {
+  const { toolCallId, toolName, args, eventTs } = start
+  switch (start.kind) {
+    case 'workflow':
+      deps.startClientWorkflowTool(toolCallId, toolName, args)
+      return
+    case 'localFilesystem':
+      deps.startClientLocalFilesystemTool(toolCallId, toolName, args)
+      return
+    case 'browser':
+      deps.startClientBrowserTool(toolCallId, toolName, args, eventTs)
+      return
+    case 'terminal':
+      deps.startClientTerminalTool(toolCallId, toolName, args, eventTs)
+      return
+  }
+}
+
 /**
  * Side effects for tool events. State (the tool node, its status, args, and the
  * apply_file_edit row merge) is owned by `reduceEvent`; this handler routes preview
- * phases, fires client workflow tools, and runs result side effects, then
+ * phases, starts client-executed tools, and runs result side effects, then
  * flushes the model-derived snapshot.
  */
 export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void {
@@ -185,60 +202,12 @@ export function handleToolEvent(ctx: StreamLoopContext, parsed: ToolEvent): void
   // reducer, run its side effects now (the result event had no node to act on).
   if (node?.kind === 'tool' && node.result) runToolResultSideEffects(ctx, node, replay)
 
-  const name = payload.toolName
-  const isPartial =
-    payload.partial === true || payload.status === MothershipStreamV1ToolStatus.generating
-  if (isWorkflowToolName(name) && !isPartial) {
-    const shouldStartWorkflowTool =
-      !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
-      node?.kind === 'tool' &&
-      node.status === 'running' &&
-      !node.result
-    if (shouldStartWorkflowTool) {
-      const args = payload.arguments as Record<string, unknown> | undefined
-      deps.startClientWorkflowTool(rawId, name, args ?? {})
-    }
-  }
-  const localFilesystemArgs = payload.arguments as Record<string, unknown> | undefined
-  if ((isNativeFileTool(name) || isUserLocalVfsToolCall(name, localFilesystemArgs)) && !isPartial) {
-    const shouldStartLocalFilesystemTool =
-      !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
-      node?.kind === 'tool' &&
-      node.status === 'running' &&
-      !node.result
-    if (shouldStartLocalFilesystemTool) {
-      deps.startClientLocalFilesystemTool(rawId, name, localFilesystemArgs ?? {})
-    }
-  }
-  if (isCurrentBrowserToolName(name) && !isPartial) {
-    const shouldStartBrowserTool =
-      !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
-      node?.kind === 'tool' &&
-      node.status === 'running' &&
-      !node.result
-    if (shouldStartBrowserTool) {
-      deps.startClientBrowserTool(
-        rawId,
-        name,
-        (payload.arguments as Record<string, unknown> | undefined) ?? {},
-        parsed.ts
-      )
-    }
-  }
-  if (isTerminalToolName(name) && !isPartial) {
-    const shouldStartTerminalTool =
-      !deps.options.suppressedWorkflowToolStartIds?.has(rawId) &&
-      node?.kind === 'tool' &&
-      node.status === 'running' &&
-      !node.result
-    if (shouldStartTerminalTool) {
-      deps.startClientTerminalTool(
-        rawId,
-        name,
-        (payload.arguments as Record<string, unknown> | undefined) ?? {},
-        parsed.ts
-      )
-    }
-  }
+  const start = resolveClientToolStart(parsed)
+  const isPending =
+    node?.kind === 'tool' &&
+    node.status === 'running' &&
+    !node.result &&
+    !deps.options.suppressedWorkflowToolStartIds?.has(rawId)
+  if (start && isPending) startClientTool(deps, start)
   ops.flush()
 }
