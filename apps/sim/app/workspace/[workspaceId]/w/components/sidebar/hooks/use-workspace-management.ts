@@ -106,8 +106,8 @@ export function useWorkspaceManagement({
   }, [workspaces, workspaceId])
 
   useEffect(() => {
-    if (workspaceId) recordWorkspaceVisit(workspaceId)
-  }, [workspaceId, recordWorkspaceVisit])
+    if (workspaceId && sessionUserId) recordWorkspaceVisit(workspaceId)
+  }, [workspaceId, sessionUserId, recordWorkspaceVisit])
 
   const activeWorkspaceRef = useRef<Workspace | null>(activeWorkspace)
   activeWorkspaceRef.current = activeWorkspace

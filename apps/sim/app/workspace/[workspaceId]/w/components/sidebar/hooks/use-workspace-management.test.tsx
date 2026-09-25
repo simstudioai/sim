@@ -94,8 +94,8 @@ describe('resolveWorkspaceSwitchHref', () => {
   })
 })
 
-function Harness() {
-  useWorkspaceManagement({ workspaceId: 'workspace-denied', sessionUserId: 'user-1' })
+function Harness({ sessionUserId = 'user-1' }: { sessionUserId?: string }) {
+  useWorkspaceManagement({ workspaceId: 'workspace-denied', sessionUserId })
   return null
 }
 
@@ -144,5 +144,13 @@ describe('useWorkspaceManagement direct access guard', () => {
 
     expect(mockRecordWorkspaceVisit).toHaveBeenCalledTimes(1)
     expect(mockRecordWorkspaceVisit).toHaveBeenCalledWith('workspace-denied')
+  })
+
+  it('waits for the session before recording the visit', async () => {
+    await act(async () => root.render(<Harness sessionUserId='' />))
+    expect(mockRecordWorkspaceVisit).not.toHaveBeenCalled()
+
+    await act(async () => root.render(<Harness />))
+    expect(mockRecordWorkspaceVisit).toHaveBeenCalledTimes(1)
   })
 })

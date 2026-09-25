@@ -1,19 +1,22 @@
 import { db } from '@sim/db'
 import { workspaceVisit } from '@sim/db/schema'
-import { desc, eq } from 'drizzle-orm'
+import { asc, desc, eq, sql } from 'drizzle-orm'
 
-/** Stamps the user's visit to a workspace. Callers must prove workspace access first. */
+/**
+ * Stamps the user's visit to a workspace with the database clock, so visits
+ * handled by different app servers order consistently. Callers must prove
+ * workspace access first.
+ */
 export async function recordWorkspaceVisitRecord(
   userId: string,
   workspaceId: string
 ): Promise<void> {
-  const visitedAt = new Date()
   await db
     .insert(workspaceVisit)
-    .values({ userId, workspaceId, visitedAt })
+    .values({ userId, workspaceId })
     .onConflictDoUpdate({
       target: [workspaceVisit.userId, workspaceVisit.workspaceId],
-      set: { visitedAt },
+      set: { visitedAt: sql`now()` },
     })
 }
 
@@ -23,7 +26,7 @@ export async function listRecentWorkspaceIds(userId: string): Promise<string[]> 
     .select({ workspaceId: workspaceVisit.workspaceId })
     .from(workspaceVisit)
     .where(eq(workspaceVisit.userId, userId))
-    .orderBy(desc(workspaceVisit.visitedAt))
+    .orderBy(desc(workspaceVisit.visitedAt), asc(workspaceVisit.workspaceId))
   return rows.map((row) => row.workspaceId)
 }
 

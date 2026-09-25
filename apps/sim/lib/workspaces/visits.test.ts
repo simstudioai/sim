@@ -15,15 +15,14 @@ describe('workspace visits', () => {
     resetDbChainMock()
   })
 
-  it('upserts the visit time for the user and workspace', async () => {
+  it('upserts the visit with the database clock', async () => {
     await recordWorkspaceVisitRecord('user-1', 'ws-1')
 
     expect(dbChainMockFns.insert).toHaveBeenCalledWith(schemaMock.workspaceVisit)
-    const [[row]] = dbChainMockFns.values.mock.calls
-    expect(row).toEqual({ userId: 'user-1', workspaceId: 'ws-1', visitedAt: expect.any(Date) })
+    expect(dbChainMockFns.values).toHaveBeenCalledWith({ userId: 'user-1', workspaceId: 'ws-1' })
     expect(dbChainMockFns.onConflictDoUpdate).toHaveBeenCalledWith({
       target: [schemaMock.workspaceVisit.userId, schemaMock.workspaceVisit.workspaceId],
-      set: { visitedAt: row.visitedAt },
+      set: { visitedAt: expect.anything() },
     })
   })
 
