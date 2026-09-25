@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
-import { Checkbox, Chip, ChipModalField, cn, Label, SecretInput, Tooltip, Wizard } from '@sim/emcn'
+import { Checkbox, Chip, ChipModalField, cn, Label, Tooltip, Wizard } from '@sim/emcn'
 import { Check, ChevronRight, CircleInfo } from '@sim/emcn/icons'
 import { useShallow } from 'zustand/react/shallow'
 import { SlackAppManifest } from '@/components/integrations/slack-app-manifest'
@@ -126,7 +126,7 @@ function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: Wizar
       size='lg'
       height={MODAL_HEIGHT_CLASS}
     >
-      <Wizard.Step title='Configure your bot' canAdvance={Boolean(displayAppName.trim())}>
+      <Wizard.Step title='Configure your bot'>
         <StepConfigure
           blockId={blockId}
           appName={displayAppName}
@@ -142,7 +142,6 @@ function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: Wizar
       </Wizard.Step>
       <Wizard.Step title='Install and paste your Bot Token' canAdvance={Boolean(botToken?.trim())}>
         <StepToken
-          blockId={blockId}
           value={botToken ?? ''}
           onChange={(v) => {
             if (!controlsDisabled) setBotToken(v)
@@ -152,7 +151,6 @@ function WizardModal({ blockId, open, onOpenChange, isPreview, disabled }: Wizar
       </Wizard.Step>
       <Wizard.Step title='Paste your Signing Secret' canAdvance={Boolean(signingSecret?.trim())}>
         <StepSecret
-          blockId={blockId}
           value={signingSecret ?? ''}
           onChange={(v) => {
             if (!controlsDisabled) setSigningSecret(v)
@@ -282,13 +280,12 @@ function StepCreate({ manifestJson, canCopy, isLoading }: StepCreateProps) {
 }
 
 interface StepSecretProps {
-  blockId: string
   value: string
   onChange: (next: string) => void
   disabled: boolean
 }
 
-function StepSecret({ blockId, value, onChange, disabled }: StepSecretProps) {
+function StepSecret({ value, onChange, disabled }: StepSecretProps) {
   return (
     <div className='space-y-4'>
       <SubStepList>
@@ -301,7 +298,6 @@ function StepSecret({ blockId, value, onChange, disabled }: StepSecretProps) {
         <SubStep n={3}>Paste it into the field below.</SubStep>
       </SubStepList>
       <SecretField
-        id={`${blockId}-wizard-signing-secret`}
         label='Signing Secret'
         value={value}
         onChange={onChange}
@@ -313,13 +309,12 @@ function StepSecret({ blockId, value, onChange, disabled }: StepSecretProps) {
 }
 
 interface StepTokenProps {
-  blockId: string
   value: string
   onChange: (next: string) => void
   disabled: boolean
 }
 
-function StepToken({ blockId, value, onChange, disabled }: StepTokenProps) {
+function StepToken({ value, onChange, disabled }: StepTokenProps) {
   return (
     <div className='space-y-4'>
       <SubStepList>
@@ -333,7 +328,6 @@ function StepToken({ blockId, value, onChange, disabled }: StepTokenProps) {
         <SubStep n={3}>Paste it into the field below.</SubStep>
       </SubStepList>
       <SecretField
-        id={`${blockId}-wizard-bot-token`}
         label='Bot Token'
         value={value}
         onChange={onChange}
@@ -345,7 +339,6 @@ function StepToken({ blockId, value, onChange, disabled }: StepTokenProps) {
 }
 
 interface SecretFieldProps {
-  id: string
   label: string
   value: string
   onChange: (next: string) => void
@@ -353,23 +346,18 @@ interface SecretFieldProps {
   placeholder?: string
 }
 
-/**
- * Label + SecretInput pair used by the signing-secret and bot-token wizard
- * steps. The masked-on-blur behavior lives in the emcn `SecretInput`
- * primitive; this wrapper just pins the label/input composition the wizard
- * reuses twice.
- */
-function SecretField({ id, label, value, onChange, disabled, placeholder }: SecretFieldProps) {
+function SecretField({ label, value, onChange, disabled, placeholder }: SecretFieldProps) {
   return (
-    <ChipModalField type='custom' title={label}>
-      <SecretInput
-        id={id}
-        value={value}
-        onChange={onChange}
-        disabled={disabled}
-        placeholder={placeholder}
-      />
-    </ChipModalField>
+    <ChipModalField
+      type='input'
+      inputType='password'
+      title={label}
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      placeholder={placeholder}
+      autoComplete='off'
+    />
   )
 }
 

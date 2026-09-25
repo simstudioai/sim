@@ -91,9 +91,13 @@ it('collects the token before the signing secret and retains both when going bac
   await click('Next')
   await click('Next')
   expect(button('Next')).toBeDisabled()
+  expect(document.querySelector('input[placeholder="xoxb-..."]')).toHaveAccessibleName('Bot Token')
   await fill('xoxb-...', 'xoxb-test-token')
   await click('Next')
   expect(button('Next')).toBeDisabled()
+  expect(
+    document.querySelector('input[placeholder="Paste your signing secret"]')
+  ).toHaveAccessibleName('Signing Secret')
   await fill('Paste your signing secret', 'test-secret')
   await click('Back')
   await click('Next')
@@ -102,4 +106,15 @@ it('collects the token before the signing secret and retains both when going bac
   expect(document.body).toHaveTextContent('save and deploy the workflow with these credentials')
   expect(document.body).toHaveTextContent('verify the event Request URL')
   expect(document.body).not.toHaveTextContent('automatically')
+})
+
+it('uses the existing default name when the bot name is cleared', async () => {
+  mocks.loading = false
+  await render()
+  await click('Set up Slack app')
+  await fill('Sim Workflow Bot', '')
+  expect(button('Next')).not.toBeDisabled()
+  await click('Next')
+  await click('Copy manifest')
+  expect(JSON.parse(mocks.copy.mock.calls[0][0]).display_information.name).toBe('Sim Workflow Bot')
 })

@@ -50,7 +50,6 @@ export function SlackSearchSetupWizard({
   const [clientSecret, setClientSecret] = useState('')
   const [signingSecret, setSigningSecret] = useState('')
   const [botToken, setBotToken] = useState('')
-  const [copiedManifest, setCopiedManifest] = useState<string | null>(null)
   const error = prepare.error ?? oauth.error ?? connect.error
   const busy = oauth.isPending || connect.isPending
   const configuredAppId = appId ?? prepare.data?.existingApp?.appId
@@ -207,11 +206,7 @@ export function SlackSearchSetupWizard({
       <ChipModalBody>
         {step === 'manifest' && (
           <ChipModalField type='custom' title='App manifest'>
-            <SlackAppManifest
-              manifest={prepare.data.manifest}
-              disabled={Boolean(prepare.error)}
-              onCopy={setCopiedManifest}
-            />
+            <SlackAppManifest manifest={prepare.data.manifest} disabled={Boolean(prepare.error)} />
             <p className='text-[var(--text-secondary)] text-sm'>
               {configuredAppId
                 ? 'In your Slack app, open App Manifest, replace the JSON, and save changes.'
@@ -332,12 +327,10 @@ export function SlackSearchSetupWizard({
           disabled:
             busy ||
             Boolean(prepare.error) ||
-            (step === 'manifest'
-              ? copiedManifest !== prepare.data.manifest
-              : step === 'token'
-                ? !botToken.trim()
-                : !installationId &&
-                  (!clientId.trim() || !clientSecret.trim() || !signingSecret.trim())),
+            (step === 'token' && !botToken.trim()) ||
+            (step === 'credentials' &&
+              !installationId &&
+              (!clientId.trim() || !clientSecret.trim() || !signingSecret.trim())),
         }}
       />
     </ChipModal>

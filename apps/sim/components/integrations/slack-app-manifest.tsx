@@ -7,11 +7,10 @@ import { Check, Clipboard } from '@sim/emcn/icons'
 interface SlackAppManifestProps {
   manifest: string
   disabled?: boolean
-  onCopy?: (manifest: string) => void
 }
 
 /** Shared copy action and optional preview for Slack app setup flows. */
-export function SlackAppManifest({ manifest, disabled, onCopy }: SlackAppManifestProps) {
+export function SlackAppManifest({ manifest, disabled }: SlackAppManifestProps) {
   const { copied, copy } = useCopyToClipboard()
   const [copiedManifest, setCopiedManifest] = useState<string | null>(null)
   const [copyFailed, setCopyFailed] = useState(false)
@@ -25,7 +24,6 @@ export function SlackAppManifest({ manifest, disabled, onCopy }: SlackAppManifes
       return
     }
     setCopiedManifest(manifest)
-    onCopy?.(manifest)
   }
 
   return (

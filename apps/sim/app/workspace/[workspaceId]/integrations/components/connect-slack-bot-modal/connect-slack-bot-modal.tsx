@@ -8,7 +8,6 @@ import {
   type ChipDropdownOption,
   ChipInput,
   ChipModalField,
-  SecretInput,
   Wizard,
 } from '@sim/emcn'
 import { Loader, Plus, Trash } from '@sim/emcn/icons'
@@ -616,9 +615,15 @@ interface SecretFieldProps {
 }
 function SecretField({ label, value, onChange, placeholder }: SecretFieldProps) {
   return (
-    <ChipModalField type='custom' title={label}>
-      <SecretInput value={value} onChange={onChange} placeholder={placeholder} />
-    </ChipModalField>
+    <ChipModalField
+      type='input'
+      inputType='password'
+      title={label}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      autoComplete='off'
+    />
   )
 }
 
