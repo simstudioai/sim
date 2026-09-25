@@ -7,17 +7,12 @@ import {
   ChartFrame,
   ChartLegend,
   type ChartLegendItem,
-  cn,
   DashboardMetric,
   formatChartLatency,
 } from '@sim/emcn'
 import type { OrganizationActivitySummary } from '@/lib/api/contracts/organization-activity'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import {
-  USAGE_CHAT_COLOR,
-  USAGE_OTHER_COLOR,
-  USAGE_PALETTE_CLASS,
-} from '@/ee/organization-usage/constants'
+import { USAGE_CHAT_COLOR, USAGE_OTHER_COLOR } from '@/ee/organization-usage/constants'
 import { useLegendHighlight } from '@/ee/organization-usage/hooks/use-legend-highlight'
 import { useOrganizationActivitySummary } from '@/hooks/queries/organization-activity'
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
@@ -119,7 +114,7 @@ export function ActivitySummary({ summary, loading, error, onRetry }: ActivitySu
   const chartState = { loading, error: error ? "Couldn't load activity." : undefined, onRetry }
 
   return (
-    <div className={cn('flex flex-col gap-5', USAGE_PALETTE_CLASS)}>
+    <div className='flex flex-col gap-5'>
       <div className='grid grid-cols-[repeat(auto-fit,minmax(min(120px,100%),1fr))] gap-4'>
         {metrics.map((metric) => (
           <DashboardMetric
