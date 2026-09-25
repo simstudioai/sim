@@ -1123,6 +1123,8 @@ export function clickElement(
       if ('host' in root) current = root.host as Element
       else {
         const frame: Element | null = current.ownerDocument.defaultView?.frameElement ?? null
+        // The modal exemption belongs to one document; the host page's own aria-hidden applies.
+        aboveExemptModal = false
         current = frame ? (frame as Element) : null
       }
     }
@@ -2662,6 +2664,8 @@ export function scrollPage(direction: string, amount?: number, elementId?: numbe
         if ('host' in root) current = root.host as Element
         else {
           const frame: Element | null = current.ownerDocument.defaultView?.frameElement ?? null
+          // The modal exemption belongs to one document; the host page's own aria-hidden applies.
+          aboveExemptModal = false
           current = frame
         }
       }

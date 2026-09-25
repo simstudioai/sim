@@ -4199,6 +4199,66 @@ describe('browser-agent session', () => {
     expect(download.item.resume).not.toHaveBeenCalled()
   })
 
+  it('cancels a download it cannot pause before giving it a staging file', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+    session = freshSession(win, {}, undefined, {
+      getDirectory: () => directory,
+      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
+    })
+    const contents = (session.ensureTab().view as unknown as MockView).webContents
+    const download = mockDownloadItem({ filename: 'unpausable.bin', totalBytes: 100 })
+    download.item.pause.mockImplementation(() => {
+      throw new Error('pause unavailable')
+    })
+
+    startMockDownload(contents, download)
+
+    expect(download.item.cancel).toHaveBeenCalledOnce()
+    expect(download.item.setSavePath).not.toHaveBeenCalled()
+    expect(session.getBrowserDownloadsState('chat-test').downloads[0]).toMatchObject({
+      filename: 'unpausable.bin',
+      state: 'interrupted',
+    })
+  })
+
+  it('keeps a torn-down download name reserved until its pending claim settles', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+    const claims: Array<{ path: string; gate: ReturnType<typeof deferred<void>> }> = []
+    session = freshSession(win, {}, undefined, {
+      getDirectory: () => directory,
+      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
+      claimFile: async (path) => {
+        const gate = deferred<void>()
+        claims.push({ path, gate })
+        await gate.promise
+        writeFileSync(path, '', { flag: 'wx' })
+      },
+    })
+    const firstContents = session.withBrowserScope(
+      'chat-first',
+      () => (session.ensureTab().view as unknown as MockView).webContents
+    )
+    const secondContents = session.withBrowserScope(
+      'chat-second',
+      () => (session.ensureTab().view as unknown as MockView).webContents
+    )
+    const first = mockDownloadItem({ filename: 'report.bin', totalBytes: 100 })
+    const second = mockDownloadItem({ filename: 'report.bin', totalBytes: 100 })
+
+    startMockDownload(firstContents, first)
+    await vi.waitFor(() => expect(claims).toHaveLength(1))
+    session.disposeBrowserScope('chat-first')
+    startMockDownload(secondContents, second)
+    await vi.waitFor(() => expect(claims).toHaveLength(2))
+
+    expect(claims[1].path).not.toBe(claims[0].path)
+    claims[0].gate.resolve()
+    claims[1].gate.resolve()
+    await vi.waitFor(() => expect(second.item.resume).toHaveBeenCalledOnce())
+    expect(second.item.cancel).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(existsSync(claims[0].path)).toBe(false))
+  })
+
   it('does not let a cancelled allocation release another download path owner', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
     const firstPathProbe = deferred<boolean>()

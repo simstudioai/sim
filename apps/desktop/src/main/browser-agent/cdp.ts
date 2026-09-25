@@ -984,9 +984,10 @@ export function clearAgentContextMenu(contents: WebContents): void {
 }
 
 /**
- * Clicks at viewport coordinates. `signal` ends a press-and-hold early: the click rejects with the
- * abort reason and the button is released at once, so a cancelled or timed-out click cannot stay
- * held into the next action. That release can still activate the control under the pointer.
+ * Clicks at viewport coordinates. An already-aborted `signal` rejects before anything is pressed.
+ * During a press-and-hold it ends the hold early: the click rejects with the abort reason and the
+ * button is released at once, so a cancelled or timed-out click cannot stay held into the next
+ * action. That release can still activate the control under the pointer.
  */
 export async function clickAt(
   contents: WebContents,
@@ -997,6 +998,7 @@ export async function clickAt(
   signal?: AbortSignal
 ): Promise<void> {
   if (moveBeforePress) await moveMouse(contents, x, y)
+  signal?.throwIfAborted()
   const { button, clickCount, modifiers, holdMs } = click
   const buttons = BUTTON_MASKS[button]
   let pressed = false

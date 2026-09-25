@@ -3223,6 +3223,9 @@ async function executeToolInner(
         try {
           assertCurrentExecution()
           assertElementActionCurrent(contents, elementId, target)
+          // A hold keeps the press in flight for seconds; cancelling it mid-gesture must read as
+          // an outcome that may have acted, never as a click that did not start.
+          if (click.holdMs > 0) onActionOutcome?.({ status: 'pending' })
           await cdp.clickAt(contents, x, y, false, click, signal)
           trusted = true
           activation = 'native-pointer'
@@ -3263,6 +3266,7 @@ async function executeToolInner(
           try {
             assertCurrentExecution()
             assertElementActionCurrent(contents, elementId, target)
+            if (click.holdMs > 0) onActionOutcome?.({ status: 'pending' })
             await cdp.clickAt(contents, finalTopPoint.x, finalTopPoint.y, false, click, signal)
             trusted = true
             activation = 'native-pointer'
@@ -4641,6 +4645,7 @@ async function executeToolInner(
       const beforeElement = await activeElementState(contents)
       assertCurrentExecution()
       assertActiveContents(contents, clickNavigationEpoch)
+      if (click.holdMs > 0) onActionOutcome?.({ status: 'pending' })
       try {
         await cdp.clickAt(contents, x, y, true, click, signal)
       } catch (error) {

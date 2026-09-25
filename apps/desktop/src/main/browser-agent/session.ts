@@ -144,6 +144,8 @@ export interface BrowserDownloadSettings {
   pathExists?: (path: string) => boolean | Promise<boolean>
   /** Overrides the move of a completed staging file to its final name. */
   moveFile?: (from: string, to: string) => Promise<void>
+  /** Overrides the exclusive creation of a download's destination placeholder. */
+  claimFile?: (path: string) => Promise<void>
 }
 
 export interface AgentSessionEvents {
@@ -441,6 +443,11 @@ interface ActiveBrowserDownload {
    * program choosing a name sees it taken; the completed file replaces it.
    */
   placeholderPath?: string
+  /**
+   * Set while the placeholder write is in flight. The name stays reserved in process until it
+   * settles, so teardown cannot hand the name to a newer download that the write then beats.
+   */
+  claimingDestination?: boolean
   /** Settles with the final destination, or null when allocation failed. */
   destination: Promise<string | null>
   /** Set once Electron reports the item done, so a late disk check never resumes or cancels it. */
@@ -716,7 +723,7 @@ function releaseActiveBrowserDownload(active: ActiveBrowserDownload): void {
   if (active.terminal) return
   active.terminal = true
   activeBrowserDownloads.delete(active)
-  releaseActiveBrowserDownloadPath(active)
+  if (!active.claimingDestination) releaseActiveBrowserDownloadPath(active)
   // Once Electron reports the item done, the move owns the placeholder until it settles.
   if (!active.finished) removeBrowserDownloadPlaceholder(active)
 }
@@ -756,12 +763,16 @@ function discardStagedBrowserDownload(active: ActiveBrowserDownload): void {
   removeBrowserDownloadPlaceholder(active)
 }
 
+function createEmptyFileExclusively(path: string): Promise<void> {
+  return writeFile(path, '', { flag: 'wx' })
+}
+
 /** Claims the allocated destination with an empty file; throws if anything already holds it. */
 async function claimBrowserDownloadDestination(
   active: ActiveBrowserDownload,
   savePath: string
 ): Promise<void> {
-  await writeFile(savePath, '', { flag: 'wx' })
+  await (browserDownloadSettings?.claimFile ?? createEmptyFileExclusively)(savePath)
   active.placeholderPath = savePath
 }
 
@@ -1635,6 +1646,17 @@ function configureBrowserDownloads(ses: Session): void {
       withBrowserScope(scopeId, persistBrowserSession)
       logger.warn(message, { error: getErrorMessage(error), filename })
     }
+    // Paused before the staging path is set, so a failure here leaves no file behind.
+    try {
+      item.pause()
+    } catch (error) {
+      failDownloadSetup(
+        'Stopped: the download could not be paused for a disk-space safety check',
+        'Agent browser download could not be paused for admission',
+        error
+      )
+      return
+    }
     const stagingPath = join(directory, `.sim-download-${generateShortId()}`)
     try {
       item.setSavePath(stagingPath)
@@ -1642,16 +1664,6 @@ function configureBrowserDownloads(ses: Session): void {
       failDownloadSetup(
         'Stopped: the download destination could not be prepared safely',
         'Could not set the staging destination for an agent browser download',
-        error
-      )
-      return
-    }
-    try {
-      item.pause()
-    } catch (error) {
-      failDownloadSetup(
-        'Stopped: the download could not be paused for a disk-space safety check',
-        'Agent browser download could not be paused for admission',
         error
       )
       return
@@ -1768,11 +1780,17 @@ function configureBrowserDownloads(ses: Session): void {
           publishActiveBrowserDownload(active)
           return null
         }
-        await claimBrowserDownloadDestination(active, savePath)
-        if (active.terminal || !activeBrowserDownloads.has(active)) {
-          removeBrowserDownloadPlaceholder(active)
-          return null
+        active.claimingDestination = true
+        try {
+          await claimBrowserDownloadDestination(active, savePath)
+        } finally {
+          active.claimingDestination = false
+          if (active.terminal || !activeBrowserDownloads.has(active)) {
+            removeBrowserDownloadPlaceholder(active)
+            releaseActiveBrowserDownloadPath(active, savePath)
+          }
         }
+        if (active.terminal || !activeBrowserDownloads.has(active)) return null
         checkBrowserDownloadDiskSpace(active, 'admission')
         return savePath
       })

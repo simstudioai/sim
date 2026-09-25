@@ -276,6 +276,17 @@ describe('browser-agent CDP instrumentation', () => {
     }
   })
 
+  it('presses nothing when its click was aborted before dispatch', async () => {
+    const contents = new WebContentsView().webContents
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(
+      clickAt(contents, 5, 6, false, PRIMARY_CLICK, controller.signal)
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(contents.debugger.sendCommand).not.toHaveBeenCalled()
+  })
+
   it('releases a held button as soon as its click is aborted', async () => {
     const contents = new WebContentsView().webContents
     const types = () =>

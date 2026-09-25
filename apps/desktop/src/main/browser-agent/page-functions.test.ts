@@ -2570,6 +2570,52 @@ describe('modal hidden together with its own app root', () => {
     expect(outline).not.toContain('Framed compose')
   })
 
+  it('does not carry a framed modal exemption into the host page', () => {
+    document.body.innerHTML = '<div id="app" aria-hidden="true"></div>'
+    const frame = visible(document.createElement('iframe'))
+    ;(document.getElementById('app') as HTMLElement).append(frame)
+    const inner = frame.contentDocument as Document
+    inner.body.innerHTML = `
+      <div id="root" aria-hidden="true">
+        <div role="dialog" aria-modal="true" aria-label="Framed"><button>Framed send</button></div>
+      </div>`
+    for (const element of Array.from(inner.body.querySelectorAll('*'))) visible(element)
+    register(inner.querySelector('button') as HTMLButtonElement)
+
+    expect(runSerialized(clickElement, [0, false])).toMatchObject({ error: 'not-visible' })
+  })
+
+  it('does not scroll a framed modal list whose host frame is hidden', () => {
+    document.body.innerHTML = '<div id="app" aria-hidden="true"></div>'
+    const frame = visible(document.createElement('iframe'))
+    ;(document.getElementById('app') as HTMLElement).append(frame)
+    const inner = frame.contentDocument as Document
+    inner.body.innerHTML = `
+      <div id="root" aria-hidden="true">
+        <div role="dialog" aria-modal="true" aria-label="Framed">
+          <div id="list" style="overflow-y: auto"><div>row</div></div>
+        </div>
+      </div>`
+    for (const element of Array.from(inner.body.querySelectorAll('*'))) visible(element)
+    const list = inner.getElementById('list') as HTMLDivElement
+    Object.defineProperties(list, {
+      clientHeight: { configurable: true, value: 200 },
+      scrollHeight: { configurable: true, value: 1_000 },
+      scrollTop: { configurable: true, writable: true, value: 0 },
+      scrollBy: {
+        configurable: true,
+        value: ({ top }: ScrollToOptions) => {
+          list.scrollTop += top || 0
+        },
+      },
+    })
+    register(list.firstElementChild as HTMLDivElement)
+
+    scrollPage('down', 100, 0)
+
+    expect(list.scrollTop).toBe(0)
+  })
+
   it('exposes a disablePortal modal nested inside another open modal', () => {
     document.body.innerHTML = `
       <div id="__next" aria-hidden="true"><main>

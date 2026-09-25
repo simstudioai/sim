@@ -3603,6 +3603,34 @@ describe('credential protection', () => {
     })
   })
 
+  it('reports a press-and-hold cancelled mid-hold as an unknown outcome', async () => {
+    const contents = await openPage()
+    respondWith(contents, {})
+
+    const pending = driver.executeTool(
+      'chat-test',
+      'browser_click',
+      { elementId: 0, holdMs: 5_000 },
+      'hold-call'
+    )
+    await vi.waitFor(() =>
+      expect(
+        cdpCalls(contents, 'Input.dispatchMouseEvent').some(
+          ([, params]) => toRecord(params).type === 'mousePressed'
+        )
+      ).toBe(true)
+    )
+    driver.cancelTool('chat-test', 'hold-call')
+
+    await expect(pending).resolves.toMatchObject({
+      ok: true,
+      result: { outcomeUnknown: true, doNotRetry: true },
+    })
+    expect(
+      cdpCalls(contents, 'Input.dispatchMouseEvent').map(([, params]) => toRecord(params).type)
+    ).toContain('mouseReleased')
+  })
+
   it('rejects batches that name non-action tools or observe per action', async () => {
     await openPage()
 
