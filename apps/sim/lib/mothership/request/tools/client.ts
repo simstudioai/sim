@@ -8,13 +8,22 @@ import {
 } from '@/lib/mothership/async-runs/lifecycle'
 import { replaceTerminalAsyncToolCallResult } from '@/lib/mothership/async-runs/repository'
 import { MothershipStreamV1ToolOutcome } from '@/lib/mothership/generated/mothership-stream-v1'
-import { waitForToolConfirmation } from '@/lib/mothership/persistence/tool-confirm'
+import {
+  getToolConfirmation,
+  waitForToolConfirmation,
+} from '@/lib/mothership/persistence/tool-confirm'
 import {
   type ClientToolUnsealFailureReason,
+  SEALED_CLIENT_TOOL_PROJECTION_FIELD,
+  sealProjectedClientToolCompletion,
   unsealClientToolCompletion,
   unsealClientToolContext,
+  unsealProjectedClientToolCompletion,
 } from '@/lib/mothership/request/tools/client-completion-seal.server'
-import { inspectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
+import {
+  inspectToolResultForCopilot,
+  TOOL_RESULT_UNAVAILABLE_ERROR,
+} from '@/lib/mothership/request/tools/resolved-secret-result'
 import { presentWorkflowLogs } from '@/lib/mothership/tools/workflow-output'
 import {
   createStructuralWorkflowToolCompletionData,
@@ -72,8 +81,26 @@ function getGenericCompletionMessage(status: AsyncTerminalCompletionSnapshot['st
   return 'Tool failed'
 }
 
+function unavailableClientCompletion(
+  status: AsyncTerminalCompletionSnapshot['status']
+): AsyncTerminalCompletionSnapshot {
+  return {
+    status:
+      status === MothershipStreamV1ToolOutcome.cancelled
+        ? status
+        : MothershipStreamV1ToolOutcome.error,
+    message: TOOL_RESULT_UNAVAILABLE_ERROR,
+    data: {
+      error: TOOL_RESULT_UNAVAILABLE_ERROR,
+      resultWithheld: true,
+      outcomeUnknown: true,
+      doNotRetry: true,
+    },
+  }
+}
+
 /**
- * Restores a generic browser/terminal result from its sealed transport envelope,
+ * Restores a client result from its sealed transport envelope,
  * projects active Secrets values, then replaces the durable row before delivery.
  */
 export async function waitForClientToolCompletion({
@@ -87,9 +114,22 @@ export async function waitForClientToolCompletion({
   const completion = await waitForToolCompletion(toolCallId, timeoutMs, abortSignal)
   if (!completion) return null
 
+  const binding = runId ? { toolCallId, runId, userId } : undefined
+  if (
+    isPlainRecord(completion.data) &&
+    Object.hasOwn(completion.data, SEALED_CLIENT_TOOL_PROJECTION_FIELD)
+  ) {
+    const recovered = binding
+      ? await unsealProjectedClientToolCompletion(completion.data, {
+          ...binding,
+          status: completion.status,
+        })
+      : null
+    return recovered ?? unavailableClientCompletion(completion.status)
+  }
+
   const toolRegistry = registry?.forkForInputPaths([])
   const genericMessage = getGenericCompletionMessage(completion.status)
-  const binding = runId ? { toolCallId, runId, userId } : undefined
   const registryCanImport = toolRegistry !== undefined && !toolRegistry.isPermanentlyIncomplete()
   const finishPendingActivation = toolRegistry?.beginPendingActivation()
   let content: Awaited<ReturnType<typeof unsealClientToolCompletion>> = null
@@ -116,7 +156,7 @@ export async function waitForClientToolCompletion({
     if (toolRegistry && registryCanImport) {
       if (!sealedContent || !sealedContext) {
         if (sealingAttempted) {
-          /** The durable row is replaced below, so report the failing guard before it is lost. */
+          /** Report the refusing guard without exposing or replacing the durable source. */
           logger.error('Client tool provenance could not be restored', {
             toolCallId,
             runId,
@@ -153,7 +193,7 @@ export async function waitForClientToolCompletion({
   } finally {
     finishPendingActivation?.()
   }
-  if (!toolRegistry?.isComplete()) content = null
+  if (!toolRegistry?.isComplete() || !content) return unavailableClientCompletion(completion.status)
 
   const rawOutput: Record<string, unknown> = {
     ...(content?.message !== undefined ? { message: content.message } : {}),
@@ -168,6 +208,7 @@ export async function waitForClientToolCompletion({
     },
     toolRegistry
   )
+  if (!projection.safe) return unavailableClientCompletion(completion.status)
   const projected = projection.result
   const projectedOutput = isPlainRecord(projected.output) ? projected.output : undefined
   const modelSucceeded = succeeded && projected.success
@@ -198,22 +239,48 @@ export async function waitForClientToolCompletion({
           ? 'cancelled'
           : 'failed'
     try {
+      if (!binding) return unavailableClientCompletion(completion.status)
+      const receipt = await sealProjectedClientToolCompletion({
+        ...binding,
+        status: modelSucceeded
+          ? 'success'
+          : completion.status === 'cancelled'
+            ? 'cancelled'
+            : 'error',
+        message,
+        data: terminalData,
+      })
       const updated = await replaceTerminalAsyncToolCallResult({
         toolCallId,
         status,
-        result: terminalData,
+        result: receipt,
         error: modelSucceeded ? null : message,
+        expectedResult: completion.data,
       })
       if (!updated) {
-        logger.warn('Client tool row was no longer terminal during safe payload update', {
-          toolCallId,
-        })
+        const winner = await getToolConfirmation(toolCallId)
+        const recovered =
+          winner && isAsyncTerminalConfirmationStatus(winner.status)
+            ? await unsealProjectedClientToolCompletion(winner.data, {
+                ...binding,
+                status: winner.status,
+              })
+            : null
+        return (
+          recovered ??
+          unavailableClientCompletion(
+            winner && isAsyncTerminalConfirmationStatus(winner.status)
+              ? winner.status
+              : completion.status
+          )
+        )
       }
     } catch (error) {
       logger.warn('Failed to persist projected client tool result', {
         toolCallId,
         error: getErrorMessage(error),
       })
+      return unavailableClientCompletion(completion.status)
     }
   }
 

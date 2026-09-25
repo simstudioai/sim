@@ -1,7 +1,10 @@
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
-import type { AsyncCompletionData } from '@/lib/mothership/async-runs/lifecycle'
+import type {
+  AsyncCompletionData,
+  AsyncTerminalCompletionSnapshot,
+} from '@/lib/mothership/async-runs/lifecycle'
 import {
   isResolvedSecretTraceProvenanceV1,
   type ResolvedSecretTraceProvenanceV1,
@@ -10,6 +13,7 @@ import {
 
 export const SEALED_CLIENT_TOOL_COMPLETION_FIELD = '__sealedClientToolCompletionV1'
 export const SEALED_CLIENT_TOOL_CONTEXT_FIELD = '__sealedClientToolContextV1'
+export const SEALED_CLIENT_TOOL_PROJECTION_FIELD = '__sealedClientToolProjectionV1'
 
 interface ClientToolBinding {
   toolCallId: string
@@ -47,7 +51,10 @@ type ReportUnsealFailure = (reason: ClientToolUnsealFailureReason) => void
 /** Reads a sealed record while exposing only the guard that refused it, never its contents. */
 async function readSealedRecord(
   value: unknown,
-  field: typeof SEALED_CLIENT_TOOL_COMPLETION_FIELD | typeof SEALED_CLIENT_TOOL_CONTEXT_FIELD,
+  field:
+    | typeof SEALED_CLIENT_TOOL_COMPLETION_FIELD
+    | typeof SEALED_CLIENT_TOOL_CONTEXT_FIELD
+    | typeof SEALED_CLIENT_TOOL_PROJECTION_FIELD,
   reportFailure?: ReportUnsealFailure
 ): Promise<Record<string, unknown> | null> {
   if (!isPlainRecord(value)) {
@@ -187,4 +194,49 @@ export async function unsealClientToolContext(
     registryInstanceId: context.registryInstanceId,
     provenance: context.provenance,
   }
+}
+
+interface ProjectedClientToolCompletion extends ClientToolBinding {
+  status: 'success' | 'error' | 'cancelled'
+  message: string
+  data: AsyncCompletionData
+}
+
+/** Mint only after raw completion and provenance have passed model-safe projection. */
+export async function sealProjectedClientToolCompletion(
+  content: ProjectedClientToolCompletion
+): Promise<Record<typeof SEALED_CLIENT_TOOL_PROJECTION_FIELD, string>> {
+  const { encrypted } = await encryptSecret(
+    JSON.stringify({
+      purpose: 'projected-client-tool-completion-v1',
+      ...content,
+    })
+  )
+  return { [SEALED_CLIENT_TOOL_PROJECTION_FIELD]: encrypted }
+}
+
+/** An authenticated projected snapshot survives process handoff without replaying raw provenance. */
+export async function unsealProjectedClientToolCompletion(
+  value: unknown,
+  expected: ClientToolBinding & { status: AsyncTerminalCompletionSnapshot['status'] },
+  reportFailure?: ReportUnsealFailure
+): Promise<AsyncTerminalCompletionSnapshot | null> {
+  const content = await readSealedRecord(value, SEALED_CLIENT_TOOL_PROJECTION_FIELD, reportFailure)
+  if (!content) return null
+  if (!bindingMatches(content, expected) || content.status !== expected.status) {
+    reportFailure?.('binding-mismatch')
+    return null
+  }
+  if (
+    content.purpose !== 'projected-client-tool-completion-v1' ||
+    (content.status !== 'success' &&
+      content.status !== 'error' &&
+      content.status !== 'cancelled') ||
+    typeof content.message !== 'string' ||
+    !Object.hasOwn(content, 'data')
+  ) {
+    reportFailure?.('invalid-content')
+    return null
+  }
+  return { status: content.status, message: content.message, data: content.data }
 }

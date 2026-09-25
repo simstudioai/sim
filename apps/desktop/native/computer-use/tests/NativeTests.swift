@@ -6,7 +6,7 @@ import AppKit
         catch let error as ComputerError { precondition(error.code == code) }
         catch { fatalError("Unexpected \(error)") }
     }
-    static func main() throws {
+    @MainActor static func main() async throws {
         let frame = CGRect(x: -1920, y: 120, width: 800, height: 600)
         try requireObservedFrame(frame, current: frame)
         expectError("stale_window") { try requireObservedFrame(frame, current: frame.offsetBy(dx: 1, dy: 0)) }
@@ -52,6 +52,23 @@ import AppKit
         let submitFocus = try keyMayChangeFocus("Enter"); precondition(!submitFocus)
         let searchFocus = try keyMayChangeFocus("Cmd+K"); precondition(searchFocus)
         let selectFocus = try keyMayChangeFocus("Cmd+A"); precondition(!selectFocus)
+        do {
+            try await coordinateAction { _ in throw ComputerError("foreground_required", "preflight") }
+            fatalError("Expected pre-dispatch rejection")
+        } catch let error as ComputerError {
+            precondition(error.code == "foreground_required" && error.dispatchState == "not_started")
+        }
+        for code in ["foreground_required", "window_occluded", "cancelled"] {
+            do {
+                try await coordinateAction { dispatch in
+                    dispatch.willDispatch()
+                    throw ComputerError(code, "after mouse down", dispatchState: "not_started")
+                }
+                fatalError("Expected partial dispatch rejection")
+            } catch let error as ComputerError {
+                precondition(error.code == code && error.dispatchState == nil)
+            }
+        }
         cancellationRequested = 1
         expectError("cancelled") { try checkCancellation() }
         cancellationRequested = 0
