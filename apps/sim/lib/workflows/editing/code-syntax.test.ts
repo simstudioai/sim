@@ -79,6 +79,16 @@ describe('embedded Function syntax checks', () => {
     expect(report.issues[0].message).toContain('more than 10000 variable placeholders')
   })
 
+  it('checks reference-dense code within the supported body budget without repeated overlap scans', async () => {
+    const code = `/*${'<a.b>'.repeat(200_000)}*/return 1`
+    const started = performance.now()
+    const report = await collectWorkflowCodeSyntax({ renderer: block(code) })
+
+    expect(report.issues).toEqual([])
+    expect(report.check.detail).toContain('1 used placeholder values')
+    expect(performance.now() - started).toBeLessThan(2_000)
+  }, 60_000)
+
   it('never evaluates side effects while checking code', async () => {
     const key = '__workflowLintExecuted'
     await collectWorkflowCodeSyntax({

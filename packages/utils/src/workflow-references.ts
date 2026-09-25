@@ -66,6 +66,8 @@ export function findWorkflowReferenceTokens(source: string): WorkflowReferenceTo
     tokens.push({ kind: 'environment', value: match[0], start, end: start + match[0].length })
   }
 
+  const environmentCount = tokens.length
+  let environmentIndex = 0
   let candidateStart = -1
   for (let index = 0; index < source.length; index += 1) {
     const character = source[index]
@@ -84,7 +86,11 @@ export function findWorkflowReferenceTokens(source: string): WorkflowReferenceTo
     if (split && isLikelyWorkflowReferenceSegment(candidate)) {
       const start = candidateStart + split.leading.length
       const end = start + split.reference.length
-      if (!tokens.some((token) => start < token.end && end > token.start)) {
+      /** Both scans advance in source order; prior workflow candidates cannot overlap. */
+      while (environmentIndex < environmentCount && tokens[environmentIndex].end <= start) {
+        environmentIndex++
+      }
+      if (environmentIndex === environmentCount || end <= tokens[environmentIndex].start) {
         tokens.push({ kind: 'workflow', value: split.reference, start, end })
       }
     }
