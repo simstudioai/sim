@@ -208,6 +208,40 @@ describe.skipIf(!databaseUrl)('Copilot tool identity with PostgreSQL', () => {
     ).resolves.toBeNull()
   })
 
+  it('allows only one projected receipt to replace the exact JSONB source across competing waiters', async () => {
+    await createCurrentCalls()
+    const source = { completion: 'sealed-source', context: { run: 'bound', user: 'bound' } }
+    await completeAsyncToolCall({ toolCallId: firstId, status: 'completed', result: source })
+    const receipts = [
+      { __sealedClientToolProjectionV1: 'first-authenticated-projection' },
+      { __sealedClientToolProjectionV1: 'second-authenticated-projection' },
+    ]
+    const attempts = await Promise.all(
+      receipts.map((result) =>
+        replaceTerminalAsyncToolCallResult({
+          toolCallId: firstId,
+          status: 'completed',
+          error: null,
+          result,
+          expectedResult: { context: { user: 'bound', run: 'bound' }, completion: 'sealed-source' },
+        })
+      )
+    )
+    expect(attempts.filter(Boolean)).toHaveLength(1)
+    const winner = attempts.find((row) => row !== null)
+    expect((await getAsyncToolCall(firstId))?.result).toEqual(winner?.result)
+    expect(
+      await replaceTerminalAsyncToolCallResult({
+        toolCallId: firstId,
+        status: 'completed',
+        result: { success: true },
+        error: null,
+        expectedResult: source,
+      })
+    ).toBeNull()
+    expect((await getAsyncToolCall(firstId))?.result).toEqual(winner?.result)
+  })
+
   describe.skipIf(!redisUrl)('with actual Redis confirmation and permission channels', () => {
     it('wakes only the matching waiter and reads its durable terminal result', async () => {
       await createCurrentCalls()
