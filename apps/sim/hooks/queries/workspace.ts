@@ -18,6 +18,7 @@ import {
   getWorkspaceMembersContract,
   getWorkspacePermissionsContract,
   listWorkspacesContract,
+  recordWorkspaceVisitContract,
   updateWorkspaceContract,
   type Workspace,
   type WorkspaceCreationPolicy,
@@ -111,6 +112,12 @@ export const EMPTY_PINNED_WORKSPACE_IDS: ReadonlySet<string> = new Set()
 const selectPinnedWorkspaceIds = (data: WorkspacesResponse): ReadonlySet<string> =>
   data.pinnedWorkspaceIds.length ? new Set(data.pinnedWorkspaceIds) : EMPTY_PINNED_WORKSPACE_IDS
 
+/** Pinned first; the server already orders the rest by the viewer's visits. */
+function selectOrderedWorkspaces(data: WorkspacesResponse): Workspace[] {
+  const pinned = selectPinnedWorkspaceIds(data)
+  return [...data.workspaces].sort((a, b) => Number(pinned.has(b.id)) - Number(pinned.has(a.id)))
+}
+
 /**
  * The viewer's pinned workspace ids, as a `Set` so a row resolves its pin state in
  * O(1) — mirroring {@link usePinnedIds} for the workspace-scoped kinds. Sourced
@@ -124,6 +131,44 @@ export function usePinnedWorkspaceIds(enabled = true) {
     select: selectPinnedWorkspaceIds,
     enabled,
     staleTime: WORKSPACE_LIST_STALE_TIME,
+  })
+}
+
+/** The viewer's active workspaces in switcher order: pinned, then most recently visited. */
+export function useOrderedWorkspacesQuery(enabled = true) {
+  return useQuery({
+    queryKey: workspaceKeys.list('active'),
+    queryFn: ({ signal }) => fetchWorkspaces('active', signal),
+    select: selectOrderedWorkspaces,
+    enabled,
+    staleTime: WORKSPACE_LIST_STALE_TIME,
+  })
+}
+
+/**
+ * Records that the viewer opened a workspace, moving it to the front of the cached
+ * list — the same order the server returns once the visit lands. A failed visit
+ * refetches the list rather than restoring a snapshot, which could drop a
+ * concurrent pin toggle's optimistic state.
+ */
+export function useRecordWorkspaceVisit() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (workspaceId: string) =>
+      requestJson(recordWorkspaceVisitContract, { params: { id: workspaceId } }),
+    onMutate: (workspaceId) => {
+      queryClient.setQueryData<WorkspacesResponse>(workspaceKeys.list('active'), (old) => {
+        const visited = old?.workspaces.find((ws) => ws.id === workspaceId)
+        if (!old || !visited) return old
+        return {
+          ...old,
+          lastActiveWorkspaceId: workspaceId,
+          workspaces: [visited, ...old.workspaces.filter((ws) => ws !== visited)],
+        }
+      })
+    },
+    onError: () => queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() }),
   })
 }
 

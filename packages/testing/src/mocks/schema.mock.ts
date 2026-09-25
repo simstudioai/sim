@@ -248,6 +248,11 @@ export const schemaMock = {
     resourceId: 'pinnedItem.resourceId',
     pinnedAt: 'pinnedItem.pinnedAt',
   },
+  workspaceVisit: {
+    userId: 'workspaceVisit.userId',
+    workspaceId: 'workspaceVisit.workspaceId',
+    visitedAt: 'workspaceVisit.visitedAt',
+  },
   workflow: {
     id: 'workflow.id',
     userId: 'workflow.userId',

@@ -16,8 +16,13 @@ vi.mock('@/lib/api/client/request', () => ({
 }))
 
 import { ApiClientError } from '@/lib/api/client/errors'
-import { createPinnedItemContract, deletePinnedItemContract } from '@/lib/api/contracts'
 import {
+  createPinnedItemContract,
+  deletePinnedItemContract,
+  recordWorkspaceVisitContract,
+} from '@/lib/api/contracts'
+import {
+  useRecordWorkspaceVisit,
   useToggleWorkspacePin,
   useWorkspacePermissionsQuery,
   workspaceKeys,
@@ -73,6 +78,7 @@ function seedList(queryClient: QueryClient, pinnedWorkspaceIds: string[]) {
     workspaces: [],
     lastActiveWorkspaceId: null,
     pinnedWorkspaceIds,
+    recentWorkspaceIds: [],
     creationPolicy: null,
   })
 }
@@ -284,5 +290,63 @@ describe('useToggleWorkspacePin', () => {
     await flush()
 
     expect(readPins(queryClient)).toEqual(['ws-b'])
+  })
+})
+
+describe('useRecordWorkspaceVisit', () => {
+  function seedWorkspaces(queryClient: QueryClient, ids: string[]) {
+    queryClient.setQueryData(workspaceKeys.list('active'), {
+      workspaces: ids.map((id) => ({ id })),
+      lastActiveWorkspaceId: ids[0] ?? null,
+      pinnedWorkspaceIds: [],
+      creationPolicy: null,
+    })
+  }
+
+  function readList(queryClient: QueryClient) {
+    const data = queryClient.getQueryData<{
+      workspaces: { id: string }[]
+      lastActiveWorkspaceId: string | null
+    }>(workspaceKeys.list('active'))
+    return { ids: data?.workspaces.map(({ id }) => id), lastActive: data?.lastActiveWorkspaceId }
+  }
+
+  it('posts the visit and moves the workspace to the front without refetching', async () => {
+    mockRequestJson.mockResolvedValueOnce({ success: true })
+    const { getResult, queryClient } = renderHookWithClient(() => useRecordWorkspaceVisit())
+    seedWorkspaces(queryClient, ['ws-a', 'ws-b', 'ws-c'])
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    act(() => getResult().mutate('ws-c'))
+    await flush()
+
+    expect(mockRequestJson).toHaveBeenCalledWith(recordWorkspaceVisitContract, {
+      params: { id: 'ws-c' },
+    })
+    expect(readList(queryClient)).toEqual({ ids: ['ws-c', 'ws-a', 'ws-b'], lastActive: 'ws-c' })
+    expect(invalidate).not.toHaveBeenCalled()
+  })
+
+  it('refetches the list when the visit fails', async () => {
+    mockRequestJson.mockRejectedValueOnce(apiError(500))
+    const { getResult, queryClient } = renderHookWithClient(() => useRecordWorkspaceVisit())
+    seedWorkspaces(queryClient, ['ws-a', 'ws-b'])
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    act(() => getResult().mutate('ws-b'))
+    await flush()
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: workspaceKeys.lists() })
+  })
+
+  it('leaves the list untouched for a workspace it does not contain', async () => {
+    mockRequestJson.mockRejectedValueOnce(apiError(404))
+    const { getResult, queryClient } = renderHookWithClient(() => useRecordWorkspaceVisit())
+    seedWorkspaces(queryClient, ['ws-a', 'ws-b'])
+
+    act(() => getResult().mutate('ws-gone'))
+    await flush()
+
+    expect(readList(queryClient)).toEqual({ ids: ['ws-a', 'ws-b'], lastActive: 'ws-a' })
   })
 })

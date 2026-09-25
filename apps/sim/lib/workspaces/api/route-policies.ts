@@ -1,4 +1,8 @@
-import { createV2ResourceConcealmentPolicy } from '@/lib/api/server/routes'
+import {
+  createInternalResourceConcealmentPolicy,
+  createV2ResourceConcealmentPolicy,
+  internalOrchestrationErrorPolicy,
+} from '@/lib/api/server/routes'
 
 /**
  * A caller naming a workspace it cannot reach must not be able to tell that
@@ -9,6 +13,13 @@ import { createV2ResourceConcealmentPolicy } from '@/lib/api/server/routes'
  */
 export const v2WorkspaceErrorPolicies = {
   concealWorkspaceAuthorization: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Workspace not found',
+  }),
+} as const
+
+export const internalWorkspaceErrorPolicies = {
+  concealWorkspaceAuthorization: createInternalResourceConcealmentPolicy({
+    base: internalOrchestrationErrorPolicy,
     notFoundMessage: 'Workspace not found',
   }),
 } as const

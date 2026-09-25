@@ -307,6 +307,28 @@ export const pinnedItem = pgTable(
   })
 )
 
+/**
+ * When each user last opened each workspace. The workspace list returns these so
+ * the switcher orders by recency on the server — every render agrees on the order,
+ * and it follows the user across devices.
+ */
+export const workspaceVisit = pgTable(
+  'workspace_visit',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    visitedAt: timestamp('visited_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.userId, table.workspaceId] }),
+    workspaceIdx: index('workspace_visit_workspace_idx').on(table.workspaceId),
+  })
+)
+
 export const workflow = pgTable(
   'workflow',
   {

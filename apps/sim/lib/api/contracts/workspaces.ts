@@ -137,6 +137,7 @@ export const listWorkspacesContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: z.object({
+      /** Most recently visited first, then newest first. */
       workspaces: z.array(workspaceSchema),
       lastActiveWorkspaceId: z.string().nullable(),
       /**
@@ -148,6 +149,16 @@ export const listWorkspacesContract = defineRouteContract({
       pinnedWorkspaceIds: z.array(z.string()).default([]),
       creationPolicy: workspaceCreationPolicySchema.nullable(),
     }),
+  },
+})
+
+export const recordWorkspaceVisitContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/workspaces/[id]/visit',
+  params: workspaceParamsSchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ success: z.literal(true) }),
   },
 })
 

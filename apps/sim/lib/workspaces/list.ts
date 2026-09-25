@@ -14,6 +14,7 @@ import {
   type WorkspaceInviteFlags,
 } from '@/lib/workspaces/policy'
 import { listAccessibleWorkspaceRowsForUser, type WorkspaceScope } from '@/lib/workspaces/utils'
+import { listRecentWorkspaceIds, sortByVisitRecency } from '@/lib/workspaces/visits'
 
 type WorkspaceRow = typeof workspaceTable.$inferSelect
 
@@ -34,6 +35,7 @@ export type WorkspaceWithInviteFlags = WorkspaceRow &
 
 /** The GET /api/workspaces payload assembled by {@link listWorkspacesForViewer}. */
 export interface WorkspaceListPayload {
+  /** Most recently visited first, then newest first. */
   workspaces: WorkspaceWithInviteFlags[]
   lastActiveWorkspaceId: string | null
   /** Workspace ids the viewer pinned to the top of the switcher. */
@@ -108,8 +110,8 @@ async function buildWorkspacesWithInviteFlags(
 
 /**
  * Read-only assembly of the GET /api/workspaces payload for a viewer: accessible
- * workspaces with role/invite flags, the viewer's last active workspace id, and
- * the workspace creation policy.
+ * workspaces with role/invite flags in visit order, the viewer's last active
+ * workspace id, pins, and the workspace creation policy.
  *
  * Unlike the route, this performs no writes — no default-workspace creation and
  * no orphaned-workflow repair. Sidebar prefetch leaves empty lists uncached so
@@ -123,25 +125,31 @@ export async function listWorkspacesForViewer(params: {
   const { userId, activeOrganizationId, scope = 'active' } = params
 
   /** Workspace pins ride along here; see `pinnedResourceTypeSchema` for why. */
-  const [creationPolicy, workspaces, userSettings, workspacePins] = await Promise.all([
-    getWorkspaceCreationPolicy({ userId, activeOrganizationId }),
-    listAccessibleWorkspaceRowsForUser(userId, scope).then((rows) =>
-      buildWorkspacesWithInviteFlags(rows, userId)
-    ),
-    db
-      .select({ lastActiveWorkspaceId: settings.lastActiveWorkspaceId })
-      .from(settings)
-      .where(eq(settings.userId, userId))
-      .limit(1),
-    db
-      .select({ resourceId: pinnedItem.resourceId })
-      .from(pinnedItem)
-      .where(and(eq(pinnedItem.userId, userId), eq(pinnedItem.resourceType, 'workspace'))),
-  ])
+  const [creationPolicy, accessibleWorkspaces, userSettings, workspacePins, recentIds] =
+    await Promise.all([
+      getWorkspaceCreationPolicy({ userId, activeOrganizationId }),
+      listAccessibleWorkspaceRowsForUser(userId, scope).then((rows) =>
+        buildWorkspacesWithInviteFlags(rows, userId)
+      ),
+      db
+        .select({ lastActiveWorkspaceId: settings.lastActiveWorkspaceId })
+        .from(settings)
+        .where(eq(settings.userId, userId))
+        .limit(1),
+      db
+        .select({ resourceId: pinnedItem.resourceId })
+        .from(pinnedItem)
+        .where(and(eq(pinnedItem.userId, userId), eq(pinnedItem.resourceType, 'workspace'))),
+      listRecentWorkspaceIds(userId),
+    ])
+  const workspaces = sortByVisitRecency(accessibleWorkspaces, recentIds)
+  const [mostRecent] = workspaces
+  const lastVisitedId = mostRecent && recentIds.includes(mostRecent.id) ? mostRecent.id : null
 
   return {
     workspaces,
-    lastActiveWorkspaceId: userSettings[0]?.lastActiveWorkspaceId ?? null,
+    /** Visits supersede the settings column, which only predates them. */
+    lastActiveWorkspaceId: lastVisitedId ?? userSettings[0]?.lastActiveWorkspaceId ?? null,
     pinnedWorkspaceIds: workspacePins.map((row) => row.resourceId),
     creationPolicy,
   }
