@@ -20,7 +20,7 @@ export async function generateMetadata({
   const base = buildLandingMetadata({
     title: 'Careers | Sim, the AI Workspace',
     description:
-      'Join Sim, the open-source AI workspace where teams build, deploy, and manage AI agents. See open engineering, design, and go-to-market roles.',
+      'Build autonomous AI agents for enterprise systems at Sim. Join our team of 10 in San Francisco. Engineering, design, sales, and marketing roles.',
     path: '/careers',
     keywords:
       'Sim careers, Sim jobs, AI workspace jobs, AI agent engineering jobs, open source jobs',
