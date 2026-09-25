@@ -18,6 +18,7 @@ const {
   mockSearchApprovals,
   mockSecretNames,
   mockComputerUseAvailable,
+  mockSearchIntegrationToolsEnabled,
 } = vi.hoisted(() => ({
   mockComputerUseAvailable: vi.fn(async () => false),
   mockCreateUserToolSchema: vi.fn(() => ({ type: 'object', properties: {} })),
@@ -28,11 +29,18 @@ const {
   mockTrackChatUpload: vi.fn(),
   mockSearchApprovals: vi.fn(async () => new Map<string, boolean>()),
   mockSecretNames: vi.fn(async () => ({ names: [] as string[] })),
+  mockSearchIntegrationToolsEnabled: vi.fn(async () => true),
 }))
 
 vi.mock('@/lib/computer-use/availability.server', () => ({
   isComputerUseAvailable: mockComputerUseAvailable,
 }))
+
+vi.mock('@/lib/mothership/feature-flags', () => ({
+  isSearchIntegrationToolsEnabled: mockSearchIntegrationToolsEnabled,
+}))
+
+beforeEach(() => mockSearchIntegrationToolsEnabled.mockResolvedValue(true))
 
 // The inventory reads nine application worlds; these suites exercise the request shape, not the reads.
 vi.mock('@/lib/mothership/application/execute-organization-secret-use-case', () => ({
@@ -962,3 +970,29 @@ it('carries only enabled MCP IDs without eager catalog discovery while preservin
   expect(payload).not.toHaveProperty('mothershipTools')
   expect(payload.desktop).toMatchObject({ browser: true, terminal: true })
 })
+
+/** The worker derives both its gateway tools and prompt instructions from this capability. */
+it.each([{ organizationId: 'org-1' }, { workspaceId: 'ws-1' }])(
+  'switches Search integration capability per turn while preserving Build for %j',
+  async (scope) => {
+    for (const enabled of [true, false, true]) {
+      mockSearchIntegrationToolsEnabled.mockResolvedValue(enabled)
+      for (const mode of ['assistant', 'agent', 'plan']) {
+        const payload = await buildCopilotRequestPayload(
+          {
+            message: 'Find a person',
+            userId: 'person',
+            userMessageId: 'message',
+            mode,
+            model: '',
+            ...scope,
+          },
+          { selectedModel: '' }
+        )
+        expect(payload.integrationCatalog).toEqual(
+          mode === 'assistant' && !enabled ? undefined : { mcpServerIds: [] }
+        )
+      }
+    }
+  }
+)

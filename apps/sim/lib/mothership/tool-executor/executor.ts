@@ -6,6 +6,7 @@ import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.ser
 import { resolveInvocationWorkspace } from '@/lib/mothership/application/workspace-target'
 import { ASSISTANT_TOOLS, isAssistantIntegrationTool } from '@/lib/mothership/assistant/tool-policy'
 import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
+import { isSearchIntegrationToolsEnabled } from '@/lib/mothership/feature-flags'
 import { projectToolErrorMessageForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { recordSecretUsage } from '@/lib/secrets/usage/record'
 import { executeTool as executeAppTool } from '@/tools'
@@ -136,7 +137,8 @@ async function executeBoundTool(
   if (
     context.requestMode === 'assistant' &&
     !ASSISTANT_TOOLS.has(toolId) &&
-    !isAssistantIntegrationTool(getToolMetadata(toolId))
+    (!isAssistantIntegrationTool(getToolMetadata(toolId)) ||
+      !(await isSearchIntegrationToolsEnabled()))
   ) {
     return {
       success: false,

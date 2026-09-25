@@ -15,6 +15,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   build: vi.fn(),
+  flag: vi.fn(async () => true),
   mcp: vi.fn(),
   config: vi.fn(),
   banned: vi.fn(),
@@ -22,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   workspace: vi.fn(),
   listServers: vi.fn(),
 }))
+vi.mock('@/lib/mothership/feature-flags', () => ({ isSearchIntegrationToolsEnabled: mocks.flag }))
 vi.mock('@/lib/mcp/application/use-cases', () => ({
   listMcpServersUseCase: { execute: mocks.listServers },
 }))
@@ -68,6 +70,7 @@ function queueChat(mode = 'assistant', role = 'member') {
 beforeEach(() => {
   vi.clearAllMocks()
   resetDbChainMock()
+  mocks.flag.mockResolvedValue(true)
   mocks.banned.mockResolvedValue([])
   mocks.config.mockResolvedValue(null)
   mocks.build.mockResolvedValue([...tools])
@@ -371,4 +374,15 @@ it('filters organization enabled servers to the authorized target before broad M
     input: { workspaceId: 'workspace-1' },
   })
   expect(mocks.mcp).toHaveBeenCalledWith('actor', 'workspace-1', ['mcp-abc'], undefined)
+})
+
+it('removes previously discoverable Search operations when the runtime flag turns off', async () => {
+  for (const enabled of [true, false, true]) {
+    mocks.flag.mockResolvedValue(enabled)
+    queueChat()
+    const result = await readIntegrationCatalog.execute({ principal: principal(), input })
+    expect(result.operations.map((operation) => operation.toolId)).toEqual(
+      enabled ? ['gmail_send', 'slack_send'] : []
+    )
+  }
 })

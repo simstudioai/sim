@@ -31,8 +31,8 @@ export type FeatureFlagContext = AppConfigGateContext
 /**
  * The single definition of a feature flag. Everything about a flag lives in one
  * place: its name (the registry key), a human-readable `description`, and the
- * `fallback` secret consulted when AppConfig isn't the source of truth (truthy ⇒ on
- * globally).
+ * optional `fallback` secret consulted when AppConfig is not the source of truth.
+ * A null fallback keeps the flag off outside AppConfig.
  *
  * Gating by workspace/org/user/admin is deliberately NOT part of a definition — it lives only
  * in the hosted AppConfig document, so no environment can grant access from a code
@@ -40,8 +40,8 @@ export type FeatureFlagContext = AppConfigGateContext
  */
 interface FeatureFlagDefinition {
   description: string
-  /** Env/secret key consulted when AppConfig isn't the source of truth. Truthy ⇒ on. */
-  fallback: keyof typeof env
+  /** Null means AppConfig-only; otherwise a truthy env/secret enables the fallback. */
+  fallback: keyof typeof env | null
 }
 
 /** The single registry of known flags. To add a flag, add one entry here. */
@@ -50,6 +50,12 @@ const FEATURE_FLAGS = {
     description:
       'Enable native macOS computer use in Mothership. Global on/off only; each device must also opt in.',
     fallback: 'MSHIP_COMPUTER_USE',
+  },
+  'mothership-search-integration-tools': {
+    description:
+      'Give Search Assistant read-only integration discovery, calls, and matching prompt ' +
+      'instructions. Global AppConfig on/off only; disabled by default with no env fallback.',
+    fallback: null,
   },
   'mothership-model-selector': {
     description:
@@ -143,7 +149,7 @@ const FEATURE_FLAGS = {
 
 /**
  * The closed set of known feature flags. Derived from the registry, so a flag
- * cannot exist — or be checked — without a definition (and its mandatory fallback).
+ * cannot exist — or be checked — without a definition (and its explicit fallback policy).
  */
 export type FeatureFlagName = keyof typeof FEATURE_FLAGS
 
@@ -153,7 +159,7 @@ function fallbackFlags(): FeatureFlagsConfig {
   for (const [name, def] of Object.entries(FEATURE_FLAGS) as Array<
     [string, FeatureFlagDefinition]
   >) {
-    flags[name] = { enabled: isTruthy(env[def.fallback]) }
+    flags[name] = { enabled: def.fallback !== null && isTruthy(env[def.fallback]) }
   }
   return flags
 }
