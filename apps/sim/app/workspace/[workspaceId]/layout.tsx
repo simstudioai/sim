@@ -1,13 +1,11 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { WorkspaceRecencyProvider } from '@/components/workspaces/workspace-recency-provider'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isMothershipModelSelectorEnabled, isPlanModeEnabled } from '@/lib/mothership/feature-flags'
 import { resolveOrganizationEntryPath } from '@/lib/navigation/resolve-app-entry'
 import { isTableRowTtlEnabled } from '@/lib/table/ttl-availability'
-import { parseWorkspaceRecency, WORKSPACE_RECENCY_COOKIE } from '@/lib/workspaces/recency-cookie'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
 import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
@@ -83,7 +81,6 @@ export default async function WorkspaceLayout({
     }),
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
-  const recentWorkspaceIds = parseWorkspaceRecency(cookieStore.get(WORKSPACE_RECENCY_COOKIE)?.value)
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
@@ -111,14 +108,12 @@ export default async function WorkspaceLayout({
                 <SessionExpired />
                 <WorkspacePermissionsProvider>
                   <WorkspaceScopeSync />
-                  <WorkspaceRecencyProvider recentWorkspaceIds={recentWorkspaceIds}>
-                    <WorkspaceChrome
-                      sidebar={<Sidebar organizationHref={organizationHref} />}
-                      initialSidebarCollapsed={initialSidebarCollapsed}
-                    >
-                      {children}
-                    </WorkspaceChrome>
-                  </WorkspaceRecencyProvider>
+                  <WorkspaceChrome
+                    sidebar={<Sidebar organizationHref={organizationHref} />}
+                    initialSidebarCollapsed={initialSidebarCollapsed}
+                  >
+                    {children}
+                  </WorkspaceChrome>
                 </WorkspacePermissionsProvider>
               </div>
             </GlobalCommandsProvider>

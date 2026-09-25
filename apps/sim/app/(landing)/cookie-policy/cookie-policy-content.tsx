@@ -163,6 +163,12 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
             '1 year',
           ],
           [
+            'workspace_recency',
+            'Sim',
+            'Remembers which workspaces you opened most recently, so the sidebar lists them in that order without reshuffling on load.',
+            '1 year',
+          ],
+          [
             '__cf_bm',
             'Cloudflare',
             'Bot-management check on requests to providers we load, such as X.',
