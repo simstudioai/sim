@@ -204,7 +204,6 @@ export function useResourceTreeSections({
 }
 
 interface ResourceMenuSectionsProps {
-  flat?: boolean
   /** Foldered families, from {@link useResourceTreeSections}. */
   sections: ResourceTreeSection[]
   /** Every available family. Foldered ones are taken from `sections` instead. */
@@ -226,7 +225,6 @@ interface ResourceMenuSectionsProps {
  * canonical order.
  */
 export function ResourceMenuSections({
-  flat = false,
   sections,
   groups,
   onSelect,
@@ -235,7 +233,7 @@ export function ResourceMenuSections({
   const sectionByType = new Map(sections.map((section) => [section.type, section]))
   const entries = groups
     .filter(({ type, items }) =>
-      !flat && FOLDERED_RESOURCE_TYPES.has(type) ? sectionByType.has(type) : items.length > 0
+      FOLDERED_RESOURCE_TYPES.has(type) ? sectionByType.has(type) : items.length > 0
     )
     .sort(byResourceMenuOrder)
 
@@ -398,6 +396,8 @@ interface WorkspaceResourceMenuContentProps {
   enabled: boolean
   excludeTypes?: readonly MothershipResourceType[]
   searchable?: boolean
+  /** Offers every folder as an attachable entry, as chat does. */
+  selectFolders?: boolean
   onSelect: (resource: MothershipResource) => void
 }
 
@@ -406,13 +406,14 @@ function WorkspaceResourceMenuContent({
   enabled,
   excludeTypes,
   searchable = true,
+  selectFolders,
   onSelect,
 }: WorkspaceResourceMenuContentProps) {
   const { groups, structureFolders, isHydrating } = useAvailableResources(workspaceId, {
     enabled,
     excludeTypes,
   })
-  const sections = useResourceTreeSections({ groups, structureFolders })
+  const sections = useResourceTreeSections({ groups, structureFolders, selectFolders })
   const select = (resource: MothershipResource) =>
     onSelect(
       resource.type === 'browser' || resource.type === 'terminal'
@@ -429,15 +430,24 @@ function WorkspaceResourceMenuContent({
   )
 }
 
-function WorkspaceResourceSubmenu({
+interface WorkspaceResourceSubmenuProps {
+  workspace: { id: string; name: string }
+  /** Must be referentially stable (a module constant) — it keys the group memo. */
+  excludeTypes?: readonly MothershipResourceType[]
+  selectFolders?: boolean
+  onSelect: (resource: MothershipResource) => void
+}
+
+/**
+ * One workspace of an organization-wide picker: its own foldered resource menu,
+ * fetched when the submenu first opens. Selections carry the workspace as owner.
+ */
+export function WorkspaceResourceSubmenu({
   workspace,
   excludeTypes,
+  selectFolders,
   onSelect,
-}: {
-  workspace: { id: string; name: string }
-  excludeTypes?: readonly MothershipResourceType[]
-  onSelect: (resource: MothershipResource) => void
-}) {
+}: WorkspaceResourceSubmenuProps) {
   const [open, setOpen] = useState(false)
   return (
     <DropdownMenuSub open={open} onOpenChange={setOpen}>
@@ -450,6 +460,7 @@ function WorkspaceResourceSubmenu({
           enabled={open}
           excludeTypes={excludeTypes}
           searchable={false}
+          selectFolders={selectFolders}
           onSelect={onSelect}
         />
       </DropdownMenuSubContent>
