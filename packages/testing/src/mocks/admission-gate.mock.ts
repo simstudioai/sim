@@ -14,8 +14,12 @@ const mockRelease = vi.fn((): void => {})
  * ```ts
  * import { admissionGateMockFns } from '@sim/testing/mocks/admission-gate.mock'
  *
+ * // Admitted (default): the handler must release its slot.
+ * expect(admissionGateMockFns.mockRelease).toHaveBeenCalledTimes(1)
+ *
+ * // Rejected: no slot was granted, so nothing is released.
  * admissionGateMockFns.mockTryAdmit.mockReturnValueOnce(null)
- * expect(admissionGateMockFns.mockRelease).toHaveBeenCalled()
+ * expect(admissionGateMockFns.mockRelease).not.toHaveBeenCalled()
  * ```
  */
 export const admissionGateMockFns = {

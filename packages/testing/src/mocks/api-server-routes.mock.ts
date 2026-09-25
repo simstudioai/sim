@@ -77,7 +77,7 @@ function findOrchestrationError(error: unknown): (Error & { code: string }) | nu
   let current: unknown = error
   while (current instanceof Error) {
     const code = (current as Error & { code?: unknown }).code
-    if (typeof code === 'string' && code in ORCHESTRATION_STATUS) {
+    if (typeof code === 'string' && Object.hasOwn(ORCHESTRATION_STATUS, code)) {
       return current as Error & { code: string }
     }
     current = current.cause

@@ -1,6 +1,18 @@
 import { vi } from 'vitest'
+import {
+  CREDIT_MULTIPLIER,
+  DEFAULT_ENTERPRISE_TIER_COST_LIMIT,
+  DEFAULT_FREE_CREDITS,
+  DEFAULT_PRO_TIER_COST_LIMIT,
+  DEFAULT_TEAM_TIER_COST_LIMIT,
+  getPlanPricing,
+  getPlanTierCredits,
+  isEnterprise,
+  isOrgPlan,
+  isPro,
+  isTeam,
+} from './billing-plan-logic'
 
-type Plan = string | null | undefined
 type Status = string | null | undefined
 
 interface SubscriptionLike {
@@ -14,42 +26,6 @@ interface SubscriptionLike {
 const ENTITLED_SUBSCRIPTION_STATUSES = ['active', 'past_due'] as const
 const USABLE_SUBSCRIPTION_STATUSES = ['active'] as const
 const TERMINAL_SUBSCRIPTION_STATUSES = ['canceled', 'incomplete_expired'] as const
-
-/** Mirrors `@/lib/billing/constants` defaults (env overrides are unset under test). */
-const DEFAULT_FREE_CREDITS = 5
-const DEFAULT_PRO_TIER_COST_LIMIT = 20
-const DEFAULT_TEAM_TIER_COST_LIMIT = 40
-const DEFAULT_ENTERPRISE_TIER_COST_LIMIT = 200
-const CREDIT_MULTIPLIER = 200
-
-function isPro(plan: Plan): boolean {
-  return Boolean(plan) && (plan === 'pro' || Boolean(plan?.startsWith('pro_')))
-}
-
-function isTeam(plan: Plan): boolean {
-  return Boolean(plan) && (plan === 'team' || Boolean(plan?.startsWith('team_')))
-}
-
-function isEnterprise(plan: Plan): boolean {
-  return plan === 'enterprise'
-}
-
-function isFree(plan: Plan): boolean {
-  return !plan || plan === 'free'
-}
-
-function isOrgPlan(plan: Plan): boolean {
-  return isTeam(plan) || isEnterprise(plan)
-}
-
-function getPlanTierCredits(plan: Plan): number {
-  if (!plan) return 0
-  const match = plan.match(/_(\d+)$/)
-  if (match) return Number.parseInt(match[1], 10)
-  if (plan === 'pro') return 4000
-  if (plan === 'team') return 8000
-  return 0
-}
 
 function hasPaidSubscriptionStatus(status: Status): boolean {
   return (ENTITLED_SUBSCRIPTION_STATUSES as readonly string[]).includes(status as string)
@@ -98,20 +74,76 @@ function checkOrgPlan(subscription: SubscriptionLike | null | undefined): boolea
   return isOrgPlan(subscription?.plan) && hasPaidSubscriptionStatus(subscription?.status)
 }
 
+/** Mirrors `MAX_BILLING_CONCURRENCY_LIMIT` in `@/lib/billing/concurrency-defaults`. */
+const MAX_BILLING_CONCURRENCY_LIMIT = 10_000
+
+/** `z.coerce.number()` followed by the schema's `int`/`positive`/`max` checks. */
+function isCoercedPositiveNumber(
+  value: unknown,
+  options: { integer?: boolean; max?: number } = {}
+): boolean {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return false
+  if (options.integer && !Number.isSafeInteger(n)) return false
+  return options.max === undefined || n <= options.max
+}
+
+function isValidReportingPeriodAnchorDate(value: unknown): boolean {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const parsed = new Date(`${value}T00:00:00.000Z`)
+  return (
+    Number.isFinite(parsed.getTime()) &&
+    parsed.toISOString().slice(0, 10) === value &&
+    parsed.getTime() <= Date.now()
+  )
+}
+
 /**
- * Simplified `parseEnterpriseSubscriptionMetadata(...).seats`: requires `plan` `enterprise`
- * (any case), a non-empty `referenceId`, a positive integer `seats`, and an
- * `invoiceAmountCents` or `monthlyPrice`. The real zod schema also validates the optional
- * reporting-period, concurrency, and timeout fields.
+ * Port of `parseEnterpriseSubscriptionMetadata(...).seats` from `@/lib/billing/types`: returns
+ * 0 wherever the real zod schema rejects the metadata — `plan` must be `enterprise` (any case),
+ * `referenceId` non-empty, `seats` a positive integer, `invoiceAmountCents` (positive integer)
+ * or `monthlyPrice` (positive) present, and each optional `reportingPeriodAnchorDate` (a real,
+ * non-future `YYYY-MM-DD`), `reportingPeriodInterval` (`month`/`year`), and `concurrencyLimit`
+ * (positive integer up to 10,000) valid when present. `workflowExecutionTimeoutSeconds` never
+ * rejects: the real schema maps an invalid value to `undefined`.
  */
 function enterpriseSeats(metadata: unknown): number {
-  if (typeof metadata !== 'object' || metadata === null) return 0
+  if (typeof metadata !== 'object' || metadata === null || Array.isArray(metadata)) return 0
   const m = metadata as Record<string, unknown>
   if (typeof m.plan !== 'string' || m.plan.toLowerCase() !== 'enterprise') return 0
   if (typeof m.referenceId !== 'string' || m.referenceId.length === 0) return 0
   if (m.invoiceAmountCents === undefined && m.monthlyPrice === undefined) return 0
-  const seats = Number(m.seats)
-  return Number.isInteger(seats) && seats > 0 ? seats : 0
+  if (
+    m.invoiceAmountCents !== undefined &&
+    !isCoercedPositiveNumber(m.invoiceAmountCents, { integer: true })
+  ) {
+    return 0
+  }
+  if (m.monthlyPrice !== undefined && !isCoercedPositiveNumber(m.monthlyPrice)) return 0
+  if (!isCoercedPositiveNumber(m.seats, { integer: true })) return 0
+  if (
+    m.reportingPeriodAnchorDate !== undefined &&
+    !isValidReportingPeriodAnchorDate(m.reportingPeriodAnchorDate)
+  ) {
+    return 0
+  }
+  if (
+    m.reportingPeriodInterval !== undefined &&
+    m.reportingPeriodInterval !== 'month' &&
+    m.reportingPeriodInterval !== 'year'
+  ) {
+    return 0
+  }
+  if (
+    m.concurrencyLimit !== undefined &&
+    !isCoercedPositiveNumber(m.concurrencyLimit, {
+      integer: true,
+      max: MAX_BILLING_CONCURRENCY_LIMIT,
+    })
+  ) {
+    return 0
+  }
+  return Number(m.seats)
 }
 
 function getEffectiveSeats(subscription: SubscriptionLike | null | undefined): number {
@@ -150,17 +182,6 @@ function canEditUsageLimit(subscription: SubscriptionLike | null | undefined): b
   return isPro(subscription.plan) || isTeam(subscription.plan)
 }
 
-function getPlanPricing(plan: string): { basePrice: number } {
-  if (isFree(plan)) return { basePrice: 0 }
-  if (isEnterprise(plan)) return { basePrice: getEnterpriseTierLimitPerSeat() }
-  if (isPro(plan) || isTeam(plan)) {
-    const tierCredits = getPlanTierCredits(plan)
-    if (tierCredits > 0) return { basePrice: tierCredits / CREDIT_MULTIPLIER }
-    return { basePrice: isPro(plan) ? getProTierLimit() : getTeamTierLimitPerSeat() }
-  }
-  return { basePrice: 0 }
-}
-
 /**
  * Controllable mock functions for `@/lib/billing/subscriptions/utils`.
  *
@@ -169,7 +190,8 @@ function getPlanPricing(plan: string): { basePrice: number } {
  * `getPerUserMinimumLimit`, `canEditUsageLimit`, `getPlanPricing`). The tier-limit getters
  * return the `@/lib/billing/constants` defaults (free 5, pro 20, team 40, enterprise 200)
  * because the env overrides are unset under test. `getEffectiveSeats` reads Enterprise seats
- * through a simplified metadata check (see `enterpriseSeats`).
+ * through a port of the real metadata validation (see `enterpriseSeats`). The plan predicates
+ * and `getPlanPricing` are shared with the billing-core mock via `./billing-plan-logic`.
  *
  * @example
  * ```ts

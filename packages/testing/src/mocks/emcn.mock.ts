@@ -12,11 +12,19 @@ function toClassNames(input: unknown): string[] {
   return []
 }
 
-const mockToast = Object.assign(vi.fn(), {
-  success: vi.fn(),
-  error: vi.fn(),
-  warning: vi.fn(),
-  info: vi.fn(),
+let toastIdCounter = 0
+
+/** Returns a fresh id per toast, like the real `toast()` and its variants. */
+function nextToastId(..._args: unknown[]): string {
+  toastIdCounter += 1
+  return `mock-toast-${toastIdCounter}`
+}
+
+const mockToast = Object.assign(vi.fn(nextToastId), {
+  success: vi.fn(nextToastId),
+  error: vi.fn(nextToastId),
+  warning: vi.fn(nextToastId),
+  info: vi.fn(nextToastId),
   dismiss: vi.fn(),
   dismissAll: vi.fn(),
 })
@@ -25,7 +33,9 @@ const mockToast = Object.assign(vi.fn(), {
  * Controllable mock functions for the non-component surface of `@sim/emcn`.
  *
  * - `mockToast` is the imperative `toast`: a callable `vi.fn()` carrying `success`/`error`/
- *   `warning`/`info`/`dismiss`/`dismissAll` `vi.fn()`s (all bare — no provider needed).
+ *   `warning`/`info`/`dismiss`/`dismissAll` `vi.fn()`s (no provider needed). `toast()` and each
+ *   variant return a fresh string id (`mock-toast-1`, …) like the real API; `dismiss` and
+ *   `dismissAll` are bare.
  * - `mockUseToast` returns `{ toast: mockToast, dismiss: mockToast.dismiss, dismissAll: mockToast.dismissAll }`.
  * - `mockCn` joins truthy class values clsx-style (strings, arrays, `{ class: bool }` objects)
  *   WITHOUT tailwind-merge, so conflicting utilities are both kept.

@@ -145,7 +145,7 @@ export const executionLimitsMockFns = {
     return Math.max(5, Math.ceil((timeoutMs + RESERVATION_TTL_BUFFER_MS) / 1000))
   }),
   mockGetExecutionReservationTtlMs: vi.fn(
-    (): number => MAX_EXECUTION_TIMEOUT_MS + RESERVATION_TTL_BUFFER_MS
+    (): number => executionLimitsMockFns.mockGetMaxExecutionTimeout() + RESERVATION_TTL_BUFFER_MS
   ),
   mockIsTimeoutError: vi.fn((error: unknown): boolean => {
     if (!error) return false

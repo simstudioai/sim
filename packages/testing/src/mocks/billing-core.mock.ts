@@ -1,25 +1,5 @@
 import { vi } from 'vitest'
-
-/** Faithful port of the real `getPlanPricing` (re-exported from `@/lib/billing/subscriptions/utils`) with env overrides unset. */
-function getPlanPricing(plan: string): { basePrice: number } {
-  if (!plan || plan === 'free') return { basePrice: 0 }
-  if (plan === 'enterprise') return { basePrice: 200 }
-  const isPro = plan === 'pro' || plan.startsWith('pro_')
-  const isTeam = plan === 'team' || plan.startsWith('team_')
-  if (isPro || isTeam) {
-    const match = plan.match(/_(\d+)$/)
-    const tierCredits = match
-      ? Number.parseInt(match[1], 10)
-      : plan === 'pro'
-        ? 4000
-        : plan === 'team'
-          ? 8000
-          : 0
-    if (tierCredits > 0) return { basePrice: tierCredits / 200 }
-    return { basePrice: isPro ? 20 : 40 }
-  }
-  return { basePrice: 0 }
-}
+import { getPlanPricing } from './billing-plan-logic'
 
 /**
  * Controllable mock functions for `@/lib/billing/core/billing`.

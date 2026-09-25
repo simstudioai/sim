@@ -3,10 +3,19 @@ import { vi } from 'vitest'
 const PASSWORD_CHARS =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_-+='
 
-/** Same alphabet and length contract as the real `generatePassword`, using Web Crypto. */
+/** Web Crypto's per-call `getRandomValues` quota, in bytes. */
+const MAX_RANDOM_BYTES_PER_CALL = 65_536
+
+/**
+ * Same alphabet and length contract as the real `generatePassword`, using Web Crypto. The random
+ * values are filled in quota-sized chunks so lengths beyond 16,384 characters work too.
+ */
 function generatePassword(length = 24): string {
   const bytes = new Uint32Array(length)
-  crypto.getRandomValues(bytes)
+  const chunkLength = MAX_RANDOM_BYTES_PER_CALL / Uint32Array.BYTES_PER_ELEMENT
+  for (let offset = 0; offset < length; offset += chunkLength) {
+    crypto.getRandomValues(bytes.subarray(offset, offset + chunkLength))
+  }
   let result = ''
   for (const byte of bytes) result += PASSWORD_CHARS.charAt(byte % PASSWORD_CHARS.length)
   return result

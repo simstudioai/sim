@@ -1,5 +1,5 @@
 /**
- * Runs against the disposable PostgreSQL in TEST_DATABASE_URL. From apps/sim:
+ * Runs against the disposable PostgreSQL in TEST_DATABASE_URL. From the repository root:
  * `bun run --cwd apps/sim test --mode integration executor/handlers/agent/memory-harness.integration.ts`.
  * AGENT_MEMORY_TEST_LIVE=1 uses configured OpenAI/Anthropic credentials and synthetic PDFs.
  * Otherwise only provider HTTP responses are simulated; storage, SQL, hydration, dispatch,

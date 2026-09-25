@@ -23,8 +23,8 @@ paths:
 
 - **Answer-first pattern**: each section's H2 + first paragraph directly answers a question a user would ask an AI ("What is Sim?", "What integrations does Sim support?", "How much does Sim cost?").
 - **Atomic answer blocks**: every feature card, template, and pricing tier is independently quotable — self-contained, with "Sim" named explicitly. Never "the platform", "our tool", or a bare pronoun as the subject.
-- **Keyword density**: the first 150 visible characters of the hero name "AI workspace" and "AI agents". "Sim" is carried by the title tag, the meta description, and the hero `sr-only` summary.
-- **sr-only summaries**: the hero (and Templates) each carry a `<p className="sr-only">` (~50 words) stating what Sim is, who it's for, and what it does — a clean citation target for AI summarizers. The hero's opens by naming Sim.
+- **Keyword density**: the hero's `sr-only` summary is the first text in the hero's DOM, so its first 150 characters name "Sim", "AI workspace", and "AI agents" for crawlers. The visible headline and description name "AI agents" (not "AI workspace" or "Sim"); "Sim" is otherwise carried by the title tag and the meta description.
+- **sr-only summaries**: the hero (and Templates) each carry a `<p className="sr-only">` (~50 words) stating what Sim is, who it's for, and what it does — a clean citation target for AI summarizers. The hero's summary opens by naming Sim.
 - **Specific numbers**: concrete figures ("1,000+ integrations", "every major LLM", "100,000+ builders") over vague claims — and only numbers that are true and shipped.
 
 ## Citations and linking (`/library`, `/blog`, `/comparisons`)

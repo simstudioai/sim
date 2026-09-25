@@ -11,6 +11,17 @@ function nextSequentialUuid(): string {
   return `00000000-0000-4000-8000-${idCounter.toString(16).padStart(12, '0')}`
 }
 
+/** `short-id-1`, `short-id-2`, … — the size and alphabet arguments are ignored. */
+function nextSequentialShortId(_size?: number, _alphabet?: string): string {
+  shortIdCounter += 1
+  return `short-id-${shortIdCounter}`
+}
+
+/** The real regex check. */
+function isValidUuid(value: string): boolean {
+  return UUID_RE.test(value)
+}
+
 /**
  * Controllable mock functions for `@sim/utils/id`.
  *
@@ -27,12 +38,9 @@ function nextSequentialUuid(): string {
  * ```
  */
 export const idMockFns = {
-  mockGenerateId: vi.fn((): string => nextSequentialUuid()),
-  mockGenerateShortId: vi.fn((_size?: number, _alphabet?: string): string => {
-    shortIdCounter += 1
-    return `short-id-${shortIdCounter}`
-  }),
-  mockIsValidUuid: vi.fn((value: string): boolean => UUID_RE.test(value)),
+  mockGenerateId: vi.fn(nextSequentialUuid),
+  mockGenerateShortId: vi.fn(nextSequentialShortId),
+  mockIsValidUuid: vi.fn(isValidUuid),
 }
 
 /**
@@ -56,7 +64,7 @@ export const idMock = {
 export function resetIdMock(): void {
   idCounter = 0
   shortIdCounter = 0
-  idMockFns.mockGenerateId.mockReset()
-  idMockFns.mockGenerateShortId.mockReset()
-  idMockFns.mockIsValidUuid.mockReset()
+  idMockFns.mockGenerateId.mockReset().mockImplementation(nextSequentialUuid)
+  idMockFns.mockGenerateShortId.mockReset().mockImplementation(nextSequentialShortId)
+  idMockFns.mockIsValidUuid.mockReset().mockImplementation(isValidUuid)
 }

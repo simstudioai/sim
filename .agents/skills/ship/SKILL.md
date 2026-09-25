@@ -18,9 +18,11 @@ When the user runs `/ship`:
      - If the working tree has uncommitted changes, stash them first so the rebase below isn't blocked by dirty state, and pin the entry by SHA — the stash list is shared across every worktree of the repo, so `stash@{0}` and `git stash pop` can grab another session's entry:
        ```bash
        git stash push -u -m ship-sync-fix && SHIP_STASH=$(git rev-parse 'stash@{0}')
-       # once the branch is fixed:
+       # once the branch is fixed (`git stash drop` rejects a raw SHA, so resolve the pinned
+       # entry's current stash@{n} and drop only that; an empty lookup drops nothing):
        git stash apply "$SHIP_STASH" &&
-         git stash list --format='%gd %H' | awk -v s="$SHIP_STASH" '$2==s{print $1}' | xargs git stash drop
+         SHIP_STASH_REF=$(git stash list --format='%gd %H' | awk -v s="$SHIP_STASH" '$2==s{print $1}') &&
+         { [ -z "$SHIP_STASH_REF" ] || git stash drop "$SHIP_STASH_REF"; }
        ```
      - Try `git rebase origin/staging` first.
      - **A rebase finishing without conflicts does NOT by itself mean the branch is clean** — it can replay stray commits onto the new base with no conflict at all. After the rebase (clean or not), re-run `git log --oneline origin/staging..HEAD` and re-check the commit list against what you recognize.

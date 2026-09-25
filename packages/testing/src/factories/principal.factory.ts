@@ -47,8 +47,9 @@ export function createWorkspaceApiKeyPrincipal(
  * A subject-delegated principal (Sim's Chat agent, or realtime) acting for a
  * user. Defaults: `copilot` for `user-1` in `workspace-1`, delegation
  * `delegation-1`, audience `sim:test`, issued {@link TEST_PRINCIPAL_ISSUED_AT},
- * expiring {@link TEST_PRINCIPAL_EXPIRES_AT}. Pass `audience` whenever the
- * code under test checks it.
+ * expiring {@link TEST_PRINCIPAL_EXPIRES_AT} (each fixture gets its own `Date`
+ * copies, so mutating one cannot leak into another). Pass `audience` whenever
+ * the code under test checks it.
  *
  * @example
  * ```ts
@@ -65,8 +66,8 @@ export function createDelegatedPrincipal(
     workspaceId: 'workspace-1',
     delegationId: 'delegation-1',
     audience: 'sim:test',
-    issuedAt: TEST_PRINCIPAL_ISSUED_AT,
-    expiresAt: TEST_PRINCIPAL_EXPIRES_AT,
+    issuedAt: new Date(TEST_PRINCIPAL_ISSUED_AT),
+    expiresAt: new Date(TEST_PRINCIPAL_EXPIRES_AT),
     ...overrides,
   }
 }
@@ -94,8 +95,8 @@ export function createExecutorPrincipal(
     workspaceId: 'workspace-1',
     delegationId: 'delegation-1',
     audience: 'sim:test',
-    issuedAt: TEST_PRINCIPAL_ISSUED_AT,
-    expiresAt: TEST_PRINCIPAL_EXPIRES_AT,
+    issuedAt: new Date(TEST_PRINCIPAL_ISSUED_AT),
+    expiresAt: new Date(TEST_PRINCIPAL_EXPIRES_AT),
     ...overrides,
   }
 }

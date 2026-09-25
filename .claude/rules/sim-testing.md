@@ -72,7 +72,8 @@ the report.
 ### Structure
 
 ```typescript
-import { authMockFns, createMockRequest } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { describe, expect, it } from 'vitest'
 import { GET } from '@/app/api/my-route/route'
 

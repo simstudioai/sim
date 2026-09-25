@@ -3,9 +3,13 @@ import { vi } from 'vitest'
 /**
  * Controllable mock functions for `@/lib/core/config/feature-flags`.
  *
- * Defaults (the real result with AppConfig off and no fallback secret set):
- * - `mockIsFeatureEnabled` resolves `false` for every flag.
- * - `mockGetFeatureFlags` resolves `{}`.
+ * Defaults:
+ * - `mockIsFeatureEnabled` resolves `false` for every flag — the real result with AppConfig off
+ *   and no fallback secret set.
+ * - `mockGetFeatureFlags` resolves `{}`. The real module instead returns one
+ *   `{ enabled: false }` entry per registered flag in that state (its `fallbackFlags()`); a
+ *   missing entry and a disabled one evaluate the same, so override this only when a test
+ *   inspects the document itself.
  *
  * @example
  * ```ts

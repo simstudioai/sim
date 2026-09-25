@@ -78,6 +78,7 @@ export const embeddingsMockFns = {
     isBYOK: true,
     modelName: 'text-embedding-3-small',
     pricingId: 'text-embedding-3-small',
+    dimensions: 1536,
   })),
   mockEmbedOpenRouter: vi.fn(),
   mockGetEmbeddingAggregateItemLimit: vi.fn((dimensions: number): number => {

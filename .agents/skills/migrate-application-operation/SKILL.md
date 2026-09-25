@@ -319,7 +319,7 @@ Stop and report a missing design rather than weakening identity, authorization, 
 
 Run the `test-audit` authoring gate before writing any test. Own each risk at exactly one boundary:
 
-- Application use-case tests own authorization, principal-kind rejection before canonical loading, workspace assertion mismatch, delegated scope, not found, conflict, no-op, and audit derived from authoritative results.
+- Application use-case tests own authorization, principal-kind rejection before canonical loading, workspace assertion mismatch, delegated scope, not found, conflict, no-op, audit derived from authoritative results, and infrastructure failures (storage, rate-limit, provider, or database errors raised by delegated services) propagating as 5xx-mapped errors — never converted to not-found or forbidden.
 - One `*.integration.ts` owns repository semantics: canonical active lookup, workspace-predicated writes, archived resources, authoritative affected rows, and database error propagation.
 - Add a surface test only for a surface-specific risk (for example, a v2 envelope or rate header, a Copilot forged-scope rejection, or a legacy redirect/cookie behavior the characterization baseline pinned). Do not restate the operation registry or the shared builders' auth-before-parse behavior per surface.
 

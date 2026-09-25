@@ -1,5 +1,6 @@
 /**
  * Runs the real Drizzle queries against an isolated PostgreSQL schema in TEST_DATABASE_URL.
+ * From the repository root:
  * `bun run --cwd apps/sim test --mode integration lib/table/rows/secret-provenance.integration.ts`.
  * The default unit suite separately checks enforcement, stale-snapshot reporting, and
  * write-event attribution without a database.
