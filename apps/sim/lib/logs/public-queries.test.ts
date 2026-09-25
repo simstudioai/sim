@@ -10,9 +10,32 @@ import { jobLogsSelectable } from '@/lib/logs/public-filters'
 import {
   decodePublicLogCursor,
   encodePublicLogCursor,
+  getPublicWorkflowLog,
   listPublicWorkflowLogs,
   readPublicLogPage,
 } from '@/lib/logs/public-queries'
+
+describe('public log snapshot projection', () => {
+  beforeEach(() => resetDbChainMock())
+
+  it.each([true, false])(
+    'selects snapshot data only with includeWorkflowState=%s',
+    async (includeWorkflowState) => {
+      queueTableRows(schemaMock.workflowExecutionLogs, [])
+      await getPublicWorkflowLog({ column: 'executionId', value: 'run-1' }, 'workspace-1', {
+        includeWorkflowState,
+      })
+
+      const selected = dbChainMockFns.select.mock.calls[0][0]
+      if (includeWorkflowState) {
+        expect(selected.workflowState).toBe(schemaMock.workflowExecutionSnapshots.stateData)
+      } else {
+        expect(selected.workflowState).not.toBe(schemaMock.workflowExecutionSnapshots.stateData)
+        expect(selected.workflowState.strings).toEqual(['null'])
+      }
+    }
+  )
+})
 
 describe('public log cursor', () => {
   const cursor = {

@@ -7,13 +7,16 @@ import {
 import { Serializer } from '@/serializer'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-/** Checks the stop target against the same graph the executor will run. */
+/** Checks the stop target against the caller's resolved entry, never a DAG-selected fallback. */
 export function validateStopAfterBlock(
   state: Pick<WorkflowState, 'blocks' | 'edges' | 'loops' | 'parallels'>,
   blockId: string,
   triggerBlockId?: string,
   fromBlockId?: string
 ): void {
+  if (!triggerBlockId && !fromBlockId) {
+    throw new Error('stopAfterBlockId requires a resolved trigger or partial-run starting block.')
+  }
   const block = state.blocks[blockId]
   if (!block || block.enabled === false) {
     throw new Error(

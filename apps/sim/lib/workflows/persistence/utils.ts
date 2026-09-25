@@ -613,7 +613,7 @@ export async function loadWorkflowDeploymentSnapshot(
 ): Promise<WorkflowState | null> {
   const loadSnapshot = async (tx: DbOrTx) => {
     const [normalizedData, [workflowRecord]] = await Promise.all([
-      loadWorkflowFromNormalizedTables(workflowId, tx),
+      loadWorkflowFromNormalizedTables(workflowId, tx, { persistMigrations: false }),
       tx
         .select({ variables: workflow.variables })
         .from(workflow)

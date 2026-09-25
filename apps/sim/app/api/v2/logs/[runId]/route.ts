@@ -36,7 +36,10 @@ export const GET = defineV2JsonRoute({
   operation: logOperations.readDetail,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2LogErrorPolicies.concealDetailAuthorization,
-  mapInput: ({ params }) => ({ runId: params.runId }),
+  mapInput: ({ params, query }) => ({
+    runId: params.runId,
+    includeWorkflowState: query.includeWorkflowState,
+  }),
   useCase: getPublicLog,
   present: ({ log, workflowFolderPath, executionData, costLedger }) => {
     const detail: V2LogDetail = {

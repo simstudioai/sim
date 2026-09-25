@@ -56,6 +56,21 @@ describe('stop-after target validation with the real serializer and DAG', () => 
     expect(() => validateStopAfterBlock(graph, 'detached', undefined, 'detached')).not.toThrow()
   })
 
+  it('requires the resolved entry instead of selecting another trigger by graph order', () => {
+    const graph = state()
+    graph.blocks = {
+      webhook: createBlock({ id: 'webhook', type: 'webhook' }),
+      ...graph.blocks,
+    }
+    graph.edges.push({ id: 'c', source: 'webhook', target: 'detached' })
+
+    expect(() => validateStopAfterBlock(graph, 'formatter')).toThrow('resolved trigger')
+    expect(() => validateStopAfterBlock(graph, 'detached')).toThrow('resolved trigger')
+    expect(() => validateStopAfterBlock(graph, 'formatter', 'start')).not.toThrow()
+    expect(() => validateStopAfterBlock(graph, 'detached', 'start')).toThrow('not reachable')
+    expect(() => validateStopAfterBlock(graph, 'detached', 'webhook')).not.toThrow()
+  })
+
   it.each(['loop', 'parallel'] as const)(
     'allows the %s container and rejects its interior',
     (kind) => {

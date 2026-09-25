@@ -1,5 +1,5 @@
 ---
-title: Agent workflow operations
+title: Workflow operations
 description: Edit bindings safely, inspect compact run evidence, and track partial retries
 ---
 
@@ -18,10 +18,29 @@ sim --output json credentials get "$CREDENTIAL_ID"
 ```
 
 Use the returned tool ID and parameter schema; do not derive IDs from an English
-verb. For example, Slack sending uses `slack_message`. Supply the intended
-credential ID in the tool's documented credential parameter. A workflow can use
-a different credential from a direct tool call even when both are started by the
-same Sim user.
+verb. For example, Slack sending uses `slack_message`. For standalone OAuth
+execution, supply the intended top-level `credentialId`. Slack tools that declare
+`authMethod` and `botToken` also accept `input.authMethod: "bot_token"` with
+`input.botToken`, including an authorized `{{SECRET_NAME}}` reference. Explicit
+bot-token mode ignores `credentialId`; OAuth is the default and ignores an unused
+`botToken`. OAuth-only tools retain their credential requirement.
+
+A workflow can use a different credential from a direct tool call even when both
+are started by the same Sim user. Changing credentials can change the Slack bot's
+identity and which messages it may update.
+
+| Identifier | Where to read it | What it selects |
+| --- | --- | --- |
+| Tool ID | `tools list` and `tools get` | One executable operation and its standalone arguments |
+| Block type | `blocks list`, `blocks get`, and saved workflow state | A workflow block definition and its version |
+| Block operation | The returned block definition | An operation within that block; its ID may differ from the tool ID |
+| Block ID | Saved workflow state or a committed edit response | One particular block in that workflow |
+
+For example, `serper_search` is a tool ID, while `serper` is its integration
+type. Keep the exact type stored in an existing workflow; a catalog lookup of an
+unversioned name can resolve to a newer definition. Use that version's returned
+fields and operation IDs when editing, and the tool's returned parameter schema
+when executing directly.
 
 `credentials get` reports the credential type/provider, stored identity metadata,
 and recorded scopes with their source. `verifiedLive: false` means inspection
@@ -90,6 +109,12 @@ empty `mintedBlockIds`. Commit the edit and use that response's `mintedBlockIds`
 preview IDs are not reserved. Inspect the saved workflow to confirm its enabled
 blocks and connections before executing.
 
+For enablement-only changes, send `setBlockEnabled` through the existing workflow
+operations endpoint; no dummy graph edit is needed. Use `atomic: true` when any
+declined edit or dropped input should prevent the batch from saving. Inspect
+`applied`, `skipped`, and `inputValidationErrors`, then read the saved state before
+deploying. Validation does not execute blocks or suppress external writes.
+
 ## Discover workflows across workspaces
 
 Use `workspaces list`, then `workflows list --workspace <id>` for each relevant
@@ -125,12 +150,13 @@ sim --output json workflows runs get "$RUN_ID" --workflow "$WORKFLOW_ID" \
   --select-output "Verify delivery.result"
 ```
 
-`--summary` reports execution status, recorded failures (including handled
-errors), compact failing inputs/outputs, observed block statuses, and file
+`--summary` reports execution status, existing final output, recorded failures
+(including handled errors), compact failing inputs/outputs, observed block statuses, and file
 metadata. It caps trace traversal and field/text output and reports `truncated`
-when it omits detail. Binary fields and data URLs are omitted. This is a local
-projection of the authorized log response; it reduces terminal/context output,
-not the size of the server's log read. Use `logs get --trace` or explicit output
+when it omits detail. Binary fields and data URLs are omitted. The CLI asks the server to omit the saved workflow snapshot, then
+projects the remaining authorized log response locally. HTTP and MCP callers can
+set `includeWorkflowState=false`; ordinary CLI reads can use
+`--no-include-workflow-state`. Trace materialization is unchanged. Use `logs get --trace` or explicit output
 selectors when more detail is needed.
 
 Selectors accept an unambiguous block name or ID followed by an optional output
@@ -140,26 +166,15 @@ Ambiguous names are rejected with candidate IDs. Missing output paths can be
 omitted; that does not establish that a block ran successfully.
 
 A completed run can have sent a failure explanation rather than delivered a
-document. Have the workflow deliberately emit an `applicationOutcome` field in
-its final output, for example:
+document. Inspect the workflow's existing `finalOutput` and recorded tool failures;
+`--summary` preserves the output's shape within its size limits. Execution status
+describes the run, not the quality of its result or an external delivery guarantee.
+Trace entries describe recorded work, and expired trace data may leave no
+block-level evidence.
 
-```json
-{
-  "applicationOutcome": {
-    "status": "verification_blocked",
-    "threadId": "<provider-thread-id>",
-    "fileIds": []
-  }
-}
-```
-
-Choose application statuses that describe the workflow's result, such as
-`delivered`, `clarification_requested`, or `verification_blocked`. The summary
-copies this field at the top level, or inside a Function block's `result` or a
-Response block's `data` wrapper; it does not infer it from a successful execution or a Slack
-message. A null outcome means the workflow did not report one. Trace entries
-describe observed work, and cannot prove unrecorded downstream effects or content
-quality. Expired trace data may leave no block-level evidence.
+The log's existing `cost` includes a reconciled total and itemized `fixed`, `model`,
+and `tool` charges when a ledger is available. Use `logs list --level error
+--include-handled-errors` to find recorded failures that a workflow recovered from.
 
 ## Track long manual runs
 
@@ -176,6 +191,14 @@ output values. It executes no blocks and reserves no run ID. The listed rerun
 blocks are candidates, not a promise of execution order: conditions, disabled
 blocks, loops, and runtime failures still affect the path. A later run uses the
 draft saved at that time; preview does not lock a snapshot.
+
+An error connection is an alternative execution path. A consumer reached through
+an error bypass can run without output from the successful path's parser or
+transform. If that output is required, keep the consumer on the path that produces
+it, or explicitly handle its absence. A disabled block stops its branch; it is not
+a pass-through mock. Replaying from a later block can reuse recorded ancestor
+outputs from the selected source run, but cannot manufacture outputs that run
+never produced.
 
 ```sh
 sim workflows run "$WORKFLOW_ID" --from-block "$BLOCK_ID" \
@@ -221,9 +244,10 @@ does not disable blocks or edit the saved graph. It is unavailable with `--async
 If a condition skips the target, the remaining path can complete normally.
 If the run pauses, a later explicit resume does not inherit the stop-after limit.
 
-Deployed execution uses the deployment snapshot. A workflow with only one
-runnable Schedule trigger can run directly. When multiple entry points are
-ambiguous, select the intended deployed trigger with the API's
+Deployed execution uses the deployment snapshot and retains the existing API
+trigger priority when an API-compatible entry is available. A workflow with only
+one runnable Schedule trigger can also run directly. When no API-compatible entry
+exists and multiple triggers remain, select the intended deployed trigger with the API's
 `run: { "source": "deployment", "entry": { "type": "trigger", "blockId": "<block-id>" } }`.
 Manual trigger execution remains a separate choice that uses the saved draft.
 

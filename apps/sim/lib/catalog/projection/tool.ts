@@ -2,6 +2,7 @@ import { isHiddenFromDisplay } from '@/blocks/types'
 import type { HostedApiKeySupport } from '@/tools/hosted-api-key'
 import { getToolMetadata, type ToolMetadata } from '@/tools/metadata'
 import { getToolOutputsMetadata } from '@/tools/metadata-outputs'
+import { supportsSlackBotToken } from '@/tools/slack/auth'
 import { resolveToolId } from '@/tools/tool-ids'
 import type { ToolConfig } from '@/tools/types'
 
@@ -79,9 +80,13 @@ export interface CatalogToolDetail extends CatalogToolSummary {
   outputs: Record<string, CatalogToolOutput>
 }
 
-function projectOAuth(oauth: ToolMetadata['oauth']): CatalogToolOAuth | undefined {
+function projectOAuth(metadata: ToolMetadata): CatalogToolOAuth | undefined {
+  const { oauth } = metadata
   if (!oauth) return undefined
-  const projected: CatalogToolOAuth = { required: oauth.required, provider: oauth.provider }
+  const projected: CatalogToolOAuth = {
+    required: oauth.required && !supportsSlackBotToken(metadata),
+    provider: oauth.provider,
+  }
   if (oauth.requiredScopes !== undefined) projected.requiredScopes = [...oauth.requiredScopes]
   return projected
 }
@@ -111,7 +116,7 @@ export function projectToolSummary(
     hostedApiKey: deployment.hostedKeys ? (metadata.hostedApiKey ?? 'none') : 'none',
   }
   if (metadata.version !== undefined) summary.version = metadata.version
-  const oauth = projectOAuth(metadata.oauth)
+  const oauth = projectOAuth(metadata)
   if (oauth) summary.oauth = oauth
   return summary
 }

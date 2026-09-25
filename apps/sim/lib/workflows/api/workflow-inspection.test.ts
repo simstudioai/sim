@@ -7,6 +7,7 @@ import {
 } from '@/lib/api/contracts/v2/workflow-inspection'
 import { presentWorkflowInspection } from '@/lib/workflows/api/workflow-inspection'
 import type { ReadWorkflowGraphResult } from '@/lib/workflows/application/read-workflow-graph'
+import * as credentialExtractor from '@/lib/workflows/credentials/credential-extractor'
 import { getBlock } from '@/blocks/registry'
 
 function graph(): ReadWorkflowGraphResult {
@@ -147,5 +148,68 @@ describe('workflow diagnostic projection', () => {
     expect(v2InspectWorkflowQuerySchema.safeParse({ includeCode: 'yes' }).success).toBe(false)
     expect(v2InspectWorkflowQuerySchema.safeParse({ blockId: '' }).success).toBe(false)
     expect(v2InspectWorkflowQuerySchema.safeParse({ raw: true }).success).toBe(false)
+  })
+
+  it('bounds omitted input names as well as projected values', () => {
+    const source = graph()
+    const oversizedKey = 'unknown_'.repeat(100_000)
+    source.blocks['block-1'].subBlocks = {
+      [oversizedKey]: { id: oversizedKey, type: 'short-input', value: 'private-input-value' },
+      ...Object.fromEntries(
+        Array.from({ length: 3000 }, (_, index) => {
+          const key = `unknown_${index}`
+          return [key, { id: key, type: 'short-input', value: 'private-input-value' }]
+        })
+      ),
+    }
+
+    const result = presentWorkflowInspection(source, { includeCode: false })
+
+    expect(result.truncated).toBe(true)
+    expect(result.blocks[0].inputs).toEqual({})
+    expect(result.blocks[0].omittedInputs).toHaveLength(2000)
+    expect(result.blocks[0].omittedInputs).not.toContain(oversizedKey)
+    expect(JSON.stringify(result)).not.toContain('private-input-value')
+    expect(JSON.stringify(result).length).toBeLessThan(66_000)
+  })
+
+  it('skips malformed persisted sub-block entries without losing valid inputs or mutating state', () => {
+    const source = graph()
+    source.blocks['block-1'].subBlocks = {
+      text: { id: 'text', type: 'long-input', value: 'A report' },
+      nullEntry: null,
+      numberEntry: 42,
+      stringEntry: 'stale',
+      arrayEntry: [],
+    } as never
+    const before = structuredClone(source)
+
+    const result = presentWorkflowInspection(source, { includeCode: false })
+
+    expect(result.blocks[0].inputs).toEqual({ text: 'A report' })
+    expect(result.blocks[0].omittedInputs).toEqual([])
+    expect(source).toEqual(before)
+  })
+
+  it('reads only the first 50 own values of a wide sanitized input', () => {
+    const source = graph()
+    const readValue = vi.fn(() => 'diagnostic value')
+    const wide: Record<string, unknown> = Object.create({ inherited: 'not an input' })
+    for (let index = 0; index < 5000; index++) {
+      Object.defineProperty(wide, `entry_${index}`, { enumerable: true, get: readValue })
+    }
+    source.blocks['block-1'].subBlocks = {
+      text: { id: 'text', type: 'long-input', value: wide },
+    }
+    vi.spyOn(credentialExtractor, 'sanitizeWorkflowForSharing').mockReturnValueOnce({
+      blocks: source.blocks,
+    })
+
+    const result = presentWorkflowInspection(source, { includeCode: false })
+
+    expect(readValue).toHaveBeenCalledTimes(50)
+    expect(Object.keys(result.blocks[0].inputs.text as Record<string, unknown>)).toHaveLength(50)
+    expect(result.blocks[0].inputs.text).not.toHaveProperty('inherited')
+    expect(result.truncated).toBe(true)
   })
 })

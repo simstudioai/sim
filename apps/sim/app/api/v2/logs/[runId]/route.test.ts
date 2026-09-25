@@ -99,10 +99,37 @@ describe('GET /api/v2/logs/[runId]', () => {
     expect(body.data).not.toHaveProperty('executionData')
     expect(mocks.execute).toHaveBeenCalledWith({
       principal: auth.principal,
-      input: { runId: 'run-1' },
+      input: { runId: 'run-1', includeWorkflowState: true },
       request,
     })
   })
+
+  it('accepts snapshot omission without changing the run authorization identity', async () => {
+    const request = new NextRequest(
+      'http://localhost:3000/api/v2/logs/run-1?includeWorkflowState=false'
+    )
+    const response = await GET(request, { params: Promise.resolve({ runId: 'run-1' }) })
+
+    expect(response.status).toBe(200)
+    expect(mocks.execute).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: { runId: 'run-1', includeWorkflowState: false },
+      request,
+    })
+  })
+
+  it.each(['includeWorkflowState=invalid', 'unknownOption=true'])(
+    'rejects invalid log options before the use case: %s',
+    async (query) => {
+      const response = await GET(
+        new NextRequest(`http://localhost:3000/api/v2/logs/run-1?${query}`),
+        { params: Promise.resolve({ runId: 'run-1' }) }
+      )
+
+      expect(response.status).toBe(400)
+      expect(mocks.execute).not.toHaveBeenCalled()
+    }
+  )
 
   /**
    * Stored spans carry only `duration`; the contract publishes `durationMs`

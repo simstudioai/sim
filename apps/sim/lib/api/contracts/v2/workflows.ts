@@ -1254,13 +1254,13 @@ export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
             .min(1, 'run.entry.blockId cannot be empty')
             .max(MAX_ID_LENGTH)
             .describe(
-              'Enabled trigger block in the active deployment. Omit entry to use its sole API-compatible trigger, or its sole runnable trigger when it has no API entry.'
+              'Enabled trigger block in the active deployment. Omit entry to preserve the default API-compatible trigger, or use its sole runnable trigger when it has no API entry.'
             ),
         })
         .strict()
         .optional()
         .describe(
-          'Optional explicit deployed trigger. Otherwise select the sole API-compatible entry, or the sole runnable trigger when no API entry exists; ambiguous deployments require an explicit choice.'
+          'Optional explicit deployed trigger. Otherwise preserve the existing API entry priority, or select the sole runnable trigger when no API entry exists. Multiple non-API entries require an explicit choice.'
         ),
     })
     .strict(),
@@ -3636,12 +3636,12 @@ export const v2ApplyWorkflowOperationsBodySchema = z
   .object({
     operations: z
       .array(v2WorkflowOperationSchema)
-      .min(1, 'operations cannot be empty')
       .max(
         MAX_WORKFLOW_EDIT_OPERATIONS,
         `operations cannot exceed ${MAX_WORKFLOW_EDIT_OPERATIONS} entries`
       )
-      .describe('Edits to apply, in a single batch.'),
+      .default([])
+      .describe('Edits to apply in a single batch. May be omitted for enablement-only requests.'),
     atomic: z
       .boolean()
       .optional()
@@ -3675,6 +3675,10 @@ export const v2ApplyWorkflowOperationsBodySchema = z
       ),
   })
   .strict()
+  .refine((body) => body.operations.length > 0 || (body.setBlockEnabled?.length ?? 0) > 0, {
+    path: ['operations'],
+    message: 'Provide at least one operation or setBlockEnabled change',
+  })
   .meta({
     id: 'ApplyWorkflowOperationsRequest',
     title: 'Apply workflow operations request',

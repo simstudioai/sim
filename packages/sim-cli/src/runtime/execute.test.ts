@@ -119,7 +119,8 @@ it('runs compact log diagnostics through the generated authenticated read', asyn
       runId: 'run-1',
       status: 'completed',
       traceSpans: [],
-      finalOutput: { applicationOutcome: 'clarification_requested', source: 'hidden body' },
+      finalOutput: { requiresClarification: true },
+      workflowState: { source: 'hidden body' },
     },
   })
   await executeOperation(
@@ -131,9 +132,10 @@ it('runs compact log diagnostics through the generated authenticated read', asyn
   expect(request).toHaveBeenCalledTimes(1)
   expect(request.mock.calls[0][0]).toBe('/api/v2/logs/run-1')
   expect(request.mock.calls[0][1].query).not.toHaveProperty('summary')
+  expect(request.mock.calls[0][1].query).toHaveProperty('includeWorkflowState', false)
   expect(JSON.parse(String(stdout.mock.calls[0][0]))).toMatchObject({
     executionStatus: 'completed',
-    applicationOutcome: 'clarification_requested',
+    finalOutput: { requiresClarification: true },
   })
   expect(String(stdout.mock.calls[0][0])).not.toContain('hidden body')
 })

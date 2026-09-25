@@ -85,12 +85,17 @@ export function presentWorkflowInspection(
       return result
     }
     if (isRecordLike(value)) {
-      const entries = Object.entries(value)
-      if (entries.length > 50) truncated = true
       const result: [string, unknown][] = []
-      for (const [key, item] of entries.slice(0, 50)) {
+      let entryCount = 0
+      for (const key in value) {
+        if (!Object.hasOwn(value, key)) continue
+        if (entryCount === 50) {
+          truncated = true
+          break
+        }
+        entryCount++
         if (!reserveKey(key)) continue
-        const projected = project(isSensitiveKey(key) ? REDACTED_MARKER : item, depth + 1)
+        const projected = project(isSensitiveKey(key) ? REDACTED_MARKER : value[key], depth + 1)
         if (projected === undefined) break
         result.push([key, projected])
       }
@@ -106,7 +111,18 @@ export function presentWorkflowInspection(
       (getBlock(block.type)?.subBlocks ?? []).map((field) => [field.id, field])
     )
     for (const [key, field] of Object.entries(block.subBlocks)) {
-      if (field.value === null || field.value === undefined || field.value === '') continue
+      if (
+        !isRecordLike(field) ||
+        field.value === null ||
+        field.value === undefined ||
+        field.value === ''
+      )
+        continue
+      if (remainingValues <= 0 || remainingCharacters <= 0) {
+        truncated = true
+        break
+      }
+      if (!reserveKey(key)) continue
       const definition = definitions.get(key)
       const value = sanitized.blocks?.[id]?.subBlocks?.[key]?.value
       if (
@@ -120,10 +136,7 @@ export function presentWorkflowInspection(
             key === 'code' ||
             field.type === 'tool-input'))
       ) {
-        omittedInputs.push(key)
-        continue
-      }
-      if (!reserveKey(key)) {
+        remainingValues--
         omittedInputs.push(key)
         continue
       }

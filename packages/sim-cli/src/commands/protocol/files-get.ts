@@ -371,7 +371,7 @@ export function attachFileVersionDownload(versions: Command): void {
 export function attachToolFileDownload(files: Command): void {
   files
     .command('download')
-    .argument('<fileId>', 'The returned file.id with context copilot, passed unchanged')
+    .argument('<fileId>', 'The returned file.id whose file.context is "copilot", passed unchanged')
     .allowExcessArguments(false)
     .description(
       describeOperation(

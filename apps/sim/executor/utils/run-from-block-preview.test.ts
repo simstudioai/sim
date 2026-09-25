@@ -99,6 +99,44 @@ describe('partial-run preview with the real DAG builder', () => {
     })
   })
 
+  it('shows recorded ancestors across disabled blocks without inventing cached outputs', () => {
+    const graph = workflow()
+    graph.blocks.find((item) => item.id === 'retry')!.enabled = false
+    const result = previewRunFromBlock(graph, 'join', snapshot(['start', 'upstream']))
+
+    expect(result.validation.valid).toBe(true)
+    expect(result.rerunBlocks.map((item) => item.blockId)).toEqual(['join'])
+    expect(result.upstreamBlocks.find((item) => item.blockId === 'upstream')).toMatchObject({
+      executedInSource: true,
+      hasCachedOutput: true,
+    })
+    expect(result.upstreamBlocks.find((item) => item.blockId === 'retry')).toMatchObject({
+      executedInSource: false,
+      hasCachedOutput: false,
+    })
+    expect(result.upstreamBlocks.find((item) => item.blockId === 'sibling')).toMatchObject({
+      executedInSource: false,
+      hasCachedOutput: false,
+    })
+    expect(result.upstreamBlocks.some((item) => item.blockId === 'unrelated')).toBe(false)
+  })
+
+  it('does not change cached ancestors when an unrelated block is disabled', () => {
+    const graph = workflow()
+    graph.blocks.push(block('note', 'note'))
+    graph.connections.push(
+      { source: 'unrelated', target: 'note' },
+      { source: 'note', target: 'join' }
+    )
+    const source = snapshot(['start', 'upstream', 'sibling', 'unrelated'])
+    const before = previewRunFromBlock(graph, 'retry', source)
+
+    graph.blocks.push({ ...block('disabled'), enabled: false })
+    graph.connections.push({ source: 'unrelated', target: 'disabled' })
+    expect(previewRunFromBlock(graph, 'retry', source)).toEqual(before)
+    expect(before.upstreamBlocks.some((item) => item.blockId === 'unrelated')).toBe(false)
+  })
+
   it.each(['loop', 'parallel'] as const)(
     'projects %s sentinels to containers and refuses interior starts',
     (kind) => {
@@ -136,6 +174,10 @@ describe('partial-run preview with the real DAG builder', () => {
       ).toBe(true)
       expect(after.upstreamBlocks.find((item) => item.blockId === 'inner')?.hasCachedOutput).toBe(
         true
+      )
+      graph.blocks.push({ ...block('disabled'), enabled: false })
+      expect(previewRunFromBlock(graph, 'after', snapshot(['container', 'inner₍0₎']))).toEqual(
+        after
       )
     }
   )

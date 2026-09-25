@@ -112,9 +112,11 @@ import type { BlockConfig } from '@/blocks/types'
 import { fileMoveTool } from '@/tools/file/folders'
 import { fileReadTool } from '@/tools/file/get'
 import { functionExecuteTool } from '@/tools/function/execute'
+import { slackUpdateMessageTool } from '@/tools/slack/update_message'
 
 const TOOL_METADATA: Record<string, Record<string, unknown>> = {
   function_execute: { ...functionExecuteTool },
+  slack_update_message: { ...slackUpdateMessageTool },
   file_read: { ...fileReadTool },
   file_move: { ...fileMoveTool },
   slack_message: {
@@ -197,7 +199,10 @@ function block(overrides: Partial<BlockConfig> & { type: string }): BlockConfig 
 }
 
 const fileBlock = block({ type: 'file_v5', tools: { access: ['file_read', 'file_move'] } })
-const slackBlock = block({ type: 'slack', tools: { access: ['slack_message'] } })
+const slackBlock = block({
+  type: 'slack',
+  tools: { access: ['slack_message', 'slack_update_message'] },
+})
 const firecrawlBlock = block({ type: 'firecrawl', tools: { access: ['firecrawl_scrape'] } })
 const previewBlock = block({
   type: 'preview_thing',
@@ -467,6 +472,96 @@ describe('executeToolForCaller', () => {
 
   it('requires a credential for an OAuth tool before it dispatches', async () => {
     await expect(run({ toolId: 'slack_message', input: { text: 'hi' } })).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('credentialId is required'),
+    })
+    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+  })
+
+  it.each([undefined, 'unused-oauth-credential'])(
+    'honors explicit Slack bot-token mode without resolving credential %s',
+    async (credentialId) => {
+      const input = {
+        authMethod: 'bot_token',
+        botToken: '{{SLACK_BOT_TOKEN}}',
+        channel: 'channel-1',
+        timestamp: '123.456',
+        text: 'Updated',
+      }
+      await run({ toolId: 'slack_update_message', input, credentialId })
+      const [, params, options] = mocks.executeRegistryTool.mock.calls[0]
+      expect(params).toMatchObject(input)
+      expect(params).not.toHaveProperty('credential')
+      expect(params).not.toHaveProperty('accessToken')
+      expect(params._context).toMatchObject({
+        userId: principal.userId,
+        workspaceId: WORKSPACE_ID,
+        enforceCredentialAccess: true,
+        envReferenceMode: 'explicit',
+      })
+      expect(options.operationContext.callerPrincipal).toBe(principal)
+      expect(input.botToken).toBe('{{SLACK_BOT_TOKEN}}')
+    }
+  )
+
+  it.each([undefined, 'oauth'])(
+    'drops inactive Slack bot secrets when selecting OAuth mode %s',
+    async (authMethod) => {
+      await run({
+        toolId: 'slack_update_message',
+        credentialId: 'selected-credential',
+        input: {
+          authMethod,
+          botToken: '{{UNUSED_SECRET}}',
+          channel: 'channel-1',
+          timestamp: '123.456',
+          text: 'Updated',
+        },
+      })
+      const [, params] = mocks.executeRegistryTool.mock.calls[0]
+      expect(params.credential).toBe('selected-credential')
+      expect(params).not.toHaveProperty('botToken')
+    }
+  )
+
+  it.each([undefined, '', ' ', 123])(
+    'rejects missing or invalid selected botToken %s',
+    async (botToken) => {
+      await expect(
+        run({
+          toolId: 'slack_update_message',
+          credentialId: 'unused-credential',
+          input: { authMethod: 'bot_token', botToken, channel: 'channel-1', timestamp: '123.456' },
+        })
+      ).rejects.toMatchObject({
+        code: 'validation',
+        message: expect.stringContaining('input.botToken'),
+      })
+      expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+    }
+  )
+
+  it('rejects an invalid Slack auth mode without reflecting its value', async () => {
+    await expect(
+      run({
+        toolId: 'slack_update_message',
+        credentialId: 'credential-1',
+        input: { authMethod: 'private-invalid-value', channel: 'channel-1', timestamp: '123.456' },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: 'input.authMethod must be oauth or bot_token',
+    })
+    expect(mocks.executeRegistryTool).not.toHaveBeenCalled()
+  })
+
+  it('does not silently choose a bot token when OAuth is the default', async () => {
+    await expect(
+      run({
+        toolId: 'slack_update_message',
+        input: { botToken: '{{TOKEN}}', channel: 'channel-1', timestamp: '123.456' },
+      })
+    ).rejects.toMatchObject({
       code: 'validation',
       message: expect.stringContaining('credentialId is required'),
     })

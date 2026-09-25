@@ -152,6 +152,9 @@ describe('replaceWorkflowState', () => {
       ])
       expect(result.warnings.join(' ')).toContain('removes 1 credential/table binding')
       expect(mocks.loadNormalized).toHaveBeenCalledTimes(1)
+      expect(mocks.loadNormalized).toHaveBeenCalledWith(context.workflowId, undefined, {
+        persistMigrations: false,
+      })
       expect(mocks.replace).toHaveBeenCalledTimes(dryRun ? 0 : 1)
     }
   )

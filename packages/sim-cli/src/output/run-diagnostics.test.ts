@@ -1,49 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { summarizeRun } from '#sim-cli/output/run-diagnostics'
 
 describe('compact run diagnostics', () => {
-  it.each(['result', 'data'])(
-    'reads an explicit outcome inside the standard %s wrapper',
-    (field) => {
-      expect(
-        summarizeRun({
-          status: 'completed',
-          finalOutput: {
-            [field]: { applicationOutcome: { status: 'delivered', fileIds: ['file-1'] } },
-          },
-        }).applicationOutcome
-      ).toEqual({ status: 'delivered', fileIds: ['file-1'] })
+  it.each([null, 'complete', { delivered: false }, { result: { candidateId: 'candidate-1' } }])(
+    'retains existing final output without requiring an application-specific field: %j',
+    (finalOutput) => {
+      expect(summarizeRun({ status: 'completed', finalOutput })).toMatchObject({
+        executionStatus: 'completed',
+        finalOutput,
+        truncated: false,
+      })
     }
   )
-
-  it('prefers a top-level explicit outcome over wrapped values', () => {
-    expect(
-      summarizeRun({
-        finalOutput: {
-          applicationOutcome: 'verification_blocked',
-          result: { applicationOutcome: 'delivered' },
-        },
-      }).applicationOutcome
-    ).toBe('verification_blocked')
-  })
-  it('keeps execution and an explicit application outcome separate', () => {
-    const result = summarizeRun({
-      runId: 'run-1',
-      status: 'completed',
-      finalOutput: {
-        applicationOutcome: { status: 'verification_blocked', threadId: 'thread-1', fileIds: [] },
-      },
-      traceSpans: [],
-    })
-    expect(result).toMatchObject({
-      executionStatus: 'completed',
-      applicationOutcome: { status: 'verification_blocked', threadId: 'thread-1' },
-      truncated: false,
-    })
-    expect(
-      summarizeRun({ status: 'completed', finalOutput: { delivered: true } }).applicationOutcome
-    ).toBeNull()
-  })
 
   it('shows nested failures and observed effects without printing binary fields', () => {
     const result = summarizeRun({
@@ -90,5 +58,39 @@ describe('compact run diagnostics', () => {
     expect(result.failures).toHaveLength(10)
     expect(result.observedBlocks).toHaveLength(100)
     expect(JSON.stringify(result).length).toBeLessThan(25000)
+  })
+
+  it('stops reading object values after the field limit and reports truncation', () => {
+    const outcome = Object.fromEntries(
+      Array.from({ length: 12 }, (_, index) => [`field_${index}`, index])
+    )
+    const beyondLimit = vi.fn(() => {
+      throw new Error('Fields beyond the diagnostic limit must not be read')
+    })
+    Object.defineProperty(outcome, 'beyondLimit', { enumerable: true, get: beyondLimit })
+
+    const result = summarizeRun({ finalOutput: outcome })
+
+    expect(beyondLimit).not.toHaveBeenCalled()
+    expect(Object.keys(result.finalOutput as Record<string, unknown>)).toHaveLength(12)
+    expect(result.finalOutput).toMatchObject({ field_0: 0, field_11: 11 })
+    expect(result.truncated).toBe(true)
+  })
+
+  it('retains structured data under named or typed records while omitting encoded Buffer bytes', () => {
+    const result = summarizeRun({
+      finalOutput: {
+        named: { name: 'delivery', data: { status: 'blocked', reason: 'membership' } },
+        typed: { type: 'result', data: [{ sent: false }] },
+        counts: { name: 'attempts', data: [1, 2, 3] },
+        buffer: { type: 'Buffer', data: [80, 68, 70] },
+      },
+    })
+    expect(result.finalOutput).toEqual({
+      named: { name: 'delivery', data: { status: 'blocked', reason: 'membership' } },
+      typed: { type: 'result', data: [{ sent: false }] },
+      counts: { name: 'attempts', data: [1, 2, 3] },
+      buffer: { type: 'Buffer', data: '[binary omitted]' },
+    })
   })
 })

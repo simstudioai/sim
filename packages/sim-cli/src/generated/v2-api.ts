@@ -478,7 +478,7 @@ type ApplyWorkflowOperationsBodyRef6 = {
 }
 
 export type ApplyWorkflowOperationsBody = {
-  operations: Array<ApplyWorkflowOperationsBodyRef0>
+  operations?: Array<ApplyWorkflowOperationsBodyRef0>
   atomic?: boolean
   layout?: 'targeted' | 'none'
   setBlockEnabled?: Array<{
@@ -5633,7 +5633,9 @@ export type GetLogParams = {
   runId: string
 }
 
-export type GetLogQuery = Record<string, unknown>
+export type GetLogQuery = {
+  includeWorkflowState?: boolean
+}
 
 type GetLogResponseRef0 = {
   id: string
@@ -14353,7 +14355,11 @@ export const V2_OPERATIONS = {
       },
     },
     body: {
-      operations: { kind: 'array', required: true, describe: 'Edits to apply, in a single batch.' },
+      operations: {
+        kind: 'array',
+        default: [],
+        describe: 'Edits to apply in a single batch. May be omitted for enablement-only requests.',
+      },
       atomic: {
         kind: 'boolean',
         default: false,
@@ -16342,7 +16348,7 @@ export const V2_OPERATIONS = {
         kind: 'string',
         required: true,
         describe:
-          'The file.id returned by a direct tool call, with context copilot. Workflow output files use Download Workflow Run File instead.',
+          'The file.id from a direct tool result whose file.context is "copilot". Workflow output files use Download Workflow Run File instead.',
       },
     },
   },
@@ -16408,12 +16414,12 @@ export const V2_OPERATIONS = {
         kind: 'object',
         default: {},
         describe:
-          'Tool arguments keyed by published parameter IDs. For `user-only` parameters, a whole-value `{{VAR_NAME}}` reference resolves a workspace environment variable. Other values pass through unchanged.',
+          'Tool arguments keyed by published parameter IDs. For `user-only` parameters, a whole-value `{{VAR_NAME}}` reference resolves an environment variable in the acting user’s personal/workspace scope. Other values pass through unchanged.',
       },
       credentialId: {
         kind: 'string',
         describe:
-          'Credential to authenticate with. Required when the tool declares an OAuth requirement; the workspace credentials list names the candidates.',
+          'Credential to authenticate with. Required for OAuth authentication; the workspace credentials list names the candidates. Slack tools that declare authMethod and botToken also accept input.authMethod=bot_token with input.botToken (literal or {{SECRET_NAME}}); that explicit mode ignores credentialId. Otherwise OAuth is the default and unused botToken is ignored.',
       },
       timeoutSeconds: {
         kind: 'integer',
@@ -16788,6 +16794,13 @@ export const V2_OPERATIONS = {
     pathParamDocs: { runId: 'Unique workflow run identifier.' },
     responseMode: 'json',
     summary: 'Get Log',
+    query: {
+      includeWorkflowState: {
+        kind: 'boolean',
+        describe:
+          'Include the saved workflow snapshot. Set false to avoid loading and returning block configuration when inspecting a run. Other run fields are unchanged.',
+      },
+    },
   },
   getLogStats: {
     method: 'GET',

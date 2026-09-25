@@ -39,12 +39,13 @@ describe('log summary output', () => {
       runId: 'run-1',
       status: 'completed',
       traceSpans: [],
-      finalOutput: { applicationOutcome: 'verification_blocked', source: 'large source body' },
+      finalOutput: { delivered: false },
+      workflowState: { source: 'large source body' },
     }
     renderResult('getLog', 'json', log, CLI_CONTRACT.getLog ?? {}, { summary: true })
     expect(JSON.parse(logged[0])).toMatchObject({
       executionStatus: 'completed',
-      applicationOutcome: 'verification_blocked',
+      finalOutput: { delivered: false },
     })
     expect(logged[0]).not.toContain('large source body')
     renderResult('getLog', 'json', log, CLI_CONTRACT.getLog ?? {})

@@ -310,6 +310,35 @@ describe('Database Helpers', () => {
     resetDbChainMock()
   })
 
+  describe('loadWorkflowDeploymentSnapshot', () => {
+    it('loads a normalized snapshot without persisting legacy block migrations', async () => {
+      queueLoadFixtures({
+        blocks: [
+          toDbBlock(
+            createStarterBlock({
+              id: 'start',
+              subBlocks: legacySubBlocks({
+                _removed_oldSecret: {
+                  id: '_removed_oldSecret',
+                  type: 'short-input',
+                  value: 'old',
+                },
+              }),
+            }),
+            mockWorkflowId
+          ),
+        ],
+      })
+
+      const snapshot = await dbHelpers.loadWorkflowDeploymentSnapshot(mockWorkflowId)
+
+      expect(snapshot?.blocks.start.subBlocks).not.toHaveProperty('_removed_oldSecret')
+      await Promise.resolve()
+      expect(dbChainMockFns.update).not.toHaveBeenCalled()
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    })
+  })
+
   describe('loadWorkflowFromNormalizedTables', () => {
     it.each([false, true])(
       'normalizes legacy blocks with persistMigrations=%s',

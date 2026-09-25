@@ -138,7 +138,8 @@ describe('public log application use cases', () => {
     expect(mocks.loadWorkspace).toHaveBeenCalledWith('workspace-1')
     expect(mocks.getLog).toHaveBeenCalledWith(
       { column: 'executionId', value: 'run-1' },
-      'workspace-1'
+      'workspace-1',
+      { includeWorkflowState: true }
     )
     expect(mocks.materialize).toHaveBeenCalledWith(
       { pointer: true },
@@ -151,6 +152,25 @@ describe('public log application use cases', () => {
     )
     expect(result.workflowFolderPath).toBe('/agents')
     expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('omits the workflow snapshot at the query and response boundary when requested', async () => {
+    mocks.getLog.mockResolvedValueOnce({
+      ...log,
+      workflowState: { blocks: { large: { subBlocks: { code: { value: 'private' } } } } },
+    })
+    const result = await getPublicLog.execute({
+      principal: workspacePrincipal,
+      input: { runId: 'run-1', includeWorkflowState: false },
+    })
+
+    expect(mocks.getLog).toHaveBeenCalledWith(
+      { column: 'executionId', value: 'run-1' },
+      'workspace-1',
+      { includeWorkflowState: false }
+    )
+    expect(result.log.workflowState).toBeNull()
+    expect(result.executionData.finalOutput).toEqual({ ok: true })
   })
 
   /**

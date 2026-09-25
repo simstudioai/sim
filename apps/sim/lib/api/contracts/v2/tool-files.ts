@@ -10,7 +10,7 @@ export const v2DownloadToolFileQuerySchema = z
       .min(1, 'fileId cannot be empty')
       .max(2048, 'fileId is too long')
       .describe(
-        'The file.id returned by a direct tool call, with context copilot. Workflow output files use Download Workflow Run File instead.'
+        'The file.id from a direct tool result whose file.context is "copilot". Workflow output files use Download Workflow Run File instead.'
       ),
   })
   .strict()

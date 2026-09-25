@@ -157,6 +157,13 @@ JavaScript without imports runs in a fast local sandbox. JavaScript with `import
 | **HTTP requests** | `fetch()` built in | `requests` or `httpx` | `curl` or an installed CLI |
 | **Best for** | quick transforms and JSON | scripts, data science, charts, complex math | CLI workflows and system utilities |
 
+The fast local JavaScript runtime provides standard ECMAScript values, `fetch`,
+`console`, and Sim helpers. It does not provide Node/browser globals such as
+`process`, `Buffer`, `require`, `crypto`, `TextDecoder`, `atob`, or `setTimeout`.
+Code that needs Node APIs or timers must use the remote JavaScript runtime with
+an import, for example `import { setTimeout as delay } from 'node:timers/promises'`.
+Use `{{SECRET_NAME}}` for selected secrets in either runtime.
+
 <Callout type="info">
 Python and Shell require a remote sandbox. They are enabled by default on sim.ai;
 on a self-hosted instance, build and configure the provider's dedicated

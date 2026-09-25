@@ -45,7 +45,7 @@ export const GUIDE_PAGES = [
   'output',
   'scripting',
   'workflow-sync',
-  'agent-workflows',
+  'workflow-operations',
   'troubleshooting',
   'usage-data',
 ] as const

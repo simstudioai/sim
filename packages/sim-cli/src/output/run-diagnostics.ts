@@ -30,29 +30,29 @@ export function summarizeRun(log: unknown): Record<string, unknown> {
       return value.slice(0, MAX_FIELDS).map((item) => compact(item, depth + 1))
     }
     if (!isRecordLike(value)) return value ?? null
-    const entries = Object.entries(value)
-    if (entries.length > MAX_FIELDS) truncated = true
-    return Object.fromEntries(
-      entries.slice(0, MAX_FIELDS).map(([key, child]) => {
-        const binary = key === 'data' && ('mimeType' in value || 'type' in value || 'name' in value)
-        if (key.length > MAX_TEXT) truncated = true
-        return [
-          truncate(key, MAX_TEXT),
-          binary ? '[binary omitted]' : compact(child, depth + 1, key),
-        ]
-      })
-    )
+    const entries: [string, unknown][] = []
+    for (const key in value) {
+      if (!Object.hasOwn(value, key)) continue
+      if (entries.length === MAX_FIELDS) {
+        truncated = true
+        break
+      }
+      const child = value[key]
+      const binary =
+        key === 'data' &&
+        ((typeof child === 'string' &&
+          ('mimeType' in value || 'type' in value || 'name' in value)) ||
+          (value.type === 'Buffer' && Array.isArray(child)))
+      if (key.length > MAX_TEXT) truncated = true
+      entries.push([
+        truncate(key, MAX_TEXT),
+        binary ? '[binary omitted]' : compact(child, depth + 1, key),
+      ])
+    }
+    return Object.fromEntries(entries)
   }
 
-  const output = isRecordLike(log.finalOutput) ? log.finalOutput : null
-  /** Function and Response blocks retain their standard result/data wrappers in stored logs. */
-  const outcomeContainers = [output, output?.result, output?.data]
-  const outcomeContainer = outcomeContainers.find(
-    (value) => isRecordLike(value) && Object.hasOwn(value, 'applicationOutcome')
-  )
-  const applicationOutcome = compact(
-    isRecordLike(outcomeContainer) ? outcomeContainer.applicationOutcome : null
-  )
+  const finalOutput = compact(log.finalOutput)
   const files = compact(log.files)
 
   const failures: Record<string, unknown>[] = []
@@ -93,12 +93,12 @@ export function summarizeRun(log: unknown): Record<string, unknown> {
   return {
     runId: log.runId,
     executionStatus: log.status,
-    applicationOutcome,
+    finalOutput,
     failures,
     observedBlocks,
     files,
     truncated,
     scope:
-      'Recorded trace only; absent spans may be unexecuted or expired. applicationOutcome is workflow-defined; null means not reported. Binary content is omitted. Use the run-file download command for bytes.',
+      'Recorded trace only; absent spans may be unexecuted or expired. finalOutput is workflow-defined; execution success does not establish delivery or output quality. Binary content is omitted. Use the run-file download command for bytes.',
   }
 }

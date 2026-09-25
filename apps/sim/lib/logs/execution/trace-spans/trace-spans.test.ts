@@ -1,9 +1,114 @@
 import { describe, expect, it } from 'vitest'
-import { buildTraceSpans, hasUnhandledError } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { traceSpansHaveHandledErrors } from '@/lib/logs/execution/trace-spans/handled-errors'
+import {
+  buildTraceSpans,
+  hasUnhandledError,
+  traceSpansIndicateFailure,
+} from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
 import type { ExecutionResult } from '@/executor/types'
 
 describe('buildTraceSpans', () => {
+  it.each([true, false])(
+    'marks provider tool failures as handled errors after a successful agent (timing segments: %s)',
+    (withTimingSegments) => {
+      const toolCall = {
+        name: 'exa_search',
+        arguments: { query: 'candidate research' },
+        success: false,
+        result: { error: true, message: 'Search credits exhausted', tool: 'exa_search' },
+      }
+      const result: ExecutionResult = {
+        success: true,
+        output: { content: 'Research could not be performed' },
+        metadata: { duration: 1000, startTime: '2024-01-01T10:00:00.000Z' },
+        logs: [
+          {
+            blockId: 'research',
+            blockType: 'agent',
+            startedAt: '2024-01-01T10:00:00.000Z',
+            endedAt: '2024-01-01T10:00:01.000Z',
+            durationMs: 1000,
+            success: true,
+            output: {
+              toolCalls: { list: [toolCall], count: 1 },
+              ...(withTimingSegments && {
+                providerTiming: {
+                  duration: 1000,
+                  startTime: '2024-01-01T10:00:00.000Z',
+                  endTime: '2024-01-01T10:00:01.000Z',
+                  timeSegments: [
+                    {
+                      type: 'tool' as const,
+                      name: 'exa_search',
+                      startTime: 1704103200000,
+                      endTime: 1704103201000,
+                      duration: 1000,
+                    },
+                  ],
+                },
+              }),
+            },
+          },
+        ],
+      }
+
+      const { traceSpans } = buildTraceSpans(result)
+      const workflowSpan = traceSpans[0]
+      const agentSpan = workflowSpan.children![0]
+      const toolSpan = agentSpan.children![0]
+
+      expect(toolSpan).toMatchObject({
+        status: 'error',
+        errorMessage: 'Search credits exhausted',
+        errorHandled: true,
+        output: toolCall.result,
+      })
+      expect(agentSpan.status).toBe('success')
+      expect(workflowSpan.status).toBe('success')
+      expect(traceSpansIndicateFailure(traceSpans)).toBe(false)
+      expect(traceSpansHaveHandledErrors(traceSpans)).toBe(true)
+
+      result.logs![0].success = false
+      result.logs![0].error = 'Agent failed to recover'
+      const failed = buildTraceSpans(result).traceSpans
+      expect(failed[0].status).toBe('error')
+      expect(failed[0].children![0].children![0].errorHandled).toBeUndefined()
+      expect(traceSpansIndicateFailure(failed)).toBe(true)
+    }
+  )
+
+  it.each([true, undefined])(
+    'does not infer tool failure from user output when provider success is %s',
+    (success) => {
+      const toolCall = {
+        name: 'read_error_report',
+        arguments: {},
+        success,
+        result: { error: true, message: 'Error record returned as data' },
+      }
+      const { traceSpans } = buildTraceSpans({
+        success: true,
+        output: {},
+        logs: [
+          {
+            blockId: 'agent',
+            blockType: 'agent',
+            startedAt: '2024-01-01T10:00:00.000Z',
+            endedAt: '2024-01-01T10:00:01.000Z',
+            durationMs: 1000,
+            success: true,
+            output: { toolCalls: { list: [toolCall], count: 1 } },
+          },
+        ],
+      })
+
+      expect(traceSpans[0].children![0].status).toBe('success')
+      expect(traceSpans[0].children![0].errorMessage).toBeUndefined()
+      expect(traceSpansHaveHandledErrors(traceSpans)).toBe(false)
+    }
+  )
+
   it.concurrent('extracts sequential segments from timeSegments data', () => {
     const mockExecutionResult: ExecutionResult = {
       success: true,

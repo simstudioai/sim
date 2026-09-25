@@ -1,10 +1,13 @@
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { createSerializedBlock, createSerializedWorkflow } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { NormalizedBlockOutput } from '@/executor/types'
 
-const { executed, gateChoice } = vi.hoisted(() => ({
+const { executed, gateChoice, inputsByBlock, outputsByBlock } = vi.hoisted(() => ({
   executed: [] as string[],
   gateChoice: { value: 'if' as 'if' | 'else' },
+  inputsByBlock: new Map<string, Record<string, unknown>>(),
+  outputsByBlock: new Map<string, NormalizedBlockOutput>(),
 }))
 
 vi.mock('@/executor/handlers/registry', () => ({
@@ -13,13 +16,15 @@ vi.mock('@/executor/handlers/registry', () => ({
       canHandle: () => true,
       execute: async (
         _ctx: unknown,
-        block: { id: string; metadata?: { id?: string; name?: string } }
+        block: { id: string; metadata?: { id?: string; name?: string } },
+        inputs: Record<string, unknown>
       ) => {
         executed.push(block.id)
+        inputsByBlock.set(block.id, inputs)
         if (block.metadata?.id === 'condition') {
           return { selectedOption: `${block.metadata.name}-${gateChoice.value}` }
         }
-        return { ok: true }
+        return outputsByBlock.get(block.id) ?? { ok: true }
       },
     },
   ],
@@ -118,6 +123,81 @@ const looped = workflow(
 describe('DAGExecutor run-from-block edge state', () => {
   beforeEach(() => {
     executed.length = 0
+    inputsByBlock.clear()
+    outputsByBlock.clear()
+  })
+
+  it('restores persisted ancestor outputs across a disabled intermediate without rerunning it', async () => {
+    const graph = workflow([
+      { source: 'start', target: 'parseAction' },
+      { source: 'parseAction', target: 'acknowledge' },
+      { source: 'acknowledge', target: 'lookup' },
+      { source: 'lookup', target: 'publish' },
+      { source: 'start', target: 'unrelated' },
+    ])
+    graph.blocks.find((block) => block.id === 'acknowledge')!.enabled = false
+    const lookup = graph.blocks.find((block) => block.id === 'lookup')!
+    lookup.metadata!.id = 'api'
+    lookup.config.params = { candidateId: '<parseaction.result.candidateId>' }
+    outputsByBlock.set('parseAction', { result: { candidateId: 'candidate-test' } })
+    outputsByBlock.set('unrelated', { result: 'not an ancestor' })
+
+    const first = await createExecutor(graph, 'source-run').execute('wf')
+    expect(first.success).toBe(true)
+    expect(executed).not.toContain('acknowledge')
+    expect(executed).not.toContain('lookup')
+    expect(first.executionState?.blockStates.parseAction.output).toEqual({
+      result: { candidateId: 'candidate-test' },
+    })
+
+    executed.length = 0
+    const replay = await createExecutor(graph, 'replay-run').executeFromBlock(
+      'wf',
+      'lookup',
+      first.executionState!
+    )
+    expect(replay.success).toBe(true)
+    expect(inputsByBlock.get('lookup')?.candidateId).toBe('candidate-test')
+    expect(executed).toEqual(['lookup', 'publish'])
+    expect(replay.executionState?.blockStates.unrelated).toBeUndefined()
+    expect(replay.executionState?.executedBlocks).not.toContain('acknowledge')
+  })
+
+  it('restores ancestors across a disabled bridge without restoring dirty outputs or old branch choices', async () => {
+    const graph = workflow([
+      { source: 'start', target: 'prep' },
+      { source: 'prep', target: 'acknowledge' },
+      { source: 'acknowledge', target: 'lookup' },
+      { source: 'lookup', target: 'gate' },
+      { source: 'gate', target: 'oldBranch', sourceHandle: 'condition-gate-if' },
+      { source: 'gate', target: 'newBranch', sourceHandle: 'condition-gate-else' },
+      { source: 'oldBranch', target: 'join' },
+      { source: 'newBranch', target: 'join' },
+    ])
+    const join = graph.blocks.find((block) => block.id === 'join')!
+    join.metadata!.id = 'api'
+    join.config.params = { version: '<lookup.result.version>' }
+    outputsByBlock.set('lookup', { result: { version: 'old' } })
+    gateChoice.value = 'if'
+    const first = await createExecutor(graph, 'source-run').execute('wf')
+    expect(first.success).toBe(true)
+
+    graph.blocks.find((block) => block.id === 'acknowledge')!.enabled = false
+    outputsByBlock.set('lookup', { result: { version: 'new' } })
+    gateChoice.value = 'else'
+    executed.length = 0
+    const replay = await createExecutor(graph, 'replay-run').executeFromBlock(
+      'wf',
+      'lookup',
+      first.executionState!
+    )
+
+    expect(replay.success).toBe(true)
+    expect(executed).toEqual(['lookup', 'gate', 'newBranch', 'join'])
+    expect(inputsByBlock.get('join')?.version).toBe('new')
+    expect(replay.executionState?.blockStates.prep).toBeDefined()
+    expect(replay.executionState?.blockStates.oldBranch).toBeUndefined()
+    expect(replay.executionState?.executedBlocks).not.toContain('oldBranch')
   })
 
   it.each([
@@ -185,6 +265,34 @@ describe('DAGExecutor run-from-block edge state', () => {
     expect(order.filter((id) => id === 'join')).toHaveLength(1)
     expect(order.indexOf('join')).toBeGreaterThan(Math.max(order.indexOf('a'), order.indexOf('b')))
   })
+
+  it.each([
+    { failedAt: null, expected: ['start', 'download', 'parseDoc', 'prepare'], text: 'resume text' },
+    { failedAt: 'download', expected: ['start', 'download', 'prepare'], text: '' },
+    { failedAt: 'parseDoc', expected: ['start', 'download', 'parseDoc', 'prepare'], text: '' },
+  ])(
+    'joins success/error paths after their active prerequisites ($failedAt)',
+    async ({ failedAt, expected, text }) => {
+      const graph = workflow([
+        { source: 'start', target: 'download' },
+        { source: 'download', target: 'parseDoc', sourceHandle: 'source' },
+        { source: 'download', target: 'prepare', sourceHandle: 'error' },
+        { source: 'parseDoc', target: 'prepare', sourceHandle: 'source' },
+        { source: 'parseDoc', target: 'prepare', sourceHandle: 'error' },
+      ])
+      const prepare = graph.blocks.find((block) => block.id === 'prepare')!
+      prepare.metadata!.id = 'api'
+      prepare.config.params = { text: '<parsedoc.result.text>' }
+      outputsByBlock.set('parseDoc', { result: { text: 'resume text' } })
+      if (failedAt) outputsByBlock.set(failedAt, { error: 'provider failure' })
+
+      const result = await createExecutor(graph, 'fan-in-run').execute('wf')
+
+      expect(result.success).toBe(true)
+      expect(executed).toEqual(expected)
+      expect(inputsByBlock.get('prepare')?.text).toBe(text)
+    }
+  )
 
   it('does not run a stale branch in any parallel branch copy', async () => {
     const parallel = workflow(

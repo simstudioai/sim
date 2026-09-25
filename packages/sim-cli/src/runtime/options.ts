@@ -294,7 +294,7 @@ export function addOperationOptions(
     command.addOption(
       new Option(
         '--summary',
-        'Show bounded run diagnostics and the explicit application outcome; omit binary content'
+        'Show bounded run diagnostics and final output; omit binary content and the workflow snapshot'
       ).conflicts('trace')
     )
   }

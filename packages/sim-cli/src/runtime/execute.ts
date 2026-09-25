@@ -414,6 +414,10 @@ export async function executeOperation(
   assertCapIsUsable(operation, requestFlags)
   assertSelectorIsUsable(operation, requestFlags)
 
+  if (operation === 'getLog' && requestFlags.summary === true) {
+    requestFlags.includeWorkflowState ??= false
+  }
+
   /**
    * A dry run writes nothing, so it never needs the destructive confirmation.
    *

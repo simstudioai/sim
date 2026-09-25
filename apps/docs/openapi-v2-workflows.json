@@ -8930,13 +8930,13 @@
         "type": "object",
         "properties": {
           "operations": {
-            "minItems": 1,
+            "default": [],
+            "description": "Edits to apply in a single batch. May be omitted for enablement-only requests.",
             "maxItems": 200,
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/WorkflowEditOperation"
-            },
-            "description": "Edits to apply, in a single batch."
+            }
           },
           "atomic": {
             "default": false,
@@ -8971,7 +8971,6 @@
             }
           }
         },
-        "required": ["operations"],
         "additionalProperties": false,
         "title": "Apply workflow operations request",
         "description": "A batch of semantic edits against a workflow graph.",
@@ -12387,7 +12386,7 @@
                     "description": "Execute the active deployed workflow state."
                   },
                   "entry": {
-                    "description": "Optional explicit deployed trigger. Otherwise select the sole API-compatible entry, or the sole runnable trigger when no API entry exists; ambiguous deployments require an explicit choice.",
+                    "description": "Optional explicit deployed trigger. Otherwise preserve the existing API entry priority, or select the sole runnable trigger when no API entry exists. Multiple non-API entries require an explicit choice.",
                     "type": "object",
                     "properties": {
                       "type": {
@@ -12399,7 +12398,7 @@
                         "type": "string",
                         "minLength": 1,
                         "maxLength": 128,
-                        "description": "Enabled trigger block in the active deployment. Omit entry to use its sole API-compatible trigger, or its sole runnable trigger when it has no API entry."
+                        "description": "Enabled trigger block in the active deployment. Omit entry to preserve the default API-compatible trigger, or use its sole runnable trigger when it has no API entry."
                       }
                     },
                     "required": ["type", "blockId"],

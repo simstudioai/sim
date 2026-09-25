@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { omit } from '@sim/utils/object'
 import { resolveBillingAttribution, toBillingContext } from '@/lib/billing/core/billing-attribution'
 import { checkExecutionUsageLimits } from '@/lib/billing/core/usage-gate-cache'
 import { recordUsage } from '@/lib/billing/core/usage-log'
@@ -21,6 +22,7 @@ import { principalUserId } from '@/lib/integrations/principal-scope.server'
 import { ToolExecutionUsageLimitError } from '@/lib/tool-execution/application/errors'
 import { toolExecutionOperations } from '@/lib/tool-execution/application/operations'
 import { executeTool as executeRegistryTool } from '@/tools'
+import { supportsSlackBotToken } from '@/tools/slack/auth'
 import type { ExecutableToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
 
@@ -271,27 +273,42 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
     if (!tool) throw new OrchestrationError('not_found', 'Tool not found')
     assertNoUndeclaredInputs(tool, toolId, input.input)
 
+    let callerParams: Record<string, unknown> = { ...input.input }
+    let credentialId = input.credentialId
+    let usesBotToken = false
+    if (supportsSlackBotToken(tool)) {
+      const authMethod = callerParams.authMethod === undefined ? 'oauth' : callerParams.authMethod
+      if (authMethod !== 'oauth' && authMethod !== 'bot_token') {
+        throw new OrchestrationError('validation', 'input.authMethod must be oauth or bot_token')
+      }
+      usesBotToken = authMethod === 'bot_token'
+      if (usesBotToken) {
+        if (typeof callerParams.botToken !== 'string' || !callerParams.botToken.trim()) {
+          throw new OrchestrationError(
+            'validation',
+            'input.botToken is required when input.authMethod is bot_token'
+          )
+        }
+        credentialId = undefined
+      } else {
+        /** Inactive secrets must neither resolve nor become a provider fallback. */
+        callerParams = omit(callerParams, ['botToken'])
+      }
+    }
+
     const selector = declaredCredentialSelector(tool)
     const requiresCredential =
-      tool.oauth?.required === true || (selector !== undefined && tool.params[selector]?.required)
-    if (requiresCredential && !input.credentialId) {
+      !usesBotToken &&
+      (tool.oauth?.required === true || (selector !== undefined && tool.params[selector]?.required))
+    if (requiresCredential && !credentialId) {
       throw new OrchestrationError(
         'validation',
         `credentialId is required: ${toolId} authenticates with a ${tool.oauth?.provider ?? 'connected'} credential`
       )
     }
 
-    /**
-     * What the executor will receive, minus `_context`. The credential lands
-     * under the selector the tool declares, so a declared required
-     * `oauthCredential` is satisfied by the top-level `credentialId` rather than
-     * rejected as missing; a tool that declares none gets `credential`, which the
-     * executor reads for OAuth resolution.
-     */
-    const callerParams: Record<string, unknown> = {
-      ...input.input,
-      ...(input.credentialId ? { [selector ?? 'credential']: input.credentialId } : {}),
-    }
+    /** Map the top-level selector to the spelling this tool declares. */
+    if (credentialId) callerParams[selector ?? 'credential'] = credentialId
     assertRequiredCallerInputsPresent(tool, toolId, callerParams)
 
     const userId = principalUserId(principal)

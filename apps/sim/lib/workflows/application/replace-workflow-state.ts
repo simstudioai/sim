@@ -144,7 +144,9 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
         principal.kind === 'delegated' &&
         principal.serviceId === 'copilot' &&
         Object.values(blocks).some((block) => getToolBindingAuthoringSchema(block.type))
-      const previous = await loadWorkflowFromNormalizedTables(context.workflowId)
+      const previous = await loadWorkflowFromNormalizedTables(context.workflowId, undefined, {
+        persistMigrations: false,
+      })
       if (enforceToolBindings && !previous) {
         throw new OrchestrationError(
           'validation',

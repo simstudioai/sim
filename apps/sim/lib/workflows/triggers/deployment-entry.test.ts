@@ -35,10 +35,23 @@ describe('deployed workflow entry selection', () => {
   })
 
   it.each([
-    ['schedule', 'schedule'],
-    ['api_trigger', 'api_trigger'],
-  ])('rejects ambiguous %j entries before execution with an actionable selector', (...types) => {
-    expect(() => resolveDeploymentTriggerBlockId(blocks(...types))).toThrow('Set run.entry')
+    { types: ['api_trigger', 'api_trigger'], expected: 'block-0' },
+    { types: ['input_trigger', 'api_trigger', 'start_trigger'], expected: 'block-2' },
+    { types: ['starter', 'input_trigger', 'api_trigger'], expected: 'block-2' },
+  ])('preserves the existing default API entry for $types', ({ types, expected }) => {
+    expect(resolveDeploymentTriggerBlockId(blocks(...types))).toBe(expected)
+  })
+
+  it('allows explicit selection to override the default API entry', () => {
+    expect(resolveDeploymentTriggerBlockId(blocks('api_trigger', 'api_trigger'), 'block-1')).toBe(
+      'block-1'
+    )
+  })
+
+  it('rejects ambiguous non-API entries with an actionable selector', () => {
+    expect(() => resolveDeploymentTriggerBlockId(blocks('schedule', 'schedule'))).toThrow(
+      'Set run.entry'
+    )
   })
 
   it('excludes disabled triggers and reports no runnable deployment', () => {

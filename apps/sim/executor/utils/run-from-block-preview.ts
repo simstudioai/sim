@@ -41,7 +41,7 @@ export function previewRunFromBlock(
 ): RunFromBlockPreview {
   const dag = new DAGBuilder().build(workflow, { includeAllBlocks: true })
   const validation = validateRunFromBlock(startBlockId, dag, new Set(snapshot.executedBlocks))
-  const { dirtySet, reachableUpstreamSet } = computeExecutionSets(dag, startBlockId)
+  const { dirtySet, reachableUpstreamSet } = computeExecutionSets(dag, startBlockId, workflow)
   const rerunIds = workflowBlockIds(dirtySet, dag)
   const upstreamIds = workflowBlockIds(reachableUpstreamSet, dag)
   const executedIds = new Set(snapshot.executedBlocks.map(stripCloneSuffixes))
