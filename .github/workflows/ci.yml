@@ -670,7 +670,7 @@ jobs:
             cache_mb: '102400'
             image: ghcr.io/simstudioai/simstudio
             gh_runner: linux-arm64-8-core
-            bs_runner: blacksmith-8vcpu-ubuntu-2404-arm
+            bs_runner: blacksmith-16vcpu-ubuntu-2404-arm
           - dockerfile: ./docker/db.Dockerfile
             image: ghcr.io/simstudioai/migrations
             gh_runner: ubuntu-24.04-arm
