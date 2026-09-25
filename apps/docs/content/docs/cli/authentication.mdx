@@ -166,6 +166,38 @@ when the check could not be made at all — no workspace to check against, or an
 endpoint that did not answer. The split matters in CI: only `1` is fixed by
 logging in again.
 
+## Choosing an integration credential
+
+Your Sim login controls which workspaces and operations you can access. A tool's
+selected provider credential controls its external identity and grants. A workflow
+and a direct tool call can use different provider credentials under the same Sim login.
+
+Discover the exact tool ID and its parameter schema, then inspect the connection
+you intend to use:
+
+```bash
+sim tools list --search slack
+sim tools get slack_message
+sim credentials list --provider-id slack
+sim --output json credentials get "$CREDENTIAL_ID"
+```
+
+Use the returned tool ID and argument names. For standalone OAuth execution, pass
+`--credential-id "$CREDENTIAL_ID"` to `sim tools execute`. HTTP and MCP callers
+supply the top-level `credentialId` field, outside `input`.
+
+`credentials get` reports the credential type/provider, stored identity metadata,
+and recorded scopes with their source. `diagnostics.identity.verifiedLive: false`
+means it has not contacted the provider or verified token validity or resource access.
+Display names are labels. A scopes source of `unknown` with an empty `values` array
+means the grants are unknown, not that no scopes were granted. Custom bots may have
+no separately stored identity metadata; inspection leaves it unknown without
+reading secret payloads.
+
+See [Slack credentials](/integrations/slack#standalone-tool-credentials) for
+OAuth versus bot-token selection and conversation-access limits. The
+[credentials command reference](/cli/credentials) lists connection-management commands.
+
 ## Signing out
 
 ```bash

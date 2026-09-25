@@ -54,7 +54,6 @@ export const DOCS_MANIFEST: readonly string[] = [
   'cli/troubleshooting.mdx',
   'cli/usage-data.mdx',
   'cli/workflow-mcp-servers.mdx',
-  'cli/workflow-operations.mdx',
   'cli/workflow-sync.mdx',
   'cli/workflows.mdx',
   'cli/workspaces.mdx',

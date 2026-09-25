@@ -145,7 +145,7 @@ named MCP tool for every operation. Use `search_operations` and
 | Edit an existing workflow | [Workflow commands](/cli/workflows) | `getWorkflowState` and `replaceWorkflowState` | Invokes the deployed workflow; does not expose the workspace editing API |
 | Deploy a workflow | [Workflow commands](/cli/workflows) | `deployWorkflow` | Configure the deployment in Sim or through CLI/API/hosted MCP |
 | Invoke a workflow | [Workflow commands](/cli/workflows) | `executeWorkflow`; async execution is deployment-only, while manual runs are synchronous or streamed through CLI/API | The selected workflows appear as their own tools |
-| Preview a partial retry | [Workflow operations guide](/cli/workflow-operations) | `previewWorkflowRunFromBlock` reports candidate reruns and cached-output availability without executing | Not part of the deployed workflow tool interface |
+| Preview a partial retry | [Partial retry recipe](/cli/scripting#previewing-a-partial-retry) | `previewWorkflowRunFromBlock` reports candidate reruns and cached-output availability without executing | Not part of the deployed workflow tool interface |
 | Inspect runs and outputs | [Workflow commands](/cli/workflows) | `listWorkflowRuns`, `getWorkflowRun`, and other discovered run operations | Returns the invoked workflow's result |
 | Search workspace knowledge | [Knowledge commands](/cli/knowledge) | `searchKnowledge` | Only if the workflow performs that search |
 | Search live organization sources | Use the dedicated [Search MCP](/search/mcp) connection | Separate endpoint with `search` and `read_document` tools | Only if the workflow performs that search |
