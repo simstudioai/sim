@@ -315,7 +315,8 @@ function detachAttachedView(): void {
   if (!view || !win) return
   try {
     if (win.isDestroyed() || view.webContents.isDestroyed()) return
-    if (isAgentView(view)) {
+    // An agent view stays in the main window, which outlives any secondary window.
+    if (isAgentView(view) && win === host.getMainWindow()) {
       view.setVisible(false)
       parkedViews.set(view, win)
       return
@@ -326,6 +327,7 @@ function detachAttachedView(): void {
       error: getErrorMessage(error, 'unknown'),
     })
   }
+  if (isAgentView(view)) parkAgentViews()
 }
 
 /** Reveals the native view and invalidates every frame captured for its old state. */
@@ -399,7 +401,11 @@ function parkAgentViews(): void {
     if (view === attachedView || view.webContents.isDestroyed()) continue
     const parkedIn = parkedViews.get(view)
     if (parkedIn && !parkedIn.isDestroyed()) continue
-    const rendererHadFocus = !win.webContents.isDestroyed() && win.webContents.isFocused()
+    // addChildView hands keyboard focus to the parked view; give it back to whichever of the
+    // Sim renderer or the visible browser page held it.
+    const focused = [win.webContents, attachedView?.webContents].find(
+      (contents) => contents && !contents.isDestroyed() && contents.isFocused()
+    )
     try {
       view.setVisible(false)
       win.contentView.addChildView(view)
@@ -409,7 +415,7 @@ function parkAgentViews(): void {
         error: getErrorMessage(error, 'unknown'),
       })
     }
-    if (rendererHadFocus) win.webContents.focus()
+    focused?.focus()
   }
 }
 

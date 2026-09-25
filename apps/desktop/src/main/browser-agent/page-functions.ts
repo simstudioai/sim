@@ -1482,7 +1482,11 @@ export function clickElement(
         if (!scrollToTarget) {
           return clickElement(id, dispatchSynthetic, focusForKeyboard, allowDisabled, true)
         }
-        return { error: 'obstructed', blocker: blockerLabel(parentHit) }
+        return {
+          error: 'obstructed',
+          blocker: blockerLabel(parentHit),
+          blockerControls: window.__simAgentOverlayControls(parentHit),
+        }
       }
     }
     ownerView = frame.ownerDocument.defaultView

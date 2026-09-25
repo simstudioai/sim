@@ -11,7 +11,7 @@
 import type { BrowserTheme } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { interruptibleSleep, sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import type { NativeImage, WebContents, WebFrameMain } from 'electron'
 
@@ -1165,6 +1165,7 @@ export async function dragPointer(
   path: PointerPath = DIRECT_PATH,
   signal?: AbortSignal
 ): Promise<{ nativeDragIntercepted: boolean }> {
+  signal?.throwIfAborted()
   const { points, stepDelayMs } = pointerPathSteps(from, path, to)
   const interception: DragInterception = { intercepted: false, data: null }
   dragInterceptionsByContents.set(contents, interception)
@@ -1221,7 +1222,8 @@ export async function dragPointer(
     signal?.throwIfAborted()
     // Hold over the target so drop zones running enter/over animations settle
     // before the release lands.
-    await sleep(120)
+    await interruptibleSleep(120, signal)
+    signal?.throwIfAborted()
     if (interception.intercepted && interception.data) {
       await sendInput(contents, 'Input.dispatchDragEvent', {
         type: 'drop',

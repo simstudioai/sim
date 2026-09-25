@@ -4528,6 +4528,7 @@ async function executeToolInner(
         const beforePage = await pageActionState(contents, true)
         const beforeElement = await activeElementState(contents)
         assertCurrentExecution()
+        assertActiveContents(contents)
         await cdp.movePointer(contents, path, { x, y }, signal)
         await sleep(150)
         const afterElement = await activeElementState(contents)

@@ -294,6 +294,41 @@ describe('browser-agent CDP instrumentation', () => {
     }
   })
 
+  it('sends nothing for an already-aborted drag and cancels one aborted while it settles', async () => {
+    const contents = new WebContentsView().webContents
+    const mouse = () =>
+      vi
+        .mocked(contents.debugger.sendCommand)
+        .mock.calls.filter(([method]) => method === 'Input.dispatchMouseEvent')
+        .map(([, params]) => toRecord(params).type)
+    const aborted = new AbortController()
+    aborted.abort()
+    await expect(
+      dragPointer(contents, { x: 0, y: 0 }, { x: 50, y: 0 }, undefined, aborted.signal)
+    ).rejects.toMatchObject({ name: 'AbortError' })
+    expect(contents.debugger.sendCommand).not.toHaveBeenCalled()
+
+    vi.useFakeTimers()
+    try {
+      const controller = new AbortController()
+      const drag = dragPointer(
+        contents,
+        { x: 0, y: 0 },
+        { x: 50, y: 0 },
+        undefined,
+        controller.signal
+      )
+      const settled = expect(drag).rejects.toMatchObject({ name: 'AbortError' })
+      // The default route takes 13 moves 20 ms apart, then a 120 ms settle hold.
+      await vi.advanceTimersByTimeAsync(300)
+      controller.abort()
+      await settled
+      expect(mouse().at(-1)).toBe('mouseReleased')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('releases the button when a timed drag is aborted mid-route', async () => {
     const contents = new WebContentsView().webContents
     const types = () =>

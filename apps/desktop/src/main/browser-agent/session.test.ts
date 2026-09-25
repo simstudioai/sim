@@ -2503,6 +2503,39 @@ describe('browser-agent session', () => {
     expect(content.removeChildView).toHaveBeenCalledWith(second.view)
   })
 
+  it('gives keyboard focus back to the visible page when it parks the agent tab', () => {
+    const visibleTab = session.ensureTab()
+    panel.setPanelBounds({ x: 0, y: 0, width: 800, height: 600 })
+    const visibleContents = visibleTab.view.webContents as unknown as MockView['webContents']
+    visibleContents.isFocused.mockReturnValue(true)
+    vi.mocked(visibleContents.focus).mockClear()
+
+    session.addAutomationTab()
+
+    expect(visibleContents.focus).toHaveBeenCalled()
+  })
+
+  it('parks an agent tab in the main window when a secondary window stops showing it', () => {
+    const otherWindow = mainWindowMock() as unknown as {
+      contentView: {
+        addChildView: ReturnType<typeof vi.fn>
+        removeChildView: ReturnType<typeof vi.fn>
+      }
+    }
+    const agentTab = session.ensureTab()
+    panel.setPanelBounds(
+      { x: 0, y: 0, width: 800, height: 600 },
+      otherWindow as unknown as BrowserWindow
+    )
+    expect(otherWindow.contentView.addChildView).toHaveBeenCalledWith(agentTab.view)
+    vi.mocked(win.contentView.addChildView).mockClear()
+
+    session.addTab()
+
+    expect(otherWindow.contentView.removeChildView).toHaveBeenCalledWith(agentTab.view)
+    expect(win.contentView.addChildView).toHaveBeenCalledWith(agentTab.view)
+  })
+
   it('keeps the agent tab composited while the user views another tab, and releases it on close', () => {
     const agentTab = session.ensureTab()
     panel.setPanelBounds({ x: 0, y: 0, width: 800, height: 600 })
