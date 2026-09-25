@@ -11,6 +11,7 @@ import {
   getElementScreenshotRect,
   getViewportInfo,
   hoverElement,
+  installPageHelpers,
   pageContainsText,
   pressKeyOnPage,
   readActiveElementState,
@@ -22,6 +23,7 @@ import {
   resolveFileInputTarget,
   scrollPage,
   selectOptionInElement,
+  serializePageCall,
   setFocusedInputValue,
   typeIntoElement,
 } from '@/main/browser-agent/page-functions'
@@ -60,8 +62,7 @@ function installDomShims(): void {
  * fails here exactly as it would in a real page.
  */
 function runSerialized(fn: (...args: never[]) => unknown, args: unknown[]): unknown {
-  const expression = `(${String(fn)}).apply(null, ${JSON.stringify(args)})`
-  return new Function(`return ${expression}`)()
+  return new Function(`return ${serializePageCall(fn, args)}`)()
 }
 
 function visible<T extends Element>(el: T): T {
@@ -116,6 +117,7 @@ beforeEach(() => {
   window.__simAgentMutationStates = undefined
   window.__simAgentNextElementId = 0
   window.__simAgentShownElements = undefined
+  installPageHelpers()
   window.__simAgentResolveElement = undefined
   installDomShims()
   Reflect.deleteProperty(document, 'activeElement')

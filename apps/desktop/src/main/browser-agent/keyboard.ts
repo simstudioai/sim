@@ -16,6 +16,11 @@ interface KeyDescriptor {
   keyCode: number
 }
 
+const CONTROL_KEY: KeyDescriptor = { key: 'Control', code: 'ControlLeft', keyCode: 17 }
+const SHIFT_KEY: KeyDescriptor = { key: 'Shift', code: 'ShiftLeft', keyCode: 16 }
+const ALT_KEY: KeyDescriptor = { key: 'Alt', code: 'AltLeft', keyCode: 18 }
+const META_KEY: KeyDescriptor = { key: 'Meta', code: 'MetaLeft', keyCode: 91 }
+
 const NAMED_KEYS: Record<string, KeyDescriptor> = {
   enter: { key: 'Enter', code: 'Enter', keyCode: 13 },
   escape: { key: 'Escape', code: 'Escape', keyCode: 27 },
@@ -51,14 +56,14 @@ const NAMED_KEYS: Record<string, KeyDescriptor> = {
   '`': { key: '`', code: 'Backquote', keyCode: 192 },
   plus: { key: '+', code: 'Equal', keyCode: 187 },
   insert: { key: 'Insert', code: 'Insert', keyCode: 45 },
-  control: { key: 'Control', code: 'ControlLeft', keyCode: 17 },
-  ctrl: { key: 'Control', code: 'ControlLeft', keyCode: 17 },
-  shift: { key: 'Shift', code: 'ShiftLeft', keyCode: 16 },
-  alt: { key: 'Alt', code: 'AltLeft', keyCode: 18 },
-  option: { key: 'Alt', code: 'AltLeft', keyCode: 18 },
-  meta: { key: 'Meta', code: 'MetaLeft', keyCode: 91 },
-  cmd: { key: 'Meta', code: 'MetaLeft', keyCode: 91 },
-  command: { key: 'Meta', code: 'MetaLeft', keyCode: 91 },
+  control: CONTROL_KEY,
+  ctrl: CONTROL_KEY,
+  shift: SHIFT_KEY,
+  alt: ALT_KEY,
+  option: ALT_KEY,
+  meta: META_KEY,
+  cmd: META_KEY,
+  command: META_KEY,
   ...Object.fromEntries(
     Array.from({ length: 12 }, (_, index) => [
       `f${index + 1}`,
@@ -108,12 +113,12 @@ const BASE_FOR_SHIFTED_CHARACTER: Record<string, string> = Object.fromEntries(
   Object.entries(SHIFTED_CHARACTERS).map(([base, shifted]) => [shifted, base])
 )
 
-/** Modifier keys in the order a chord presses them, each with the flag its key-down sets. */
+/** Modifier keys in the fixed order a chord presses them, each with the flag its key-down sets. */
 const MODIFIER_KEYS: readonly { flag: keyof KeyModifiers; descriptor: KeyDescriptor }[] = [
-  { flag: 'ctrl', descriptor: NAMED_KEYS.control },
-  { flag: 'alt', descriptor: NAMED_KEYS.alt },
-  { flag: 'shift', descriptor: NAMED_KEYS.shift },
-  { flag: 'meta', descriptor: NAMED_KEYS.meta },
+  { flag: 'ctrl', descriptor: CONTROL_KEY },
+  { flag: 'alt', descriptor: ALT_KEY },
+  { flag: 'shift', descriptor: SHIFT_KEY },
+  { flag: 'meta', descriptor: META_KEY },
 ]
 
 export interface KeyModifiers {
@@ -312,7 +317,11 @@ export function buildKeyDispatchPlan(
     ...(text !== undefined ? { text } : {}),
     ...(commands.length > 0 ? { commands } : {}),
   }
-  return [down, { ...base, type: 'keyUp' }]
+  const ownModifier = MODIFIER_KEYS.find(({ descriptor }) => descriptor.key === combo.key)
+  const upModifiers = ownModifier
+    ? cdpModifiers({ ...combo, [ownModifier.flag]: false })
+    : modifiers
+  return [down, { ...base, type: 'keyUp', modifiers: upModifiers }]
 }
 
 /**
@@ -326,25 +335,22 @@ export function modifierKeyEvents(
 ): { downs: cdp.CdpKeyEvent[]; ups: cdp.CdpKeyEvent[] } {
   const combo = normalizeComboForPlatform(rawCombo, platform)
   const held = { ctrl: false, meta: false, shift: false, alt: false }
-  const downs: cdp.CdpKeyEvent[] = []
-  const ups: cdp.CdpKeyEvent[] = []
-  for (const { flag, descriptor } of MODIFIER_KEYS) {
-    if (!combo[flag] || descriptor.key === combo.key) continue
+  const pressed = MODIFIER_KEYS.filter(
+    ({ flag, descriptor }) => combo[flag] && descriptor.key !== combo.key
+  )
+  const event = ({ key, code, keyCode }: KeyDescriptor) => ({
+    key,
+    code,
+    windowsVirtualKeyCode: keyCode,
+  })
+  const downs = pressed.map(({ flag, descriptor }) => {
     held[flag] = true
-    const event = {
-      key: descriptor.key,
-      code: descriptor.code,
-      windowsVirtualKeyCode: descriptor.keyCode,
-    }
-    downs.push({ ...event, type: 'rawKeyDown', modifiers: cdpModifiers(held) })
-    ups.unshift({ ...event, type: 'keyUp', modifiers: 0 })
-  }
-  let remaining = { ...held }
-  for (const up of ups) {
-    const flag = MODIFIER_KEYS.find((modifier) => modifier.descriptor.key === up.key)?.flag
-    if (flag) remaining = { ...remaining, [flag]: false }
-    up.modifiers = cdpModifiers(remaining)
-  }
+    return { ...event(descriptor), type: 'rawKeyDown' as const, modifiers: cdpModifiers(held) }
+  })
+  const ups = [...pressed].reverse().map(({ flag, descriptor }) => {
+    held[flag] = false
+    return { ...event(descriptor), type: 'keyUp' as const, modifiers: cdpModifiers(held) }
+  })
   return { downs, ups }
 }
 

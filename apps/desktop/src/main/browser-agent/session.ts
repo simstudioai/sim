@@ -425,14 +425,16 @@ interface ActiveBrowserDownload {
   lastDiskCheckAt: number
   /**
    * Electron's download delegate opens a native Save dialog unless a path is
-   * set before `will-download` returns, so bytes land in this random hidden
-   * file and move to the asynchronously allocated `savePath` on completion.
+   * set before `will-download` returns, so bytes land in this randomly named
+   * dot-file (hidden on POSIX) and move to the asynchronously allocated
+   * `savePath` on completion.
    */
   stagingPath: string
   /** The reserved final destination, once allocation has chosen one. */
   savePath?: string
   /** Settles with the final destination, or null when allocation failed. */
   destination: Promise<string | null>
+  /** Set once Electron reports the item done, so a late disk check never resumes or cancels it. */
   finished: boolean
   scopeId: string
   terminal: boolean
@@ -1554,7 +1556,7 @@ function configureBrowserDownloads(ses: Session): void {
 
     const download = createTrackedBrowserDownload(item, 'progressing')
     const { filename } = download
-    const rejectBeforeTracking = (reason: string, message: string, error: unknown) => {
+    const failDownloadSetup = (reason: string, message: string, error: unknown) => {
       download.interruptionReason = reason
       download.state = 'interrupted'
       try {
@@ -1573,7 +1575,7 @@ function configureBrowserDownloads(ses: Session): void {
     try {
       item.setSavePath(stagingPath)
     } catch (error) {
-      rejectBeforeTracking(
+      failDownloadSetup(
         'Stopped: the download destination could not be prepared safely',
         'Could not set the staging destination for an agent browser download',
         error
@@ -1583,7 +1585,7 @@ function configureBrowserDownloads(ses: Session): void {
     try {
       item.pause()
     } catch (error) {
-      rejectBeforeTracking(
+      failDownloadSetup(
         'Stopped: the download could not be paused for a disk-space safety check',
         'Agent browser download could not be paused for admission',
         error
@@ -1597,6 +1599,7 @@ function configureBrowserDownloads(ses: Session): void {
       diskCheckInFlight: false,
       lastDiskCheckAt: 0,
       stagingPath,
+      /** Replaced below by the allocation, whose callbacks need this record to exist first. */
       destination: Promise.resolve(null),
       finished: false,
       scopeId,
@@ -1632,13 +1635,10 @@ function configureBrowserDownloads(ses: Session): void {
       active.finished = true
       updateDownloadProgress(download, item)
       if (state !== 'completed' || active.limitReason || active.terminal) {
-        const tornDown = active.terminal
         releaseActiveBrowserDownload(active)
         discardStagedBrowserDownload(active)
         download.savePath = active.savePath
-        if (active.limitReason) download.state = 'interrupted'
-        else if (tornDown && state === 'completed') download.state = 'cancelled'
-        else download.state = state
+        download.state = active.limitReason ? 'interrupted' : state
         finishBrowserDownload(active)
         return
       }

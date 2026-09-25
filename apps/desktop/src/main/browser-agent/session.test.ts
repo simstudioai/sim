@@ -4017,11 +4017,9 @@ describe('browser-agent session', () => {
       .mockReturnValueOnce(firstProbe.promise)
       .mockReturnValueOnce(secondProbe.promise)
       .mockReturnValue(Number.MAX_SAFE_INTEGER)
-    const pathExists = vi.fn((_path: string) => false)
     session = freshSession(win, {}, persistence, {
       getDirectory: () => directory,
       getFreeDiskBytes,
-      pathExists,
     })
     const contents = (session.ensureTab().view as unknown as MockView).webContents
     const first = mockDownloadItem({ filename: 'same-name.bin', totalBytes: 100 })
@@ -4030,11 +4028,6 @@ describe('browser-agent session', () => {
     startMockDownload(contents, first)
     startMockDownload(contents, second)
     await vi.waitFor(() => expect(getFreeDiskBytes).toHaveBeenCalledTimes(2))
-    expect(pathExists.mock.calls.map(([candidate]) => candidate)).toEqual([
-      join(directory, 'same-name.bin'),
-      join(directory, 'same-name.bin'),
-      expect.stringMatching(/same-name \(.+\)\.bin$/),
-    ])
 
     await session.clearProfileStorage()
 
@@ -4071,7 +4064,9 @@ describe('browser-agent session', () => {
     replacement.emitDone('completed')
     await vi.waitFor(() => expect(finishedDownloadFiles(directory)).toHaveLength(2))
     expect(finishedDownloadFiles(directory)).toContain('same-name.bin')
-    await vi.waitFor(() => expect(readdirSync(directory)).toHaveLength(2))
+    await vi.waitFor(() =>
+      expect(readdirSync(directory).filter((name) => name.startsWith('.'))).toEqual([])
+    )
   })
 
   it('does not reserve a late filename after profile teardown starts', async () => {

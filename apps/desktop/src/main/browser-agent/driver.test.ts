@@ -3624,6 +3624,17 @@ describe('credential protection', () => {
       error: expect.stringContaining('Batch action 0'),
     })
     expect(observed).toMatchObject({ ok: false, error: expect.stringContaining('cannot observe') })
+
+    const held = await driver.executeTool('chat-test', 'browser_batch', {
+      actions: [
+        { tool: 'browser_click', args: { elementId: 0, holdMs: 2000 } },
+        { tool: 'browser_click', args: { elementId: 0 } },
+      ],
+    })
+    expect(held).toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cannot press and hold'),
+    })
   })
 
   it('keeps element ids valid when an observed action is refused before dispatch', async () => {

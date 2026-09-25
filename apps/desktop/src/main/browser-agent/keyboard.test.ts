@@ -208,8 +208,21 @@ describe('modifierKeyEvents', () => {
       code: 'ControlLeft',
       modifiers: 2,
     })
-    expect(up).toMatchObject({ type: 'keyUp', key: 'Control' })
+    expect(up).toMatchObject({ type: 'keyUp', key: 'Control', modifiers: 0 })
     expect(modifierKeyEvents(combo, 'linux')).toEqual({ downs: [], ups: [] })
+  })
+
+  it('treats modifier aliases like their canonical key', () => {
+    for (const [alias, key, flag] of [
+      ['Ctrl', 'Control', 2],
+      ['Option', 'Alt', 1],
+      ['Cmd', 'Meta', 4],
+      ['Command', 'Meta', 4],
+    ] as const) {
+      const [down, up] = buildKeyDispatchPlan(parseKeyCombo(alias, 'linux'), 'linux')
+      expect(down).toMatchObject({ key, modifiers: flag })
+      expect(up).toMatchObject({ type: 'keyUp', key, modifiers: 0 })
+    }
   })
 
   it('sends no extra events for a key without modifiers', () => {
