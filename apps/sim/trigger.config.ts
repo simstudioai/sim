@@ -97,6 +97,15 @@ export default defineConfig({
   },
   dirs: ['./background'],
   /**
+   * Every file under `dirs` is imported as a task file at deploy time, so any
+   * test co-located there must be excluded or its top-level `vi.mock()` throws
+   * outside Vitest and fails the whole deploy. Setting this replaces the CLI's
+   * defaults (`*.test.*` and `*.spec.*`), which are restated here alongside
+   * the `*.integration.*` suffix used for suites that run against real
+   * Postgres/Redis.
+   */
+  ignorePatterns: ['**/*.{test,spec,integration}.{ts,mts,cts,js,mjs,cjs}'],
+  /**
    * Runs before any task run, in the run process. Marks the process so that
    * dispatch decisions further down the call graph stop inferring from
    * environment variables whether Trigger.dev is available: a process that
