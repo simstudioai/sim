@@ -5,14 +5,15 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/emcn', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/emcn')>()),
+vi.mock('@sim/emcn', () => ({
   Button: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) => (
     <button type='button' {...props}>
       {children}
     </button>
   ),
+  Check: () => null,
   Duplicate: () => null,
+  ShimmerText: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
   Tooltip: {
     Provider: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
     Root: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
@@ -20,6 +21,7 @@ vi.mock('@sim/emcn', async (importOriginal) => ({
     Content: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   },
   cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
+  handleKeyboardActivation: vi.fn(),
 }))
 
 vi.mock('@/app/(interfaces)/chat/components/message/components/file-download', () => ({
