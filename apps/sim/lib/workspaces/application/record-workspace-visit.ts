@@ -4,7 +4,7 @@ import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/appli
 import { recordWorkspaceVisitRecord } from '@/lib/workspaces/visits'
 
 export const workspaceVisitOperations = {
-  // permission-group-exempt: records the caller's own navigation into a workspace they can already read; it grants and discloses nothing
+  /** permission-group-exempt: records the caller's own navigation into a workspace they can already read; it grants and discloses nothing */
   record: defineWorkspaceOperation({
     id: 'workspaces.visits.record',
     minimumRole: 'read',
