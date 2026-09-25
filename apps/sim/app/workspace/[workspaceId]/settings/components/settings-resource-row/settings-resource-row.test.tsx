@@ -3,7 +3,7 @@
  */
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { SettingsResourceRow } from './settings-resource-row'
+import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row/settings-resource-row'
 
 describe('SettingsResourceRow', () => {
   it('renders a real Next link beside interactive trailing controls', () => {
