@@ -2,16 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Button,
   ChipModal,
   ChipModalBody,
   ChipModalError,
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-  cn,
 } from '@sim/emcn'
-import { Loader, RefreshCw, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import {
@@ -20,6 +17,7 @@ import {
 } from '@/lib/uploads/client/admission'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
+import { KnowledgeUploadRow } from '@/app/workspace/[workspaceId]/knowledge/components/knowledge-upload-row'
 import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
 
 const logger = createLogger('AddDocumentsModal')
@@ -177,56 +175,16 @@ export function AddDocumentsModal({
                 const isProcessing = fileStatus?.status === 'uploading' || isRetrying
 
                 return (
-                  <div
+                  <KnowledgeUploadRow
                     key={`${file.name}-${file.size}`}
-                    className={cn(
-                      'flex items-center gap-2 rounded-sm border p-2',
-                      isFailed && !isRetrying && 'border-[var(--text-error)]'
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        'min-w-0 flex-1 truncate text-caption',
-                        isFailed && !isRetrying && 'text-[var(--text-error)]'
-                      )}
-                      title={file.name}
-                    >
-                      {file.name}
-                    </span>
-                    <span className='shrink-0 text-[var(--text-muted)] text-xs'>
-                      {formatFileSize(file.size)}
-                    </span>
-                    <div className='flex shrink-0 items-center gap-1'>
-                      {isProcessing ? (
-                        <Loader className='size-4 text-[var(--text-muted)]' animate />
-                      ) : (
-                        <>
-                          {isFailed && (
-                            <Button
-                              aria-label='Retry upload'
-                              type='button'
-                              variant='ghost'
-                              className='size-4 p-0'
-                              onClick={() => handleRetryFile(index)}
-                              disabled={isUploading}
-                            >
-                              <RefreshCw className='size-3' />
-                            </Button>
-                          )}
-                          <Button
-                            aria-label='Remove file'
-                            type='button'
-                            variant='ghost'
-                            className='size-4 p-0'
-                            onClick={() => removeFile(index)}
-                            disabled={isUploading}
-                          >
-                            <X className='size-3.5' />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
+                    name={file.name}
+                    size={formatFileSize(file.size)}
+                    error={isFailed && !isRetrying}
+                    processing={isProcessing}
+                    disabled={isUploading}
+                    onRemove={() => removeFile(index)}
+                    onRetry={isFailed ? () => handleRetryFile(index) : undefined}
+                  />
                 )
               })}
             </div>
