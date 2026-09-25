@@ -476,6 +476,39 @@ describe('direct Function execution', () => {
     expect(mocks.deleteFiles).toHaveBeenCalledWith(['copilot/file/report.txt'], 'copilot')
     expect(mocks.deleteMetadata).not.toHaveBeenCalled()
   })
+  it('continues metadata cleanup after an earlier metadata update fails', async () => {
+    mocks.deleteFiles.mockResolvedValue({ deleted: 2, failed: [] })
+    mocks.deleteMetadata.mockRejectedValueOnce(new Error('metadata unavailable'))
+    mocks.sandbox.mockResolvedValue({
+      result: null,
+      stdout: '',
+      sandboxId: 'sandbox',
+      collectedFiles: ['first.txt', 'second.txt', 'secret.txt'].map((name, index) => {
+        const content = index === 2 ? 'audit-secret' : 'hi'
+        return {
+          path: `/tmp/sim/outputs/${name}`,
+          relativePath: name,
+          contentBase64: Buffer.from(content).toString('base64'),
+          byteLength: Buffer.byteLength(content),
+        }
+      }),
+    })
+    const result = await run({
+      code: 'token = {{TOKEN}}',
+      language: 'python',
+      secretScope: 'selected',
+      mountedSecrets: ['TOKEN'],
+    })
+    expect(result.status).toBe('failed')
+    expect(result.error?.message).toContain('contains a resolved secret value')
+    expect(mocks.deleteFiles).toHaveBeenCalledWith(
+      ['copilot/file/first.txt', 'copilot/file/second.txt'],
+      'copilot'
+    )
+    expect(mocks.deleteMetadata).toHaveBeenNthCalledWith(1, 'copilot/file/first.txt')
+    expect(mocks.deleteMetadata).toHaveBeenNthCalledWith(2, 'copilot/file/second.txt')
+    expect(JSON.stringify(result)).not.toContain('audit-secret')
+  })
   it('refuses a secret-bearing filename before personal upload or storage logging', async () => {
     mocks.sandbox.mockResolvedValue({
       result: null,

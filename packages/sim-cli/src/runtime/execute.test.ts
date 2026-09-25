@@ -118,7 +118,15 @@ it('runs compact log diagnostics through the generated authenticated read', asyn
     data: {
       runId: 'run-1',
       status: 'completed',
-      traceSpans: [],
+      traceSpans: [
+        {
+          blockId: 'agent-1',
+          name: 'Agent',
+          status: 'success',
+          errorHandled: true,
+          toolCalls: [{ name: 'lookup', error: 'Rate limited' }],
+        },
+      ],
       finalOutput: { requiresClarification: true },
       workflowState: { source: 'hidden body' },
     },
@@ -136,6 +144,7 @@ it('runs compact log diagnostics through the generated authenticated read', asyn
   expect(JSON.parse(String(stdout.mock.calls[0][0]))).toMatchObject({
     executionStatus: 'completed',
     finalOutput: { requiresClarification: true },
+    failures: [{ blockId: 'agent-1', name: 'lookup', error: 'Rate limited', handled: true }],
   })
   expect(String(stdout.mock.calls[0][0])).not.toContain('hidden body')
 })

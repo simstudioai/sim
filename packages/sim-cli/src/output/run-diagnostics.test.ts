@@ -46,6 +46,182 @@ describe('compact run diagnostics', () => {
     expect(result.files).toEqual([{ id: 'file-1', name: 'test.pdf', base64: '[binary omitted]' }])
   })
 
+  it('retains explicit failures from legacy tool calls on a successful span', () => {
+    const result = summarizeRun({
+      status: 'completed',
+      traceSpans: [
+        {
+          blockId: 'agent-1',
+          name: 'Agent',
+          type: 'agent',
+          status: 'success',
+          toolCalls: [
+            {
+              name: 'slack_message',
+              status: 'error',
+              error: 'not_in_channel',
+              input: { channel: 'C123', text: 'Hello' },
+              output: { ok: false },
+            },
+            {
+              name: 'slack_message',
+              status: 'success',
+              output: { error: 'An ordinary output field' },
+            },
+          ],
+        },
+      ],
+    })
+
+    expect(result.executionStatus).toBe('completed')
+    expect(result.observedBlocks).toEqual([
+      { blockId: 'agent-1', name: 'Agent', status: 'success' },
+    ])
+    expect(result.failures).toEqual([
+      {
+        blockId: 'agent-1',
+        name: 'slack_message',
+        status: 'error',
+        error: 'not_in_channel',
+        handled: false,
+        input: { channel: 'C123', text: 'Hello' },
+        output: { ok: false },
+      },
+    ])
+    expect(result.truncated).toBe(false)
+  })
+
+  it('preserves explicit recovery and bounds legacy tool-call input and output', () => {
+    const result = summarizeRun({
+      traceSpans: [
+        {
+          blockId: 'agent-1',
+          status: 'success',
+          errorHandled: true,
+          toolCalls: [
+            {
+              name: 'render',
+              error: 'Invalid export',
+              input: { prompt: 'x'.repeat(500) },
+              output: { fileBase64: 'FILE_BYTES' },
+            },
+          ],
+        },
+      ],
+    })
+
+    expect(result.failures).toMatchObject([
+      {
+        blockId: 'agent-1',
+        name: 'render',
+        error: 'Invalid export',
+        handled: true,
+        output: { fileBase64: '[binary omitted]' },
+      },
+    ])
+    expect(JSON.stringify(result)).not.toContain('FILE_BYTES')
+    expect(JSON.stringify(result)).not.toContain('x'.repeat(401))
+    expect(result.truncated).toBe(true)
+  })
+
+  it('does not duplicate a span failure with its legacy tool-call error', () => {
+    const result = summarizeRun({
+      traceSpans: [
+        {
+          blockId: 'agent-1',
+          name: 'Agent',
+          status: 'error',
+          errorMessage: 'not_in_channel',
+          errorHandled: true,
+          toolCalls: [{ name: 'slack_message', error: 'not_in_channel' }],
+        },
+      ],
+    })
+
+    expect(result.failures).toMatchObject([
+      { blockId: 'agent-1', name: 'Agent', error: 'not_in_channel', handled: true },
+    ])
+    expect(result.failures).toHaveLength(1)
+  })
+
+  it('retains distinct legacy failures alongside modern tool children', () => {
+    const result = summarizeRun({
+      traceSpans: [
+        {
+          blockId: 'agent-1',
+          name: 'Agent',
+          status: 'success',
+          errorHandled: true,
+          toolCalls: [{ name: 'lookup', error: 'Unavailable' }],
+          children: [
+            {
+              type: 'tool',
+              name: 'lookup',
+              status: 'error',
+              errorMessage: 'Unavailable',
+              errorHandled: true,
+            },
+          ],
+        },
+      ],
+    })
+
+    expect(result.failures).toHaveLength(2)
+    expect(result.failures).toMatchObject([
+      { blockId: 'agent-1', name: 'lookup', error: 'Unavailable', handled: true },
+      { name: 'lookup', error: 'Unavailable', handled: true },
+    ])
+    expect(result.truncated).toBe(false)
+  })
+
+  it('bounds legacy call inspection across spans without reading past the limit', () => {
+    const firstCalls = Array.from({ length: 60 }, () => ({ name: 'lookup' }))
+    const lastCalls = Array.from({ length: 40 }, () => ({ name: 'lookup' }))
+    const beyondLimit = vi.fn(() => {
+      throw new Error('Tool calls beyond the diagnostic limit must not be read')
+    })
+    Object.defineProperty(lastCalls, 40, { get: beyondLimit })
+
+    const result = summarizeRun({
+      traceSpans: [
+        { blockId: 'first', toolCalls: firstCalls },
+        { blockId: 'last', toolCalls: lastCalls },
+      ],
+    })
+
+    expect(beyondLimit).not.toHaveBeenCalled()
+    expect(result.observedBlocks).toHaveLength(2)
+    expect(result.failures).toEqual([])
+    expect(result.truncated).toBe(true)
+  })
+
+  it('shares the failure budget with tool calls and ignores malformed or error-shaped data', () => {
+    const result = summarizeRun({
+      traceSpans: [
+        { status: 'error', errorMessage: 'Block failed' },
+        {
+          blockId: 'agent-1',
+          toolCalls: [
+            null,
+            { name: 'lookup', error: '' },
+            { name: 'lookup', output: { error: 'Ordinary data' } },
+            ...Array.from({ length: 20 }, (_, index) => ({
+              name: `lookup_${index}`,
+              error: 'Provider rejected the call',
+            })),
+          ],
+        },
+      ],
+    })
+
+    expect(result.failures).toHaveLength(10)
+    expect(result.failures).toMatchObject([
+      { error: 'Block failed' },
+      ...Array.from({ length: 9 }, (_, index) => ({ name: `lookup_${index}` })),
+    ])
+    expect(result.truncated).toBe(true)
+  })
+
   it('bounds wide/deep traces, long text, and nested output values', () => {
     const result = summarizeRun({
       traceSpans: Array.from({ length: 1000 }, (_, i) => ({

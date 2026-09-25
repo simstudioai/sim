@@ -2091,8 +2091,19 @@ async function discardUploadedSandboxFiles(files: readonly UserFile[]): Promise<
     )
     if (context === 'copilot') {
       const failedKeys = new Set(result.failed.map((failure) => failure.key))
+      let metadataFailures = 0
       for (const file of files) {
-        if (!failedKeys.has(file.key)) await deleteFileMetadata(file.key)
+        if (failedKeys.has(file.key)) continue
+        try {
+          await deleteFileMetadata(file.key)
+        } catch {
+          metadataFailures++
+        }
+      }
+      if (metadataFailures > 0) {
+        logger.warn('Could not remove some sandbox output file metadata', {
+          fileCount: metadataFailures,
+        })
       }
     }
     if (result.failed.length > 0) {

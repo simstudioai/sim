@@ -2,6 +2,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 
 const MAX_SPANS = 100
+const MAX_TOOL_CALLS = 100
 const MAX_FAILURES = 10
 const MAX_FIELDS = 12
 const MAX_DEPTH = 4
@@ -65,6 +66,7 @@ export function summarizeRun(log: unknown): Record<string, unknown> {
   /** Iterator frames keep traversal memory proportional to depth, not trace width. */
   const pending = [(Array.isArray(log.traceSpans) ? log.traceSpans : [])[Symbol.iterator]()]
   let visited = 0
+  let visitedToolCalls = 0
   while (pending.length > 0 && visited < MAX_SPANS) {
     const next = pending[pending.length - 1].next()
     if (next.done) {
@@ -90,6 +92,30 @@ export function summarizeRun(log: unknown): Record<string, unknown> {
           output: compact(span.output),
         })
       } else truncated = true
+    } else if (Array.isArray(span.toolCalls)) {
+      /** Older persisted traces store tool calls here instead of in child spans. */
+      for (let index = 0; index < span.toolCalls.length; index++) {
+        if (visitedToolCalls === MAX_TOOL_CALLS) {
+          truncated = true
+          break
+        }
+        visitedToolCalls++
+        const call = span.toolCalls[index]
+        if (!isRecordLike(call) || typeof call.error !== 'string' || !call.error) continue
+        if (failures.length === MAX_FAILURES) {
+          truncated = true
+          break
+        }
+        failures.push({
+          blockId: identity.blockId,
+          name: compact(call.name),
+          status: compact(call.status),
+          error: compact(call.error),
+          handled: span.errorHandled === true,
+          input: compact(call.input),
+          output: compact(call.output),
+        })
+      }
     }
     if (Array.isArray(span.children)) pending.push(span.children[Symbol.iterator]())
   }
