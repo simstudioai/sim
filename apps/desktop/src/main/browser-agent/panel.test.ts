@@ -115,6 +115,13 @@ describe('panel chat scope', () => {
     expect(view.setVisible).toHaveBeenLastCalledWith(false)
     expect(view.setBounds).not.toHaveBeenCalled()
 
+    await expect(panel.capturePanelSnapshot(win, scopeId)).resolves.toMatchObject({
+      dataUrl: 'data:image/png;base64,c2lt',
+      viewportBounds: { x: 400, y: 64, width: 600, height: 786 },
+    })
+    expect(view.webContents.capturePage).toHaveBeenLastCalledWith(undefined, { stayHidden: true })
+    expect(view.setVisible).not.toHaveBeenCalledWith(true)
+
     expect(panel.setPanelOccluded(false, win, scopeId)).toBe(true)
     expect(view.setVisible).toHaveBeenLastCalledWith(true)
     expect(view.webContents.invalidate).toHaveBeenCalledOnce()

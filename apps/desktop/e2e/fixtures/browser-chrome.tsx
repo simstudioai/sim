@@ -46,6 +46,7 @@ function BrowserChromeFixture({ useOcclusion }: BrowserChromeFixtureProps) {
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [selected, setSelected] = useState('tab-0')
   const [tabCount, setTabCount] = useState(8)
+  const [shortTitles, setShortTitles] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
   const { snapshot, snapshotLayer, onSnapshotError } = useOcclusion(
@@ -88,18 +89,27 @@ function BrowserChromeFixture({ useOcclusion }: BrowserChromeFixtureProps) {
         >
           Start browser
         </Button>
-        <Button id='eight-tabs' onClick={() => setTabCount(8)}>
+        <Button
+          id='eight-tabs'
+          onClick={() => {
+            setTabCount(8)
+            setShortTitles(false)
+          }}
+        >
           Eight tabs
         </Button>
         <Button id='many-tabs' onClick={() => setTabCount(18)}>
           Many tabs
+        </Button>
+        <Button id='short-tabs' onClick={() => setShortTitles(true)}>
+          Short titles
         </Button>
       </div>
       {error && <p role='alert'>{error}</p>}
       <TabStrip
         tabs={Array.from({ length: tabCount }, (_, index) => ({
           id: `tab-${index}`,
-          title: `Example resource ${index + 1} with a descriptive title`,
+          title: shortTitles ? 'A' : `Example resource ${index + 1} with a descriptive title`,
           icon: <File className='size-[16px] shrink-0' />,
           active: selected === `tab-${index}`,
         }))}

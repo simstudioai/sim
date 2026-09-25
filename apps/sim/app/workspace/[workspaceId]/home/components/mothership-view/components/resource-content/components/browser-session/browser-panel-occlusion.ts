@@ -333,6 +333,7 @@ export function useBrowserPanelOcclusion(
   const transitionVersionRef = useRef(0)
   const paintIdRef = useRef(0)
   const pendingPaintRef = useRef<PendingPaint | null>(null)
+  const cancelPreparationRef = useRef<(() => void) | null>(null)
   const paintFramesRef = useRef<number[]>([])
   const reconcileChainRef = useRef<Promise<boolean>>(Promise.resolve(true))
   const mountedRef = useRef(true)
@@ -449,30 +450,29 @@ export function useBrowserPanelOcclusion(
           if (frame) updateSnapshotLayer(desired)
           return true
         }
-
-        /** A lingering overlay must capture the new page after a tab or panel geometry change. */
-        const revealed = await setBrowserPanelOccluded(false, scopeId).catch(() => false)
-        if (!revealed) return false
-        nativeHiddenRef.current = false
-        updateSnapshotRender(null)
-        if (!mountedRef.current || version !== transitionVersionRef.current) return false
-        desired = desiredLayer()
-        if (!desired) return true
       }
 
       // Modal scroll locking can alter panel geometry between capture and the
       // final native hide. One fresh capture retries that now-settled layout.
       const maxAttempts = desired === 'modal' ? 3 : 2
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const frame = await captureBrowserPanelSnapshot(scopeId).catch(() => null)
+        const cancelled = new Promise<null>((resolve) => {
+          cancelPreparationRef.current = () => resolve(null)
+        })
+        const frame = await Promise.race([
+          captureBrowserPanelSnapshot(scopeId).catch(() => null),
+          cancelled,
+        ])
         if (!mountedRef.current || version !== transitionVersionRef.current) return false
         desired = desiredLayer()
         if (!desired) return false
         if (!frame || (activeTabIdRef.current && frame.tabId !== activeTabIdRef.current)) {
+          cancelPreparationRef.current = null
           continue
         }
 
-        const decoded = await decodeSnapshot(frame.dataUrl)
+        const decoded = await Promise.race([decodeSnapshot(frame.dataUrl), cancelled])
+        cancelPreparationRef.current = null
         if (!mountedRef.current || version !== transitionVersionRef.current) return false
         desired = desiredLayer()
         if (!desired || !decoded) continue
@@ -525,9 +525,8 @@ export function useBrowserPanelOcclusion(
         }
 
         if (version !== transitionVersionRef.current) return false
-        // Keep the last painted replacement available while a modal retries.
-        // Ordinary popovers need a pixel-exact swap or their native fallback.
-        if (desired !== 'modal') updateSnapshotRender(null)
+        /** Retain the replacement during modal retries or while the native page remains hidden. */
+        if (desired !== 'modal' && !nativeHiddenRef.current) updateSnapshotRender(null)
         desired = desiredLayer()
         if (!desired) return false
       }
@@ -567,6 +566,8 @@ export function useBrowserPanelOcclusion(
 
   const scheduleReconcile = useCallback(async (): Promise<boolean> => {
     const version = ++transitionVersionRef.current
+    cancelPreparationRef.current?.()
+    cancelPreparationRef.current = null
     cancelPendingPaint()
     const run = reconcileChainRef.current.then(
       () => reconcile(version),
@@ -750,6 +751,8 @@ export function useBrowserPanelOcclusion(
       activeOverlayRef.current = null
       activeOverlayOwnershipLostRef.current = null
       transitionVersionRef.current++
+      cancelPreparationRef.current?.()
+      cancelPreparationRef.current = null
       cancelPendingPaint()
       // Run once now and once behind any in-flight capture/hide. The second
       // reveal closes the only race where unmount lands during the hide IPC.

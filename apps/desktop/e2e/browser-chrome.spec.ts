@@ -116,11 +116,19 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
           return { width: bounds.width, right: bounds.right }
         })
       )
-      expect(geometry.every((tab) => tab.width >= 96 && tab.width < 160)).toBe(true)
+      expect(geometry.every((tab) => tab.width >= 64 && tab.width < 160)).toBe(true)
       expect(geometry.at(-1)?.right).toBeLessThan(1070)
       await page.screenshot({ path: testInfo.outputPath('tabs.png') })
     })
-    await test.step('Crowded tabs keep a readable minimum and scroll', async () => {
+    await test.step('Short labels keep their compact intrinsic width', async () => {
+      await page.locator('#short-tabs').click()
+      const widths = await page
+        .locator('[data-tab-strip-item]')
+        .evaluateAll((tabs) => tabs.map((tab) => tab.getBoundingClientRect().width))
+      expect(widths.every((width) => width >= 64 && width < 96)).toBe(true)
+      await page.locator('#eight-tabs').click()
+    })
+    await test.step('Crowded tabs preserve controls and scroll', async () => {
       await page.locator('#many-tabs').click()
       await expect(page.locator('[data-tab-strip-item]')).toHaveCount(18)
       const overflow = await page
@@ -131,7 +139,7 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
           scrollWidth: tab.parentElement?.scrollWidth ?? 0,
           clientWidth: tab.parentElement?.clientWidth ?? 0,
         }))
-      expect(overflow.width).toBeGreaterThanOrEqual(96)
+      expect(overflow.width).toBeGreaterThanOrEqual(64)
       expect(overflow.scrollWidth).toBeGreaterThan(overflow.clientWidth)
       await page.locator('#eight-tabs').click()
     })
@@ -199,6 +207,24 @@ mountBrowserChromeFixture(useBrowserPanelOcclusion);`,
       await expect.poll(nativeVisible).toBe(true)
       await expect(page.locator('#snapshot')).toHaveCount(0)
     })
+  } catch (error) {
+    const page = app?.windows()[0]
+    if (page && !page.isClosed()) {
+      await page.screenshot({ path: testInfo.outputPath('failure.png') })
+      const overlays = await page.locator('[data-native-surface-overlay]').evaluateAll((elements) =>
+        elements.map((element) => ({
+          text: element.textContent,
+          bounds: element.getBoundingClientRect().toJSON(),
+          opacity: getComputedStyle(element).opacity,
+          visibility: getComputedStyle(element).visibility,
+        }))
+      )
+      await testInfo.attach('overlay-state', {
+        body: JSON.stringify(overlays, null, 2),
+        contentType: 'application/json',
+      })
+    }
+    throw error
   } finally {
     await app?.close()
     if (server?.listening) {
