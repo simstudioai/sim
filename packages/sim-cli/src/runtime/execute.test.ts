@@ -127,7 +127,12 @@ it('runs compact log diagnostics through the generated authenticated read', asyn
           toolCalls: [{ name: 'lookup', error: 'Rate limited' }],
         },
       ],
-      finalOutput: { requiresClarification: true },
+      finalOutput: {
+        requiresClarification: true,
+        details: Array.from({ length: 12 }, () =>
+          Array.from({ length: 12 }, () => Array.from({ length: 12 }, () => 'detail'))
+        ),
+      },
       workflowState: { source: 'hidden body' },
     },
   })
@@ -145,6 +150,7 @@ it('runs compact log diagnostics through the generated authenticated read', asyn
     executionStatus: 'completed',
     finalOutput: { requiresClarification: true },
     failures: [{ blockId: 'agent-1', name: 'lookup', error: 'Rate limited', handled: true }],
+    truncated: true,
   })
   expect(String(stdout.mock.calls[0][0])).not.toContain('hidden body')
 })

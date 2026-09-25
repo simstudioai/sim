@@ -58,9 +58,6 @@ export function summarizeRun(log: unknown): Record<string, unknown> {
     return Object.fromEntries(entries)
   }
 
-  const finalOutput = compact(log.finalOutput)
-  const files = compact(log.files)
-
   const failures: Record<string, unknown>[] = []
   const observedBlocks: Record<string, unknown>[] = []
   /** Iterator frames keep traversal memory proportional to depth, not trace width. */
@@ -77,19 +74,19 @@ export function summarizeRun(log: unknown): Record<string, unknown> {
     const span = next.value
     if (!isRecordLike(span)) continue
     const identity = {
-      blockId: compact(span.blockId),
-      name: compact(span.name),
-      status: compact(span.status),
+      blockId: span.blockId,
+      name: span.name,
+      status: span.status,
     }
     if (typeof span.blockId === 'string') observedBlocks.push(identity)
     if (span.errorMessage || span.status === 'error' || span.status === 'failed') {
       if (failures.length < MAX_FAILURES) {
         failures.push({
           ...identity,
-          error: compact(span.errorMessage),
+          error: span.errorMessage,
           handled: span.errorHandled === true,
-          input: compact(span.input),
-          output: compact(span.output),
+          input: span.input,
+          output: span.output,
         })
       } else truncated = true
     } else if (Array.isArray(span.toolCalls)) {
@@ -101,19 +98,20 @@ export function summarizeRun(log: unknown): Record<string, unknown> {
         }
         visitedToolCalls++
         const call = span.toolCalls[index]
-        if (!isRecordLike(call) || typeof call.error !== 'string' || !call.error) continue
+        if (!isRecordLike(call)) continue
+        if (call.status !== 'error' && (typeof call.error !== 'string' || !call.error)) continue
         if (failures.length === MAX_FAILURES) {
           truncated = true
           break
         }
         failures.push({
           blockId: identity.blockId,
-          name: compact(call.name),
-          status: compact(call.status),
-          error: compact(call.error),
+          name: call.name,
+          status: call.status,
+          error: call.error,
           handled: span.errorHandled === true,
-          input: compact(call.input),
-          output: compact(call.output),
+          input: call.input,
+          output: call.output,
         })
       }
     }
@@ -121,12 +119,32 @@ export function summarizeRun(log: unknown): Record<string, unknown> {
   }
   if (pending.some((iterator) => !iterator.next().done)) truncated = true
 
+  /** Keep bounded failure evidence before arbitrary payloads consume the shared value budget. */
+  const compactFailures: Record<string, unknown>[] = failures.map((failure) => ({
+    blockId: compact(failure.blockId),
+    name: compact(failure.name),
+    status: compact(failure.status),
+    error: compact(failure.error),
+    handled: failure.handled,
+  }))
+  const finalOutput = compact(log.finalOutput)
+  const files = compact(log.files)
+  for (const [index, failure] of failures.entries()) {
+    compactFailures[index].input = compact(failure.input)
+    compactFailures[index].output = compact(failure.output)
+  }
+  const compactBlocks = observedBlocks.map((block) => ({
+    blockId: compact(block.blockId),
+    name: compact(block.name),
+    status: compact(block.status),
+  }))
+
   return {
     runId: log.runId,
     executionStatus: log.status,
     finalOutput,
-    failures,
-    observedBlocks,
+    failures: compactFailures,
+    observedBlocks: compactBlocks,
     files,
     truncated,
     scope:

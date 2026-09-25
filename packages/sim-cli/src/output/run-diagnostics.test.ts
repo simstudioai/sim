@@ -222,6 +222,141 @@ describe('compact run diagnostics', () => {
     expect(result.truncated).toBe(true)
   })
 
+  it.each(['finalOutput', 'files'])(
+    'preserves failure metadata when %s exhausts the detail budget',
+    (field) => {
+      const result = summarizeRun({
+        [field]: Array.from({ length: 12 }, () =>
+          Array.from({ length: 12 }, () => Array.from({ length: 12 }, () => 'detail'))
+        ),
+        traceSpans: [
+          {
+            blockId: 'failed-1',
+            name: 'Send message',
+            status: 'error',
+            errorMessage: 'not_in_channel',
+            errorHandled: true,
+          },
+          {
+            blockId: 'agent-1',
+            status: 'success',
+            toolCalls: [{ name: 'lookup', status: 'error', error: 'Rate limited' }],
+          },
+        ],
+      })
+
+      expect(result.failures).toMatchObject([
+        {
+          blockId: 'failed-1',
+          name: 'Send message',
+          status: 'error',
+          error: 'not_in_channel',
+          handled: true,
+        },
+        {
+          blockId: 'agent-1',
+          name: 'lookup',
+          status: 'error',
+          error: 'Rate limited',
+          handled: false,
+        },
+      ])
+      expect(result.truncated).toBe(true)
+    }
+  )
+
+  it('preserves later failure metadata when an earlier failure has large input and output', () => {
+    const largeValue = Array.from({ length: 12 }, () =>
+      Array.from({ length: 12 }, () => Array.from({ length: 12 }, () => 'detail'))
+    )
+    const result = summarizeRun({
+      traceSpans: [
+        {
+          blockId: 'first',
+          status: 'error',
+          errorMessage: 'First failure',
+          input: largeValue,
+          output: largeValue,
+        },
+        {
+          blockId: 'last',
+          name: 'Last operation',
+          status: 'error',
+          errorMessage: 'Later failure',
+          errorHandled: true,
+        },
+      ],
+    })
+
+    expect(result.failures).toMatchObject([
+      { blockId: 'first', status: 'error', error: 'First failure', handled: false },
+      {
+        blockId: 'last',
+        name: 'Last operation',
+        status: 'error',
+        error: 'Later failure',
+        handled: true,
+      },
+    ])
+    expect(result.truncated).toBe(true)
+  })
+
+  it('preserves a late failure after many successful observed spans', () => {
+    const result = summarizeRun({
+      traceSpans: [
+        ...Array.from({ length: 99 }, (_, index) => ({
+          blockId: `step-${index}`,
+          name: `Step ${index}`,
+          status: 'success',
+        })),
+        {
+          blockId: 'last',
+          name: 'Last operation',
+          status: 'error',
+          errorMessage: 'Late failure',
+        },
+      ],
+    })
+
+    expect(result.failures).toMatchObject([
+      { blockId: 'last', name: 'Last operation', status: 'error', error: 'Late failure' },
+    ])
+    expect(result.observedBlocks).toHaveLength(100)
+    expect(result.truncated).toBe(true)
+  })
+
+  it.each([false, true])(
+    'retains legacy status-only tool failures with explicit handled=%s',
+    (errorHandled) => {
+      const result = summarizeRun({
+        traceSpans: [
+          {
+            blockId: 'agent-1',
+            status: 'success',
+            errorHandled,
+            toolCalls: [
+              { name: 'lookup', status: 'error', input: { query: 'test' } },
+              { name: 'lookup', status: 'success', output: { error: 'Ordinary data' } },
+            ],
+          },
+        ],
+      })
+
+      expect(result.failures).toEqual([
+        {
+          blockId: 'agent-1',
+          name: 'lookup',
+          status: 'error',
+          error: null,
+          handled: errorHandled,
+          input: { query: 'test' },
+          output: null,
+        },
+      ])
+      expect(result.truncated).toBe(false)
+    }
+  )
+
   it('bounds wide/deep traces, long text, and nested output values', () => {
     const result = summarizeRun({
       traceSpans: Array.from({ length: 1000 }, (_, i) => ({
