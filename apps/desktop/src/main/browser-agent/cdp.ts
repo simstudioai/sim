@@ -11,7 +11,7 @@
 import type { BrowserTheme } from '@sim/browser-protocol'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { interruptibleSleep, sleep } from '@sim/utils/helpers'
+import { interruptibleSleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import type { NativeImage, WebContents, WebFrameMain } from 'electron'
 
@@ -948,6 +948,91 @@ export async function moveMouse(contents: WebContents, x: number, y: number): Pr
   })
 }
 
+/** A point in CSS viewport pixels. */
+export interface ViewportPoint {
+  x: number
+  y: number
+}
+
+/** The points a pointer passes through on its way, and how long the whole movement takes. */
+export interface PointerPath {
+  via: ViewportPoint[]
+  /** Total movement time; null keeps the default brisk pace. */
+  durationMs: number | null
+}
+
+export const DIRECT_PATH: PointerPath = { via: [], durationMs: null }
+
+const DEFAULT_PATH_STEPS = 12
+const DEFAULT_PATH_STEP_MS = 20
+/** One display frame, so a timed movement looks continuous to animation-driven pages. */
+const TIMED_PATH_STEP_MS = 16
+
+/**
+ * The moves from `from` through `path.via` to `to`, and the pause after each. A direct path
+ * keeps the default 12 moves 20 ms apart. A path with via points or a duration moves one frame
+ * at a time, shares the steps across segments by length, and lands exactly on every via point.
+ */
+export function pointerPathSteps(
+  from: ViewportPoint,
+  path: PointerPath,
+  to: ViewportPoint
+): { points: ViewportPoint[]; stepDelayMs: number } {
+  const lerp = (a: ViewportPoint, b: ViewportPoint, t: number): ViewportPoint => ({
+    x: a.x + (b.x - a.x) * t,
+    y: a.y + (b.y - a.y) * t,
+  })
+  if (path.via.length === 0 && path.durationMs === null) {
+    const points: ViewportPoint[] = []
+    for (let step = 1; step <= DEFAULT_PATH_STEPS; step++) {
+      points.push(lerp(from, to, step / DEFAULT_PATH_STEPS))
+    }
+    return { points, stepDelayMs: DEFAULT_PATH_STEP_MS }
+  }
+  const vertices = [from, ...path.via, to]
+  const durationMs = path.durationMs ?? DEFAULT_PATH_STEPS * DEFAULT_PATH_STEP_MS
+  const lengths = vertices
+    .slice(1)
+    .map((vertex, index) => Math.hypot(vertex.x - vertices[index].x, vertex.y - vertices[index].y))
+  const totalLength = lengths.reduce((sum, length) => sum + length, 0)
+  const totalSteps = Math.max(lengths.length, Math.round(durationMs / TIMED_PATH_STEP_MS))
+  const points: ViewportPoint[] = []
+  lengths.forEach((length, index) => {
+    const share = totalLength > 0 ? length / totalLength : 1 / lengths.length
+    const segmentSteps = Math.max(1, Math.round(totalSteps * share))
+    for (let step = 1; step <= segmentSteps; step++) {
+      points.push(lerp(vertices[index], vertices[index + 1], step / segmentSteps))
+    }
+  })
+  return { points, stepDelayMs: durationMs / points.length }
+}
+
+/**
+ * Moves the pointer with no button pressed through `path.via` to `to`, starting from the first
+ * via point (or `to` itself for a direct move), for hover effects that follow the cursor.
+ */
+export async function movePointer(
+  contents: WebContents,
+  path: PointerPath,
+  to: ViewportPoint,
+  signal?: AbortSignal
+): Promise<void> {
+  const [start, ...rest] = [...path.via, to]
+  signal?.throwIfAborted()
+  await moveMouse(contents, start.x, start.y)
+  if (rest.length === 0) return
+  const { points, stepDelayMs } = pointerPathSteps(
+    start,
+    { via: rest.slice(0, -1), durationMs: path.durationMs },
+    to
+  )
+  for (const point of points) {
+    await interruptibleSleep(stepDelayMs, signal)
+    signal?.throwIfAborted()
+    await moveMouse(contents, point.x, point.y)
+  }
+}
+
 /** One trusted click gesture: which button, how many presses, and held modifiers. */
 export interface PointerClick {
   button: 'left' | 'right' | 'middle'
@@ -1075,11 +1160,13 @@ export async function clickAt(
  */
 export async function dragPointer(
   contents: WebContents,
-  from: { x: number; y: number },
-  to: { x: number; y: number },
-  steps = 12,
-  stepDelayMs = 20
+  from: ViewportPoint,
+  to: ViewportPoint,
+  path: PointerPath = DIRECT_PATH,
+  signal?: AbortSignal
 ): Promise<{ nativeDragIntercepted: boolean }> {
+  signal?.throwIfAborted()
+  const { points, stepDelayMs } = pointerPathSteps(from, path, to)
   const interception: DragInterception = { intercepted: false, data: null }
   dragInterceptionsByContents.set(contents, interception)
   let interceptEnabled = false
@@ -1124,17 +1211,19 @@ export async function dragPointer(
     })
     // Small first nudge so libraries with a start threshold (commonly 3-8px)
     // register the drag before the pointer sweeps across the page.
-    await dragMove(from.x + Math.sign(to.x - from.x || 1) * 4, from.y + 2)
-    await sleep(stepDelayMs)
-    const stepCount = Math.max(2, steps)
-    for (let step = 1; step <= stepCount; step++) {
-      const progress = step / stepCount
-      await dragMove(from.x + (to.x - from.x) * progress, from.y + (to.y - from.y) * progress)
-      await sleep(stepDelayMs)
+    const heading = points[0] ?? to
+    await dragMove(from.x + Math.sign(heading.x - from.x || 1) * 4, from.y + 2)
+    await interruptibleSleep(stepDelayMs, signal)
+    for (const point of points) {
+      signal?.throwIfAborted()
+      await dragMove(point.x, point.y)
+      await interruptibleSleep(stepDelayMs, signal)
     }
+    signal?.throwIfAborted()
     // Hold over the target so drop zones running enter/over animations settle
     // before the release lands.
-    await sleep(120)
+    await interruptibleSleep(120, signal)
+    signal?.throwIfAborted()
     if (interception.intercepted && interception.data) {
       await sendInput(contents, 'Input.dispatchDragEvent', {
         type: 'drop',
