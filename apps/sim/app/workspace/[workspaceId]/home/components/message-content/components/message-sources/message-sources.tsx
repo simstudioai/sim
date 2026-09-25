@@ -41,7 +41,8 @@ export function MessageSources({ sources }: MessageSourcesProps) {
         align='start'
         side='top'
         sideOffset={4}
-        className={cn('w-[420px] p-0', inter.className)}
+        padding='none'
+        className={cn('w-[420px]', inter.className)}
       >
         <div className='flex flex-col py-1'>
           {sources.map((source) => (
