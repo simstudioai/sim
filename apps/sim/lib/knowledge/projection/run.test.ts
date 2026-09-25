@@ -1,29 +1,37 @@
+import { databaseMockFns } from '@sim/testing/mocks/database.mock'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   runProjection: vi.fn(),
   markUnfilled: vi.fn(),
-  isFeatureEnabled: vi.fn(),
   end: vi.fn(),
   marks: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ resolveDbUrl: () => 'postgresql://fixture/sim_acl_test' }))
+await vi.hoisted(async () => {
+  const { setEnv } = await import('@sim/testing/mocks/env.mock')
+  setEnv({ KB_CONFIG_PROJECTION_CONCURRENCY: 2 })
+})
+
 vi.mock('@sim/db/knowledge-projection', () => ({
-  runKnowledgeProjection: mocks.runProjection,
-  markUnfilledProjectionDocuments: mocks.markUnfilled,
+  runKnowledgeProjection: hoisted.runProjection,
+  markUnfilledProjectionDocuments: hoisted.markUnfilled,
 }))
 /** A session answering the backlog count; the projection itself is mocked above. */
 vi.mock('postgres', () => ({
-  default: () => Object.assign(async () => [{ marks: mocks.marks() }], { end: mocks.end }),
+  default: () => Object.assign(async () => [{ marks: hoisted.marks() }], { end: hoisted.end }),
 }))
-vi.mock('@/lib/core/config/env', () => ({
-  env: { KB_CONFIG_PROJECTION_CONCURRENCY: 2 },
-  envNumber: (value: unknown, fallback: number) => (typeof value === 'number' ? value : fallback),
-}))
-vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: mocks.isFeatureEnabled }))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import { runKnowledgeProjectionPass } from '@/lib/knowledge/projection/run'
+
+const mocks = {
+  ...hoisted,
+  isFeatureEnabled: featureFlagsMockFns.mockIsFeatureEnabled,
+}
+
+databaseMockFns.mockResolveDbUrl.mockReturnValue('postgresql://fixture/sim_acl_test')
 
 const drained = { settled: 1, deferred: 0, pages: 2, written: 3, remaining: false }
 

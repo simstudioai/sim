@@ -1,55 +1,60 @@
 import { auditMock, auditMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import { credentialGroupsOrganizationSetupMock } from '@sim/testing/mocks/credential-groups-organization-setup.mock'
+import { credentialGroupsSelfEnrollmentMock } from '@sim/testing/mocks/credential-groups-self-enrollment.mock'
+import { credentialGroupsServiceMock } from '@sim/testing/mocks/credential-groups-service.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  knowledgeMemberQueueMock,
+  knowledgeMemberQueueMockFns,
+} from '@sim/testing/mocks/knowledge-member-queue.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  available: vi.fn(),
-  group: vi.fn(),
-  readiness: vi.fn(),
-  feature: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   setIndexing: vi.fn(),
-  dispatch: vi.fn(),
 }))
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: mocks.available,
-}))
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadScopedAccountsCredentialListContext: mocks.group,
-}))
-vi.mock('@/lib/credential-groups/organization-setup', () => ({
-  requireOrganizationAccountsSetup: mocks.readiness,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
-}))
-vi.mock('@/lib/credential-groups/service', () => ({
-  ensureWorkspaceAccountsGroup: vi.fn(),
-  getOrganizationAccountsGroup: vi.fn(),
-  updateCredentialGroup: vi.fn(),
-}))
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
+vi.mock('@/lib/credential-groups/organization-setup', () => credentialGroupsOrganizationSetupMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
 vi.mock('@/lib/credential-groups/provider-availability', () => ({
   listConfiguredCredentialGroupProviders: vi.fn(),
 }))
-vi.mock('@/lib/credential-groups/self-enrollment', () => ({
-  createViewerCredentialGroupEnrollment: vi.fn(),
-}))
+vi.mock('@/lib/credential-groups/self-enrollment', () => credentialGroupsSelfEnrollmentMock)
 vi.mock('@/lib/credential-groups/managed-mcp-service', () => ({
   ManagedMcpConnectorError: class extends Error {},
 }))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  requireKnowledgeMemberAccessAvailable: mocks.feature,
-  isKnowledgeMemberAccessAvailable: vi.fn(),
-}))
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/knowledge/connectors/organization-account-indexing', () => ({
-  setOrganizationAccountIndexing: mocks.setIndexing,
+  setOrganizationAccountIndexing: hoisted.setIndexing,
 }))
-vi.mock('@/lib/knowledge/connectors/member-queue', () => ({
-  dispatchMemberSyncsForCredentialOption: mocks.dispatch,
-}))
+vi.mock('@/lib/knowledge/connectors/member-queue', () => knowledgeMemberQueueMock)
 
 import { updateOrganizationAccountIndexing } from '@/lib/credential-groups/application/organization-account-indexing'
 
-const principal = { kind: 'session' as const, userId: 'admin-1', sessionId: 'session-1' }
+const mocks = {
+  ...hoisted,
+  available: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+  group: credentialGroupsCredentialsMockFns.mockLoadScopedAccountsCredentialListContext,
+  dispatch: knowledgeMemberQueueMockFns.mockDispatchMemberSyncsForCredentialOption,
+}
+
+const feature = knowledgeAvailabilityMockFns.mockRequireKnowledgeMemberAccessAvailable
+const principal = createSessionPrincipal({ userId: 'admin-1' })
 const input = { organizationId: 'org-1', optionId: 'option-1', enabled: true }
 
 describe('organization account indexing authorization', () => {
@@ -57,7 +62,7 @@ describe('organization account indexing authorization', () => {
     resetDbChainMock()
     mocks.available.mockResolvedValue(true)
     mocks.group.mockResolvedValue({ credentialGroupId: 'group-1' })
-    mocks.feature.mockResolvedValue(undefined)
+    feature.mockResolvedValue(undefined)
     mocks.setIndexing.mockResolvedValue({
       enabled: true,
       changed: true,
@@ -92,7 +97,7 @@ describe('organization account indexing authorization', () => {
   })
   it('requires indexing availability to enable a source', async () => {
     queueTableRows(schemaMock.member, [{ role: 'admin' }])
-    mocks.feature.mockRejectedValue(new Error('Search is not enabled'))
+    feature.mockRejectedValue(new Error('Search is not enabled'))
     await expect(updateOrganizationAccountIndexing.execute({ principal, input })).rejects.toThrow(
       'Search is not enabled'
     )
@@ -111,7 +116,7 @@ describe('organization account indexing authorization', () => {
       principal,
       input: { ...input, enabled: false },
     })
-    expect(mocks.feature).not.toHaveBeenCalled()
+    expect(feature).not.toHaveBeenCalled()
     expect(mocks.dispatch).not.toHaveBeenCalled()
   })
   it('does not audit or redispatch an unchanged setting', async () => {

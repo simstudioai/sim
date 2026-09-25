@@ -1,8 +1,16 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act } from 'react'
 import type { DesktopOAuthConnectResult } from '@sim/desktop-bridge'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { emcnMock, emcnMockFns } from '@sim/testing/mocks/emcn.mock'
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,24 +18,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   desktop: false,
   onOAuthConnectComplete: vi.fn(),
-  requestJson: vi.fn(),
   requireWorkspaceCredentialListResponse: vi.fn(),
-  success: vi.fn(),
-  error: vi.fn(),
-  replace: vi.fn(),
-  params: { workspaceId: 'workspace-1' } as { workspaceId?: string; organizationId?: string },
 }))
 
-vi.mock('@sim/emcn', () => ({ toast: { success: mocks.success, error: mocks.error } }))
-vi.mock('next/navigation', () => ({
-  useParams: () => mocks.params,
-  useRouter: () => ({ replace: mocks.replace }),
-}))
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.requestJson }))
-vi.mock('@/lib/desktop', () => ({
-  getDesktopBridge: () =>
-    mocks.desktop ? { onOAuthConnectComplete: mocks.onOAuthConnectComplete } : undefined,
-}))
+vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('next/navigation', () => nextNavigationMock)
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
+vi.mock('@/lib/desktop', () => libDesktopMock)
 vi.mock('@/hooks/queries/oauth/oauth-connections', () => ({
   oauthConnectionsKeys: { connections: () => ['oauthConnections'] },
 }))
@@ -51,6 +48,15 @@ import {
   useOAuthReturnForKBConnectors,
   useOAuthReturnRouter,
 } from '@/hooks/use-oauth-return'
+
+const mockReplace = nextNavigationMockFns.router.replace
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
+const { success: mockToastSuccess, error: mockToastError } = emcnMockFns.mockToast
+libDesktopMockFns.mockGetDesktopBridge.mockImplementation(() =>
+  mocks.desktop ? { onOAuthConnectComplete: mocks.onOAuthConnectComplete } : undefined
+)
 
 const EXISTING_CREDENTIAL = {
   id: 'credential-existing',
@@ -126,7 +132,7 @@ async function render(props: ProbeProps) {
 
 beforeEach(() => {
   mocks.desktop = false
-  mocks.params = { workspaceId: 'workspace-1' }
+  nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
   completeDesktop = undefined
   mocks.onOAuthConnectComplete.mockImplementation(
     (callback: (result: DesktopOAuthConnectResult) => void) => {
@@ -136,7 +142,7 @@ beforeEach(() => {
       }
     }
   )
-  mocks.requestJson.mockResolvedValue({})
+  mockRequestJson.mockResolvedValue({})
   mocks.requireWorkspaceCredentialListResponse.mockReturnValue([
     EXISTING_CREDENTIAL,
     NEW_CREDENTIAL,
@@ -169,7 +175,7 @@ describe('organization source OAuth return routing', () => {
   }
 
   it('does not route a pending source return through a different organization', async () => {
-    mocks.params = { organizationId: 'org-other' }
+    nextNavigationMockFns.mockUseParams.mockReturnValue({ organizationId: 'org-other' })
     const pending: OAuthReturnContext = {
       ...context(),
       workspaceId: undefined,
@@ -180,7 +186,7 @@ describe('organization source OAuth return routing', () => {
 
     await renderRouter()
 
-    expect(mocks.replace).not.toHaveBeenCalled()
+    expect(mockReplace).not.toHaveBeenCalled()
     expect(readOAuthReturnContext()).toEqual(pending)
   })
 })
@@ -200,7 +206,7 @@ describe('existing source settings OAuth return', () => {
     queryClient.setQueryData(oauthCredentialKeys.list('google-drive', '', '', 'org-1'), [
       { id: 'credential-existing', name: 'Cached account' },
     ])
-    mocks.requestJson.mockImplementation(async (contract: unknown) => {
+    mockRequestJson.mockImplementation(async (contract: unknown) => {
       if (contract === listOrganizationOAuthCredentialsContract) {
         return { credentials: [{ id: 'credential-existing', name: 'Updated account' }] }
       }
@@ -232,7 +238,7 @@ describe('existing source settings OAuth return', () => {
     await renderSettings('connector-other')
 
     expect(readOAuthReturnContext()).toEqual(pending)
-    expect(mocks.requestJson).not.toHaveBeenCalled()
+    expect(mockRequestJson).not.toHaveBeenCalled()
     expect(container.textContent).toBe('Cached account')
   })
 })
@@ -244,7 +250,7 @@ describe('KB OAuth return account selection', () => {
     const onConnected = vi.fn()
     await render({ onConnected, connectorType: 'confluence' })
     expect(readOAuthReturnContext()).toEqual(pending)
-    expect(mocks.requestJson).not.toHaveBeenCalled()
+    expect(mockRequestJson).not.toHaveBeenCalled()
     expect(onConnected).not.toHaveBeenCalled()
   })
 
@@ -254,7 +260,7 @@ describe('KB OAuth return account selection', () => {
     const onConnected = vi.fn()
     await render({ onConnected })
     expect(onConnected).not.toHaveBeenCalled()
-    expect(mocks.error).toHaveBeenCalledOnce()
+    expect(mockToastError).toHaveBeenCalledOnce()
   })
 
   it('discards expired web return context', async () => {
@@ -262,7 +268,7 @@ describe('KB OAuth return account selection', () => {
     const onConnected = vi.fn()
     await render({ onConnected })
     expect(onConnected).not.toHaveBeenCalled()
-    expect(mocks.requestJson).not.toHaveBeenCalled()
+    expect(mockRequestJson).not.toHaveBeenCalled()
     expect(readOAuthReturnContext()).toBeNull()
   })
 
@@ -282,7 +288,7 @@ describe('KB OAuth return account selection', () => {
       await act(async () => completeDesktop?.({ ok: outcome !== 'failed' }))
       expect(onConnected).not.toHaveBeenCalled()
       expect(readOAuthReturnContext()).toBeNull()
-      if (outcome !== 'unverified') expect(mocks.requestJson).not.toHaveBeenCalled()
+      if (outcome !== 'unverified') expect(mockRequestJson).not.toHaveBeenCalled()
     }
   )
 

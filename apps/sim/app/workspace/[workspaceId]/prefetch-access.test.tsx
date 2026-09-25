@@ -1,5 +1,13 @@
 /** @vitest-environment jsdom */
+
 import { act, type ReactNode } from 'react'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { dehydrate, hydrate, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
@@ -8,8 +16,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   policy: vi.fn(),
   discovery: vi.fn(),
-  requestJson: vi.fn(),
-  workspaceId: 'workspace',
 }))
 vi.mock('@/lib/permission-groups/application/read-user-config', () => ({
   readUserPermissionConfig: { execute: mocks.policy },
@@ -17,11 +23,8 @@ vi.mock('@/lib/permission-groups/application/read-user-config', () => ({
 vi.mock('@/ee/access-requests/lib/application/requests', () => ({
   discoverAccessRequests: { execute: mocks.discovery },
 }))
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.requestJson }))
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: mocks.workspaceId }),
-  useRouter: () => ({ refresh: vi.fn() }),
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@sim/emcn', () => ({
   cn: (...values: string[]) => values.join(' '),
   Chip: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
@@ -33,12 +36,7 @@ vi.mock('@sim/emcn', () => ({
     <a href={href}>{children}</a>
   ),
 }))
-vi.mock('@sim/emcn/icons', () => ({
-  Lock: () => null,
-  Plus: () => null,
-  Upload: () => null,
-  BookOpen: () => null,
-}))
+vi.mock('@sim/emcn/icons', () => emcnIconsMock)
 vi.mock('@/ee/access-requests/components/request-access-action', () => ({
   RequestAccessAction: ({ pendingRequestId }: { pendingRequestId: string | null }) => (
     <button type='button'>{pendingRequestId ? 'Pending' : 'Request access'}</button>
@@ -49,7 +47,11 @@ import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { prefetchWorkspaceAccess } from '@/app/workspace/[workspaceId]/prefetch-access'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 
-const principal = { kind: 'session', userId: 'viewer', sessionId: 'session' } as const
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace' })
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
+
+const principal = createSessionPrincipal({ userId: 'viewer', sessionId: 'session' })
 const policy = {
   permissionGroupId: 'group',
   groupName: 'Group',
@@ -82,10 +84,10 @@ describe('workspace access hydration', () => {
 
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-    mocks.workspaceId = 'workspace'
+    nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace' })
     mocks.policy.mockResolvedValue(policy)
     mocks.discovery.mockResolvedValue(discovery)
-    mocks.requestJson.mockImplementation(() => new Promise(() => {}))
+    mockRequestJson.mockImplementation(() => new Promise(() => {}))
     server = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     container = document.createElement('div')
@@ -140,7 +142,7 @@ describe('workspace access hydration', () => {
   })
   it('isolates workspace keys during navigation', async () => {
     await prefetch()
-    mocks.workspaceId = 'different-workspace'
+    nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'different-workspace' })
     expect(renderToString(tree())).toContain('Checking access')
     expect(renderToString(tree())).not.toContain('Workspace chat')
   })

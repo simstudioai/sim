@@ -1,16 +1,8 @@
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
 import { describe, expect, it, vi } from 'vitest'
-
-const { mocks } = vi.hoisted(() => ({
-  mocks: {
-    select: vi.fn(),
-  },
-}))
-
-vi.mock('@sim/db', () => ({
-  db: { select: mocks.select },
-}))
-
 import { getAvailableCustomTool } from '@/lib/workflows/custom-tools/operations'
+
+const mocks = { select: dbChainMockFns.select }
 
 const workspaceTool = {
   id: 'workspace-tool',

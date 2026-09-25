@@ -5,25 +5,25 @@ import {
   schemaMock,
   urlsMockFns,
 } from '@sim/testing'
+import { emailMailerMock, emailMailerMockFns } from '@sim/testing/mocks/email-mailer.mock'
+import { emailTemplatesMock, emailTemplatesMockFns } from '@sim/testing/mocks/email-templates.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { sendEmailSpy, renderMock, subjectMock, getUsersWithPermissionsMock } = vi.hoisted(() => ({
-  sendEmailSpy: vi.fn(() => Promise.resolve({ success: true })),
-  renderMock: vi.fn(() => Promise.resolve('<html></html>')),
-  subjectMock: vi.fn(() => 'A schedule was turned off'),
-  getUsersWithPermissionsMock: vi.fn(() => Promise.resolve([] as unknown[])),
-}))
-
-vi.mock('@/lib/messaging/email/mailer', () => ({ sendEmail: sendEmailSpy }))
-vi.mock('@/components/emails', () => ({
-  renderScheduleDisabledEmail: renderMock,
-  getEmailSubject: subjectMock,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUsersWithPermissions: getUsersWithPermissionsMock,
-}))
+vi.mock('@/lib/messaging/email/mailer', () => emailMailerMock)
+vi.mock('@/components/emails', () => emailTemplatesMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { notifyScheduleAutoDisabled } from '@/lib/workflows/schedules/disable-notifications'
+
+const sendEmailSpy = emailMailerMockFns.mockSendEmail
+sendEmailSpy.mockImplementation(() => Promise.resolve({ success: true }))
+emailTemplatesMockFns.mockRenderScheduleDisabledEmail.mockImplementation(() =>
+  Promise.resolve('<html></html>')
+)
+emailTemplatesMockFns.mockGetEmailSubject.mockImplementation(() => 'A schedule was turned off')
+
+const getUsersWithPermissionsMock = permissionsMockFns.mockGetUsersWithPermissions
 
 const WORKFLOW_SCHEDULE_ROW = {
   sourceType: 'workflow',

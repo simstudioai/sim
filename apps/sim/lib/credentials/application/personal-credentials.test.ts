@@ -1,30 +1,31 @@
-import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
+import type { SubjectDelegatedPrincipal } from '@sim/auth/principal'
 import { resetDbChainMock } from '@sim/testing'
+import {
+  createDelegatedPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   listPersonal: vi.fn(),
   listTokens: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/credentials/personal', () => ({
-  getPersonalOAuthCredentials: mocks.listPersonal,
+  getPersonalOAuthCredentials: hoisted.listPersonal,
 }))
 
 vi.mock('@/lib/credentials/personal-tokens', () => ({
-  getPersonalTokenCredentials: mocks.listTokens,
+  getPersonalTokenCredentials: hoisted.listTokens,
 }))
 
 import {
@@ -32,13 +33,19 @@ import {
   listPersonalCredentials,
 } from '@/lib/credentials/application/personal-credentials'
 
+const mocks = {
+  ...hoisted,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+}
+
 const workspaceContext = {
   workspaceId: 'workspace-1',
   workspaceOrganizationId: null,
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner',
 }
-const principal: Principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' }
+const principal = createSessionPrincipal()
 const personalCredential = {
   id: 'credential-1',
   providerId: 'google-drive',
@@ -51,18 +58,12 @@ const authorizationInput = {
   expectedProviderId: 'google-drive',
 }
 
-function delegatedPrincipal(overrides: Partial<DelegatedPrincipal> = {}): DelegatedPrincipal {
-  return {
-    kind: 'delegated',
-    serviceId: 'copilot',
-    subjectUserId: 'user-1',
-    workspaceId: 'workspace-1',
+function delegatedPrincipal(overrides: Partial<SubjectDelegatedPrincipal> = {}) {
+  return createDelegatedPrincipal({
     delegationId: 'assistant-turn-1',
     audience: 'sim:credentials',
-    issuedAt: new Date(),
-    expiresAt: new Date(Date.now() + 60_000),
     ...overrides,
-  }
+  })
 }
 
 describe('personal credential application access', () => {
@@ -146,7 +147,7 @@ describe('personal credential application access', () => {
   it.each([
     ['another workspace', { workspaceId: 'workspace-2' }],
     ['no person', { subjectUserId: undefined }],
-  ] satisfies Array<[string, Partial<DelegatedPrincipal>]>)(
+  ] satisfies Array<[string, Partial<SubjectDelegatedPrincipal>]>)(
     'refuses %s delegations',
     async (_, overrides) => {
       await expect(

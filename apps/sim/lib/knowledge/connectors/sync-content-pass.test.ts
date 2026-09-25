@@ -5,6 +5,20 @@ import {
   resetDbChainMock as resetDatabaseMock,
   schemaMock,
 } from '@sim/testing'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  triggerAvailabilityMock,
+  triggerAvailabilityMockFns,
+} from '@sim/testing/mocks/trigger-availability.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
@@ -21,49 +35,50 @@ import { stillHoldsSyncLock } from '@/lib/knowledge/connectors/sync-lock'
 import { confluenceConnector } from '@/connectors/confluence/confluence'
 import type { ExternalDocument, SyncResult } from '@/connectors/types'
 
+uploadsMetadataMockFns.mockGetFileMetadataByKeys.mockImplementation(async (keys: string[]) =>
+  keys.flatMap((key) => bindings.get(key) ?? [])
+)
+uploadsMetadataMockFns.mockInsertImmutableFileMetadata.mockImplementation(
+  async (options: { id: string; key: string }) => {
+    const binding = { id: options.id, contentUpdatedAt: new Date(0) }
+    bindings.set(options.key, binding)
+    return binding
+  }
+)
+
 function resetDbChainMock() {
   resetDatabaseMock()
   dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
 }
 
-const mocks = vi.hoisted(() => ({
-  upload: vi.fn(),
-  deleteFile: vi.fn(),
-  deleteMetadata: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   enqueueCleanup: vi.fn(async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'cleanup-guard' }])
     return ['cleanup-guard']
   }),
-  dispatch: vi.fn(),
   onPage: vi.fn(),
-  hardDelete: vi.fn(async (_ids: string[]) => 0),
 }))
 const bindings = vi.hoisted(() => new Map<string, { id: string; contentUpdatedAt: Date }>())
 
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  hardDeleteDocuments: mocks.hardDelete,
-  processDocumentsWithQueue: mocks.dispatch,
-}))
-vi.mock('@/lib/core/config/trigger-availability', () => ({ isTriggerAvailable: () => true }))
-vi.mock('@/lib/uploads', () => ({ StorageService: { uploadFile: mocks.upload } }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mocks.deleteFile }))
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: mocks.deleteMetadata,
-  getFileMetadataByKeys: vi.fn(async (keys: string[]) =>
-    keys.flatMap((key) => bindings.get(key) ?? [])
-  ),
-  insertImmutableFileMetadata: vi.fn(async (options: { id: string; key: string }) => {
-    const binding = { id: options.id, contentUpdatedAt: new Date(0) }
-    bindings.set(options.key, binding)
-    return binding
-  }),
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
+vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
+vi.mock('@/lib/uploads', () => uploadsMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
   KNOWLEDGE_STORAGE_CLEANUP_EVENT: 'knowledge.document.storage.cleanup',
-  enqueueKnowledgeStorageCleanup: mocks.enqueueCleanup,
+  enqueueKnowledgeStorageCleanup: hoisted.enqueueCleanup,
   isKnowledgeBaseOwnedStorageKey: (key: string) => key.startsWith('kb/'),
 }))
 vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
+
+const mocks = {
+  ...hoisted,
+  dispatch: knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue,
+  hardDelete: knowledgeDocumentsServiceMockFns.mockHardDeleteDocuments,
+}
+mocks.hardDelete.mockImplementation(async (_ids: string[]) => 0)
+triggerAvailabilityMockFns.mockIsTriggerAvailable.mockReturnValue(true)
 
 interface StoredPage {
   id: string
@@ -108,10 +123,12 @@ beforeEach(() => {
   sourceBody = { value: '' }
   mocks.hardDelete.mockResolvedValue(0)
   mocks.onPage.mockReset()
-  mocks.upload.mockImplementation(async ({ customKey }: { customKey: string }) => ({
-    key: customKey,
-    path: `/api/files/serve/${encodeURIComponent(customKey)}`,
-  }))
+  storageServiceMockFns.mockUploadFile.mockImplementation(
+    async ({ customKey }: { customKey: string }) => ({
+      key: customKey,
+      path: `/api/files/serve/${encodeURIComponent(customKey)}`,
+    })
+  )
   mocks.dispatch.mockImplementation(async (documents: unknown[]) => ({
     accepted: documents.length,
     failed: 0,
@@ -142,7 +159,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 /**
@@ -597,8 +613,8 @@ describe('Confluence empty content through the shared content pass', () => {
     })
     expect(written).not.toHaveProperty('storageKey')
     expect(dbChainMockFns.delete).not.toHaveBeenCalled()
-    expect(mocks.deleteFile).not.toHaveBeenCalled()
-    expect(mocks.upload).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockUploadFile).not.toHaveBeenCalled()
     expect(mocks.dispatch).not.toHaveBeenCalled()
   })
 })

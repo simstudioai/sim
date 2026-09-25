@@ -66,7 +66,17 @@ import { getTableConfig } from 'drizzle-orm/pg-core'
 import { NextRequest } from 'next/server'
 import { PDFDocument } from 'pdf-lib'
 import type { EmbeddedCliIdentity } from 'sim/embed'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockInstance,
+  vi,
+} from 'vitest'
 import { v2LogDetailSchema } from '@/lib/api/contracts/v2/logs'
 import {
   v2ExecuteWorkflowDataSchema,
@@ -612,7 +622,10 @@ async function readRun(runId: string, ...flags: string[]) {
   )
 }
 
-const postExecution = vi.spyOn(LoggingSession.prototype, 'setPostExecutionPromise')
+let postExecution: MockInstance<typeof LoggingSession.prototype.setPostExecutionPromise>
+beforeEach(() => {
+  postExecution = vi.spyOn(LoggingSession.prototype, 'setPostExecutionPromise')
+})
 const schemaName = fixture.schemaName
 let controlServer: ReturnType<typeof createServer>
 let controlEndpoint = ''
@@ -1290,7 +1303,6 @@ describe.skipIf(!process.env.MSHIP_TEST_DATABASE_URL)(
       fixture.requests.length = 0
       fixture.errors.length = 0
       fixture.storageReads.length = 0
-      vi.clearAllMocks()
     })
 
     const admissionPrincipal = {

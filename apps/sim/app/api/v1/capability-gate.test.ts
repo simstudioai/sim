@@ -25,95 +25,81 @@ import {
   v1SubscriptionModuleMock,
   v1WorkspaceKeyCredential,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import {
+  knowledgeServiceMock,
+  knowledgeServiceMockFns,
+} from '@sim/testing/mocks/knowledge-service.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import { tableWireMock } from '@sim/testing/mocks/table-wire.mock'
+import { traceStoreMock } from '@sim/testing/mocks/trace-store.mock'
+import { v1LogsMetaMock, v1LogsMetaMockFns } from '@sim/testing/mocks/v1-logs-meta.mock'
+import { workflowsOrchestrationMock } from '@sim/testing/mocks/workflows-orchestration.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAuthenticateV1Request,
-  mockGetUserEntityPermissions,
-  mockGetWorkspaceBillingSettings,
-  mockListTables,
-  mockListKnowledgeBases,
-  mockListWorkspaceFiles,
-  mockListPublicWorkflowLogs,
-  mockGetDeploymentWorkflowTarget,
-  mockPerformFullDeploy,
-} = vi.hoisted(() => ({
-  mockAuthenticateV1Request: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-  mockGetWorkspaceBillingSettings: vi.fn(),
-  mockListTables: vi.fn(),
-  mockListKnowledgeBases: vi.fn(),
-  mockListWorkspaceFiles: vi.fn(),
-  mockListPublicWorkflowLogs: vi.fn(),
-  mockGetDeploymentWorkflowTarget: vi.fn(),
-  mockPerformFullDeploy: vi.fn(),
-}))
+const { mockAuthenticateV1Request, mockListPublicWorkflowLogs, mockGetDeploymentWorkflowTarget } =
+  vi.hoisted(() => ({
+    mockAuthenticateV1Request: vi.fn(),
+    mockListPublicWorkflowLogs: vi.fn(),
+    mockGetDeploymentWorkflowTarget: vi.fn(),
+  }))
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 vi.mock('@/app/api/v1/auth', () => ({ authenticateV1Request: mockAuthenticateV1Request }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceBillingSettings: mockGetWorkspaceBillingSettings,
-  getWorkspaceBilledAccountUserId: vi.fn(async () => 'billed-user'),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 vi.mock('@/lib/billing/core/subscription', () => v1SubscriptionModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v1RateLimiterModuleMock)
 vi.mock('@/lib/api/server/rate-limit-context', () => v1RateLimitContextModuleMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {},
-  AuditResourceType: {},
-  recordAudit: vi.fn(),
-}))
-vi.mock('@/lib/table', () => ({
-  listTables: mockListTables,
-  createTable: vi.fn(),
-  getWorkspaceTableLimits: vi.fn(async () => ({ maxTables: 10 })),
-  TableConflictError: class TableConflictError extends Error {},
-}))
-vi.mock('@/lib/table/wire', () => ({ normalizeColumn: (column: unknown) => column }))
-vi.mock('@/lib/knowledge/service', () => ({
-  getWorkspaceKnowledgeBases: mockListKnowledgeBases,
-  getKnowledgeBaseById: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/table', () => tableMock)
+vi.mock('@/lib/table/wire', () => tableWireMock)
+vi.mock('@/lib/knowledge/service', () => knowledgeServiceMock)
 vi.mock('@/lib/knowledge/orchestration', () => ({ performCreateKnowledgeBase: vi.fn() }))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  listWorkspaceFiles: mockListWorkspaceFiles,
-  getWorkspaceFile: vi.fn(),
-  uploadWorkspaceFile: vi.fn(),
-  FileConflictError: class FileConflictError extends Error {},
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 vi.mock('@/lib/logs/public-queries', () => ({
   listPublicWorkflowLogs: mockListPublicWorkflowLogs,
   decodePublicLogCursor: vi.fn(),
 }))
-vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionDataForDisplay: vi.fn(),
-}))
-vi.mock('@/app/api/v1/logs/meta', async () => {
-  const { projectUserLimits } =
-    await vi.importActual<typeof import('@/app/api/v1/logs/meta')>('@/app/api/v1/logs/meta')
-  return {
-    getUserLimits: vi.fn(async () => ({ usage: {} })),
-    projectUserLimits,
-    createApiResponse: (body: unknown) => ({ body, headers: {} }),
-  }
-})
+vi.mock('@/lib/logs/execution/trace-store', () => traceStoreMock)
+vi.mock('@/app/api/v1/logs/meta', () => v1LogsMetaMock)
 vi.mock('@/lib/workflows/deployments/queries', () => ({
   getDeploymentWorkflowTarget: mockGetDeploymentWorkflowTarget,
 }))
-vi.mock('@/lib/workflows/orchestration', () => ({
-  performFullDeploy: mockPerformFullDeploy,
-  performFullUndeploy: vi.fn(),
-}))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET as getLogs } from '@/app/api/v1/logs/route'
 import { GET as getTables } from '@/app/api/v1/tables/route'
+
+const { mockGetWorkspaceBillingSettings } = workspacesUtilsMockFns
+workspacesUtilsMockFns.mockGetWorkspaceBilledAccountUserId.mockImplementation(
+  async () => 'billed-user'
+)
+const { mockListTables } = tableMockFns
+tableMockFns.mockGetWorkspaceTableLimits.mockImplementation(async () => ({ maxTables: 10 }))
+const { mockGetWorkspaceKnowledgeBases: mockListKnowledgeBases } = knowledgeServiceMockFns
+
+v1LogsMetaMockFns.mockGetUserLimits.mockImplementation(async () => ({ usage: {} }))
+v1LogsMetaMockFns.mockCreateApiResponse.mockImplementation((body: unknown) => ({
+  body,
+  headers: {},
+}))
+const { mockGetUserEntityPermissions } = permissionsMockFns
+const { mockListWorkspaceFiles } = workspaceUploadsMockFns
 
 const USER_ID = 'user-1'
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
@@ -127,8 +113,9 @@ function governedBy(overrides: Partial<typeof DEFAULT_PERMISSION_GROUP_CONFIG>) 
 }
 
 function get(path: string) {
-  return new NextRequest(`http://localhost${path}`, {
+  return createMockRequest({
     method: 'GET',
+    url: `http://localhost${path}`,
     headers: { 'x-api-key': 'sim_test' },
   })
 }

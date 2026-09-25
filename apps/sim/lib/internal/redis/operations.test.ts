@@ -1,3 +1,7 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const clientMocks = vi.hoisted(() => ({
@@ -5,14 +9,12 @@ const clientMocks = vi.hoisted(() => ({
   executeRedisClientCommand: vi.fn(),
 }))
 
-const validationMocks = vi.hoisted(() => ({
-  validateDatabaseHost: vi.fn(),
-}))
-
 vi.mock('@/lib/internal/redis/client', () => clientMocks)
-vi.mock('@/lib/core/security/input-validation.server', () => validationMocks)
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { executeRedisCommand, RedisOperationInputError } from '@/lib/internal/redis/operations'
+
+const { mockValidateDatabaseHost } = inputValidationMockFns
 
 function createClient() {
   return {
@@ -24,14 +26,14 @@ function createClient() {
 
 describe('Redis operations', () => {
   beforeEach(() => {
-    validationMocks.validateDatabaseHost.mockResolvedValue({
+    mockValidateDatabaseHost.mockResolvedValue({
       isValid: true,
       resolvedIP: '203.0.113.10',
     })
   })
 
   it('uses the validated IPv6 address and default connection values', async () => {
-    validationMocks.validateDatabaseHost.mockResolvedValue({
+    mockValidateDatabaseHost.mockResolvedValue({
       isValid: true,
       resolvedIP: '2001:db8::10',
     })
@@ -45,7 +47,7 @@ describe('Redis operations', () => {
       args: ['key'],
     })
 
-    expect(validationMocks.validateDatabaseHost).toHaveBeenCalledWith('2001:db8::1', 'host')
+    expect(mockValidateDatabaseHost).toHaveBeenCalledWith('2001:db8::1', 'host')
     expect(clientMocks.createRedisClient).toHaveBeenCalledWith({
       host: '2001:db8::10',
       port: 6379,
@@ -58,7 +60,7 @@ describe('Redis operations', () => {
   })
 
   it('rejects an unsafe host before creating a Redis client', async () => {
-    validationMocks.validateDatabaseHost.mockResolvedValue({
+    mockValidateDatabaseHost.mockResolvedValue({
       isValid: false,
       error: 'Private network addresses are not allowed',
     })

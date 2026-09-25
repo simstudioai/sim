@@ -1,19 +1,25 @@
+import {
+  providersModelsMock,
+  providersModelsMockFns,
+} from '@sim/testing/mocks/providers-models.mock'
 import { describe, expect, it, vi } from 'vitest'
 import { getConversationModelLimits } from '@/providers/conversation-model'
 
-vi.mock('@/providers/models', () => ({
-  PROVIDER_DEFINITIONS: {
-    test: {
-      models: [
-        { id: 'gpt-test', contextWindow: 128_000 },
-        { id: 'claude-sonnet-test', contextWindow: 200_000 },
-        { id: 'claude-sonnet-test-20250514', contextWindow: 100_000 },
-        { id: 'bedrock/anthropic.test-model-v1:0', contextWindow: 200_000 },
-      ],
-    },
+providersModelsMockFns.mockGetMaxOutputTokensForModel.mockImplementation((model: string) =>
+  model === 'gpt-test' ? 16_000 : 4096
+)
+Object.assign(providersModelsMock.PROVIDER_DEFINITIONS, {
+  test: {
+    models: [
+      { id: 'gpt-test', contextWindow: 128_000 },
+      { id: 'claude-sonnet-test', contextWindow: 200_000 },
+      { id: 'claude-sonnet-test-20250514', contextWindow: 100_000 },
+      { id: 'bedrock/anthropic.test-model-v1:0', contextWindow: 200_000 },
+    ],
   },
-  getMaxOutputTokensForModel: (model: string) => (model === 'gpt-test' ? 16_000 : 4096),
-}))
+})
+
+vi.mock('@/providers/models', () => providersModelsMock)
 
 describe('conversation model capacity', () => {
   it('uses the known base capacity and output reserve for dated model variants', () => {

@@ -1,32 +1,28 @@
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { providersMock, providersMockFns } from '@sim/testing/mocks/providers.mock'
+import { providersUtilsMock } from '@sim/testing/mocks/providers-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 
-const { mockDecryptSecret, mockExecuteProviderRequest, mockSearchKnowledgeAsExecutor } = vi.hoisted(
-  () => ({
-    mockDecryptSecret: vi.fn(),
-    mockExecuteProviderRequest: vi.fn(),
-    mockSearchKnowledgeAsExecutor: vi.fn(),
-  })
-)
+const { mockSearchKnowledgeAsExecutor } = vi.hoisted(() => ({
+  mockSearchKnowledgeAsExecutor: vi.fn(),
+}))
 
 vi.mock('@/lib/internal/knowledge/search', () => ({
   searchKnowledgeAsExecutor: mockSearchKnowledgeAsExecutor,
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-vi.mock('@/providers', () => ({
-  executeProviderRequest: mockExecuteProviderRequest,
-}))
+vi.mock('@/providers', () => providersMock)
 
-vi.mock('@/providers/utils', () => ({
-  getProviderFromModel: vi.fn(() => 'openai'),
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mockExecuteProviderRequest = providersMockFns.mockExecuteProviderRequest
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
 
 const BILLING_ATTRIBUTION: BillingAttributionSnapshot = {
   actorUserId: 'user-1',

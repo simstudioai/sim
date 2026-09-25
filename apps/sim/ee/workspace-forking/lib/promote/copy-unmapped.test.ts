@@ -1,3 +1,7 @@
+import {
+  workspaceForkingMappingStoreMock,
+  workspaceForkingMappingStoreMockFns,
+} from '@sim/testing/mocks/workspace-forking-mapping-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   type ForkCopyableUnmapped,
@@ -6,21 +10,16 @@ import {
 import type { DbOrTx } from '@/lib/db/types'
 
 const {
-  mockPersistCopiedResourceMappings,
   mockCopyForkResourceContainers,
   mockPlanForkMappedKbDocumentCopies,
   mockPlanForkFileCopies,
 } = vi.hoisted(() => ({
-  mockPersistCopiedResourceMappings: vi.fn(),
   mockCopyForkResourceContainers: vi.fn(),
   mockPlanForkMappedKbDocumentCopies: vi.fn(),
   mockPlanForkFileCopies: vi.fn(),
 }))
 
-vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
-  persistCopiedResourceMappings: mockPersistCopiedResourceMappings,
-  resourceTypeToForkKind: vi.fn(),
-}))
+vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => workspaceForkingMappingStoreMock)
 
 vi.mock('@/ee/workspace-forking/lib/copy/copy-resources', () => ({
   copyForkResourceContainers: mockCopyForkResourceContainers,
@@ -39,6 +38,9 @@ import {
   copyPromoteUnmappedResources,
   FORK_COPYABLE_KIND_TO_SELECTION_KEY,
 } from '@/ee/workspace-forking/lib/promote/copy-unmapped'
+
+const mockPersistCopiedResourceMappings =
+  workspaceForkingMappingStoreMockFns.mockPersistCopiedResourceMappings
 
 const candidates: ForkCopyableUnmapped[] = [
   {

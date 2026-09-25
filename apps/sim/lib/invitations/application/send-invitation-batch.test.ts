@@ -1,44 +1,51 @@
 import { db } from '@sim/db'
 import { member, user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
+import {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
+import {
+  workspacesPolicyMock,
+  workspacesPolicyMockFns,
+} from '@sim/testing/mocks/workspaces-policy.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { batchWorkspaceInvitationBodySchema } from '@/lib/api/contracts/invitations'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   orgContext: vi.fn(),
   workspaceContext: vi.fn(),
   orgSend: vi.fn(),
   workspaceSend: vi.fn(),
-  canonicalWorkspace: vi.fn(),
-  workspaceRole: vi.fn(),
-  config: vi.fn(),
-  invitePolicy: vi.fn(),
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.canonicalWorkspace,
-}))
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.workspaceRole,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
-vi.mock('@/lib/permission-groups/config-scope.server', () => ({
-  resolvePermissionGroupConfig: mocks.config,
-}))
-vi.mock('@/lib/workspaces/policy', () => ({
-  getWorkspaceInvitePolicy: mocks.invitePolicy,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
+vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
 vi.mock('@/lib/invitations/organization-invitations', () => ({
-  prepareOrganizationInvitationContext: mocks.orgContext,
+  prepareOrganizationInvitationContext: hoisted.orgContext,
 }))
 vi.mock('@/lib/organizations/application/invitations', () => ({
-  createOrganizationInvitation: { execute: mocks.orgSend },
+  createOrganizationInvitation: { execute: hoisted.orgSend },
 }))
 vi.mock('@/lib/invitations/workspace-invitations', () => ({
-  prepareWorkspaceInvitationContext: mocks.workspaceContext,
-  createWorkspaceInvitation: mocks.workspaceSend,
+  prepareWorkspaceInvitationContext: hoisted.workspaceContext,
+  createWorkspaceInvitation: hoisted.workspaceSend,
   WorkspaceInvitationError: class extends Error {
     status: number
     email?: string
@@ -49,9 +56,7 @@ vi.mock('@/lib/invitations/workspace-invitations', () => ({
     }
   },
 }))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  InvitationsNotAllowedError: class extends Error {},
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
 import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import {
@@ -65,8 +70,19 @@ import {
 } from '@/lib/invitations/workspace-invitations'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
-const principal = { kind: 'session', userId: 'admin-user', sessionId: 'session' } as const
-const personal = { kind: 'personal_api_key', userId: 'admin-user', keyId: 'key' } as const
+const mocks = {
+  ...hoisted,
+  invitePolicy: workspacesPolicyMockFns.mockGetWorkspaceInvitePolicy,
+  canonicalWorkspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  workspaceRole: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  config: permissionGroupScopeMockFns.mockResolvePermissionGroupConfig,
+}
+permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockImplementation(
+  (...args: Parameters<typeof mocks.config>) => mocks.config(...args)
+)
+
+const principal = createSessionPrincipal({ userId: 'admin-user', sessionId: 'session' })
+const personal = createPersonalApiKeyPrincipal({ userId: 'admin-user', keyId: 'key' })
 const oauth = {
   kind: 'oauth_access_token',
   userId: 'admin-user',

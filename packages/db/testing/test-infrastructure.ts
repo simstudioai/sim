@@ -38,13 +38,27 @@ export function readTestDatabaseUrl(): string {
   return value
 }
 
-/** Returns the validated `TEST_REDIS_URL`, or undefined when the run has no Redis. */
+/**
+ * Returns the validated `TEST_REDIS_URL`, or undefined when the run has no Redis.
+ *
+ * Any query string is rejected, not just `username`/`password` params: Redis clients read
+ * connection options (credentials, TLS, sentinels) from it, so an allowlist would have to track
+ * each client's option set, and a local disposable Redis never needs one.
+ */
 export function readTestRedisUrl(): string | undefined {
   const value = process.env.TEST_REDIS_URL
   if (!value) return undefined
   const url = new URL(value)
-  if (url.protocol !== 'redis:' || !LOOPBACK_HOSTS.has(url.hostname)) {
-    throw new Error('TEST_REDIS_URL must be a redis:// URL on a loopback host')
+  if (
+    url.protocol !== 'redis:' ||
+    !LOOPBACK_HOSTS.has(url.hostname) ||
+    url.username ||
+    url.password ||
+    url.search
+  ) {
+    throw new Error(
+      'TEST_REDIS_URL must be a credential-free redis:// URL on a loopback host with no query string'
+    )
   }
   return value
 }

@@ -1,29 +1,22 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock, uploadsMockFns } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext, UserFile } from '@/executor/types'
 
-const { presign, download, metadata, permission } = vi.hoisted(() => ({
-  presign: vi.fn(),
-  download: vi.fn(),
-  metadata: vi.fn(),
-  permission: vi.fn(),
-}))
-
-vi.mock('@/lib/uploads', () => ({
-  StorageService: { hasCloudStorage: () => true, generatePresignedDownloadUrl: presign },
-  getFileMetadata: metadata,
-}))
-
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: download,
-}))
-
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  getFileMetadataByKey: metadata,
-}))
-
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: permission,
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { resolveTrustedFileContext } from '@/lib/uploads/utils/file-utils'
 import {
@@ -32,10 +25,17 @@ import {
 } from '@/providers/file-attachments.server'
 import type { ProviderRequest } from '@/providers/types'
 
+const presign = storageServiceMockFns.mockGeneratePresignedDownloadUrl
+const download = fileUtilsServerMockFns.mockDownloadServableFileFromStorage
+const metadata = uploadsMetadataMockFns.mockGetFileMetadataByKey
+const permission = permissionsMockFns.mockGetUserEntityPermissions
+
 /** Authorization and key inference are real: mocking either hid this pre-existing refusal. */
 describe('provider attachment storage-key authorization', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
+    uploadsMockFns.mockGetFileMetadata.mockImplementation((...args) => metadata(...args))
   })
 
   it.each(
@@ -69,7 +69,7 @@ describe('provider attachment storage-key authorization', () => {
               userId: 'billing-owner',
               principal:
                 caller === 'session'
-                  ? { kind: 'session', userId: 'acting-user', sessionId: 'session-1' }
+                  ? createSessionPrincipal({ userId: 'acting-user' })
                   : {
                       kind: 'system',
                       serviceId: 'chat',

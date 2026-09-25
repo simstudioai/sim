@@ -14,17 +14,34 @@ import {
   storageServiceMock,
   storageServiceMockFns,
 } from '@sim/testing'
+import { fileParsersMock, fileParsersMockFns } from '@sim/testing/mocks/file-parsers.mock'
+import { uploadsMock, uploadsMockFns } from '@sim/testing/mocks/uploads.mock'
+import {
+  setUploadsConfig,
+  uploadsConfigMock,
+  uploadsConfigMockFns,
+} from '@sim/testing/mocks/uploads-config.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
+import { uploadsMetadataMock } from '@sim/testing/mocks/uploads-metadata.mock'
+import { uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { NextRequest } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FileParserError } from '@/lib/file-parsers/errors'
 
 const {
   mockVerifyFileAccess,
   mockVerifyWorkspaceFileAccess,
-  mockGetStorageProvider,
-  mockIsUsingCloudStorage,
-  mockIsSupportedFileType,
-  mockParseBuffer,
   mockPdfParseBuffer,
   mockCreateReadStream,
   mockFsAccess,
@@ -32,11 +49,8 @@ const {
   mockFsWriteFile,
   mockJoin,
   actualPath,
-  mockUploadExecutionFile,
-  mockUploadWorkspaceFile,
   mockReadWorkspaceFileNameByKey,
   mockResolveProvenanceSource,
-  mockGetBoundProvenance,
   mockGetFileContentProvenance,
   storageConfig,
   mockGetBlobContainerClient,
@@ -46,13 +60,6 @@ const {
   return {
     mockVerifyFileAccess: vi.fn().mockResolvedValue(true),
     mockVerifyWorkspaceFileAccess: vi.fn().mockResolvedValue(true),
-    mockGetStorageProvider: vi.fn().mockReturnValue('s3'),
-    mockIsUsingCloudStorage: vi.fn().mockReturnValue(true),
-    mockIsSupportedFileType: vi.fn().mockReturnValue(true),
-    mockParseBuffer: vi.fn().mockResolvedValue({
-      content: 'parsed buffer content',
-      metadata: { pageCount: 1 },
-    }),
     mockPdfParseBuffer: vi.fn().mockResolvedValue({
       content: 'parsed PDF content',
       metadata: { pageCount: 1 },
@@ -68,26 +75,10 @@ const {
       return actualPath.join(...args)
     }),
     actualPath,
-    mockUploadExecutionFile: vi.fn(),
-    mockUploadWorkspaceFile: vi
-      .fn()
-      .mockImplementation(
-        async (workspaceId: string, _userId: string, _buffer: Buffer, fileName: string) => ({
-          id: 'wf_test',
-          name: fileName,
-          size: 0,
-          type: 'application/octet-stream',
-          url: `/api/files/serve/${workspaceId}/${fileName}`,
-          key: `${workspaceId}/${fileName}`,
-          context: 'workspace',
-        })
-      ),
     mockReadWorkspaceFileNameByKey: vi.fn(),
     mockResolveProvenanceSource: vi.fn(),
-    mockGetBoundProvenance: vi.fn(),
     mockGetFileContentProvenance: vi.fn(),
     storageConfig: {
-      provider: 's3',
       bucket: 'sim-execution-files',
       containerName: 'execution-files',
       workspaceBucket: 'sim-workspace-files',
@@ -101,9 +92,10 @@ vi.mock('@/lib/execution/payloads/file-secret-provenance', () => ({
   resolveStoredFileProvenanceSource: mockResolveProvenanceSource,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  getBoundWorkspaceFileSecretProvenance: mockGetBoundProvenance,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 vi.mock('@/lib/internal/file/operations', () => ({
   getFileContentProvenance: mockGetFileContentProvenance,
@@ -125,40 +117,15 @@ vi.mock('@/lib/execution/payloads/materialization.server', () => ({
   },
 }))
 
-vi.mock('@/lib/uploads', () => ({
-  getStorageProvider: mockGetStorageProvider,
-  isUsingCloudStorage: mockIsUsingCloudStorage,
-  StorageService: storageServiceMock,
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
-vi.mock('@/lib/uploads/config', () => ({
-  getStorageConfig: (context: string) =>
-    context === 'workspace'
-      ? {
-          bucket: storageConfig.workspaceBucket,
-          containerName: storageConfig.workspaceContainerName,
-        }
-      : storageConfig,
-  S3_CONFIG: {},
-  get USE_S3_STORAGE() {
-    return storageConfig.provider === 's3'
-  },
-  get USE_BLOB_STORAGE() {
-    return storageConfig.provider === 'blob'
-  },
-  get USE_GCS_STORAGE() {
-    return storageConfig.provider === 'gcs'
-  },
-}))
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
 
 vi.mock('@/lib/uploads/providers/blob/client', () => ({
   getBlobServiceClient: async () => ({ getContainerClient: mockGetBlobContainerClient }),
 }))
 
-vi.mock('@/lib/file-parsers', () => ({
-  isSupportedFileType: mockIsSupportedFileType,
-  parseBuffer: mockParseBuffer,
-}))
+vi.mock('@/lib/file-parsers', () => fileParsersMock)
 
 vi.mock('node:fs', () => ({
   createReadStream: mockCreateReadStream,
@@ -182,9 +149,7 @@ vi.mock('path', () => ({
   extname: actualPath.extname,
 }))
 
-vi.mock('@/lib/uploads/core/setup.server', () => ({
-  UPLOAD_DIR_SERVER: '/test/uploads',
-}))
+vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
@@ -192,17 +157,11 @@ vi.mock('@/lib/core/utils/logging', () => ({
   sanitizeUrlForLog: vi.fn((url: string) => url),
 }))
 
-vi.mock('@/lib/uploads/contexts/execution', () => ({
-  uploadExecutionFile: mockUploadExecutionFile,
-}))
+vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  uploadWorkspaceFile: mockUploadWorkspaceFile,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  getFileMetadataByKey: vi.fn(),
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 vi.mock('@/lib/workspace-files/application/read-workspace-file-name-by-key', () => ({
   readWorkspaceFileNameByKey: { execute: mockReadWorkspaceFileNameByKey },
@@ -221,9 +180,52 @@ vi.mock('fs/promises', () => ({
   writeFile: mockFsWriteFile,
 }))
 
+const { mockGetStorageProvider, mockIsUsingCloudStorage } = uploadsMockFns
+const { mockUploadWorkspaceFile } = workspaceFileManagerMockFns
+const { mockGetBoundWorkspaceFileSecretProvenance } = workspaceFileSecretProvenanceMockFns
+
+mockUploadWorkspaceFile.mockImplementation(
+  async (workspaceId: string, _userId: string, _buffer: Buffer, fileName: string) => ({
+    id: 'wf_test',
+    name: fileName,
+    size: 0,
+    type: 'application/octet-stream',
+    url: `/api/files/serve/${workspaceId}/${fileName}`,
+    key: `${workspaceId}/${fileName}`,
+    context: 'workspace',
+  })
+)
+
 import { fileParseBodySchema } from '@/lib/api/contracts/storage-transfer'
 import { executeFileParserOperation } from '@/lib/internal/file/parser'
 import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
+
+const { mockUploadExecutionFile } = uploadsExecutionMockFns
+const { mockIsSupportedFileType, mockParseBuffer } = fileParsersMockFns
+
+mockIsSupportedFileType.mockReturnValue(true)
+mockParseBuffer.mockResolvedValue({
+  content: 'parsed buffer content',
+  metadata: { pageCount: 1 },
+})
+uploadsConfigMockFns.mockGetStorageConfig.mockImplementation((context: string) =>
+  context === 'workspace'
+    ? {
+        bucket: storageConfig.workspaceBucket,
+        containerName: storageConfig.workspaceContainerName,
+      }
+    : storageConfig
+)
+
+function setStorageProvider(provider: 's3' | 'blob' | 'gcs'): void {
+  setUploadsConfig({
+    USE_S3_STORAGE: provider === 's3',
+    USE_BLOB_STORAGE: provider === 'blob',
+    USE_GCS_STORAGE: provider === 'gcs',
+  })
+}
+
+setStorageProvider('s3')
 
 async function POST(request: NextRequest): Promise<Response> {
   const parsed = fileParseBodySchema.safeParse(await request.json())
@@ -292,7 +294,7 @@ function setupFileApiMocks(
 
 describe('file parser operation', () => {
   beforeEach(() => {
-    storageConfig.provider = 's3'
+    setStorageProvider('s3')
     mockGetBlobContainerClient.mockReset()
     setupFileApiMocks({
       authenticated: true,
@@ -313,10 +315,9 @@ describe('file parser operation', () => {
       key: 'execution/report.pdf',
       context: 'execution',
     })
-    mockUploadWorkspaceFile.mockClear()
     mockReadWorkspaceFileNameByKey.mockResolvedValue({ name: null })
     mockResolveProvenanceSource.mockResolvedValue(undefined)
-    mockGetBoundProvenance.mockResolvedValue({ status: 'exact', entries: [] })
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({ status: 'exact', entries: [] })
     mockGetFileContentProvenance.mockResolvedValue({ version: 1, complete: true, entries: [] })
     mockParseBuffer.mockResolvedValue({
       content: 'parsed buffer content',
@@ -326,10 +327,6 @@ describe('file parser operation', () => {
       content: 'parsed PDF content',
       metadata: { pageCount: 1 },
     })
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
   })
 
   it('exports negotiated canonical execution-file lineage without changing public content', async () => {
@@ -397,7 +394,7 @@ describe('file parser operation', () => {
   })
 
   it('does not fall back to external ingress when configured storage resolution fails', async () => {
-    storageConfig.provider = 'blob'
+    setStorageProvider('blob')
     mockGetBlobContainerClient.mockImplementation(() => {
       throw new Error('Storage configuration unavailable')
     })
@@ -420,7 +417,7 @@ describe('file parser operation', () => {
   ])(
     'does not attribute another Azure origin or container to owned storage: %s',
     async (containerUrl) => {
-      storageConfig.provider = 'blob'
+      setStorageProvider('blob')
       mockGetBlobContainerClient.mockReturnValue({
         url: 'https://exampleaccount.blob.core.windows.net/execution-files',
       })
@@ -456,7 +453,7 @@ describe('file parser operation', () => {
         identity: { fileId: 'private-source', key: 'workspace/failed.txt', context: 'workspace' },
         ownerUserId: 'private-owner',
       })
-      mockGetBoundProvenance.mockResolvedValue({
+      mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({
         status: 'exact',
         entries: [{ name: 'SECRET', encryptedValue: 'private-ciphertext' }],
       })

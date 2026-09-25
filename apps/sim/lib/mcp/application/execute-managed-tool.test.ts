@@ -1,58 +1,56 @@
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  createExecutorPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { mcpOauthMock } from '@sim/testing/mocks/mcp-oauth.mock'
+import { mcpServiceMock, mcpServiceMockFns } from '@sim/testing/mocks/mcp-service.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   loadWorkflow: vi.fn(),
-  discoverTools: vi.fn(),
-  executeTool: vi.fn(),
   loadAuthProvider: vi.fn(),
   loadContext: vi.fn(),
   loadRuntime: vi.fn(),
   requireCredentialAccess: vi.fn(),
-  resolvePermission: vi.fn(),
   saveToolSnapshot: vi.fn(),
 }))
 
 vi.mock('@sim/workflow-persistence', () => ({
-  loadWorkflowFromNormalizedTablesRaw: mocks.loadWorkflow,
+  loadWorkflowFromNormalizedTablesRaw: hoisted.loadWorkflow,
 }))
 
 vi.mock('@/lib/credentials/managed-mcp', () => ({
-  loadManagedMcpCredentialApplicationContext: mocks.loadContext,
-  loadManagedMcpRuntimeCredential: mocks.loadRuntime,
-  saveManagedMcpToolSnapshot: mocks.saveToolSnapshot,
+  loadManagedMcpCredentialApplicationContext: hoisted.loadContext,
+  loadManagedMcpRuntimeCredential: hoisted.loadRuntime,
+  saveManagedMcpToolSnapshot: hoisted.saveToolSnapshot,
 }))
 
 vi.mock('@/lib/credential-groups/application/authorization', () => ({
-  requireCredentialGroupCredentialAccess: mocks.requireCredentialAccess,
+  requireCredentialGroupCredentialAccess: hoisted.requireCredentialAccess,
 }))
 
-vi.mock('@/lib/mcp/service', () => ({
-  mcpService: {
-    discoverManagedMcpTools: mocks.discoverTools,
-    executeManagedMcpTool: mocks.executeTool,
-  },
-}))
+vi.mock('@/lib/mcp/service', () => mcpServiceMock)
 
-vi.mock('@/lib/mcp/oauth', () => ({
-  withMcpOauthRefreshLock: vi.fn((_credentialId: string, operation: () => Promise<unknown>) =>
-    operation()
-  ),
-}))
+vi.mock('@/lib/mcp/oauth', () => mcpOauthMock)
 
 vi.mock('@/lib/mcp/application/managed-auth-provider', () => ({
-  loadManagedMcpAuthProvider: mocks.loadAuthProvider,
+  loadManagedMcpAuthProvider: hoisted.loadAuthProvider,
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import { executeManagedMcpToolUseCase } from '@/lib/mcp/application/execute-managed-tool'
 import { createCopilotApplicationPrincipal } from '@/lib/mothership/auth/application-delegation'
+
+const mocks = {
+  ...hoisted,
+  discoverTools: mcpServiceMockFns.mockDiscoverManagedMcpTools,
+  executeTool: mcpServiceMockFns.mockExecuteManagedMcpTool,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const context = {
   credentialId: 'mcp-cg-123456789012345678901',
@@ -65,12 +63,7 @@ const context = {
   allowPersonalApiKeys: true,
 }
 
-const principal: WorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
+const principal: WorkflowExecutionDelegatedPrincipal = createExecutorPrincipal({
   audience: 'sim:managed-mcp-credentials',
   issuedAt: new Date(Date.now() - 1_000),
   expiresAt: new Date(Date.now() + 60_000),
@@ -78,14 +71,14 @@ const principal: WorkflowExecutionDelegatedPrincipal = {
   delegationContext: {
     kind: 'workflow_execution',
     workflowId: 'workflow-1',
-    principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+    principal: createSessionPrincipal(),
     currentWorkflow: {
       workflowId: 'workflow-1',
       mode: 'deployment',
       deploymentVersionId: 'version-1',
     },
   },
-}
+})
 
 const copilotPrincipal = createCopilotApplicationPrincipal(
   {

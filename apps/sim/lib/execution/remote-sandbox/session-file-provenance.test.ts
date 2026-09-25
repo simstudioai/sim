@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto'
+import { redisConfigMockFns } from '@sim/testing/mocks/redis-config.mock'
 import { generateShortId } from '@sim/utils/id'
 import Redis from 'ioredis'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 
-vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => storage }))
 const records = new Map<string, string>()
 const memory = {
   set: async (key: string, value: string) => {
@@ -24,6 +24,7 @@ const redis = process.env.MSHIP_TEST_REDIS_SOCKET
   : undefined
 redis?.on('error', () => {})
 let storage: typeof memory | Redis | null = redis ?? memory
+redisConfigMockFns.mockGetRedisClient.mockImplementation(() => storage)
 
 import {
   initializeSessionFileProvenance,

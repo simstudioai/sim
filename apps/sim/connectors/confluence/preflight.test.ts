@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { confluenceConnector } from '@/connectors/confluence/confluence'
 
 const CONFIG = { domain: 'example.atlassian.net', spaceKey: ['ENG', 'PRODUCT'] }
@@ -46,11 +46,6 @@ beforeEach(() => {
   fetchMock.mockReset()
   fetchMock.mockImplementation(async (input) => responseFor(pathOf(input)))
   vi.stubGlobal('fetch', fetchMock)
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
-  vi.restoreAllMocks()
 })
 
 describe('Confluence mirrored permission preflight', () => {

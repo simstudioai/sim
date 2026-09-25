@@ -1,4 +1,5 @@
 import * as schema from '@sim/db/schema'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createDeferred } from '@sim/testing'
 import { generateId } from '@sim/utils/id'
 import { eq, sql } from 'drizzle-orm'
@@ -6,13 +7,7 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { databaseUrl } = vi.hoisted(() => {
-  const databaseUrl = process.env.TEST_DATABASE_URL
-  if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseUrl).hostname)) {
-    throw new Error('Workspace detachment integration tests require a disposable local database')
-  }
-  return { databaseUrl }
-})
+const databaseUrl = readTestDatabaseUrl()
 
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
@@ -20,18 +15,15 @@ import { detachOrganizationWorkspacesTx } from '@/lib/workspaces/organization-wo
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
 const schemaName = `workspace_detach_${generateId().replaceAll('-', '')}`
-const connection = databaseUrl
-  ? postgres(databaseUrl, {
-      max: 3,
-      prepare: false,
-      connection: { search_path: schemaName, application_name: schemaName },
-      onnotice: () => undefined,
-    })
-  : undefined
-const database = connection ? drizzle(connection, { schema }) : undefined
+const connection = postgres(databaseUrl, {
+  max: 3,
+  prepare: false,
+  connection: { search_path: schemaName, application_name: schemaName },
+  onnotice: () => undefined,
+})
+const database = drizzle(connection, { schema })
 
 beforeAll(async () => {
-  if (!connection) return
   await connection.unsafe(`CREATE SCHEMA "${schemaName}"`)
   await connection.unsafe(`
     CREATE TABLE member (id text PRIMARY KEY, organization_id text, user_id text, role text);
@@ -62,7 +54,6 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
-  if (!connection) return
   await connection.unsafe(`
     TRUNCATE member, organization, invitation, user_stats, workspace, permissions,
       workspace_files, knowledge_base, document, knowledge_connector;
@@ -79,18 +70,17 @@ beforeEach(async () => {
 })
 
 afterAll(async () => {
-  if (!connection) return
   await connection.unsafe(`DROP SCHEMA "${schemaName}" CASCADE`)
   await connection.end()
 })
 
-describe.skipIf(!databaseUrl)('organization workspace detachment lock order', () => {
+describe('organization workspace detachment lock order', () => {
   it.each(['standalone', 'organization-delete'] as const)(
     'lets acceptance finish before %s without inverting invitation, workspace, or organization locks',
     async (mode) => {
       const acceptanceReady = createDeferred<void>()
       const continueAcceptance = createDeferred<void>()
-      const acceptance = database!
+      const acceptance = database
         .transaction(async (tx) => {
           await tx.execute(sql`SET LOCAL statement_timeout = '4s'`)
           await acquireInvitationMutationLocks(tx, {
@@ -129,7 +119,7 @@ describe.skipIf(!databaseUrl)('organization workspace detachment lock order', ()
       await acceptanceReady.promise
 
       const detachPid = createDeferred<number>()
-      const detachment = database!
+      const detachment = database
         .transaction(async (tx) => {
           await tx.execute(sql`SET LOCAL statement_timeout = '4s'`)
           const [backend] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
@@ -150,7 +140,7 @@ describe.skipIf(!databaseUrl)('organization workspace detachment lock order', ()
         const pid = await detachPid.promise
         await vi.waitFor(
           async () => {
-            const [waiting] = await connection!`
+            const [waiting] = await connection`
             SELECT wait_event_type FROM pg_stat_activity WHERE pid = ${pid}
           `
             expect(waiting.wait_event_type).toBe('Lock')
@@ -168,7 +158,7 @@ describe.skipIf(!databaseUrl)('organization workspace detachment lock order', ()
         billedAccountUserId: 'org-owner',
         auditEntries: [{ resourceId: 'workspace' }],
       })
-      const [detached] = await connection!`
+      const [detached] = await connection`
       SELECT organization_id, workspace_mode, billed_account_user_id,
         organization_assigned_at, storage_used_bytes::int
       FROM workspace WHERE id = 'workspace'
@@ -181,16 +171,16 @@ describe.skipIf(!databaseUrl)('organization workspace detachment lock order', ()
         storage_used_bytes: 40,
       })
       expect(
-        await connection!`SELECT storage_used_bytes::int FROM organization WHERE id = 'org'`
+        await connection`SELECT storage_used_bytes::int FROM organization WHERE id = 'org'`
       ).toEqual(mode === 'organization-delete' ? [] : [{ storage_used_bytes: 0 }])
-      expect(await connection!`SELECT id FROM invitation`).toEqual(
+      expect(await connection`SELECT id FROM invitation`).toEqual(
         mode === 'organization-delete' ? [] : [{ id: 'invitation' }]
       )
       expect(
-        await connection!`SELECT storage_used_bytes::int FROM user_stats WHERE user_id = 'org-owner'`
+        await connection`SELECT storage_used_bytes::int FROM user_stats WHERE user_id = 'org-owner'`
       ).toEqual([{ storage_used_bytes: 45 }])
       expect(
-        await connection!`
+        await connection`
       SELECT user_id, entity_type, entity_id, permission_type FROM permissions
     `
       ).toEqual([

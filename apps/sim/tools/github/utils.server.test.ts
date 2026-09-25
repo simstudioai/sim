@@ -12,14 +12,6 @@ vi.mock('@sim/security/dns', () => ({
   preferIpv4: (addresses: string[]) => addresses[0],
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isHosted: false,
-  getEgressAllowedHosts: () => undefined,
-  getEgressAllowedIpRanges: () => undefined,
-  isLegacyPrivateDatabaseAccessAllowed: () => false,
-  getProxyUrl: () => undefined,
-}))
-
 import { secureGitHubRequest } from '@/tools/github/utils.server'
 
 interface RecordedHop {

@@ -1,44 +1,38 @@
 /** @vitest-environment jsdom */
+
 import { act } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import {
+  kbConnectorsQueriesMock,
+  kbConnectorsQueriesMockFns,
+} from '@sim/testing/mocks/kb-connectors-queries.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import {
+  organizationProviderMock,
+  organizationProviderMockFns,
+} from '@sim/testing/mocks/organization-provider.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  request: vi.fn(),
   userId: 'reader',
   summarize: vi.fn(),
   urlUpdate: vi.fn(),
 }))
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: () => ({ data: { user: { id: mocks.userId } } }),
-}))
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.request }))
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
-  usePathname: () => '/o/organization/search',
-}))
-vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
-  useOrganizationContext: () => ({
-    organization: { id: 'organization', name: 'Acme' },
-    searchAccess: { memberScoped: true },
-  }),
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
+vi.mock('next/navigation', () => nextNavigationMock)
+vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => organizationProviderMock)
 vi.mock('@/hooks/use-speech-to-text', () => ({
   useSpeechToText: () => ({ isSupported: false }),
 }))
-vi.mock('@/hooks/queries/kb/connectors', () => ({
-  useSearchIndex: () => ({ data: { knowledgeBaseId: 'index' }, isPending: false }),
-  useSearchSourceOverview: () => ({
-    data: {
-      providers: [
-        { connectorType: 'slack', isSyncing: false },
-        { connectorType: 'gmail', isSyncing: false },
-      ],
-    },
-  }),
-}))
+vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
 vi.mock(
   '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card',
   () => ({
@@ -73,6 +67,29 @@ import { OrganizationSearch } from '@/app/o/[organizationId]/search/search'
 import { KnowledgeSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/knowledge-search-results'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
+nextNavigationMockFns.mockUsePathname.mockReturnValue('/o/organization/search')
+authClientMockFns.mockUseSession.mockImplementation(() => ({
+  data: { user: { id: mocks.userId } },
+}))
+organizationProviderMockFns.mockUseOrganizationContext.mockImplementation(() => ({
+  organization: { id: 'organization', name: 'Acme' },
+  searchAccess: { memberScoped: true },
+}))
+kbConnectorsQueriesMockFns.mockUseSearchIndex.mockImplementation(() => ({
+  data: { knowledgeBaseId: 'index' },
+  isPending: false,
+}))
+kbConnectorsQueriesMockFns.mockUseSearchSourceOverview.mockImplementation(() => ({
+  data: {
+    providers: [
+      { connectorType: 'slack', isSyncing: false },
+      { connectorType: 'gmail', isSyncing: false },
+    ],
+  },
+}))
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
+
 interface PendingSearch {
   body: WorkspaceKnowledgeSearchBody
   signal: AbortSignal
@@ -99,7 +116,7 @@ beforeEach(() => {
   )
   mocks.userId = 'reader'
   requests = []
-  mocks.request.mockImplementation(
+  mockRequestJson.mockImplementation(
     (_contract, input) =>
       new Promise((resolve, reject) => {
         requests.push({ ...input, resolve, reject })
@@ -116,7 +133,6 @@ afterEach(() => {
   client.clear()
   container.remove()
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 async function render({

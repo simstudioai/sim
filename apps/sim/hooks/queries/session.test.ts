@@ -1,17 +1,12 @@
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession } = vi.hoisted(() => ({
-  mockGetSession: vi.fn(),
-}))
-
-vi.mock('@/lib/auth/auth-client', () => ({
-  client: {
-    getSession: mockGetSession,
-  },
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 import { refreshSessionQuery, sessionKeys } from '@/hooks/queries/session'
+
+const mockGetSession = authClientMockFns.mockClient.getSession
 
 const CACHED_SESSION = {
   user: { id: 'user-1', email: 'cached@example.com' },

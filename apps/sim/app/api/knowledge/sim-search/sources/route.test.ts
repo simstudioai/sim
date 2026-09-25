@@ -1,4 +1,5 @@
 import { authMockFns, createMockRequest } from '@sim/testing'
+import { knowledgeSearchUseCaseMock } from '@sim/testing/mocks/knowledge-search-use-case.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SearchSourceSummary } from '@/lib/api/contracts/knowledge/connectors'
 
@@ -22,9 +23,7 @@ vi.mock('@/lib/knowledge/application/search-source-overview', () => ({
     execute: mocks.overview,
   },
 }))
-vi.mock('@/lib/knowledge/application/search', () => ({
-  KnowledgeSearchProvenanceUnavailableError: class extends Error {},
-}))
+vi.mock('@/lib/knowledge/application/search', () => knowledgeSearchUseCaseMock)
 vi.mock('@/lib/knowledge/application/upload-sessions', () => ({
   KnowledgeDocumentUnsupportedMediaTypeError: class extends Error {},
 }))

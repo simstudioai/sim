@@ -1,6 +1,6 @@
 import crypto from 'node:crypto'
 import { NextRequest } from 'next/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { granolaHandler } from '@/lib/webhooks/providers/granola'
 
 const SECRET_BYTES = Buffer.from('granola-test-secret-key-padding!!!!!')
@@ -131,10 +131,6 @@ describe('Granola webhook provider', () => {
     beforeEach(() => {
       fetchMock.mockReset()
       vi.stubGlobal('fetch', fetchMock)
-    })
-
-    afterEach(() => {
-      vi.unstubAllGlobals()
     })
 
     it('deletes the endpoint when a 2xx response omits the signing secret', async () => {

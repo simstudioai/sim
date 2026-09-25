@@ -1,48 +1,35 @@
+import { tableConstantsMock } from '@sim/testing/mocks/table-constants.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableJobsServiceMock,
+  tableJobsServiceMockFns,
+} from '@sim/testing/mocks/table-jobs-service.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockGetTableById,
-  mockGetJobProgress,
   mockSelectRowDataPage,
   mockUpdatePageByIds,
-  mockUpdateJobProgress,
-  mockMarkJobReady,
-  mockMarkJobFailed,
-  mockMarkJobCanceled,
-  mockAppendTableEvent,
   mockBuildFilterClause,
   mockValidateRowSize,
   mockCoerceRowToSchema,
   mockCoerceRowValues,
 } = vi.hoisted(() => ({
-  mockGetTableById: vi.fn(),
-  mockGetJobProgress: vi.fn(),
   mockSelectRowDataPage: vi.fn(),
   mockUpdatePageByIds: vi.fn(),
-  mockUpdateJobProgress: vi.fn(),
-  mockMarkJobReady: vi.fn(),
-  mockMarkJobFailed: vi.fn(),
-  mockMarkJobCanceled: vi.fn(),
-  mockAppendTableEvent: vi.fn(),
   mockBuildFilterClause: vi.fn(),
   mockValidateRowSize: vi.fn(),
   mockCoerceRowToSchema: vi.fn(),
   mockCoerceRowValues: vi.fn(),
 }))
 
-vi.mock('@/lib/table/service', () => ({ getTableById: mockGetTableById }))
-vi.mock('@/lib/table/jobs/service', () => ({
-  getJobProgress: mockGetJobProgress,
-  updateJobProgress: mockUpdateJobProgress,
-  markJobReady: mockMarkJobReady,
-  markJobFailed: mockMarkJobFailed,
-  markJobCanceled: mockMarkJobCanceled,
-}))
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/jobs/service', () => tableJobsServiceMock)
 vi.mock('@/lib/table/rows/ordering', () => ({
   selectRowDataPage: mockSelectRowDataPage,
   updatePageByIds: mockUpdatePageByIds,
 }))
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: mockAppendTableEvent }))
+vi.mock('@/lib/table/events', () => tableEventsMock)
 vi.mock('@/lib/table/sql', () => ({ buildFilterClause: mockBuildFilterClause }))
 vi.mock('@/lib/table/validation', () => ({
   validateRowSize: mockValidateRowSize,
@@ -50,11 +37,19 @@ vi.mock('@/lib/table/validation', () => ({
   coerceRowValues: mockCoerceRowValues,
 }))
 vi.mock('@/lib/table/constants', () => ({
-  TABLE_LIMITS: { DELETE_PAGE_SIZE: 2, UPDATE_BATCH_SIZE: 100 },
-  USER_TABLE_ROWS_SQL_NAME: 'user_table_rows',
+  ...tableConstantsMock,
+  TABLE_LIMITS: { ...tableConstantsMock.TABLE_LIMITS, DELETE_PAGE_SIZE: 2, UPDATE_BATCH_SIZE: 100 },
 }))
 
 import { runTableUpdate } from '@/lib/table/update-runner'
+
+const mockGetTableById = tableServiceMockFns.mockGetTableById
+const mockGetJobProgress = tableJobsServiceMockFns.mockGetJobProgress
+const mockUpdateJobProgress = tableJobsServiceMockFns.mockUpdateJobProgress
+const mockMarkJobReady = tableJobsServiceMockFns.mockMarkJobReady
+const mockMarkJobFailed = tableJobsServiceMockFns.mockMarkJobFailed
+const mockMarkJobCanceled = tableJobsServiceMockFns.mockMarkJobCanceled
+const mockAppendTableEvent = tableEventsMockFns.mockAppendTableEvent
 
 const UNLOCKED = {
   schemaLocked: false,

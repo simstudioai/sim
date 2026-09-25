@@ -9,7 +9,16 @@ import {
   schemaMock,
   setupGlobalFetchMock,
 } from '@sim/testing/mocks'
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockInstance,
+  vi,
+} from 'vitest'
 import { env } from '@/lib/core/config/env'
 import * as documentsUtilsModule from '@/lib/knowledge/documents/utils'
 import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
@@ -29,9 +38,12 @@ vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
  * `@/lib/knowledge/embeddings` module may be cached bound to the real module,
  * so patching the namespace is the only wiring that always applies.
  */
-const retrySpy = vi
-  .spyOn(documentsUtilsModule, 'retryWithExponentialBackoff')
-  .mockImplementation(((fn: () => unknown) => fn()) as never)
+let retrySpy: MockInstance<typeof documentsUtilsModule.retryWithExponentialBackoff>
+beforeEach(() => {
+  retrySpy = vi
+    .spyOn(documentsUtilsModule, 'retryWithExponentialBackoff')
+    .mockImplementation(((fn: () => unknown) => fn()) as never)
+})
 
 afterAll(() => {
   retrySpy.mockRestore()

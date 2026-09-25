@@ -1,3 +1,7 @@
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   prepareSandboxSessionAccess,
@@ -6,32 +10,23 @@ import {
   settleSandboxProcess,
 } from '@/lib/execution/remote-sandbox/execution-observer'
 
-const { claim, settle, recordProcess, settleProcess, prepareAccess, recover, renew, complete } =
-  vi.hoisted(() => ({
-    claim: vi.fn(),
-    renew: vi.fn(),
-    complete: vi.fn(),
-    settle: vi.fn(),
-    recordProcess: vi.fn(),
-    settleProcess: vi.fn(),
-    prepareAccess: vi.fn(),
-    recover: vi.fn(),
-  }))
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  claimSimToolExecution: claim,
-  renewSimToolExecutionLease: renew,
-  completeOwnedSimToolCall: complete,
-  completeAsyncToolCall: complete,
-  settleSimToolExecution: settle,
-  recordSimSandboxProcess: recordProcess,
-  settleSimSandboxProcess: settleProcess,
-  prepareWorkbenchAccess: prepareAccess,
-}))
+const { recover } = vi.hoisted(() => ({ recover: vi.fn() }))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 vi.mock('@/lib/mothership/request/tools/sandbox-recovery', () => ({
   recoverSandboxProcesses: recover,
 }))
 
 import { withToolExecutionLifetime } from '@/lib/mothership/request/tools/execution-lifetime'
+
+const {
+  mockClaimSimToolExecution: claim,
+  mockRenewSimToolExecutionLease: renew,
+  mockCompleteOwnedSimToolCall: complete,
+  mockSettleSimToolExecution: settle,
+  mockRecordSimSandboxProcess: recordProcess,
+  mockSettleSimSandboxProcess: settleProcess,
+  mockPrepareWorkbenchAccess: prepareAccess,
+} = mothershipAsyncRunsMockFns
 
 function pending() {
   let resolve!: () => void
@@ -46,6 +41,7 @@ describe('durable tool execution lifetime', () => {
     claim.mockResolvedValue({ outcome: 'claimed' })
     renew.mockResolvedValue(true)
     complete.mockResolvedValue(undefined)
+    mothershipAsyncRunsMockFns.mockCompleteAsyncToolCall.mockImplementation(complete)
     settle.mockResolvedValue(undefined)
     recordProcess.mockResolvedValue(undefined)
     settleProcess.mockResolvedValue(undefined)

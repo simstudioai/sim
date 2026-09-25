@@ -1,3 +1,4 @@
+import { utilsHelpersMock } from '@sim/testing/mocks/utils-helpers.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   FALAI_AUDIO_FALLBACK_PROVIDER_COST_DOLLARS,
@@ -7,9 +8,7 @@ import {
 } from './falai-pricing'
 
 // Avoid the real inter-attempt backoff so the fallback path resolves instantly.
-vi.mock('@sim/utils/helpers', () => ({
-  interruptibleSleep: vi.fn().mockResolvedValue(undefined),
-}))
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
 describe('getFalAICostMetadata fallback floor', () => {
   const originalFetch = global.fetch
@@ -27,7 +26,6 @@ describe('getFalAICostMetadata fallback floor', () => {
 
   afterEach(() => {
     global.fetch = originalFetch
-    vi.restoreAllMocks()
   })
 
   it.each([

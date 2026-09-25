@@ -7,15 +7,18 @@ import {
   resourcePolicy,
 } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  credentialGroupsOrganizationSetupMock,
+  credentialGroupsOrganizationSetupMockFns,
+} from '@sim/testing/mocks/credential-groups-organization-setup.mock'
+import {
+  credentialGroupsProvidersMock,
+  credentialGroupsProvidersMockFns,
+} from '@sim/testing/mocks/credential-groups-providers.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ policy: vi.fn(), organizationSetup: vi.fn() }))
-vi.mock('@/lib/credential-groups/provider-registry', () => ({
-  getCredentialGroupProviderAdapter: () => ({ getPolicy: mocks.policy }),
-}))
-vi.mock('@/lib/credential-groups/organization-setup', () => ({
-  requireOrganizationAccountsSetup: mocks.organizationSetup,
-}))
+vi.mock('@/lib/credential-groups/provider-registry', () => credentialGroupsProvidersMock)
+vi.mock('@/lib/credential-groups/organization-setup', () => credentialGroupsOrganizationSetupMock)
 vi.mock('@/lib/credential-groups/provider-configuration', () => ({
   decryptCredentialGroupProviderConfiguration: async () => ({}),
 }))
@@ -24,6 +27,14 @@ import {
   addOrganizationAccountProvider,
   ensureWorkspaceAccountsGroup,
 } from '@/lib/credential-groups/service'
+
+const mocks = {
+  policy: vi.fn(),
+  organizationSetup: credentialGroupsOrganizationSetupMockFns.mockRequireOrganizationAccountsSetup,
+}
+credentialGroupsProvidersMockFns.mockGetCredentialGroupProviderAdapter.mockReturnValue({
+  getPolicy: mocks.policy,
+})
 
 const option: CredentialGroupOptionConfig = {
   id: 'drive-option',

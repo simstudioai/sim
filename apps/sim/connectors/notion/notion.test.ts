@@ -1,20 +1,21 @@
+import {
+  knowledgeDocumentsUtilsMock,
+  knowledgeDocumentsUtilsMockFns,
+} from '@sim/testing/mocks/knowledge-documents-utils.mock'
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetchWithRetry, mockReadBoundedHttpErrorPayload } = vi.hoisted(() => ({
-  mockFetchWithRetry: vi.fn(),
-  mockReadBoundedHttpErrorPayload: vi.fn(),
-}))
-
-vi.mock('@/lib/knowledge/documents/utils', () => ({
-  readBoundedHttpErrorPayload: mockReadBoundedHttpErrorPayload,
-  VALIDATE_RETRY_OPTIONS: {},
-}))
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  fetchWithRetry: mockFetchWithRetry,
-}))
-vi.mock('@/components/icons', () => ({ NotionIcon: () => null }))
+vi.mock('@/lib/knowledge/documents/utils', () => knowledgeDocumentsUtilsMock)
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
 
 import { notionConnector } from '@/connectors/notion/notion'
+
+const mockFetchWithRetry = knowledgeSecureFetchMockFns.mockFetchWithRetry
+const mockReadBoundedHttpErrorPayload =
+  knowledgeDocumentsUtilsMockFns.mockReadBoundedHttpErrorPayload
 
 function notionResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {

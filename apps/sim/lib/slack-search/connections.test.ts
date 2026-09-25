@@ -1,13 +1,13 @@
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const m = vi.hoisted(() => ({ read: vi.fn(), send: vi.fn(), before: vi.fn(), origin: vi.fn() }))
+const m = vi.hoisted(() => ({ read: vi.fn(), send: vi.fn(), before: vi.fn() }))
 vi.mock('@/lib/mothership/application/execute-knowledge-use-case', () => ({
   executeCopilotOrganizationKnowledgeUseCase: m.read,
 }))
 vi.mock('@/lib/knowledge/application/personal-search-integrations', () => ({
   resolvePersonalSearchConnection: {},
 }))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: m.origin }))
 vi.mock('@/lib/internal/slack/client', () => ({ requestSlackApi: m.send }))
 
 import { deliverSlackSearchConnections } from '@/lib/slack-search/connections'
@@ -33,7 +33,7 @@ const input = {
 beforeEach(() => {
   m.read.mockResolvedValue({ name: 'Gmail', target })
   m.send.mockResolvedValue({ status: 200, data: { ok: true } })
-  m.origin.mockReturnValue('https://preview.example.test')
+  urlsMockFns.mockGetBaseUrl.mockReturnValue('https://preview.example.test')
 })
 describe('Slack connection controls', () => {
   it('never publishes personal account details to a channel', async () => {

@@ -1,17 +1,30 @@
 import { member, permissionGroup } from '@sim/db/schema'
 import { authMockFns, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import {
+  permissionGroupLocksMock,
+  permissionGroupLocksMockFns,
+} from '@sim/testing/mocks/permission-group-locks.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import {
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing/mocks/v2-route.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   class Unauthenticated extends Error {}
   return {
-    authenticate: vi.fn(),
-    preauth: vi.fn(),
-    rate: vi.fn(),
-    regime: vi.fn(),
-    config: vi.fn(),
-    lock: vi.fn(),
     group: vi.fn(),
     workspaces: vi.fn(),
     groupWorkspaces: vi.fn(),
@@ -20,23 +33,11 @@ const mocks = vi.hoisted(() => {
     Unauthenticated,
   }
 })
-vi.mock('@sim/audit', () => ({ recordAudit: vi.fn(), AuditAction: {}, AuditResourceType: {} }))
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mocks.authenticate,
-  V2ApiKeyUnauthenticatedError: mocks.Unauthenticated,
-}))
-vi.mock('@/lib/core/rate-limiter', () => ({
-  RateLimiter: class {
-    checkRateLimitDirect = mocks.preauth
-    checkRateLimitDirectOrThrow = mocks.rate
-  },
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  isOrganizationPermissionRegimeActive: mocks.regime,
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
-vi.mock('@/lib/permission-groups/locks', () => ({ acquirePermissionGroupOrgLock: mocks.lock }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/permission-groups/locks', () => permissionGroupLocksMock)
 vi.mock('@/lib/permission-groups/repository', () => ({
   loadGroupInOrganization: mocks.group,
   getGroupWorkspaces: mocks.groupWorkspaces,
@@ -58,7 +59,9 @@ import {
 } from '@/app/api/v2/organizations/[organizationId]/permission-groups/[groupId]/route'
 import { GET, POST } from '@/app/api/v2/organizations/[organizationId]/permission-groups/route'
 
-const principal = { kind: 'personal_api_key', userId: 'admin-1', keyId: 'key-1' } as const
+const { mockAcquirePermissionGroupOrgLock } = permissionGroupLocksMockFns
+
+const principal = createPersonalApiKeyPrincipal({ userId: 'admin-1' })
 const admission = {
   allowed: true,
   remaining: 99,
@@ -80,8 +83,8 @@ const group = {
   creatorEmail: null,
 }
 const params = { organizationId: 'org-1', groupId: 'group-1' }
-const context = { params: Promise.resolve(params) }
-const internalContext = { params: Promise.resolve({ id: 'org-1' }) }
+const context = createRouteContext(params)
+const internalContext = createRouteContext({ id: 'org-1' })
 const url = 'http://localhost/api/v2/organizations/org-1/permission-groups'
 function request(method = 'GET', query = '', body?: unknown) {
   return new NextRequest(url + query, {
@@ -100,16 +103,16 @@ function authorize(role = 'admin') {
 
 beforeEach(() => {
   resetDbChainMock()
-  mocks.authenticate.mockResolvedValue({
+  v2RouteMocks.authenticate.mockResolvedValue({
     principal,
     keyType: 'personal',
     rateLimitSubjectIds: ['key:key-1'],
     rateLimitSubscription: null,
   })
-  mocks.preauth.mockResolvedValue(admission)
-  mocks.rate.mockResolvedValue(admission)
-  mocks.regime.mockResolvedValue(true)
-  mocks.config.mockResolvedValue(null)
+  v2RouteMocks.preauthRate.mockResolvedValue(admission)
+  v2RouteMocks.operationRate.mockResolvedValue(admission)
+  permissionGroupsResolveMockFns.mockIsOrganizationPermissionRegimeActive.mockResolvedValue(true)
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization.mockResolvedValue(null)
   mocks.group.mockResolvedValue(group)
   mocks.groupWorkspaces.mockResolvedValue([{ id: 'workspace-1', name: 'Engineering' }])
   mocks.workspaces.mockResolvedValue(
@@ -164,8 +167,8 @@ describe('permission groups across internal and public surfaces', () => {
     })
   })
   it('rejects a workspace key without loading organization data', async () => {
-    mocks.authenticate.mockResolvedValue({
-      principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+    v2RouteMocks.authenticate.mockResolvedValue({
+      principal: createWorkspaceApiKeyPrincipal(),
       keyType: 'workspace',
       rateLimitSubjectIds: ['key:key-1'],
     })
@@ -258,7 +261,9 @@ describe('permission groups across internal and public surfaces', () => {
   })
   it('returns 503 with Retry-After for lock contention', async () => {
     authorize()
-    mocks.lock.mockRejectedValueOnce(Object.assign(new Error('lock timeout'), { code: '55P03' }))
+    mockAcquirePermissionGroupOrgLock.mockRejectedValueOnce(
+      Object.assign(new Error('lock timeout'), { code: '55P03' })
+    )
     const response = await DELETE(request('DELETE'), context)
     expect(response.status).toBe(503)
     expect(response.headers.get('retry-after')).toBeTruthy()
@@ -286,7 +291,7 @@ describe('permission groups across internal and public surfaces', () => {
       (
         await GET(
           request('GET', `?sortBy=name&search=Restr&cursor=${encodeURIComponent(body.nextCursor)}`),
-          { params: Promise.resolve({ organizationId: 'org-2' }) }
+          createRouteContext({ organizationId: 'org-2' })
         )
       ).status
     ).toBe(400)

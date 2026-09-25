@@ -1,3 +1,4 @@
+import { utilsHelpersMock, utilsHelpersMockFns } from '@sim/testing/mocks/utils-helpers.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AnthropicSessionEvent } from '@/lib/managed-agents/session-client'
 
@@ -12,7 +13,6 @@ const { mocks } = vi.hoisted(() => ({
     getEnvironmentType: vi.fn(),
     interruptSession: vi.fn(),
     readSSEEvents: vi.fn(),
-    sleep: vi.fn(),
   },
 }))
 
@@ -27,9 +27,11 @@ vi.mock('@/lib/managed-agents/session-client', () => ({
   interruptSession: mocks.interruptSession,
 }))
 vi.mock('@/lib/core/utils/sse', () => ({ readSSEEvents: mocks.readSSEEvents }))
-vi.mock('@sim/utils/helpers', () => ({ sleep: mocks.sleep }))
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
 import { runManagedAgentSession } from '@/lib/managed-agents/run-session'
+
+const mockSleep = utilsHelpersMockFns.mockSleep
 
 /** Drives `readSSEEvents`: each call replays the next scripted batch of events. */
 function scriptStreamBatches(batches: AnthropicSessionEvent[][]): void {
@@ -127,7 +129,7 @@ describe('runManagedAgentSession', () => {
 
     expect(result.ok).toBe(true)
     expect(result.content).toBe('thinking')
-    expect(mocks.sleep).toHaveBeenCalled() // backed off while running
+    expect(mockSleep).toHaveBeenCalled() // backed off while running
   })
 
   it('does not complete on idle status while a requires_action is outstanding', async () => {
@@ -345,7 +347,7 @@ describe('runManagedAgentSession', () => {
     const result = await runManagedAgentSession({ ...BASE })
 
     expect(result.ok).toBe(true)
-    expect(mocks.sleep).toHaveBeenCalled() // backed off instead of resetting on the retry event
+    expect(mockSleep).toHaveBeenCalled() // backed off instead of resetting on the retry event
   })
 
   it('interrupts the session when a mid-run stream failure ends the loop', async () => {

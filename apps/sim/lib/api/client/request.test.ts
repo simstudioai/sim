@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { requestJson } from '@/lib/api/client/request'
 import { CLIENT_ID_HEADER } from '@/lib/api/client-id'
@@ -22,10 +22,6 @@ function mockFetchReturning(body: unknown) {
 }
 
 describe('requestJson query serialization', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('serializes a JSON-string query param verbatim (regression: tagFilters)', async () => {
     const fetchMock = mockFetchReturning({
       success: true,

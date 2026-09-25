@@ -1,5 +1,7 @@
 import { link, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
+import { uploadsConfigMock, uploadsConfigMockFns } from '@sim/testing/mocks/uploads-config.mock'
+import { setUploadDirServer, uploadsSetupMock } from '@sim/testing/mocks/uploads-setup.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -15,16 +17,9 @@ const { testUploadDirectory, mockS3Presign, mockS3PartUrls } = vi.hoisted(() => 
   mockS3PartUrls: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/core/setup.server', () => ({
-  UPLOAD_DIR_SERVER: testUploadDirectory,
-}))
+vi.mock('@/lib/uploads/core/setup.server', () => uploadsSetupMock)
 
-vi.mock('@/lib/uploads/config', () => ({
-  USE_BLOB_STORAGE: false,
-  USE_GCS_STORAGE: false,
-  USE_S3_STORAGE: false,
-  getStorageConfig: vi.fn(() => ({ bucket: 'test-bucket', region: 'us-east-1' })),
-}))
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
 
 vi.mock('@/lib/uploads/providers/s3/client', () => ({
   getS3PresignedUploadUrl: mockS3Presign,
@@ -41,6 +36,12 @@ import {
   writeLocalMultipartPart,
   writeLocalPutObject,
 } from '@/lib/uploads/upload-session/provider'
+
+uploadsConfigMockFns.mockGetStorageConfig.mockReturnValue({
+  bucket: 'test-bucket',
+  region: 'us-east-1',
+})
+setUploadDirServer(testUploadDirectory)
 
 const CONTEXT = 'workspace' as const
 

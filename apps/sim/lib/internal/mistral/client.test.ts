@@ -1,38 +1,42 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { errorLog } = vi.hoisted(() => ({ errorLog: vi.fn() }))
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ error: errorLog, info: vi.fn(), warn: vi.fn(), debug: vi.fn() }),
-}))
-
-const { fetchPinned, admit, settle, validate } = vi.hoisted(() => ({
-  fetchPinned: vi.fn(),
+const { admit, settle } = vi.hoisted(() => ({
   admit: vi.fn(),
   settle: vi.fn(),
-  validate: vi.fn(),
 }))
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  DEFAULT_MAX_RESPONSE_BYTES: 1024,
-  secureFetchWithPinnedIP: fetchPinned,
-  validateUrlWithDNS: validate,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/lib/core/rate-limiter/provider-capacity', () => ({ acquireProviderCapacity: admit }))
-vi.mock('@/lib/core/config/env', () => ({
-  env: {},
-  envNumber: (value: unknown, fallback: number) => (value === undefined ? fallback : Number(value)),
-}))
 
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { submitMistralOcr } from '@/lib/internal/mistral/client'
 
+const { error: errorLog } = getMockLogger('MistralClient')
+const fetchPinned = inputValidationMockFns.mockSecureFetchWithPinnedIP
+const validate = inputValidationMockFns.mockValidateUrlWithDNS
+
 describe('Mistral provider transport', () => {
   beforeEach(() => {
+    setEnv({
+      KB_CONFIG_MISTRAL_OCR_PAGES_PER_MINUTE: undefined,
+      KB_CONFIG_MISTRAL_OCR_PAGES_PER_REQUEST: undefined,
+      KB_CONFIG_MISTRAL_OCR_MAX_CONCURRENT: undefined,
+      KB_CONFIG_OCR_REQUESTS_PER_MINUTE: undefined,
+      MISTRAL_API_KEY: undefined,
+      MISTRAL_OCR_QUOTA_GROUPS: undefined,
+    })
     admit.mockResolvedValue({ settle })
     settle.mockResolvedValue(0)
     validate.mockResolvedValue({ isValid: true, resolvedIP: '1.1.1.1' })
     fetchPinned.mockResolvedValue(new Response('{}'))
   })
   afterEach(() => vi.useRealTimers())
+  afterAll(resetEnvMock)
 
   it('defers a 429 once, preserving provider and shared cooldown lower bounds', async () => {
     fetchPinned.mockResolvedValue(

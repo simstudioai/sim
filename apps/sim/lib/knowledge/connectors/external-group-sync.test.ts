@@ -6,22 +6,22 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { GoogleDriveApiError } from '@/connectors/google-drive/google-drive-errors'
 import { ConnectorDirectoryGroupAccessError } from '@/connectors/source-error'
 import type { ConnectorDirectory } from '@/connectors/types'
 
-const { mockResolveTokenUserId, mockResolveToken, mockOpenDirectory, mockAvailability } =
-  vi.hoisted(() => ({
-    mockResolveTokenUserId: vi.fn(),
-    mockResolveToken: vi.fn(),
-    mockOpenDirectory: vi.fn(),
-    mockAvailability: vi.fn(async () => ({ sourceMirrored: true, memberScoped: true })),
-  }))
-
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  resolveKnowledgeAccessAvailability: mockAvailability,
+const { mockResolveTokenUserId, mockResolveToken, mockOpenDirectory } = vi.hoisted(() => ({
+  mockResolveTokenUserId: vi.fn(),
+  mockResolveToken: vi.fn(),
+  mockOpenDirectory: vi.fn(),
 }))
+
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/knowledge/connectors/access-token', () => ({
   resolveConnectorAccessToken: mockResolveToken,
   resolveConnectorTokenUserId: mockResolveTokenUserId,
@@ -43,6 +43,8 @@ import {
   refreshConnectorDirectory,
   syncExternalDirectoryGroups,
 } from '@/lib/knowledge/connectors/external-group-sync'
+
+const mockAvailability = knowledgeAvailabilityMockFns.mockResolveKnowledgeAccessAvailability
 
 function directory(overrides: Partial<ConnectorDirectory> = {}): ConnectorDirectory {
   return {

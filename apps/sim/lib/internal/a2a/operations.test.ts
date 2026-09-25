@@ -1,16 +1,26 @@
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import { filesAuthorizationMock } from '@sim/testing/mocks/files-authorization.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
   buildUserMessage: vi.fn(),
   createA2AClient: vi.fn(),
-  downloadServableFileFromStorage: vi.fn(),
-  isModelSafeWorkspaceFileKey: vi.fn(),
   isTaskResult: vi.fn(),
   messageOutput: vi.fn(),
-  processFilesToUserFiles: vi.fn(),
   validateOpaqueModelInputProvenance: vi.fn(),
 }))
+
+const { mockProcessFilesToUserFiles } = fileUtilsMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
+const { mockIsModelSafeWorkspaceFileKey } = workspaceFileSecretProvenanceMockFns
 
 vi.mock('@/lib/a2a/client', () => ({
   buildUserMessage: mocks.buildUserMessage,
@@ -27,31 +37,20 @@ vi.mock('@/lib/execution/model-input-provenance', () => ({
 }))
 
 vi.mock('@/lib/uploads/shared/types', () => ({ MAX_BUFFERED_TRANSFER_BYTES: 5 }))
-
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  processFilesToUserFiles: mocks.processFilesToUserFiles,
-}))
-
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mocks.downloadServableFileFromStorage,
-}))
-
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  isModelSafeWorkspaceFileKey: mocks.isModelSafeWorkspaceFileKey,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE: 'unsafe file',
-}))
-
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertToolFileAccess,
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
 import { sendA2AMessage } from '@/lib/internal/a2a/operations'
 
 describe('sendA2AMessage', () => {
   beforeEach(() => {
     mocks.validateOpaqueModelInputProvenance.mockReturnValue({ success: true })
-    mocks.assertToolFileAccess.mockResolvedValue(null)
-    mocks.isModelSafeWorkspaceFileKey.mockResolvedValue(true)
+    mockIsModelSafeWorkspaceFileKey.mockResolvedValue(true)
     mocks.buildUserMessage.mockReturnValue({ messageId: 'message-1' })
     mocks.isTaskResult.mockReturnValue(false)
     mocks.messageOutput.mockReturnValue({ content: 'done' })
@@ -77,7 +76,7 @@ describe('sendA2AMessage', () => {
         }
       )
     ).rejects.toMatchObject({ status: 400 })
-    expect(mocks.processFilesToUserFiles).not.toHaveBeenCalled()
+    expect(mockProcessFilesToUserFiles).not.toHaveBeenCalled()
     expect(mocks.createA2AClient).not.toHaveBeenCalled()
   })
 
@@ -86,8 +85,8 @@ describe('sendA2AMessage', () => {
       { key: 'workspace/ws/file-1', name: 'one.txt', size: 3, type: 'text/plain' },
       { key: 'workspace/ws/file-2', name: 'two.txt', size: 3, type: 'text/plain' },
     ]
-    mocks.processFilesToUserFiles.mockReturnValue(files)
-    mocks.downloadServableFileFromStorage
+    mockProcessFilesToUserFiles.mockReturnValue(files)
+    mockDownloadServableFileFromStorage
       .mockResolvedValueOnce({ buffer: Buffer.from('one'), contentType: 'text/plain' })
       .mockResolvedValueOnce({ buffer: Buffer.from('two'), contentType: 'text/plain' })
 
@@ -105,7 +104,7 @@ describe('sendA2AMessage', () => {
         }
       )
     ).rejects.toMatchObject({ name: 'PayloadSizeLimitError' })
-    expect(mocks.downloadServableFileFromStorage).toHaveBeenCalledTimes(2)
+    expect(mockDownloadServableFileFromStorage).toHaveBeenCalledTimes(2)
     expect(mocks.createA2AClient).not.toHaveBeenCalled()
   })
 })

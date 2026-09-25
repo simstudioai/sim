@@ -1,47 +1,44 @@
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import { publicSharesMock } from '@sim/testing/mocks/public-shares.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  loadFolderIndex: vi.fn(),
-  queryFiles: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   resolveFolderScope: vi.fn(),
-  resolvePermission: vi.fn(),
-  recordAudit: vi.fn(),
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {},
-  AuditResourceType: { FILE: 'FILE' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  listWorkspaceFiles: vi.fn(),
-  loadActiveWorkspaceContext: mocks.loadWorkspace,
-  queryWorkspaceFiles: mocks.queryFiles,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
-vi.mock('@/lib/public-shares/share-manager', () => ({ getWorkspaceShares: vi.fn() }))
+vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
 
 vi.mock('@/lib/workspace-files/resolve-folder-scope', () => ({
-  resolveWorkspaceFolderScope: mocks.resolveFolderScope,
+  resolveWorkspaceFolderScope: hoisted.resolveFolderScope,
 }))
 
-vi.mock('@/lib/folders/queries', async () => {
-  const { resolveFolderPathFilter } =
-    await vi.importActual<typeof import('@/lib/folders/queries')>('@/lib/folders/queries')
-  return { loadActiveFolderPathIndex: mocks.loadFolderIndex, resolveFolderPathFilter }
-})
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 
 import {
   listWorkspaceFilesInFolderScope,
   queryWorkspaceFilePage,
 } from '@/lib/workspace-files/application/list-workspace-files'
+
+const mocks = {
+  loadWorkspace: workspaceUploadsMockFns.mockLoadActiveWorkspaceContext,
+  queryFiles: workspaceUploadsMockFns.mockQueryWorkspaceFiles,
+  recordAudit: auditMockFns.mockRecordAudit,
+  ...hoisted,
+  loadFolderIndex: folderQueriesMockFns.mockLoadActiveFolderPathIndex,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 /**
  * Projects / (a)

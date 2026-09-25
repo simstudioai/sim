@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFilesListMock,
+  workspaceFilesListMockFns,
+} from '@sim/testing/mocks/workspace-files-list.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -25,8 +33,6 @@ vi.mock('@/lib/mothership/request/session', async () => {
   }
 })
 
-const resolveWorkspaceFileReferenceMock = vi.hoisted(() => vi.fn())
-const listAllWorkspaceFilesMock = vi.hoisted(() => vi.fn())
 const changeStoredChatResourcesMock = vi.hoisted(() => vi.fn())
 const materializeStreamImageMock = vi.hoisted(() => vi.fn())
 
@@ -38,21 +44,8 @@ vi.mock('@/lib/mothership/resources/store', () => ({
   changeStoredChatResources: changeStoredChatResourcesMock,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  resolveWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
-  findWorkspaceFileRecord: (
-    files: Array<{ name: string; folderPath?: string | null }>,
-    path: string
-  ) =>
-    files.find((file) => {
-      const normalized = path.replace(/^files\//, '').replaceAll('%20', ' ')
-      const filePath = file.folderPath ? `${file.folderPath}/${file.name}` : file.name
-      return filePath === normalized
-    }) ?? null,
-}))
-vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
-  listAllWorkspaceFiles: { execute: listAllWorkspaceFilesMock },
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
+vi.mock('@/lib/workspace-files/application/list-workspace-files', () => workspaceFilesListMock)
 
 vi.mock('@/lib/mothership/application/execute-file-use-case', () => ({
   executeCopilotFileUseCase: (
@@ -101,6 +94,19 @@ import {
 import { createEvent, hasAbortMarker } from '@/lib/mothership/request/session'
 import { TraceCollector } from '@/lib/mothership/request/trace'
 import type { ExecutionContext, StreamingContext } from '@/lib/mothership/request/types'
+
+const mockListAllWorkspaceFiles = workspaceFilesListMockFns.mockListAllWorkspaceFiles
+
+const resolveWorkspaceFileReferenceMock =
+  workspaceFileManagerMockFns.mockResolveWorkspaceFileReference
+workspaceFileManagerMockFns.mockFindWorkspaceFileRecord.mockImplementation(
+  (files: Array<{ name: string; folderPath?: string | null }>, path: string) =>
+    files.find((file) => {
+      const normalized = path.replace(/^files\//, '').replaceAll('%20', ' ')
+      const filePath = file.folderPath ? `${file.folderPath}/${file.name}` : file.name
+      return filePath === normalized
+    }) ?? null
+)
 
 function createSseResponse(events: unknown[]): Response {
   const payload = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join('')
@@ -171,15 +177,11 @@ describe('copilot go stream helpers', () => {
     vi.stubGlobal('fetch', vi.fn())
     resolveWorkspaceFileReferenceMock.mockReset()
     resolveWorkspaceFileReferenceMock.mockResolvedValue(null)
-    listAllWorkspaceFilesMock.mockReset()
-    listAllWorkspaceFilesMock.mockResolvedValue({ files: [] })
+    mockListAllWorkspaceFiles.mockReset()
+    mockListAllWorkspaceFiles.mockResolvedValue({ files: [] })
     changeStoredChatResourcesMock.mockReset()
     changeStoredChatResourcesMock.mockResolvedValue([])
     materializeStreamImageMock.mockReset().mockResolvedValue({ url: '/private-image' })
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('prepares inline images before delivery without changing text offsets or final receipt length', async () => {
@@ -500,7 +502,7 @@ describe('copilot go stream helpers', () => {
   })
 
   it('resolves workflow alias paths to the backing file before streaming previews', async () => {
-    listAllWorkspaceFilesMock.mockResolvedValue({
+    mockListAllWorkspaceFiles.mockResolvedValue({
       files: [
         {
           id: 'changelog-file-1',
@@ -614,7 +616,7 @@ describe('copilot go stream helpers', () => {
       previewPhase: 'file_preview_complete',
       fileId: 'changelog-file-1',
     })
-    expect(listAllWorkspaceFilesMock).toHaveBeenCalledWith({
+    expect(mockListAllWorkspaceFiles).toHaveBeenCalledWith({
       principal: expect.objectContaining({
         kind: 'delegated',
         workspaceId: 'workspace-1',

@@ -1,29 +1,30 @@
+import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import {
-  dbChainMock,
-  dbChainMockFns,
-  queueTableRows,
-  resetDbChainMock,
-  schemaMock,
-} from '@sim/testing'
+  authorizedWorkspaceUseCaseMock,
+  authorizedWorkspaceUseCaseMockFns,
+} from '@sim/testing/mocks/authorized-workspace-use-case.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const { mockAuthorize, mockRecordAudit } = vi.hoisted(() => ({
-  mockAuthorize: vi.fn(),
-  mockRecordAudit: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mockAuthorize,
-}))
-vi.mock('@/lib/core/application/authorized-workspace-use-case', () => ({
-  recordProjectedUseCaseAuditEntries: mockRecordAudit,
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock(
+  '@/lib/core/application/authorized-workspace-use-case',
+  () => authorizedWorkspaceUseCaseMock
+)
 
 import { setPrimarySsoProvider } from '@/lib/auth/sso/application/set-primary-provider'
 
-const principal = { kind: 'session', userId: 'u1', sessionId: 's1' } as const
+const { mockRecordProjectedUseCaseAuditEntries: mockRecordAudit } =
+  authorizedWorkspaceUseCaseMockFns
+
+const mockAuthorize = organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation
+
+const principal = createSessionPrincipal({ userId: 'u1', sessionId: 's1' })
 const run = () => setPrimarySsoProvider.execute({ principal, input: { providerId: 'acme-okta' } })
 
 describe('setPrimarySsoProvider', () => {

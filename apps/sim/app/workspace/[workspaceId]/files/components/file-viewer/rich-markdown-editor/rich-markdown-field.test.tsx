@@ -38,7 +38,6 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
-  vi.restoreAllMocks()
 })
 
 describe('shared field with real extensions', () => {

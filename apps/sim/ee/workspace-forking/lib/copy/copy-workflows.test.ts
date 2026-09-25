@@ -1,4 +1,8 @@
 import { createBlock } from '@sim/testing/factories'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
@@ -8,20 +12,16 @@ import { getBlock } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-const { mockSaveWorkflowToNormalizedTables } = vi.hoisted(() => ({
-  mockSaveWorkflowToNormalizedTables: vi.fn(),
-}))
-
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  CREDENTIAL_SUBBLOCK_IDS: new Set(['credential']),
-  saveWorkflowToNormalizedTables: mockSaveWorkflowToNormalizedTables,
-}))
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 
 import {
   buildWorkflowNameRegistry,
   copyWorkflowStateIntoTarget,
   resolveForkFolderMapping,
 } from '@/ee/workspace-forking/lib/copy/copy-workflows'
+
+const mockSaveWorkflowToNormalizedTables =
+  workflowsPersistenceUtilsMockFns.mockSaveWorkflowToNormalizedTables
 
 describe('buildWorkflowNameRegistry', () => {
   it('excludes the workflow itself so a replace can keep its own name', () => {

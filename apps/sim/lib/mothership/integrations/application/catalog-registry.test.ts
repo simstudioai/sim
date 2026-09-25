@@ -1,4 +1,6 @@
 import { INTEGRATION_METADATA } from '@sim/deployment-config/integration-metadata'
+import { mcpUseCasesMock } from '@sim/testing/mocks/mcp-use-cases.mock'
+import { mothershipChatPayloadMock } from '@sim/testing/mocks/mothership-chat-payload.mock'
 import { stripVersionSuffix } from '@sim/utils/string'
 import { describe, expect, it, vi } from 'vitest'
 import { getExposedIntegrationTools } from '@/lib/integrations/tool-catalog'
@@ -7,9 +9,9 @@ import { projectIntegrationCatalog } from '@/lib/mothership/integrations/applica
 
 /** Registration assertions must exercise the executable registry, not the global empty mock. */
 vi.unmock('@/tools/registry')
-vi.mock('@/lib/mothership/chat/payload', () => ({ buildIntegrationToolSchemas: vi.fn() }))
+vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 vi.mock('@/lib/mothership/mcp-tools', () => ({ buildTaggedMcpToolSchemas: vi.fn() }))
-vi.mock('@/lib/mcp/application/use-cases', () => ({ listMcpServersUseCase: { execute: vi.fn() } }))
+vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
 
 const tools: ToolSchema[] = getExposedIntegrationTools().map((tool) => ({
   name: tool.toolId,

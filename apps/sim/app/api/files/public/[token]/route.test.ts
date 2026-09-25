@@ -1,21 +1,15 @@
+import { publicSharesMock, publicSharesMockFns } from '@sim/testing/mocks/public-shares.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockResolveActiveShareByToken,
-  mockEnforceRateLimit,
-  mockValidateDeploymentAuth,
-  mockSetDeploymentAuthCookie,
-} = vi.hoisted(() => ({
-  mockResolveActiveShareByToken: vi.fn(),
-  mockEnforceRateLimit: vi.fn(),
-  mockValidateDeploymentAuth: vi.fn(),
-  mockSetDeploymentAuthCookie: vi.fn(),
-}))
+const { mockEnforceRateLimit, mockValidateDeploymentAuth, mockSetDeploymentAuthCookie } =
+  vi.hoisted(() => ({
+    mockEnforceRateLimit: vi.fn(),
+    mockValidateDeploymentAuth: vi.fn(),
+    mockSetDeploymentAuthCookie: vi.fn(),
+  }))
 
-vi.mock('@/lib/public-shares/share-manager', () => ({
-  resolveActiveShareByToken: mockResolveActiveShareByToken,
-}))
+vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
 
 vi.mock('@/lib/public-shares/rate-limit', () => ({
   enforcePublicFileRateLimit: mockEnforceRateLimit,
@@ -31,6 +25,8 @@ vi.mock('@/lib/core/security/deployment', () => ({
 
 import { NextResponse } from 'next/server'
 import { GET, POST } from '@/app/api/files/public/[token]/route'
+
+const mockResolveActiveShareByToken = publicSharesMockFns.mockResolveActiveShareByToken
 
 const params = (token = 'tok_1') => ({ params: Promise.resolve({ token }) })
 const request = (token = 'tok_1') => new NextRequest(`http://localhost/api/files/public/${token}`)

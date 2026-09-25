@@ -13,13 +13,11 @@ import {
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
 } from '@sim/testing'
+import { getMockPlatformEvent, telemetryMock } from '@sim/testing/mocks/telemetry.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockWorkflowCreated } = vi.hoisted(() => ({
-  mockWorkflowCreated: vi.fn(),
-}))
-
 const mockGetUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
+const mockWorkflowCreated = getMockPlatformEvent('workflowCreated')
 
 vi.mock('@sim/audit', () => auditMock)
 
@@ -27,11 +25,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: {
-    workflowCreated: (...args: unknown[]) => mockWorkflowCreated(...args),
-  },
-}))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
 vi.mock('@/lib/workflows/defaults', () => ({
   buildDefaultWorkflowArtifacts: vi.fn().mockReturnValue({

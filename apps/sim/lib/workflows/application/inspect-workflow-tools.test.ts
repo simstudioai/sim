@@ -1,50 +1,47 @@
 import type { SubjectDelegatedPrincipal } from '@sim/auth/principal'
+import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { mcpUseCasesMock, mcpUseCasesMockFns } from '@sim/testing/mocks/mcp-use-cases.mock'
+import {
+  mothershipChatPayloadMock,
+  mothershipChatPayloadMockFns,
+} from '@sim/testing/mocks/mothership-chat-payload.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowsQueriesMock,
+  workflowsQueriesMockFns,
+} from '@sim/testing/mocks/workflows-queries.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import type { BlockState } from '@sim/workflow-types/workflow'
+import type { Mock } from 'vitest'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getBlock } from '@/blocks/registry'
 
-const mocks = vi.hoisted(() => ({
-  context: vi.fn(),
-  permission: vi.fn(),
-  snapshot: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   custom: vi.fn(),
-  mcp: vi.fn(),
   skill: vi.fn(),
-  ambient: vi.fn(),
-  blockPermission: vi.fn(),
-  toolPermission: vi.fn(),
-  block: vi.fn(),
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null) => actual !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.context,
-}))
-vi.mock('@/lib/workflows/queries', () => ({ loadWorkflowReadSnapshot: mocks.snapshot }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
+vi.mock('@/lib/workflows/queries', () => workflowsQueriesMock)
 vi.mock('@/lib/custom-tools/application/use-cases', () => ({
   readAvailableCustomToolByIdOrTitleUseCase: {
     delegationAudience: 'sim:custom-tools',
-    execute: mocks.custom,
+    execute: hoisted.custom,
   },
 }))
-vi.mock('@/lib/mcp/application/use-cases', () => ({
-  discoverMcpServerToolsUseCase: { delegationAudience: 'sim:mcp-servers', execute: mocks.mcp },
-}))
+vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
 vi.mock('@/lib/skills/application/use-cases', () => ({
-  getSkillUseCase: { delegationAudience: 'sim:skills', execute: mocks.skill },
+  getSkillUseCase: { delegationAudience: 'sim:skills', execute: hoisted.skill },
 }))
-vi.mock('@/lib/mothership/chat/payload', () => ({ buildIntegrationToolSchemas: mocks.ambient }))
-vi.mock('@/blocks/registry', () => ({ getBlock: mocks.block }))
-vi.mock('@/blocks', () => ({ getBlock: mocks.block }))
-vi.mock('@/tools/registry', async () => ({
-  tools: { table_query_rows: (await import('@/tools/table/query_rows')).tableQueryRowsTool },
-}))
-vi.mock('@/ee/access-control/utils/permission-check', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/ee/access-control/utils/permission-check')>()),
-  validateBlockType: mocks.blockPermission,
-  assertPermissionsAllowed: mocks.toolPermission,
-}))
+vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
 import { markCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import { runEngine } from '@/lib/mothership/agent-cli/engines'
@@ -55,6 +52,26 @@ import { MothershipBlock } from '@/blocks/blocks/mothership'
 import { TableBlock } from '@/blocks/blocks/table'
 import { ToolNotAllowedError } from '@/ee/access-control/utils/permission-check'
 import { assignProviderToolIdentities } from '@/providers/tool-identity'
+import { tools } from '@/tools/registry'
+import { tableQueryRowsTool } from '@/tools/table/query_rows'
+
+const mocks = {
+  ...hoisted,
+  snapshot: workflowsQueriesMockFns.mockLoadWorkflowReadSnapshot,
+  mcp: mcpUseCasesMockFns.mockDiscoverMcpServerToolsUseCase,
+  ambient: mothershipChatPayloadMockFns.mockBuildIntegrationToolSchemas,
+}
+
+Object.assign(tools, { table_query_rows: tableQueryRowsTool })
+
+const mockBlockPermission = permissionCheckMockFns.mockValidateBlockType
+const mockToolPermission = permissionCheckMockFns.mockAssertPermissionsAllowed
+
+const mockGetBlock = getBlock as Mock
+mockGetBlock.mockReturnValue(undefined)
+
+const mockPermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
 
 let principal: SubjectDelegatedPrincipal
 function save(
@@ -107,7 +124,7 @@ describe('configured workflow tool inspection', () => {
       expiresAt: new Date(Date.now() + 60_000),
     }
     markCopilotWorkspaceInvocation(principal)
-    mocks.context.mockResolvedValue({
+    mockContext.mockResolvedValue({
       workflowId: 'workflow',
       workspaceId: 'workspace',
       workspaceOrganizationId: null,
@@ -115,7 +132,7 @@ describe('configured workflow tool inspection', () => {
       billedAccountUserId: 'payer',
       workflow: { id: 'workflow' },
     })
-    mocks.permission.mockResolvedValue('read')
+    mockPermission.mockResolvedValue('read')
     mocks.custom.mockResolvedValue({
       tool: { title: 'lookup_customer', schema: { function: { name: 'ignored_schema_alias' } } },
     })
@@ -130,9 +147,9 @@ describe('configured workflow tool inspection', () => {
       { name: 'gmail_read', service: 'gmail', description: 'Read email', input_schema: {} },
     ])
     mocks.skill.mockResolvedValue({ skill: { name: 'skill' } })
-    mocks.toolPermission.mockResolvedValue(undefined)
-    mocks.blockPermission.mockResolvedValue(undefined)
-    mocks.block.mockImplementation(
+    mockToolPermission.mockResolvedValue(undefined)
+    mockBlockPermission.mockResolvedValue(undefined)
+    mockGetBlock.mockImplementation(
       (type: string) =>
         ({ agent: AgentBlock, mothership: MothershipBlock, table_v2: TableBlock })[type]
     )
@@ -352,21 +369,21 @@ describe('configured workflow tool inspection', () => {
 
   it('reports denied tools but propagates infrastructure failures instead of false absence', async () => {
     save('agent', [{ type: 'table_v2', operation: 'query_rows' }])
-    mocks.toolPermission.mockRejectedValue(new ToolNotAllowedError('table_query_rows'))
+    mockToolPermission.mockRejectedValue(new ToolNotAllowedError('table_query_rows'))
     expect((await inspect()).selected[0].status).toBe('unavailable')
-    mocks.toolPermission.mockRejectedValue(new Error('database offline'))
+    mockToolPermission.mockRejectedValue(new Error('database offline'))
     await expect(inspect()).rejects.toThrow('database offline')
   })
 
   it('authorizes the workflow before loading its graph', async () => {
-    mocks.permission.mockResolvedValue(null)
+    mockPermission.mockResolvedValue(null)
     await expect(inspect()).rejects.toThrow('Insufficient workspace permissions')
     expect(mocks.snapshot).not.toHaveBeenCalled()
     expect(mocks.ambient).not.toHaveBeenCalled()
   })
 
   it('rejects wrong workspace, expired delegation and unsupported principals', async () => {
-    mocks.context.mockResolvedValue({
+    mockContext.mockResolvedValue({
       workflowId: 'workflow',
       workspaceId: 'elsewhere',
       workspaceOrganizationId: null,
@@ -378,7 +395,7 @@ describe('configured workflow tool inspection', () => {
     await expect(inspect()).rejects.toThrow('Delegated workspace access')
     await expect(
       inspectWorkflowTools.execute({
-        principal: { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' },
+        principal: createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace', keyId: 'key' }),
         input: { workflowId: 'workflow', blockId: 'agent' },
       })
     ).rejects.toThrow('Workspace API key cannot')

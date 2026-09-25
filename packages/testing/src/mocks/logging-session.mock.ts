@@ -5,8 +5,10 @@ import { vi } from 'vitest'
  * `@/lib/logs/execution/logging-session`. Every instance method is backed by a
  * shared `vi.fn()` so tests that construct multiple sessions observe identical
  * mock state. `mockSafeStart` defaults to `true` because callers branch on the
- * boolean result. Display projection methods return their input, diagnostic projection
- * fails closed to structural metadata, and other methods resolve to `undefined`.
+ * boolean result. Display projection methods (incl. `projectTraceSpansForLiveDisplay`) return
+ * their input, diagnostic projection fails closed to structural metadata, `hasCompleted` is
+ * `false`, `getPersistedCompletionStatus` is `null`, and other methods resolve to `undefined`.
+ * Defaults are `vi.fn(impl)`, so `mockReset()` restores them.
  *
  * @example
  * ```ts
@@ -17,21 +19,30 @@ import { vi } from 'vitest'
  * ```
  */
 export const loggingSessionMockFns = {
-  mockStart: vi.fn().mockResolvedValue(undefined),
-  mockComplete: vi.fn().mockResolvedValue(undefined),
-  mockCompleteWithError: vi.fn().mockResolvedValue(undefined),
-  mockCompleteWithCancellation: vi.fn().mockResolvedValue(undefined),
-  mockCompleteWithPause: vi.fn().mockResolvedValue(undefined),
-  mockSafeStart: vi.fn().mockResolvedValue(true),
-  mockWaitForCompletion: vi.fn().mockResolvedValue(undefined),
-  mockWaitForPostExecution: vi.fn().mockResolvedValue(undefined),
+  mockStart: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
+  mockComplete: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
+  mockCompleteWithError: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
+  mockCompleteWithCancellation: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
+  mockCompleteWithPause: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
+  mockSafeStart: vi.fn(async (..._args: unknown[]): Promise<boolean> => true),
+  mockWaitForCompletion: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
+  mockWaitForPostExecution: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
   mockSetTrustedExecutionCorrelation: vi.fn(),
   mockSetExecutionDeadlineAt: vi.fn(),
-  mockExportResolvedSecretTraceProvenanceForValue: vi.fn().mockReturnValue({
+  mockExportResolvedSecretTraceProvenanceForValue: vi.fn((_value: unknown) => ({
     version: 1,
     complete: false,
-    entries: [],
-  }),
+    entries: [] as unknown[],
+  })),
+  mockSetResolvedSecretTraceRegistry: vi.fn(),
+  mockSetTraceLargeValueAccess: vi.fn(),
+  mockSetPostExecutionPromise: vi.fn(),
+  mockOnBlockStart: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
+  mockOnBlockComplete: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
+  mockHasCompleted: vi.fn((): boolean => false),
+  mockGetPersistedCompletionStatus: vi.fn((): string | null => null),
+  mockProjectTraceSpansForLiveDisplay: vi.fn(async (traceSpans: unknown) => traceSpans),
+  mockMarkExecutionAsFailed: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
   mockProjectBlockLogsForDisplay: vi.fn(async (logs: unknown) => logs),
   mockProjectDisplayContent: vi.fn(async (content: unknown) => content),
   mockProjectLiveDisplayText: vi.fn(async (_field: string, value: string) => ({ value })),
@@ -39,11 +50,11 @@ export const loggingSessionMockFns = {
     errorType: error instanceof Error ? 'error' : error === null ? 'null' : typeof error,
     hasStack: error instanceof Error && typeof error.stack === 'string',
   })),
-  mockSafeComplete: vi.fn().mockResolvedValue(undefined),
-  mockSafeCompleteWithError: vi.fn().mockResolvedValue(undefined),
-  mockSafeCompleteWithCancellation: vi.fn().mockResolvedValue(undefined),
-  mockSafeCompleteWithPause: vi.fn().mockResolvedValue(undefined),
-  mockMarkAsFailed: vi.fn().mockResolvedValue(undefined),
+  mockSafeComplete: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
+  mockSafeCompleteWithError: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
+  mockSafeCompleteWithCancellation: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
+  mockSafeCompleteWithPause: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
+  mockMarkAsFailed: vi.fn(async (..._args: unknown[]): Promise<void> => {}),
 }
 
 /**
@@ -64,6 +75,14 @@ function buildLoggingSessionInstance() {
     waitForPostExecution: loggingSessionMockFns.mockWaitForPostExecution,
     setTrustedExecutionCorrelation: loggingSessionMockFns.mockSetTrustedExecutionCorrelation,
     setExecutionDeadlineAt: loggingSessionMockFns.mockSetExecutionDeadlineAt,
+    setResolvedSecretTraceRegistry: loggingSessionMockFns.mockSetResolvedSecretTraceRegistry,
+    setTraceLargeValueAccess: loggingSessionMockFns.mockSetTraceLargeValueAccess,
+    setPostExecutionPromise: loggingSessionMockFns.mockSetPostExecutionPromise,
+    onBlockStart: loggingSessionMockFns.mockOnBlockStart,
+    onBlockComplete: loggingSessionMockFns.mockOnBlockComplete,
+    hasCompleted: loggingSessionMockFns.mockHasCompleted,
+    getPersistedCompletionStatus: loggingSessionMockFns.mockGetPersistedCompletionStatus,
+    projectTraceSpansForLiveDisplay: loggingSessionMockFns.mockProjectTraceSpansForLiveDisplay,
     exportResolvedSecretTraceProvenanceForValue:
       loggingSessionMockFns.mockExportResolvedSecretTraceProvenanceForValue,
     projectBlockLogsForDisplay: loggingSessionMockFns.mockProjectBlockLogsForDisplay,
@@ -81,9 +100,13 @@ function buildLoggingSessionInstance() {
 /**
  * Constructor-shaped mock for `LoggingSession`. Each `new LoggingSession(...)`
  * call returns an object whose methods point at the shared `vi.fn()` refs in
- * `loggingSessionMockFns`.
+ * `loggingSessionMockFns`; `LoggingSessionMock.mock.calls` records the constructor
+ * arguments (`[workflowId, executionId, triggerType, requestId]`). The static
+ * `LoggingSession.markExecutionAsFailed` is `loggingSessionMockFns.mockMarkExecutionAsFailed`.
  */
-export const LoggingSessionMock = vi.fn().mockImplementation(buildLoggingSessionInstance)
+export const LoggingSessionMock = Object.assign(vi.fn(buildLoggingSessionInstance), {
+  markExecutionAsFailed: loggingSessionMockFns.mockMarkExecutionAsFailed,
+})
 
 /**
  * Static mock module for `@/lib/logs/execution/logging-session`.

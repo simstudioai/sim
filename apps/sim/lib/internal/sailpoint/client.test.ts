@@ -22,7 +22,6 @@ describe('SailPoint client', () => {
 
   afterEach(() => {
     vi.useRealTimers()
-    vi.unstubAllGlobals()
   })
 
   it('accepts only commercial and government tenant hosts', () => {

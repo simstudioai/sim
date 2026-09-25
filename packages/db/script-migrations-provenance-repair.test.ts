@@ -1,5 +1,5 @@
 import type { Sql } from 'postgres'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { repairUnknownTableRowProvenance } from './script-migrations/0005_repair_unknown_table_row_provenance'
 import { repairUnknownWorkspaceFileProvenance } from './script-migrations/0007_repair_unknown_workspace_file_provenance'
 
@@ -61,10 +61,6 @@ function createRecordingSql(sidecarTable: string): RecordingSql {
 describe('unknown provenance repair lock order', () => {
   beforeEach(() => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
   })
 
   it('locks user_table_rows before deleting the row sidecar', async () => {

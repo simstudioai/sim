@@ -1,5 +1,5 @@
 import { load } from 'js-yaml'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CLI_CONTRACT } from '../contract/commands'
 import type { CommandSpec } from '../contract/types'
 import { encodeFolderPath } from './request'
@@ -12,10 +12,6 @@ beforeEach(() => {
   vi.spyOn(console, 'log').mockImplementation((line: string) => {
     logged.push(line)
   })
-})
-
-afterEach(() => {
-  vi.restoreAllMocks()
 })
 
 /** The table arrives as one string; its first line is the header. */

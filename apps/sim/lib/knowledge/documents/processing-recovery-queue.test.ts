@@ -56,7 +56,6 @@ afterEach(() => {
   env.TRIGGER_SECRET_KEY = originalSecret
   resetEnvFlagsMock()
   vi.useRealTimers()
-  vi.unstubAllGlobals()
 })
 
 describe('document processing liveness', () => {

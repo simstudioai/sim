@@ -1,54 +1,46 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckStorageQuotaForBillingContext,
-  mockDeleteFile,
-  mockDeleteFileMetadataByIdentity,
-  mockGetBoundWorkspaceFileSecretProvenanceByMetadata,
-  mockGetFileMetadataByKeys,
-  mockIncrementStorageUsageForBillingContextInTx,
-  mockMaybeNotifyStorageLimitForBillingContext,
-  mockResolveStorageBillingContext,
-} = vi.hoisted(() => ({
-  mockCheckStorageQuotaForBillingContext: vi.fn(),
-  mockDeleteFile: vi.fn(),
-  mockDeleteFileMetadataByIdentity: vi.fn(),
-  mockGetBoundWorkspaceFileSecretProvenanceByMetadata: vi.fn(),
-  mockGetFileMetadataByKeys: vi.fn(),
-  mockIncrementStorageUsageForBillingContextInTx: vi.fn(),
-  mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
-  mockResolveStorageBillingContext: vi.fn(),
-}))
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 
-vi.mock('@/lib/billing/storage', () => ({
-  applyStorageUsageDeltasInTx: vi.fn(),
-  checkStorageQuota: vi.fn(),
-  checkStorageQuotaForBillingContext: mockCheckStorageQuotaForBillingContext,
-  incrementStorageUsageForBillingContextInTx: mockIncrementStorageUsageForBillingContextInTx,
-  maybeNotifyStorageLimitForBillingContext: mockMaybeNotifyStorageLimitForBillingContext,
-  resolveStorageBillingContext: mockResolveStorageBillingContext,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  getBoundWorkspaceFileSecretProvenanceByMetadata:
-    mockGetBoundWorkspaceFileSecretProvenanceByMetadata,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  deleteFile: mockDeleteFile,
-}))
-
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadataByIdentity: mockDeleteFileMetadataByIdentity,
-  getFileMetadataByKeys: mockGetFileMetadataByKeys,
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 import {
   createDocumentRecords,
   createSingleDocument,
   deleteDocumentStorageFiles,
 } from '@/lib/knowledge/documents/service'
+
+const mockCheckStorageQuotaForBillingContext =
+  billingStorageMockFns.mockCheckStorageQuotaForBillingContext
+const mockIncrementStorageUsageForBillingContextInTx =
+  billingStorageMockFns.mockIncrementStorageUsageForBillingContextInTx
+const mockMaybeNotifyStorageLimitForBillingContext =
+  billingStorageMockFns.mockMaybeNotifyStorageLimitForBillingContext
+const mockResolveStorageBillingContext = billingStorageMockFns.mockResolveStorageBillingContext
+
+const mockDeleteFile = storageServiceMockFns.mockDeleteFile
+const mockDeleteFileMetadataByIdentity = uploadsMetadataMockFns.mockDeleteFileMetadataByIdentity
+const mockGetFileMetadataByKeys = uploadsMetadataMockFns.mockGetFileMetadataByKeys
+const mockGetBoundWorkspaceFileSecretProvenanceByMetadata =
+  workspaceFileSecretProvenanceMockFns.mockGetBoundWorkspaceFileSecretProvenanceByMetadata
 
 const WORKSPACE_ID = 'workspace-1'
 const KNOWLEDGE_BASE_ID = 'knowledge-base-1'

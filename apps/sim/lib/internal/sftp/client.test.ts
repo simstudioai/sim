@@ -1,5 +1,9 @@
 import { createHash } from 'node:crypto'
 import { Readable } from 'node:stream'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import type { ConnectConfig, SFTPWrapper } from 'ssh2'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -11,12 +15,9 @@ const mocks = vi.hoisted(() => ({
     destroy: ReturnType<typeof vi.fn>
   }>,
   emitReady: true,
-  validateHost: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  validateDatabaseHost: mocks.validateHost,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 vi.mock('ssh2', () => ({
   Client: class {
@@ -65,6 +66,8 @@ import {
   sanitizeFileName,
 } from '@/lib/internal/sftp/client'
 
+const { mockValidateDatabaseHost } = inputValidationMockFns
+
 function fakeSftp(chunkSize: number, chunkCount: number) {
   let emitted = 0
   const stream = new Readable({
@@ -86,7 +89,7 @@ describe('SFTP client boundary', () => {
     mocks.clients.length = 0
     mocks.connectConfigs.length = 0
     mocks.emitReady = true
-    mocks.validateHost.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
+    mockValidateDatabaseHost.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
   })
 
   it('pins the connection to the validated IP while preserving credentials', async () => {

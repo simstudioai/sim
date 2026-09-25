@@ -5,46 +5,44 @@ import {
   dbChainMockFns,
   resetDbChainMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import {
+  workspaceAuthorizationMock,
+  workspaceAuthorizationMockFns,
+} from '@sim/testing/mocks/workspace-authorization.mock'
+import {
+  workspaceForkingAuthzMock,
+  workspaceForkingAuthzMockFns,
+} from '@sim/testing/mocks/workspace-forking-authz.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAuthorizeWorkspaceOperation, mockCaptureServerEvent, mockAssertForkingEnabled } =
-  vi.hoisted(() => ({
-    mockAuthorizeWorkspaceOperation: vi.fn(),
-    mockCaptureServerEvent: vi.fn(),
-    mockAssertForkingEnabled: vi.fn(),
-  }))
+vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => workspaceForkingAuthzMock)
 
-vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({
-  assertForkingEnabled: mockAssertForkingEnabled,
-  ForkError: class extends Error {},
-}))
-
-vi.mock('@/lib/core/application/workspace-authorization', () => ({
-  authorizeWorkspaceOperation: mockAuthorizeWorkspaceOperation,
-  requireAllowedWorkspacePrincipal: vi.fn(),
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: vi.fn(async (id: string) => ({
-    id,
-    name: 'My Workspace',
-    organizationId: null,
-    allowPersonalApiKeys: true,
-  })),
-}))
+vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { PUT } from '@/app/api/workspaces/[id]/fork/excluded-workflows/route'
 
+const { mockAuthorizeWorkspaceOperation } = workspaceAuthorizationMockFns
+const { mockAssertForkingEnabled } = workspaceForkingAuthzMockFns
+
 const mockGetSession = authMockFns.mockGetSession
+permissionsMockFns.mockGetWorkspaceWithOwner.mockImplementation(async (id: string) => ({
+  id,
+  name: 'My Workspace',
+  organizationId: null,
+  allowPersonalApiKeys: true,
+}))
 
 const WORKSPACE_ID = 'workspace-1'
 const ADMIN_ID = 'user-1'
-const routeContext = { params: Promise.resolve({ id: WORKSPACE_ID }) }
+const routeContext = createRouteContext({ id: WORKSPACE_ID })
 
 function mockUpdateReturning(rows: Array<{ id: string; name: string }>) {
   dbChainMockFns.returning.mockResolvedValue(rows)

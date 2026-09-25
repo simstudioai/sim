@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ashbyConnector } from '@/connectors/ashby/ashby'
 
 function ashbyResponse(results: unknown, extra: Record<string, unknown> = {}): Response {
@@ -6,8 +6,6 @@ function ashbyResponse(results: unknown, extra: Record<string, unknown> = {}): R
 }
 
 describe('ashbyConnector', () => {
-  beforeEach(() => vi.restoreAllMocks())
-
   it('rejects unsafe max-candidate values and invalid dates before network validation', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
     await expect(

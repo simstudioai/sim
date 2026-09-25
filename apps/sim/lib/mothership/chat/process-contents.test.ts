@@ -1,48 +1,78 @@
-import { createLogger } from '@sim/logger'
-import { dbChainMockFns, loggerMock, workflowAuthzMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { dbChainMockFns, workflowAuthzMockFns } from '@sim/testing'
+import {
+  integrationsAvailabilityMock,
+  integrationsAvailabilityMockFns,
+} from '@sim/testing/mocks/integrations-availability.mock'
+import {
+  knowledgeBaseUseCasesMock,
+  knowledgeBaseUseCasesMockFns,
+} from '@sim/testing/mocks/knowledge-base-use-cases.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { mcpUseCasesMock, mcpUseCasesMockFns } from '@sim/testing/mocks/mcp-use-cases.mock'
+import {
+  mothershipWorkspaceTargetMock,
+  mothershipWorkspaceTargetMockFns,
+} from '@sim/testing/mocks/mothership-workspace-target.mock'
+import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import {
+  tableApplicationRowsMock,
+  tableApplicationRowsMockFns,
+} from '@sim/testing/mocks/table-application-rows.mock'
+import {
+  tableApplicationTablesMock,
+  tableApplicationTablesMockFns,
+} from '@sim/testing/mocks/table-application-tables.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import { DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
 import {
   MAX_TABLE_SELECTION_PREVIEW_LENGTH,
   MAX_TABLE_SELECTION_ROWS,
 } from '@/lib/mothership/chat/selection-context'
 import { buildTaggedMcpToolSchemas } from '@/lib/mothership/mcp-tools'
+import {
+  getBlock as registryGetBlock,
+  getBlockRegistry as registryGetBlockRegistry,
+} from '@/blocks/registry'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ChatContext } from '@/stores/panel'
 
+const getBlock: Mock = vi.mocked(registryGetBlock)
+const getBlockRegistry: Mock = vi.mocked(registryGetBlockRegistry)
+getBlock.mockReturnValue(undefined)
+getBlockRegistry.mockReturnValue(undefined)
+const getUserPermissionConfig = permissionGroupsResolveMockFns.mockGetUserPermissionConfig
+const getWorkspaceFile = workspaceFileManagerMockFns.mockGetWorkspaceFile
+const discoverServerTools = mcpUseCasesMockFns.mockDiscoverMcpServerToolsUseCase
+const queryTableRows = tableApplicationRowsMockFns.mockQueryTableRows
+const readKnowledgeBase = knowledgeBaseUseCasesMockFns.mockReadKnowledgeBaseExecute
+const readTableUseCase = tableApplicationTablesMockFns.mockReadTableUseCase
+const isIntegrationDeploymentAvailable =
+  integrationsAvailabilityMockFns.mockIsIntegrationDeploymentAvailableForVisibility
+const resolveInvocationWorkspace = mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace
+
 const {
-  discoverServerTools,
-  getBlock,
-  getBlockRegistry,
   getSkillUseCase,
-  getUserPermissionConfig,
-  getWorkspaceFile,
   readWorkspaceFileMetadata,
-  queryTableRows,
   readTableView,
-  readKnowledgeBase,
-  readTableUseCase,
   readWorkflowMetadata,
   listWorkflowFolders,
   listTableFolders,
   listKnowledgeFolders,
   resolveFileFolderPath,
   getBlockVisibilityForCopilot,
-  isIntegrationDeploymentAvailable,
   searchDocsExecute,
-  resolveInvocationWorkspace,
 } = vi.hoisted(() => ({
-  discoverServerTools: vi.fn(),
-  getBlock: vi.fn(),
-  getBlockRegistry: vi.fn(),
   getSkillUseCase: vi.fn(),
-  getUserPermissionConfig: vi.fn(),
-  getWorkspaceFile: vi.fn(),
   readWorkspaceFileMetadata: vi.fn(),
-  queryTableRows: vi.fn(),
   readTableView: vi.fn(),
-  readKnowledgeBase: vi.fn(),
-  readTableUseCase: vi.fn(),
   readWorkflowMetadata: vi.fn(),
   listWorkflowFolders: vi.fn(
     async (): Promise<{ folders: { id: string; name: string; parentId: string | null }[] }> => ({
@@ -61,44 +91,29 @@ const {
   ),
   resolveFileFolderPath: vi.fn(async (): Promise<{ path: string | null }> => ({ path: null })),
   getBlockVisibilityForCopilot: vi.fn(async () => null),
-  isIntegrationDeploymentAvailable: vi.fn(() => true),
   searchDocsExecute: vi.fn(),
-  resolveInvocationWorkspace: vi.fn(),
 }))
 
-vi.mock('@/lib/mothership/application/workspace-target', () => ({ resolveInvocationWorkspace }))
+vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
 
-vi.mock('@/blocks/registry', () => ({ getBlock, getBlockRegistry }))
 vi.mock('@/lib/mothership/block-visibility', () => ({ getBlockVisibilityForCopilot }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({ getUserPermissionConfig }))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  assertPermissionsAllowed: vi.fn().mockResolvedValue(undefined),
-}))
-vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailableForVisibility: isIntegrationDeploymentAvailable,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 vi.mock('@/lib/skills/application/use-cases', () => ({
   getSkillUseCase: { execute: getSkillUseCase },
 }))
-vi.mock('@/lib/mcp/application/use-cases', () => ({
-  discoverMcpServerToolsUseCase: { execute: discoverServerTools },
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({ getWorkspaceFile }))
+vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
   readWorkspaceFileMetadata: { execute: readWorkspaceFileMetadata },
 }))
-vi.mock('@/lib/table/application/rows', () => ({
-  queryTableRows: { execute: queryTableRows },
-}))
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 vi.mock('@/lib/table/application/views', () => ({
   readTableViewUseCase: { execute: readTableView },
 }))
-vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
-  readKnowledgeBase: { execute: readKnowledgeBase },
-}))
-vi.mock('@/lib/table/application/tables', () => ({
-  readTableUseCase: { execute: readTableUseCase },
-}))
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => knowledgeBaseUseCasesMock)
+vi.mock('@/lib/table/application/tables', () => tableApplicationTablesMock)
 vi.mock('@/lib/workflows/application/read-workflow', () => ({
   readWorkflowMetadata: { execute: readWorkflowMetadata },
 }))
@@ -275,9 +290,7 @@ describe('processContextsServer - knowledge contexts', () => {
   })
 })
 
-const mockProcessContentsLogger = vi.mocked(loggerMock.createLogger).mock.results[
-  vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'ProcessContents')
-].value
+const mockProcessContentsLogger = getMockLogger('ProcessContents')
 
 describe('processContextsServer - block contexts', () => {
   beforeEach(() => {

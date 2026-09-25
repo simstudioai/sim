@@ -1,100 +1,65 @@
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { folderQueriesMock, folderQueriesMockFns } from '@sim/testing/mocks/folder-queries.mock'
+import {
+  foldersOrchestrationMock,
+  foldersOrchestrationMockFns,
+} from '@sim/testing/mocks/folders-orchestration.mock'
+import { getAllMockLoggers } from '@sim/testing/mocks/logger.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import { workflowAuthzMockFns } from '@sim/testing/mocks/workflow-authz.mock'
+import {
+  workflowsOrchestrationMock,
+  workflowsOrchestrationMockFns,
+} from '@sim/testing/mocks/workflows-orchestration.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { FolderLockedError, WorkflowLockedError, mocks } = vi.hoisted(() => {
-  class WorkflowLockedError extends Error {}
-  class FolderLockedError extends Error {}
-  return {
-    WorkflowLockedError,
-    FolderLockedError,
-    mocks: {
-      assertFolderMutable: vi.fn(),
-      assertWorkflowMutable: vi.fn(),
-      audit: vi.fn(),
-      createFolder: vi.fn(),
-      deleteFolder: vi.fn(),
-      deleteWorkflow: vi.fn(),
-      duplicateWorkflow: vi.fn(),
-      loadFolderIndex: vi.fn(),
-      logError: vi.fn(),
-      notifyFolder: vi.fn(),
-      notifyWorkflow: vi.fn(),
-      permission: vi.fn(),
-      relocateFolder: vi.fn(),
-      resolveContext: vi.fn(),
-      updateWorkflow: vi.fn(),
-    },
-  }
-})
-
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    FOLDER_CREATED: 'folder.created',
-    FOLDER_DELETED: 'folder.deleted',
-    FOLDER_MOVED: 'folder.moved',
-    WORKFLOW_DELETED: 'workflow.deleted',
-    WORKFLOW_DUPLICATED: 'workflow.duplicated',
-    WORKFLOW_UPDATED: 'workflow.updated',
-  },
-  AuditResourceType: { FOLDER: 'folder', WORKFLOW: 'workflow' },
-  recordAudit: mocks.audit,
+const hoisted = vi.hoisted(() => ({
+  duplicateWorkflow: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    error: mocks.logError,
-    info: vi.fn(),
-    warn: vi.fn(),
-    debug: vi.fn(),
-  }),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/platform-authz/workflow', () => ({
-  assertFolderMutable: mocks.assertFolderMutable,
-  assertWorkflowMutable: mocks.assertWorkflowMutable,
-  FolderLockedError,
-  WorkflowLockedError,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.resolveContext,
-}))
+vi.mock('@/lib/folders/queries', () => folderQueriesMock)
 
-vi.mock('@/lib/folders/queries', () => ({
-  loadActiveFolderPathIndex: mocks.loadFolderIndex,
-}))
+vi.mock('@/lib/folders/orchestration', () => foldersOrchestrationMock)
 
-vi.mock('@/lib/folders/orchestration', () => ({
-  createFolderAtPath: mocks.createFolder,
-  deleteFolderByPath: mocks.deleteFolder,
-  relocateFolderByPath: mocks.relocateFolder,
-}))
-
-vi.mock('@/lib/workflows/orchestration', () => ({
-  deleteWorkflowRecord: mocks.deleteWorkflow,
-  updateWorkflowRecord: mocks.updateWorkflow,
-}))
+vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
 vi.mock('@/lib/workflows/persistence/duplicate', () => ({
-  duplicateWorkflow: mocks.duplicateWorkflow,
+  duplicateWorkflow: hoisted.duplicateWorkflow,
 }))
 
-vi.mock('@/lib/realtime/notify', () => ({
-  notifyFolderResourceChanged: mocks.notifyFolder,
-  notifyWorkflowUpdated: mocks.notifyWorkflow,
-}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
 import { moveWorkflowVfsItems } from '@/lib/workflows/application/workflow-vfs'
+
+const mocks = {
+  ...hoisted,
+  createFolder: foldersOrchestrationMockFns.mockCreateFolderAtPath,
+  deleteFolder: foldersOrchestrationMockFns.mockDeleteFolderByPath,
+  relocateFolder: foldersOrchestrationMockFns.mockRelocateFolderByPath,
+  deleteWorkflow: workflowsOrchestrationMockFns.mockDeleteWorkflowRecord,
+  updateWorkflow: workflowsOrchestrationMockFns.mockUpdateWorkflowRecord,
+  loadFolderIndex: folderQueriesMockFns.mockLoadActiveFolderPathIndex,
+}
+
+const { mockAssertFolderMutable, mockAssertWorkflowMutable } = workflowAuthzMockFns
+
+const mockAudit = auditMockFns.mockRecordAudit
+const mockPermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveContext = workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext
+const mockNotifyFolder = realtimeNotifyMockFns.mockNotifyFolderResourceChanged
+const mockNotifyWorkflow = realtimeNotifyMockFns.mockNotifyWorkflowUpdated
 
 const workspaceContext = {
   workspaceId: 'workspace-1',
@@ -121,10 +86,10 @@ const emptyIndex = {
 describe('workflow VFS application commands', () => {
   beforeEach(() => {
     resetDbChainMock()
-    mocks.resolveContext.mockResolvedValue(workspaceContext)
-    mocks.permission.mockResolvedValue('write')
-    mocks.assertFolderMutable.mockResolvedValue(undefined)
-    mocks.assertWorkflowMutable.mockResolvedValue(undefined)
+    mockResolveContext.mockResolvedValue(workspaceContext)
+    mockPermission.mockResolvedValue('write')
+    mockAssertFolderMutable.mockResolvedValue(undefined)
+    mockAssertWorkflowMutable.mockResolvedValue(undefined)
     mocks.loadFolderIndex.mockResolvedValue(emptyIndex)
   })
 
@@ -144,7 +109,7 @@ describe('workflow VFS application commands', () => {
   })
 
   it('rechecks current permission before canonical index loading', async () => {
-    mocks.permission.mockResolvedValueOnce(null)
+    mockPermission.mockResolvedValueOnce(null)
 
     await expect(
       moveWorkflowVfsItems.execute({
@@ -186,21 +151,21 @@ describe('workflow VFS application commands', () => {
       },
     })
 
-    expect(mocks.logError).not.toHaveBeenCalled()
+    for (const logger of getAllMockLoggers()) expect(logger.error).not.toHaveBeenCalled()
     expect(result.outcomes).toEqual([
       expect.objectContaining({ source: 'workflows/One', resourceId: 'workflow-1' }),
       expect.objectContaining({ source: 'workflows/Two', error: 'Workflow is locked' }),
     ])
-    expect(mocks.audit).toHaveBeenCalledOnce()
-    expect(mocks.audit).toHaveBeenCalledWith(
+    expect(mockAudit).toHaveBeenCalledOnce()
+    expect(mockAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'workflow.updated',
         resourceId: 'workflow-1',
         metadata: expect.objectContaining({ operation: 'workflows.vfs.move' }),
       })
     )
-    expect(mocks.notifyWorkflow).toHaveBeenCalledWith('workflow-1')
-    expect(mocks.notifyWorkflow).not.toHaveBeenCalledWith('workflow-2')
+    expect(mockNotifyWorkflow).toHaveBeenCalledWith('workflow-1')
+    expect(mockNotifyWorkflow).not.toHaveBeenCalledWith('workflow-2')
   })
 
   it('propagates an unexpected mutation failure without projecting a partial outcome', async () => {
@@ -219,8 +184,8 @@ describe('workflow VFS application commands', () => {
       })
     ).rejects.toThrow('postgres password=secret')
 
-    expect(mocks.audit).not.toHaveBeenCalled()
-    expect(mocks.notifyWorkflow).not.toHaveBeenCalled()
-    expect(mocks.notifyFolder).not.toHaveBeenCalled()
+    expect(mockAudit).not.toHaveBeenCalled()
+    expect(mockNotifyWorkflow).not.toHaveBeenCalled()
+    expect(mockNotifyFolder).not.toHaveBeenCalled()
   })
 })

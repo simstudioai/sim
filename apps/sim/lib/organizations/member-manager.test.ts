@@ -1,28 +1,37 @@
 import { member, user } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  organizationSeatsMock,
+  organizationSeatsMockFns,
+} from '@sim/testing/mocks/organization-seats.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  locks: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   scim: vi.fn(),
-  remove: vi.fn(),
-  external: vi.fn(),
-  seats: vi.fn(),
 }))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationUserMutationLocks: mocks.locks,
-  removeUserFromOrganization: mocks.remove,
-  removeExternalUserFromOrganizationWorkspaces: mocks.external,
-  WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR: 'Billing owner cannot be removed',
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
+vi.mock('@/ee/scim/lib/managed-membership', () => ({
+  assertMembershipNotScimManaged: hoisted.scim,
 }))
-vi.mock('@/lib/billing/organizations/seats', () => ({ reconcileOrganizationSeats: mocks.seats }))
-vi.mock('@/ee/scim/lib/managed-membership', () => ({ assertMembershipNotScimManaged: mocks.scim }))
 
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import {
   removeOrganizationMemberRecord,
   updateOrganizationMemberRecord,
 } from '@/lib/organizations/member-manager'
+
+const mocks = {
+  ...hoisted,
+  seats: organizationSeatsMockFns.mockReconcileOrganizationSeats,
+  locks: organizationMembershipMockFns.mockAcquireOrganizationUserMutationLocks,
+  remove: organizationMembershipMockFns.mockRemoveUserFromOrganization,
+  external: organizationMembershipMockFns.mockRemoveExternalUserFromOrganizationWorkspaces,
+}
 
 const input = {
   organizationId: 'org',

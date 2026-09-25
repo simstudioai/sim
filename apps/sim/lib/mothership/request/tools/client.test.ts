@@ -1,37 +1,23 @@
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  encryptSecret,
-  decryptSecret,
-  waitForToolConfirmation,
-  replaceTerminalAsyncToolCallResult,
-  getTrustedWorkflowToolExecution,
-  mockError,
-} = vi.hoisted(() => ({
-  encryptSecret: vi.fn(),
-  decryptSecret: vi.fn(),
+const { waitForToolConfirmation, getTrustedWorkflowToolExecution } = vi.hoisted(() => ({
   waitForToolConfirmation: vi.fn(),
-  replaceTerminalAsyncToolCallResult: vi.fn(),
   getTrustedWorkflowToolExecution: vi.fn(),
-  mockError: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ error: mockError, warn: vi.fn(), info: vi.fn(), debug: vi.fn() }),
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  encryptSecret,
-  decryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/mothership/persistence/tool-confirm', () => ({
   waitForToolConfirmation,
 }))
 
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  replaceTerminalAsyncToolCallResult,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 vi.mock('@/lib/workflows/executor/execution-state', () => ({
   getTrustedWorkflowToolExecution,
@@ -44,6 +30,11 @@ import {
 import { sealClientToolContext } from '@/lib/mothership/request/tools/client-completion-seal.server'
 import { TOOL_RESULT_UNAVAILABLE_ERROR } from '@/lib/mothership/request/tools/resolved-secret-result'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const { mockEncryptSecret: encryptSecret, mockDecryptSecret: decryptSecret } = encryptionMockFns
+const { mockReplaceTerminalAsyncToolCallResult: replaceTerminalAsyncToolCallResult } =
+  mothershipAsyncRunsMockFns
+const mockError = getMockLogger('CopilotClientToolWaiter').error
 
 const TRACE_SCOPE = { userId: 'user-1', workspaceId: 'workspace-1' }
 

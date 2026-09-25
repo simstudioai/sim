@@ -1,15 +1,11 @@
 import { writeTextToClipboard } from '@sim/emcn'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 interface MockClipboardItem {
   items: Record<string, Blob | Promise<Blob>>
 }
 
 describe('writeTextToClipboard', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('starts a ClipboardItem write before promised text resolves', async () => {
     const write = vi.fn().mockResolvedValue(undefined)
     const writeText = vi.fn().mockResolvedValue(undefined)

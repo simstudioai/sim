@@ -1,13 +1,14 @@
 import { authMockFns } from '@sim/testing'
+import { credentialsManagedOauthMock } from '@sim/testing/mocks/credentials-managed-oauth.mock'
+import { githubInstallationMock } from '@sim/testing/mocks/github-installation.mock'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ list: vi.fn(), connect: vi.fn(), rateLimit: vi.fn() }))
+const mocks = vi.hoisted(() => ({ list: vi.fn(), connect: vi.fn() }))
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  enforceUserRateLimit: mocks.rateLimit,
-  RateLimiter: class {},
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 vi.mock('@/lib/knowledge/application/github-installations', () => ({
   listGitHubSearchInstallations: {
     operation: { id: 'knowledge.github.installations.list' },
@@ -18,27 +19,8 @@ vi.mock('@/lib/knowledge/application/github-installations', () => ({
     execute: mocks.connect,
   },
 }))
-vi.mock('@/lib/oauth/github-installation', () => ({
-  GitHubInstallationError: class extends Error {
-    constructor(
-      message: string,
-      readonly status?: number
-    ) {
-      super(message)
-    }
-  },
-}))
-vi.mock('@/lib/credentials/managed-oauth', () => ({
-  ManagedOAuthCredentialError: class extends Error {
-    constructor(
-      readonly code: string,
-      message: string,
-      readonly statusCode: number
-    ) {
-      super(message)
-    }
-  },
-}))
+vi.mock('@/lib/oauth/github-installation', () => githubInstallationMock)
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { ManagedOAuthCredentialError } from '@/lib/credentials/managed-oauth'
@@ -58,7 +40,7 @@ beforeEach(() => {
     user: { id: 'admin-1' },
     session: { id: 'session-1' },
   })
-  mocks.rateLimit.mockResolvedValue(null)
+  rateLimiterMockFns.mockEnforceUserRateLimit.mockResolvedValue(null)
   mocks.list.mockResolvedValue({
     available: true,
     installUrl: 'https://github.com/apps/sim-search/installations/new',
@@ -79,14 +61,14 @@ describe('GitHub installation route boundary', () => {
       expect(response.status).toBe(401)
       expect(response.headers.get('Cache-Control')).toBe('private, no-store')
       expect(json).not.toHaveBeenCalled()
-      expect(mocks.rateLimit).not.toHaveBeenCalled()
+      expect(rateLimiterMockFns.mockEnforceUserRateLimit).not.toHaveBeenCalled()
       expect(mocks.list).not.toHaveBeenCalled()
       expect(mocks.connect).not.toHaveBeenCalled()
     }
   )
 
   it('applies admission before parsing the POST body', async () => {
-    mocks.rateLimit.mockResolvedValue(
+    rateLimiterMockFns.mockEnforceUserRateLimit.mockResolvedValue(
       NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 })
     )
     const request = new NextRequest(URL, { method: 'POST', body: '{' })
@@ -94,7 +76,7 @@ describe('GitHub installation route boundary', () => {
     expect((await POST(request)).status).toBe(429)
     expect(json).not.toHaveBeenCalled()
     expect(mocks.connect).not.toHaveBeenCalled()
-    expect(mocks.rateLimit).toHaveBeenCalledWith(
+    expect(rateLimiterMockFns.mockEnforceUserRateLimit).toHaveBeenCalledWith(
       'github-search-installations',
       'admin-1',
       undefined
@@ -174,7 +156,7 @@ describe('GitHub installation route boundary', () => {
     'projects %s without successful installation data',
     async (error, status, message) => {
       mocks.list.mockRejectedValue(error)
-      const response = await GET(new NextRequest(`${URL}?organizationId=org-1`))
+      const response = await GET(createMockRequest({ url: `${URL}?organizationId=org-1` }))
       expect(response.status).toBe(status)
       expect(response.headers.get('Cache-Control')).toBe('private, no-store')
       const body = await response.json()

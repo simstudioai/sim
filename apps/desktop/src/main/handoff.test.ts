@@ -1,5 +1,5 @@
 import { get as httpGet } from 'node:http'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('electron', () => import('@/test/electron-mock'))
 
@@ -33,10 +33,6 @@ function makeCallbacks(overrides: Partial<HandoffCallbacks> = {}): HandoffCallba
 }
 
 describe('createHandoffManager', () => {
-  beforeEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('consume is single-use, state-bound, and TTL-bound', async () => {
     let nowValue = 1_000_000
     const deps = makeDeps({ now: () => nowValue })

@@ -1,26 +1,18 @@
+import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockRun,
-  mockReadFile,
-  mockWriteFile,
-  mockExecuteTool,
-  mockProviderEnvVar,
-  mockWithPiSandbox,
-  mockRunBabysit,
-} = vi.hoisted(() => ({
-  mockRun: vi.fn(),
-  mockReadFile: vi.fn(),
-  mockWriteFile: vi.fn(),
-  mockExecuteTool: vi.fn(),
-  mockProviderEnvVar: vi.fn(),
-  mockWithPiSandbox: vi.fn(),
-  mockRunBabysit: vi.fn(),
-}))
+const { mockRun, mockReadFile, mockWriteFile, mockProviderEnvVar, mockRunBabysit } = vi.hoisted(
+  () => ({
+    mockRun: vi.fn(),
+    mockReadFile: vi.fn(),
+    mockWriteFile: vi.fn(),
+    mockProviderEnvVar: vi.fn(),
+    mockRunBabysit: vi.fn(),
+  })
+)
 
-vi.mock('@/lib/execution/remote-sandbox', () => ({
-  withPiSandbox: mockWithPiSandbox,
-}))
+vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 vi.mock('@/lib/execution/remote-sandbox/pi-lifetime', () => ({
   resolvePiSandboxLifetimeMs: () => 40 * 60 * 1000,
   // Same ceiling: these cases run without an execution deadline, where the run
@@ -30,7 +22,7 @@ vi.mock('@/lib/execution/remote-sandbox/pi-lifetime', () => ({
 vi.mock('@/executor/handlers/pi/cloud/babysit/backend', () => ({
   runBabysitPi: mockRunBabysit,
 }))
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/tools', () => toolsMock)
 vi.mock('@/executor/handlers/pi/core/keys', () => ({
   providerApiKeyEnvVar: mockProviderEnvVar,
   mapThinkingLevel: () => 'medium',
@@ -40,6 +32,10 @@ vi.mock('@/executor/handlers/pi/core/context', () => ({ buildPiPrompt: () => 'PR
 import { createTimeoutAbortController } from '@/lib/core/execution-limits'
 import { runCloudBranchPi, runCloudPi } from '@/executor/handlers/pi/cloud/authoring/backend'
 import type { PiCloudBranchRunParams, PiCloudRunParams } from '@/executor/handlers/pi/core/backend'
+
+const { mockWithPiSandbox } = remoteSandboxMockFns
+
+const mockExecuteTool = toolsMockFns.mockExecuteTool
 
 function baseParams(overrides: Partial<PiCloudRunParams> = {}): PiCloudRunParams {
   return {

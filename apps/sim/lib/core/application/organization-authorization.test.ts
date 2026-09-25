@@ -1,22 +1,24 @@
-import type {
-  OAuthAccessTokenPrincipal,
-  OrganizationDelegatedPrincipal,
-  SessionPrincipal,
-} from '@sim/auth/principal'
+import type { OAuthAccessTokenPrincipal, OrganizationDelegatedPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ membership: vi.fn(), config: vi.fn() }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 
-const principal: SessionPrincipal = { kind: 'session', userId: 'member', sessionId: 'session' }
+const mocks = {
+  membership: vi.fn(),
+  config: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+}
+const principal = createSessionPrincipal({ userId: 'member', sessionId: 'session' })
 const operation = defineOrganizationOperation({
   id: 'search.read',
   minimumRole: 'member',

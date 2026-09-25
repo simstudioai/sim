@@ -8,6 +8,25 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  customBlockOperationsMock,
+  customBlockOperationsMockFns,
+} from '@sim/testing/mocks/custom-block-operations.mock'
+import {
+  invitationsCoreMock,
+  invitationsCoreMockFns,
+} from '@sim/testing/mocks/invitations-core.mock'
+import {
+  invitationsSendMock,
+  invitationsSendMockFns,
+} from '@sim/testing/mocks/invitations-send.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
+import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorkspaceMoveError } from '@/lib/workspaces/admin-move'
 import {
@@ -30,17 +49,8 @@ const {
   findUnpublishableCustomBlocks,
   findSourceOrgCustomBlocksForWorkspace,
   cleanupSourceOrganizationArtifactsTx,
-  deleteCustomBlock,
-  acquireOrganizationMutationLock,
-  recordAudit,
-  recordAuditOnce,
-  enqueueOrReschedulePendingOutboxEvent,
-  invalidateWorkspaceTableLimitsCache,
   changeWorkspaceStoragePayerInTx,
   acquireInvitationMutationLocks,
-  getInvitationById,
-  isInvitationExpired,
-  sendInvitationEmail,
   countPendingSeatInvitations,
   resolveSeatCapacity,
   collectWorkspaceCredentialSummary,
@@ -59,22 +69,25 @@ const {
   cleanupSourceOrganizationArtifactsTx: vi.fn(() =>
     Promise.resolve({ detachedPermissionGroupIds: [] })
   ),
-  deleteCustomBlock: vi.fn(),
-  acquireOrganizationMutationLock: vi.fn(),
-  recordAudit: vi.fn(),
-  recordAuditOnce: vi.fn(),
-  enqueueOrReschedulePendingOutboxEvent: vi.fn(),
-  invalidateWorkspaceTableLimitsCache: vi.fn(),
   changeWorkspaceStoragePayerInTx: vi.fn(),
   acquireInvitationMutationLocks: vi.fn(),
-  getInvitationById: vi.fn(),
-  isInvitationExpired: vi.fn(() => false),
-  sendInvitationEmail: vi.fn(),
   countPendingSeatInvitations: vi.fn(() => Promise.resolve(0)),
   resolveSeatCapacity: vi.fn(() => Promise.resolve(10)),
   collectWorkspaceCredentialSummary: vi.fn(),
   getSourceOrganization: vi.fn(),
 }))
+
+const { mockRecordAudit: recordAudit, mockRecordAuditOnce: recordAuditOnce } = auditMockFns
+const { mockAcquireOrganizationMutationLock: acquireOrganizationMutationLock } =
+  organizationMembershipMockFns
+const { mockDeleteCustomBlock: deleteCustomBlock } = customBlockOperationsMockFns
+const { mockEnqueueOrReschedulePendingOutboxEvent: enqueueOrReschedulePendingOutboxEvent } =
+  outboxServiceMockFns
+const { mockInvalidateWorkspaceTableLimitsCache: invalidateWorkspaceTableLimitsCache } =
+  tableBillingMockFns
+const { mockGetInvitationById: getInvitationById, mockIsInvitationExpired: isInvitationExpired } =
+  invitationsCoreMockFns
+const { mockSendInvitationEmail: sendInvitationEmail } = invitationsSendMockFns
 
 const SOURCE_ORGANIZATION = {
   id: 'org-source',
@@ -108,50 +121,20 @@ const POPULATED_CREDENTIALS = {
   byokKeyCount: 2,
 }
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    WORKSPACE_UPDATED: 'workspace.updated',
-    INVITATION_UPDATED: 'invitation.updated',
-    ORGANIZATION_UPDATED: 'organization.updated',
-    CUSTOM_BLOCK_DELETED: 'custom_block.deleted',
-  },
-  AuditResourceType: {
-    WORKSPACE: 'workspace',
-    ORGANIZATION: 'organization',
-    CUSTOM_BLOCK: 'custom_block',
-  },
-  recordAudit,
-  recordAuditOnce,
-}))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock,
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 vi.mock('@/lib/billing/storage/payer-transfer', () => ({ changeWorkspaceStoragePayerInTx }))
 vi.mock('@/lib/billing/validation/seat-management', () => ({
   countPendingSeatInvitations,
   planHasFixedSeatCap: vi.fn((plan: string) => plan === 'enterprise'),
   resolveSeatCapacity,
 }))
-vi.mock('@/lib/core/outbox/service', () => ({
-  addOutboxEventSourceOperationId: vi.fn(),
-  enqueueOrReschedulePendingOutboxEvent,
-  outboxEventHasSourceOperationId: vi.fn(() => undefined),
-  outboxPayloadHasSourceOperationId: vi.fn(
-    (payload: { sourceOperationId?: string; sourceOperationIds?: string[] }, operationId: string) =>
-      payload.sourceOperationId === operationId || payload.sourceOperationIds?.includes(operationId)
-  ),
-}))
-vi.mock('@/lib/invitations/core', () => ({
-  getInvitationById,
-  isInvitationExpired,
-}))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
+vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
 vi.mock('@/lib/invitations/locks', () => ({ acquireInvitationMutationLocks }))
-vi.mock('@/lib/invitations/send', () => ({
-  PENDING_INVITATION_UNIQUE_INDEX: 'invitation_pending_email_org_unique',
-  sendInvitationEmail,
-}))
-vi.mock('@/lib/table/billing', () => ({ invalidateWorkspaceTableLimitsCache }))
-vi.mock('@/lib/workflows/custom-blocks/operations', () => ({ deleteCustomBlock }))
+vi.mock('@/lib/invitations/send', () => invitationsSendMock)
+vi.mock('@/lib/table/billing', () => tableBillingMock)
+vi.mock('@/lib/workflows/custom-blocks/operations', () => customBlockOperationsMock)
 vi.mock('@/lib/workspaces/admin-move-source-impact', () => ({
   cleanupSourceOrganizationArtifactsTx,
   collectWorkspaceCredentialSummary,
@@ -254,6 +237,7 @@ afterAll(resetDbChainMock)
 
 beforeEach(() => {
   resetDbChainMock()
+  isInvitationExpired.mockReturnValue(false)
   /**
    * `vi.clearAllMocks` clears call records but keeps implementations, so a
    * `mockResolvedValue` set by one case would otherwise leak into every case

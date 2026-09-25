@@ -6,54 +6,32 @@ import {
   resetEnvFlagsMock,
   setEnvFlags,
 } from '@sim/testing'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  permissionGroupLocksMock,
+  permissionGroupLocksMockFns,
+} from '@sim/testing/mocks/permission-group-locks.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 
-const {
-  mockAcquireOrganizationUserMutationLocks,
-  mockAcquirePermissionGroupOrgLock,
-  mockGetUserOrganization,
-  mockGetOrganizationSubscription,
-  mockGetHighestPrioritySubscription,
-  mockGetUserPermissionConfigForOrganization,
-  mockGetUserPermissionConfig,
-  mockGetEntitledOrganizationPermissionConfig,
-  mockIsOrganizationPermissionRegimeActive,
-} = vi.hoisted(() => ({
-  mockAcquireOrganizationUserMutationLocks: vi.fn(),
-  mockAcquirePermissionGroupOrgLock: vi.fn(),
-  mockGetUserOrganization: vi.fn(),
-  mockGetOrganizationSubscription: vi.fn(),
-  mockGetHighestPrioritySubscription: vi.fn(),
-  mockGetUserPermissionConfigForOrganization: vi.fn(),
-  mockGetUserPermissionConfig: vi.fn(),
-  mockGetEntitledOrganizationPermissionConfig: vi.fn(),
-  mockIsOrganizationPermissionRegimeActive: vi.fn(),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mockGetUserPermissionConfigForOrganization,
-  getUserPermissionConfig: mockGetUserPermissionConfig,
-  getEntitledOrganizationPermissionConfig: mockGetEntitledOrganizationPermissionConfig,
-  isOrganizationPermissionRegimeActive: mockIsOrganizationPermissionRegimeActive,
-}))
+vi.mock('@/lib/permission-groups/locks', () => permissionGroupLocksMock)
 
-vi.mock('@/lib/permission-groups/locks', () => ({
-  acquirePermissionGroupOrgLock: mockAcquirePermissionGroupOrgLock,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationUserMutationLocks: mockAcquireOrganizationUserMutationLocks,
-  getUserOrganization: mockGetUserOrganization,
-}))
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription: mockGetOrganizationSubscription,
-}))
-
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
-}))
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
 
 import {
   getWorkspaceCreationPolicy,
@@ -64,6 +42,14 @@ import {
   WorkspaceCreationContextChangedError,
 } from '@/lib/workspaces/policy'
 import { UPGRADE_TO_INVITE_REASON } from '@/lib/workspaces/policy-constants'
+
+const { mockAcquireOrganizationUserMutationLocks, mockGetUserOrganization } =
+  organizationMembershipMockFns
+const { mockGetEntitledOrganizationPermissionConfig, mockIsOrganizationPermissionRegimeActive } =
+  permissionGroupsResolveMockFns
+const { mockAcquirePermissionGroupOrgLock } = permissionGroupLocksMockFns
+const { mockGetOrganizationSubscription } = billingCoreMockFns
+const { mockGetHighestPrioritySubscription } = billingPlanMockFns
 
 afterAll(resetDbChainMock)
 
@@ -89,7 +75,6 @@ describe('resolveGoverningPermissionGroupOrganization', () => {
 
 describe('lockWorkspaceCreationContext', () => {
   it('locks the destination organization and user before rejecting a stale org-mode policy', async () => {
-    vi.clearAllMocks()
     mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
     mockGetUserOrganization.mockResolvedValue(null)
     const tx = {} as DbOrTx
@@ -114,7 +99,6 @@ describe('lockWorkspaceCreationContext', () => {
   })
 
   it('rejects when the paid org entitlement disappeared before insertion', async () => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isBillingEnabled: true })
     mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
@@ -141,7 +125,6 @@ describe('lockWorkspaceCreationContext', () => {
    * serializes against its admins.
    */
   it('takes the permission-group lock last, and only after the membership check', async () => {
-    vi.clearAllMocks()
     resetDbChainMock()
     setEnvFlags({ isBillingEnabled: false })
     mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
@@ -169,7 +152,6 @@ describe('lockWorkspaceCreationContext', () => {
 
   /** A membership that diverged from the snapshot refuses before any extra lock. */
   it('never takes the permission-group lock when membership already diverged', async () => {
-    vi.clearAllMocks()
     resetDbChainMock()
     mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
     mockGetUserOrganization.mockResolvedValue(null)

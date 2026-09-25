@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearAtlassianCloudIdCache } from '@/lib/atlassian/discovery'
 import { confluenceConnector } from '@/connectors/confluence/confluence'
 import { jiraConnector } from '@/connectors/jira/jira'
@@ -12,8 +12,6 @@ beforeEach(() => {
   clearAtlassianCloudIdCache()
   vi.stubGlobal('fetch', fetchMock)
 })
-
-afterEach(() => vi.unstubAllGlobals())
 
 describe('dynamic All source validation', () => {
   describe.each([

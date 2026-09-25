@@ -1,7 +1,9 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act } from 'react'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -13,13 +15,13 @@ vi.mock('@/lib/core/utils/sse', () => ({
   readSSEEvents: mockReadSSEEvents,
 }))
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: () => 'msg-assistant-1',
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
 import { isChatChunkFrame } from '@/lib/workflows/streaming/agent-stream-protocol'
 import type { ChatMessage } from '@/app/(interfaces)/chat/components/message/message'
 import { useChatStreaming } from '@/app/(interfaces)/chat/hooks/use-chat-streaming'
+
+idMockFns.mockGenerateId.mockReturnValue('msg-assistant-1')
 
 describe('isChatChunkFrame', () => {
   it('rejects thinking / stream_error / tool frames even if chunk is present', () => {
@@ -100,7 +102,6 @@ describe('useChatStreaming thinking + abort', () => {
 
   afterEach(() => {
     handle.unmount()
-    vi.restoreAllMocks()
   })
 
   it('clears a block’s live text on chunk_reset and keeps the re-streamed final turn', async () => {
@@ -266,7 +267,6 @@ describe('useChatStreaming tool lifecycle', () => {
 
   afterEach(() => {
     handle.unmount()
-    vi.restoreAllMocks()
   })
 
   it('tracks parallel tools and cancels running chips on Stop', async () => {

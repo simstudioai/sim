@@ -1,3 +1,13 @@
+import { openaiMock, openaiMockFns } from '@sim/testing/mocks/openai.mock'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { providersAttachmentsMock } from '@sim/testing/mocks/providers-attachments.mock'
+import {
+  providersModelsMock,
+  providersModelsMockFns,
+} from '@sim/testing/mocks/providers-models.mock'
+import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace-enrichment.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { StreamingExecution } from '@/executor/types'
 import { basetenProvider } from '@/providers/baseten/index'
@@ -13,46 +23,37 @@ import type { ProviderConfig, ProviderResponse, ProviderToolConfig } from '@/pro
 import { xAIProvider } from '@/providers/xai'
 import { zaiProvider } from '@/providers/zai'
 
-const { mockCreate, mockExecuteTool } = vi.hoisted(() => ({
-  mockCreate: vi.fn(),
-  mockExecuteTool: vi.fn(),
-}))
+const mockCreate = openaiMockFns.mockChatCompletionsCreate
+providersMock.MAX_TOOL_ITERATIONS = 1
+providersModelsMockFns.mockGetModelCapabilities.mockImplementation((model: string) =>
+  model === 'nvidia/nemotron-3.5-lightning-30b-a3b' ? { nativeStructuredOutputs: false } : null
+)
 
-vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(
-    class {
-      chat = { completions: { create: mockCreate } }
-    }
-  ),
-}))
+const mockExecuteTool = toolsMockFns.mockExecuteTool
+providersUtilsMockFns.mockCalculateCost.mockReturnValue({ input: 1, output: 2, total: 3 })
+providersUtilsMockFns.mockPrepareToolsWithUsageControl.mockReturnValue({
+  tools: [{ type: 'function', function: { name: 'lookup' } }],
+  toolChoice: 'auto',
+  forcedTools: [],
+  hasFilteredTools: false,
+})
+providersUtilsMockFns.mockSumToolCosts.mockReturnValue(4)
+
+vi.mock('openai', () => openaiMock)
 
 vi.mock('@cerebras/cerebras_cloud_sdk', () => ({
   Cerebras: vi.fn().mockImplementation(
     class {
-      chat = { completions: { create: mockCreate } }
+      chat = { completions: { create: openaiMockFns.mockChatCompletionsCreate } }
     }
   ),
 }))
 
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 1 }))
+vi.mock('@/providers', () => providersMock)
 
-vi.mock('@/providers/attachments', () => ({
-  formatMessagesForProvider: vi.fn((messages) => messages),
-}))
+vi.mock('@/providers/attachments', () => providersAttachmentsMock)
 
-vi.mock('@/providers/models', () => ({
-  getProviderFileAttachment: vi
-    .fn()
-    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
-  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
-  getModelCapabilities: vi.fn((model: string) =>
-    model === 'nvidia/nemotron-3.5-lightning-30b-a3b'
-      ? { nativeStructuredOutputs: false }
-      : undefined
-  ),
-  getProviderModels: vi.fn((provider: string) => [`${provider}/test-model`]),
-  getProviderDefaultModel: vi.fn((provider: string) => `${provider}/test-model`),
-}))
+vi.mock('@/providers/models', () => providersModelsMock)
 
 vi.mock('@/providers/tool-schema-adapter', () => ({
   adaptOpenAIChatToolSchema: vi.fn((tool: ProviderToolConfig) => ({
@@ -65,35 +66,9 @@ vi.mock('@/providers/tool-schema-adapter', () => ({
   })),
 }))
 
-vi.mock('@/providers/trace-enrichment', () => ({
-  enrichLastModelSegmentFromChatCompletions: vi.fn(),
-}))
+vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  calculateCost: vi.fn(() => ({ input: 1, output: 2, total: 3 })),
-  enforceStrictSchema: vi.fn((schema) => schema),
-  generateSchemaInstructions: vi.fn(() => 'SCHEMA_INSTRUCTIONS'),
-  prepareToolExecution: vi.fn((_tool, args) => ({
-    toolParams: args,
-    executionParams: args,
-  })),
-  prepareToolsWithUsageControl: vi.fn(() => ({
-    tools: [{ type: 'function', function: { name: 'lookup' } }],
-    toolChoice: 'auto',
-    forcedTools: [],
-    hasFilteredTools: false,
-  })),
-  sumToolCosts: vi.fn(() => 4),
-  trackForcedToolUsage: vi.fn(() => ({
-    hasUsedForcedTool: false,
-    usedForcedTools: [],
-  })),
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 vi.mock('@/providers/baseten/utils', () => ({
   checkForForcedToolUsage: vi.fn(() => ({
@@ -155,7 +130,7 @@ vi.mock('@/providers/xai/utils', () => ({
   createResponseFormatPayload: vi.fn(() => ({})),
 }))
 
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
+vi.mock('@/tools', () => toolsMock)
 
 interface ToolCall {
   id: string

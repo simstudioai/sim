@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeSlackListConversationsOperation } from '@/lib/internal/slack/operations/list-conversations'
 import {
   assertAssistantIntegrationCall,
@@ -24,10 +24,6 @@ describe('Slack list channels', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('remains available through the caller’s own Assistant account without model-supplied tokens', () => {

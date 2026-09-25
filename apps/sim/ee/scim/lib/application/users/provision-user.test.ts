@@ -1,22 +1,28 @@
 import { db } from '@sim/db'
 import { type ScimUserAttributes, scimConnection } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  organizationSeatsMock,
+  organizationSeatsMockFns,
+} from '@sim/testing/mocks/organization-seats.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  createUser: vi.fn(),
+const hoistedMocks = vi.hoisted(() => ({
   applySessionPolicy: vi.fn(),
-  syncUsageLimits: vi.fn(),
-  ensureMember: vi.fn(),
   resolveSeatPolicy: vi.fn(),
-  reconcileSeats: vi.fn(),
   isInstanceMode: vi.fn(),
   getInstanceOrganizationId: vi.fn(),
   suspend: vi.fn(),
   unsuspend: vi.fn(),
   invalidate: vi.fn(),
   revokeSessions: vi.fn(),
-  captureEvent: vi.fn(),
   deleteAccount: vi.fn(),
   syncIdentity: vi.fn(),
   assertEmailAvailable: vi.fn(),
@@ -30,59 +36,47 @@ const mocks = vi.hoisted(() => ({
   recordAudit: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  getSession: vi.fn(),
-  auth: { api: { getSession: vi.fn(), createUser: mocks.createUser } },
-}))
 vi.mock('@/lib/auth/session-policy', () => ({
-  applySessionPolicyToNewMember: mocks.applySessionPolicy,
+  applySessionPolicyToNewMember: hoistedMocks.applySessionPolicy,
 }))
-vi.mock('@/lib/billing/core/usage', () => ({
-  syncUsageLimitsFromSubscription: mocks.syncUsageLimits,
-}))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  ensureUserInOrganizationTx: mocks.ensureMember,
-}))
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 vi.mock('@/lib/billing/organizations/seat-policy', () => ({
-  resolveOrganizationSeatPolicyTx: mocks.resolveSeatPolicy,
+  resolveOrganizationSeatPolicyTx: hoistedMocks.resolveSeatPolicy,
 }))
-vi.mock('@/lib/billing/organizations/seats', () => ({
-  reconcileOrganizationSeats: mocks.reconcileSeats,
-}))
+vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
 vi.mock('@/lib/organizations/instance-org', () => ({
-  isInstanceOrganizationMode: mocks.isInstanceMode,
-  getInstanceOrganizationId: mocks.getInstanceOrganizationId,
+  isInstanceOrganizationMode: hoistedMocks.isInstanceMode,
+  getInstanceOrganizationId: hoistedMocks.getInstanceOrganizationId,
 }))
 vi.mock('@/lib/organizations/members/lifecycle', () => ({
-  suspendMemberTx: mocks.suspend,
-  unsuspendMemberTx: mocks.unsuspend,
+  suspendMemberTx: hoistedMocks.suspend,
+  unsuspendMemberTx: hoistedMocks.unsuspend,
 }))
 vi.mock('@/lib/organizations/members/revocation', () => ({
-  invalidateAfterSessionRevocation: mocks.invalidate,
-  revokeUserSessionsTx: mocks.revokeSessions,
+  invalidateAfterSessionRevocation: hoistedMocks.invalidate,
+  revokeUserSessionsTx: hoistedMocks.revokeSessions,
 }))
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mocks.captureEvent,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 vi.mock('@/lib/users/account-deletion', () => ({
-  deleteUserAccount: mocks.deleteAccount,
+  deleteUserAccount: hoistedMocks.deleteAccount,
 }))
 vi.mock('@/ee/scim/lib/identity/account-identity', () => ({
-  syncAccountIdentityTx: mocks.syncIdentity,
+  syncAccountIdentityTx: hoistedMocks.syncIdentity,
 }))
 vi.mock('@/ee/scim/lib/identity/resolve-user', () => ({
-  assertEmailAvailable: mocks.assertEmailAvailable,
-  consumeTombstone: mocks.consumeTombstone,
-  resolveProvisionedIdentity: mocks.resolveIdentity,
+  assertEmailAvailable: hoistedMocks.assertEmailAvailable,
+  consumeTombstone: hoistedMocks.consumeTombstone,
+  resolveProvisionedIdentity: hoistedMocks.resolveIdentity,
 }))
 vi.mock('@/ee/scim/lib/projection/reconcile-user', () => ({
-  reconcileUserProjection: mocks.reconcile,
+  reconcileUserProjection: hoistedMocks.reconcile,
 }))
 vi.mock('@/ee/scim/lib/repository/users', () => ({
-  assertUserNameAvailable: mocks.assertUserNameAvailable,
-  findScimUserById: mocks.findScimUserById,
-  findScimUserByUserId: mocks.findScimUserByUserId,
-  insertScimUser: mocks.insertScimUser,
+  assertUserNameAvailable: hoistedMocks.assertUserNameAvailable,
+  findScimUserById: hoistedMocks.findScimUserById,
+  findScimUserByUserId: hoistedMocks.findScimUserByUserId,
+  insertScimUser: hoistedMocks.insertScimUser,
   toUserResourceRow: (record: Record<string, unknown>) => ({
     id: record.id,
     externalId: record.externalId,
@@ -96,7 +90,7 @@ vi.mock('@/ee/scim/lib/repository/users', () => ({
   }),
 }))
 vi.mock('@/ee/scim/lib/application/audit', () => ({
-  recordScimAuditEntries: mocks.recordAudit,
+  recordScimAuditEntries: hoistedMocks.recordAudit,
 }))
 vi.mock('@/ee/scim/lib/base-url', () => ({ scimBaseUrl: () => 'https://sim.test/api/scim/v2' }))
 
@@ -104,6 +98,15 @@ import type { Principal } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { provisionScimUser } from '@/ee/scim/lib/application/users/provision-user'
 import { ScimError, uniqueness } from '@/ee/scim/lib/protocol/errors'
+
+const mocks = {
+  ...hoistedMocks,
+  reconcileSeats: organizationSeatsMockFns.mockReconcileOrganizationSeats,
+  syncUsageLimits: billingUsageMockFns.mockSyncUsageLimitsFromSubscription,
+  createUser: authMockFns.mockCreateUser,
+  ensureMember: organizationMembershipMockFns.mockEnsureUserInOrganizationTx,
+  captureEvent: posthogServerMockFns.mockCaptureServerEvent,
+}
 
 const principal: Principal = {
   kind: 'scim_connection',

@@ -1,3 +1,4 @@
+import { jsonResponse } from '@sim/testing'
 import { describe, expect, it } from 'vitest'
 import { WhatsAppBlock } from '@/blocks/blocks/whatsapp'
 import { markReadTool } from '@/tools/whatsapp/mark_read'
@@ -14,10 +15,6 @@ import {
 } from '@/tools/whatsapp/utils'
 
 const auth = { phoneNumberId: ' 15550001111 ', accessToken: ' token ' }
-
-function jsonResponse(body: unknown, init?: ResponseInit): Response {
-  return new Response(JSON.stringify(body), init)
-}
 
 describe('WhatsApp request URL and headers', () => {
   it('throws when the phone number ID is missing', () => {

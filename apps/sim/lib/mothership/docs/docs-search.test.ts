@@ -1,66 +1,30 @@
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import {
+  knowledgeEmbeddingsMock,
+  knowledgeEmbeddingsMockFns,
+} from '@sim/testing/mocks/knowledge-embeddings.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGenerateSearchEmbedding, capturedWhere, capturedLimit, mockRows } = vi.hoisted(() => ({
-  mockGenerateSearchEmbedding: vi.fn(),
-  capturedWhere: { value: undefined as unknown },
-  capturedLimit: { value: undefined as number | undefined },
-  mockRows: { value: [] as unknown[] },
-}))
-
-vi.mock('@/lib/knowledge/embeddings', () => ({
-  generateSearchEmbedding: mockGenerateSearchEmbedding,
-}))
-
-/**
- * Override the global drizzle mock with operators that record their arguments,
- * so a test can assert on the `source_document` filter the scope produced.
- */
-vi.mock('drizzle-orm', () => {
-  const op =
-    (name: string) =>
-    (...args: unknown[]) => ({ op: name, args })
-  return {
-    and: op('and'),
-    or: op('or'),
-    eq: op('eq'),
-    ne: op('ne'),
-    like: op('like'),
-    notLike: op('notLike'),
-    sql: (strings: TemplateStringsArray) => ({ op: 'sql', text: strings.join('?') }),
-  }
-})
-
-vi.mock('@sim/db', () => ({
-  db: {
-    select: () => ({
-      from: () => ({
-        where: (condition: unknown) => {
-          capturedWhere.value = condition
-          return {
-            orderBy: () => ({
-              limit: async (n: number) => {
-                capturedLimit.value = n
-                return mockRows.value
-              },
-            }),
-          }
-        },
-      }),
-    }),
-  },
-}))
+vi.mock('@/lib/knowledge/embeddings', () => knowledgeEmbeddingsMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { DocsSearchScopeError, searchDocs } from '@/lib/mothership/docs/docs-search'
 
+const mockGenerateSearchEmbedding = knowledgeEmbeddingsMockFns.mockGenerateSearchEmbedding
+const capturedLimit = { value: undefined as number | undefined }
+const mockRows = { value: [] as unknown[] }
+dbChainMockFns.limit.mockImplementation(async (n: number) => {
+  capturedLimit.value = n
+  return mockRows.value
+})
+
 /** Render a drizzle condition to comparable SQL-ish text for assertions. */
 function whereText(): string {
-  return JSON.stringify(capturedWhere.value)
+  return JSON.stringify(dbChainMockFns.where.mock.lastCall?.[0])
 }
 
 describe('searchDocs path scoping', () => {
   beforeEach(() => {
-    capturedWhere.value = undefined
     mockRows.value = []
     mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [0.1, 0.2] })
   })
@@ -78,7 +42,7 @@ describe('searchDocs path scoping', () => {
 
   it('excludes the root homepage when unscoped — its chunks have no live docs/ path', async () => {
     await searchDocs('cron')
-    expect(whereText()).toContain('"op":"ne"')
+    expect(whereText()).toContain('"type":"ne"')
     expect(whereText()).toContain('index.mdx')
   })
 
@@ -129,7 +93,6 @@ describe('searchDocs path scoping', () => {
 
 describe('searchDocs results', () => {
   beforeEach(() => {
-    capturedWhere.value = undefined
     mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [0.1, 0.2] })
   })
 
@@ -225,7 +188,6 @@ describe('searchDocs results', () => {
 
 describe('searchDocs shortfall reporting', () => {
   beforeEach(() => {
-    capturedWhere.value = undefined
     mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [0.1, 0.2] })
   })
 

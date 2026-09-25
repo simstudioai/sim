@@ -1,4 +1,3 @@
-import type { SessionPrincipal, WorkspaceApiKeyPrincipal } from '@sim/auth/principal'
 import {
   auditMock,
   auditMockFns,
@@ -11,40 +10,33 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  isEntitled: vi.fn(),
-  loadWorkspaceContext: vi.fn(),
-  resolveWorkspacePermission: vi.fn(),
-}))
+const { isEntitled } = vi.hoisted(() => ({ isEntitled: vi.fn() }))
 
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: async () => null,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 vi.mock('@/lib/api-key/byok-entitlement', () => ({
-  isOrganizationBYOKEntitled: mocks.isEntitled,
+  isOrganizationBYOKEntitled: isEntitled,
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspaceContext,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  isOrgAdminRole: (role: string) => role === 'admin' || role === 'owner',
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolveWorkspacePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import {
   deleteOrganizationByokKey,
@@ -53,20 +45,18 @@ import {
   saveOrganizationByokKey,
 } from '@/lib/api-key/application/organization-byok-keys'
 
+const mocks = {
+  isEntitled,
+  loadWorkspaceContext: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  resolveWorkspacePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
 const ORGANIZATION_ID = 'organization-1'
 const WORKSPACE_ID = 'workspace-1'
 
-const sessionPrincipal: SessionPrincipal = {
-  kind: 'session',
-  userId: 'admin-1',
-  sessionId: 'session-1',
-}
+const sessionPrincipal = createSessionPrincipal({ userId: 'admin-1' })
 
-const workspaceKeyPrincipal: WorkspaceApiKeyPrincipal = {
-  kind: 'workspace_api_key',
-  workspaceId: WORKSPACE_ID,
-  keyId: 'workspace-key-1',
-}
+const workspaceKeyPrincipal = createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' })
 
 const storedKeyRow = (id: string, providerId = 'openai') => ({
   id,

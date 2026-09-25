@@ -1,3 +1,4 @@
+import { jsonResponse } from '@sim/testing/helpers/http'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { grainHandler } from '@/lib/webhooks/providers/grain'
 
@@ -11,13 +12,6 @@ function makeWebhook(providerConfig: Record<string, unknown>) {
     path: 'grain-path',
     providerConfig,
   } as unknown as Parameters<typeof grainHandler.deleteSubscription>[0]['webhook']
-}
-
-function jsonResponse(status: number, body: Record<string, unknown>) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
 }
 
 function createContext(providerConfig: Record<string, unknown>) {
@@ -36,13 +30,12 @@ describe('grainHandler createSubscription', () => {
   })
 
   afterEach(() => {
-    vi.unstubAllGlobals()
     process.env.NEXT_PUBLIC_APP_URL = undefined
   })
 
   it('creates one hook per event type for the All Events trigger', async () => {
     for (let i = 1; i <= 10; i++) {
-      fetchMock.mockResolvedValueOnce(jsonResponse(200, { id: `hook-${i}` }))
+      fetchMock.mockResolvedValueOnce(jsonResponse({ id: `hook-${i}` }))
     }
 
     const result = await grainHandler.createSubscription!(
@@ -74,9 +67,9 @@ describe('grainHandler createSubscription', () => {
 
   it('rolls back already-created hooks when a later create fails', async () => {
     fetchMock
-      .mockResolvedValueOnce(jsonResponse(200, { id: 'hook-1' }))
-      .mockResolvedValueOnce(jsonResponse(400, { error: 'bad_request' }))
-      .mockResolvedValueOnce(jsonResponse(200, { success: true }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'hook-1' }))
+      .mockResolvedValueOnce(jsonResponse({ error: 'bad_request' }, 400))
+      .mockResolvedValueOnce(jsonResponse({ success: true }))
 
     await expect(
       grainHandler.createSubscription!(
@@ -98,12 +91,8 @@ describe('grainHandler deleteSubscription', () => {
     vi.stubGlobal('fetch', fetchMock)
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('throws in strict mode when a delete fails with a server error', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse(500, {}))
+    fetchMock.mockResolvedValueOnce(jsonResponse({}, 500))
 
     await expect(
       grainHandler.deleteSubscription!({

@@ -1,7 +1,5 @@
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
 
 const WEBHOOK_ID = 'webhook-uuid-1234'
 const NOTIFICATION_URL = 'https://app.example.com/api/webhooks/trigger/jotform-path'

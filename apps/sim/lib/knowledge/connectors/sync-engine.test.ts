@@ -2,7 +2,6 @@ import {
   authOAuthUtilsMock,
   authOAuthUtilsMockFns,
   dbChainMockFns,
-  drizzleOrmMock,
   flattenMockConditions,
   hasMockCondition,
   type MockCondition,
@@ -12,6 +11,18 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { billingAttributionMock } from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { triggerAvailabilityMock } from '@sim/testing/mocks/trigger-availability.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { generateShortId } from '@sim/utils/id'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -37,6 +48,23 @@ import {
 } from '@/lib/knowledge/connectors/sync-primitives'
 import type { ExternalDocument } from '@/connectors/types'
 
+const mockProcessDocumentsWithQueue = knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue
+
+const mockUploadFile = storageServiceMockFns.mockUploadFile
+
+const mockDeleteFile = storageServiceMockFns.mockDeleteFile
+const mockDeleteFileMetadata = uploadsMetadataMockFns.mockDeleteFileMetadata
+uploadsMetadataMockFns.mockGetFileMetadataByKeys.mockImplementation(async (keys: string[]) =>
+  keys.flatMap((key) => bindings.get(key) ?? [])
+)
+uploadsMetadataMockFns.mockInsertImmutableFileMetadata.mockImplementation(
+  async (options: { id: string; key: string }) => {
+    const binding = { id: options.id, contentUpdatedAt: new Date(0) }
+    bindings.set(options.key, binding)
+    return binding
+  }
+)
+
 beforeEach(resetEnvFlagsMock)
 
 function resetDbChainMock() {
@@ -44,40 +72,18 @@ function resetDbChainMock() {
   dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
 }
 
-vi.mock('drizzle-orm', () => drizzleOrmMock)
-const { mockProcessDocumentsWithQueue, mockUploadFile } = vi.hoisted(() => ({
-  mockProcessDocumentsWithQueue: vi.fn(),
-  mockUploadFile: vi.fn(),
-}))
-
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  hardDeleteDocuments: vi.fn(),
-  processDocumentAsync: vi.fn(),
-  processDocumentsWithQueue: mockProcessDocumentsWithQueue,
-}))
-vi.mock('@/lib/core/config/trigger-availability', () => ({ isTriggerAvailable: vi.fn() }))
-vi.mock('@/lib/uploads', () => ({ StorageService: { uploadFile: mockUploadFile } }))
-const { mockDeleteFile, mockDeleteFileMetadata, mockEnqueueStorageCleanup } = vi.hoisted(() => ({
-  mockDeleteFile: vi.fn(),
-  mockDeleteFileMetadata: vi.fn(),
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
+vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
+vi.mock('@/lib/uploads', () => uploadsMock)
+const { mockEnqueueStorageCleanup } = vi.hoisted(() => ({
   mockEnqueueStorageCleanup: vi.fn(async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'cleanup-guard' }])
     return ['cleanup-guard']
   }),
 }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({ deleteFile: mockDeleteFile }))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 const bindings = vi.hoisted(() => new Map<string, { id: string; contentUpdatedAt: Date }>())
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: mockDeleteFileMetadata,
-  getFileMetadataByKeys: vi.fn(async (keys: string[]) =>
-    keys.flatMap((key) => bindings.get(key) ?? [])
-  ),
-  insertImmutableFileMetadata: vi.fn(async (options: { id: string; key: string }) => {
-    const binding = { id: options.id, contentUpdatedAt: new Date(0) }
-    bindings.set(options.key, binding)
-    return binding
-  }),
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
   KNOWLEDGE_STORAGE_CLEANUP_EVENT: 'knowledge.document.storage.cleanup',
   enqueueKnowledgeStorageCleanup: mockEnqueueStorageCleanup,
@@ -94,16 +100,7 @@ const { mockGetDocument, mockMapTags, mockListDocuments } = vi.hoisted(() => ({
   mockListDocuments: vi.fn(),
 }))
 
-const { mockLogError } = vi.hoisted(() => ({ mockLogError: vi.fn() }))
-vi.mock('@sim/logger', async () => {
-  const { createMockLogger } = await import('@sim/testing/mocks/logger.mock')
-  return { createLogger: () => ({ ...createMockLogger(), error: mockLogError }) }
-})
-
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionOwner: vi.fn(),
-  assertBillingAttributionSnapshot: (snapshot: unknown) => snapshot,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {

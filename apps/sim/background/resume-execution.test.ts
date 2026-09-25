@@ -1,50 +1,41 @@
 import { loggerMock } from '@sim/testing'
+import { billingAttributionMock } from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  humanInTheLoopManagerMock,
+  humanInTheLoopManagerMockFns,
+} from '@sim/testing/mocks/human-in-the-loop-manager.mock'
+import {
+  tableWorkflowColumnsMock,
+  tableWorkflowColumnsMockFns,
+} from '@sim/testing/mocks/table-workflow-columns.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockTask,
-  mockGetPausedExecutionById,
-  mockStartResumeExecution,
-  mockFindCellContextByExecutionId,
-  mockSnapshotFromJson,
-  mockCreateResumeAttemptTimeoutController,
-  mockIsTimedOut,
-} = vi.hoisted(() => ({
-  mockTask: vi.fn((config) => config),
-  mockGetPausedExecutionById: vi.fn(),
-  mockStartResumeExecution: vi.fn(),
-  mockFindCellContextByExecutionId: vi.fn(),
+const { mockSnapshotFromJson, mockIsTimedOut } = vi.hoisted(() => ({
   mockSnapshotFromJson: vi.fn(),
-  mockCreateResumeAttemptTimeoutController: vi.fn(),
   mockIsTimedOut: vi.fn(() => false),
 }))
 
-vi.mock('@trigger.dev/sdk', () => ({ task: mockTask, timeout: { None: 'none' } }))
-
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: vi.fn((value) => value),
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/table/cascade-lock', () => ({ withCascadeLock: vi.fn() }))
 vi.mock('@/lib/table/deps', () => ({ isExecCancelled: vi.fn(() => false) }))
 
-vi.mock('@/lib/table/workflow-columns', () => ({
-  findCellContextByExecutionId: mockFindCellContextByExecutionId,
-}))
+vi.mock('@/lib/table/workflow-columns', () => tableWorkflowColumnsMock)
 
-vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
-  createResumeAttemptTimeoutController: mockCreateResumeAttemptTimeoutController,
-  PauseResumeManager: {
-    getPausedExecutionById: mockGetPausedExecutionById,
-    startResumeExecution: mockStartResumeExecution,
-  },
-}))
+vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => humanInTheLoopManagerMock)
 
 vi.mock('@/executor/execution/snapshot', () => ({
   ExecutionSnapshot: { fromJSON: mockSnapshotFromJson },
 }))
 
 import { executeResumeJob, type ResumeExecutionPayload } from '@/background/resume-execution'
+
+const { mockFindCellContextByExecutionId } = tableWorkflowColumnsMockFns
+const {
+  mockGetPausedExecutionById,
+  mockStartResumeExecution,
+  mockCreateResumeAttemptTimeoutController,
+} = humanInTheLoopManagerMockFns
 
 const resumeExecutionLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
   ([name]) => name === 'TriggerResumeExecution'

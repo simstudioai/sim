@@ -1,3 +1,8 @@
+import {
+  apiServerRoutesMock,
+  apiServerRoutesMockFns,
+} from '@sim/testing/mocks/api-server-routes.mock'
+import { tableApiMock } from '@sim/testing/mocks/table-api.mock'
 import { describe, expect, it, vi } from 'vitest'
 
 interface CapturedDefinition {
@@ -13,13 +18,6 @@ interface CapturedDefinition {
 }
 
 const mocks = vi.hoisted(() => ({
-  auth: { kind: 'session-or-executor' },
-  definitions: [] as CapturedDefinition[],
-  errorPolicies: {
-    concealTableAuthorization: { kind: 'conceal-table' },
-    concealImportAuthorization: { kind: 'conceal-import' },
-    concealExportAuthorization: { kind: 'conceal-export' },
-  },
   useCases: {
     cancelExport: { operation: { id: 'tables.exports.cancel' } },
     cancelImport: { operation: { id: 'tables.imports.cancel' } },
@@ -33,21 +31,9 @@ const mocks = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('@/lib/api/server/routes', () => ({
-  defineInternalJsonRoute: (definition: CapturedDefinition) => {
-    mocks.definitions.push(definition)
-    return vi.fn()
-  },
-  internalOrchestrationErrorPolicy: { kind: 'plain' },
-  internalRateLimits: {
-    none: ({ reason }: { reason: string }) => ({ kind: 'none', reason }),
-  },
-}))
+vi.mock('@/lib/api/server/routes', () => apiServerRoutesMock)
 
-vi.mock('@/lib/table/api', () => ({
-  internalTableErrorPolicies: mocks.errorPolicies,
-  internalTableSessionOrExecutorAuth: mocks.auth,
-}))
+vi.mock('@/lib/table/api', () => tableApiMock)
 
 vi.mock('@/lib/table/application/imports', () => ({
   cancelTableImportUseCase: mocks.useCases.cancelImport,
@@ -81,8 +67,12 @@ import '@/app/api/table/imports/[importId]/parts/route'
 import '@/app/api/table/imports/[importId]/route'
 import '@/app/api/table/imports/route'
 
+const definitions = apiServerRoutesMockFns.mockDefineInternalJsonRoute.mock.calls.map(
+  ([captured]) => captured as unknown as CapturedDefinition
+)
+
 function definition(method: string, path: string): CapturedDefinition {
-  const match = mocks.definitions.find(
+  const match = definitions.find(
     (candidate) => candidate.contract.method === method && candidate.contract.path === path
   )
   if (!match) throw new Error(`Missing ${method} ${path} route definition`)
@@ -92,26 +82,50 @@ function definition(method: string, path: string): CapturedDefinition {
 describe('internal table transfer routes', () => {
   it('conceals cross-tenant authorization on every table transfer control leg', () => {
     const expected = [
-      ['POST', '/api/table/imports', mocks.errorPolicies.concealTableAuthorization],
-      ['GET', '/api/table/imports/[importId]', mocks.errorPolicies.concealImportAuthorization],
-      ['DELETE', '/api/table/imports/[importId]', mocks.errorPolicies.concealImportAuthorization],
+      [
+        'POST',
+        '/api/table/imports',
+        tableApiMock.internalTableErrorPolicies.concealTableAuthorization,
+      ],
+      [
+        'GET',
+        '/api/table/imports/[importId]',
+        tableApiMock.internalTableErrorPolicies.concealImportAuthorization,
+      ],
+      [
+        'DELETE',
+        '/api/table/imports/[importId]',
+        tableApiMock.internalTableErrorPolicies.concealImportAuthorization,
+      ],
       [
         'POST',
         '/api/table/imports/[importId]/parts',
-        mocks.errorPolicies.concealImportAuthorization,
+        tableApiMock.internalTableErrorPolicies.concealImportAuthorization,
       ],
       [
         'POST',
         '/api/table/imports/[importId]/complete',
-        mocks.errorPolicies.concealImportAuthorization,
+        tableApiMock.internalTableErrorPolicies.concealImportAuthorization,
       ],
-      ['POST', '/api/table/[tableId]/exports', mocks.errorPolicies.concealTableAuthorization],
-      ['GET', '/api/table/exports/[exportId]', mocks.errorPolicies.concealExportAuthorization],
-      ['DELETE', '/api/table/exports/[exportId]', mocks.errorPolicies.concealExportAuthorization],
+      [
+        'POST',
+        '/api/table/[tableId]/exports',
+        tableApiMock.internalTableErrorPolicies.concealTableAuthorization,
+      ],
+      [
+        'GET',
+        '/api/table/exports/[exportId]',
+        tableApiMock.internalTableErrorPolicies.concealExportAuthorization,
+      ],
+      [
+        'DELETE',
+        '/api/table/exports/[exportId]',
+        tableApiMock.internalTableErrorPolicies.concealExportAuthorization,
+      ],
       [
         'GET',
         '/api/table/exports/[exportId]/download',
-        mocks.errorPolicies.concealExportAuthorization,
+        tableApiMock.internalTableErrorPolicies.concealExportAuthorization,
       ],
     ] as const
 

@@ -1,28 +1,25 @@
 import { member } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/knowledge/search/search-index', () => ({
   findSearchIndex: async () => ({ id: 'index' }),
 }))
 const mocks = vi.hoisted(() => ({
-  context: vi.fn(),
-  permission: vi.fn(),
   chunks: vi.fn(),
   provenance: vi.fn(),
   importProvenance: vi.fn(),
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  isOrgAdminRole: (role: string) => role === 'admin' || role === 'owner',
-  permissionSatisfies: (actual: string | null) => actual !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: async () => null,
-}))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveCanonicalActiveKnowledgeDocumentContext: mocks.context,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 vi.mock('@/lib/knowledge/chunks/service', () => ({ queryChunks: mocks.chunks }))
 vi.mock('@/lib/knowledge/secret-provenance', () => ({
   importKnowledgeSearchResultSecretProvenance: mocks.provenance,
@@ -34,7 +31,11 @@ vi.mock('@/lib/execution/durable-secret-provenance', () => ({
 import { readSearchDocument } from '@/lib/knowledge/application/read-search-document'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const principal = { kind: 'session', userId: 'reader', sessionId: 'session' } as const
+workspaceAuthzMockFns.mockPermissionSatisfies.mockImplementation(
+  (actual: string | null) => actual !== null
+)
+
+const principal = createSessionPrincipal({ userId: 'reader', sessionId: 'session' })
 const access = { kind: 'user', workspaceId: 'workspace', tokens: ['u:reader'] } as const
 const context = {
   workspaceId: 'workspace',
@@ -64,8 +65,10 @@ const input = {
 }
 describe('Assistant document read', () => {
   beforeEach(() => {
-    mocks.permission.mockResolvedValue('read')
-    mocks.context.mockResolvedValue(context)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValue(
+      context
+    )
     mocks.chunks.mockResolvedValue({
       chunks: [{ id: 'chunk', chunkIndex: 0, content: 'body' }],
       pagination: { total: 1, hasMore: false },
@@ -88,7 +91,9 @@ describe('Assistant document read', () => {
       chunks: [{ content: 'body', chunkIndex: 0 }],
       next: null,
     })
-    expect(mocks.context).toHaveBeenCalledWith({ ...input, knowledgeBaseId: 'index' }, principal)
+    expect(
+      knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext
+    ).toHaveBeenCalledWith({ ...input, knowledgeBaseId: 'index' }, principal)
     expect(mocks.chunks).toHaveBeenCalledWith(
       'doc',
       expect.objectContaining({
@@ -101,14 +106,18 @@ describe('Assistant document read', () => {
     )
   })
   it('rejects ordinary KBs and disabled documents', async () => {
-    mocks.context.mockResolvedValueOnce({ ...context, knowledgeBase: { isSearchIndex: false } })
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValueOnce(
+      { ...context, knowledgeBase: { isSearchIndex: false } }
+    )
     await expect(readSearchDocument.execute({ principal, input })).rejects.toThrow(
       'Document not found'
     )
-    mocks.context.mockResolvedValueOnce({
-      ...context,
-      document: { ...context.document, enabled: false },
-    })
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValueOnce(
+      {
+        ...context,
+        document: { ...context.document, enabled: false },
+      }
+    )
     await expect(readSearchDocument.execute({ principal, input })).rejects.toThrow(
       'Document not found'
     )
@@ -123,7 +132,7 @@ describe('Assistant document read', () => {
     await expect(readSearchDocument.execute({ principal, input })).rejects.toThrow('provenance')
   })
   it('rechecks the current workspace role', async () => {
-    mocks.permission.mockResolvedValue(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     await expect(readSearchDocument.execute({ principal, input })).rejects.toThrow(
       'Insufficient workspace'
     )
@@ -134,7 +143,7 @@ describe('Assistant document read', () => {
 describe('organization Search document reads', () => {
   beforeEach(() => {
     resetDbChainMock()
-    mocks.context.mockResolvedValue({
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValue({
       ...context,
       workspaceId: undefined,
       organizationId: 'org-1',
@@ -168,7 +177,7 @@ describe('organization Search document reads', () => {
       expect.any(String),
       access
     )
-    expect(mocks.permission).not.toHaveBeenCalled()
+    expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).not.toHaveBeenCalled()
   })
   it('refuses a removed member before reading document content or importing provenance', async () => {
     queueTableRows(member, [])
@@ -185,15 +194,19 @@ describe('organization Search document reads', () => {
         input: { ...orgInput, assertedWorkspaceId: 'workspace' },
       })
     ).rejects.toThrow('exactly one')
-    expect(mocks.context).not.toHaveBeenCalled()
+    expect(
+      knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext
+    ).not.toHaveBeenCalled()
     expect(mocks.chunks).not.toHaveBeenCalled()
   })
 })
 
 describe('precise bounded passage expansion', () => {
   beforeEach(() => {
-    mocks.permission.mockResolvedValue('read')
-    mocks.context.mockResolvedValue(context)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
+    knowledgeContextsMockFns.mockResolveCanonicalActiveKnowledgeDocumentContext.mockResolvedValue(
+      context
+    )
     mocks.provenance.mockResolvedValue({ imported: true, documentMetadata: {} })
   })
 

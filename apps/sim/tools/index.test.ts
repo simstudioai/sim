@@ -1,3 +1,32 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { apiKeyByokMock, apiKeyByokMockFns } from '@sim/testing/mocks/api-key-byok.mock'
+import { authInternalMock, authInternalMockFns } from '@sim/testing/mocks/auth-internal.mock'
+import { billingUsageLogMock } from '@sim/testing/mocks/billing-usage-log.mock'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { storageServiceMock } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsCopilotMock, uploadsCopilotMockFns } from '@sim/testing/mocks/uploads-copilot.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
+import { uploadsMetadataMock } from '@sim/testing/mocks/uploads-metadata.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { observeServiceCosts } from '@/lib/mothership/billing/service-observer'
 /**
  * Tools Registry and Executor Unit Tests
@@ -10,11 +39,11 @@ import {
   createExecutionContext,
   createMockFetch,
   type ExecutionContext,
+  encryptionMock,
   encryptionMockFns,
   environmentUtilsMockFns,
   inputValidationMock,
   inputValidationMockFns,
-  loggerMock,
   type MockFetchResponse,
   resetEnvFlagsMock,
   resetEnvironmentUtilsMock,
@@ -55,47 +84,31 @@ import { workflowExecutorTool } from '@/tools/workflow/executor'
 
 // Hoisted mock state - these are available to vi.mock factories
 const {
-  mockGetBYOKKey,
   mockGetToolAsync,
   mockRateLimiterFns,
-  mockMarkWorkspaceFileSecretProvenanceUnknown,
   mockRunCustomBlockTool,
   mockRunWorkflowTool,
   mockReadAvailableCustomToolByIdOrTitleAsCopilot,
   mockReadAvailableCustomToolByIdOrTitleAsExecutor,
-  mockGenerateInternalToken,
-  mockResolveWorkspaceFileReference,
-  mockAssertPermissionsAllowed,
   mockExecuteFunction,
   mockExecuteChatFunction,
-  mockCreateExecutorPrincipalFromExecutionContext,
   mockGetInternalToolOperationHandler,
   mockExecuteInternalToolOperation,
-  mockUploadExecutionFile,
-  mockUploadCopilotFile,
 } = vi.hoisted(() => ({
-  mockGetBYOKKey: vi.fn(),
   mockGetToolAsync: vi.fn(),
   mockRateLimiterFns: {
     acquireKey: vi.fn(),
     preConsumeCapacity: vi.fn(),
     consumeCapacity: vi.fn(),
   },
-  mockMarkWorkspaceFileSecretProvenanceUnknown: vi.fn(),
   mockRunCustomBlockTool: vi.fn(),
   mockRunWorkflowTool: vi.fn(),
   mockReadAvailableCustomToolByIdOrTitleAsCopilot: vi.fn(),
   mockReadAvailableCustomToolByIdOrTitleAsExecutor: vi.fn(),
-  mockGenerateInternalToken: vi.fn(),
-  mockResolveWorkspaceFileReference: vi.fn(),
-  mockAssertPermissionsAllowed: vi.fn(),
   mockExecuteFunction: vi.fn(),
   mockExecuteChatFunction: vi.fn(),
-  mockCreateExecutorPrincipalFromExecutionContext: vi.fn(),
   mockGetInternalToolOperationHandler: vi.fn(),
   mockExecuteInternalToolOperation: vi.fn(),
-  mockUploadExecutionFile: vi.fn(),
-  mockUploadCopilotFile: vi.fn(),
 }))
 
 const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
@@ -103,40 +116,17 @@ const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
 const mockGetEffectiveEnvironmentSnapshot =
   environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
 
-// Mock getBYOKKey
-vi.mock('@/lib/api-key/byok', () => ({
-  getBYOKKey: (...args: unknown[]) => mockGetBYOKKey(...args),
-}))
+vi.mock('@/lib/api-key/byok', () => apiKeyByokMock)
 
-vi.mock('@/lib/auth/internal', () => ({
-  generateInternalToken: (...args: unknown[]) => mockGenerateInternalToken(...args),
-}))
+vi.mock('@/lib/auth/internal', () => authInternalMock)
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: encryptionMockFns.mockDecryptSecret,
-  encryptSecret: encryptionMockFns.mockEncryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  assertPermissionsAllowed: mockAssertPermissionsAllowed,
-  validateBlockType: vi.fn().mockResolvedValue(undefined),
-  validateModelProvider: vi.fn().mockResolvedValue(undefined),
-  validateInvitationsAllowed: vi.fn().mockResolvedValue(undefined),
-  validatePublicApiAllowed: vi.fn().mockResolvedValue(undefined),
-  ProviderNotAllowedError: class ProviderNotAllowedError extends Error {},
-  IntegrationNotAllowedError: class IntegrationNotAllowedError extends Error {},
-  McpToolsNotAllowedError: class McpToolsNotAllowedError extends Error {},
-  CustomToolsNotAllowedError: class CustomToolsNotAllowedError extends Error {},
-  SkillsNotAllowedError: class SkillsNotAllowedError extends Error {},
-  InvitationsNotAllowedError: class InvitationsNotAllowedError extends Error {},
-  PublicApiNotAllowedError: class PublicApiNotAllowedError extends Error {},
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: vi.fn().mockResolvedValue(null),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/billing/core/usage-log', () => ({}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
@@ -148,43 +138,30 @@ vi.mock('@/lib/function-execution/application/execute-function', () => ({
   executeFunction: { execute: mockExecuteFunction },
 }))
 
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mockCreateExecutorPrincipalFromExecutionContext,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
 vi.mock('@/lib/internal/tool-operations/registry.server', () => ({
   getInternalToolOperationHandler: mockGetInternalToolOperationHandler,
 }))
 
-vi.mock('@/lib/uploads/contexts/execution', () => ({
-  uploadExecutionFile: mockUploadExecutionFile,
-  uploadFileFromRawData: vi.fn(),
-}))
+vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
 
-vi.mock('@/lib/uploads/contexts/copilot', () => ({
-  uploadCopilotFile: mockUploadCopilotFile,
-}))
+vi.mock('@/lib/uploads/contexts/copilot', () => uploadsCopilotMock)
 
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  deleteFile: vi.fn(),
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: vi.fn(),
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 vi.mock('@/lib/core/rate-limiter/hosted-key', () => ({
   getHostedKeyRateLimiter: () => mockRateLimiterFns,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  resolveWorkspaceFileReference: (...args: unknown[]) => mockResolveWorkspaceFileReference(...args),
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  markWorkspaceFileSecretProvenanceUnknown: (...args: unknown[]) =>
-    mockMarkWorkspaceFileSecretProvenanceUnknown(...args),
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 const { mockResolveExecutorCredentialToken } = vi.hoisted(() => ({
   mockResolveExecutorCredentialToken: vi.fn(),
@@ -439,9 +416,20 @@ import { tools } from '@/tools/registry'
 import { createToolConfig, getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
 
-const mockToolsLogger = vi.mocked(loggerMock.createLogger).mock.results[
-  vi.mocked(loggerMock.createLogger).mock.calls.findIndex(([name]) => name === 'Tools')
-].value
+const mockGetBYOKKey = apiKeyByokMockFns.mockGetBYOKKey
+const mockGenerateInternalToken = authInternalMockFns.mockGenerateInternalToken
+const mockCreateExecutorPrincipalFromExecutionContext =
+  executorPrincipalMockFns.mockCreateExecutorPrincipalFromExecutionContext
+const mockUploadExecutionFile = uploadsExecutionMockFns.mockUploadExecutionFile
+const mockUploadCopilotFile = uploadsCopilotMockFns.mockUploadCopilotFile
+
+const mockMarkWorkspaceFileSecretProvenanceUnknown =
+  workspaceFileSecretProvenanceMockFns.mockMarkWorkspaceFileSecretProvenanceUnknown
+const mockResolveWorkspaceFileReference =
+  workspaceFileManagerMockFns.mockResolveWorkspaceFileReference
+const mockAssertPermissionsAllowed = permissionCheckMockFns.mockAssertPermissionsAllowed
+
+const mockToolsLogger = getMockLogger('Tools')
 
 /**
  * Overlay the mock tools onto the REAL registry object instead of vi.mock:
@@ -498,11 +486,8 @@ function createMockQueryClient(): QueryClient {
  * Spy on the real get-query-client namespace instead of vi.mock: under
  * `isolate: false` the shared `@/tools/utils` module may be cached across test
  * files, so patching the real namespace is the only wiring that composes.
- * Re-applied in beforeEach because suites below call vi.resetAllMocks() /
- * vi.restoreAllMocks().
+ * Applied in beforeEach because spies are restored before every test.
  */
-vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQueryClient)
-
 beforeEach(() => {
   vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQueryClient)
   mockAssertPermissionsAllowed.mockResolvedValue(undefined)
@@ -624,7 +609,7 @@ function createToolExecutionContext(overrides?: Partial<ExecutionContext>): Exec
   const principal =
     overrides?.principal ??
     (overrides?.userId
-      ? { kind: 'session' as const, userId: overrides.userId, sessionId: 'test-session' }
+      ? createSessionPrincipal({ userId: overrides.userId, sessionId: 'test-session' })
       : undefined)
   const executorDelegationOrigin =
     overrides?.executorDelegationOrigin ??

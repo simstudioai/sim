@@ -1,3 +1,7 @@
+import {
+  searchReplaceIndexerMock,
+  searchReplaceIndexerMockFns,
+} from '@sim/testing/mocks/search-replace-indexer.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   collectStrippedWorkspaceBindings,
@@ -8,24 +12,22 @@ import { WORKFLOW_SEARCH_SUBBLOCK_RESOURCE_TYPES } from '@/lib/workflows/search-
 import { getBlock } from '@/blocks/registry'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
-vi.mock('@/lib/workflows/search-replace/indexer', () => ({
-  getToolInputParamConfigs: ({
-    tool,
-  }: {
-    tool: { type: string; params?: Record<string, unknown> }
-  }) =>
-    Object.entries(tool.params ?? {}).map(([paramId, value]) => ({
-      paramId,
-      authoritative: tool.type !== 'custom-tool' && tool.type !== 'mcp',
-      value,
-      config: {
-        id: paramId,
-        type: 'short-input',
-        password: paramId === 'apiKey' || paramId === 'token',
-        canonicalParamId: paramId === 'manualCredential' ? 'oauthCredential' : undefined,
-      },
-    })),
-}))
+vi.mock('@/lib/workflows/search-replace/indexer', () => searchReplaceIndexerMock)
+
+searchReplaceIndexerMockFns.mockGetToolInputParamConfigs.mockImplementation((options) => {
+  const { tool } = options as { tool: { type: string; params?: Record<string, unknown> } }
+  return Object.entries(tool.params ?? {}).map(([paramId, value]) => ({
+    paramId,
+    authoritative: tool.type !== 'custom-tool' && tool.type !== 'mcp',
+    value,
+    config: {
+      id: paramId,
+      type: 'short-input',
+      password: paramId === 'apiKey' || paramId === 'token',
+      canonicalParamId: paramId === 'manualCredential' ? 'oauthCredential' : undefined,
+    },
+  }))
+})
 
 function stateWithSubBlock(type: string, value: unknown): Partial<WorkflowState> {
   return {

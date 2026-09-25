@@ -1,16 +1,8 @@
 import { userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockError } = vi.hoisted(() => ({
-  mockError: vi.fn(),
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ error: mockError, warn: vi.fn() }),
-}))
-
 import type { DbTransaction } from '@/lib/table/planner'
 import {
   classifyTableRowSecretProvenanceForCopy,
@@ -20,6 +12,8 @@ import {
   TableRowProvenanceReader,
   updateTableRowsWithDerivedSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
+
+const { error: mockError } = getMockLogger('TableRowSecretProvenance')
 
 const ROW_UPDATED_AT = new Date('2026-08-05T00:00:00.123Z')
 

@@ -1,61 +1,42 @@
 import { databaseMock, dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import {
+  billingUsageReservationMock,
+  billingUsageReservationMockFns,
+} from '@sim/testing/mocks/billing-usage-reservation.mock'
+import {
+  humanInTheLoopManagerMock,
+  humanInTheLoopManagerMockFns,
+} from '@sim/testing/mocks/human-in-the-loop-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockMarkExecutionCancelled,
   mockClearExecutionCancellation,
   mockAbortManualExecution,
-  mockBeginPausedCancellation,
-  mockStagePausedCancellation,
-  mockBlockQueuedResumesForCancellation,
-  mockClearPausedCancellationIntent,
-  mockCompletePausedCancellation,
-  mockFinalizePausedCancellationForTerminalRun,
-  mockGetPausedCancellationStatus,
-  mockGetActiveResumeCancellationTarget,
-  mockGetActiveResumeCancellationTargets,
-  mockRollbackActiveResumeCancellation,
   mockFinalizeExecutionStream,
   mockReadExecutionMetaState,
   mockWriteEvent,
   mockWriteTerminalEvent,
   mockCancelByExecution,
-  mockGetJobQueue,
-  mockReleaseExecutionSlot,
   mockCancelWorkflowGroupExecution,
   mockPublishWorkflowGroupCancellationEvent,
 } = vi.hoisted(() => ({
   mockMarkExecutionCancelled: vi.fn(),
   mockClearExecutionCancellation: vi.fn(),
   mockAbortManualExecution: vi.fn(),
-  mockBeginPausedCancellation: vi.fn(),
-  mockStagePausedCancellation: vi.fn(),
-  mockBlockQueuedResumesForCancellation: vi.fn(),
-  mockClearPausedCancellationIntent: vi.fn(),
-  mockCompletePausedCancellation: vi.fn(),
-  mockFinalizePausedCancellationForTerminalRun: vi.fn(),
-  mockGetPausedCancellationStatus: vi.fn(),
-  mockGetActiveResumeCancellationTarget: vi.fn(),
-  mockGetActiveResumeCancellationTargets: vi.fn(),
-  mockRollbackActiveResumeCancellation: vi.fn(),
   mockFinalizeExecutionStream: vi.fn(),
   mockReadExecutionMetaState: vi.fn(),
   mockWriteEvent: vi.fn(),
   mockWriteTerminalEvent: vi.fn(),
   mockCancelByExecution: vi.fn(),
-  mockGetJobQueue: vi.fn(),
-  mockReleaseExecutionSlot: vi.fn(),
   mockCancelWorkflowGroupExecution: vi.fn(),
   mockPublishWorkflowGroupCancellationEvent: vi.fn(),
 }))
 
-vi.mock('@/lib/core/async-jobs', () => ({
-  getJobQueue: mockGetJobQueue,
-}))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 
-vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
-  releaseExecutionSlot: mockReleaseExecutionSlot,
-}))
+vi.mock('@/lib/billing/calculations/usage-reservation', () => billingUsageReservationMock)
 
 vi.mock('@/lib/execution/cancellation', () => ({
   markExecutionCancelled: (...args: unknown[]) => mockMarkExecutionCancelled(...args),
@@ -66,26 +47,7 @@ vi.mock('@/lib/execution/manual-cancellation', () => ({
   abortManualExecution: (...args: unknown[]) => mockAbortManualExecution(...args),
 }))
 
-vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => ({
-  PauseResumeManager: {
-    beginPausedCancellation: (...args: unknown[]) => mockBeginPausedCancellation(...args),
-    stagePausedCancellation: (...args: unknown[]) => mockStagePausedCancellation(...args),
-    blockQueuedResumesForCancellation: (...args: unknown[]) =>
-      mockBlockQueuedResumesForCancellation(...args),
-    clearPausedCancellationIntent: (...args: unknown[]) =>
-      mockClearPausedCancellationIntent(...args),
-    completePausedCancellation: (...args: unknown[]) => mockCompletePausedCancellation(...args),
-    finalizePausedCancellationForTerminalRun: (...args: unknown[]) =>
-      mockFinalizePausedCancellationForTerminalRun(...args),
-    getPausedCancellationStatus: (...args: unknown[]) => mockGetPausedCancellationStatus(...args),
-    getActiveResumeCancellationTarget: (...args: unknown[]) =>
-      mockGetActiveResumeCancellationTarget(...args),
-    getActiveResumeCancellationTargets: (...args: unknown[]) =>
-      mockGetActiveResumeCancellationTargets(...args),
-    rollbackActiveResumeCancellation: (...args: unknown[]) =>
-      mockRollbackActiveResumeCancellation(...args),
-  },
-}))
+vi.mock('@/lib/workflows/executor/human-in-the-loop-manager', () => humanInTheLoopManagerMock)
 
 vi.mock('@/lib/table/workflow-group-cancellation', () => ({
   cancelWorkflowGroupExecution: (...args: unknown[]) => mockCancelWorkflowGroupExecution(...args),
@@ -111,6 +73,21 @@ import {
   WorkflowExecutionNotFoundError,
 } from '@/lib/execution/cancel-workflow-execution'
 import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
+
+const mockReleaseExecutionSlot = billingUsageReservationMockFns.mockReleaseExecutionSlot
+const { mockGetJobQueue } = asyncJobsMockFns
+const {
+  mockBeginPausedCancellation,
+  mockStagePausedCancellation,
+  mockBlockQueuedResumesForCancellation,
+  mockClearPausedCancellationIntent,
+  mockCompletePausedCancellation,
+  mockFinalizePausedCancellationForTerminalRun,
+  mockGetPausedCancellationStatus,
+  mockGetActiveResumeCancellationTarget,
+  mockGetActiveResumeCancellationTargets,
+  mockRollbackActiveResumeCancellation,
+} = humanInTheLoopManagerMockFns
 
 const INPUT: CancelWorkflowExecutionInput = {
   workflowId: 'wf-1',

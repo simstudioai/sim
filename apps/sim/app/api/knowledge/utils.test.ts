@@ -11,7 +11,7 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 import * as billingAttributionModule from '@/lib/billing/core/billing-attribution'
 import { env } from '@/lib/core/config/env'
 import * as documentsUtilsModule from '@/lib/knowledge/documents/utils'
@@ -47,9 +47,12 @@ afterAll(() => {
  * `@/lib/knowledge/embeddings` module may be cached bound to the real module,
  * so patching the namespace is the only wiring that always applies.
  */
-const retrySpy = vi
-  .spyOn(documentsUtilsModule, 'retryWithExponentialBackoff')
-  .mockImplementation(((fn: () => unknown) => fn()) as never)
+let retrySpy: MockInstance<typeof documentsUtilsModule.retryWithExponentialBackoff>
+beforeEach(() => {
+  retrySpy = vi
+    .spyOn(documentsUtilsModule, 'retryWithExponentialBackoff')
+    .mockImplementation(((fn: () => unknown) => fn()) as never)
+})
 
 const BILLING_ATTRIBUTION_FIXTURE = {
   actorUserId: 'billing-user-1',

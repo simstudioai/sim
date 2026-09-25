@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockFetch } = vi.hoisted(() => ({ mockFetch: vi.fn() }))
 
@@ -34,10 +34,6 @@ describe('QuickBooks account identity', () => {
 describe('fetchQuickBooksConnectionProfile', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('binds the documented callback realm to the documented UserInfo identity', async () => {
@@ -128,10 +124,6 @@ describe('fetchQuickBooksConnectionProfile', () => {
 describe('revokeQuickBooksToken', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('sends the token to the Intuit revocation endpoint with client authentication', async () => {

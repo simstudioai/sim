@@ -1,26 +1,19 @@
+import { billingSubscriptionMock } from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { permissionsMock } from '@sim/testing/mocks/permissions.mock'
+import { providersUtilsMock } from '@sim/testing/mocks/providers-utils.mock'
+import { utilsHelpersMock } from '@sim/testing/mocks/utils-helpers.mock'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getUserPermissionConfig: vi.fn(),
-}))
-
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mocks.getUserPermissionConfig,
-  getUserPermissionConfigForOrganization: vi.fn(),
-  mergeEnvAllowlist: (config: unknown) => config,
-  resolveVerifiedUserAccessControlContext: vi.fn(),
-  resolveWorkspaceGroup: vi.fn(),
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: vi.fn(),
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({ getWorkspaceWithOwner: vi.fn() }))
-vi.mock('@sim/utils/helpers', () => ({ sleep: vi.fn().mockResolvedValue(undefined) }))
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: () => false,
-  getProviderFromModel: () => 'openai',
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 import type { ExecutionContext } from '@/executor/types'
 import {
@@ -28,6 +21,10 @@ import {
   ToolNotAllowedError,
   validateModelProvider,
 } from './permission-check'
+
+const mocks = {
+  getUserPermissionConfig: permissionGroupsResolveMockFns.mockGetUserPermissionConfig,
+}
 
 /**
  * A run's own metadata carries its gate subject. Only a trigger whose acting

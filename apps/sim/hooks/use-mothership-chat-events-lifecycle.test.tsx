@@ -3,7 +3,7 @@
 import { act } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MothershipChatOwner } from '@/hooks/queries/mothership-chats'
 import { mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 
@@ -53,10 +53,6 @@ describe('chat event subscription lifecycle', () => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     deployment.chatEnabled = true
     connect.mockReturnValue({ close })
-  })
-  afterEach(() => {
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
   })
 
   it('reconciles missed changes on reconnect while leaving seamless rotation alone', () => {

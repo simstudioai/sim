@@ -1,19 +1,19 @@
 import { credential, knowledgeBase, member, workspaceFiles } from '@sim/db/schema'
 import { dbChainMockFns, hasMockCondition, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  organizationMemberLimitsMock,
+  organizationMemberLimitsMockFns,
+} from '@sim/testing/mocks/organization-member-limits.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSetOrgMemberUsageLimit } = vi.hoisted(() => ({
-  mockSetOrgMemberUsageLimit: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/organizations/member-limits', () => ({
-  setOrgMemberUsageLimit: mockSetOrgMemberUsageLimit,
-}))
+vi.mock('@/lib/billing/organizations/member-limits', () => organizationMemberLimitsMock)
 
 import {
   removeExternalUserFromOrganizationWorkspaces,
   removeUserFromOrganization,
 } from '@/lib/billing/organizations/membership'
+
+const mockSetOrgMemberUsageLimit = organizationMemberLimitsMockFns.mockSetOrgMemberUsageLimit
 
 describe('external organization access removal', () => {
   beforeEach(() => {

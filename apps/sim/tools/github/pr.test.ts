@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { listPRsV2Tool } from '@/tools/github/list_prs'
 import { prTool, prV2Tool } from '@/tools/github/pr'
 import type {
@@ -70,10 +70,6 @@ function pullRequestFilePayload(index = 0) {
 }
 
 describe('GitHub PR reader tools', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('exposes includeFiles only on the V2 contract', () => {
     expect(prTool.params).not.toHaveProperty('includeFiles')
     expect(prV2Tool.params).toMatchObject({

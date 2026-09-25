@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { executeSalesforceUpdateCustomFieldOperation } from '@/lib/internal/salesforce/operations/update-custom-field'
 
 const PARAMS = {
@@ -11,10 +11,6 @@ const PARAMS = {
 describe('salesforce update custom field operation', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('rejects a field ID that could escape the CustomField path before provider work', async () => {

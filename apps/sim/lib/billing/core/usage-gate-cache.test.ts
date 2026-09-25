@@ -1,11 +1,13 @@
+import { flushMacrotask } from '@sim/testing/helpers/async'
+import { createDeferred } from '@sim/testing/helpers/deferred'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
 import { sleep } from '@sim/utils/helpers'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheck } = vi.hoisted(() => ({ mockCheck: vi.fn() }))
-
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  checkAttributedUsageLimits: mockCheck,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import {
@@ -16,6 +18,8 @@ import {
   USAGE_GATE_SETTLE_TIMEOUT_MS,
   USAGE_GATE_TTL_MS,
 } from '@/lib/billing/core/usage-gate-cache'
+
+const mockCheck = billingAttributionMockFns.mockCheckAttributedUsageLimits
 
 const ATTRIBUTION: BillingAttributionSnapshot = {
   actorUserId: 'member-1',
@@ -46,7 +50,6 @@ describe('checkIngestionUsageLimits', () => {
     resetUsageGateCache()
     mockCheck.mockReset().mockResolvedValue({ isExceeded: false })
   })
-  afterEach(() => vi.restoreAllMocks())
 
   it('reads the ledger once per payer, period and actor within the TTL', async () => {
     await checkIngestionUsageLimits(ATTRIBUTION)
@@ -56,15 +59,15 @@ describe('checkIngestionUsageLimits', () => {
   })
 
   it('collapses concurrent misses onto one ledger read', async () => {
-    let resolve!: (value: { isExceeded: boolean }) => void
-    mockCheck.mockReturnValueOnce(new Promise((r) => (resolve = r)))
+    const ledger = createDeferred<{ isExceeded: boolean }>()
+    mockCheck.mockReturnValueOnce(ledger.promise)
     const pending = Promise.all([
       checkIngestionUsageLimits(ATTRIBUTION),
       checkIngestionUsageLimits(ATTRIBUTION),
       checkIngestionUsageLimits(ATTRIBUTION),
     ])
-    await sleep(0)
-    resolve({ isExceeded: false })
+    await flushMacrotask()
+    ledger.resolve({ isExceeded: false })
     const results = await pending
     expect(results.every((result) => result.isExceeded === false)).toBe(true)
     expect(mockCheck).toHaveBeenCalledTimes(1)

@@ -1,3 +1,22 @@
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import { storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { uploadsMock } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
 import {
@@ -6,39 +25,31 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 
 const mocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
-  downloadFileFromStorage: vi.fn(),
   generateElevenLabsAudio: vi.fn(),
-  isModelSafeWorkspaceFileKey: vi.fn(),
-  storageUpload: vi.fn(),
-  uploadExecutionFile: vi.fn(),
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertToolFileAccess,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 vi.mock('@/lib/internal/elevenlabs/client', () => ({
   generateElevenLabsAudio: mocks.generateElevenLabsAudio,
 }))
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadFileFromStorage: mocks.downloadFileFromStorage,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  isModelSafeWorkspaceFileKey: mocks.isModelSafeWorkspaceFileKey,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
-    'File cannot be sent to a model because its secret provenance is unavailable',
-}))
-vi.mock('@/lib/uploads', () => ({
-  StorageService: { uploadFile: mocks.storageUpload },
-}))
-vi.mock('@/lib/uploads/contexts/execution', () => ({
-  uploadExecutionFile: mocks.uploadExecutionFile,
-}))
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => 'https://sim.example.com',
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
+vi.mock('@/lib/uploads', () => uploadsMock)
+vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
+
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockDownloadFileFromStorage } = fileUtilsServerMockFns
+const { mockIsModelSafeWorkspaceFileKey } = workspaceFileSecretProvenanceMockFns
+const { mockUploadFile } = storageServiceMockFns
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example.com')
 
 import { executeElevenLabsAudioIsolation } from '@/lib/internal/elevenlabs/operations'
+
+const { mockUploadExecutionFile } = uploadsExecutionMockFns
 
 const audioFile = {
   id: 'file-1',
@@ -56,12 +67,12 @@ const context = {
 
 describe('ElevenLabs operations', () => {
   beforeEach(() => {
-    mocks.assertToolFileAccess.mockResolvedValue(null)
-    mocks.downloadFileFromStorage.mockResolvedValue(Buffer.from('source-audio'))
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockDownloadFileFromStorage.mockResolvedValue(Buffer.from('source-audio'))
     mocks.generateElevenLabsAudio.mockResolvedValue(Buffer.from('result-audio'))
-    mocks.isModelSafeWorkspaceFileKey.mockResolvedValue(true)
-    mocks.storageUpload.mockResolvedValue({ path: '/generated.mp3', size: 12 })
-    mocks.uploadExecutionFile.mockResolvedValue({
+    mockIsModelSafeWorkspaceFileKey.mockResolvedValue(true)
+    mockUploadFile.mockResolvedValue({ path: '/generated.mp3', size: 12 })
+    mockUploadExecutionFile.mockResolvedValue({
       ...audioFile,
       name: 'generated.mp3',
       url: 'https://storage.example.com/generated.mp3',
@@ -90,12 +101,12 @@ describe('ElevenLabs operations', () => {
       status: 400,
       body: { error: 'Model input provenance is unavailable' },
     })
-    expect(mocks.downloadFileFromStorage).not.toHaveBeenCalled()
+    expect(mockDownloadFileFromStorage).not.toHaveBeenCalled()
     expect(mocks.generateElevenLabsAudio).not.toHaveBeenCalled()
   })
 
   it('rejects unsafe tracked audio before reading or sending it', async () => {
-    mocks.isModelSafeWorkspaceFileKey.mockResolvedValue(false)
+    mockIsModelSafeWorkspaceFileKey.mockResolvedValue(false)
 
     await expect(
       executeElevenLabsAudioIsolation({ apiKey: 'secret', audioFile }, context)
@@ -105,7 +116,7 @@ describe('ElevenLabs operations', () => {
         error: 'File cannot be sent to a model because its secret provenance is unavailable',
       },
     })
-    expect(mocks.downloadFileFromStorage).not.toHaveBeenCalled()
+    expect(mockDownloadFileFromStorage).not.toHaveBeenCalled()
     expect(mocks.generateElevenLabsAudio).not.toHaveBeenCalled()
   })
 
@@ -126,7 +137,7 @@ describe('ElevenLabs operations', () => {
 
     await executeElevenLabsAudioIsolation(input, executionContext)
 
-    expect(mocks.uploadExecutionFile).toHaveBeenCalledWith(
+    expect(mockUploadExecutionFile).toHaveBeenCalledWith(
       {
         workspaceId: 'trusted-workspace',
         workflowId: 'trusted-workflow',

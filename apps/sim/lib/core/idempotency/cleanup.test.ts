@@ -1,9 +1,10 @@
 import { idempotencyKey } from '@sim/db/schema'
 import { resetDbChainMock } from '@sim/testing'
+import { utilsHelpersMock } from '@sim/testing/mocks/utils-helpers.mock'
 import { like, notLike } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/utils/helpers', () => ({ sleep: vi.fn() }))
+vi.mock('@sim/utils/helpers', () => utilsHelpersMock)
 
 import { cleanupExpiredIdempotencyKeys } from '@/lib/core/idempotency/cleanup'
 

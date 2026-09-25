@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 const { handlers } = vi.hoisted(() => ({
   handlers: {
@@ -28,11 +28,6 @@ import {
 import { isInternalRequest } from '@/lib/api/server/routes/internal-request'
 
 describe('in-process transport', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-    vi.clearAllMocks()
-  })
-
   it('prefers the more literal pattern and decodes dynamic segments', async () => {
     expect(matchV2Route('/api/v2/blocks/latest')?.params).toEqual({})
     const dynamic = matchV2Route('/api/v2/blocks/slack%20v2')

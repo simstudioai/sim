@@ -1,49 +1,55 @@
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  blockVisibilityMock,
+  blockVisibilityMockFns,
+} from '@sim/testing/mocks/block-visibility.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   listCatalog: vi.fn(),
   resolveTarget: vi.fn(),
   personalCredentials: vi.fn(),
   personalTokens: vi.fn(),
   credentialVisible: vi.fn(),
   allowedIntegrations: vi.fn(),
-  blockVisibility: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/credentials/application/provider-catalog', () => ({
-  listCredentialProviderCatalog: mocks.listCatalog,
+  listCredentialProviderCatalog: hoisted.listCatalog,
 }))
 vi.mock('@/lib/credentials/application/connection-target', () => ({
-  resolveCredentialConnectionTarget: mocks.resolveTarget,
+  resolveCredentialConnectionTarget: hoisted.resolveTarget,
 }))
 vi.mock('@/lib/credentials/personal', () => ({
-  getPersonalOAuthCredentials: mocks.personalCredentials,
+  getPersonalOAuthCredentials: hoisted.personalCredentials,
 }))
 
 vi.mock('@/lib/credentials/personal-tokens', () => ({
-  getPersonalTokenCredentials: mocks.personalTokens,
+  getPersonalTokenCredentials: hoisted.personalTokens,
 }))
-vi.mock('@/lib/core/config/block-visibility', () => ({
-  getBlockVisibility: mocks.blockVisibility,
-}))
+vi.mock('@/lib/core/config/block-visibility', () => blockVisibilityMock)
 vi.mock('@/lib/integrations/principal-scope.server', () => ({
-  allowedIntegrationTypes: mocks.allowedIntegrations,
+  allowedIntegrationTypes: hoisted.allowedIntegrations,
 }))
 vi.mock('@/lib/integrations/credential-visibility.server', () => ({
-  createIntegrationCredentialVisibility: () => ({ isCredentialVisible: mocks.credentialVisible }),
+  createIntegrationCredentialVisibility: () => ({ isCredentialVisible: hoisted.credentialVisible }),
 }))
 
 import { prepareCredentialConnection } from '@/lib/credentials/application/prepare-credential-connection'
+
+const mocks = {
+  ...hoisted,
+  blockVisibility: blockVisibilityMockFns.mockGetBlockVisibility,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+}
 
 const workspace = {
   workspaceId: 'workspace-1',
@@ -51,16 +57,7 @@ const workspace = {
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
-const principal = {
-  kind: 'delegated' as const,
-  serviceId: 'copilot' as const,
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
-  delegationId: 'delegation-1',
-  audience: 'sim:credentials',
-  issuedAt: new Date('2026-08-14T12:00:00.000Z'),
-  expiresAt: new Date('2030-08-14T12:05:00.000Z'),
-}
+const principal = createDelegatedPrincipal({ audience: 'sim:credentials' })
 const gmailProvider = {
   type: 'oauth' as const,
   serviceId: 'gmail',

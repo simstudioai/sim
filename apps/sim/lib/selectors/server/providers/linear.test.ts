@@ -1,33 +1,31 @@
 import { LinearError } from '@linear/sdk'
+import {
+  selectorCredentialsMock,
+  selectorCredentialsMockFns,
+} from '@sim/testing/mocks/selector-credentials.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  MockLinearError,
-  mockLinearClientOptions,
-  mockResolveSelectorOAuthAccessToken,
-  mockTeams,
-  mockTeam,
-  mockProject,
-} = vi.hoisted(() => {
-  class MockLinearError extends Error {
-    status?: number
+const { MockLinearError, mockLinearClientOptions, mockTeams, mockTeam, mockProject } = vi.hoisted(
+  () => {
+    class MockLinearError extends Error {
+      status?: number
 
-    constructor(error?: { response?: { status?: number } }) {
-      super('Linear request failed')
-      this.name = 'LinearError'
-      this.status = error?.response?.status
+      constructor(error?: { response?: { status?: number } }) {
+        super('Linear request failed')
+        this.name = 'LinearError'
+        this.status = error?.response?.status
+      }
+    }
+
+    return {
+      MockLinearError,
+      mockLinearClientOptions: vi.fn(),
+      mockTeams: vi.fn(),
+      mockTeam: vi.fn(),
+      mockProject: vi.fn(),
     }
   }
-
-  return {
-    MockLinearError,
-    mockLinearClientOptions: vi.fn(),
-    mockResolveSelectorOAuthAccessToken: vi.fn(),
-    mockTeams: vi.fn(),
-    mockTeam: vi.fn(),
-    mockProject: vi.fn(),
-  }
-})
+)
 
 vi.mock('@linear/sdk', () => ({
   LinearError: MockLinearError,
@@ -42,13 +40,14 @@ vi.mock('@linear/sdk', () => ({
   },
 }))
 
-vi.mock('@/lib/selectors/server/credentials', () => ({
-  resolveSelectorOAuthAccessToken: mockResolveSelectorOAuthAccessToken,
-}))
+vi.mock('@/lib/selectors/server/credentials', () => selectorCredentialsMock)
 
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { linearSelectorAttachments } from '@/lib/selectors/server/providers/linear'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+
+const mockResolveSelectorOAuthAccessToken =
+  selectorCredentialsMockFns.mockResolveSelectorOAuthAccessToken
 
 function teamArgs(signal?: AbortSignal): ExecuteServerSelectorArgs {
   return {

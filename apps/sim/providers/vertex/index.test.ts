@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ProviderRequest } from '@/providers/types'
 
 const { mockGoogleGenAI, genAIArgs, mockExecuteGeminiRequest } = vi.hoisted(() => {
@@ -22,9 +23,11 @@ vi.mock('google-auth-library', () => ({
   },
 }))
 vi.mock('@/providers/gemini/core', () => ({ executeGeminiRequest: mockExecuteGeminiRequest }))
-vi.mock('@/lib/core/config/env', () => ({ env: {} }))
 
 import { vertexProvider } from '@/providers/vertex'
+
+setEnv({ VERTEX_LOCATION: undefined, VERTEX_PROJECT: undefined })
+afterAll(resetEnvMock)
 
 function request(overrides: Partial<ProviderRequest> = {}): ProviderRequest {
   return {

@@ -64,9 +64,6 @@ describe('ApiBlockHandler', () => {
       },
     }
 
-    // Reset mocks using vi
-    vi.clearAllMocks()
-
     mockValidateUrlWithDNS.mockResolvedValue({
       isValid: true,
       resolvedIP: '93.184.216.34',

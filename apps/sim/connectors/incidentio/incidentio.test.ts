@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildStatusCategoryParams, incidentioConnector } from '@/connectors/incidentio/incidentio'
 
 /** Every status category incident.io documents for a still-current incident. */
@@ -13,13 +14,6 @@ const NON_DELETION_TRIAGE_CATEGORIES = ['declined', 'merged'] as const
 const ACCESS_TOKEN = 'test-token'
 
 const mockFetch = vi.fn()
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 /** Resolves the URL of the nth (0-indexed) fetch the connector performed. */
 function _requestUrl(callIndex = 0): URL {
@@ -65,10 +59,6 @@ describe('buildStatusCategoryParams', () => {
 describe('incidentioConnector.listDocuments', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('does not client-side filter the listing, so no still-listed incident is dropped', async () => {
@@ -152,10 +142,6 @@ describe('incidentioConnector.listDocuments', () => {
 describe('incidentioConnector.getDocument', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('marks the hash partial when updates could not be fetched, so the next sync retries', async () => {

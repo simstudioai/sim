@@ -1,64 +1,50 @@
 import { member, organization, user, userStats } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  billingIdentityLockMock,
+  billingIdentityLockMockFns,
+} from '@sim/testing/mocks/billing-identity-lock.mock'
+import { billingPlanMock, billingPlanMockFns } from '@sim/testing/mocks/billing-plan.mock'
+import { billingUsageMock } from '@sim/testing/mocks/billing-usage.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { organizationMemberLimitsMock } from '@sim/testing/mocks/organization-member-limits.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { organizationSeatsMock } from '@sim/testing/mocks/organization-seats.mock'
+import { outboxServiceMock } from '@sim/testing/mocks/outbox-service.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoistedMocks = vi.hoisted(() => ({
   billingSubscriptions: [] as unknown[],
   idempotencyCalls: [] as { namespace: string; requestFingerprint: string }[],
-  recordAudit: vi.fn(),
-  acquireLock: vi.fn(),
-  acquireUserLock: vi.fn(),
-  ensureMembership: vi.fn(),
-  transferMembership: vi.fn(),
-  setMemberLimit: vi.fn(),
-  reconcileSeats: vi.fn(),
-  syncUsageLimits: vi.fn(),
   moveWorkspace: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { CREDIT_ISSUED: 'credit.issued' },
-  AuditResourceType: { BILLING: 'billing' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/core/idempotency/transaction', () => ({
   executeTransactionallyIdempotent: async (
     _tx: unknown,
     params: { namespace: string; requestFingerprint: string; operation: () => Promise<unknown> }
   ) => {
-    mocks.idempotencyCalls.push(params)
+    hoistedMocks.idempotencyCalls.push(params)
     return { result: await params.operation(), isFirstTime: true }
   },
 }))
-vi.mock('@sim/utils/id', () => ({ generateId: vi.fn(() => 'generated-id') }))
-vi.mock('@/lib/billing/core/plan', () => ({
-  getHighestPrioritySubscription: vi.fn(async () => mocks.billingSubscriptions.shift() ?? null),
-}))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mocks.acquireLock,
-  ensureUserInOrganizationTx: mocks.ensureMembership,
-  getOrganizationTransferCredentialDependencies: vi.fn(async () => []),
-  removeUserFromOrganization: vi.fn(),
-  transferOrganizationOwnership: vi.fn(),
-  transferUserBetweenOrganizations: mocks.transferMembership,
-}))
-vi.mock('@/lib/billing/organizations/billing-identity-lock', () => ({
-  acquireUserBillingIdentityLock: mocks.acquireUserLock,
-}))
-vi.mock('@/lib/billing/organizations/member-limits', () => ({
-  setOrgMemberUsageLimit: mocks.setMemberLimit,
-}))
-vi.mock('@/lib/billing/organizations/seats', () => ({
-  reconcileOrganizationSeats: mocks.reconcileSeats,
-}))
-vi.mock('@/lib/billing/core/usage', () => ({
-  syncUsageLimitsFromSubscription: mocks.syncUsageLimits,
-}))
+vi.mock('@sim/utils/id', () => idMock)
+vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/billing/organizations/billing-identity-lock', () => billingIdentityLockMock)
+vi.mock('@/lib/billing/organizations/member-limits', () => organizationMemberLimitsMock)
+vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 vi.mock('@/lib/workspaces/organization-workspaces', () => ({
   ownedAttachableWorkspacesWhere: vi.fn(() => undefined),
 }))
 vi.mock('@/lib/workspaces/admin-move', () => ({
-  moveWorkspaceToOrganization: mocks.moveWorkspace,
+  moveWorkspaceToOrganization: hoistedMocks.moveWorkspace,
 }))
 vi.mock('@/lib/billing/enterprise-provisioning', () => ({
   getLatestEnterpriseProvisionings: vi.fn(async () => new Map()),
@@ -67,9 +53,25 @@ vi.mock('@/lib/billing/enterprise-outbox', () => ({
   ENTERPRISE_METADATA_SYNC_EVENT_TYPE: 'stripe.sync-enterprise-metadata',
   resolveEnterpriseMetadataIntent: vi.fn(),
 }))
-vi.mock('@/lib/core/outbox/service', () => ({ enqueueOutboxEvent: vi.fn() }))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
 import { grantDashboardOrganizationBalance, grantDashboardUserBalance } from '@/lib/admin/dashboard'
+
+const mocks = Object.assign(hoistedMocks, {
+  acquireUserLock: billingIdentityLockMockFns.mockAcquireUserBillingIdentityLock,
+  recordAudit: auditMockFns.mockRecordAudit,
+  acquireLock: organizationMembershipMockFns.mockAcquireOrganizationMutationLock,
+  ensureMembership: organizationMembershipMockFns.mockEnsureUserInOrganizationTx,
+  transferMembership: organizationMembershipMockFns.mockTransferUserBetweenOrganizations,
+})
+
+idMockFns.mockGenerateId.mockReturnValue('generated-id')
+billingPlanMockFns.mockGetHighestPrioritySubscription.mockImplementation(
+  async () => mocks.billingSubscriptions.shift() ?? null
+)
+organizationMembershipMockFns.mockGetOrganizationTransferCredentialDependencies.mockResolvedValue(
+  []
+)
 
 /** The values object passed to the nth `update(...).set(...)` call. */
 const updateSetValues = (index = 0): Record<string, unknown> =>

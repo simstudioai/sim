@@ -1,17 +1,29 @@
 import { resetDbChainMock } from '@sim/testing'
+import {
+  executeWorkflowMock,
+  executeWorkflowMockFns,
+} from '@sim/testing/mocks/execute-workflow.mock'
+import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import {
+  tableWorkflowColumnsMock,
+  tableWorkflowColumnsMockFns,
+} from '@sim/testing/mocks/table-workflow-columns.mock'
+import {
+  workflowsPersistenceUtilsMock,
+  workflowsPersistenceUtilsMockFns,
+} from '@sim/testing/mocks/workflows-persistence-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   readDispatch: vi.fn(),
-  getTableById: vi.fn(),
-  getRowById: vi.fn(),
-  executeWorkflow: vi.fn(),
-  loadDeployedWorkflowState: vi.fn(),
   writeWorkflowGroupState: vi.fn(),
   markWorkflowGroupPickedUp: vi.fn(),
   createWorkflowCellProgressWriter: vi.fn(),
-  pickNextEligibleGroupForRow: vi.fn(),
-  stashCellContextForResume: vi.fn(),
   classifyWorkflowCellTerminalResult: vi.fn(),
 }))
 
@@ -19,18 +31,10 @@ vi.mock('@/lib/table/dispatcher', () => ({
   readDispatch: mocks.readDispatch,
   completeDispatchIfActive: vi.fn(),
 }))
-vi.mock('@/lib/table/service', () => ({ getTableById: mocks.getTableById }))
-vi.mock('@/lib/table/rows/service', () => ({
-  getRowById: mocks.getRowById,
-  getRowSummaryById: vi.fn(),
-  updateRow: vi.fn(),
-}))
-vi.mock('@/lib/workflows/executor/execute-workflow', () => ({
-  executeWorkflow: mocks.executeWorkflow,
-}))
-vi.mock('@/lib/workflows/persistence/utils', () => ({
-  loadDeployedWorkflowState: mocks.loadDeployedWorkflowState,
-}))
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
+vi.mock('@/lib/workflows/executor/execute-workflow', () => executeWorkflowMock)
+vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 vi.mock('@/lib/table/cell-write', () => ({
   buildCancelledExecution: (prev: { executionId: string | null; workflowId: string }) => ({
     status: 'cancelled',
@@ -46,13 +50,18 @@ vi.mock('@/lib/table/cell-write', () => ({
 vi.mock('@/lib/table/workflow-cell-result', () => ({
   classifyWorkflowCellTerminalResult: mocks.classifyWorkflowCellTerminalResult,
 }))
-vi.mock('@/lib/table/workflow-columns', () => ({
-  pickNextEligibleGroupForRow: mocks.pickNextEligibleGroupForRow,
-  stashCellContextForResume: mocks.stashCellContextForResume,
-}))
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: vi.fn() }))
+vi.mock('@/lib/table/workflow-columns', () => tableWorkflowColumnsMock)
+vi.mock('@/lib/table/events', () => tableEventsMock)
 
 import { runRowCascadeLoop } from '@/background/workflow-column-execution'
+
+const { mockGetRowById } = tableRowsServiceMockFns
+const { mockExecuteWorkflow } = executeWorkflowMockFns
+const { mockPickNextEligibleGroupForRow, mockStashCellContextForResume } =
+  tableWorkflowColumnsMockFns
+
+const mockGetTableById = tableServiceMockFns.mockGetTableById
+const mockLoadDeployedWorkflowState = workflowsPersistenceUtilsMockFns.mockLoadDeployedWorkflowState
 
 const TABLE = {
   id: 'table-1',
@@ -88,12 +97,12 @@ const PAYLOAD = {
 describe('the cell guard on its owning dispatch', () => {
   beforeEach(() => {
     resetDbChainMock()
-    mocks.getTableById.mockResolvedValue(TABLE)
-    mocks.getRowById.mockResolvedValue({ id: 'row-1', data: {}, executions: {} })
-    mocks.pickNextEligibleGroupForRow.mockReturnValue(null)
+    mockGetTableById.mockResolvedValue(TABLE)
+    mockGetRowById.mockResolvedValue({ id: 'row-1', data: {}, executions: {} })
+    mockPickNextEligibleGroupForRow.mockReturnValue(null)
     mocks.writeWorkflowGroupState.mockResolvedValue('wrote')
     mocks.markWorkflowGroupPickedUp.mockResolvedValue('picked-up')
-    mocks.loadDeployedWorkflowState.mockResolvedValue(null)
+    mockLoadDeployedWorkflowState.mockResolvedValue(null)
   })
 
   /**
@@ -107,7 +116,7 @@ describe('the cell guard on its owning dispatch', () => {
     await runRowCascadeLoop(PAYLOAD)
 
     expect(mocks.readDispatch).toHaveBeenCalledWith('tdsp_1')
-    expect(mocks.executeWorkflow).not.toHaveBeenCalled()
+    expect(mockExecuteWorkflow).not.toHaveBeenCalled()
     expect(mocks.markWorkflowGroupPickedUp).not.toHaveBeenCalled()
     expect(mocks.writeWorkflowGroupState).toHaveBeenCalledWith(
       expect.anything(),

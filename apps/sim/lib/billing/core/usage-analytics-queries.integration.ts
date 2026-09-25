@@ -1,16 +1,12 @@
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { databaseUrl, select } = vi.hoisted(() => {
-  const databaseUrl = process.env.TEST_DATABASE_URL
-  if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseUrl).hostname)) {
-    throw new Error('Usage integration tests require a disposable local database')
-  }
-  return { databaseUrl, select: vi.fn() }
-})
+const { select } = vi.hoisted(() => ({ select: vi.fn() }))
+const databaseUrl = readTestDatabaseUrl()
 
 vi.mock('@sim/db', () => ({ dbReplica: { select } }))
 
@@ -21,17 +17,14 @@ import {
 } from '@/lib/billing/core/usage-analytics-queries'
 
 const schemaName = `usage_series_${generateId().replaceAll('-', '')}`
-const connection = databaseUrl
-  ? postgres(databaseUrl, {
-      max: 1,
-      prepare: false,
-      connection: { search_path: schemaName, timezone: 'Pacific/Auckland' },
-      onnotice: () => undefined,
-    })
-  : undefined
+const connection = postgres(databaseUrl, {
+  max: 1,
+  prepare: false,
+  connection: { search_path: schemaName, timezone: 'Pacific/Auckland' },
+  onnotice: () => undefined,
+})
 
 beforeAll(async () => {
-  if (!connection) return
   await connection.unsafe(`CREATE SCHEMA "${schemaName}"`)
   await connection.unsafe(`
     CREATE TABLE usage_log (
@@ -60,12 +53,11 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  if (!connection) return
   await connection.unsafe(`DROP SCHEMA "${schemaName}" CASCADE`)
   await connection.end()
 })
 
-describe.skipIf(!databaseUrl)('usage series SQL', () => {
+describe('usage series SQL', () => {
   it('groups the viewer calendar across DST and preserves numeric event counts', async () => {
     const rows = await readUsageTimeSeries(
       [eq(usageLog.billingEntityId, 'org')],
@@ -90,7 +82,7 @@ describe.skipIf(!databaseUrl)('usage series SQL', () => {
   })
 })
 
-describe.skipIf(!databaseUrl)('usage breakdown by hour SQL', () => {
+describe('usage breakdown by hour SQL', () => {
   it('keys each group by the viewer’s local hour across DST', async () => {
     const hours = await readUsageBreakdownOverTime(
       [eq(usageLog.billingEntityId, 'org')],

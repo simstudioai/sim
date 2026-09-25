@@ -1,27 +1,19 @@
+import { fileParsersMock, fileParsersMockFns } from '@sim/testing/mocks/file-parsers.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockFetchWorkspaceFileBuffer,
-  mockIsSupportedFileType,
-  mockParseBuffer,
-  mockResolveServableDoc,
-} = vi.hoisted(() => ({
-  mockFetchWorkspaceFileBuffer: vi.fn(),
-  mockIsSupportedFileType: vi.fn(),
-  mockParseBuffer: vi.fn(),
+const { mockResolveServableDoc } = vi.hoisted(() => ({
   mockResolveServableDoc: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  fetchWorkspaceFileBuffer: mockFetchWorkspaceFileBuffer,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({
   resolveServableDoc: mockResolveServableDoc,
 }))
-vi.mock('@/lib/file-parsers', () => ({
-  isSupportedFileType: mockIsSupportedFileType,
-  parseBuffer: mockParseBuffer,
-}))
+vi.mock('@/lib/file-parsers', () => fileParsersMock)
 
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { FileParserError } from '@/lib/file-parsers/errors'
@@ -31,6 +23,12 @@ import {
   FILE_SEARCH_MAX_SOURCE_BYTES,
 } from '@/lib/workspace-files/search/constants'
 import { extractIndexText, loadIndexableBytes } from '@/lib/workspace-files/search/extract'
+
+const mockIsSupportedFileType = fileParsersMockFns.mockIsSupportedFileType
+mockIsSupportedFileType.mockReturnValue(false)
+const mockParseBuffer = fileParsersMockFns.mockParseBuffer
+
+const mockFetchWorkspaceFileBuffer = workspaceUploadsMockFns.mockFetchWorkspaceFileBuffer
 
 const FILE: WorkspaceFileRecord = {
   id: 'file-1',

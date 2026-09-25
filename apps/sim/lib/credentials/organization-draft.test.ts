@@ -1,29 +1,31 @@
 import { pendingCredentialDraft } from '@sim/db/schema'
 import { dbChainMockFns, hasMockCondition, resetDbChainMock } from '@sim/testing'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  lock: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   context: vi.fn(),
   clear: vi.fn(),
   deleteOrphan: vi.fn(),
-  audit: vi.fn(),
 }))
-vi.mock('@sim/audit', () => ({
-  recordAudit: mocks.audit,
-  AuditAction: { CREDENTIAL_CREATED: 'created', CREDENTIAL_RECONNECTED: 'reconnected' },
-  AuditResourceType: { CREDENTIAL: 'credential' },
-}))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationUserMutationLocks: mocks.lock,
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 vi.mock('@/lib/credentials/organization', () => ({
-  getCredentialCreationOrganizationContext: mocks.context,
+  getCredentialCreationOrganizationContext: hoisted.context,
 }))
-vi.mock('@/lib/credentials/deletion', () => ({ deleteOrphanedOAuthAccount: mocks.deleteOrphan }))
-vi.mock('@/lib/oauth/refresh-coordination', () => ({ clearOAuthRefreshDeadFlag: mocks.clear }))
+vi.mock('@/lib/credentials/deletion', () => ({ deleteOrphanedOAuthAccount: hoisted.deleteOrphan }))
+vi.mock('@/lib/oauth/refresh-coordination', () => ({ clearOAuthRefreshDeadFlag: hoisted.clear }))
 
 import { completeOrganizationCredentialDraft } from '@/lib/credentials/organization-draft'
+
+const mocks = {
+  ...hoisted,
+  lock: organizationMembershipMockFns.mockAcquireOrganizationUserMutationLocks,
+}
 
 const input = {
   organizationId: 'org-1',

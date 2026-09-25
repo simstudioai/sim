@@ -1,51 +1,18 @@
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  apiServerRoutesMock,
+  apiServerRoutesMockFns,
+} from '@sim/testing/mocks/api-server-routes.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { NextRequest, NextResponse } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  admit: vi.fn(),
   resume: vi.fn(),
 }))
 
-vi.mock('@/lib/api/server/routes', () => {
-  class V2RouteInfrastructureError extends Error {}
-  const renderOrchestrationError = (error: unknown) => {
-    const candidate = error as { code?: string; message?: string; name?: string }
-    if (candidate.code === 'not_found') {
-      return Response.json(
-        { error: { code: 'NOT_FOUND', message: candidate.message ?? 'Not found' } },
-        { status: 404 }
-      )
-    }
-    if (candidate.name === 'PersonalApiKeysDisabledError') {
-      return Response.json(
-        {
-          error: {
-            code: 'FORBIDDEN',
-            message: candidate.message ?? 'Personal API keys are not allowed for this workspace',
-          },
-        },
-        { status: 403 }
-      )
-    }
-    return null
-  }
-  return {
-    admitV2Request: mocks.admit,
-    createInternalResourceConcealmentPolicy: vi.fn(() => ({ project: () => null })),
-    internalOrchestrationErrorPolicy: { project: () => null },
-    createInternalSessionOrExecutorAuth: vi.fn(() => ({ authenticate: vi.fn() })),
-    createV2ResourceConcealmentPolicy: vi.fn(
-      ({ render }: { render?: (error: unknown) => Response | null }) => ({
-        render: render ?? renderOrchestrationError,
-      })
-    ),
-    V2RouteInfrastructureError,
-    v2ApiKeyAuth: { kind: 'v2-api-key' },
-    v2RateLimits: { publicApi: { kind: 'public-api' } },
-    V2_PARSE_DEFAULTS: {},
-    v2OrchestrationErrorPolicy: { render: renderOrchestrationError },
-  }
-})
+vi.mock('@/lib/api/server/routes', () => apiServerRoutesMock)
 
 vi.mock('@/lib/workflows/application/resume-run', () => ({
   resumeWorkflowRun: { execute: mocks.resume },
@@ -55,18 +22,17 @@ vi.mock('@/lib/workflows/executor/resume-execution', () => ({
   ResumeWorkflowExecutionError: class ResumeWorkflowExecutionError extends Error {},
 }))
 
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => 'https://test.sim.ai',
-  SITE_URL: 'https://test.sim.ai',
-}))
-
 import { v2ResumeWorkflowContract } from '@/lib/api/contracts/v2/workflows'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { POST } from '@/app/api/v2/workflows/[workflowId]/runs/[runId]/resume/route'
 
+const { mockAdmitV2Request } = apiServerRoutesMockFns
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://test.sim.ai')
+
 const WORKFLOW_ID = 'workflow-1'
 const RUN_ID = 'run-1'
-const principal = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' }
+const principal = createPersonalApiKeyPrincipal()
 
 function makeRequest(body: string) {
   return {
@@ -78,17 +44,17 @@ function makeRequest(body: string) {
         body,
       }
     ),
-    context: { params: Promise.resolve({ workflowId: WORKFLOW_ID, runId: RUN_ID }) },
+    context: createRouteContext({ workflowId: WORKFLOW_ID, runId: RUN_ID }),
   }
 }
 
 describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/resume', () => {
   beforeEach(() => {
-    mocks.admit.mockResolvedValue({ success: true, auth: { principal } })
+    mockAdmitV2Request.mockResolvedValue({ success: true, auth: { principal } })
   })
 
   it('runs v2 admission before parsing the bounded request body', async () => {
-    mocks.admit.mockResolvedValueOnce({
+    mockAdmitV2Request.mockResolvedValueOnce({
       success: false,
       response: NextResponse.json(
         { error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } },
@@ -103,12 +69,12 @@ describe('POST /api/v2/workflows/[workflowId]/runs/[runId]/resume', () => {
     expect(await response.json()).toEqual({
       error: { code: 'UNAUTHORIZED', message: 'Unauthorized' },
     })
-    expect(mocks.admit).toHaveBeenCalledOnce()
-    expect(mocks.admit).toHaveBeenCalledWith(
+    expect(mockAdmitV2Request).toHaveBeenCalledOnce()
+    expect(mockAdmitV2Request).toHaveBeenCalledWith(
       request,
       workflowOperations.resumeRun,
-      { kind: 'v2-api-key' },
-      { kind: 'public-api' },
+      apiServerRoutesMock.v2ApiKeyAuth,
+      apiServerRoutesMock.v2RateLimits.publicApi,
       { execute: mocks.resume }
     )
     expect(mocks.resume).not.toHaveBeenCalled()

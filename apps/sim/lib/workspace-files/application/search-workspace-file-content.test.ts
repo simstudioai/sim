@@ -1,26 +1,33 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  load: vi.fn(),
-  permission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   search: vi.fn(),
   folders: vi.fn(),
 }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null) => actual !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({ loadActiveWorkspaceContext: mocks.load }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 vi.mock('@/lib/workspace-files/search/repository', () => ({
-  searchWorkspaceFileIndex: mocks.search,
+  searchWorkspaceFileIndex: hoisted.search,
 }))
 vi.mock('@/lib/workspace-files/resolve-folder-scope', () => ({
-  resolveWorkspaceFolderScope: mocks.folders,
+  resolveWorkspaceFolderScope: hoisted.folders,
 }))
 
 import { searchWorkspaceFileContent } from '@/lib/workspace-files/application/search-workspace-file-content'
 
-const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const mocks = {
+  load: workspaceUploadsMockFns.mockLoadActiveWorkspaceContext,
+  ...hoisted,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+
+const principal = createSessionPrincipal()
 const input = {
   workspaceId: 'workspace-1',
   query: 'needle',

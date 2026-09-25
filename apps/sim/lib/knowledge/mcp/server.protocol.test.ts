@@ -1,13 +1,18 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  knowledgeSearchUseCaseMock,
+  knowledgeSearchUseCaseMockFns,
+} from '@sim/testing/mocks/knowledge-search-use-case.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   liveSearch: vi.fn(),
   liveRead: vi.fn(),
-  indexedSearch: vi.fn(),
   indexedRead: vi.fn(),
 }))
 vi.mock('@/lib/core/utils/after-response', () => ({ afterResponse: vi.fn() }))
@@ -15,19 +20,23 @@ vi.mock('@/lib/knowledge/mcp/activity', () => ({ recordOrganizationSearchMcpActi
 vi.mock('@/lib/api/server/routes/v2-json-route', () => ({
   v2RateLimits: { publicApi: { enforce: vi.fn().mockResolvedValue(null) } },
 }))
-vi.mock('@/lib/knowledge/application/search', () => ({
-  searchKnowledge: { execute: mocks.indexedSearch },
-}))
+vi.mock('@/lib/knowledge/application/search', () => knowledgeSearchUseCaseMock)
 vi.mock('@/lib/knowledge/application/read-indexed-document', () => ({
-  readIndexedKnowledgeDocument: { execute: mocks.indexedRead },
+  readIndexedKnowledgeDocument: { execute: hoisted.indexedRead },
 }))
 vi.mock('@/lib/sim-search/live/application', () => ({
-  searchLiveKnowledge: { execute: mocks.liveSearch },
-  readLiveDocument: { execute: mocks.liveRead },
+  searchLiveKnowledge: { execute: hoisted.liveSearch },
+  readLiveDocument: { execute: hoisted.liveRead },
 }))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'http://localhost' }))
 
 import { createKnowledgeMcpServer } from '@/lib/knowledge/mcp/server'
+
+const mocks = {
+  ...hoisted,
+  indexedSearch: knowledgeSearchUseCaseMockFns.mockSearchKnowledgeExecute,
+}
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('http://localhost')
 
 describe('Search MCP protocol', () => {
   beforeEach(() => {
@@ -72,7 +81,7 @@ describe('Search MCP protocol', () => {
         searchIndexId: live ? null : 'index-1',
         request: new NextRequest('http://localhost/api/mcp/search/organizations/org-1'),
         auth: {
-          principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+          principal: createPersonalApiKeyPrincipal(),
           keyType: 'personal',
           keyExpiresAt: null,
           rateLimitSubjectIds: ['user-1'],

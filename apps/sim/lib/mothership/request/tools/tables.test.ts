@@ -1,4 +1,11 @@
-import { loggerMock } from '@sim/testing'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  createMockOtelSpan,
+  type MockOtelSpan,
+  mothershipOtelMock,
+  mothershipOtelMockFns,
+} from '@sim/testing/mocks/mothership-otel.mock'
+import { tableApplicationRowsMock } from '@sim/testing/mocks/table-application-rows.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
 
@@ -10,21 +17,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/mothership/application/table-commands', () => ({
   executeCopilotReplaceProjectedWireRows: mocks.executeReplace,
 }))
-vi.mock('@/lib/mothership/request/otel', () => ({
-  withCopilotSpan: (
-    _name: string,
-    _attrs: Record<string, unknown> | undefined,
-    run: (span: unknown) => Promise<unknown>
-  ) =>
-    run({
-      setAttribute: vi.fn(),
-      setAttributes: vi.fn(),
-      addEvent: mocks.spanAddEvent,
-    }),
-}))
-vi.mock('@/lib/table/application/rows', () => ({
-  ProjectedWireRowsValidationError: class ProjectedWireRowsValidationError extends Error {},
-}))
+vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
+vi.mock('@/lib/table/application/rows', () => tableApplicationRowsMock)
 
 import { Read as ReadTool, RunFunction } from '@/lib/mothership/generated/tool-catalog-v1'
 import { projectToolResultForCopilot } from '@/lib/mothership/request/tools/resolved-secret-result'
@@ -35,6 +29,11 @@ import {
 import type { ExecutionContext } from '@/lib/mothership/request/types'
 import { ProjectedWireRowsValidationError } from '@/lib/table/application/rows'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+mothershipOtelMockFns.mockWithCopilotSpan.mockImplementation(
+  async (_name: string, _attrs: unknown, run: (span: MockOtelSpan) => unknown) =>
+    run({ ...createMockOtelSpan(), addEvent: mocks.spanAddEvent })
+)
 
 const table: TableDefinition = {
   id: 'table-1',
@@ -52,11 +51,7 @@ const table: TableDefinition = {
   updatedAt: new Date('2026-08-01T00:00:00.000Z'),
 }
 
-const tableLogger = vi.mocked(loggerMock.createLogger).mock.results[
-  vi
-    .mocked(loggerMock.createLogger)
-    .mock.calls.findIndex((call: readonly unknown[]) => call[0] === 'CopilotToolResultTables')
-]?.value
+const tableLogger = getMockLogger('CopilotToolResultTables')
 
 function buildContext(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
   return {

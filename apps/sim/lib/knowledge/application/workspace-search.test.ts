@@ -5,50 +5,46 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import {
+  knowledgeSearchUseCaseMock,
+  knowledgeSearchUseCaseMockFns,
+} from '@sim/testing/mocks/knowledge-search-use-case.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  afterSearch: vi.fn(async () => undefined),
-  resolveWorkspace: vi.fn(),
-  permission: vi.fn(),
-  search: vi.fn(),
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null) => actual !== null,
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeWorkspaceContext: mocks.resolveWorkspace,
-}))
-vi.mock('@/lib/knowledge/application/search', () => ({
-  runKnowledgeSearch: mocks.search,
-  buildKnowledgeSearchContext: (
-    _principal: unknown,
-    context: unknown,
-    knowledgeBases: unknown
-  ) => ({
-    ...(context as object),
-    knowledgeBases,
-    access: {},
-  }),
-  validateKnowledgeSearchInput: () => undefined,
-  afterKnowledgeSearch: mocks.afterSearch,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
+vi.mock('@/lib/knowledge/application/search', () => knowledgeSearchUseCaseMock)
 
 import { searchWorkspaceKnowledge } from '@/lib/knowledge/application/workspace-search'
 
-const principal = { kind: 'session', userId: 'reader', sessionId: 'session' } as const
+const mocks = {
+  afterSearch: knowledgeSearchUseCaseMockFns.mockAfterKnowledgeSearch,
+  search: knowledgeSearchUseCaseMockFns.mockRunKnowledgeSearch,
+}
+mocks.afterSearch.mockImplementation(async () => undefined)
+
+workspaceAuthzMockFns.mockPermissionSatisfies.mockImplementation(
+  (actual: string | null) => actual !== null
+)
+
+const principal = createSessionPrincipal({ userId: 'reader', sessionId: 'session' })
 const input = { workspaceId: 'workspace', query: 'orion', topK: 20, filters: { source: 'slack' } }
 describe('canonical workspace search', () => {
   beforeEach(() => {
     resetDbChainMock()
-    mocks.resolveWorkspace.mockResolvedValue({
+    knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext.mockResolvedValue({
       workspaceId: 'workspace',
       workspaceOrganizationId: null,
       allowPersonalApiKeys: true,
       billedAccountUserId: 'payer',
     })
-    mocks.permission.mockResolvedValue('read')
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
     mocks.search.mockResolvedValue({
       results: [],
       knowledgeBases: [{ id: 'index', name: 'Enterprise Search' }],
@@ -80,7 +76,7 @@ describe('canonical workspace search', () => {
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
   })
   it('refuses a nonmember before querying the protected index', async () => {
-    mocks.permission.mockResolvedValue(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
     await expect(searchWorkspaceKnowledge.execute({ principal, input })).rejects.toThrow(
       'Insufficient workspace'
     )

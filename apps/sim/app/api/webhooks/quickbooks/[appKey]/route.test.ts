@@ -1,22 +1,19 @@
 import crypto from 'node:crypto'
 import { requestUtilsMockFns } from '@sim/testing'
+import { admissionGateMock, admissionGateMockFns } from '@sim/testing/mocks/admission-gate.mock'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
 
-const { mockVerifierTokens, mockEnqueue, mockRelease } = vi.hoisted(() => ({
+const { mockVerifierTokens, mockEnqueue } = vi.hoisted(() => ({
   mockVerifierTokens: vi.fn(),
   mockEnqueue: vi.fn(),
-  mockRelease: vi.fn(),
 }))
 
 vi.mock('@/background/quickbooks-webhook-ingress', () => ({
   enqueueQuickBooksWebhookIngress: mockEnqueue,
 }))
-vi.mock('@/lib/core/admission/gate', () => ({
-  admissionRejectedResponse: vi.fn(() => new Response(null, { status: 503 })),
-  tryAdmit: vi.fn(() => ({ release: mockRelease })),
-}))
+vi.mock('@/lib/core/admission/gate', () => admissionGateMock)
 vi.mock('@/lib/webhooks/quickbooks-credentials', () => ({
   streamQuickBooksWebhookVerifierTokensByAppKey: mockVerifierTokens,
 }))
@@ -33,6 +30,10 @@ vi.mock('@/lib/core/utils/with-route-handler', () => ({
 }))
 
 import { POST } from '@/app/api/webhooks/quickbooks/[appKey]/route'
+
+admissionGateMockFns.mockAdmissionRejectedResponse.mockImplementation(
+  () => new Response(null, { status: 503 })
+)
 
 const APP_KEY = 'a'.repeat(43)
 const validEvent = {

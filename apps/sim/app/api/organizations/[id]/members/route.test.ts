@@ -6,45 +6,35 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { billingOrganizationMock } from '@sim/testing/mocks/billing-organization.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock } from '@sim/testing/mocks/workspace-authz.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetOrgPermissionConfig,
-  mockGetUserPermissionConfig,
-  mockResolveVerifiedContext,
-  mockGetUsageSnapshot,
-} = vi.hoisted(() => ({
-  mockGetOrgPermissionConfig: vi.fn(),
-  mockGetUserPermissionConfig: vi.fn(),
-  mockResolveVerifiedContext: vi.fn(),
-  mockGetUsageSnapshot: vi.fn(),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  isOrgAdminRole: (role: string | null | undefined) => role === 'owner' || role === 'admin',
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mockGetUserPermissionConfig,
-  getUserPermissionConfigForOrganization: mockGetOrgPermissionConfig,
-  resolveVerifiedUserAccessControlContext: mockResolveVerifiedContext,
-}))
-
-vi.mock('@/lib/billing/core/organization', () => ({
-  getOrganizationMemberUsageSnapshot: mockGetUsageSnapshot,
-}))
+vi.mock('@/lib/billing/core/organization', () => billingOrganizationMock)
 
 import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { GET } from '@/app/api/organizations/[id]/members/route'
 
 const mockGetSession = authMockFns.mockGetSession
+const mockGetOrgPermissionConfig =
+  permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization
 
 const REQUEST_URL = 'http://localhost/api/organizations/org-1/members'
 
 function request() {
-  return GET(createMockRequest('GET', undefined, {}, REQUEST_URL), {
-    params: Promise.resolve({ id: 'org-1' }),
-  })
+  return GET(
+    createMockRequest('GET', undefined, {}, REQUEST_URL),
+    createRouteContext({ id: 'org-1' })
+  )
 }
 
 afterAll(resetDbChainMock)

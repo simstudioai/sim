@@ -1,4 +1,5 @@
 import * as schema from '@sim/db/schema'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { withUtcTimestamps } from '@sim/db/timestamps'
 import { generateId } from '@sim/utils/id'
 import type { BetterAuthOptions } from 'better-auth'
@@ -17,7 +18,7 @@ vi.mock('@/lib/auth/stripe-adapter-guard', () => ({
 }))
 
 const OPTIONS: BetterAuthOptions = { plugins: [organization()] }
-const databaseUrl = process.env.TEST_DATABASE_URL
+const databaseUrl = readTestDatabaseUrl()
 type AdapterSurface = Omit<ReturnType<typeof createSimAuthAdapter>, 'transaction'>
 
 async function exerciseOrganization(adapter: AdapterSurface) {
@@ -39,10 +40,10 @@ async function exerciseOrganization(adapter: AdapterSurface) {
   await expect(adapter.findOne({ model: 'organization', where })).resolves.toBeNull()
 }
 
-describe.skipIf(!databaseUrl)('Better Auth across the organization column drop', () => {
+describe('Better Auth across the organization column drop', () => {
   it.each([false, true])('preserves CRUD with transaction=%s', async (transaction) => {
     const client = postgres(
-      databaseUrl!,
+      databaseUrl,
       withUtcTimestamps({ max: 1, prepare: false, fetch_types: false, connection: {} })
     )
     try {

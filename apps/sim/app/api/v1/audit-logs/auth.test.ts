@@ -6,29 +6,21 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { billingAccessMock, billingAccessMockFns } from '@sim/testing/mocks/billing-access.mock'
+import { v1MiddlewareMock, v1MiddlewareMockFns } from '@sim/testing/mocks/v1-middleware.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsOrganizationBillingBlocked, mockCheckOrganizationPersonalKeyRefusal } = vi.hoisted(
-  () => ({
-    mockIsOrganizationBillingBlocked: vi.fn(),
-    mockCheckOrganizationPersonalKeyRefusal: vi.fn(),
-  })
-)
+vi.mock('@/lib/billing/core/access', () => billingAccessMock)
 
-vi.mock('@/lib/billing/core/access', () => ({
-  isOrganizationBillingBlocked: mockIsOrganizationBillingBlocked,
-}))
-
-vi.mock('@/app/api/v1/middleware', () => ({
-  capabilityGovernedUserId: (rateLimit: { keyType?: string; userId?: string }) =>
-    rateLimit.keyType === 'personal' ? (rateLimit.userId ?? null) : null,
-  checkOrganizationPersonalKeyRefusal: mockCheckOrganizationPersonalKeyRefusal,
-}))
+vi.mock('@/app/api/v1/middleware', () => v1MiddlewareMock)
 
 import {
   validateEnterpriseAuditAccess,
   validateV1EnterpriseAuditAccess,
 } from '@/app/api/v1/audit-logs/auth'
+
+const { mockIsOrganizationBillingBlocked } = billingAccessMockFns
+const { mockCheckOrganizationPersonalKeyRefusal } = v1MiddlewareMockFns
 
 describe('enterprise audit access', () => {
   beforeEach(() => {

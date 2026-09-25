@@ -1,29 +1,29 @@
-import { dbChainMockFns, hasMockCondition, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  billingOrganizationMock,
+  billingOrganizationMockFns,
+} from '@sim/testing/mocks/billing-organization.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { billingSubscriptionUtilsMock } from '@sim/testing/mocks/billing-subscription-utils.mock'
+import {
+  dbChainMockFns,
+  hasMockCondition,
+  resetDbChainMock,
+} from '@sim/testing/mocks/database.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockHasPaidSubscription,
-  mockIsOwnerOrAdmin,
-  mockAssertNoUnresolved,
-  mockGetOrganizationCoverageForMember,
-} = vi.hoisted(() => ({
+const { mockHasPaidSubscription, mockAssertNoUnresolved } = vi.hoisted(() => ({
   mockHasPaidSubscription: vi.fn(),
-  mockIsOwnerOrAdmin: vi.fn(),
   mockAssertNoUnresolved: vi.fn(),
-  mockGetOrganizationCoverageForMember: vi.fn(),
 }))
 
 vi.mock('@/lib/billing', () => ({ hasPaidSubscription: mockHasPaidSubscription }))
-vi.mock('@/lib/billing/core/organization', () => ({
-  isOrganizationOwnerOrAdmin: mockIsOwnerOrAdmin,
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getOrganizationCoverageForMember: mockGetOrganizationCoverageForMember,
-}))
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  isOrgScopedSubscription: ({ referenceId }: { referenceId: string }, userId: string) =>
-    referenceId !== userId,
-}))
+vi.mock('@/lib/billing/core/organization', () => billingOrganizationMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 vi.mock('@/lib/billing/enterprise-outbox', () => {
   class EnterpriseIssuanceInProgressError extends Error {}
   return {
@@ -38,6 +38,10 @@ import {
   isPersonalCheckoutRequest,
 } from '@/lib/billing/authorization'
 import { EnterpriseIssuanceInProgressError } from '@/lib/billing/enterprise-outbox'
+
+const mockIsOwnerOrAdmin = billingOrganizationMockFns.mockIsOrganizationOwnerOrAdmin
+const mockGetOrganizationCoverageForMember =
+  billingSubscriptionMockFns.mockGetOrganizationCoverageForMember
 
 beforeEach(() => {
   resetDbChainMock()

@@ -35,7 +35,6 @@ describe('buildLargestFittingPdfChunk', () => {
   })
   afterEach(() => {
     vi.useRealTimers()
-    vi.restoreAllMocks()
   })
 
   it('obeys the page ceiling while retaining a contiguous range', async () => {

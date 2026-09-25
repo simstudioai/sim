@@ -1,107 +1,95 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import {
+  credentialGroupsEnrollmentsMock,
+  credentialGroupsEnrollmentsMockFns,
+} from '@sim/testing/mocks/credential-groups-enrollments.mock'
+import {
+  credentialGroupsSelfEnrollmentMock,
+  credentialGroupsSelfEnrollmentMockFns,
+} from '@sim/testing/mocks/credential-groups-self-enrollment.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  githubInstallationMock,
+  githubInstallationMockFns,
+} from '@sim/testing/mocks/github-installation.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import {
+  knowledgeMemberAccessMock,
+  knowledgeMemberAccessMockFns,
+} from '@sim/testing/mocks/knowledge-member-access.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  context: vi.fn(),
-  role: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   connector: vi.fn(),
   meta: vi.fn(),
   validate: vi.fn(),
   token: vi.fn(),
   binding: vi.fn(),
-  loadGroup: vi.fn(),
-  validateBinding: vi.fn(),
   update: vi.fn(),
   mirror: vi.fn(),
   enrollment: vi.fn(),
   loadWorkspaceAccounts: vi.fn(),
   identityBinding: vi.fn(),
   provision: vi.fn(),
-  memberAccess: vi.fn(),
-  sourceAccess: vi.fn(),
-  oauthContext: vi.fn(),
   startOAuth: vi.fn(),
-  authorizeOrganization: vi.fn(),
   credential: vi.fn(),
-  decrypt: vi.fn(),
-  installationBinding: vi.fn(),
-  repository: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({ AuditAction: {}, AuditResourceType: {}, recordAudit: vi.fn() }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string, required: string) =>
-    actual === 'admin' || actual === required,
-  resolveEffectiveWorkspacePermission: mocks.role,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: async () => null,
-}))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.authorizeOrganization,
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 vi.mock('@/lib/knowledge/application/connector-credential', () => ({
-  requireConnectorCredential: mocks.credential,
+  requireConnectorCredential: hoisted.credential,
 }))
-vi.mock('@/lib/core/security/encryption', () => ({ decryptSecret: mocks.decrypt }))
-vi.mock('@/lib/oauth/github-installation', () => ({
-  GitHubInstallationError: class extends Error {
-    constructor(
-      message: string,
-      readonly status?: number,
-      readonly operation?: string
-    ) {
-      super(message)
-    }
-  },
-  parseGitHubInstallationBinding: mocks.installationBinding,
-  resolveGitHubInstallationRepository: mocks.repository,
-}))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveActiveKnowledgeConnectorContext: mocks.context,
-}))
-vi.mock('@/connectors/registry', () => ({ getConnectorMeta: mocks.meta }))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+vi.mock('@/lib/oauth/github-installation', () => githubInstallationMock)
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
+vi.mock('@/connectors/registry', () => ({ getConnectorMeta: hoisted.meta }))
 vi.mock('@/lib/knowledge/connectors/mirrored-access', () => ({
-  assertConnectorMirrorsSourceAcls: mocks.mirror,
+  assertConnectorMirrorsSourceAcls: hoisted.mirror,
 }))
 vi.mock('@/lib/knowledge/application/connectors', () => ({
   requireConnectorWorkspaceId: (context: { workspaceId: string }) => context.workspaceId,
   requireSuccessfulOutcome: vi.fn(),
-  resolveConnectorCredentialAccessToken: mocks.token,
-  validateConnectorSourceConfig: mocks.validate,
+  resolveConnectorCredentialAccessToken: hoisted.token,
+  validateConnectorSourceConfig: hoisted.validate,
 }))
 vi.mock('@/lib/knowledge/orchestration/connectors', () => ({
-  getKnowledgeConnector: mocks.connector,
+  getKnowledgeConnector: hoisted.connector,
 }))
 vi.mock('@/lib/knowledge/orchestration/connector-access', () => ({
-  resolveKnowledgeConnectorMembersBinding: mocks.binding,
-  performUpdateKnowledgeConnectorAccess: mocks.update,
+  resolveKnowledgeConnectorMembersBinding: hoisted.binding,
+  performUpdateKnowledgeConnectorAccess: hoisted.update,
 }))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  requireKnowledgeMemberAccessAvailable: mocks.memberAccess,
-  requireSourceMirroredAccessAvailable: mocks.sourceAccess,
-}))
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadCredentialGroupCredentialListContext: mocks.loadGroup,
-  loadScopedAccountsCredentialListContext: (scope: unknown, groupId?: string) =>
-    groupId ? mocks.loadGroup(groupId) : mocks.loadWorkspaceAccounts(scope),
-}))
-vi.mock('@/lib/knowledge/connectors/member-access', () => ({
-  validateKnowledgeConnectorMembersBinding: mocks.validateBinding,
-}))
-vi.mock('@/lib/credential-groups/self-enrollment', () => ({
-  createViewerCredentialGroupEnrollment: async (...args: unknown[]) => ({
-    invitationLink: await mocks.enrollment(...args),
-    enrollment: { id: 'enrollment', email: 'person@example.test' },
-  }),
-}))
-vi.mock('@/lib/credential-groups/enrollments', () => ({
-  getCredentialGroupOAuthContextForEnrollment: mocks.oauthContext,
-}))
-vi.mock('@/lib/credential-groups/oauth', () => ({ startCredentialGroupOAuth: mocks.startOAuth }))
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
+vi.mock('@/lib/knowledge/connectors/member-access', () => knowledgeMemberAccessMock)
+vi.mock('@/lib/credential-groups/self-enrollment', () => credentialGroupsSelfEnrollmentMock)
+vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollmentsMock)
+vi.mock('@/lib/credential-groups/oauth', () => ({ startCredentialGroupOAuth: hoisted.startOAuth }))
 
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
-  sourceIdentityBinding: mocks.identityBinding,
-  provisionKnowledgeConnectorMembersBinding: mocks.provision,
+  sourceIdentityBinding: hoisted.identityBinding,
+  provisionKnowledgeConnectorMembersBinding: hoisted.provision,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -110,7 +98,31 @@ import {
   updateKnowledgeConnectorAccess,
 } from '@/lib/knowledge/application/connector-access'
 
-const principal = { kind: 'session' as const, userId: 'admin', sessionId: 'session' }
+const mocks = {
+  ...hoisted,
+  installationBinding: githubInstallationMockFns.mockParseGitHubInstallationBinding,
+  repository: githubInstallationMockFns.mockResolveGitHubInstallationRepository,
+  loadGroup: credentialGroupsCredentialsMockFns.mockLoadCredentialGroupCredentialListContext,
+  validateBinding: knowledgeMemberAccessMockFns.mockValidateKnowledgeConnectorMembersBinding,
+  oauthContext: credentialGroupsEnrollmentsMockFns.mockGetCredentialGroupOAuthContextForEnrollment,
+}
+
+credentialGroupsCredentialsMockFns.mockLoadScopedAccountsCredentialListContext.mockImplementation(
+  (scope: unknown, groupId?: string) =>
+    groupId ? mocks.loadGroup(groupId) : mocks.loadWorkspaceAccounts(scope)
+)
+credentialGroupsSelfEnrollmentMockFns.mockCreateViewerCredentialGroupEnrollment.mockImplementation(
+  async (...args: unknown[]) => ({
+    invitationLink: await mocks.enrollment(...args),
+    enrollment: { id: 'enrollment', email: 'person@example.test' },
+  })
+)
+
+workspaceAuthzMockFns.mockPermissionSatisfies.mockImplementation(
+  (actual: string, required: string) => actual === 'admin' || actual === required
+)
+
+const principal = createSessionPrincipal({ userId: 'admin', sessionId: 'session' })
 const input = { knowledgeBaseId: 'kb', connectorId: 'source', assertedWorkspaceId: 'workspace' }
 const row = {
   id: 'source',
@@ -123,7 +135,7 @@ const row = {
 }
 
 beforeEach(() => {
-  mocks.context.mockResolvedValue({
+  knowledgeContextsMockFns.mockResolveActiveKnowledgeConnectorContext.mockResolvedValue({
     workspaceId: 'workspace',
     workspaceOrganizationId: null,
     allowPersonalApiKeys: true,
@@ -132,7 +144,7 @@ beforeEach(() => {
     connectorId: 'source',
     knowledgeBase: { workspaceId: 'workspace', id: 'kb', name: 'Search' },
   })
-  mocks.role.mockResolvedValue('admin')
+  workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
   mocks.connector.mockResolvedValue(row)
   mocks.meta.mockReturnValue({ name: 'GitLab', auth: { mode: 'apiKey' }, mirrorsSourceAcls: true })
   mocks.validate.mockResolvedValue(null)
@@ -151,11 +163,13 @@ beforeEach(() => {
     workspaceId: 'workspace',
   })
   mocks.identityBinding.mockReturnValue(null)
-  mocks.memberAccess.mockResolvedValue(undefined)
-  mocks.sourceAccess.mockResolvedValue(undefined)
+  knowledgeAvailabilityMockFns.mockRequireKnowledgeMemberAccessAvailable.mockResolvedValue(
+    undefined
+  )
+  knowledgeAvailabilityMockFns.mockRequireSourceMirroredAccessAvailable.mockResolvedValue(undefined)
   mocks.oauthContext.mockResolvedValue({ credentialOwnerId: 'admin', option: { id: 'option' } })
   mocks.startOAuth.mockResolvedValue('https://provider.example.test/authorize')
-  mocks.authorizeOrganization.mockResolvedValue({
+  organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation.mockResolvedValue({
     organizationId: 'org',
     userId: 'admin',
     role: 'admin',
@@ -172,7 +186,7 @@ describe('GitHub installation connection replacement', () => {
   }
 
   beforeEach(() => {
-    mocks.context.mockResolvedValue({
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeConnectorContext.mockResolvedValue({
       organizationId: 'org',
       knowledgeBaseId: 'kb',
       connectorId: 'source',
@@ -202,7 +216,7 @@ describe('GitHub installation connection replacement', () => {
       providerSubjectId: '42',
       providerTenantId: '7',
     })
-    mocks.decrypt.mockResolvedValue({ decrypted: '{}' })
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: '{}' })
     mocks.installationBinding.mockReturnValue({ installationId: '42', accountId: '7' })
     mocks.repository.mockResolvedValue({ id: '123', fullName: 'acme/platform' })
     mocks.binding.mockImplementation(async ({ sourceConfig }) => ({
@@ -224,7 +238,7 @@ describe('GitHub installation connection replacement', () => {
   })
 
   it('rechecks organization administration before reading the installation or mutating the source', async () => {
-    mocks.authorizeOrganization.mockRejectedValue(
+    organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation.mockRejectedValue(
       new OrchestrationError('forbidden', 'Organization administrator access is required')
     )
     await expect(
@@ -259,7 +273,9 @@ describe('source member enrollment', () => {
 
   it('keeps source-mirroring feature checks on identity enrollment', async () => {
     mocks.connector.mockResolvedValue({ ...row, accessMode: 'admin' })
-    mocks.sourceAccess.mockRejectedValueOnce(new Error('Mirroring unavailable'))
+    knowledgeAvailabilityMockFns.mockRequireSourceMirroredAccessAvailable.mockRejectedValueOnce(
+      new Error('Mirroring unavailable')
+    )
     await expect(
       startKnowledgeConnectorMemberEnrollment.execute({ principal, input })
     ).rejects.toThrow('Mirroring unavailable')
@@ -289,7 +305,7 @@ describe('source member enrollment', () => {
 
 describe('connector access application boundary', () => {
   it('refuses making a canonical Search source visible to the whole workspace', async () => {
-    mocks.context.mockResolvedValue({
+    knowledgeContextsMockFns.mockResolveActiveKnowledgeConnectorContext.mockResolvedValue({
       workspaceId: 'workspace',
       workspaceOrganizationId: null,
       allowPersonalApiKeys: true,
@@ -331,7 +347,7 @@ describe('connector access application boundary', () => {
   })
 
   it('requires the actual workspace administrator before reading a source credential', async () => {
-    mocks.role.mockResolvedValue('read')
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
     await expect(
       updateKnowledgeConnectorAccess.execute({
         principal,

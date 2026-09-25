@@ -1,34 +1,22 @@
+import {
+  asyncJobsRegionMock,
+  asyncJobsRegionMockFns,
+} from '@sim/testing/mocks/async-jobs-region.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { triggerSdkMockFns } from '@sim/testing/mocks/trigger-sdk.mock'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAssertBillingAttributionSnapshot,
-  mockProcessDocumentAsync,
-  mockQueue,
-  mockResolveTriggerRegion,
-  mockTask,
-  mockTrigger,
-} = vi.hoisted(() => ({
-  mockAssertBillingAttributionSnapshot: vi.fn(),
-  mockProcessDocumentAsync: vi.fn(),
-  mockResolveTriggerRegion: vi.fn(),
-  mockQueue: vi.fn((config) => config),
-  mockTask: vi.fn((config) => config),
-  mockTrigger: vi.fn(),
-}))
-
-vi.mock('@trigger.dev/sdk', () => ({
-  queue: mockQueue,
-  task: mockTask,
-  tasks: { trigger: mockTrigger },
-}))
-vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: mockResolveTriggerRegion }))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: mockAssertBillingAttributionSnapshot,
-}))
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  processDocumentAsync: mockProcessDocumentAsync,
-}))
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
 
 import { ProviderCapacityDeferredError } from '@/lib/core/rate-limiter/provider-capacity-error'
 import { EmbeddingAPIError } from '@/lib/embeddings/api-error'
@@ -50,6 +38,13 @@ import {
   resolveQuotaContinuationDelayMs,
   runDocumentProcessing,
 } from '@/background/knowledge-processing'
+
+const { mockProcessDocumentAsync } = knowledgeDocumentsServiceMockFns
+const { mockResolveTriggerRegion } = asyncJobsRegionMockFns
+const { mockTasksTrigger: mockTrigger } = triggerSdkMockFns
+
+const mockAssertBillingAttributionSnapshot =
+  billingAttributionMockFns.mockAssertBillingAttributionSnapshot
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'external-admin',
@@ -101,6 +96,20 @@ const ORGANIZATION_PAYLOAD = {
   },
 }
 
+/**
+ * Markers planted in the SQL text, bound parameters and driver message of a failed query. No
+ * file path contains them, so finding one in a stack means query detail leaked, wherever the
+ * checkout lives.
+ */
+const LEAKED_SQL = 'insert into leak_marker_sql_text'
+const LEAKED_PARAM = 'leak_marker_bound_param'
+const LEAKED_DETAIL = 'leak_marker_driver_detail'
+const LEAK_MARKERS = [LEAKED_SQL, LEAKED_PARAM, LEAKED_DETAIL]
+
+function expectNoQueryDetails(serialized: string): void {
+  for (const marker of LEAK_MARKERS) expect(serialized).not.toContain(marker)
+}
+
 function mockQuotaExhaustion(error: EmbeddingQuotaExhaustedError): void {
   mockProcessDocumentAsync.mockImplementation(async (...args: unknown[]) => {
     const attemptContext = args[6] as {
@@ -122,10 +131,6 @@ describe('knowledge processing worker', () => {
     mockProcessDocumentAsync.mockResolvedValue({ outcome: 'indexed' })
     mockResolveTriggerRegion.mockResolvedValue('us-east-1')
     mockTrigger.mockResolvedValue({ id: 'quota-continuation-run' })
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
   })
 
   it('reports indexed only when the document service committed the index', async () => {
@@ -499,9 +504,9 @@ describe('knowledge processing worker', () => {
 
   it('keeps database failures retryable without sending SQL or parameters to Trigger', async () => {
     const error = new DrizzleQueryError(
-      'insert private SQL',
-      ['private bound content'],
-      Object.assign(new Error('private database detail'), { code: '57014' })
+      LEAKED_SQL,
+      [LEAKED_PARAM],
+      Object.assign(new Error(LEAKED_DETAIL), { code: '57014' })
     )
     mockProcessDocumentAsync.mockRejectedValueOnce(error)
     const failure = await runDocumentProcessing(WORKSPACE_PAYLOAD).catch(
@@ -511,16 +516,16 @@ describe('knowledge processing worker', () => {
     expect(failure).toMatchObject({ message: 'Database request failed (SQLSTATE 57014).' })
     /** Trigger records only the name, message and stack; the cause stays for classification. */
     expect((failure as Error).cause).toBe(error)
-    expect((failure as Error).stack).not.toContain('private')
-    expect(JSON.stringify(failure)).not.toContain('private')
+    expectNoQueryDetails((failure as Error).stack ?? '')
+    expectNoQueryDetails(JSON.stringify(failure))
   })
 
   describe('transient database failures', () => {
     const MINUTE = 60 * 1000
     const statementTimeout = () =>
       new DrizzleQueryError(
-        'insert private SQL',
-        ['private bound content'],
+        LEAKED_SQL,
+        [LEAKED_PARAM],
         Object.assign(new Error('canceling statement due to statement timeout'), {
           code: '57014',
         })
@@ -549,7 +554,7 @@ describe('knowledge processing worker', () => {
       expect(failure).toBeInstanceOf(DocumentProcessingDatabaseRetryError)
       expect(failure).toMatchObject({ message: 'Database request failed (SQLSTATE 57014).' })
       expect((failure as Error).cause).toBe(error)
-      expect((failure as Error).stack).not.toContain('private')
+      expectNoQueryDetails((failure as Error).stack ?? '')
       const retryAt = scheduled[0]
       expect(retryAt).toBeInstanceOf(Date)
       expect(retryAt!.getTime() - startedAt).toBeGreaterThanOrEqual(2 * MINUTE * 0.8)

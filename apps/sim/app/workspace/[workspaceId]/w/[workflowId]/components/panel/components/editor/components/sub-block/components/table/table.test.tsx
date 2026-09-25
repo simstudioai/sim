@@ -1,3 +1,6 @@
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,19 +11,15 @@ const { KEY, SECRET, searchTargetRef } = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/emcn', () => ({
-  cn: (...classes: unknown[]) => classes.filter(Boolean).join(' '),
+  ...emcnMock,
   Button: ({ children }: { children?: React.ReactNode }) => (
     <button type='button'>{children}</button>
   ),
 }))
 
-vi.mock('@sim/emcn/icons', () => ({
-  Trash: () => null,
-}))
+vi.mock('@sim/emcn/icons', () => emcnIconsMock)
 
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown',
@@ -77,6 +76,8 @@ vi.mock(
 )
 
 import { Table } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/table'
+
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 
 function render(password: boolean) {
   return renderToStaticMarkup(

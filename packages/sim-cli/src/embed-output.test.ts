@@ -1,9 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { runEmbeddedCli } from './embed'
 import { writeStderr } from './output/io'
 
 const identity = { endpoint: 'https://sim.test', apiKey: 'fixture', workspaceId: 'workspace' }
-afterEach(() => vi.unstubAllGlobals())
 
 function download(chunks: Uint8Array[], cancel = vi.fn()): Response {
   let position = 0

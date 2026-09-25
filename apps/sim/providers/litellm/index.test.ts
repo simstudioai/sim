@@ -1,22 +1,18 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
+import { openaiMock, openaiMockFns } from '@sim/testing/mocks/openai.mock'
+import { providersMock } from '@sim/testing/mocks/providers.mock'
+import { providersAttachmentsMock } from '@sim/testing/mocks/providers-attachments.mock'
+import { providersModelsMock } from '@sim/testing/mocks/providers-models.mock'
+import { providersTraceEnrichmentMock } from '@sim/testing/mocks/providers-trace-enrichment.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCreate, mockExecuteTool } = vi.hoisted(() => ({
-  mockCreate: vi.fn(),
-  mockExecuteTool: vi.fn(),
-}))
+vi.mock('openai', () => openaiMock)
 
-vi.mock('openai', () => ({
-  default: vi.fn().mockImplementation(
-    class {
-      chat = { completions: { create: mockCreate } }
-    }
-  ),
-}))
+vi.mock('@/tools', () => toolsMock)
 
-vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
-
-vi.mock('@/providers', () => ({ MAX_TOOL_ITERATIONS: 20 }))
+vi.mock('@/providers', () => providersMock)
 
 beforeAll(() => {
   setEnv({ LITELLM_BASE_URL: 'http://litellm.test', LITELLM_API_KEY: '' })
@@ -28,22 +24,11 @@ vi.mock('@/stores/providers', () => ({
   useProvidersStore: { getState: () => ({ setProviderModels: vi.fn() }) },
 }))
 
-vi.mock('@/providers/models', () => ({
-  getProviderFileAttachment: vi
-    .fn()
-    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
-  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
-  getProviderModels: () => [],
-  getProviderDefaultModel: () => '',
-}))
+vi.mock('@/providers/models', () => providersModelsMock)
 
-vi.mock('@/providers/attachments', () => ({
-  formatMessagesForProvider: (messages: unknown) => messages,
-}))
+vi.mock('@/providers/attachments', () => providersAttachmentsMock)
 
-vi.mock('@/providers/trace-enrichment', () => ({
-  enrichLastModelSegmentFromChatCompletions: vi.fn(),
-}))
+vi.mock('@/providers/trace-enrichment', () => providersTraceEnrichmentMock)
 
 vi.mock('@/providers/litellm/utils', () => ({
   createReadableStreamFromLiteLLMStream: vi.fn(
@@ -51,31 +36,25 @@ vi.mock('@/providers/litellm/utils', () => ({
   ),
 }))
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  calculateCost: vi.fn(() => ({ input: 0, output: 0, total: 0 })),
-  sumToolCosts: vi.fn(() => 0),
-  prepareToolExecution: vi.fn((_tool, toolArgs) => ({
-    toolParams: toolArgs,
-    executionParams: toolArgs,
-  })),
-  prepareToolsWithUsageControl: vi.fn((tools) => ({
-    tools,
-    toolChoice: 'auto',
-    forcedTools: [],
-    hasFilteredTools: false,
-  })),
-  trackForcedToolUsage: vi.fn(() => ({ hasUsedForcedTool: false, usedForcedTools: [] })),
-  enforceStrictSchema: vi.fn((schema) => ({ ...schema, additionalProperties: false })),
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 import { litellmProvider } from '@/providers/litellm'
 import type { AgentStreamEvent } from '@/providers/stream-events'
 import { ProviderError } from '@/providers/types'
+
+const mockCreate = openaiMockFns.mockChatCompletionsCreate
+
+const mockExecuteTool = toolsMockFns.mockExecuteTool
+providersUtilsMockFns.mockPrepareToolsWithUsageControl.mockImplementation((tools) => ({
+  tools,
+  toolChoice: 'auto',
+  forcedTools: [],
+  hasFilteredTools: false,
+}))
+providersUtilsMockFns.mockEnforceStrictSchema.mockImplementation((schema) => ({
+  ...schema,
+  additionalProperties: false,
+}))
 
 interface ChatOptions {
   content?: string | null

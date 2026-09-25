@@ -1,3 +1,8 @@
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { describe, expect, it, vi } from 'vitest'
 import {
   createLargeArrayManifest,
@@ -9,21 +14,24 @@ import { navigatePathAsync } from '@/executor/variables/resolvers/reference-asyn
 import type { ResolutionContext } from './reference'
 import { WorkflowResolver } from './workflow'
 
+encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+  decrypted: encryptedValue,
+}))
+uploadsMetadataMockFns.mockInsertImmutableFileMetadata.mockResolvedValue({
+  id: 'execution-payload-file',
+})
+uploadsMetadataMockFns.mockInsertFileMetadata.mockResolvedValue({ id: 'execution-payload-file' })
+uploadsMetadataMockFns.mockDeleteFileMetadata.mockResolvedValue(undefined)
+
 vi.mock('@/lib/workflows/variables/variable-manager', () => ({
   VariableManager: {
     resolveForExecution: vi.fn((value) => value),
   },
 }))
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  insertImmutableFileMetadata: vi.fn().mockResolvedValue({ id: 'execution-payload-file' }),
-  insertFileMetadata: vi.fn().mockResolvedValue({ id: 'execution-payload-file' }),
-  deleteFileMetadata: vi.fn().mockResolvedValue(undefined),
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: vi.fn(async (encryptedValue: string) => ({ decrypted: encryptedValue })),
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 /**
  * Creates a minimal ResolutionContext for testing.

@@ -46,8 +46,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.restoreAllMocks()
-  vi.unstubAllGlobals()
   rmSync(dir, { recursive: true, force: true })
 })
 

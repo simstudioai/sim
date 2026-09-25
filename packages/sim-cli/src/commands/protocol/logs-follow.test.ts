@@ -2,28 +2,18 @@ import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ListLogsResponse } from '../../generated/v2-api'
 import { SimApiError } from '../../http/client'
+import { contextMockFns, contextMockState } from '../../test/context-mock'
 import { attachLogsFollow, type LogRow } from './logs-follow'
 
-const { mockRequest, mockSleep, profile } = vi.hoisted(() => ({
-  mockRequest: vi.fn(),
+const { mockSleep } = vi.hoisted(() => ({
   mockSleep: vi.fn(() => Promise.resolve()),
-  profile: { output: 'json' as string },
 }))
 
 vi.mock('../../helpers', () => ({ sleep: mockSleep }))
 
-vi.mock('../../context', () => ({
-  clientFrom: () => ({
-    client: { request: mockRequest, requireWorkspace: () => 'ws_1' },
-    profile: {
-      name: 'default',
-      endpoint: 'https://sim.example',
-      apiKey: 'k',
-      workspaceId: 'ws_1',
-      output: profile.output,
-    },
-  }),
-}))
+vi.mock('../../context', async () => (await import('../../test/context-mock')).contextMock)
+
+const { mockRequest } = contextMockFns
 
 /** Stops a runaway follow before it can hang the suite. */
 const MAX_POLLS = 50
@@ -94,7 +84,7 @@ function printedRunIds(): string[] {
 beforeEach(() => {
   stdout = []
   stderr = []
-  profile.output = 'json'
+  contextMockState.output = 'json'
   mockRequest.mockReset()
   mockSleep.mockClear()
   vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
@@ -107,7 +97,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.restoreAllMocks()
   Object.defineProperty(process.stderr, 'isTTY', {
     value: originalStderrIsTTY,
     configurable: true,
@@ -178,7 +167,7 @@ describe('sim logs follow', () => {
     // `-n 0` seeds the writer with no rows, so the widths used to lock to the
     // header labels — RUN is three characters, and a 36-character run id
     // printed as `9f…`, uncopyable.
-    profile.output = 'table'
+    contextMockState.output = 'table'
     const runId = '9f5e9856-1801-4028-a85f-6e335e65d974'
     const arrival = row(runId, '2026-08-17T10:00:01.000Z')
     arrival.workflow = {

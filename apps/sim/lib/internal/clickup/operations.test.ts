@@ -1,24 +1,28 @@
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
-  downloadServableFileFromStorage: vi.fn(),
-  processFilesToUserFiles: vi.fn(),
   uploadClickUpAttachment: vi.fn(),
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertToolFileAccess,
-}))
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  processFilesToUserFiles: mocks.processFilesToUserFiles,
-}))
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mocks.downloadServableFileFromStorage,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 vi.mock('@/lib/internal/clickup/client', () => ({
   uploadClickUpAttachment: mocks.uploadClickUpAttachment,
 }))
+
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockProcessFilesToUserFiles } = fileUtilsMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
 
 import { executeClickUpUploadAttachment } from '@/lib/internal/clickup/operations'
 
@@ -27,9 +31,9 @@ const userFile = { ...rawFile, type: 'text/plain' }
 
 describe('executeClickUpUploadAttachment', () => {
   beforeEach(() => {
-    mocks.processFilesToUserFiles.mockReturnValue([userFile])
-    mocks.assertToolFileAccess.mockResolvedValue(null)
-    mocks.downloadServableFileFromStorage.mockResolvedValue({
+    mockProcessFilesToUserFiles.mockReturnValue([userFile])
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockDownloadServableFileFromStorage.mockResolvedValue({
       buffer: Buffer.from('file'),
       contentType: 'text/plain',
     })
@@ -42,12 +46,12 @@ describe('executeClickUpUploadAttachment', () => {
       { requestId: 'request-1', userId: 'user-1' }
     )
 
-    expect(mocks.processFilesToUserFiles).toHaveBeenCalledWith(
+    expect(mockProcessFilesToUserFiles).toHaveBeenCalledWith(
       [rawFile],
       'request-1',
       expect.anything()
     )
-    expect(mocks.assertToolFileAccess).toHaveBeenCalledWith(
+    expect(mockAssertToolFileAccess).toHaveBeenCalledWith(
       userFile.key,
       'user-1',
       'request-1',

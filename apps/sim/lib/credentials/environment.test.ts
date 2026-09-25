@@ -6,18 +6,19 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import {
+  billingIdentityLockMock,
+  billingIdentityLockMockFns,
+} from '@sim/testing/mocks/billing-identity-lock.mock'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DbOrTx } from '@/lib/db/types'
 
-const { mockAcquireUserBillingIdentityLock, mockLockPersonalEnvMap } = vi.hoisted(() => ({
-  mockAcquireUserBillingIdentityLock: vi.fn(),
+const { mockLockPersonalEnvMap } = vi.hoisted(() => ({
   mockLockPersonalEnvMap: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/organizations/billing-identity-lock', () => ({
-  acquireUserBillingIdentityLock: mockAcquireUserBillingIdentityLock,
-}))
+vi.mock('@/lib/billing/organizations/billing-identity-lock', () => billingIdentityLockMock)
 
 vi.mock('@/lib/credentials/env-locks', () => ({
   lockPersonalEnvMap: mockLockPersonalEnvMap,
@@ -30,6 +31,9 @@ import {
   getWorkspaceEnvKeyAdminAccess,
   syncPersonalEnvCredentialsForUser,
 } from '@/lib/credentials/environment'
+
+const mockAcquireUserBillingIdentityLock =
+  billingIdentityLockMockFns.mockAcquireUserBillingIdentityLock
 
 describe('managed OAuth credential lookup', () => {
   beforeEach(() => {

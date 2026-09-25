@@ -1,19 +1,19 @@
+import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  restore: vi.fn(),
-  syncLimits: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  MEMBER_BILLING_RECONCILIATION_EVENT_TYPE: 'billing.reconcile-member-after-org-leave',
-  restoreUserProSubscription: mocks.restore,
-}))
-vi.mock('@/lib/billing/core/usage', () => ({
-  syncUsageLimitsFromSubscription: mocks.syncLimits,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 
 import { membershipBillingOutboxHandlers } from '@/lib/billing/organizations/membership-reconciliation'
+
+const mocks = {
+  restore: organizationMembershipMockFns.mockRestoreUserProSubscription,
+  syncLimits: billingUsageMockFns.mockSyncUsageLimitsFromSubscription,
+}
 
 describe('member billing reconciliation outbox', () => {
   it('restores personal Pro before deriving the departed user limit', async () => {

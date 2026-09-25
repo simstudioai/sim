@@ -1,38 +1,44 @@
 import { createMockRequest } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  mothershipChatMessagesMock,
+  mothershipChatMessagesMockFns,
+} from '@sim/testing/mocks/mothership-chat-messages.mock'
+import {
+  workspaceAuthorizationMock,
+  workspaceAuthorizationMockFns,
+} from '@sim/testing/mocks/workspace-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAuthenticate, mockGetLatestRunForStream, mockRequestStreamSteering, mockAppend } =
-  vi.hoisted(() => ({
-    mockAuthenticate: vi.fn(),
-    mockGetLatestRunForStream: vi.fn(),
-    mockRequestStreamSteering: vi.fn(),
-    mockAppend: vi.fn(),
-  }))
-
-vi.mock('@/lib/auth', () => ({ getSession: mockAuthenticate }))
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  getLatestRunForStream: mockGetLatestRunForStream,
+const { mockRequestStreamSteering } = vi.hoisted(() => ({
+  mockRequestStreamSteering: vi.fn(),
 }))
+
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 vi.mock('@/lib/mothership/request/session/steer', () => ({
   requestStreamSteering: mockRequestStreamSteering,
 }))
-vi.mock('@/lib/mothership/chat/messages-store', () => ({
-  appendCopilotChatMessages: mockAppend,
-}))
+vi.mock('@/lib/mothership/chat/messages-store', () => mothershipChatMessagesMock)
 
-const { mockChatContext, mockAuthorize } = vi.hoisted(() => ({
+const { mockChatContext } = vi.hoisted(() => ({
   mockChatContext: vi.fn(),
-  mockAuthorize: vi.fn(),
 }))
 vi.mock('@/lib/mothership/chat/application/context', () => ({
   resolveOwnedChatContext: mockChatContext,
 }))
-vi.mock('@/lib/core/application/workspace-authorization', async (original) => ({
-  ...(await original<typeof import('@/lib/core/application/workspace-authorization')>()),
-  authorizeWorkspaceOperation: mockAuthorize,
-}))
+vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
 
 import { POST } from '@/app/api/copilot/chat/steer/route'
+
+const { mockAuthorizeWorkspaceOperation: mockAuthorize } = workspaceAuthorizationMockFns
+
+const mockAuthenticate = authMockFns.mockGetSession
+const mockGetLatestRunForStream = mothershipAsyncRunsMockFns.mockGetLatestRunForStream
+const mockAppend = mothershipChatMessagesMockFns.mockAppendCopilotChatMessages
 
 function steerRequest(overrides: Record<string, unknown> = {}) {
   return createMockRequest('POST', {

@@ -1,34 +1,25 @@
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import { fileParsersMock, fileParsersMockFns } from '@sim/testing/mocks/file-parsers.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  insert: vi.fn(),
-  select: vi.fn(),
-  upload: vi.fn(),
-  download: vi.fn(),
-  head: vi.fn(),
-  delete: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   provenance: vi.fn(),
-  parseBuffer: vi.fn(),
-  sourceDownload: vi.fn(),
   executeOcr: vi.fn(),
 }))
-vi.mock('@sim/db', () => ({ db: { insert: mocks.insert, select: mocks.select } }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  uploadFile: mocks.upload,
-  downloadFile: mocks.download,
-  headObject: mocks.head,
-  deleteFile: mocks.delete,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 vi.mock('@/lib/knowledge/model-input-provenance', () => ({
-  getKnowledgeOpaqueModelInputRegistry: mocks.provenance,
-  assertKnowledgeOpaqueModelInputSafe: mocks.provenance,
+  getKnowledgeOpaqueModelInputRegistry: hoisted.provenance,
+  assertKnowledgeOpaqueModelInputSafe: hoisted.provenance,
 }))
 
-vi.mock('@/lib/file-parsers', () => ({ parseBuffer: mocks.parseBuffer }))
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadFileFromUrl: mocks.sourceDownload,
-}))
-vi.mock('@/lib/internal/mistral/operations', () => ({ executeMistralParse: mocks.executeOcr }))
+vi.mock('@/lib/file-parsers', () => fileParsersMock)
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/lib/internal/mistral/operations', () => ({ executeMistralParse: hoisted.executeOcr }))
 
 import { PDFDocument } from 'pdf-lib'
 import { env } from '@/lib/core/config/env'
@@ -42,6 +33,11 @@ import {
   OCR_CHECKPOINT_CLEANUP_OUTBOX_EVENT,
 } from '@/lib/knowledge/documents/ocr-checkpoints'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mocks = {
+  ...hoisted,
+  parseBuffer: fileParsersMockFns.mockParseBuffer,
+}
 
 const policy = { maxBytes: 1_000_000, maxPages: 2, maxChunks: 512, concurrency: 1 }
 const context = { knowledgeBaseId: 'kb-1', documentId: 'document-1', indexingPassId: 'pass-1' }
@@ -94,7 +90,7 @@ describe('OCR page-range checkpoints', () => {
       MISTRAL_API_KEY: 'key',
       MISTRAL_OCR_PAGES_PER_REQUEST: 30,
     })
-    mocks.insert.mockImplementation(() => ({
+    dbChainMockFns.insert.mockImplementation(() => ({
       values: (input: Omit<CleanupRow, 'status'>) => ({
         onConflictDoNothing: () => ({
           returning: async () => {
@@ -107,21 +103,23 @@ describe('OCR page-range checkpoints', () => {
         }),
       }),
     }))
-    mocks.select.mockImplementation(() => ({
+    dbChainMockFns.select.mockImplementation(() => ({
       from: () => ({ where: () => ({ limit: async () => [...rows.values()] }) }),
     }))
-    mocks.head.mockImplementation(async (key: string) => {
+    storageServiceMockFns.mockHeadObject.mockImplementation(async (key: string) => {
       const value = objects.get(key)
       return value ? { size: value.length } : null
     })
-    mocks.download.mockImplementation(async ({ key }: { key: string }) => objects.get(key))
-    mocks.upload.mockImplementation(
+    storageServiceMockFns.mockDownloadFile.mockImplementation(async ({ key }: { key: string }) =>
+      objects.get(key)
+    )
+    storageServiceMockFns.mockUploadFile.mockImplementation(
       async ({ customKey, file }: { customKey: string; file: Buffer }) => {
         operations.push('upload')
         objects.set(customKey, Buffer.from(file))
       }
     )
-    mocks.delete.mockImplementation(async ({ key }: { key: string }) => {
+    storageServiceMockFns.mockDeleteFile.mockImplementation(async ({ key }: { key: string }) => {
       objects.delete(key)
     })
   })
@@ -147,13 +145,13 @@ describe('OCR page-range checkpoints', () => {
 
   it('requires current opaque-input safety before even looking up a cached range', async () => {
     await checkpoint().save(range, 'completed text', maxBytes)
-    mocks.head.mockClear()
+    storageServiceMockFns.mockHeadObject.mockClear()
     const refused = new Error('Knowledge model input could not be safely projected')
     mocks.provenance.mockImplementation(() => {
       throw refused
     })
     await expect(checkpoint().load(range, maxBytes)).rejects.toBe(refused)
-    expect(mocks.head).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockHeadObject).not.toHaveBeenCalled()
   })
 
   it('rejects a valid checkpoint object copied into the wrong page range', async () => {
@@ -171,7 +169,7 @@ describe('OCR page-range checkpoints', () => {
     row.status = 'completed'
     objects.clear()
     await checkpoint().save(range, 'late text', maxBytes)
-    expect(mocks.upload).toHaveBeenCalledOnce()
+    expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledOnce()
     expect(rows.size).toBe(1)
   })
 
@@ -183,18 +181,18 @@ describe('OCR page-range checkpoints', () => {
     await expect(checkpoint().save(range, 'éé', 3)).rejects.toBeInstanceOf(
       PermanentDocumentProcessingError
     )
-    expect(mocks.upload).toHaveBeenCalledOnce()
+    expect(storageServiceMockFns.mockUploadFile).toHaveBeenCalledOnce()
   })
 
   it('does not buffer oversized checkpoint objects', async () => {
-    mocks.head.mockResolvedValue({ size: maxBytes + 1025 })
+    storageServiceMockFns.mockHeadObject.mockResolvedValue({ size: maxBytes + 1025 })
     expect(await checkpoint().load(range, maxBytes)).toBeNull()
-    expect(mocks.download).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDownloadFile).not.toHaveBeenCalled()
   })
 
   it('propagates storage authorization errors rather than making new provider requests', async () => {
     const denied = new Error('Access denied')
-    mocks.head.mockRejectedValue(denied)
+    storageServiceMockFns.mockHeadObject.mockRejectedValue(denied)
     await expect(checkpoint().load(range, maxBytes)).rejects.toBe(denied)
   })
 
@@ -202,7 +200,7 @@ describe('OCR page-range checkpoints', () => {
     vi.useRealTimers()
     const pdf = await PDFDocument.create()
     for (let page = 0; page < 90; page++) pdf.addPage()
-    mocks.sourceDownload.mockResolvedValue(Buffer.from(await pdf.save()))
+    fileUtilsServerMockFns.mockDownloadFileFromUrl.mockResolvedValue(Buffer.from(await pdf.save()))
     mocks.parseBuffer.mockResolvedValue({ content: '', metadata: { pageCount: 90 } })
     const execute = () =>
       processDocument(
@@ -256,6 +254,6 @@ describe('OCR page-range checkpoints', () => {
     await expect(
       cleanupOcrCheckpoint({ key: 'knowledge-base/source.pdf', expiresAt: 0 }, outboxContext())
     ).rejects.toThrow('Invalid OCR checkpoint cleanup payload')
-    expect(mocks.delete).not.toHaveBeenCalled()
+    expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
   })
 })

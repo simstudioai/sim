@@ -1,3 +1,20 @@
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingUsageMonitorMock,
+  billingUsageMonitorMockFns,
+} from '@sim/testing/mocks/billing-usage-monitor.mock'
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   AccountBillingDecision,
@@ -9,36 +26,27 @@ import {
   checkCopilotContinuationBilling,
 } from '@/lib/mothership/application/authorize-chat-callback'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  permission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   capability: vi.fn(),
-  organization: vi.fn(),
-  attributedBlocks: vi.fn(),
-  actorBlock: vi.fn(),
-  payerBlock: vi.fn(),
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/permission-groups/capability-assertions', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/permission-groups/capability-assertions')>()),
-  assertWorkspaceCapability: mocks.capability,
+  assertWorkspaceCapability: hoisted.capability,
 }))
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChatDelegation: { execute: mocks.organization },
-}))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  checkAttributedBillingBlocks: mocks.attributedBlocks,
-}))
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkBillingBlocked: mocks.actorBlock,
-  checkBillingEntityBlocked: mocks.payerBlock,
-}))
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+const mockCheckAttributedBillingBlocks = billingAttributionMockFns.mockCheckAttributedBillingBlocks
+const mocks = {
+  ...hoisted,
+  organization: mothershipOrganizationChatsMockFns.mockAuthorizeOrganizationChatDelegation,
+  actorBlock: billingUsageMonitorMockFns.mockCheckBillingBlocked,
+  payerBlock: billingUsageMonitorMockFns.mockCheckBillingEntityBlocked,
+  loadWorkspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
+vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
 
 const context = {
   userId: 'actor',
@@ -74,7 +82,7 @@ beforeEach(() => {
   mocks.organization.mockResolvedValue(undefined)
   mocks.actorBlock.mockResolvedValue({ blocked: false })
   mocks.payerBlock.mockResolvedValue({ blocked: false })
-  mocks.attributedBlocks.mockResolvedValue({ blocked: false })
+  mockCheckAttributedBillingBlocks.mockResolvedValue({ blocked: false })
 })
 
 describe('fresh chat callback authorization', () => {
@@ -187,7 +195,7 @@ describe('fresh chat callback authorization', () => {
 describe('continuation account standing', () => {
   it('uses the existing attributed block policy with the original snapshot', async () => {
     await checkCopilotContinuationBilling({ kind: 'attributed', attribution })
-    expect(mocks.attributedBlocks).toHaveBeenCalledWith(attribution)
+    expect(mockCheckAttributedBillingBlocks).toHaveBeenCalledWith(attribution)
     expect(mocks.actorBlock).not.toHaveBeenCalled()
     expect(mocks.payerBlock).not.toHaveBeenCalled()
   })

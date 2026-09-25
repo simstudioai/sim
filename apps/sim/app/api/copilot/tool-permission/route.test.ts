@@ -1,32 +1,27 @@
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  getAsyncToolCall,
-  getRunSegment,
-  recordToolPermissionDecision,
-  publishToolPermissionDecision,
-  addAutoAllowedTool,
-  addChatAutoAllowedTool,
-  getUserPermissionConfig,
-} = vi.hoisted(() => ({
-  getAsyncToolCall: vi.fn(),
-  getRunSegment: vi.fn(),
-  recordToolPermissionDecision: vi.fn(),
-  publishToolPermissionDecision: vi.fn(),
-  addAutoAllowedTool: vi.fn(),
-  addChatAutoAllowedTool: vi.fn(),
-  getUserPermissionConfig: vi.fn(),
-}))
+const { publishToolPermissionDecision, addAutoAllowedTool, addChatAutoAllowedTool } = vi.hoisted(
+  () => ({
+    publishToolPermissionDecision: vi.fn(),
+    addAutoAllowedTool: vi.fn(),
+    addChatAutoAllowedTool: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  getAsyncToolCall,
-  getRunSegment,
-  recordToolPermissionDecision,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 vi.mock('@/lib/mothership/persistence/tool-permission', () => ({
   publishToolPermissionDecision,
@@ -43,15 +38,15 @@ vi.mock('@/lib/mothership/persistence/tool-permission/auto-allow', () => ({
   addChatAutoAllowedTool,
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isCopilotToolPermissionsEnabled: true,
-}))
-
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 import { POST } from './route'
+
+const getAsyncToolCall = mothershipAsyncRunsMockFns.mockGetAsyncToolCall
+const getRunSegment = mothershipAsyncRunsMockFns.mockGetRunSegment
+const recordToolPermissionDecision = mothershipAsyncRunsMockFns.mockRecordToolPermissionDecision
+const getUserPermissionConfig = permissionGroupsResolveMockFns.mockGetUserPermissionConfig
+setEnvFlags({ isCopilotToolPermissionsEnabled: true })
 
 describe('Copilot tool permission API', () => {
   beforeEach(() => {
@@ -86,10 +81,10 @@ describe('Copilot tool permission API', () => {
   })
 
   function createRequest(decision: 'allow' | 'allow_chat' | 'always_allow' | 'skip') {
-    return new NextRequest('http://localhost:3000/api/copilot/tool-permission', {
+    return createMockRequest({
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decisions: [{ toolCallId: 'tool-1', decision }] }),
+      url: 'http://localhost:3000/api/copilot/tool-permission',
+      body: { decisions: [{ toolCallId: 'tool-1', decision }] },
     })
   }
 

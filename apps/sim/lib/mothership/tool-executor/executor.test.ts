@@ -1,4 +1,13 @@
-import { createLogger } from '@sim/logger'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import {
+  mothershipEnvironmentContextMock,
+  mothershipEnvironmentContextMockFns,
+} from '@sim/testing/mocks/mothership-environment-context.mock'
+import {
+  mothershipWorkspaceTargetMock,
+  mothershipWorkspaceTargetMockFns,
+} from '@sim/testing/mocks/mothership-workspace-target.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -9,18 +18,12 @@ const { getToolEntry, isKnownTool, isSimExecuted, isClientExecuted } = vi.hoiste
   isClientExecuted: vi.fn(),
 }))
 
-const { executeAppTool, recordSecretUsage } = vi.hoisted(() => ({
-  executeAppTool: vi.fn(),
+const { recordSecretUsage } = vi.hoisted(() => ({
   recordSecretUsage: vi.fn(),
 }))
 
-const targets = vi.hoisted(() => ({ resolve: vi.fn(), environment: vi.fn() }))
-vi.mock('@/lib/mothership/application/workspace-target', () => ({
-  resolveInvocationWorkspace: targets.resolve,
-}))
-vi.mock('@/lib/mothership/environment-context', () => ({
-  prepareCopilotEnvironmentContext: targets.environment,
-}))
+vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
+vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
 vi.mock('./router', () => ({
   getToolEntry,
   isKnownTool,
@@ -28,18 +31,20 @@ vi.mock('./router', () => ({
   isClientExecuted,
 }))
 
-vi.mock('@/tools', () => ({
-  executeTool: executeAppTool,
-}))
+vi.mock('@/tools', () => toolsMock)
 
 vi.mock('@/lib/secrets/usage/record', () => ({ recordSecretUsage }))
 
 import { clearHandlers, executeTool, registerHandler } from './executor'
 
-const toolExecutorLogger =
-  vi.mocked(createLogger).mock.results[
-    vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'ToolExecutor')
-  ]?.value
+const executeAppTool = toolsMockFns.mockExecuteTool
+const targets = {
+  resolve: mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace,
+  environment: mothershipEnvironmentContextMockFns.mockPrepareCopilotEnvironmentContext,
+}
+targets.environment.mockResolvedValue(undefined)
+
+const toolExecutorLogger = getMockLogger('ToolExecutor')
 
 describe('copilot tool executor fallback', () => {
   beforeEach(() => {

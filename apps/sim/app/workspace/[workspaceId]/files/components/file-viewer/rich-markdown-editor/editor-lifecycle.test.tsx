@@ -1,7 +1,10 @@
 /** @vitest-environment jsdom */
+
 import { act, Suspense, startTransition } from 'react'
 import { toast } from '@sim/emcn'
 import { FILE_DOC_SEED, type JoinFileDocError } from '@sim/realtime-protocol/file-doc'
+import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
+import { nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { PASTE_LIMITS } from '@sim/utils/paste'
 import { type Editor, Extension } from '@tiptap/core'
 import { createRoot, type Root } from 'react-dom/client'
@@ -19,17 +22,18 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission'
 import { LoadedRichMarkdownEditor } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor'
 
+nextNavigationMockFns.mockUsePathname.mockReturnValue('/workspace/workspace-1/files')
+
 const { collaborationRef, uploadFile } = vi.hoisted(() => ({
   collaborationRef: { current: null as unknown },
   uploadFile: vi.fn(),
 }))
 
-vi.mock('next/navigation', () => ({
-  usePathname: () => '/workspace/workspace-1/files',
-  useRouter: () => ({ push: vi.fn() }),
-}))
-vi.mock('@/app/_styles/fonts/inter/inter', () => ({ inter: { variable: 'test-inter-variable' } }))
-vi.mock('@/lib/auth/auth-client', () => ({ useSession: () => ({ data: null, isPending: false }) }))
+vi.mock(
+  'next/navigation',
+  async () => (await import('@sim/testing/mocks/next-navigation.mock')).nextNavigationMock
+)
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 vi.mock('@/hooks/queries/workspace-files', () => ({
   useUploadWorkspaceFile: () => ({ mutateAsync: uploadFile }),
 }))
@@ -211,7 +215,6 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
-  vi.restoreAllMocks()
 })
 
 describe('loaded rich editor lifecycle', () => {

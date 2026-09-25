@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 
+import { apiClientRequestMock } from '@sim/testing/mocks/api-client-request.mock'
 import { PASTE_LIMITS } from '@sim/utils/paste'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { requestRaw } from '@/lib/api/client/request'
@@ -7,7 +8,7 @@ import { exportWorkspaceFileSnapshotContract } from '@/lib/api/contracts/workspa
 import { type FileDownloadSource, triggerFileDownload } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 
-vi.mock('@/lib/api/client/request', () => ({ requestRaw: vi.fn() }))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 const file: WorkspaceFileRecord = {
   id: 'file-1',
@@ -48,8 +49,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.runOnlyPendingTimers()
   vi.useRealTimers()
-  vi.restoreAllMocks()
-  vi.unstubAllGlobals()
 })
 
 function source(content = 'latest visible content'): FileDownloadSource {

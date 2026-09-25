@@ -1,6 +1,7 @@
 import { outboxEvent } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { dbChainMock, dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 type OutboxRow = {
@@ -17,9 +18,7 @@ type OutboxRow = {
   processedAt: Date | null
 }
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: vi.fn(() => 'test-event-id'),
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
 import {
   continueOutboxHandler,
@@ -31,6 +30,8 @@ import {
   processOutboxEvents,
   withOutboxHandlerTimeout,
 } from '@/lib/core/outbox/service'
+
+idMockFns.mockGenerateId.mockReturnValue('test-event-id')
 
 const logger =
   vi.mocked(createLogger).mock.results[

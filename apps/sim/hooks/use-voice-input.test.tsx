@@ -49,7 +49,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
-  vi.unstubAllGlobals()
 })
 
 describe('voice input manual edits', () => {

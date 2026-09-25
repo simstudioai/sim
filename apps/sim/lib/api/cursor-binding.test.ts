@@ -401,7 +401,7 @@ describe('unordered filter scope parts', () => {
 })
 
 /**
- * The declaration sweep in `contracts/v2/__tests__/list-pagination.test.ts`
+ * The declaration sweep in `contracts/v2/list-pagination.test.ts`
  * reconciles each list's cursor binding against its CONTRACT, and never looks at
  * the `cursorScopeKey` call the route actually makes — which is precisely where
  * the missing list and parent identity sat. This closes that half: the scope a

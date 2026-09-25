@@ -1,34 +1,26 @@
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import { billingOutboxHandlersMock } from '@sim/testing/mocks/billing-outbox-handlers.mock'
+import {
+  billingPlanHelpersMock,
+  billingPlanHelpersMockFns,
+} from '@sim/testing/mocks/billing-plan-helpers.mock'
+import {
+  billingSubscriptionUtilsMock,
+  billingSubscriptionUtilsMockFns,
+} from '@sim/testing/mocks/billing-subscription-utils.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetOrganizationSubscription, mockHasInflightOutboxEvent } = vi.hoisted(() => ({
-  mockGetOrganizationSubscription: vi.fn(),
-  mockHasInflightOutboxEvent: vi.fn(),
-}))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
-vi.mock('@/lib/core/outbox/service', () => ({
-  hasInflightOutboxEvent: mockHasInflightOutboxEvent,
-}))
+vi.mock('@/lib/billing/webhooks/outbox-handlers', () => billingOutboxHandlersMock)
 
-vi.mock('@/lib/billing/webhooks/outbox-handlers', () => ({
-  OUTBOX_EVENT_TYPES: {
-    STRIPE_SYNC_SUBSCRIPTION_SEATS: 'stripe.sync-subscription-seats',
-  },
-}))
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription: mockGetOrganizationSubscription,
-}))
+vi.mock('@/lib/billing/plan-helpers', () => billingPlanHelpersMock)
 
-vi.mock('@/lib/billing/plan-helpers', () => ({
-  isEnterprise: vi.fn().mockReturnValue(false),
-  isFree: vi.fn().mockReturnValue(false),
-  isPro: vi.fn().mockReturnValue(false),
-}))
-
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  getEffectiveSeats: vi.fn().mockReturnValue(10),
-}))
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
 vi.mock('@/lib/messaging/email/validation', () => ({
   quickValidateEmail: vi.fn((email: string) => ({ isValid: email.includes('@') })),
@@ -39,6 +31,13 @@ import {
   syncSeatsFromStripeQuantity,
   validateSeatAvailability,
 } from '@/lib/billing/validation/seat-management'
+
+const mockGetOrganizationSubscription = billingCoreMockFns.mockGetOrganizationSubscription
+const mockHasInflightOutboxEvent = outboxServiceMockFns.mockHasInflightOutboxEvent
+billingPlanHelpersMockFns.mockIsEnterprise.mockReturnValue(false)
+billingPlanHelpersMockFns.mockIsFree.mockReturnValue(false)
+billingPlanHelpersMockFns.mockIsPro.mockReturnValue(false)
+billingSubscriptionUtilsMockFns.mockGetEffectiveSeats.mockReturnValue(10)
 
 /**
  * Queues the next N responses for `db.select().from(...).where(...)` calls,

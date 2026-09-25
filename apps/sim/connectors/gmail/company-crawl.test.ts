@@ -1,4 +1,9 @@
+import {
+  knowledgeSecureFetchMock,
+  knowledgeSecureFetchMockFns,
+} from '@sim/testing/mocks/knowledge-secure-fetch.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { RetryOptions } from '@/lib/knowledge/documents/utils'
 
 const { fetchProvider, listUsers, getUser } = vi.hoisted(() => ({
   fetchProvider: vi.fn(),
@@ -6,14 +11,7 @@ const { fetchProvider, listUsers, getUser } = vi.hoisted(() => ({
   getUser: vi.fn(),
 }))
 
-vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => ({
-  fetchWithRetry: (
-    url: string,
-    init: RequestInit,
-    options?: import('@/lib/knowledge/documents/utils').RetryOptions
-  ) => (options?.fetcher ? options.fetcher(url, init, fetchProvider) : fetchProvider(url, init)),
-}))
-vi.mock('@/components/icons', () => ({ GmailIcon: () => null }))
+vi.mock('@/lib/knowledge/documents/secure-fetch.server', () => knowledgeSecureFetchMock)
 vi.mock('@/connectors/google-workspace/users', () => ({
   GOOGLE_WORKSPACE_USERS_PAGE_SIZE: 100,
   listGoogleWorkspaceUsers: listUsers,
@@ -28,6 +26,11 @@ vi.mock('@/connectors/google-workspace/users', () => ({
 }))
 
 import { gmailConnector } from '@/connectors/gmail/gmail'
+
+knowledgeSecureFetchMockFns.mockFetchWithRetry.mockImplementation(
+  (url: string, init: RequestInit, options?: RetryOptions) =>
+    options?.fetcher ? options.fetcher(url, init, fetchProvider) : fetchProvider(url, init)
+)
 
 const ALICE = {
   id: 'directory-alice',

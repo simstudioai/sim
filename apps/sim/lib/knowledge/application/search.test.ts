@@ -1,105 +1,99 @@
 import { member } from '@sim/db/schema'
 import { queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingUsageGateCacheMock,
+  billingUsageGateCacheMockFns,
+} from '@sim/testing/mocks/billing-usage-gate-cache.mock'
+import {
+  billingUsageMonitorMock,
+  billingUsageMonitorMockFns,
+} from '@sim/testing/mocks/billing-usage-monitor.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  knowledgeContextsMock,
+  knowledgeContextsMockFns,
+} from '@sim/testing/mocks/knowledge-contexts.mock'
+import {
+  knowledgeEmbeddingsMock,
+  knowledgeEmbeddingsMockFns,
+} from '@sim/testing/mocks/knowledge-embeddings.mock'
+import {
+  knowledgeServiceMock,
+  knowledgeServiceMockFns,
+} from '@sim/testing/mocks/knowledge-service.mock'
+import {
+  knowledgeTagsServiceMock,
+  knowledgeTagsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-tags-service.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { getMockPlatformEvent, telemetryMock } from '@sim/testing/mocks/telemetry.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   hasRerankerCredential: vi.fn(async () => true),
-  resolveWorkspace: vi.fn(),
-  resolveOrganization: vi.fn(),
-  requireOrganizationSearch: vi.fn(),
-  resolvePermission: vi.fn(),
   getKnowledgeBase: vi.fn(),
-  getKnowledgeBases: vi.fn(),
-  resolveBilling: vi.fn(),
-  checkUsage: vi.fn(),
-  checkActorUsage: vi.fn(),
-  generateEmbedding: vi.fn(),
   executeSearch: vi.fn(),
   retrieval: vi.fn(),
   getTagDefinitions: vi.fn(),
-  getTagDefinitionsBatch: vi.fn(),
-  recordEmbeddingUsage: vi.fn(),
   importProvenance: vi.fn(),
   rerank: vi.fn(),
-  searched: vi.fn(),
   recordActivity: vi.fn(),
 }))
 
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { knowledgeBaseSearched: mocks.searched },
-}))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
 vi.mock('@/lib/knowledge/search/activity', () => ({
-  recordOrganizationSearchActivity: mocks.recordActivity,
+  recordOrganizationSearchActivity: hoisted.recordActivity,
 }))
 
 vi.mock('@/lib/knowledge/reranker', () => ({
-  hasRerankerCredential: mocks.hasRerankerCredential,
-  rerank: mocks.rerank,
+  hasRerankerCredential: hoisted.hasRerankerCredential,
+  rerank: hoisted.rerank,
 }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: mocks.resolveBilling,
-  resolveSystemBillingAttribution: mocks.resolveBilling,
-  resolveOrganizationBillingAttribution: mocks.resolveBilling,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
-  checkSearchUsageLimits: mocks.checkUsage,
-}))
+vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
 
 /** Retrieval defaults are the flag's concern; here the flag is off so the search stays as configured. */
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  isKnowledgeMemberAccessAvailable: async () => false,
-  requireOrganizationSearchAvailable: mocks.requireOrganizationSearch,
-}))
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkActorUsageLimits: mocks.checkActorUsage,
-}))
+vi.mock('@/lib/billing/calculations/usage-monitor', () => billingUsageMonitorMock)
 
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeWorkspaceContext: mocks.resolveWorkspace,
-  resolveKnowledgeOrganizationContext: mocks.resolveOrganization,
-}))
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: async () => null,
-  getUserPermissionConfigForOrganization: async () => null,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/knowledge/service', () => ({
-  getActiveKnowledgeBaseReferences: mocks.getKnowledgeBases,
-}))
+vi.mock('@/lib/knowledge/service', () => knowledgeServiceMock)
 
-vi.mock('@/lib/knowledge/embeddings', () => ({
-  generateSearchEmbedding: mocks.generateEmbedding,
-  recordSearchEmbeddingUsage: mocks.recordEmbeddingUsage,
-}))
+vi.mock('@/lib/knowledge/embeddings', () => knowledgeEmbeddingsMock)
 
 vi.mock('@/lib/knowledge/search/queries', () => ({
-  generateSearchEmbedding: mocks.generateEmbedding,
+  generateSearchEmbedding: knowledgeEmbeddingsMockFns.mockGenerateSearchEmbedding,
   retrieveKnowledgeSearch: async (...args: unknown[]) => ({
-    rows: await mocks.executeSearch(...args),
-    retrieval: mocks.retrieval(),
+    rows: await hoisted.executeSearch(...args),
+    retrieval: hoisted.retrieval(),
     readAccess: (args[0] as { access: unknown }).access,
   }),
 }))
 
-vi.mock('@/lib/knowledge/tags/service', () => ({
-  getDocumentTagDefinitionsByKnowledgeBaseIds: mocks.getTagDefinitionsBatch,
-}))
+vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
 
 vi.mock('@/lib/knowledge/tags/utils', () => ({
   buildUndefinedTagsError: (tags: string[]) => `Undefined tags: ${tags.join(', ')}`,
@@ -107,10 +101,33 @@ vi.mock('@/lib/knowledge/tags/utils', () => ({
 }))
 
 vi.mock('@/lib/knowledge/secret-provenance', () => ({
-  importKnowledgeSearchResultSecretProvenance: mocks.importProvenance,
+  importKnowledgeSearchResultSecretProvenance: hoisted.importProvenance,
 }))
 
 import { searchKnowledge } from '@/lib/knowledge/application/search'
+
+const mocks = {
+  ...hoisted,
+  checkUsage: billingUsageGateCacheMockFns.mockCheckSearchUsageLimits,
+  checkActorUsage: billingUsageMonitorMockFns.mockCheckActorUsageLimits,
+}
+
+const mockGetActiveKnowledgeBaseReferences =
+  knowledgeServiceMockFns.mockGetActiveKnowledgeBaseReferences
+const mockGenerateSearchEmbedding = knowledgeEmbeddingsMockFns.mockGenerateSearchEmbedding
+const mockRecordSearchEmbeddingUsage = knowledgeEmbeddingsMockFns.mockRecordSearchEmbeddingUsage
+const mockGetDocumentTagDefinitionsByKnowledgeBaseIds =
+  knowledgeTagsServiceMockFns.mockGetDocumentTagDefinitionsByKnowledgeBaseIds
+
+knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable.mockImplementation(
+  async () => false
+)
+billingAttributionMockFns.mockResolveSystemBillingAttribution.mockImplementation(
+  (...args: unknown[]) => billingAttributionMockFns.mockResolveBillingAttribution(...args)
+)
+billingAttributionMockFns.mockResolveOrganizationBillingAttribution.mockImplementation(
+  (...args: unknown[]) => billingAttributionMockFns.mockResolveBillingAttribution(...args)
+)
 
 const workspace = {
   workspaceId: 'workspace-1',
@@ -131,31 +148,30 @@ const knowledgeBase = {
 describe('knowledge search application use case', () => {
   beforeEach(() => {
     mocks.retrieval.mockReturnValue({ status: 'complete', timedOutLegs: [] })
-    vi.clearAllMocks()
     mocks.rerank.mockReset()
     resetDbChainMock()
-    mocks.requireOrganizationSearch.mockResolvedValue(undefined)
-    mocks.resolveOrganization.mockResolvedValue({
+    knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable.mockResolvedValue(undefined)
+    knowledgeContextsMockFns.mockResolveKnowledgeOrganizationContext.mockResolvedValue({
       organizationId: 'org-canonical',
       workspaceId: undefined,
     })
-    mocks.resolveWorkspace.mockResolvedValue(workspace)
-    mocks.resolvePermission.mockResolvedValue('read')
+    knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext.mockResolvedValue(workspace)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
     mocks.getKnowledgeBase.mockResolvedValue(knowledgeBase)
-    mocks.getKnowledgeBases.mockImplementation((ids: string[]) =>
+    mockGetActiveKnowledgeBaseReferences.mockImplementation((ids: string[]) =>
       Promise.all(ids.map((id) => mocks.getKnowledgeBase(id)))
     )
-    mocks.getTagDefinitionsBatch.mockImplementation(
+    mockGetDocumentTagDefinitionsByKnowledgeBaseIds.mockImplementation(
       async (ids: string[]) =>
         new Map(await Promise.all(ids.map(async (id) => [id, await mocks.getTagDefinitions(id)])))
     )
-    mocks.resolveBilling.mockResolvedValue({
+    billingAttributionMockFns.mockResolveBillingAttribution.mockResolvedValue({
       actorUserId: 'user-1',
       workspaceId: 'workspace-1',
     })
     mocks.checkUsage.mockResolvedValue({ isExceeded: false })
     mocks.checkActorUsage.mockResolvedValue({ isExceeded: false })
-    mocks.generateEmbedding.mockResolvedValue({ embedding: [0.1], isBYOK: false })
+    mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [0.1], isBYOK: false })
     mocks.executeSearch.mockResolvedValue([
       {
         id: 'embedding-1',
@@ -187,7 +203,7 @@ describe('knowledge search application use case', () => {
       },
     ])
     mocks.getTagDefinitions.mockResolvedValue([])
-    mocks.recordEmbeddingUsage.mockResolvedValue(undefined)
+    mockRecordSearchEmbeddingUsage.mockResolvedValue(undefined)
     mocks.importProvenance.mockResolvedValue({ imported: true, documentMetadata: {} })
   })
 
@@ -197,7 +213,7 @@ describe('knowledge search application use case', () => {
       mocks.retrieval.mockReturnValue({ status: 'partial', timedOutLegs: ['vector', 'keyword'] })
       mocks.executeSearch.mockResolvedValue([])
       const result = searchKnowledge.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           workspaceId: 'workspace-1',
           knowledgeBaseIds: ['knowledge-1'],
@@ -234,7 +250,7 @@ describe('knowledge search application use case', () => {
 
     it('meters only successful organization calls under the acting person', async () => {
       await searchKnowledge.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 10, surface: 'mcp' },
       })
       if (scope === 'organization') {
@@ -249,7 +265,7 @@ describe('knowledge search application use case', () => {
       }
     })
 
-    const _principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+    const _principal = createSessionPrincipal()
     const _input = { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 10 }
   })
 
@@ -260,25 +276,27 @@ describe('knowledge search application use case', () => {
       organizationId: 'org-canonical',
     })
     queueTableRows(member, [{ role: 'member' }])
-    mocks.requireOrganizationSearch.mockRejectedValue(
+    knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable.mockRejectedValue(
       new OrchestrationError('forbidden', 'Search is not enabled for this organization')
     )
     await expect(
       searchKnowledge.execute({
-        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        principal: createPersonalApiKeyPrincipal(),
         input: { knowledgeBaseIds: ['knowledge-1'], query: 'answer', topK: 5 },
       })
     ).rejects.toThrow('Search is not enabled for this organization')
     expect(mocks.recordActivity).not.toHaveBeenCalled()
-    expect(mocks.requireOrganizationSearch).toHaveBeenCalledExactlyOnceWith('org-canonical')
-    expect(mocks.resolveBilling).not.toHaveBeenCalled()
-    expect(mocks.generateEmbedding).not.toHaveBeenCalled()
+    expect(
+      knowledgeAvailabilityMockFns.mockRequireOrganizationSearchAvailable
+    ).toHaveBeenCalledExactlyOnceWith('org-canonical')
+    expect(billingAttributionMockFns.mockResolveBillingAttribution).not.toHaveBeenCalled()
+    expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled()
     expect(mocks.executeSearch).not.toHaveBeenCalled()
   })
 
   it('authorizes every canonical knowledge base before billing and search', async () => {
     const result = await searchKnowledge.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: {
         workspaceId: 'workspace-1',
         knowledgeBaseIds: ['knowledge-1'],
@@ -287,12 +305,14 @@ describe('knowledge search application use case', () => {
       },
     })
 
-    expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.resolveBilling.mock.invocationCallOrder[0]
+    expect(
+      workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mock.invocationCallOrder[0]
+    ).toBeLessThan(
+      billingAttributionMockFns.mockResolveBillingAttribution.mock.invocationCallOrder[0]
     )
-    expect(mocks.resolveBilling.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.executeSearch.mock.invocationCallOrder[0]
-    )
+    expect(
+      billingAttributionMockFns.mockResolveBillingAttribution.mock.invocationCallOrder[0]
+    ).toBeLessThan(mocks.executeSearch.mock.invocationCallOrder[0])
     expect(mocks.executeSearch).toHaveBeenCalledWith(
       expect.objectContaining({
         knowledgeBaseIds: ['knowledge-1'],
@@ -307,7 +327,7 @@ describe('knowledge search application use case', () => {
       similarity: 0.8,
     })
     expect(result.knowledgeBases).toEqual([{ id: 'knowledge-1', name: 'Docs' }])
-    expect(mocks.searched).toHaveBeenCalledWith(
+    expect(getMockPlatformEvent('knowledgeBaseSearched')).toHaveBeenCalledWith(
       expect.objectContaining({
         knowledgeBaseIds: ['knowledge-1'],
         documentIds: ['document-1'],
@@ -326,7 +346,7 @@ describe('knowledge search application use case', () => {
 
     await expect(
       searchKnowledge.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           workspaceId: 'workspace-1',
           knowledgeBaseIds: ['knowledge-1'],
@@ -336,14 +356,14 @@ describe('knowledge search application use case', () => {
       })
     ).rejects.toMatchObject({ code: 'not_found' })
 
-    expect(mocks.resolvePermission).not.toHaveBeenCalled()
-    expect(mocks.resolveBilling).not.toHaveBeenCalled()
+    expect(workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission).not.toHaveBeenCalled()
+    expect(billingAttributionMockFns.mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mocks.executeSearch).not.toHaveBeenCalled()
   })
 
   it('attributes workspace-key searches to the key scope without identifying the payer as the reader', async () => {
     await searchKnowledge.execute({
-      principal: { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1' },
+      principal: createWorkspaceApiKeyPrincipal(),
       input: {
         workspaceId: 'workspace-1',
         knowledgeBaseIds: ['knowledge-1'],
@@ -351,7 +371,7 @@ describe('knowledge search application use case', () => {
         topK: 5,
       },
     })
-    expect(mocks.searched).toHaveBeenCalledWith(
+    expect(getMockPlatformEvent('knowledgeBaseSearched')).toHaveBeenCalledWith(
       expect.objectContaining({
         principalKind: 'workspace_api_key',
         accessScopeKind: 'workspace',
@@ -364,7 +384,7 @@ describe('knowledge search application use case', () => {
   it('refuses an already-cancelled search before starting billable provider work', async () => {
     await expect(
       searchKnowledge.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           workspaceId: 'workspace-1',
           knowledgeBaseIds: ['knowledge-1'],
@@ -374,7 +394,7 @@ describe('knowledge search application use case', () => {
         },
       })
     ).rejects.toThrow('Cancelled fixture search')
-    expect(mocks.generateEmbedding).not.toHaveBeenCalled()
+    expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled()
     expect(mocks.executeSearch).not.toHaveBeenCalled()
   })
 
@@ -394,7 +414,7 @@ describe('knowledge search application use case', () => {
         })
       ).rejects.toMatchObject({ code: 'not_found' })
 
-      expect(mocks.resolveBilling).not.toHaveBeenCalled()
+      expect(billingAttributionMockFns.mockResolveBillingAttribution).not.toHaveBeenCalled()
       expect(mocks.checkActorUsage).not.toHaveBeenCalled()
       expect(mocks.executeSearch).not.toHaveBeenCalled()
     }
@@ -403,7 +423,7 @@ describe('knowledge search application use case', () => {
   it('enforces semantic knowledge-base and result bounds for trusted callers', async () => {
     await expect(
       searchKnowledge.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           workspaceId: 'workspace-1',
           knowledgeBaseIds: Array.from({ length: 21 }, (_, index) => `knowledge-${index}`),
@@ -415,7 +435,7 @@ describe('knowledge search application use case', () => {
 
     await expect(
       searchKnowledge.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           workspaceId: 'workspace-1',
           knowledgeBaseIds: ['knowledge-1'],
@@ -425,28 +445,28 @@ describe('knowledge search application use case', () => {
       })
     ).rejects.toMatchObject({ code: 'validation' })
 
-    expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
+    expect(knowledgeContextsMockFns.mockResolveKnowledgeWorkspaceContext).not.toHaveBeenCalled()
     expect(mocks.getKnowledgeBase).not.toHaveBeenCalled()
-    expect(mocks.getKnowledgeBases).not.toHaveBeenCalled()
-    expect(mocks.getTagDefinitionsBatch).not.toHaveBeenCalled()
+    expect(mockGetActiveKnowledgeBaseReferences).not.toHaveBeenCalled()
+    expect(mockGetDocumentTagDefinitionsByKnowledgeBaseIds).not.toHaveBeenCalled()
   })
 
   it('rejects a batch spanning different canonical workspaces before billing', async () => {
-    mocks.getKnowledgeBases.mockResolvedValue([
+    mockGetActiveKnowledgeBaseReferences.mockResolvedValue([
       knowledgeBase,
       { ...knowledgeBase, id: 'knowledge-2', workspaceId: 'workspace-2' },
     ])
 
     await expect(
       searchKnowledge.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { knowledgeBaseIds: ['knowledge-1', 'knowledge-2'], query: 'answer', topK: 5 },
       })
     ).rejects.toMatchObject({
       code: 'validation',
       message: 'Selected knowledge bases must belong to the same workspace',
     })
-    expect(mocks.resolveBilling).not.toHaveBeenCalled()
+    expect(billingAttributionMockFns.mockResolveBillingAttribution).not.toHaveBeenCalled()
     expect(mocks.executeSearch).not.toHaveBeenCalled()
   })
 
@@ -457,7 +477,7 @@ describe('knowledge search application use case', () => {
 
     await expect(
       searchKnowledge.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           workspaceId: 'workspace-1',
           knowledgeBaseIds: ['knowledge-1', 'knowledge-2'],
@@ -467,14 +487,14 @@ describe('knowledge search application use case', () => {
       })
     ).rejects.toMatchObject({ code: 'validation' })
 
-    expect(mocks.generateEmbedding).not.toHaveBeenCalled()
+    expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled()
     expect(mocks.executeSearch).not.toHaveBeenCalled()
   })
 
   it('verifies trusted result provenance inside the authorized use case', async () => {
     const registry = { markIncomplete: vi.fn() }
     await searchKnowledge.execute({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: {
         workspaceId: 'workspace-1',
         knowledgeBaseIds: ['knowledge-1'],
@@ -521,7 +541,7 @@ describe('knowledge search application use case', () => {
     })
     const search = (input: Record<string, unknown> = {}) =>
       searchKnowledge.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           workspaceId: 'workspace-1',
           knowledgeBaseIds: ['knowledge-1'],
@@ -571,7 +591,7 @@ describe('knowledge search application use case', () => {
   describe('reranker outcome reporting', () => {
     const rerankedSearch = (rerankerEnabled?: boolean, query: string | undefined = 'answer') =>
       searchKnowledge.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: {
           workspaceId: 'workspace-1',
           knowledgeBaseIds: ['knowledge-1'],

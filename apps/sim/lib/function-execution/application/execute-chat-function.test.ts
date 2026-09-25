@@ -1,20 +1,27 @@
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { FUNCTION_EXECUTION_DELEGATION_AUDIENCE } from '@/lib/function-execution/application/authorization'
 import { createTrustedOrganizationCopilotPrincipal } from '@/lib/mothership/auth/application-delegation'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const mocks = vi.hoisted(() => ({ context: vi.fn(), authorize: vi.fn(), execute: vi.fn() }))
+const hoisted = vi.hoisted(() => ({ context: vi.fn(), execute: vi.fn() }))
 vi.mock('@/lib/mothership/chat/application/context', () => ({
-  resolveOwnedChatContext: mocks.context,
+  resolveOwnedChatContext: hoisted.context,
 }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.authorize,
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
 vi.mock('@/lib/function-execution/execute-request', () => ({
-  executeFunctionRequest: mocks.execute,
+  executeFunctionRequest: hoisted.execute,
 }))
 
 import { executeChatFunction } from '@/lib/function-execution/application/execute-chat-function'
+
+const mocks = {
+  ...hoisted,
+  authorize: organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation,
+}
 
 const principal = createTrustedOrganizationCopilotPrincipal(
   { userId: 'actor', organizationId: 'org', chatId: 'chat', delegationId: 'test' },

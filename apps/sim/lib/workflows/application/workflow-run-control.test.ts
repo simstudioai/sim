@@ -1,4 +1,16 @@
 import type { Principal } from '@sim/auth/principal'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { MockWorkflowExecutionNotFoundError, mocks } = vi.hoisted(() => {
@@ -6,32 +18,18 @@ const { MockWorkflowExecutionNotFoundError, mocks } = vi.hoisted(() => {
   return {
     MockWorkflowExecutionNotFoundError,
     mocks: {
-      audit: vi.fn(),
       cancel: vi.fn(),
-      capture: vi.fn(),
-      resolvePermission: vi.fn(),
-      resolveRunContext: vi.fn(),
       resume: vi.fn(),
     },
   }
 })
 
-vi.mock('@sim/audit', () => ({ recordAudit: mocks.audit }))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowRunApplicationContext: mocks.resolveRunContext,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 
 vi.mock('@/lib/execution/cancel-workflow-execution', () => ({
   cancelWorkflowExecution: mocks.cancel,
@@ -46,6 +44,12 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { cancelWorkflowRun } from '@/lib/workflows/application/cancel-run'
 import { resumeWorkflowRun } from '@/lib/workflows/application/resume-run'
 
+const mockCapture = posthogServerMockFns.mockCaptureServerEvent
+
+const mockAudit = auditMockFns.mockRecordAudit
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveRunContext = workflowContextMockFns.mockResolveActiveWorkflowRunApplicationContext
+
 const runContext = {
   workflowId: 'workflow-1',
   workflow: { id: 'workflow-1', workspaceId: 'workspace-1' },
@@ -58,19 +62,15 @@ const runContext = {
 
 const principals: Array<{ principal: Principal; actorUserId: string }> = [
   {
-    principal: { kind: 'session', userId: 'session-user', sessionId: 'session-1' },
+    principal: createSessionPrincipal({ userId: 'session-user' }),
     actorUserId: 'session-user',
   },
   {
-    principal: { kind: 'personal_api_key', userId: 'key-user', keyId: 'personal-key' },
+    principal: createPersonalApiKeyPrincipal({ userId: 'key-user', keyId: 'personal-key' }),
     actorUserId: 'key-user',
   },
   {
-    principal: {
-      kind: 'workspace_api_key',
-      workspaceId: 'workspace-1',
-      keyId: 'workspace-key',
-    },
+    principal: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key' }),
     actorUserId: 'billing-owner-1',
   },
   {
@@ -90,8 +90,8 @@ const principals: Array<{ principal: Principal; actorUserId: string }> = [
 
 describe('workflow run-control application use cases', () => {
   beforeEach(() => {
-    mocks.resolvePermission.mockResolvedValue('write')
-    mocks.resolveRunContext.mockResolvedValue(runContext)
+    mockResolvePermission.mockResolvedValue('write')
+    mockResolveRunContext.mockResolvedValue(runContext)
     mocks.cancel.mockResolvedValue({
       success: true,
       executionId: 'parent-run-1',
@@ -116,7 +116,7 @@ describe('workflow run-control application use cases', () => {
         input: { runId: 'parent-run-1' },
       })
 
-      expect(mocks.resolveRunContext).toHaveBeenCalledWith({
+      expect(mockResolveRunContext).toHaveBeenCalledWith({
         runId: 'parent-run-1',
       })
       expect(mocks.cancel).toHaveBeenCalledWith({
@@ -126,13 +126,13 @@ describe('workflow run-control application use cases', () => {
         workspaceId: 'workspace-1',
         abortSignal: undefined,
       })
-      expect(mocks.capture).toHaveBeenCalledWith(
+      expect(mockCapture).toHaveBeenCalledWith(
         actorUserId,
         'workflow_execution_cancelled',
         { workflow_id: 'workflow-1', workspace_id: 'workspace-1' },
         { groups: { workspace: 'workspace-1' } }
       )
-      expect(mocks.audit).not.toHaveBeenCalled()
+      expect(mockAudit).not.toHaveBeenCalled()
     }
   )
 
@@ -161,7 +161,7 @@ describe('workflow run-control application use cases', () => {
       })
 
       expect(result).toMatchObject({ success: true, cancelled: false, reason })
-      expect(mocks.capture).not.toHaveBeenCalled()
+      expect(mockCapture).not.toHaveBeenCalled()
     }
   )
 
@@ -182,7 +182,7 @@ describe('workflow run-control application use cases', () => {
     })
 
     expect(result).toMatchObject({ success: true, cancelled: true, reason: 'queue_cancelled' })
-    expect(mocks.capture).toHaveBeenCalledTimes(1)
+    expect(mockCapture).toHaveBeenCalledTimes(1)
   })
 
   it.each(principals)(
@@ -198,7 +198,7 @@ describe('workflow run-control application use cases', () => {
         },
       })
 
-      expect(mocks.resolveRunContext).toHaveBeenCalledWith({
+      expect(mockResolveRunContext).toHaveBeenCalledWith({
         runId: 'parent-run-1',
         assertedWorkflowId: 'workflow-1',
       })
@@ -214,12 +214,12 @@ describe('workflow run-control application use cases', () => {
         allowStreaming: false,
       })
       expect(result).toMatchObject({ executionId: 'resumed-run-2' })
-      expect(mocks.audit).not.toHaveBeenCalled()
+      expect(mockAudit).not.toHaveBeenCalled()
     }
   )
 
   it('stops cancellation and resume before authorization when canonical run resolution fails', async () => {
-    mocks.resolveRunContext.mockRejectedValue(new OrchestrationError('not_found', 'Run not found'))
+    mockResolveRunContext.mockRejectedValue(new OrchestrationError('not_found', 'Run not found'))
     const principal = principals[0].principal
 
     await expect(
@@ -240,13 +240,13 @@ describe('workflow run-control application use cases', () => {
       })
     ).rejects.toMatchObject({ code: 'not_found' })
 
-    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mockResolvePermission).not.toHaveBeenCalled()
     expect(mocks.cancel).not.toHaveBeenCalled()
     expect(mocks.resume).not.toHaveBeenCalled()
   })
 
   it('requires current write permission for session cancellation and resume', async () => {
-    mocks.resolvePermission.mockResolvedValue('read')
+    mockResolvePermission.mockResolvedValue('read')
     const principal = principals[0].principal
 
     await expect(

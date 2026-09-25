@@ -1,7 +1,21 @@
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { billingIdentityLockMock } from '@sim/testing/mocks/billing-identity-lock.mock'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import {
+  invitationsSendMock,
+  invitationsSendMockFns,
+} from '@sim/testing/mocks/invitations-send.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
+import { stripeClientMock } from '@sim/testing/mocks/stripe.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   subscriptionsCreate: vi.fn(),
   subscriptionsList: vi.fn(),
   subscriptionsRetrieve: vi.fn(),
@@ -15,71 +29,27 @@ const mocks = vi.hoisted(() => ({
   pricesList: vi.fn(),
   pricesCreate: vi.fn(),
   pricesRetrieve: vi.fn(),
-  enqueue: vi.fn(),
-  patchPayload: vi.fn(),
-  reapplyPaidOrgJoinBillingForExistingMemberTx: vi.fn(),
   prepareWorkspaceInvitationContext: vi.fn(),
   createWorkspaceInvitation: vi.fn(),
-  sendInvitationEmail: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { ENTERPRISE_SUBSCRIPTION_PROVISIONED: 'subscription.enterprise_provisioned' },
-  AuditResourceType: { SUBSCRIPTION: 'subscription' },
-  recordAudit: vi.fn(),
-  recordAuditOnce: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/utils/id', () => ({ generateId: vi.fn(() => 'generated-id') }))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: vi.fn(),
-  reapplyPaidOrgJoinBillingForExistingMemberTx: mocks.reapplyPaidOrgJoinBillingForExistingMemberTx,
-}))
-vi.mock('@/lib/billing/organizations/billing-identity-lock', () => ({
-  acquireUserBillingIdentityLock: vi.fn(),
-}))
-vi.mock('@/lib/billing/stripe-client', () => ({
-  requireStripeClient: () => ({
-    customers: { create: mocks.customersCreate, list: mocks.customersList },
-    products: { create: mocks.productsCreate, retrieve: mocks.productsRetrieve },
-    prices: { list: mocks.pricesList, create: mocks.pricesCreate, retrieve: mocks.pricesRetrieve },
-    subscriptions: {
-      create: mocks.subscriptionsCreate,
-      list: mocks.subscriptionsList,
-      retrieve: mocks.subscriptionsRetrieve,
-      update: mocks.subscriptionsUpdate,
-    },
-    invoices: { retrieve: mocks.invoicesRetrieve, update: mocks.invoicesUpdate },
-  }),
-}))
+vi.mock('@sim/utils/id', () => idMock)
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/billing/organizations/billing-identity-lock', () => billingIdentityLockMock)
+vi.mock('@/lib/billing/stripe-client', () => stripeClientMock)
 vi.mock('@/lib/billing/webhooks/enterprise-reconciliation-lease', () => ({
   withEnterpriseReconciliationLease: vi.fn(async (_id: string, operation: () => Promise<unknown>) =>
     operation()
   ),
 }))
-vi.mock('@/lib/core/outbox/service', () => ({
-  continueOutboxHandler: (reason: string) => ({
-    outcome: 'deferred',
-    reason,
-    consumeAttempt: false,
-  }),
-  deferOutboxHandler: (reason: string, minimumBackoffMs?: number, consumeAttempt = true) => ({
-    outcome: 'deferred',
-    reason,
-    ...(minimumBackoffMs === undefined ? {} : { minimumBackoffMs }),
-    ...(consumeAttempt ? {} : { consumeAttempt: false }),
-  }),
-  enqueueOutboxEvent: mocks.enqueue,
-  outboxEventHasSourceOperationId: vi.fn(() => undefined),
-  patchOutboxEventPayload: mocks.patchPayload,
-}))
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 vi.mock('@/lib/invitations/workspace-invitations', () => ({
-  prepareWorkspaceInvitationContext: mocks.prepareWorkspaceInvitationContext,
-  createWorkspaceInvitation: mocks.createWorkspaceInvitation,
+  prepareWorkspaceInvitationContext: hoisted.prepareWorkspaceInvitationContext,
+  createWorkspaceInvitation: hoisted.createWorkspaceInvitation,
 }))
-vi.mock('@/lib/invitations/send', () => ({
-  sendInvitationEmail: mocks.sendInvitationEmail,
-}))
+vi.mock('@/lib/invitations/send', () => invitationsSendMock)
 
 import {
   buildEnterpriseProvisioningRequestKey,
@@ -94,6 +64,29 @@ import {
   reviewEnterpriseProvisioning,
   syncEnterpriseMetadataInStripe,
 } from '@/lib/billing/enterprise-provisioning'
+
+const mocks = {
+  ...hoisted,
+  reapplyPaidOrgJoinBillingForExistingMemberTx:
+    organizationMembershipMockFns.mockReapplyPaidOrgJoinBillingForExistingMemberTx,
+  enqueue: outboxServiceMockFns.mockEnqueueOutboxEvent,
+  patchPayload: outboxServiceMockFns.mockPatchOutboxEventPayload,
+  sendInvitationEmail: invitationsSendMockFns.mockSendInvitationEmail,
+}
+
+idMockFns.mockGenerateId.mockReturnValue('generated-id')
+stripeClientMock.requireStripeClient.mockReturnValue({
+  customers: { create: mocks.customersCreate, list: mocks.customersList },
+  products: { create: mocks.productsCreate, retrieve: mocks.productsRetrieve },
+  prices: { list: mocks.pricesList, create: mocks.pricesCreate, retrieve: mocks.pricesRetrieve },
+  subscriptions: {
+    create: mocks.subscriptionsCreate,
+    list: mocks.subscriptionsList,
+    retrieve: mocks.subscriptionsRetrieve,
+    update: mocks.subscriptionsUpdate,
+  },
+  invoices: { retrieve: mocks.invoicesRetrieve, update: mocks.invoicesUpdate },
+})
 
 afterAll(() => {
   resetDbChainMock()

@@ -1,18 +1,12 @@
-import { describe, expect, it, vi } from 'vitest'
-
-const { mockLogger } = vi.hoisted(() => ({
-  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => mockLogger,
-}))
-
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { describe, expect, it } from 'vitest'
 import type { DbTransaction } from '@/lib/db/types'
 import {
   readBoundMemorySecretProvenance,
   replaceMemorySecretProvenanceInTx,
 } from '@/lib/memory/secret-provenance'
+
+const mockLogger = getMockLogger('MemorySecretProvenance')
 
 interface TxStub {
   tx: DbTransaction

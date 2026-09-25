@@ -1,28 +1,37 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  knowledgeAvailabilityMock,
+  knowledgeAvailabilityMockFns,
+} from '@sim/testing/mocks/knowledge-availability.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   canOpen: vi.fn(),
-  enterprise: vi.fn(),
-  governance: vi.fn(),
-  groups: vi.fn(),
-  search: vi.fn(),
 }))
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: mocks.groups,
-}))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  isKnowledgeMemberAccessAvailable: mocks.search,
-}))
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/organizations/settings-access', () => ({
-  canOpenOrganizationSettingsSection: mocks.canOpen,
+  canOpenOrganizationSettingsSection: hoisted.canOpen,
 }))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mocks.enterprise,
-  isOrganizationGovernanceActive: mocks.governance,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 import { authorizeOrganizationSettingsSection } from '@/lib/settings/application/organization-section-access'
+
+const mocks = {
+  ...hoisted,
+  groups: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+  enterprise: billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan,
+  governance: billingSubscriptionMockFns.mockIsOrganizationGovernanceActive,
+  search: knowledgeAvailabilityMockFns.mockIsKnowledgeMemberAccessAvailable,
+}
 
 describe('organization settings authorization', () => {
   beforeEach(() => {

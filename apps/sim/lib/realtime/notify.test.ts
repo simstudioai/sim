@@ -1,15 +1,16 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/lib/core/utils/urls', () => ({ getSocketServerUrl: () => 'http://realtime' }))
-vi.mock('@/lib/core/config/env', () => ({ env: { INTERNAL_API_SECRET: 'secret' } }))
-
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import { applyEditToLiveFileDoc, invalidateLiveFileDoc } from '@/lib/realtime/notify'
 
-describe('applyEditToLiveFileDoc', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
+urlsMockFns.mockGetSocketServerUrl.mockReturnValue('http://realtime')
+setEnv({ INTERNAL_API_SECRET: 'secret' })
+afterAll(() => {
+  resetUrlsMock()
+  resetEnvMock()
+})
 
+describe('applyEditToLiveFileDoc', () => {
   it('throws when the realtime call fails so the outbox can retry', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('socket pod down')))
     await expect(applyEditToLiveFileDoc('file-1', '# hello', { version: 42 })).rejects.toThrow(
@@ -32,10 +33,6 @@ describe('applyEditToLiveFileDoc', () => {
 })
 
 describe('invalidateLiveFileDoc', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it.each([200, 503])('cancels unread response bodies for status %i', async (status) => {
     const cancel = vi.fn()
     vi.stubGlobal(

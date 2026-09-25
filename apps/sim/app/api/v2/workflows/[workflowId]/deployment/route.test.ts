@@ -5,58 +5,46 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { dbChainMockFns } from '@sim/testing/mocks/database.mock'
+import {
+  MockPublicApiNotAllowedError,
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowDeploymentStatusMock,
+  workflowDeploymentStatusMockFns,
+} from '@sim/testing/mocks/workflow-deployment-status.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { MockPublicApiNotAllowedError, mocks } = vi.hoisted(() => {
-  class MockPublicApiNotAllowedError extends Error {}
+const { mocks } = vi.hoisted(() => {
   return {
-    MockPublicApiNotAllowedError,
     mocks: {
-      resolvePermission: vi.fn(),
-      resolveWorkflowContext: vi.fn(),
       getWorkflowDeploymentSummary: vi.fn(),
       listWebhookUrls: vi.fn(),
-      checkNeedsRedeployment: vi.fn(),
-      validatePublicApiAllowed: vi.fn(),
-      updatePublicApiRow: vi.fn(),
-      audit: vi.fn(),
-      notifyUpdated: vi.fn(),
     },
   }
 })
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { WORKFLOW_PUBLIC_API_TOGGLED: 'workflow.public_api_toggled' },
-  AuditResourceType: { WORKFLOW: 'workflow' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@sim/db', () => ({
-  db: {
-    update: () => ({
-      set: () => ({ where: () => ({ returning: () => mocks.updatePublicApiRow() }) }),
-    }),
-  },
-  workflow: {},
-}))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  PublicApiNotAllowedError: MockPublicApiNotAllowedError,
-  validatePublicApiAllowed: mocks.validatePublicApiAllowed,
-}))
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notifyUpdated }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveWorkflowContext,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 vi.mock('@/lib/workflows/orchestration/deploy', () => ({
   getWorkflowDeploymentSummary: mocks.getWorkflowDeploymentSummary,
   performActivateVersion: vi.fn(),
@@ -64,9 +52,7 @@ vi.mock('@/lib/workflows/orchestration/deploy', () => ({
   performFullUndeploy: vi.fn(),
   performRevertToVersion: vi.fn(),
 }))
-vi.mock('@/lib/workflows/deployment-status', () => ({
-  checkNeedsRedeployment: mocks.checkNeedsRedeployment,
-}))
+vi.mock('@/lib/workflows/deployment-status', () => workflowDeploymentStatusMock)
 vi.mock('@/lib/webhooks/deployed-urls', () => ({
   listDeployedWebhookUrls: mocks.listWebhookUrls,
 }))
@@ -75,12 +61,10 @@ vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
 import { GET, PATCH } from '@/app/api/v2/workflows/[workflowId]/deployment/route'
 
+const { mockCheckNeedsRedeployment } = workflowDeploymentStatusMockFns
+
 const auth = {
-  principal: {
-    kind: 'personal_api_key' as const,
-    userId: 'user-1',
-    keyId: 'personal-key-1',
-  },
+  principal: createPersonalApiKeyPrincipal({ keyId: 'personal-key-1' }),
   rateLimitSubjectIds: ['api-key:personal-key-1', 'user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
@@ -128,8 +112,10 @@ const workflowContext = {
 }
 
 async function get() {
-  const request = new NextRequest('http://localhost/api/v2/workflows/workflow-1/deployment')
-  return GET(request, { params: Promise.resolve({ workflowId: 'workflow-1' }) })
+  const request = createMockRequest({
+    url: 'http://localhost/api/v2/workflows/workflow-1/deployment',
+  })
+  return GET(request, createRouteContext({ workflowId: 'workflow-1' }))
 }
 
 describe('GET /api/v2/workflows/[workflowId]/deployment', () => {
@@ -137,14 +123,16 @@ describe('GET /api/v2/workflows/[workflowId]/deployment', () => {
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.resolvePermission.mockResolvedValue('read')
-    mocks.resolveWorkflowContext.mockResolvedValue(workflowContext)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('read')
+    workflowContextMockFns.mockResolveActiveWorkflowApplicationContext.mockResolvedValue(
+      workflowContext
+    )
     mocks.getWorkflowDeploymentSummary.mockResolvedValue({
       activeDeployment,
       latestDeploymentAttempt,
       warnings: undefined,
     })
-    mocks.checkNeedsRedeployment.mockResolvedValue(true)
+    mockCheckNeedsRedeployment.mockResolvedValue(true)
     mocks.listWebhookUrls.mockResolvedValue([])
   })
 
@@ -165,7 +153,9 @@ describe('GET /api/v2/workflows/[workflowId]/deployment', () => {
         webhooks: [],
       },
     })
-    expect(mocks.resolveWorkflowContext).toHaveBeenCalledBefore(mocks.getWorkflowDeploymentSummary)
+    expect(
+      workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
+    ).toHaveBeenCalledBefore(mocks.getWorkflowDeploymentSummary)
   })
 
   /**
@@ -238,7 +228,7 @@ describe('GET /api/v2/workflows/[workflowId]/deployment', () => {
       message: 'Webhook path already in use',
       retryable: false,
     })
-    expect(mocks.checkNeedsRedeployment).not.toHaveBeenCalled()
+    expect(mockCheckNeedsRedeployment).not.toHaveBeenCalled()
   })
 
   it('never reports a deploy time from the stale workflow column once nothing is live', async () => {
@@ -265,7 +255,7 @@ describe('GET /api/v2/workflows/[workflowId]/deployment', () => {
     const offBody = await (await get()).json()
     expect(offBody.data.isPublicApi).toBe(false)
 
-    mocks.resolveWorkflowContext.mockResolvedValue({
+    workflowContextMockFns.mockResolveActiveWorkflowApplicationContext.mockResolvedValue({
       ...workflowContext,
       workflow: { ...workflowContext.workflow, isPublicApi: true },
     })
@@ -275,7 +265,7 @@ describe('GET /api/v2/workflows/[workflowId]/deployment', () => {
   })
 
   it('conceals a workflow the caller cannot reach as 404', async () => {
-    mocks.resolvePermission.mockResolvedValue(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
 
     const response = await get()
 
@@ -286,23 +276,19 @@ describe('GET /api/v2/workflows/[workflowId]/deployment', () => {
 })
 
 const workspaceKeyAuth = {
-  principal: {
-    kind: 'workspace_api_key' as const,
-    workspaceId: 'workspace-1',
-    keyId: 'workspace-key-1',
-  },
+  principal: createWorkspaceApiKeyPrincipal({ keyId: 'workspace-key-1' }),
   rateLimitSubjectIds: ['api-key:workspace-key-1'] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
 }
 
 async function patch(body: unknown) {
-  const request = new NextRequest('http://localhost/api/v2/workflows/workflow-1/deployment', {
+  const request = createMockRequest({
     method: 'PATCH',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
+    url: 'http://localhost/api/v2/workflows/workflow-1/deployment',
+    body,
   })
-  return PATCH(request, { params: Promise.resolve({ workflowId: 'workflow-1' }) })
+  return PATCH(request, createRouteContext({ workflowId: 'workflow-1' }))
 }
 
 describe('PATCH /api/v2/workflows/[workflowId]/deployment', () => {
@@ -310,10 +296,12 @@ describe('PATCH /api/v2/workflows/[workflowId]/deployment', () => {
     v2RouteMocks.authenticate.mockResolvedValue(auth)
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
     v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
-    mocks.resolvePermission.mockResolvedValue('admin')
-    mocks.resolveWorkflowContext.mockResolvedValue(workflowContext)
-    mocks.validatePublicApiAllowed.mockResolvedValue(undefined)
-    mocks.updatePublicApiRow.mockResolvedValue([{ id: 'workflow-1' }])
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('admin')
+    workflowContextMockFns.mockResolveActiveWorkflowApplicationContext.mockResolvedValue(
+      workflowContext
+    )
+    permissionCheckMockFns.mockValidatePublicApiAllowed.mockResolvedValue(undefined)
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'workflow-1' }])
   })
 
   /**
@@ -325,9 +313,12 @@ describe('PATCH /api/v2/workflows/[workflowId]/deployment', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ data: { id: 'workflow-1', isPublicApi: true } })
-    expect(mocks.validatePublicApiAllowed).toHaveBeenCalledWith('user-1', 'workspace-1')
-    expect(mocks.audit).toHaveBeenCalledTimes(1)
-    expect(mocks.notifyUpdated).toHaveBeenCalledWith('workflow-1')
+    expect(permissionCheckMockFns.mockValidatePublicApiAllowed).toHaveBeenCalledWith(
+      'user-1',
+      'workspace-1'
+    )
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledTimes(1)
+    expect(realtimeNotifyMockFns.mockNotifyWorkflowUpdated).toHaveBeenCalledWith('workflow-1')
   })
 
   it('does not consult the sharing policy when disabling public access', async () => {
@@ -335,12 +326,12 @@ describe('PATCH /api/v2/workflows/[workflowId]/deployment', () => {
 
     expect(response.status).toBe(200)
     expect((await response.json()).data.isPublicApi).toBe(false)
-    expect(mocks.validatePublicApiAllowed).not.toHaveBeenCalled()
+    expect(permissionCheckMockFns.mockValidatePublicApiAllowed).not.toHaveBeenCalled()
   })
 
   it('names the sharing refusal with an actionable forbidden code', async () => {
-    mocks.validatePublicApiAllowed.mockRejectedValue(
-      new MockPublicApiNotAllowedError('not allowed')
+    permissionCheckMockFns.mockValidatePublicApiAllowed.mockRejectedValue(
+      new MockPublicApiNotAllowedError()
     )
 
     const response = await patch({ isPublicApi: true })
@@ -349,7 +340,7 @@ describe('PATCH /api/v2/workflows/[workflowId]/deployment', () => {
     const body = await response.json()
     expect(body.error.details.code).toBe('PUBLIC_SHARING_NOT_ALLOWED')
     expect(body.error.message).toBe('Public API access is disabled')
-    expect(mocks.audit).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAudit).not.toHaveBeenCalled()
   })
 
   it('rejects a workspace API key before canonical loading', async () => {
@@ -358,26 +349,28 @@ describe('PATCH /api/v2/workflows/[workflowId]/deployment', () => {
     const response = await patch({ isPublicApi: true })
 
     expect(response.status).toBe(403)
-    expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
+    expect(
+      workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
+    ).not.toHaveBeenCalled()
   })
 
   it('refuses a caller below workspace admin with 403', async () => {
-    mocks.resolvePermission.mockResolvedValue('write')
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
 
     const response = await patch({ isPublicApi: true })
 
     expect(response.status).toBe(403)
     expect((await response.json()).error.details.code).toBe('INSUFFICIENT_WORKSPACE_ROLE')
-    expect(mocks.updatePublicApiRow).not.toHaveBeenCalled()
+    expect(dbChainMockFns.returning).not.toHaveBeenCalled()
   })
 
   it('conceals a workflow the caller cannot reach as 404', async () => {
-    mocks.resolvePermission.mockResolvedValue(null)
+    workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockResolvedValue(null)
 
     const response = await patch({ isPublicApi: true })
 
     expect(response.status).toBe(404)
     expect((await response.json()).error.code).toBe('NOT_FOUND')
-    expect(mocks.updatePublicApiRow).not.toHaveBeenCalled()
+    expect(dbChainMockFns.returning).not.toHaveBeenCalled()
   })
 })

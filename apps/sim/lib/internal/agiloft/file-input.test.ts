@@ -1,31 +1,35 @@
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fileMocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
   docNotReadyResponse: vi.fn(),
-  downloadServableFileFromStorage: vi.fn(),
   isPayloadSizeLimitError: vi.fn(),
-  processFilesToUserFiles: vi.fn(),
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: fileMocks.assertToolFileAccess,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 vi.mock('@/lib/core/utils/stream-limits', () => ({
   isPayloadSizeLimitError: fileMocks.isPayloadSizeLimitError,
 }))
 vi.mock('@/lib/uploads/shared/types', () => ({
   MAX_BUFFERED_TRANSFER_BYTES: 50 * 1024 * 1024,
 }))
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  processFilesToUserFiles: fileMocks.processFilesToUserFiles,
-}))
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: fileMocks.downloadServableFileFromStorage,
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 vi.mock('@/lib/uploads/utils/servable-file-response', () => ({
   docNotReadyResponse: fileMocks.docNotReadyResponse,
 }))
+
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockProcessFilesToUserFiles } = fileUtilsMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
 
 import { resolveAgiloftAttachmentFile } from '@/lib/internal/agiloft/file-input'
 
@@ -45,9 +49,8 @@ const USER_FILE = {
 
 describe('Agiloft attachment file resolution', () => {
   beforeEach(() => {
-    fileMocks.processFilesToUserFiles.mockReturnValue([USER_FILE])
-    fileMocks.assertToolFileAccess.mockResolvedValue(null)
-    fileMocks.downloadServableFileFromStorage.mockResolvedValue({
+    mockProcessFilesToUserFiles.mockReturnValue([USER_FILE])
+    mockDownloadServableFileFromStorage.mockResolvedValue({
       buffer: Buffer.from('hello'),
       contentType: 'text/plain',
     })
@@ -60,7 +63,7 @@ describe('Agiloft attachment file resolution', () => {
     async (context) => {
       const file = { ...RAW_FILE, context, key: `${context}/file-1` }
       const userFile = { ...USER_FILE, ...file }
-      fileMocks.processFilesToUserFiles.mockReturnValueOnce([userFile])
+      mockProcessFilesToUserFiles.mockReturnValueOnce([userFile])
 
       const result = await resolveAgiloftAttachmentFile(file, {
         userId: 'user-1',
@@ -68,7 +71,7 @@ describe('Agiloft attachment file resolution', () => {
       })
 
       expect(result).toEqual({ userFile, buffer: Buffer.from('hello') })
-      expect(fileMocks.assertToolFileAccess).toHaveBeenCalledWith(
+      expect(mockAssertToolFileAccess).toHaveBeenCalledWith(
         userFile.key,
         'user-1',
         'request-1',

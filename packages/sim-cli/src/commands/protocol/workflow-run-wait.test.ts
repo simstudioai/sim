@@ -43,7 +43,6 @@ const stderr = process.stderr as unknown as { isTTY: boolean }
 const realIsTTY = stderr.isTTY
 
 beforeEach(() => {
-  vi.restoreAllMocks()
   mockRequest.mockReset()
   sleeps.length = 0
   clock.now = 1_000_000
@@ -68,7 +67,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.restoreAllMocks()
   stderr.isTTY = realIsTTY
   process.exitCode = undefined
 })

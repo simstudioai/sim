@@ -2,19 +2,19 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { emcnMock, emcnMockFns } from '@sim/testing/mocks/emcn.mock'
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   authorize: vi.fn(),
   refetch: vi.fn(),
-  error: vi.fn(),
   completed: null as string | null,
-  cache: vi.fn(),
   connected: vi.fn(),
 }))
-vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ setQueryData: mocks.cache }) }))
-vi.mock('@sim/emcn', () => ({ toast: { error: mocks.error } }))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
+vi.mock('@sim/emcn', () => emcnMock)
 vi.mock('@/hooks/queries/personal-source-setup', () => ({
   personalSourceSetupKeys: { list: (query: unknown) => ['personal-source-setup', query] },
   useAuthorizePersonalSourceSetup: () => ({ mutateAsync: mocks.authorize, isPending: false }),
@@ -25,6 +25,9 @@ vi.mock('@/hooks/queries/personal-source-setup', () => ({
 }))
 
 import { usePersonalSourceAccount } from '@/hooks/use-personal-source-account'
+
+const mockToastError = emcnMockFns.mockToast.error
+const mockSetQueryData = reactQueryMockFns.mockQueryClient.setQueryData
 
 describe('personal source account authorization', () => {
   let root: Root
@@ -78,8 +81,6 @@ describe('personal source account authorization', () => {
     act(() => root.unmount())
     container.remove()
     vi.useRealTimers()
-    vi.restoreAllMocks()
-    vi.unstubAllGlobals()
   })
   it('authorizes before a source exists and requires server confirmation of completion', async () => {
     await act(async () => current.connect())

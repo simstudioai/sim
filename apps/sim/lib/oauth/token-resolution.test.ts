@@ -1,47 +1,24 @@
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing/mocks/auth-oauth-utils.mock'
+import { credentialsManagedOauthMock } from '@sim/testing/mocks/credentials-managed-oauth.mock'
+import { oauthUtilsMock } from '@sim/testing/mocks/oauth-utils.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAuthorizeCredentialUseForAuth,
-  mockCaptureServerEvent,
-  mockExecuteManagedToken,
-  mockGetCredential,
-  mockGetToolMetadata,
-  mockRecordAudit,
-  mockRefreshTokenIfNeeded,
-  mockResolveOAuthAccountId,
-  mockResolveServiceAccountToken,
-} = vi.hoisted(() => ({
+const { mockAuthorizeCredentialUseForAuth, mockExecuteManagedToken } = vi.hoisted(() => ({
   mockAuthorizeCredentialUseForAuth: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
   mockExecuteManagedToken: vi.fn(),
-  mockGetCredential: vi.fn(),
-  mockGetToolMetadata: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockRefreshTokenIfNeeded: vi.fn(),
-  mockResolveOAuthAccountId: vi.fn(),
-  mockResolveServiceAccountToken: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { CREDENTIAL_ACCESSED: 'credential.accessed' },
-  AuditResourceType: { CREDENTIAL: 'credential' },
-  recordAudit: mockRecordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUseForAuth: mockAuthorizeCredentialUseForAuth,
 }))
 
-vi.mock('@/lib/oauth/credential-service', () => ({
-  getCredential: mockGetCredential,
-  refreshTokenIfNeeded: mockRefreshTokenIfNeeded,
-  resolveOAuthAccountId: mockResolveOAuthAccountId,
-  resolveServiceAccountToken: mockResolveServiceAccountToken,
-}))
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
-vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 vi.mock('@/lib/credentials/application/managed-oauth-delegation', () => ({
   InvalidManagedOAuthDelegationError: class InvalidManagedOAuthDelegationError extends Error {
@@ -57,30 +34,25 @@ vi.mock('@/lib/credentials/application/resolve-managed-oauth-token', () => ({
   resolveManagedOAuthCredentialToken: { execute: mockExecuteManagedToken },
 }))
 
-vi.mock('@/lib/credentials/managed-oauth', () => ({
-  ManagedOAuthCredentialError: class ManagedOAuthCredentialError extends Error {
-    constructor(
-      message: string,
-      readonly code: string,
-      readonly statusCode: number
-    ) {
-      super(message)
-      this.name = 'ManagedOAuthCredentialError'
-    }
-  },
-}))
+vi.mock('@/lib/credentials/managed-oauth', () => credentialsManagedOauthMock)
 
-vi.mock('@/tools/metadata', () => ({
-  getToolMetadata: mockGetToolMetadata,
-}))
-
-vi.mock('@/lib/oauth/utils', () => ({
-  getCanonicalScopesForProvider: vi.fn().mockReturnValue([]),
-}))
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/application/managed-oauth-delegation'
 import { resolveCredentialAccessToken, resolveCredentialToken } from '@/lib/oauth/token-resolution'
+import { getToolMetadata } from '@/tools/metadata'
+
+const mockGetToolMetadata = vi.mocked(getToolMetadata)
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const {
+  mockGetCredential,
+  mockRefreshTokenIfNeeded,
+  mockResolveOAuthAccountId,
+  mockResolveServiceAccountToken,
+} = authOAuthUtilsMockFns
+const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
 
 const INTERNAL_AUTH = { success: true, userId: 'user-1', authType: 'internal_jwt' } as const
 

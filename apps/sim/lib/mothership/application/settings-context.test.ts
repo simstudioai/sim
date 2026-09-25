@@ -1,17 +1,27 @@
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
+import {
+  mothershipWorkspaceTargetMock,
+  mothershipWorkspaceTargetMockFns,
+} from '@sim/testing/mocks/mothership-workspace-target.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const boundary = vi.hoisted(() => ({ workspace: vi.fn(), context: vi.fn(), organization: vi.fn() }))
-vi.mock('@/lib/mothership/application/workspace-target', () => ({
-  resolveInvocationWorkspace: boundary.workspace,
-}))
+const { context } = vi.hoisted(() => ({ context: vi.fn() }))
+vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
 vi.mock('@/lib/settings/application/context', () => ({
-  readSettingsWorkspaceContext: { execute: boundary.context },
+  readSettingsWorkspaceContext: { execute: context },
 }))
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChatDelegation: { execute: boundary.organization },
-}))
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
 
 import { resolveSettingsContext } from '@/lib/mothership/application/settings-context'
+
+const boundary = {
+  workspace: mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace,
+  context,
+  organization: mothershipOrganizationChatsMockFns.mockAuthorizeOrganizationChatDelegation,
+}
 
 const workspace = {
   userId: 'actor',

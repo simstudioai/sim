@@ -1,8 +1,8 @@
 import { resetEnvMock, setEnv } from '@sim/testing'
+import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockWithPiSandbox,
   mockFetchSnapshot,
   mockFetchThreads,
   mockFetchChecks,
@@ -13,7 +13,6 @@ const {
   mockResolvePiSandboxLifetime,
   mockSleepUntilAborted,
 } = vi.hoisted(() => ({
-  mockWithPiSandbox: vi.fn(),
   mockFetchSnapshot: vi.fn(),
   mockFetchThreads: vi.fn(),
   mockFetchChecks: vi.fn(),
@@ -25,9 +24,7 @@ const {
   mockSleepUntilAborted: vi.fn(),
 }))
 
-vi.mock('@/lib/execution/remote-sandbox', () => ({
-  withPiSandbox: mockWithPiSandbox,
-}))
+vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 vi.mock('@/lib/data-drains/destinations/utils', () => ({
   sleepUntilAborted: mockSleepUntilAborted,
 }))
@@ -59,6 +56,8 @@ import { runBabysitPiWithOptions } from '@/executor/handlers/pi/cloud/babysit/ba
 import { BABYSIT_ROUND_PATH } from '@/executor/handlers/pi/cloud/babysit/round'
 import { DIFF_PATH } from '@/executor/handlers/pi/cloud/shared'
 import type { PiBabysitContinuationParams } from '@/executor/handlers/pi/core/backend'
+
+const { mockWithPiSandbox } = remoteSandboxMockFns
 
 afterAll(resetEnvMock)
 

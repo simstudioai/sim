@@ -1,46 +1,31 @@
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { knowledgeEmbeddingsMock } from '@sim/testing/mocks/knowledge-embeddings.mock'
+import {
+  knowledgeServiceMock,
+  knowledgeServiceMockFns,
+} from '@sim/testing/mocks/knowledge-service.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCaptureServerEvent,
-  mockCreateKnowledgeBase,
-  mockDeleteKnowledgeBase,
-  mockRecordAudit,
-  mockUpdateKnowledgeBase,
-} = vi.hoisted(() => ({
-  mockCaptureServerEvent: vi.fn(),
-  mockCreateKnowledgeBase: vi.fn(),
-  mockDeleteKnowledgeBase: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockUpdateKnowledgeBase: vi.fn(),
-}))
-
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    KNOWLEDGE_BASE_CREATED: 'knowledge_base.created',
-    KNOWLEDGE_BASE_UPDATED: 'knowledge_base.updated',
-    KNOWLEDGE_BASE_DELETED: 'knowledge_base.deleted',
-  },
-  AuditResourceType: { KNOWLEDGE_BASE: 'knowledge_base' },
-  recordAudit: mockRecordAudit,
-}))
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { knowledgeBaseCreated: vi.fn(), knowledgeBaseDeleted: vi.fn() },
-}))
-vi.mock('@/lib/knowledge/embeddings', () => ({
-  getConfiguredKbEmbedding: () => ({ model: 'text-embedding-3-small', dimensions: 1536 }),
-}))
-vi.mock('@/lib/knowledge/service', () => ({
-  createKnowledgeBase: mockCreateKnowledgeBase,
-  deleteKnowledgeBase: mockDeleteKnowledgeBase,
-  updateKnowledgeBase: mockUpdateKnowledgeBase,
-}))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEvent }))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
+vi.mock('@/lib/knowledge/embeddings', () => knowledgeEmbeddingsMock)
+vi.mock('@/lib/knowledge/service', () => knowledgeServiceMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   performCreateKnowledgeBase,
   performUpdateKnowledgeBase,
 } from '@/lib/knowledge/orchestration/knowledge-bases'
+
+const mockCreateKnowledgeBase = knowledgeServiceMockFns.mockCreateKnowledgeBase
+const mockDeleteKnowledgeBase = knowledgeServiceMockFns.mockDeleteKnowledgeBase
+const mockUpdateKnowledgeBase = knowledgeServiceMockFns.mockUpdateKnowledgeBase
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
 
 const CREATED = { id: 'kb-1', name: 'Docs', description: null, workspaceId: 'ws-1' }
 

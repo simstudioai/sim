@@ -1,5 +1,17 @@
-import { createEnvMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { resetEnvMock } from '@sim/testing/mocks/env.mock'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { afterAll, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+
+await vi.hoisted(async () => {
+  const { setEnv } = await import('@sim/testing/mocks/env.mock')
+  setEnv({
+    RESEND_API_KEY: 'test-api-key',
+    AZURE_ACS_CONNECTION_STRING: 'test-azure-connection-string',
+    AZURE_COMMUNICATION_EMAIL_DOMAIN: 'test.azurecomm.net',
+    NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
+    FROM_EMAIL_ADDRESS: 'Sim <noreply@sim.ai>',
+  })
+})
 
 const mockSend = vi.fn()
 const mockBatchSend = vi.fn()
@@ -47,22 +59,6 @@ vi.mock('@/lib/auth/access-control', () => ({
   isEmailBlockedByAccessControl: vi.fn().mockReturnValue(false),
 }))
 
-vi.mock('@/lib/core/config/env', () =>
-  createEnvMock({
-    RESEND_API_KEY: 'test-api-key',
-    AZURE_ACS_CONNECTION_STRING: 'test-azure-connection-string',
-    AZURE_COMMUNICATION_EMAIL_DOMAIN: 'test.azurecomm.net',
-    NEXT_PUBLIC_APP_URL: 'https://test.sim.ai',
-    FROM_EMAIL_ADDRESS: 'Sim <noreply@sim.ai>',
-  })
-)
-
-vi.mock('@/lib/core/utils/urls', () => ({
-  getEmailDomain: vi.fn().mockReturnValue('sim.ai'),
-  getBaseUrl: vi.fn().mockReturnValue('https://test.sim.ai'),
-  getBaseDomain: vi.fn().mockReturnValue('test.sim.ai'),
-}))
-
 vi.mock('@/lib/messaging/email/utils', () => ({
   getFromEmailAddress: vi.fn().mockReturnValue('Sim <noreply@sim.ai>'),
   hasEmailHeaderControlChars: vi.fn().mockImplementation((value: string) => /[\r\n]/.test(value)),
@@ -73,6 +69,14 @@ vi.mock('@/lib/messaging/email/utils', () => ({
 import { isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { sendEmail } from './mailer'
 import { generateUnsubscribeToken, isUnsubscribed } from './unsubscribe'
+
+urlsMockFns.mockGetEmailDomain.mockReturnValue('sim.ai')
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://test.sim.ai')
+urlsMockFns.mockGetBaseDomain.mockReturnValue('test.sim.ai')
+afterAll(() => {
+  resetUrlsMock()
+  resetEnvMock()
+})
 
 describe('mailer', () => {
   const testEmailOptions = {

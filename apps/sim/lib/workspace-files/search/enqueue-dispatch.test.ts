@@ -1,31 +1,38 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  asyncJobsRegionMock,
+  asyncJobsRegionMockFns,
+} from '@sim/testing/mocks/async-jobs-region.mock'
+import { backgroundTaskMock, backgroundTaskMockFns } from '@sim/testing/mocks/background-task.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   dispatch: vi.fn(),
-  resolveRegion: vi.fn(),
-  runDetached: vi.fn(),
-  trigger: vi.fn(),
 }))
 
-vi.mock('@trigger.dev/sdk', () => ({ tasks: { trigger: mocks.trigger } }))
 vi.mock('@/background/workspace-file-search-dispatch', () => ({
   workspaceFileSearchDispatchTask: {},
 }))
-vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: mocks.resolveRegion }))
-vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: true }))
-vi.mock('@/lib/core/utils/background', () => ({ runDetached: mocks.runDetached }))
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
+vi.mock('@/lib/core/utils/background', () => backgroundTaskMock)
 vi.mock('@/lib/workspace-files/search/dispatcher', () => ({
   dispatchWorkspaceFileSearchIndexJobs: mocks.dispatch,
 }))
 
+import { tasks } from '@trigger.dev/sdk'
 import { enqueueWorkspaceFileSearchDispatch } from '@/lib/workspace-files/search/enqueue-dispatch'
+
+const mockTrigger = vi.mocked(tasks.trigger)
+
+setEnvFlags({ isTriggerDevEnabled: true })
+afterAll(resetEnvFlagsMock)
 
 describe('workspace file search dispatcher enqueue', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-29T12:34:45.000Z'))
-    mocks.resolveRegion.mockResolvedValue('us-east-1')
-    mocks.trigger.mockResolvedValue({ id: 'run-1' })
+    asyncJobsRegionMockFns.mockResolveTriggerRegion.mockResolvedValue('us-east-1')
+    mockTrigger.mockResolvedValue({ id: 'run-1' })
   })
 
   afterEach(() => {
@@ -38,7 +45,7 @@ describe('workspace file search dispatcher enqueue', () => {
       jobId: 'run-1',
     })
 
-    expect(mocks.trigger).toHaveBeenCalledWith('workspace-file-search-dispatch', undefined, {
+    expect(mockTrigger).toHaveBeenCalledWith('workspace-file-search-dispatch', undefined, {
       idempotencyKey: 'workspace-file-search-dispatch:29800114',
       idempotencyKeyTTL: '5m',
       maxDuration: 60,
@@ -46,6 +53,6 @@ describe('workspace file search dispatcher enqueue', () => {
       ttl: '5m',
     })
     expect(mocks.dispatch).not.toHaveBeenCalled()
-    expect(mocks.runDetached).not.toHaveBeenCalled()
+    expect(backgroundTaskMockFns.mockRunDetached).not.toHaveBeenCalled()
   })
 })

@@ -1,19 +1,22 @@
 import { createMockRequest } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCompleteQuickBooksConnection, mockGetSession } = vi.hoisted(() => ({
+const { mockCompleteQuickBooksConnection } = vi.hoisted(() => ({
   mockCompleteQuickBooksConnection: vi.fn(),
-  mockGetSession: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
-vi.mock('@/lib/core/utils/urls', () => ({ getBaseUrl: () => 'https://sim.test' }))
 vi.mock('@/lib/credentials/application/complete-quickbooks-connection', () => ({
   completeQuickBooksConnection: { execute: mockCompleteQuickBooksConnection },
 }))
 
 import { createQuickBooksOAuthState } from '@/lib/oauth/quickbooks-state'
 import { GET } from '@/app/api/auth/oauth2/callback/quickbooks/route'
+
+const mockGetSession = authMockFns.mockGetSession
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.test')
 
 function callbackRequest(searchParams: URLSearchParams) {
   return createMockRequest(
@@ -56,11 +59,7 @@ describe('QuickBooks OAuth callback', () => {
 
     expect(mockCompleteQuickBooksConnection).toHaveBeenCalledWith(
       expect.objectContaining({
-        principal: {
-          kind: 'session',
-          userId: 'user-1',
-          sessionId: 'session-1',
-        },
+        principal: createSessionPrincipal(),
         input: expect.objectContaining({
           draftId: 'draft-from-state',
           code: 'authorization-code',

@@ -1,29 +1,30 @@
-import type { DelegatedPrincipal, Principal } from '@sim/auth/principal'
-import { auditMock, auditMockFns } from '@sim/testing'
+import type { Principal } from '@sim/auth/principal'
+import {
+  createDelegatedPrincipal,
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  context: vi.fn(),
-  permission: vi.fn(),
-  read: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   update: vi.fn(),
   reconcile: vi.fn(),
 }))
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.permission,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.context,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspacePermissionsForViewer: mocks.read,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/workspaces/permissions/management-store', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/workspaces/permissions/management-store')>()),
-  updateWorkspacePermissionRecords: mocks.update,
-  reconcileWorkspacePermissionCredentials: mocks.reconcile,
+  updateWorkspacePermissionRecords: hoisted.update,
+  reconcileWorkspacePermissionCredentials: hoisted.reconcile,
 }))
 
 import {
@@ -33,16 +34,19 @@ import {
 import { updateWorkspacePermissions } from '@/lib/workspaces/application/manage-permissions'
 import { WorkspacePermissionError } from '@/lib/workspaces/permissions/management-store'
 
-const principal: DelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'copilot',
+const mocks = {
+  ...hoisted,
+  context: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+  permission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  read: permissionsMockFns.mockGetWorkspacePermissionsForViewer,
+}
+
+const principal = createDelegatedPrincipal({
   subjectUserId: 'actor',
   workspaceId: 'workspace',
   delegationId: 'tool-call',
   audience: 'sim:settings',
-  issuedAt: new Date(),
-  expiresAt: new Date(Date.now() + 60_000),
-}
+})
 const input = {
   workspaceId: 'workspace',
   updates: [{ userId: 'target', permissions: 'write' as const }],
@@ -71,29 +75,29 @@ describe('workspace permission operations', () => {
     mocks.reconcile.mockResolvedValue(undefined)
   })
 
-  it.each<Principal>([principal, { kind: 'session', userId: 'actor', sessionId: 'session' }])(
-    'uses the current human actor and canonical workspace for %s',
-    async (actor) => {
-      await updateWorkspacePermissions.execute({ principal: actor, input })
-      expect(mocks.permission).toHaveBeenCalledWith('actor', 'workspace', null, undefined, {
-        forUpdate: undefined,
+  it.each<Principal>([
+    principal,
+    createSessionPrincipal({ userId: 'actor', sessionId: 'session' }),
+  ])('uses the current human actor and canonical workspace for %s', async (actor) => {
+    await updateWorkspacePermissions.execute({ principal: actor, input })
+    expect(mocks.permission).toHaveBeenCalledWith('actor', 'workspace', null, undefined, {
+      forUpdate: undefined,
+    })
+    expect(mocks.update).toHaveBeenCalledWith('workspace', 'actor', input.updates)
+    expect(mocks.reconcile).toHaveBeenCalledWith('workspace', 'actor')
+    expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'actor',
+        workspaceId: 'workspace',
+        metadata: expect.objectContaining({
+          targetUserId: 'target',
+          previousRole: 'read',
+          newRole: 'write',
+          actor: expect.objectContaining({ kind: actor.kind }),
+        }),
       })
-      expect(mocks.update).toHaveBeenCalledWith('workspace', 'actor', input.updates)
-      expect(mocks.reconcile).toHaveBeenCalledWith('workspace', 'actor')
-      expect(auditMockFns.mockRecordAudit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          actorId: 'actor',
-          workspaceId: 'workspace',
-          metadata: expect.objectContaining({
-            targetUserId: 'target',
-            previousRole: 'read',
-            newRole: 'write',
-            actor: expect.objectContaining({ kind: actor.kind }),
-          }),
-        })
-      )
-    }
-  )
+    )
+  })
 
   it.each(['read', 'write', null])(
     'refuses non-admin mutations before protected writes (%s)',
@@ -117,7 +121,7 @@ describe('workspace permission operations', () => {
   it('rejects unsupported principals before canonical loading', async () => {
     await expect(
       updateWorkspacePermissions.execute({
-        principal: { kind: 'personal_api_key', userId: 'actor', keyId: 'key' },
+        principal: createPersonalApiKeyPrincipal({ userId: 'actor', keyId: 'key' }),
         input,
       })
     ).rejects.toThrow()

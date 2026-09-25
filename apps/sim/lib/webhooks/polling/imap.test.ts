@@ -1,23 +1,19 @@
+import { dbChainMockFns } from '@sim/testing'
+import { webhooksProcessorMock } from '@sim/testing/mocks/webhooks-processor.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCreateSecureImapClient,
-  mockDbSelect,
   mockHasImapEnvironmentReferences,
   mockLogger,
   mockMarkWebhookFailed,
   mockResolveImapConnectionForActor,
 } = vi.hoisted(() => ({
   mockCreateSecureImapClient: vi.fn(),
-  mockDbSelect: vi.fn(),
   mockHasImapEnvironmentReferences: vi.fn(),
   mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   mockMarkWebhookFailed: vi.fn(),
   mockResolveImapConnectionForActor: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: { select: mockDbSelect },
 }))
 
 vi.mock('@/lib/core/idempotency/service', () => ({
@@ -37,11 +33,11 @@ vi.mock('@/lib/webhooks/polling/utils', () => ({
   updateWebhookProviderConfig: vi.fn(),
 }))
 
-vi.mock('@/lib/webhooks/processor', () => ({
-  processPolledWebhookEvent: vi.fn(),
-}))
+vi.mock('@/lib/webhooks/processor', () => webhooksProcessorMock)
 
 import { imapPollingHandler } from '@/lib/webhooks/polling/imap'
+
+const mockDbSelect = dbChainMockFns.select
 
 describe('IMAP runtime polling policy', () => {
   beforeEach(() => {

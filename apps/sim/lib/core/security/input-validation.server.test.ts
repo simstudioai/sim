@@ -1,12 +1,8 @@
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockResolve, mockWarn } = vi.hoisted(() => ({
+const { mockResolve } = vi.hoisted(() => ({
   mockResolve: vi.fn(),
-  mockWarn: vi.fn(),
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({ warn: mockWarn }),
 }))
 
 vi.mock('@sim/security/dns', () => ({
@@ -15,18 +11,13 @@ vi.mock('@sim/security/dns', () => ({
     addresses.find((address) => address.includes('.')) ?? addresses[0],
 }))
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  isHosted: false,
-  getEgressAllowedHosts: () => undefined,
-  getEgressAllowedIpRanges: () => undefined,
-  isLegacyPrivateDatabaseAccessAllowed: () => false,
-  getProxyUrl: () => undefined,
-}))
-
 import {
   secureFetchWithValidation,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
+
+const mockWarn = getMockLogger('InputValidation').warn
+const egressWarn = getMockLogger('Egress').warn
 
 /**
  * Shapes a resolver answer the way `resolveHostAddresses` does, including its
@@ -141,11 +132,12 @@ describe('validateUrlWithDNS address classification', () => {
       { logDetails: false }
     )
 
-    expect(mockWarn).toHaveBeenCalledWith('DNS lookup failed', {
+    expect(egressWarn).toHaveBeenCalledWith('DNS lookup failed', {
       profile: 'configuredEndpoint',
       paramName: 'url',
     })
     expect(JSON.stringify(mockWarn.mock.calls)).not.toContain('credential-host-canary')
+    expect(JSON.stringify(egressWarn.mock.calls)).not.toContain('credential-host-canary')
   })
 
   it('forwards fetch cancellation through DNS preflight without treating it as a resolver failure', async () => {
@@ -167,5 +159,6 @@ describe('validateUrlWithDNS address classification', () => {
     await rejection
     expect(mockResolve).toHaveBeenCalledWith('example.com', { signal: controller.signal })
     expect(mockWarn).not.toHaveBeenCalled()
+    expect(egressWarn).not.toHaveBeenCalled()
   })
 })

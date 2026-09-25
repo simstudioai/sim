@@ -1,3 +1,4 @@
+import { emcnIconsMock } from '@sim/testing/mocks/emcn-icons.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -18,10 +19,7 @@ vi.mock('@sim/emcn', () => ({
   Textarea: (props: Record<string, unknown>) => <textarea {...props} />,
 }))
 
-vi.mock('@sim/emcn/icons', () => ({
-  ChevronsUpDown: () => null,
-  Wand: () => null,
-}))
+vi.mock('@sim/emcn/icons', () => emcnIconsMock)
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller',

@@ -1,12 +1,15 @@
 import { outboxEvent, subscription } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { billingOutboxHandlersMock } from '@sim/testing/mocks/billing-outbox-handlers.mock'
+import { organizationMembershipMock } from '@sim/testing/mocks/organization-membership.mock'
+import { outboxServiceMock, outboxServiceMockFns } from '@sim/testing/mocks/outbox-service.mock'
+import { stripeClientMock } from '@sim/testing/mocks/stripe.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('drizzle-orm')
 
-const mocks = vi.hoisted(() => ({
-  acquireOrganizationMutationLock: vi.fn(),
-  enqueueOutboxEvent: vi.fn(),
+const hoistedMocks = vi.hoisted(() => ({
   subscriptionCancel: vi.fn(),
   invoicesList: vi.fn(),
   invoicePaymentsList: vi.fn(),
@@ -14,45 +17,32 @@ const mocks = vi.hoisted(() => ({
   chargesRetrieve: vi.fn(),
   refundsList: vi.fn(),
   refundsCreate: vi.fn(),
-  recordAuditOnce: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    SUBSCRIPTION_CANCELLED: 'subscription.cancelled',
-    SUBSCRIPTION_REFUNDED: 'subscription.refunded',
-  },
-  AuditResourceType: { SUBSCRIPTION: 'subscription' },
-  recordAudit: vi.fn(),
-  recordAuditOnce: mocks.recordAuditOnce,
-}))
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  acquireOrganizationMutationLock: mocks.acquireOrganizationMutationLock,
-}))
-vi.mock('@/lib/billing/stripe-client', () => ({
-  requireStripeClient: () => ({
-    subscriptions: { cancel: mocks.subscriptionCancel },
-    invoices: { list: mocks.invoicesList },
-    invoicePayments: { list: mocks.invoicePaymentsList },
-    paymentIntents: { retrieve: mocks.paymentIntentsRetrieve },
-    charges: { retrieve: mocks.chargesRetrieve },
-    refunds: { list: mocks.refundsList, create: mocks.refundsCreate },
-  }),
-}))
-vi.mock('@/lib/billing/webhooks/outbox-handlers', () => ({
-  OUTBOX_EVENT_TYPES: {
-    STRIPE_SYNC_CANCEL_AT_PERIOD_END: 'stripe.sync-cancel-at-period-end',
-    STRIPE_CANCEL_SUBSCRIPTION_IMMEDIATELY: 'stripe.cancel-subscription-immediately',
-  },
-}))
-vi.mock('@/lib/core/outbox/service', () => ({
-  enqueueOutboxEvent: mocks.enqueueOutboxEvent,
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
+vi.mock('@/lib/billing/stripe-client', () => stripeClientMock)
+vi.mock('@/lib/billing/webhooks/outbox-handlers', () => billingOutboxHandlersMock)
+vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 
 import {
   refundDashboardSubscriptionPayment,
   requestDashboardSubscriptionCancellation,
 } from '@/lib/admin/subscription-lifecycle'
+
+const mocks = {
+  ...hoistedMocks,
+  enqueueOutboxEvent: outboxServiceMockFns.mockEnqueueOutboxEvent,
+}
+
+stripeClientMock.requireStripeClient.mockImplementation(() => ({
+  subscriptions: { cancel: mocks.subscriptionCancel },
+  invoices: { list: mocks.invoicesList },
+  invoicePayments: { list: mocks.invoicePaymentsList },
+  paymentIntents: { retrieve: mocks.paymentIntentsRetrieve },
+  charges: { retrieve: mocks.chargesRetrieve },
+  refunds: { list: mocks.refundsList, create: mocks.refundsCreate },
+}))
 
 const actor = { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' }
 const activeSubscription = {
@@ -284,7 +274,7 @@ describe('admin subscription billing actions', () => {
       amountCents: 2500,
       outcome: 'applied',
     })
-    expect(mocks.recordAuditOnce).toHaveBeenCalledWith(
+    expect(auditMockFns.mockRecordAuditOnce).toHaveBeenCalledWith(
       'admin-refund:67e55044-10b1-426f-9247-bb680e5fe0c8',
       expect.objectContaining({
         action: 'subscription.refunded',
@@ -313,7 +303,7 @@ describe('admin subscription billing actions', () => {
     })
 
     expect(result).toMatchObject({ refundId: 're_pending', outcome: 'pending' })
-    expect(mocks.recordAuditOnce).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAuditOnce).not.toHaveBeenCalled()
   })
 
   it('fails closed when the durable refund marker could be outside the bounded Stripe page', async () => {
@@ -363,7 +353,7 @@ describe('admin subscription billing actions', () => {
 
     expect(result).toMatchObject({ refundId: 're_failed', outcome: 'failed' })
     expect(mocks.refundsCreate).not.toHaveBeenCalled()
-    expect(mocks.recordAuditOnce).not.toHaveBeenCalled()
+    expect(auditMockFns.mockRecordAuditOnce).not.toHaveBeenCalled()
   })
 
   it('creates a refund with the durable client operation ID as Stripe idempotency key', async () => {

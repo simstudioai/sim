@@ -67,19 +67,11 @@ the report.
 
 ## Unit test mechanics
 
-### Global mocks (`apps/sim/vitest.setup.ts`)
-
-Mocked for every unit test file — do not re-mock unless you override behavior: `@sim/db`,
-`@sim/db/schema`, `drizzle-orm`, `@sim/logger`, `@sim/platform-authz/workflow`, `@/lib/auth`,
-`@/lib/auth/hybrid`, `@/lib/core/utils/request`, `@/lib/core/config/env`,
-`@/lib/core/config/env-flags`, `@/lib/core/utils/urls`, `@/lib/core/config/redis`,
-`@/lib/environment/utils`, the console/terminal/execution stores, `@/blocks/registry`, and
-`@trigger.dev/sdk`.
-
 ### Structure
 
 ```typescript
-import { authMockFns, createMockRequest } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { describe, expect, it } from 'vitest'
 import { GET } from '@/app/api/my-route/route'
 
@@ -92,34 +84,92 @@ describe('GET /api/my-route', () => {
 })
 ```
 
-Prefer the centralized mocks in `@sim/testing` (`authMock`/`authMockFns`, `hybridAuthMock`,
-`dbChainMock`/`dbChainMockFns`, `envMock`, `redisConfigMock`, `encryptionMock`, …) over local
-`vi.hoisted()` + `vi.mock()` boilerplate; import the mock file directly
-(`@sim/testing/mocks/<name>.mock`) when you only need one. Mocks with per-test knobs export a paired
-`*MockFns` object for overrides; the rest expose their `vi.fn()`s directly on the mock.
+### Mocks
+
+`apps/sim/vitest.setup.ts` mocks the modules nearly every test touches. `@sim/testing` holds one
+central mock for every other module that more than a couple of tests mock. Never hand-roll a
+`vi.mock` factory for either — `bun run check:test-patterns` fails on a new one.
+
+- **Global module**: don't `vi.mock` it; drive it through its knobs (table below).
+- **Any other module**: find its central mock by copying an existing use —
+  `rg "vi.mock\('<module id>', \(\) => \w+Mock\)" apps packages` — then
+  `vi.mock('<module id>', () => xMock)` and drive it with `xMockFns.mock<Export>` (alias to a local
+  name after the imports; inside another `vi.mock` factory reference `xMockFns.*` directly).
+  Defaults are `vi.fn(impl)`, so `mockReset()` restores them. Enums, constants and error classes are
+  faithful copies of production (the error classes are not `OrchestrationError`/`HttpError`
+  subclasses — throw the real class when a test needs that branch).
+- **No central mock yet** and you need it in a third file: add `packages/testing/src/mocks/<name>.mock.ts`
+  (`<name>Mock` + `<name>MockFns`, every runtime export of the real module, no heavy imports) and use
+  it everywhere, rather than writing the third local copy.
+- Import the one file you need (`@sim/testing/mocks/<file>`, `@sim/testing/helpers/<file>`,
+  `@sim/testing/factories/<file>`); the `@sim/testing` barrel costs module-fetch time per test file.
+
+Global (installed by `vitest.setup.ts` — knobs only, no `vi.mock`):
+
+| Module | Knobs (`@sim/testing/mocks/…`) |
+|---|---|
+| `@sim/logger` | `getMockLogger('<createLogger name>')` → that module's logger (`logger.mock`) |
+| `@/lib/auth` | `authMockFns.mockGetSession` (+ `auth.api.*`: `mockSignOut`, `mockSignInSSO`, `mockCreateUser`, …; `auth.$context.internalAdapter`: `mockCreateSession`, …) (`auth.mock`) |
+| `@/lib/auth/hybrid` | `hybridAuthMockFns` (`hybrid-auth.mock`) |
+| `@sim/db`, `drizzle-orm` | `dbChainMockFns.*`, `queueTableRows`, `resetDbChainMock`, `hasMockCondition`, `databaseMockFns.mockResolveDbUrl`; `@sim/db` re-exports every schema table; `sql` is a spy (`vi.mocked(sql).mock.calls`) (`database.mock`) |
+| `@sim/db/schema` | `schemaMock`, generated from `packages/db/schema.ts` (`bun run scripts/generate-schema-mock.ts`) (`schema.mock`) |
+| `@trigger.dev/sdk` | `triggerSdkMockFns` (`task()` returns its config, so call `.run`; `runs.*`, `tasks.*`, `idempotencyKeys`), `MockTriggerApiError` (`trigger-sdk.mock`) |
+| `@/components/icons` | stable stub per icon name — no knobs, never re-mock |
+| `@/lib/core/config/env` | `setEnv`, `resetEnvMock`, `envMockFns.getEnv` (`env.mock`) |
+| `@/lib/core/config/env-flags` | `setEnvFlags`, `resetEnvFlagsMock`, `envFlagsMockFns` (`env-flags.mock`) |
+| `@/lib/core/utils/urls` | `urlsMockFns.mockGetBaseUrl` …, `resetUrlsMock` (`urls.mock`) |
+| `@/lib/core/config/redis` | `redisConfigMockFns`, `resetRedisConfigMock` (`redis-config.mock`) |
+| `@/lib/core/utils/request` | `requestUtilsMockFns` (`request.mock`) |
+| `@sim/platform-authz/workflow` | `workflowAuthzMockFns` (`workflow-authz.mock`) |
+| `@/lib/environment/utils` | `environmentUtilsMockFns` (`environment-utils.mock`) |
+
+Also global, with no knobs — never re-mock: the console/terminal/execution stores,
+`@/blocks/registry`, `@/tools/registry`, `@/tools/metadata`, `@/tools/metadata-outputs`,
+`@trigger.dev/core/v3`. `apps/sim/vitest.setup.ts` is the authoritative list.
+
+Helpers — use these instead of redefining them:
+
+| Need | Helper |
+|---|---|
+| `Request` for a route/webhook | `createMockRequest({ method, url, body, rawBody, headers, searchParams })` or legacy `(method, body, headers, url)` (`mocks/request.mock`) |
+| Dynamic route context | `createRouteContext({ id: 'wf-1' })` (`helpers/http`) |
+| JSON `fetch` reply | `jsonResponse(body, status \| init)` (`helpers/http`) |
+| Principal | `createSessionPrincipal`, `createPersonalApiKeyPrincipal`, `createWorkspaceApiKeyPrincipal`, `createDelegatedPrincipal`, `createExecutorPrincipal` (`factories/principal.factory`; pass `audience` when it is checked) |
+| Sequencing | `createDeferred<T>()` (`helpers/deferred`) |
+| Settling async work | `flushMicrotasks(n)` (fake-timer safe), `flushMacrotask()` (`helpers/async`) |
+| Draining a stream | `collectStream(stream)` (`helpers/async`) |
+
+### Shared config
+
+Every workspace config extends the root `vitest.shared.ts`: mock history, spies, stubbed env and
+stubbed globals are reset before every test (`clearMocks`, `restoreMocks`, `unstubEnvs`,
+`unstubGlobals`), so never call `vi.clearAllMocks()`, `vi.restoreAllMocks()` or `vi.unstubAll*()` in
+hooks. Create `vi.spyOn`/`vi.stubEnv`/`vi.stubGlobal` in `beforeEach` or the test — one made at
+module scope or in `beforeAll` is undone before the first test. Integration mode keeps per-file
+fixtures (restore/unstub off). Node is the default environment — add
+`/** @vitest-environment jsdom */` only when the test needs the DOM.
+
+Those resets clear call history and undo spies, but not an implementation you install on a central
+mock's `vi.fn`: `xMockFns.mockFoo.mockReturnValue(...)` carries into later tests in the file. Prefer
+`*Once`; a test that installs a permanent one calls `mockFoo.mockReset()` (which restores the
+default) in `beforeEach`.
 
 ### Performance rules
 
-The suite's wall time is bound by the single Vite server thread that serves every module fetch
-and `vi.mock` resolve, so the lever is fewer modules and fewer mocks per file, not more workers.
+The suite's wall time is bound by the single Vite server thread that serves every module fetch and
+`vi.mock` resolve, so the lever is fewer modules and fewer mocks per file, not more workers.
 
 1. `vi.hoisted()` + `vi.mock()` + static imports. Never `vi.resetModules()` + `vi.doMock()` +
-   dynamic `import()` — it re-evaluates the module graph per test. The only exception is a module
-   that caches a singleton at module scope.
-2. Never `vi.importActual()` — it loads the real module and its whole graph. Mock explicitly.
-3. Mock heavy graphs you do not need: `@/blocks`, `@/tools/registry`, `@/triggers/registry`,
-   `@/tools/generated/*`.
-4. Node environment is the default — never write `@vitest-environment node`. Add
-   `/** @vitest-environment jsdom */` only when the test needs
-   `window`, `document`, or other DOM APIs.
-5. No real timers: `vi.useFakeTimers()` or a 1ms delay.
-6. Vitest clears mock call history before every test (`clearMocks` is on by default), so never
-   add `vi.clearAllMocks()` to a `beforeEach`. Reset implementations explicitly only where a test
-   installs a permanent one (`mockReturnValue`, not `mockReturnValueOnce`).
-7. Absolute imports only.
+   dynamic `import()`, except for a module that caches a singleton at module scope.
+2. Never `vi.importActual()`/`importOriginal` to build a partial mock — use the central mock.
+3. Mock heavy graphs a test does not need and the setup does not already mock: `@/blocks`,
+   `@/triggers/registry`, `@/tools/generated/*`.
+4. No real timers: `vi.useFakeTimers()`, `flushMicrotasks()`, or `flushMacrotask()`.
+5. Absolute imports only.
 
 ### Running
 
-From `apps/sim`: `../../node_modules/.bin/vitest run <paths>`. Other workspaces: run from the
-workspace directory. `bunx vitest` fetches a different Vitest and fails to load the config.
-Never pipe the runner through `grep`/`tail` in a script where the pipe hides its exit code.
+`bun run --cwd apps/sim test <paths>` (other workspaces: `bun run --cwd <workspace> test <paths>`;
+integration: add `--mode integration`, or `bun run test:integration` for the Docker-backed run).
+Never `bunx vitest` — it fetches a different Vitest. Never pipe the runner through `grep`/`tail`
+where the pipe hides its exit code.

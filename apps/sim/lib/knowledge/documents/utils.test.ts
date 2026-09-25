@@ -1,15 +1,13 @@
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { Agent, fetch as nativeFetch } from 'undici'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockSecureFetchWithValidation } = vi.hoisted(() => ({
-  mockSecureFetchWithValidation: vi.fn(),
-}))
-
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithValidation: mockSecureFetchWithValidation,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { fetchWithRetry, secureFetchWithRetry } from '@/lib/knowledge/documents/secure-fetch.server'
 import {
@@ -21,6 +19,8 @@ import {
   resolveRetryDelayMs,
   retryWithExponentialBackoff,
 } from '@/lib/knowledge/documents/utils'
+
+const mockSecureFetchWithValidation = inputValidationMockFns.mockSecureFetchWithValidation
 
 /** Case-insensitive header reader over a plain lowercase-keyed record. */
 function headers(entries: Record<string, string>) {
@@ -221,7 +221,6 @@ describe('fetchWithRetry rate-limit handling', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch
-    vi.restoreAllMocks()
     vi.useRealTimers()
   })
 

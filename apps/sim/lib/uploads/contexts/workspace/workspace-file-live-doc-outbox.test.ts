@@ -1,28 +1,22 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockApplyEditToLiveFileDoc, mockDownloadFile, mockInvalidateLiveFileDoc } = vi.hoisted(
-  () => ({
-    mockApplyEditToLiveFileDoc: vi.fn(),
-    mockDownloadFile: vi.fn(),
-    mockInvalidateLiveFileDoc: vi.fn(),
-  })
-)
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
-vi.mock('@/lib/realtime/notify', () => ({
-  applyEditToLiveFileDoc: mockApplyEditToLiveFileDoc,
-  invalidateLiveFileDoc: mockInvalidateLiveFileDoc,
-}))
-
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFile: mockDownloadFile,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import type { OutboxEventContext } from '@/lib/core/outbox/service'
 import {
   WORKSPACE_FILE_LIVE_DOC_OUTBOX_EVENT,
   workspaceFileLiveDocOutboxHandlers,
 } from '@/lib/uploads/contexts/workspace/workspace-file-live-doc-outbox'
+
+const mockDownloadFile = storageServiceMockFns.mockDownloadFile
+
+const mockApplyEditToLiveFileDoc = realtimeNotifyMockFns.mockApplyEditToLiveFileDoc
+const mockInvalidateLiveFileDoc = realtimeNotifyMockFns.mockInvalidateLiveFileDoc
 
 const VERSION = new Date('2026-09-04T12:00:00.000Z')
 const PAYLOAD = {

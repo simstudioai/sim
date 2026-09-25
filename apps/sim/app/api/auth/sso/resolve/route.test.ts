@@ -1,19 +1,18 @@
 import {
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
   queueTableRows,
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnforceIpRateLimit } = vi.hoisted(() => ({ mockEnforceIpRateLimit: vi.fn() }))
-
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-vi.mock('@/lib/core/rate-limiter', () => ({ enforceIpRateLimit: mockEnforceIpRateLimit }))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
 import { POST } from '@/app/api/auth/sso/resolve/route'
+
+const mockEnforceIpRateLimit = rateLimiterMockFns.mockEnforceIpRateLimit
 
 describe('POST /api/auth/sso/resolve', () => {
   beforeEach(() => {

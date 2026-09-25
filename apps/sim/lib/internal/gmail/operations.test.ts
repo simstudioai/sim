@@ -1,22 +1,23 @@
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const fileMocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
-  downloadServableFilesWithinBudget: vi.fn(),
-  processFilesToUserFiles: vi.fn(),
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: fileMocks.assertToolFileAccess,
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  processFilesToUserFiles: fileMocks.processFilesToUserFiles,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFilesWithinBudget: fileMocks.downloadServableFilesWithinBudget,
-}))
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockProcessFilesToUserFiles } = fileUtilsMockFns
+const { mockDownloadServableFilesWithinBudget } = fileUtilsServerMockFns
 
 import { GmailOperationError } from '@/lib/internal/gmail/errors'
 import { executeGmailSend } from '@/lib/internal/gmail/mail'
@@ -36,16 +37,15 @@ const STORED_FILE = {
 
 describe('Gmail operations', () => {
   beforeEach(() => {
-    vi.unstubAllGlobals()
-    fileMocks.assertToolFileAccess.mockResolvedValue(null)
-    fileMocks.processFilesToUserFiles.mockReturnValue([STORED_FILE])
-    fileMocks.downloadServableFilesWithinBudget.mockResolvedValue([
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockProcessFilesToUserFiles.mockReturnValue([STORED_FILE])
+    mockDownloadServableFilesWithinBudget.mockResolvedValue([
       { buffer: Buffer.from('test'), contentType: 'text/plain' },
     ])
   })
 
   it('fails closed before file download and provider work when access is denied', async () => {
-    fileMocks.assertToolFileAccess.mockResolvedValue(
+    mockAssertToolFileAccess.mockResolvedValue(
       Response.json({ success: false, error: 'File not found' }, { status: 404 })
     )
     const fetchMock = vi.fn()
@@ -62,7 +62,7 @@ describe('Gmail operations', () => {
         error: 'File not found',
       })
     )
-    expect(fileMocks.downloadServableFilesWithinBudget).not.toHaveBeenCalled()
+    expect(mockDownloadServableFilesWithinBudget).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
   })
 })

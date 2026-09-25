@@ -1,23 +1,26 @@
+import { networkConfigMock, networkConfigMockFns } from '@sim/testing/mocks/network-config.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  enabled: vi.fn(() => true),
-  workspace: vi.fn(),
-  route: vi.fn(async (organizationId: string | null | undefined) => ({ organizationId })),
-}))
-vi.mock('@/lib/core/network/config.server', () => ({
-  isOutboundRoutingEnabled: mocks.enabled,
-  resolveOutboundRoute: mocks.route,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadWorkspaceApplicationContext: mocks.workspace,
-}))
+vi.mock('@/lib/core/network/config.server', () => networkConfigMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
 import {
   resolveCurrentOutboundRoute,
   runWithOutboundOrganization,
 } from '@/lib/core/network/context.server'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
+
+const mocks = {
+  enabled: networkConfigMockFns.mockIsOutboundRoutingEnabled,
+  route: networkConfigMockFns.mockResolveOutboundRoute,
+  workspace: workspaceContextMockFns.mockLoadWorkspaceApplicationContext,
+}
+
+mocks.route.mockImplementation(async (organizationId) => ({ organizationId }))
 
 describe('canonical resource outbound scope', () => {
   beforeEach(() => {

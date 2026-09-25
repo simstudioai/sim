@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { get, type IncomingMessage } from 'node:http'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { SimApiError } from '../http/client'
 import { createPkce, discoverOAuthProvider, loginWithBrowser, refreshTokens } from './oauth-flow'
 
@@ -17,11 +17,6 @@ const TOKENS = {
   scope: 'offline_access api:read',
   token_type: 'Bearer',
 }
-
-afterEach(() => {
-  vi.restoreAllMocks()
-  vi.unstubAllGlobals()
-})
 
 describe('createPkce', () => {
   it('derives an S256 challenge from a fresh 256-bit verifier', () => {

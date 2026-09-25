@@ -1,19 +1,18 @@
 import { authMockFns, createMockRequest, dbChainMockFns } from '@sim/testing'
+import { stripeClientMock } from '@sim/testing/mocks/stripe.mock'
 import { generateShortId } from '@sim/utils/id'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetStripeClient, mockStripeInvoicesList } = vi.hoisted(() => ({
-  mockGetStripeClient: vi.fn(),
+const { mockStripeInvoicesList } = vi.hoisted(() => ({
   mockStripeInvoicesList: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/stripe-client', () => ({
-  getStripeClient: mockGetStripeClient,
-}))
+vi.mock('@/lib/billing/stripe-client', () => stripeClientMock)
 
 import { GET } from '@/app/api/billing/invoices/route'
 
 const mockGetSession = authMockFns.mockGetSession
+const mockGetStripeClient = stripeClientMock.getStripeClient
 
 function makeInvoice(overrides: Record<string, unknown> = {}) {
   return {

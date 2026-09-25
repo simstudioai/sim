@@ -1,10 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const fileMocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
-  downloadServableFilesWithinBudget: vi.fn(),
-  processFilesToUserFiles: vi.fn(),
-}))
+import { fileUtilsMock } from '@sim/testing/mocks/file-utils.mock'
+import { fileUtilsServerMock } from '@sim/testing/mocks/file-utils-server.mock'
+import { filesAuthorizationMock } from '@sim/testing/mocks/files-authorization.mock'
+import { describe, expect, it, vi } from 'vitest'
 
 const discordMocks = vi.hoisted(() => ({
   sendDiscordMessage: vi.fn(),
@@ -14,25 +11,15 @@ vi.mock('@/lib/internal/discord/client', () => ({
   sendDiscordMessage: discordMocks.sendDiscordMessage,
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: fileMocks.assertToolFileAccess,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  processFilesToUserFiles: fileMocks.processFilesToUserFiles,
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFilesWithinBudget: fileMocks.downloadServableFilesWithinBudget,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 import { executeDiscordSendMessage } from '@/lib/internal/discord/operations'
 
 describe('executeDiscordSendMessage', () => {
-  beforeEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('returns a committed text message when cancellation arrives after the send', async () => {
     const controller = new AbortController()
     discordMocks.sendDiscordMessage.mockImplementation(async () => {

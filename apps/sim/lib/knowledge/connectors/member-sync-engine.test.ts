@@ -1,21 +1,14 @@
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import { billingWorkspaceAccessMock } from '@sim/testing/mocks/billing-workspace-access.mock'
+import { knowledgeDocumentsServiceMock } from '@sim/testing/mocks/knowledge-documents-service.mock'
+import { knowledgeMemberAccessMock } from '@sim/testing/mocks/knowledge-member-access.mock'
 import { DrizzleQueryError } from 'drizzle-orm/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  hardDeleteDocuments: vi.fn(),
-  processDocumentsWithQueue: vi.fn(),
-  ConnectorSyncDeletionGuardError: class ConnectorSyncDeletionGuardError extends Error {},
-}))
-vi.mock('@/lib/knowledge/connectors/member-access', () => ({
-  KnowledgeConnectorMemberAccessDeniedError: class extends Error {},
-  listKnowledgeConnectorMemberCredentials: vi.fn(),
-  mintKnowledgeConnectorMemberToken: vi.fn(),
-}))
-vi.mock('@/lib/billing/core/workspace-access', () => ({
-  getWorkspaceOwnerSubscriptionAccess: vi.fn(),
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
+vi.mock('@/lib/knowledge/connectors/member-access', () => knowledgeMemberAccessMock)
+vi.mock('@/lib/billing/core/workspace-access', () => billingWorkspaceAccessMock)
 vi.mock('@/lib/credential-groups/availability', () => ({ isCredentialGroupsAvailable: vi.fn() }))
 
 import {

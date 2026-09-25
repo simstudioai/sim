@@ -1,14 +1,23 @@
 import { workflowAuthzMockFns } from '@sim/testing'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  billingUsageGateCacheMock,
+  billingUsageGateCacheMockFns,
+} from '@sim/testing/mocks/billing-usage-gate-cache.mock'
+import {
+  mothershipEnvironmentContextMock,
+  mothershipEnvironmentContextMockFns,
+} from '@sim/testing/mocks/mothership-environment-context.mock'
+import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  assertPermissionsAllowed: vi.fn(),
   authorizeCredential: vi.fn(),
-  checkAttributedUsageLimits: vi.fn(),
   importProvenance: vi.fn(),
   isComplete: vi.fn(),
-  prepareEnvironment: vi.fn(),
-  requireBillingAttribution: vi.fn(),
   validateHallucination: vi.fn(),
   validateJson: vi.fn(),
   validatePIIViaHttp: vi.fn(),
@@ -18,19 +27,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUseForAuth: mocks.authorizeCredential,
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  requireBillingAttributionHeader: mocks.requireBillingAttribution,
-  toBillingContext: vi.fn(() => ({})),
-}))
-vi.mock('@/lib/billing/core/usage-gate-cache', () => ({
-  checkExecutionUsageLimits: mocks.checkAttributedUsageLimits,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/billing/core/usage-gate-cache', () => billingUsageGateCacheMock)
 vi.mock('@/lib/billing/threshold-billing', () => ({
   checkAndBillPayerOverageThreshold: vi.fn(),
 }))
-vi.mock('@/lib/mothership/environment-context', () => ({
-  prepareCopilotEnvironmentContext: mocks.prepareEnvironment,
-}))
+vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
 vi.mock('@/lib/guardrails/validate_hallucination', () => ({
   validateHallucination: mocks.validateHallucination,
 }))
@@ -39,13 +41,17 @@ vi.mock('@/lib/guardrails/validate_regex', () => ({ validateRegex: mocks.validat
 vi.mock('@/lib/guardrails/validation-client', () => ({
   validatePIIViaHttp: mocks.validatePIIViaHttp,
 }))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  assertPermissionsAllowed: mocks.assertPermissionsAllowed,
-  ModelNotAllowedError: class ModelNotAllowedError extends Error {},
-  ProviderNotAllowedError: class ProviderNotAllowedError extends Error {},
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
+
+const { mockRequireBillingAttributionHeader, mockToBillingContext } = billingAttributionMockFns
+
+mockToBillingContext.mockReturnValue({})
 
 import { executeGuardrailsValidation } from '@/lib/internal/guardrails/operations'
+
+const { mockPrepareCopilotEnvironmentContext } = mothershipEnvironmentContextMockFns
+
+const { mockCheckExecutionUsageLimits } = billingUsageGateCacheMockFns
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'user-1',
@@ -59,11 +65,11 @@ describe('executeGuardrailsValidation', () => {
       allowed: true,
       workflow: { id: 'workflow-1', workspaceId: 'workspace-1' },
     })
-    mocks.requireBillingAttribution.mockReturnValue(BILLING_ATTRIBUTION)
-    mocks.checkAttributedUsageLimits.mockResolvedValue({ isExceeded: false })
+    mockRequireBillingAttributionHeader.mockReturnValue(BILLING_ATTRIBUTION)
+    mockCheckExecutionUsageLimits.mockResolvedValue({ isExceeded: false })
     mocks.importProvenance.mockResolvedValue({ success: true, matched: true })
     mocks.isComplete.mockReturnValue(true)
-    mocks.prepareEnvironment.mockResolvedValue({
+    mockPrepareCopilotEnvironmentContext.mockResolvedValue({
       resolvedSecretTraceRegistry: {
         importProvenanceForValueAtInputPath: mocks.importProvenance,
         isComplete: mocks.isComplete,
@@ -89,7 +95,7 @@ describe('executeGuardrailsValidation', () => {
     expect(result.output.passed).toBe(true)
     expect(mocks.validateRegex).toHaveBeenCalledOnce()
     expect(workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission).not.toHaveBeenCalled()
-    expect(mocks.requireBillingAttribution).not.toHaveBeenCalled()
+    expect(mockRequireBillingAttributionHeader).not.toHaveBeenCalled()
   })
 
   it('preserves PII verdict metadata when the capability fails', async () => {

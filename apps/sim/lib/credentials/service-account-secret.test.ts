@@ -1,21 +1,20 @@
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockEncryptSecret,
   mockFetchSlackTeamId,
   mockValidateAtlassian,
   mockNormalizeDomain,
   mockClientCredentialMinter,
 } = vi.hoisted(() => ({
-  // Identity encryption so tests can read back the JSON blob.
-  mockEncryptSecret: vi.fn(async (value: string) => ({ encrypted: value })),
   mockFetchSlackTeamId: vi.fn(),
   mockValidateAtlassian: vi.fn(),
   mockNormalizeDomain: vi.fn((raw: string) => raw.trim().toLowerCase()),
   mockClientCredentialMinter: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({ encryptSecret: mockEncryptSecret }))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
+const mockEncryptSecret = encryptionMockFns.mockEncryptSecret
 vi.mock('@/lib/webhooks/providers/slack', () => ({ fetchSlackTeamId: mockFetchSlackTeamId }))
 vi.mock('@/lib/credentials/atlassian-service-account', () => ({
   validateAtlassianServiceAccount: mockValidateAtlassian,

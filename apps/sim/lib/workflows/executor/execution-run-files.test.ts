@@ -1,15 +1,12 @@
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  downloadFile: vi.fn(),
-}))
-
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFile: mocks.downloadFile,
-}))
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { describeWorkflowRunFiles } from '@/lib/workflows/executor/execution-run-files'
 import type { UserFile } from '@/executor/types'
+
+const mockDownloadFile = storageServiceMockFns.mockDownloadFile
 
 const WORKFLOW_ID = 'workflow-1'
 const RUN_ID = 'run-1'
@@ -32,7 +29,7 @@ function filesMap(files: UserFile[]): Map<string, UserFile> {
 
 describe('describeWorkflowRunFiles', () => {
   beforeEach(() => {
-    mocks.downloadFile.mockResolvedValue(Buffer.from('pdf'))
+    mockDownloadFile.mockResolvedValue(Buffer.from('pdf'))
   })
 
   it('describes files without their storage key', async () => {
@@ -60,7 +57,7 @@ describe('describeWorkflowRunFiles', () => {
       includeBase64: false,
     })
 
-    expect(mocks.downloadFile).not.toHaveBeenCalled()
+    expect(mockDownloadFile).not.toHaveBeenCalled()
   })
 
   /**
@@ -80,7 +77,7 @@ describe('describeWorkflowRunFiles', () => {
         `/api/v2/workflows/${WORKFLOW_ID}/runs/${RUN_ID}/files/file_report`
       ),
     })
-    expect(mocks.downloadFile).not.toHaveBeenCalled()
+    expect(mockDownloadFile).not.toHaveBeenCalled()
   })
 
   it('clamps a caller ceiling above the server limit', async () => {
@@ -116,12 +113,12 @@ describe('describeWorkflowRunFiles', () => {
         `/api/v2/workflows/${WORKFLOW_ID}/runs/${RUN_ID}/files/file_b`
       ),
     })
-    expect(mocks.downloadFile).not.toHaveBeenCalled()
+    expect(mockDownloadFile).not.toHaveBeenCalled()
   })
 
   /** A recorded size that understates the object must not slip past the ceiling. */
   it('rejects when the bytes actually read exceed the response ceiling', async () => {
-    mocks.downloadFile.mockResolvedValue(Buffer.alloc(9 * 1024 * 1024))
+    mockDownloadFile.mockResolvedValue(Buffer.alloc(9 * 1024 * 1024))
     const files = filesMap([
       runFile({ id: 'file_a', name: 'a.pdf', size: 1 }),
       runFile({ id: 'file_b', name: 'b.pdf', size: 1 }),
@@ -145,7 +142,7 @@ describe('describeWorkflowRunFiles', () => {
   it.each(['NoSuchKey', 'BlobNotFound', 'NotFound'])(
     'reports a swept object (%s) as not found rather than a fault',
     async (name) => {
-      mocks.downloadFile.mockRejectedValueOnce(Object.assign(new Error('gone'), { name }))
+      mockDownloadFile.mockRejectedValueOnce(Object.assign(new Error('gone'), { name }))
 
       await expect(
         describeWorkflowRunFiles(filesMap([runFile({ name: 'report.pdf' })]), {
@@ -159,7 +156,7 @@ describe('describeWorkflowRunFiles', () => {
 
   /** A missing bucket is a misconfiguration worth alerting on, not an absent file. */
   it('propagates a storage outage rather than reporting it as not found', async () => {
-    mocks.downloadFile.mockRejectedValueOnce(new Error('s3 unavailable'))
+    mockDownloadFile.mockRejectedValueOnce(new Error('s3 unavailable'))
 
     await expect(
       describeWorkflowRunFiles(filesMap([runFile()]), {
@@ -173,7 +170,7 @@ describe('describeWorkflowRunFiles', () => {
   it('bounds how many inline reads are in flight at once', async () => {
     let inFlight = 0
     let peak = 0
-    mocks.downloadFile.mockImplementation(async () => {
+    mockDownloadFile.mockImplementation(async () => {
       inFlight += 1
       peak = Math.max(peak, inFlight)
       await Promise.resolve()
@@ -192,7 +189,7 @@ describe('describeWorkflowRunFiles', () => {
       includeBase64: true,
     })
 
-    expect(mocks.downloadFile).toHaveBeenCalledTimes(20)
+    expect(mockDownloadFile).toHaveBeenCalledTimes(20)
     expect(peak).toBeLessThanOrEqual(4)
   })
 })

@@ -1,24 +1,17 @@
 import { createMockRequest } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import {
+  invitationsCoreMock,
+  invitationsCoreMockFns,
+} from '@sim/testing/mocks/invitations-core.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetInvitationJoinPreview, mockGetSession, mockListPendingInvitationsForEmail } =
-  vi.hoisted(() => ({
-    mockGetInvitationJoinPreview: vi.fn(),
-    mockGetSession: vi.fn(),
-    mockListPendingInvitationsForEmail: vi.fn(),
-  }))
-
-vi.mock('@/lib/auth', () => ({
-  auth: { api: { getSession: vi.fn() } },
-  getSession: mockGetSession,
-}))
-
-vi.mock('@/lib/invitations/core', () => ({
-  getInvitationJoinPreview: mockGetInvitationJoinPreview,
-  listPendingInvitationsForEmail: mockListPendingInvitationsForEmail,
-}))
+vi.mock('@/lib/invitations/core', () => invitationsCoreMock)
 
 import { GET } from '@/app/api/invitations/route'
+
+const mockGetSession = authMockFns.mockGetSession
+const { mockGetInvitationJoinPreview, mockListPendingInvitationsForEmail } = invitationsCoreMockFns
 
 function invitation(id: string) {
   return {

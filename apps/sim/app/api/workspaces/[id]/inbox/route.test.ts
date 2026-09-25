@@ -1,7 +1,6 @@
 import {
   authMockFns,
   createMockRequest,
-  dbChainMock,
   dbChainMockFns,
   permissionGroupScopeMock,
   permissionGroupScopeMockFns,
@@ -9,20 +8,22 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetUserEntityPermissions, mockHasWorkspaceInboxAccess } = vi.hoisted(() => ({
-  mockGetUserEntityPermissions: vi.fn(),
-  mockHasWorkspaceInboxAccess: vi.fn(),
-}))
 
 const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-
-vi.mock('@/lib/billing/core/subscription', () => ({
-  hasWorkspaceInboxAccess: mockHasWorkspaceInboxAccess,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 vi.mock('@/lib/mothership/inbox/lifecycle', () => ({
   disableInbox: vi.fn(),
@@ -30,27 +31,29 @@ vi.mock('@/lib/mothership/inbox/lifecycle', () => ({
   updateInboxAddress: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mockGetUserEntityPermissions,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: async (workspaceId: string) => ({
-    workspaceId,
-    workspaceOrganizationId: 'org-1',
-    allowPersonalApiKeys: true,
-  }),
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET, PATCH } from '@/app/api/workspaces/[id]/inbox/route'
 
-const context = { params: Promise.resolve({ id: 'workspace-1' }) }
+const { mockGetUserEntityPermissions } = permissionsMockFns
+const { mockHasWorkspaceInboxAccess } = billingSubscriptionMockFns
+workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission.mockImplementation(
+  (...args: unknown[]) => mockGetUserEntityPermissions(...args)
+)
+workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext.mockImplementation(
+  async (workspaceId: string) => ({
+    workspaceId,
+    workspaceOrganizationId: 'org-1',
+    allowPersonalApiKeys: true,
+  })
+)
+
+const context = createRouteContext({ id: 'workspace-1' })
 
 describe('Inbox config secret policy', () => {
   beforeEach(() => {

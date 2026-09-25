@@ -1,64 +1,66 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import {
+  credentialGroupsEnrollmentsMock,
+  credentialGroupsEnrollmentsMockFns,
+} from '@sim/testing/mocks/credential-groups-enrollments.mock'
+import {
+  credentialGroupsSelfEnrollmentMock,
+  credentialGroupsSelfEnrollmentMockFns,
+} from '@sim/testing/mocks/credential-groups-self-enrollment.mock'
+import { knowledgeContextsMock } from '@sim/testing/mocks/knowledge-contexts.mock'
+import {
+  knowledgeMemberQueueMock,
+  knowledgeMemberQueueMockFns,
+} from '@sim/testing/mocks/knowledge-member-queue.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  authorizeOperation: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   authorize: vi.fn(),
   ownAccount: vi.fn(),
   listAccounts: vi.fn(),
   completion: vi.fn(),
   provision: vi.fn(),
-  enrollment: vi.fn(),
-  oauthContext: vi.fn(),
   oauth: vi.fn(),
   selector: vi.fn(),
   configure: vi.fn(),
-  binding: vi.fn(),
-  group: vi.fn(),
-  dispatch: vi.fn(),
   billing: vi.fn(),
 }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.authorizeOperation,
-}))
-vi.mock('@/lib/knowledge/application/contexts', () => ({
-  resolveKnowledgeOrganizationContext: async ({ organizationId }: { organizationId: string }) => ({
-    organizationId,
-    workspaceId: undefined,
-  }),
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 vi.mock('@/lib/knowledge/application/personal-search-account', () => ({
-  authorizePersonalSearchSetup: mocks.authorize,
-  authorizePersonalSearchSetupCredential: mocks.ownAccount,
+  authorizePersonalSearchSetup: hoisted.authorize,
+  authorizePersonalSearchSetupCredential: hoisted.ownAccount,
 }))
 vi.mock('@/lib/credentials/organization-managed', () => ({
-  getOwnOrganizationManagedOAuthCredentials: mocks.listAccounts,
+  getOwnOrganizationManagedOAuthCredentials: hoisted.listAccounts,
 }))
 vi.mock('@/lib/credential-groups/search-connection-completion', () => ({
-  readSearchConnectionCompletion: mocks.completion,
+  readSearchConnectionCompletion: hoisted.completion,
 }))
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
-  provisionKnowledgeConnectorMembersBinding: mocks.provision,
+  provisionKnowledgeConnectorMembersBinding: hoisted.provision,
 }))
-vi.mock('@/lib/credential-groups/self-enrollment', () => ({
-  createViewerCredentialGroupEnrollment: mocks.enrollment,
-}))
-vi.mock('@/lib/credential-groups/enrollments', () => ({
-  getCredentialGroupOAuthContextForEnrollment: mocks.oauthContext,
-}))
-vi.mock('@/lib/credential-groups/oauth', () => ({ startCredentialGroupOAuth: mocks.oauth }))
+vi.mock('@/lib/credential-groups/self-enrollment', () => credentialGroupsSelfEnrollmentMock)
+vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollmentsMock)
+vi.mock('@/lib/credential-groups/oauth', () => ({ startCredentialGroupOAuth: hoisted.oauth }))
 vi.mock('@/lib/selectors/application/execute-selector', () => ({
-  executeSelector: { execute: mocks.selector },
+  executeSelector: { execute: hoisted.selector },
 }))
 vi.mock('@/lib/knowledge/application/sim-search', () => ({
-  configureSimSearchConnector: { execute: mocks.configure },
+  configureSimSearchConnector: { execute: hoisted.configure },
 }))
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  loadManagedCredentialGroupBinding: mocks.binding,
-  loadScopedAccountsCredentialListContext: mocks.group,
-}))
-vi.mock('@/lib/knowledge/connectors/member-queue', () => ({ dispatchMemberSync: mocks.dispatch }))
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
+vi.mock('@/lib/knowledge/connectors/member-queue', () => knowledgeMemberQueueMock)
 vi.mock('@/lib/knowledge/application/billing', () => ({
-  resolveKnowledgeBillingAttribution: mocks.billing,
+  resolveKnowledgeBillingAttribution: hoisted.billing,
 }))
 vi.mock('@/connectors/registry', () => ({
   CONNECTOR_META_REGISTRY: { jira: { name: 'Jira' }, confluence: { name: 'Confluence' } },
@@ -70,11 +72,20 @@ import {
 } from '@/lib/knowledge/application/personal-source-setup'
 import type { SelectorRequest } from '@/lib/selectors/types'
 
+const mocks = {
+  ...hoisted,
+  enrollment: credentialGroupsSelfEnrollmentMockFns.mockCreateViewerCredentialGroupEnrollment,
+  oauthContext: credentialGroupsEnrollmentsMockFns.mockGetCredentialGroupOAuthContextForEnrollment,
+  binding: credentialGroupsCredentialsMockFns.mockLoadManagedCredentialGroupBinding,
+  group: credentialGroupsCredentialsMockFns.mockLoadScopedAccountsCredentialListContext,
+  dispatch: knowledgeMemberQueueMockFns.mockDispatchMemberSync,
+}
+
 interface ValidationSelectorCall {
   input: { request: SelectorRequest; signal: AbortSignal }
 }
 
-const principal = { kind: 'session', userId: 'member-1', sessionId: 'session-1' } as const
+const principal = createSessionPrincipal({ userId: 'member-1' })
 const owner = { organizationId: 'organization-1', connectorType: 'jira' } as const
 const credential = { credentialId: 'own-account', domain: 'example.atlassian.net' }
 const connect = { ...owner, ...credential, action: 'connect', keys: ['PROJECT'] } as const
@@ -103,10 +114,6 @@ describe('personal source setup', () => {
     mocks.selector.mockRejectedValue(new Error('Site unavailable'))
     await expect(runConnect({ keys: ['*'] })).rejects.toThrow('Site unavailable')
     expect(mocks.configure).not.toHaveBeenCalled()
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
   })
 
   beforeEach(() => {
@@ -245,7 +252,9 @@ describe('personal source setup', () => {
   })
 
   it('rejects a current operation authorization denial before any setup effects', async () => {
-    mocks.authorizeOperation.mockRejectedValue(new Error('Membership ended'))
+    organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation.mockRejectedValue(
+      new Error('Membership ended')
+    )
     await expect(runConnect()).rejects.toThrow('Membership ended')
     expect(mocks.authorize).not.toHaveBeenCalled()
     expect(mocks.configure).not.toHaveBeenCalled()

@@ -1,11 +1,12 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { expect, it, vi } from 'vitest'
 
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: vi.fn(async () => true),
-}))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import { resolveTinKeywordQuery } from '@/lib/knowledge/search/tin-keyword'
+
+featureFlagsMockFns.mockIsFeatureEnabled.mockResolvedValue(true)
 
 /** Its own file, so the process-wide readiness cache starts empty. */
 it('stays on the GIN projection while the Tin index is incomplete, and remembers that', async () => {

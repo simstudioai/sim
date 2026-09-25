@@ -2,16 +2,15 @@
  * @vitest-environment jsdom
  */
 import { act, type ReactNode } from 'react'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockStartOauth } = vi.hoisted(() => ({ mockStartOauth: vi.fn() }))
 
-vi.mock('@sim/emcn', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}))
+vi.mock('@sim/emcn', () => emcnMock)
 
 vi.mock('@/hooks/queries/mcp', () => ({
   useStartMcpOauth: () => ({ mutateAsync: mockStartOauth }),
@@ -87,10 +86,6 @@ describe('useMcpOauthPopup', () => {
     }
     ;(globalThis as unknown as { BroadcastChannel: unknown }).BroadcastChannel =
       FakeBroadcastChannel
-  })
-
-  afterEach(() => {
-    vi.restoreAllMocks()
   })
 
   it('ignores a concurrent second start for the same server (no double popup)', async () => {

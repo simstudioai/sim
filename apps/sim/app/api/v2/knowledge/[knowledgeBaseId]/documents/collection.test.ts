@@ -3,6 +3,7 @@
  * update). The multipart upload half is covered in `route.test.ts`, which mocks
  * the stream-limit helpers the JSON body parser also uses.
  */
+
 import {
   V2_OPERATION_RATE_LIMIT_ALLOWED,
   V2_PREAUTH_RATE_LIMIT_ALLOWED,
@@ -10,7 +11,10 @@ import {
   v2RateLimiterModuleMock,
   v2RouteMocks,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { posthogServerMock } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockListDocuments, mockBulkUpdate } = vi.hoisted(() => ({
@@ -40,12 +44,12 @@ vi.mock('@/lib/knowledge/application/documents', () => ({
   },
 }))
 
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
 import { GET, PATCH } from '@/app/api/v2/knowledge/[knowledgeBaseId]/documents/route'
 
 const WORKSPACE_ID = 'workspace-1'
-const PRINCIPAL = { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' } as const
+const PRINCIPAL = createPersonalApiKeyPrincipal()
 const UPLOADED_AT = new Date('2025-06-18T16:45:00Z')
 
 const TAG_DEFINITIONS = [
@@ -76,19 +80,21 @@ const DOCUMENT = {
   tag2: null,
 }
 
-const context = { params: Promise.resolve({ knowledgeBaseId: 'kb-1' }) }
+const context = createRouteContext({ knowledgeBaseId: 'kb-1' })
 
 function buildListRequest(query: string) {
-  return new NextRequest(`http://localhost/api/v2/knowledge/kb-1/documents${query}`, {
+  return createMockRequest({
+    url: `http://localhost/api/v2/knowledge/kb-1/documents${query}`,
     headers: { 'x-api-key': 'secret' },
   })
 }
 
 function buildPatchRequest(body: unknown) {
-  return new NextRequest('http://localhost/api/v2/knowledge/kb-1/documents', {
+  return createMockRequest({
     method: 'PATCH',
-    headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
-    body: JSON.stringify(body),
+    url: 'http://localhost/api/v2/knowledge/kb-1/documents',
+    headers: { 'x-api-key': 'secret' },
+    body,
   })
 }
 

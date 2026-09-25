@@ -1,63 +1,48 @@
-import { NextRequest } from 'next/server'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  knowledgeBaseUseCasesMock,
+  knowledgeBaseUseCasesMockFns,
+} from '@sim/testing/mocks/knowledge-base-use-cases.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { getMockPlatformEvent, telemetryMock } from '@sim/testing/mocks/telemetry.mock'
+import { usersQueriesMock, usersQueriesMockFns } from '@sim/testing/mocks/users-queries.mock'
+import {
+  v2ApiKeyAuthModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing/mocks/v2-route.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAuthenticate,
-  mockCheckPreAuth,
-  mockCheckRateLimit,
-  mockList,
-  mockCreate,
-  mockPlatformCreated,
-  mockCapture,
-  mockGetUserEmailsByIds,
-} = vi.hoisted(() => ({
-  mockAuthenticate: vi.fn(),
-  mockCheckPreAuth: vi.fn(),
-  mockCheckRateLimit: vi.fn(),
-  mockList: vi.fn(),
-  mockCreate: vi.fn(),
-  mockPlatformCreated: vi.fn(),
-  mockCapture: vi.fn(),
-  mockGetUserEmailsByIds: vi.fn(),
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mockAuthenticate,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
 
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect(...args: unknown[]) {
-      return mockCheckPreAuth(...args)
-    }
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => knowledgeBaseUseCasesMock)
 
-    checkRateLimitDirectOrThrow(...args: unknown[]) {
-      return mockCheckRateLimit(...args)
-    }
-  },
-}))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
-vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
-  listKnowledgeBases: { operation: { id: 'knowledge.list' }, execute: mockList },
-  createKnowledgeBase: { operation: { id: 'knowledge.create' }, execute: mockCreate },
-}))
-
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { knowledgeBaseCreated: mockPlatformCreated },
-}))
-
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCapture }))
-vi.mock('@/lib/users/queries', () => ({
-  getUserEmailsByIds: mockGetUserEmailsByIds,
-  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
-}))
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+vi.mock('@/lib/users/queries', () => usersQueriesMock)
 
 import { v2ListKnowledgeBasesContract } from '@/lib/api/contracts/v2/knowledge'
 import { cursorRoute, cursorScopeKey, REFILTERED_CURSOR_MESSAGE } from '@/lib/api/cursor-binding'
 import { GET, POST } from '@/app/api/v2/knowledge/route'
 import { writeSortedCursor } from '@/app/api/v2/lib/response'
+
+const { mockGetUserEmailsByIds } = usersQueriesMockFns
+
+const mockPlatformCreated = getMockPlatformEvent('knowledgeBaseCreated')
+
+const mockList = knowledgeBaseUseCasesMockFns.mockListKnowledgeBasesExecute
+const mockCreate = knowledgeBaseUseCasesMockFns.mockCreateKnowledgeBaseExecute
+const mockCapture = posthogServerMockFns.mockCaptureServerEvent
+const mockAuthenticate = v2RouteMocks.authenticate
+const mockCheckPreAuth = v2RouteMocks.preauthRate
+const mockCheckRateLimit = v2RouteMocks.operationRate
 
 const WORKSPACE_ID = 'workspace-1'
 const RATE_LIMIT_OK = {
@@ -92,7 +77,7 @@ describe('/api/v2/knowledge route composition', () => {
     mockCheckPreAuth.mockResolvedValue(RATE_LIMIT_OK)
     mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
     mockAuthenticate.mockResolvedValue({
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      principal: createPersonalApiKeyPrincipal(),
       rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
       rateLimitSubscription: null,
       keyType: 'personal',
@@ -121,7 +106,8 @@ describe('/api/v2/knowledge route composition', () => {
     })
 
     const minted = await GET(
-      new NextRequest(`http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}`, {
+      createMockRequest({
+        url: `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}`,
         headers: { 'x-api-key': 'secret' },
       })
     )
@@ -129,10 +115,10 @@ describe('/api/v2/knowledge route composition', () => {
 
     mockList.mockClear()
     const replayed = await GET(
-      new NextRequest(
-        `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&scope=archived&cursor=${encodeURIComponent(nextCursor)}`,
-        { headers: { 'x-api-key': 'secret' } }
-      )
+      createMockRequest({
+        url: `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&scope=archived&cursor=${encodeURIComponent(nextCursor)}`,
+        headers: { 'x-api-key': 'secret' },
+      })
     )
 
     expect(replayed.status).toBe(400)
@@ -162,10 +148,10 @@ describe('/api/v2/knowledge route composition', () => {
     ) as string
 
     const response = await GET(
-      new NextRequest(
-        `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&sortBy=name&sortOrder=desc&cursor=${encodeURIComponent(legacyCursor)}`,
-        { headers: { 'x-api-key': 'secret' } }
-      )
+      createMockRequest({
+        url: `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&sortBy=name&sortOrder=desc&cursor=${encodeURIComponent(legacyCursor)}`,
+        headers: { 'x-api-key': 'secret' },
+      })
     )
 
     expect(response.status).toBe(200)
@@ -181,20 +167,20 @@ describe('/api/v2/knowledge route composition', () => {
     })
 
     const minted = await GET(
-      new NextRequest(
-        `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&search=support`,
-        { headers: { 'x-api-key': 'secret' } }
-      )
+      createMockRequest({
+        url: `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&search=support`,
+        headers: { 'x-api-key': 'secret' },
+      })
     )
     const { nextCursor } = await minted.json()
     expect(nextCursor).toEqual(expect.any(String))
 
     mockList.mockClear()
     const replayed = await GET(
-      new NextRequest(
-        `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&search=billing&cursor=${encodeURIComponent(nextCursor)}`,
-        { headers: { 'x-api-key': 'secret' } }
-      )
+      createMockRequest({
+        url: `http://localhost/api/v2/knowledge?workspaceId=${WORKSPACE_ID}&search=billing&cursor=${encodeURIComponent(nextCursor)}`,
+        headers: { 'x-api-key': 'secret' },
+      })
     )
 
     expect(replayed.status).toBe(400)
@@ -204,15 +190,16 @@ describe('/api/v2/knowledge route composition', () => {
 
   it('does not attribute workspace-key creation analytics to a billing owner', async () => {
     mockAuthenticate.mockResolvedValue({
-      principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-2' },
+      principal: createWorkspaceApiKeyPrincipal({ workspaceId: WORKSPACE_ID, keyId: 'key-2' }),
       rateLimitSubjectIds: ['api-key:key-2', `workspace:${WORKSPACE_ID}`],
       rateLimitSubscription: null,
       keyType: 'workspace',
     })
-    const request = new NextRequest('http://localhost/api/v2/knowledge', {
+    const request = createMockRequest({
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
-      body: JSON.stringify({ workspaceId: WORKSPACE_ID, name: 'Support docs' }),
+      url: 'http://localhost/api/v2/knowledge',
+      headers: { 'x-api-key': 'secret' },
+      body: { workspaceId: WORKSPACE_ID, name: 'Support docs' },
     })
 
     const response = await POST(request)

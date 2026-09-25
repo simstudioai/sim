@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MAX_PII_VALIDATION_DETECTED_ENTITIES,
   MAX_PII_VALIDATION_RESPONSE_BYTES,
@@ -72,8 +72,6 @@ describe('validate_pii (Presidio service)', () => {
     })
     vi.stubGlobal('fetch', fetchMock)
   })
-
-  afterEach(() => vi.unstubAllGlobals())
 
   describe('maskPIIBatch', () => {
     it('masks detected entities, preserving input order', async () => {

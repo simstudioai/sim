@@ -24,7 +24,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  vi.unstubAllEnvs()
   rmSync(dir, { recursive: true, force: true })
 })
 

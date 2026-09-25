@@ -2,7 +2,11 @@
  * @vitest-environment jsdom
  * @vitest-environment-options { "url": "https://sim.test/workspace/workspace-1/chat/chat-1" }
  */
+
 import { act } from 'react'
+import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PersonalCredential } from '@/lib/api/contracts/credentials'
@@ -25,11 +29,9 @@ const mocks = vi.hoisted(() => ({
   error: null as Error | null,
 }))
 
-vi.mock('next/navigation', () => ({ useParams: () => ({ workspaceId: 'workspace-1' }) }))
-vi.mock('@/lib/desktop', () => ({
-  getDesktopBridge: () => (mocks.desktop ? { openExternal: mocks.openExternal } : null),
-}))
-vi.mock('@/lib/auth/auth-client', () => ({ useSession: () => ({ data: null }) }))
+vi.mock('next/navigation', () => nextNavigationMock)
+vi.mock('@/lib/desktop', () => libDesktopMock)
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider', () => ({
   useUserPermissionsContext: () => ({ canEdit: mocks.canEdit }),
 }))
@@ -93,6 +95,12 @@ vi.mock(
 )
 
 import { SpecialTags } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/special-tags'
+
+libDesktopMockFns.mockGetDesktopBridge.mockImplementation(() =>
+  mocks.desktop ? { openExternal: mocks.openExternal } : undefined
+)
+
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 
 let root: Root
 let container: HTMLDivElement
@@ -165,7 +173,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
-  vi.restoreAllMocks()
   vi.useRealTimers()
 })
 

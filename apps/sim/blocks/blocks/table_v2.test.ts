@@ -3,11 +3,10 @@
  * across builder vs editor modes, the required query limit, cursor artifact
  * handling, and fail-fast limit parsing.
  */
+import { triggersMock } from '@sim/testing/mocks/triggers.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/triggers', () => ({
-  getTrigger: vi.fn(() => ({ subBlocks: [] })),
-}))
+vi.mock('@/triggers', () => triggersMock)
 
 import { TableV2Block } from '@/blocks/blocks/table_v2'
 

@@ -3,47 +3,49 @@ import type {
   SubjectDelegatedPrincipal,
 } from '@sim/auth/principal'
 import { queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  createDelegatedPrincipal,
+  createExecutorPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import { mcpServiceMock, mcpServiceMockFns } from '@sim/testing/mocks/mcp-service.mock'
+import {
+  permissionCheckMock,
+  permissionCheckMockFns,
+} from '@sim/testing/mocks/permission-check.mock'
+import { telemetryMock } from '@sim/testing/mocks/telemetry.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   loadWorkflow: vi.fn(),
-  loadContext: vi.fn(),
   getServer: vi.fn(),
-  resolvePermission: vi.fn(),
-  assertPermissionsAllowed: vi.fn(),
-  discoverServerTools: vi.fn(),
-  executeTool: vi.fn(),
-  telemetry: vi.fn(),
 }))
 
 vi.mock('@sim/workflow-persistence', () => ({
-  loadWorkflowFromNormalizedTablesRaw: mocks.loadWorkflow,
+  loadWorkflowFromNormalizedTablesRaw: hoisted.loadWorkflow,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  loadActiveWorkspaceContext: mocks.loadContext,
-}))
-vi.mock('@/lib/mcp/queries', () => ({ getWorkspaceMcpServer: mocks.getServer }))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) =>
-    actual === 'admin' || actual === required || (actual === 'write' && required === 'read'),
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  assertPermissionsAllowed: mocks.assertPermissionsAllowed,
-  McpToolsNotAllowedError: class McpToolsNotAllowedError extends Error {},
-}))
-vi.mock('@/lib/mcp/service', () => ({
-  mcpService: {
-    discoverServerTools: mocks.discoverServerTools,
-    executeTool: mocks.executeTool,
-  },
-}))
-vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { mcpToolExecuted: mocks.telemetry },
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
+vi.mock('@/lib/mcp/queries', () => ({ getWorkspaceMcpServer: hoisted.getServer }))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
+vi.mock('@/lib/mcp/service', () => mcpServiceMock)
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
 import { executeMcpToolUseCase } from '@/lib/mcp/application/execute-tool'
+
+const mocks = {
+  assertPermissionsAllowed: permissionCheckMockFns.mockAssertPermissionsAllowed,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  ...hoisted,
+  discoverServerTools: mcpServiceMockFns.mockDiscoverServerTools,
+  executeTool: mcpServiceMockFns.mockExecuteTool,
+  loadContext: workspaceUploadsMockFns.mockLoadActiveWorkspaceContext,
+}
 
 const WORKSPACE = {
   workspaceId: 'workspace-1',
@@ -56,18 +58,14 @@ const SERVER = {
   workspaceId: WORKSPACE.workspaceId,
   enabled: true,
 }
-const PRINCIPAL: BoundWorkflowExecutionDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'executor',
-  subjectUserId: 'user-1',
+const PRINCIPAL: BoundWorkflowExecutionDelegatedPrincipal = createExecutorPrincipal({
   workspaceId: WORKSPACE.workspaceId,
-  delegationId: 'delegation-1',
   audience: 'sim:mcp-servers',
   issuedAt: new Date('2026-08-27T00:00:00.000Z'),
   expiresAt: new Date('2099-08-27T00:05:00.000Z'),
   delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
   resourceScope: { mcpServerId: SERVER.id, mcpBlockId: 'block-1' },
-}
+})
 const ACTORLESS_PRINCIPAL: BoundWorkflowExecutionDelegatedPrincipal = {
   kind: 'delegated',
   serviceId: 'executor',
@@ -93,9 +91,7 @@ const ACTORLESS_PRINCIPAL: BoundWorkflowExecutionDelegatedPrincipal = {
   },
   resourceScope: { mcpServerId: SERVER.id, mcpBlockId: 'block-1' },
 }
-const COPILOT_PRINCIPAL: SubjectDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'copilot',
+const COPILOT_PRINCIPAL: SubjectDelegatedPrincipal = createDelegatedPrincipal({
   subjectUserId: 'chat-user',
   workspaceId: WORKSPACE.workspaceId,
   delegationId: 'copilot-tool:call-1',
@@ -103,7 +99,7 @@ const COPILOT_PRINCIPAL: SubjectDelegatedPrincipal = {
   issuedAt: new Date('2026-08-27T00:00:00.000Z'),
   expiresAt: new Date('2099-08-27T00:05:00.000Z'),
   resourceScope: { chatId: 'chat-1' },
-}
+})
 const COMPATIBILITY_ACTOR_PRINCIPAL: BoundWorkflowExecutionDelegatedPrincipal = {
   ...ACTORLESS_PRINCIPAL,
   delegationContext: {

@@ -1,18 +1,21 @@
 import { workflowExecutionLogs } from '@sim/db/schema'
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  billingUsageReservationMock,
+  billingUsageReservationMockFns,
+} from '@sim/testing/mocks/billing-usage-reservation.mock'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  executionPayloadStoreMock,
+  executionPayloadStoreMockFns,
+} from '@sim/testing/mocks/execution-payload-store.mock'
+import {
+  getMockPlatformEvent,
+  telemetryMock,
+  telemetryMockFns,
+} from '@sim/testing/mocks/telemetry.mock'
+import { sql } from 'drizzle-orm'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-
-const dbMocks = vi.hoisted(() => ({
-  eq: vi.fn(),
-  and: vi.fn((...args: unknown[]) => ({ type: 'and', args })),
-  sql: Object.assign(
-    vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => ({ strings, values })),
-    {
-      /** `elapsedDurationMsSql` binds `ended_at` through the column's own mapper. */
-      param: vi.fn((value: unknown, encoder?: unknown) => ({ value, encoder })),
-    }
-  ),
-}))
 
 const {
   completeWorkflowExecutionMock,
@@ -20,37 +23,16 @@ const {
   prepareTraceSpansForProjectionMock,
   startWorkflowExecutionMock,
   loadWorkflowStateForExecutionMock,
-  releaseExecutionSlotMock,
-  createOTelSpansMock,
-  workflowExecutedMock,
 } = vi.hoisted(() => ({
   completeWorkflowExecutionMock: vi.fn(),
   loadTraceSpansForProjectionMock: vi.fn(),
   prepareTraceSpansForProjectionMock: vi.fn(),
   startWorkflowExecutionMock: vi.fn(),
   loadWorkflowStateForExecutionMock: vi.fn(),
-  releaseExecutionSlotMock: vi.fn(),
-  createOTelSpansMock: vi.fn(),
-  workflowExecutedMock: vi.fn(),
-}))
-
-const { materializeLargeValueRefMock, storeLargeValueMock } = vi.hoisted(() => ({
-  materializeLargeValueRefMock: vi.fn(),
-  storeLargeValueMock: vi.fn(),
-}))
-
-const { decryptSecretMock } = vi.hoisted(() => ({
-  decryptSecretMock: vi.fn(async (encryptedValue: string) => ({ decrypted: encryptedValue })),
 }))
 
 const { recordSecretUsageMock } = vi.hoisted(() => ({ recordSecretUsageMock: vi.fn() }))
 vi.mock('@/lib/secrets/usage/record', () => ({ recordSecretUsage: recordSecretUsageMock }))
-
-vi.mock('drizzle-orm', () => ({
-  eq: dbMocks.eq,
-  and: dbMocks.and,
-  sql: dbMocks.sql,
-}))
 
 vi.mock('@/lib/logs/execution/logger', () => ({
   executionLogger: {
@@ -61,23 +43,13 @@ vi.mock('@/lib/logs/execution/logger', () => ({
   },
 }))
 
-vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
-  releaseExecutionSlot: releaseExecutionSlotMock,
-}))
+vi.mock('@/lib/billing/calculations/usage-reservation', () => billingUsageReservationMock)
 
-vi.mock('@/lib/core/telemetry', () => ({
-  createOTelSpansForWorkflowExecution: createOTelSpansMock,
-  PlatformEvents: { workflowExecuted: workflowExecutedMock },
-}))
+vi.mock('@/lib/core/telemetry', () => telemetryMock)
 
-vi.mock('@/lib/execution/payloads/store', () => ({
-  materializeLargeValueRef: materializeLargeValueRefMock,
-  storeLargeValue: storeLargeValueMock,
-}))
+vi.mock('@/lib/execution/payloads/store', () => executionPayloadStoreMock)
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: decryptSecretMock,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 const {
   setLastStartedBlockMock,
@@ -126,6 +98,20 @@ import {
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import { LoggingSession } from './logging-session'
+
+const materializeLargeValueRefMock = executionPayloadStoreMockFns.mockMaterializeLargeValueRef
+const storeLargeValueMock = executionPayloadStoreMockFns.mockStoreLargeValue
+
+const releaseExecutionSlotMock = billingUsageReservationMockFns.mockReleaseExecutionSlot
+
+/** `elapsedDurationMsSql` binds `ended_at` through the column's own mapper, so `sql.param` is observed too. */
+const dbMocks = { sql: vi.mocked(sql) }
+const createOTelSpansMock = telemetryMockFns.mockCreateOTelSpansForWorkflowExecution
+const workflowExecutedMock = getMockPlatformEvent('workflowExecuted')
+
+encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+  decrypted: encryptedValue,
+}))
 
 afterAll(resetDbChainMock)
 

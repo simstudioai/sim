@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { buildApprovalUrl, pollOnce } from './cli-auth'
 
 const ORIGIN = 'https://www.sim.test/prefix'
@@ -11,10 +11,6 @@ function jsonResponse(status: number, body: unknown, headers?: Record<string, st
     headers: { 'content-type': 'application/json', ...headers },
   })
 }
-
-afterEach(() => {
-  vi.restoreAllMocks()
-})
 
 describe('buildApprovalUrl', () => {
   it('preserves the origin prefix and never includes the poll secret', () => {

@@ -4,14 +4,13 @@
  * These assert the predicates actually handed to drizzle, since the route tests mock
  * the db chain and would not notice a wrong filter.
  */
-import { schemaMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockDb } = vi.hoisted(() => ({ mockDb: { select: vi.fn() } }))
-
-vi.mock('@sim/db', () => ({ db: mockDb, ...schemaMock }))
-
+import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { filterToActiveResources, pinnableResourceExists } from '@/lib/pinned-items/resources'
+
+const mockDb = { select: dbChainMockFns.select }
+
+afterAll(resetDbChainMock)
 
 describe('pinned-items resources', () => {
   const mockFrom = vi.fn()

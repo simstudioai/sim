@@ -36,7 +36,6 @@ describe('server shutdown connection drain', () => {
     await io.close()
     await waitForConnectionCleanup()
     await manager.shutdown()
-    vi.restoreAllMocks()
   })
 
   it('keeps automatic reconnection active after transport shutdown', async () => {

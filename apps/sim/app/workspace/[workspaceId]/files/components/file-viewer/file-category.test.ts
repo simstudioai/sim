@@ -1,15 +1,11 @@
+import { fileUtilsMock } from '@sim/testing/mocks/file-utils.mock'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/uploads/utils/validation', () => ({
   SUPPORTED_CODE_EXTENSIONS: ['js', 'ts', 'py', 'go', 'rs', 'sh', 'sql'],
 }))
 
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  getFileExtension: (filename: string): string => {
-    const lastDot = filename.lastIndexOf('.')
-    return lastDot !== -1 ? filename.slice(lastDot + 1).toLowerCase() : ''
-  },
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 
 import { resolveFileCategory } from './file-category'
 

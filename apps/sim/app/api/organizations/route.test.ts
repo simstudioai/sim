@@ -6,6 +6,11 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import {
+  billingPlanHelpersMock,
+  billingPlanHelpersMockFns,
+} from '@sim/testing/mocks/billing-plan-helpers.mock'
+import { billingSubscriptionUtilsMock } from '@sim/testing/mocks/billing-subscription-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -39,13 +44,9 @@ vi.mock('@/lib/billing/organizations/create-organization', () => ({
 }))
 
 /** Mirrors the real predicate, which also admits the `team_*` credit tiers. */
-vi.mock('@/lib/billing/plan-helpers', () => ({
-  isOrgPlan: (plan: string) => plan === 'team' || plan.startsWith('team_') || plan === 'enterprise',
-}))
+vi.mock('@/lib/billing/plan-helpers', () => billingPlanHelpersMock)
 
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  ENTITLED_SUBSCRIPTION_STATUSES: ['active', 'past_due'],
-}))
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
 vi.mock('@/lib/workspaces/organization-workspaces', () => ({
   attachOwnedWorkspacesToOrganization: mockAttachOwnedWorkspacesToOrganization,
@@ -53,6 +54,10 @@ vi.mock('@/lib/workspaces/organization-workspaces', () => ({
 }))
 
 import { POST } from '@/app/api/organizations/route'
+
+billingPlanHelpersMockFns.mockIsOrgPlan.mockImplementation(
+  (plan) => plan === 'team' || plan?.startsWith('team_') === true || plan === 'enterprise'
+)
 
 const mockGetSession = authMockFns.mockGetSession
 

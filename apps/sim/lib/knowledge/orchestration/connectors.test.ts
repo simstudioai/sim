@@ -9,60 +9,50 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { billingStorageMock, billingStorageMockFns } from '@sim/testing/mocks/billing-storage.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import {
+  knowledgeMemberAccessMock,
+  knowledgeMemberAccessMockFns,
+} from '@sim/testing/mocks/knowledge-member-access.mock'
+import {
+  knowledgeMemberQueueMock,
+  knowledgeMemberQueueMockFns,
+} from '@sim/testing/mocks/knowledge-member-queue.mock'
+import {
+  knowledgeTagsServiceMock,
+  knowledgeTagsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-tags-service.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockCaptureServerEvent,
   mockDispatchSync,
-  mockDispatchMemberSync,
-  mockGrant,
-  mockRevoke,
-  mockHasWorkspaceLiveSyncAccess,
-  mockRecordAudit,
+
   mockEncryptApiKey,
   mockValidateGitHub,
-  mockResolveStorageBillingContext,
-  mockIncrementStorage,
-  mockNotifyStorage,
   mockEnqueueConnectorDeletion,
   mockEnqueueConnectorDetachment,
 } = vi.hoisted(() => ({
-  mockCaptureServerEvent: vi.fn(),
   mockDispatchSync: vi.fn(),
-  mockDispatchMemberSync: vi.fn(),
-  mockGrant: vi.fn(),
-  mockRevoke: vi.fn(),
-  mockHasWorkspaceLiveSyncAccess: vi.fn(),
-  mockRecordAudit: vi.fn(),
   mockEncryptApiKey: vi.fn(),
   mockValidateGitHub: vi.fn(),
-  mockResolveStorageBillingContext: vi.fn(),
-  mockIncrementStorage: vi.fn(),
-  mockNotifyStorage: vi.fn(),
   mockEnqueueConnectorDeletion: vi.fn(),
   mockEnqueueConnectorDetachment: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    CONNECTOR_CREATED: 'connector.created',
-    CONNECTOR_UPDATED: 'connector.updated',
-    CONNECTOR_DELETED: 'connector.deleted',
-    CONNECTOR_SYNCED: 'connector.synced',
-  },
-  AuditResourceType: { CONNECTOR: 'connector' },
-  recordAudit: mockRecordAudit,
-}))
+vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/api-key/crypto', () => ({ encryptApiKey: mockEncryptApiKey }))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  hasWorkspaceLiveSyncAccess: mockHasWorkspaceLiveSyncAccess,
-}))
-vi.mock('@/lib/billing/storage', () => ({
-  resolveStorageBillingContext: mockResolveStorageBillingContext,
-  incrementStorageUsageForBillingContextInTx: mockIncrementStorage,
-  maybeNotifyStorageLimitForBillingContext: mockNotifyStorage,
-  applyStorageUsageDeltasInTx: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/billing/storage', () => billingStorageMock)
 vi.mock('@/lib/knowledge/documents/storage-cleanup', () => ({
   enqueueKnowledgeStorageCleanup: vi.fn().mockResolvedValue(undefined),
 }))
@@ -74,23 +64,11 @@ vi.mock('@/lib/knowledge/connectors/detachment', () => ({
   keptDocumentBytes: vi.fn(),
 }))
 vi.mock('@/lib/knowledge/connectors/queue', () => ({ dispatchSync: mockDispatchSync }))
-vi.mock('@/lib/knowledge/connectors/member-queue', () => ({
-  dispatchMemberSync: mockDispatchMemberSync,
-}))
-vi.mock('@/lib/knowledge/connectors/member-access', () => ({
-  grantKnowledgeConnectorCredentialAccess: mockGrant,
-  revokeKnowledgeConnectorCredentialAccess: mockRevoke,
-  findListingCapViolation: vi.fn(() => null),
-  stripListingCapFields: (_meta: unknown, sourceConfig: Record<string, unknown>) => sourceConfig,
-}))
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  deleteDocumentStorageFiles: vi.fn().mockResolvedValue(undefined),
-}))
-vi.mock('@/lib/knowledge/tags/service', () => ({
-  cleanupUnusedTagDefinitions: vi.fn().mockResolvedValue(undefined),
-  createTagDefinition: vi.fn(),
-}))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEvent }))
+vi.mock('@/lib/knowledge/connectors/member-queue', () => knowledgeMemberQueueMock)
+vi.mock('@/lib/knowledge/connectors/member-access', () => knowledgeMemberAccessMock)
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
+vi.mock('@/lib/knowledge/tags/service', () => knowledgeTagsServiceMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
     github: {
@@ -141,6 +119,19 @@ import {
   performUpdateKnowledgeConnector,
   withoutSecret,
 } from '@/lib/knowledge/orchestration/connectors'
+
+const mockDispatchMemberSync = knowledgeMemberQueueMockFns.mockDispatchMemberSync
+const mockGrant = knowledgeMemberAccessMockFns.mockGrantKnowledgeConnectorCredentialAccess
+const mockRevoke = knowledgeMemberAccessMockFns.mockRevokeKnowledgeConnectorCredentialAccess
+const mockResolveStorageBillingContext = billingStorageMockFns.mockResolveStorageBillingContext
+const mockIncrementStorage = billingStorageMockFns.mockIncrementStorageUsageForBillingContextInTx
+const mockNotifyStorage = billingStorageMockFns.mockMaybeNotifyStorageLimitForBillingContext
+knowledgeDocumentsServiceMockFns.mockDeleteDocumentStorageFiles.mockResolvedValue(undefined)
+knowledgeTagsServiceMockFns.mockCleanupUnusedTagDefinitions.mockResolvedValue(undefined)
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockCaptureServerEvent = posthogServerMockFns.mockCaptureServerEvent
+const mockHasWorkspaceLiveSyncAccess = billingSubscriptionMockFns.mockHasWorkspaceLiveSyncAccess
 
 beforeEach(resetEnvFlagsMock)
 

@@ -1,3 +1,4 @@
+import { searchReplaceIndexerMock } from '@sim/testing/mocks/search-replace-indexer.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BlockConfig } from '@/blocks/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
@@ -6,9 +7,7 @@ const { getOption } = vi.hoisted(() => ({ getOption: vi.fn() }))
 vi.mock('@/lib/selectors/application/get-selector-option', () => ({
   getSelectorOption: { execute: getOption },
 }))
-vi.mock('@/lib/workflows/search-replace/indexer', () => ({
-  getToolInputParamConfigs: vi.fn(() => []),
-}))
+vi.mock('@/lib/workflows/search-replace/indexer', () => searchReplaceIndexerMock)
 
 import {
   inspectImportConfiguration,

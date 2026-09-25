@@ -1,19 +1,16 @@
 import { authMockFns, createMockRequest } from '@sim/testing'
+import {
+  billingUsageLogMock,
+  billingUsageLogMockFns,
+} from '@sim/testing/mocks/billing-usage-log.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apportionCredits } from '@/lib/billing/credits/conversion'
 
-const { mockGetUserUsageLogs, mockGetUsageCreditsByLogId } = vi.hoisted(() => ({
-  mockGetUserUsageLogs: vi.fn(),
-  /** Still mocked because the module exports it; the export route must never call it. */
-  mockGetUsageCreditsByLogId: vi.fn(),
-}))
-
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  getUserUsageLogs: mockGetUserUsageLogs,
-  getUsageCreditsByLogId: mockGetUsageCreditsByLogId,
-}))
+vi.mock('@/lib/billing/core/usage-log', () => billingUsageLogMock)
 
 import { GET } from '@/app/api/users/me/usage-logs/export/route'
+
+const { mockGetUserUsageLogs, mockGetUsageCreditsByLogId } = billingUsageLogMockFns
 
 describe('GET /api/users/me/usage-logs/export', () => {
   beforeEach(() => {

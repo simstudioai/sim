@@ -1,33 +1,27 @@
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
+import { MockContentVersionConflictError } from '@sim/testing/mocks/workspace-file-manager.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
 import * as collabState from '@/lib/collab-doc/collab-state'
 
 const {
   mockGetWorkspaceFile,
-  mockFetchBuffer,
-  mockUpdateContent,
-  mockCommitState,
-  mockLoadState,
-  ContentVersionConflictError,
-} = vi.hoisted(() => ({
-  mockGetWorkspaceFile: vi.fn(),
-  mockFetchBuffer: vi.fn(),
-  mockUpdateContent: vi.fn(),
-  mockCommitState: vi.fn(),
-  mockLoadState: vi.fn(),
-  ContentVersionConflictError: class ContentVersionConflictError extends Error {},
-}))
+  mockFetchWorkspaceFileBuffer: mockFetchBuffer,
+  mockUpdateWorkspaceFileContent: mockUpdateContent,
+} = workspaceUploadsMockFns
+const mockCommitState = vi.fn()
+const mockLoadState = vi.fn()
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  ContentVersionConflictError,
-  getWorkspaceFile: mockGetWorkspaceFile,
-  fetchWorkspaceFileBuffer: mockFetchBuffer,
-  updateWorkspaceFileContent: mockUpdateContent,
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
-vi.spyOn(collabState, 'loadCollabDocState').mockImplementation(mockLoadState)
-vi.spyOn(collabState, 'commitCollabDocState').mockImplementation(mockCommitState)
+beforeEach(() => {
+  vi.spyOn(collabState, 'loadCollabDocState').mockImplementation(mockLoadState)
+  vi.spyOn(collabState, 'commitCollabDocState').mockImplementation(mockCommitState)
+})
 
 import type { CachedCollabDocState, PreparedCollabDocState } from '@/lib/collab-doc/collab-state'
 import { applyMarkdownToYDoc, markdownToYDoc, yDocToFileMarkdown } from '@/lib/collab-doc/converter'
@@ -132,7 +126,7 @@ function installAtomicStore(markdown: string, initialState: Uint8Array | null = 
       options: { expectedUpdatedAt: Date; collabDocState: PreparedCollabDocState }
     ) => {
       if (options.expectedUpdatedAt.getTime() !== store.version) {
-        throw new ContentVersionConflictError('Content changed')
+        throw new MockContentVersionConflictError('file-1')
       }
       if (!matches(options.collabDocState)) {
         throw new collabState.CollabDocStateConflictError('file-1')
@@ -214,7 +208,7 @@ describe('persistFileDoc — a stale token is not an out-of-band write', () => {
     mockUpdateContent.mockImplementation(async (..._args: unknown[]) => {
       const options = _args[5] as { expectedUpdatedAt?: Date }
       if (options?.expectedUpdatedAt?.getTime() !== NEWER.getTime()) {
-        throw new ContentVersionConflictError('stale')
+        throw new MockContentVersionConflictError('file-1')
       }
       return { contentUpdatedAt: new Date(NEWER.getTime() + 1), updatedAt: NEWER }
     })
@@ -314,7 +308,7 @@ describe('persistFileDoc — a stale token is not an out-of-band write', () => {
           await firstWrite.promise
         }
         if (options.expectedUpdatedAt.getTime() !== version) {
-          throw new ContentVersionConflictError('A newer snapshot committed')
+          throw new MockContentVersionConflictError('file-1')
         }
         durable = Buffer.from(bytes)
         cache = cachedState(options.collabDocState.docState, bytes)
@@ -391,7 +385,7 @@ describe('persistFileDoc — atomic cache and native snapshot ownership', () => 
       store.durable = projectionOf('base\n\npeer edit')
       store.cache = cachedState(winner, store.durable)
       store.version++
-      throw new ContentVersionConflictError('A peer committed first')
+      throw new MockContentVersionConflictError('file-1')
     })
 
     await expect(

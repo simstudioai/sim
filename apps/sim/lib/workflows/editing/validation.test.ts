@@ -1,26 +1,25 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { toolsUtilsMock, toolsUtilsMockFns } from '@sim/testing/mocks/blocks.mock'
+import {
+  integrationsAvailabilityMock,
+  integrationsAvailabilityMockFns,
+} from '@sim/testing/mocks/integrations-availability.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import type { WorkflowState } from '@sim/workflow-types/workflow'
+import type { Mock } from 'vitest'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { VideoGeneratorV3Block } from '@/blocks/blocks/video_generator'
+import { getBlock } from '@/blocks/registry'
 import { normalizeConditionRouterIds } from './builders'
 
-const {
-  mockValidateSelectorIds,
-  mockGetModelOptions,
-  mockGetTool,
-  mockGetCustomToolById,
-  mockGetSkillById,
-  mockGetHostedModels,
-  mockIsIntegrationDeploymentAvailable,
-} = vi.hoisted(() => ({
-  mockValidateSelectorIds: vi.fn(),
-  mockGetModelOptions: vi.fn(() => []),
-  mockGetTool: vi.fn(),
-  mockGetCustomToolById: vi.fn(),
-  mockGetSkillById: vi.fn(),
-  mockGetHostedModels: vi.fn(() => [] as string[]),
-  mockIsIntegrationDeploymentAvailable: vi.fn(() => true),
-}))
+const { mockValidateSelectorIds, mockGetModelOptions, mockGetCustomToolById, mockGetSkillById } =
+  vi.hoisted(() => ({
+    mockValidateSelectorIds: vi.fn(),
+    mockGetModelOptions: vi.fn(() => []),
+    mockGetCustomToolById: vi.fn(),
+    mockGetSkillById: vi.fn(),
+  }))
 
 const conditionBlockConfig = {
   type: 'condition',
@@ -255,17 +254,11 @@ const blockConfigsByType: Record<string, unknown> = {
   json_code_block: jsonCodeBlockConfig,
 }
 
-vi.mock('@/blocks/registry', () => ({
-  getBlock: (type: string) => blockConfigsByType[type],
-}))
-
 vi.mock('@/blocks/utils', () => ({
   getModelOptions: mockGetModelOptions,
 }))
 
-vi.mock('@/tools/utils', () => ({
-  getTool: mockGetTool,
-}))
+vi.mock('@/tools/utils', () => toolsUtilsMock)
 
 vi.mock('@/lib/workflows/editing/selector-validator', () => ({
   validateSelectorIds: mockValidateSelectorIds,
@@ -279,20 +272,11 @@ vi.mock('@/lib/workflows/skills/operations', () => ({
   getSkillById: mockGetSkillById,
 }))
 
-vi.mock('@/lib/table/service', () => ({ getTableById: vi.fn(async () => null) }))
+vi.mock('@/lib/table/service', () => tableServiceMock)
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  getHostedModels: mockGetHostedModels,
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
-vi.mock('@/lib/integrations/availability.server', () => ({
-  isIntegrationDeploymentAvailableForVisibility: mockIsIntegrationDeploymentAvailable,
-}))
+vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
 import {
@@ -302,6 +286,18 @@ import {
   validateInputsForBlock,
   validateValueForSubBlockType,
 } from './validation'
+
+const { mockGetTool } = toolsUtilsMockFns
+const mockIsIntegrationDeploymentAvailable =
+  integrationsAvailabilityMockFns.mockIsIntegrationDeploymentAvailableForVisibility
+mockGetTool.mockReturnValue(undefined)
+
+tableServiceMockFns.mockGetTableById.mockResolvedValue(null)
+
+const mockGetBlock = getBlock as Mock
+mockGetBlock.mockImplementation((type: string) => blockConfigsByType[type])
+
+const mockGetHostedModels = providersUtilsMockFns.mockGetHostedModels
 
 const CTX = { userId: 'user-1', workspaceId: 'workspace-1' }
 

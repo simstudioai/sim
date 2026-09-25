@@ -1,3 +1,13 @@
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import { fileUtilsServerMock } from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { assert, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   isInternalToolFileResult,
@@ -5,46 +15,34 @@ import {
 } from '@/lib/internal/tool-operations/file-result'
 
 const mocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
-  downloadServableFileFromStorage: vi.fn(),
-  processSingleFileToUserFile: vi.fn(),
-  secureFetchWithPinnedIP: vi.fn(),
-  secureFetchWithValidation: vi.fn(),
   validateMicrosoftGraphId: vi.fn(),
-  validateUrlWithDNS: vi.fn(),
 }))
 
 vi.mock('@/lib/core/security/input-validation', () => ({
   validateMicrosoftGraphId: mocks.validateMicrosoftGraphId,
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
-  secureFetchWithValidation: mocks.secureFetchWithValidation,
-  validateUrlWithDNS: mocks.validateUrlWithDNS,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertToolFileAccess,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  getExtensionFromMimeType: vi.fn(() => 'bin'),
-  processSingleFileToUserFile: mocks.processSingleFileToUserFile,
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mocks.downloadServableFileFromStorage,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 import { downloadOneDriveFile } from '@/lib/internal/onedrive/operations'
 
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockGetExtensionFromMimeType } = fileUtilsMockFns
+const { mockSecureFetchWithPinnedIP, mockValidateUrlWithDNS } = inputValidationMockFns
+
 describe('downloadOneDriveFile', () => {
   beforeEach(() => {
-    mocks.assertToolFileAccess.mockResolvedValue(null)
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockGetExtensionFromMimeType.mockReturnValue('bin')
     mocks.validateMicrosoftGraphId.mockReturnValue({ isValid: true })
-    mocks.validateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
-    mocks.secureFetchWithPinnedIP
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.1' })
+    mockSecureFetchWithPinnedIP
       .mockResolvedValueOnce(
         Response.json({ id: 'file-1', name: 'report.pdf', file: { mimeType: 'application/pdf' } })
       )
@@ -58,9 +56,9 @@ describe('downloadOneDriveFile', () => {
       { signal: controller.signal }
     )
 
-    expect(mocks.secureFetchWithPinnedIP).toHaveBeenCalledTimes(2)
-    expect(mocks.secureFetchWithPinnedIP.mock.calls[0][0]).toContain('folder%2Ffile-1')
-    expect(mocks.secureFetchWithPinnedIP.mock.calls[1][2]).toEqual(
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledTimes(2)
+    expect(mockSecureFetchWithPinnedIP.mock.calls[0][0]).toContain('folder%2Ffile-1')
+    expect(mockSecureFetchWithPinnedIP.mock.calls[1][2]).toEqual(
       expect.objectContaining({ signal: controller.signal })
     )
     assert(isInternalToolFileResult(result))

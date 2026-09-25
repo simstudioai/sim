@@ -1,24 +1,19 @@
+import {
+  providersConversationHistoryMock,
+  providersConversationHistoryMockFns,
+} from '@sim/testing/mocks/providers-conversation-history.mock'
+import {
+  providersModelsMock,
+  providersModelsMockFns,
+} from '@sim/testing/mocks/providers-models.mock'
+import { providersUtilsMock, providersUtilsMockFns } from '@sim/testing/mocks/providers-utils.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockSend = vi.fn()
 const capturedRequestHistories = vi.hoisted(() => [] as unknown[])
 
-vi.mock('@/providers/conversation-history', () => ({
-  getConversationRequestContext: () => undefined,
-  captureProviderConversationStep: vi.fn(
-    (
-      _request: unknown,
-      _protocol: unknown,
-      _message: unknown,
-      _usage: unknown,
-      options?: { requestHistory?: readonly unknown[] }
-    ) => {
-      capturedRequestHistories.push(structuredClone(options?.requestHistory))
-      return Promise.resolve()
-    }
-  ),
-  recordProviderConversationToolError: vi.fn().mockResolvedValue(undefined),
-}))
+vi.mock('@/providers/conversation-history', () => providersConversationHistoryMock)
 
 vi.mock('@aws-sdk/client-bedrock-runtime', () => ({
   BedrockRuntimeClient: vi.fn().mockImplementation(
@@ -45,40 +40,11 @@ vi.mock('@/providers/bedrock/utils', () => ({
     usage ? { input: usage.inputTokens, output: usage.outputTokens } : undefined,
 }))
 
-vi.mock('@/providers/models', () => ({
-  getProviderFileAttachment: vi
-    .fn()
-    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
-  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
-  getProviderModels: vi.fn().mockReturnValue([]),
-  getProviderDefaultModel: vi.fn().mockReturnValue('us.anthropic.claude-3-5-sonnet-20241022-v2:0'),
-  supportsNativeStructuredOutputs: vi.fn().mockReturnValue(false),
-  getModelCapabilities: vi.fn().mockReturnValue({ temperature: { min: 0, max: 1 } }),
-  isKnownModelId: vi.fn().mockReturnValue(true),
-}))
+vi.mock('@/providers/models', () => providersModelsMock)
 
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  calculateCost: vi.fn().mockReturnValue({ input: 0, output: 0, total: 0, pricing: null }),
-  prepareToolExecution: vi.fn((_tool, args) => ({
-    toolParams: args,
-    executionParams: args,
-  })),
-  prepareToolsWithUsageControl: vi.fn().mockReturnValue({
-    tools: [],
-    toolChoice: 'auto',
-    forcedTools: [],
-  }),
-  sumToolCosts: vi.fn().mockReturnValue(0),
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
-vi.mock('@/tools', () => ({
-  executeTool: vi.fn().mockResolvedValue({ success: true, output: false }),
-}))
+vi.mock('@/tools', () => toolsMock)
 
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime'
 import type { StreamingExecution } from '@/executor/types'
@@ -86,6 +52,36 @@ import { bedrockProvider } from '@/providers/bedrock/index'
 import { clearProviderClientCacheForTests } from '@/providers/client-cache'
 import { getModelCapabilities, isKnownModelId } from '@/providers/models'
 import { prepareToolsWithUsageControl } from '@/providers/utils'
+
+providersModelsMockFns.mockGetModelCapabilities.mockReturnValue({ temperature: { min: 0, max: 1 } })
+providersModelsMockFns.mockIsKnownModelId.mockReturnValue(true)
+providersConversationHistoryMockFns.mockCaptureProviderConversationStep.mockImplementation(
+  (
+    _request: unknown,
+    _protocol: unknown,
+    _message: unknown,
+    _usage: unknown,
+    options?: { requestHistory?: readonly unknown[] }
+  ) => {
+    capturedRequestHistories.push(structuredClone(options?.requestHistory))
+    return Promise.resolve()
+  }
+)
+
+providersUtilsMockFns.mockCalculateCost.mockReturnValue({
+  input: 0,
+  output: 0,
+  total: 0,
+  pricing: null,
+})
+providersUtilsMockFns.mockPrepareToolsWithUsageControl.mockReturnValue({
+  tools: [],
+  toolChoice: 'auto',
+  forcedTools: [],
+  hasFilteredTools: false,
+})
+
+toolsMockFns.mockExecuteTool.mockResolvedValue({ success: true, output: false })
 
 describe('bedrockProvider credential handling', () => {
   beforeEach(() => {

@@ -2,7 +2,24 @@ import { propagation, trace } from '@opentelemetry/api'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
-import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  mothershipAgentUrlMock,
+  mothershipAgentUrlMockFns,
+} from '@sim/testing/mocks/mothership-agent-url.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import { mothershipChatStatusMock } from '@sim/testing/mocks/mothership-chat-status.mock'
+import {
+  mothershipGoFetchMock,
+  mothershipGoFetchMockFns,
+} from '@sim/testing/mocks/mothership-go-fetch.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import {
   MothershipStreamV1CompletionStatus,
@@ -13,9 +30,6 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 
 const {
   runCopilotLifecycle,
-  createRunSegment,
-  updateRunStatus,
-  recordRunBillingAdmission,
   resetBuffer,
   clearFilePreviewSessions,
   scheduleBufferCleanup,
@@ -27,14 +41,9 @@ const {
   registerActiveStream,
   releasePendingChatStream,
   unregisterActiveStream,
-  fetchGo,
   buildChatTitleContext,
-  checkTitleUsage,
 } = vi.hoisted(() => ({
   runCopilotLifecycle: vi.fn(),
-  createRunSegment: vi.fn(),
-  updateRunStatus: vi.fn(),
-  recordRunBillingAdmission: vi.fn(),
   resetBuffer: vi.fn(),
   clearFilePreviewSessions: vi.fn(),
   scheduleBufferCleanup: vi.fn(),
@@ -46,9 +55,7 @@ const {
   registerActiveStream: vi.fn(),
   releasePendingChatStream: vi.fn(),
   unregisterActiveStream: vi.fn(),
-  fetchGo: vi.fn(),
   buildChatTitleContext: vi.fn().mockResolvedValue(undefined),
-  checkTitleUsage: vi.fn().mockResolvedValue({ isExceeded: false }),
 }))
 
 const BILLING_ATTRIBUTION = {
@@ -75,10 +82,7 @@ vi.mock('@/lib/mothership/request/session/controller-lease', async (original) =>
   assertChatStreamLease: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', async (original) => ({
-  ...(await original<typeof import('@/lib/billing/core/billing-attribution')>()),
-  checkAttributedUsageLimits: checkTitleUsage,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/mothership/chat/title-context', () => ({ buildChatTitleContext }))
 
@@ -86,11 +90,7 @@ vi.mock('@/lib/mothership/request/lifecycle/run', () => ({
   runCopilotLifecycle,
 }))
 
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  createRunSegment,
-  updateRunStatus,
-  recordRunBillingAdmission,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 let mockDisconnected = false
 let mockPublisherController: ReadableStreamDefaultController | null = null
@@ -142,20 +142,22 @@ vi.mock('@/lib/mothership/request/session/sse', () => ({
   SSE_RESPONSE_HEADERS: {},
 }))
 
-vi.mock('@/lib/mothership/chat-status', () => ({
-  publishChatStatusChanged: vi.fn(),
-}))
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 
-vi.mock('@/lib/mothership/request/go/fetch', () => ({
-  fetchGo,
-}))
+vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
 
-vi.mock('@/lib/mothership/server/agent-url', () => ({
-  getMothershipBaseURL: vi.fn().mockResolvedValue('https://copilot.test'),
-  getMothershipSourceEnvHeaders: vi.fn().mockReturnValue({}),
-}))
+vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
 import { createSSEStream, requestChatTitle } from './start'
+
+const { mockCreateRunSegment: createRunSegment, mockUpdateRunStatus: updateRunStatus } =
+  mothershipAsyncRunsMockFns
+const recordRunBillingAdmission = mothershipAsyncRunsMockFns.mockRecordRunBillingAdmission
+const fetchGo = mothershipGoFetchMockFns.mockFetchGo
+mothershipAgentUrlMockFns.mockGetMothershipBaseURL.mockResolvedValue('https://copilot.test')
+
+const checkTitleUsage = billingAttributionMockFns.mockCheckAttributedUsageLimits
+checkTitleUsage.mockResolvedValue({ isExceeded: false })
 
 async function drainStream(stream: ReadableStream) {
   const reader = stream.getReader()
@@ -211,10 +213,6 @@ describe('createSSEStream terminal error handling', () => {
     releasePendingChatStream.mockResolvedValue(undefined)
     createRunSegment.mockResolvedValue({ status: 'active' })
     updateRunStatus.mockResolvedValue(null)
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it('durably records the exact billing admission under the current controller before dispatch', async () => {

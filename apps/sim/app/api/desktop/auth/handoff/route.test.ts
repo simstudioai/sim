@@ -1,36 +1,18 @@
-import { createMockRequest } from '@sim/testing'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { rateLimiterMock, rateLimiterMockFns } from '@sim/testing/mocks/rate-limiter.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetSession, mockCreateSession, mockCreateVerificationValue, mockEnforceIpRateLimit } =
-  vi.hoisted(() => ({
-    mockGetSession: vi.fn(),
-    mockCreateSession: vi.fn(),
-    mockCreateVerificationValue: vi.fn(),
-    mockEnforceIpRateLimit: vi.fn(),
-  }))
-
-vi.mock('@/lib/auth', () => ({
-  auth: {
-    api: { getSession: mockGetSession },
-    $context: Promise.resolve({
-      internalAdapter: {
-        createSession: mockCreateSession,
-        createVerificationValue: mockCreateVerificationValue,
-      },
-    }),
-  },
-  getSession: vi.fn(),
-}))
-
-vi.mock('@/lib/core/rate-limiter', () => ({
-  enforceIpRateLimit: mockEnforceIpRateLimit,
-}))
+vi.mock('@/lib/core/rate-limiter', () => rateLimiterMock)
 
 vi.mock('next/headers', () => ({
   headers: vi.fn(async () => new Headers()),
 }))
 
 import { POST } from '@/app/api/desktop/auth/handoff/route'
+
+const mockEnforceIpRateLimit = rateLimiterMockFns.mockEnforceIpRateLimit
+const { mockGetSession, mockCreateSession, mockCreateVerificationValue } = authMockFns
 
 const BROWSER_SESSION_TOKEN = 'browser-session-token'
 const DESKTOP_SESSION_TOKEN = 'desktop-session-token'

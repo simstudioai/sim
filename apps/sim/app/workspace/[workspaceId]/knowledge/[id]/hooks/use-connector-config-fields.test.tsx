@@ -3,16 +3,7 @@
  */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-vi.mock('@/components/icons', () => ({
-  GmailIcon: () => null,
-  GoogleCalendarIcon: () => null,
-  GoogleDriveIcon: () => null,
-  JiraIcon: () => null,
-  ConfluenceIcon: () => null,
-}))
-
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { describeSearchSource, SOURCE_LABELS_KEY } from '@/lib/sim-search/source-identity'
 import {
   type UseConnectorConfigFieldsOptions,

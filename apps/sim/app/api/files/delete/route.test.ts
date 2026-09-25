@@ -4,55 +4,27 @@ import {
   storageServiceMock,
   storageServiceMockFns,
 } from '@sim/testing'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { uploadsMock, uploadsMockFns } from '@sim/testing/mocks/uploads.mock'
+import {
+  uploadsMetadataMock,
+  uploadsMetadataMockFns,
+} from '@sim/testing/mocks/uploads-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => {
-  const mockVerifyFileAccess = vi.fn()
-  const mockVerifyWorkspaceFileAccess = vi.fn()
-  const mockGetStorageProvider = vi.fn()
-  const mockIsUsingCloudStorage = vi.fn()
+vi.mock('@sim/utils/id', () => idMock)
 
-  return {
-    mockVerifyFileAccess,
-    mockVerifyWorkspaceFileAccess,
-    mockGetStorageProvider,
-    mockIsUsingCloudStorage,
-  }
-})
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: vi.fn(() => 'test-uuid'),
-  generateShortId: vi.fn(() => 'mock-short-id'),
-  isValidUuid: vi.fn((v: string) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
-  ),
-}))
-
-vi.mock('@/app/api/files/authorization', () => ({
-  verifyFileAccess: mocks.mockVerifyFileAccess,
-  verifyWorkspaceFileAccess: mocks.mockVerifyWorkspaceFileAccess,
-}))
-
-vi.mock('@/lib/uploads', () => ({
-  getStorageProvider: mocks.mockGetStorageProvider,
-  isUsingCloudStorage: mocks.mockIsUsingCloudStorage,
-  StorageService: {
-    uploadFile: storageServiceMockFns.mockUploadFile,
-    downloadFile: storageServiceMockFns.mockDownloadFile,
-    deleteFile: storageServiceMockFns.mockDeleteFile,
-    hasCloudStorage: storageServiceMockFns.mockHasCloudStorage,
-  },
-  uploadFile: storageServiceMockFns.mockUploadFile,
-  downloadFile: storageServiceMockFns.mockDownloadFile,
-  deleteFile: storageServiceMockFns.mockDeleteFile,
-  hasCloudStorage: storageServiceMockFns.mockHasCloudStorage,
-}))
+vi.mock('@/lib/uploads', () => uploadsMock)
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
-vi.mock('@/lib/uploads/server/metadata', () => ({
-  deleteFileMetadata: vi.fn().mockResolvedValue(undefined),
-}))
+vi.mock('@/lib/uploads/server/metadata', () => uploadsMetadataMock)
 
 vi.mock('fs/promises', () => ({
   unlink: vi.fn().mockResolvedValue(undefined),
@@ -62,6 +34,10 @@ vi.mock('fs/promises', () => ({
 
 import { createMockRequest } from '@sim/testing'
 import { POST } from '@/app/api/files/delete/route'
+
+idMockFns.mockGenerateId.mockReturnValue('test-uuid')
+idMockFns.mockGenerateShortId.mockReturnValue('mock-short-id')
+uploadsMetadataMockFns.mockDeleteFileMetadata.mockResolvedValue(undefined)
 
 describe('File Delete API Route', () => {
   beforeEach(() => {
@@ -75,12 +51,11 @@ describe('File Delete API Route', () => {
       userId: 'test-user-id',
       error: undefined,
     })
-    mocks.mockVerifyFileAccess.mockResolvedValue(true)
-    mocks.mockVerifyWorkspaceFileAccess.mockResolvedValue(true)
+    filesAuthorizationMockFns.mockVerifyFileAccess.mockResolvedValue(true)
     storageServiceMockFns.mockDeleteFile.mockResolvedValue(undefined)
     storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
-    mocks.mockGetStorageProvider.mockReturnValue('s3')
-    mocks.mockIsUsingCloudStorage.mockReturnValue(true)
+    uploadsMockFns.mockGetStorageProvider.mockReturnValue('s3')
+    uploadsMockFns.mockIsUsingCloudStorage.mockReturnValue(true)
   })
 
   it('rejects a client context that disagrees with the key prefix', async () => {
@@ -94,7 +69,7 @@ describe('File Delete API Route', () => {
 
     expect(response.status).toBe(400)
     expect(data).toHaveProperty('error', 'InvalidRequestError')
-    expect(mocks.mockVerifyFileAccess).not.toHaveBeenCalled()
+    expect(filesAuthorizationMockFns.mockVerifyFileAccess).not.toHaveBeenCalled()
     expect(storageServiceMockFns.mockDeleteFile).not.toHaveBeenCalled()
   })
 })

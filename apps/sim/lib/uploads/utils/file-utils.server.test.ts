@@ -1,25 +1,24 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { filesAuthorizationMock } from '@sim/testing/mocks/files-authorization.mock'
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDownloadFile, mockParseWorkspaceFileKey, mockResolveServableDocBytes, mockRenderPage } =
-  vi.hoisted(() => ({
-    mockDownloadFile: vi.fn(),
-    mockParseWorkspaceFileKey: vi.fn(),
-    mockResolveServableDocBytes: vi.fn(),
-    mockRenderPage: vi.fn(),
-  }))
-
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  downloadFile: mockDownloadFile,
-  hasCloudStorage: vi.fn(() => true),
+const { mockResolveServableDocBytes, mockRenderPage } = vi.hoisted(() => ({
+  mockResolveServableDocBytes: vi.fn(),
+  mockRenderPage: vi.fn(),
 }))
+
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 vi.mock('@/lib/uploads/contexts/execution/execution-file-manager', () => ({
-  downloadExecutionFile: mockDownloadFile,
+  downloadExecutionFile: storageServiceMockFns.mockDownloadFile,
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  parseWorkspaceFileKey: mockParseWorkspaceFileKey,
-}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
 vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({
   resolveServableDocBytes: mockResolveServableDocBytes,
@@ -29,9 +28,7 @@ vi.mock('@/lib/workspace-files/page-document.server', () => ({
   renderSimPageDocumentWithContributors: mockRenderPage,
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({
-  verifyFileAccess: vi.fn(),
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
 import { createLogger } from '@sim/logger'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
@@ -42,6 +39,11 @@ import {
   downloadServableFilesWithinBudget,
 } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
+
+const mockParseWorkspaceFileKey = workspaceFileManagerMockFns.mockParseWorkspaceFileKey
+
+const mockDownloadFile = storageServiceMockFns.mockDownloadFile
+storageServiceMockFns.mockHasCloudStorage.mockImplementation(() => true)
 
 describe('downloadFileFromStorage context derivation', () => {
   beforeEach(() => {
@@ -86,7 +88,7 @@ describe('downloadFileFromStorage context derivation', () => {
       context: 'execution',
     }
 
-    const filePrincipal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+    const filePrincipal = createSessionPrincipal()
     await downloadServableFileFromStorage(userFile, 'req-1', createLogger('test'), {
       maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
       filePrincipal,

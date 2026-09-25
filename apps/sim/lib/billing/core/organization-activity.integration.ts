@@ -1,15 +1,11 @@
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { generateId } from '@sim/utils/id'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-const { databaseUrl, execute, select } = vi.hoisted(() => {
-  const databaseUrl = process.env.TEST_DATABASE_URL
-  if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseUrl).hostname)) {
-    throw new Error('Activity integration tests require a disposable local database')
-  }
-  return { databaseUrl, execute: vi.fn(), select: vi.fn() }
-})
+const { execute, select } = vi.hoisted(() => ({ execute: vi.fn(), select: vi.fn() }))
+const databaseUrl = readTestDatabaseUrl()
 
 vi.mock('@sim/db', () => ({ dbReplica: { execute, select } }))
 vi.mock('@/lib/core/config/redis', () => ({ getRedisClient: () => null }))
@@ -28,16 +24,14 @@ import {
 } from '@/lib/billing/core/usage-analytics'
 
 const schemaName = `activity_${generateId().replaceAll('-', '')}`
-const connection = databaseUrl
-  ? postgres(databaseUrl, {
-      max: 1,
-      prepare: false,
-      fetch_types: false,
-      connection: { search_path: schemaName, timezone: 'Pacific/Auckland' },
-      onnotice: () => undefined,
-    })
-  : undefined
-const database = connection ? drizzle(connection) : undefined
+const connection = postgres(databaseUrl, {
+  max: 1,
+  prepare: false,
+  fetch_types: false,
+  connection: { search_path: schemaName, timezone: 'Pacific/Auckland' },
+  onnotice: () => undefined,
+})
+const database = drizzle(connection)
 /** The summary the use case draws: per-day reads folded into the window's buckets. */
 async function readActivitySummary(scope: ActivityScope, bucket: UsageBucket, timezone: string) {
   const window = { kind: 'range', from: scope.start, to: scope.end } as const
@@ -55,7 +49,6 @@ const scope = {
 }
 
 beforeAll(async () => {
-  if (!connection || !database) return
   await connection.unsafe(`CREATE SCHEMA "${schemaName}"`)
   await connection.unsafe(`
     CREATE TABLE workspace (id text PRIMARY KEY, name text, organization_id text);
@@ -107,12 +100,11 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  if (!connection) return
   await connection.unsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
   await connection.end()
 })
 
-describe.skipIf(!databaseUrl)('organization activity SQL', () => {
+describe('organization activity SQL', () => {
   it('isolates tenants and personal chats, deduplicates continuations, and excludes unfinished durations', async () => {
     const result = await readActivitySummary(scope, 'day', 'America/Los_Angeles')
     expect(result.totals).toEqual({
@@ -195,7 +187,6 @@ describe.skipIf(!databaseUrl)('organization activity SQL', () => {
   })
 
   it('paginates aggregated rows deterministically without losing tied rows', async () => {
-    if (!connection) throw new Error('Missing fixture')
     await connection`INSERT INTO workflow_execution_logs
       SELECT 'page-' || i, 'w1', 'f1', 'trigger-' || lpad(i::text, 2, '0'),
         '2026-04-01'::timestamp, 'completed', 0 FROM generate_series(1, 27) i`

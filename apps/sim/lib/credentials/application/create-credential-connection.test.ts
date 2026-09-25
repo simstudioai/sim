@@ -1,37 +1,37 @@
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   resolveTarget: vi.fn(),
   createDraft: vi.fn(),
-  getBaseUrl: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/credentials/application/connection-target', () => ({
-  resolveCredentialConnectionTarget: mocks.resolveTarget,
+  resolveCredentialConnectionTarget: hoisted.resolveTarget,
 }))
 
 vi.mock('@/lib/credentials/connect-draft', () => ({
-  createConnectDraft: mocks.createDraft,
-}))
-
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: mocks.getBaseUrl,
-  SITE_URL: 'http://localhost:3000',
+  createConnectDraft: hoisted.createDraft,
 }))
 
 import { createCredentialConnection } from '@/lib/credentials/application/create-credential-connection'
+
+const mocks = {
+  ...hoisted,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  getBaseUrl: urlsMockFns.mockGetBaseUrl,
+}
 
 const workspaceContext = {
   workspaceId: 'workspace-1',
@@ -39,11 +39,7 @@ const workspaceContext = {
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
-const personalPrincipal = {
-  kind: 'personal_api_key' as const,
-  userId: 'user-1',
-  keyId: 'key-1',
-}
+const personalPrincipal = createPersonalApiKeyPrincipal()
 
 describe('createCredentialConnection', () => {
   beforeEach(() => {

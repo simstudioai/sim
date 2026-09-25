@@ -1,3 +1,12 @@
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import type { Attributes, SFTPWrapper } from 'ssh2'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,9 +17,6 @@ const mocks = vi.hoisted(() => ({
   readFile: vi.fn(),
   exists: vi.fn(),
   isDirectory: vi.fn(),
-  processFiles: vi.fn(),
-  downloadFile: vi.fn(),
-  assertFileAccess: vi.fn(),
   docNotReadyResponse: vi.fn(),
 }))
 
@@ -29,25 +35,22 @@ vi.mock('@/lib/internal/sftp/client', () => ({
   sftpIsDirectory: mocks.isDirectory,
 }))
 
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  getFileExtension: (name: string) => name.split('.').pop() ?? '',
-  getMimeTypeFromExtension: () => 'text/plain',
-  processFilesToUserFiles: mocks.processFiles,
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mocks.downloadFile,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 vi.mock('@/lib/uploads/utils/servable-file-response', () => ({
   docNotReadyResponse: mocks.docNotReadyResponse,
 }))
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertFileAccess,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
 
 import { executeSftpDownload, executeSftpUpload } from '@/lib/internal/sftp/operations'
+
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
+const { mockGetFileExtension, mockGetMimeTypeFromExtension, mockProcessFilesToUserFiles } =
+  fileUtilsMockFns
 
 const connectionInput = {
   host: 'sftp.example.com',
@@ -62,7 +65,9 @@ const context = { userId: 'user-1', requestId: 'request-1' }
 describe('SFTP operations', () => {
   beforeEach(() => {
     mocks.createConnection.mockResolvedValue({ end: mocks.clientEnd })
-    mocks.assertFileAccess.mockResolvedValue(null)
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockGetFileExtension.mockImplementation((name: string) => name.split('.').pop() ?? '')
+    mockGetMimeTypeFromExtension.mockReturnValue('text/plain')
     mocks.docNotReadyResponse.mockReturnValue(null)
   })
 
@@ -87,8 +92,8 @@ describe('SFTP operations', () => {
     const denied = Response.json({ success: false, error: 'File not found' }, { status: 404 })
     const file = { key: 'workspace/file', name: 'private.txt', size: 4 }
     mocks.getSftp.mockResolvedValue({} as SFTPWrapper)
-    mocks.processFiles.mockReturnValue([file])
-    mocks.assertFileAccess.mockResolvedValue(denied)
+    mockProcessFilesToUserFiles.mockReturnValue([file])
+    mockAssertToolFileAccess.mockResolvedValue(denied)
 
     const response = await executeSftpUpload(
       {
@@ -104,13 +109,13 @@ describe('SFTP operations', () => {
     )
 
     expect(response.status).toBe(404)
-    expect(mocks.assertFileAccess).toHaveBeenCalledWith(
+    expect(mockAssertToolFileAccess).toHaveBeenCalledWith(
       'workspace/file',
       'user-1',
       'request-1',
       expect.anything()
     )
-    expect(mocks.downloadFile).not.toHaveBeenCalled()
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
     expect(mocks.clientEnd).toHaveBeenCalledOnce()
   })
 })

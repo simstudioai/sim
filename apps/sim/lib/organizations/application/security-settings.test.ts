@@ -1,32 +1,40 @@
 import type { OrganizationDelegatedPrincipal, Principal } from '@sim/auth/principal'
 import { member, organization, session, ssoDomain } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  authorizedWorkspaceUseCaseMock,
+  authorizedWorkspaceUseCaseMockFns,
+} from '@sim/testing/mocks/authorized-workspace-use-case.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  enterprise: vi.fn(),
-  audit: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   dns: vi.fn(),
   invalidate: vi.fn(),
   invalidateSso: vi.fn(),
 }))
-vi.mock('@/lib/core/config/env-flags', () => ({ isBillingEnabled: true }))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mocks.enterprise,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: async () => null,
-}))
-vi.mock('@/lib/core/application/authorized-workspace-use-case', () => ({
-  recordProjectedUseCaseAuditEntries: mocks.audit,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock(
+  '@/lib/core/application/authorized-workspace-use-case',
+  () => authorizedWorkspaceUseCaseMock
+)
 vi.mock('@/lib/auth/sso/domain-verification', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/auth/sso/domain-verification')>()),
-  checkDomainTxtRecord: mocks.dns,
+  checkDomainTxtRecord: hoisted.dns,
 }))
-vi.mock('@/lib/auth/sso-policy', () => ({ invalidateSsoPolicyCache: mocks.invalidateSso }))
+vi.mock('@/lib/auth/sso-policy', () => ({ invalidateSsoPolicyCache: hoisted.invalidateSso }))
 vi.mock('@/lib/auth/security-policy', () => ({
-  invalidateSecurityPolicyVersionCache: mocks.invalidate,
+  invalidateSecurityPolicyVersionCache: hoisted.invalidate,
 }))
 
 import {
@@ -39,6 +47,15 @@ import {
 import { revokeOrganizationSessions } from '@/lib/organizations/application/revoke-sessions'
 import { organizationSecurityOperations } from '@/lib/organizations/application/security-operations'
 
+const mocks = {
+  ...hoisted,
+  audit: authorizedWorkspaceUseCaseMockFns.mockRecordProjectedUseCaseAuditEntries,
+  enterprise: billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan,
+}
+
+setEnvFlags({ isBillingEnabled: true })
+afterAll(resetEnvFlagsMock)
+
 const delegated: OrganizationDelegatedPrincipal = {
   kind: 'organization_delegated',
   serviceId: 'copilot',
@@ -50,7 +67,7 @@ const delegated: OrganizationDelegatedPrincipal = {
   expiresAt: new Date('2099-01-01'),
   resourceScope: { chatId: 'chat' },
 }
-const principal = { kind: 'session', userId: 'actor', sessionId: 'current-session' } as const
+const principal = createSessionPrincipal({ userId: 'actor', sessionId: 'current-session' })
 const row = {
   id: 'domain',
   organizationId: 'org',
@@ -99,7 +116,7 @@ describe('organization domain Settings operations', () => {
     { ...delegated, audience: 'sim:knowledge' },
     { ...delegated, organizationId: 'other' },
     { ...delegated, expiresAt: new Date(0) },
-    { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' },
+    createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace', keyId: 'key' }),
   ])('refuses invalid delegated scope before domain access', async (caller) => {
     await expect(
       listOrganizationDomains.execute({ principal: caller, input: { organizationId: 'org' } })

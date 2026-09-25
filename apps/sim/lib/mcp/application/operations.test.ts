@@ -1,16 +1,11 @@
 import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mocks = vi.hoisted(() => ({
-  resolvePermission: vi.fn(),
-}))
 
 const resolveGroupConfigMock = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
@@ -18,6 +13,10 @@ import type { WorkspaceOperation } from '@/lib/core/application'
 import { authorizeWorkspaceOperation, PermissionGroupCapabilityError } from '@/lib/core/application'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
+
+const mocks = {
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 describe('MCP server operation registry', () => {
   it('requires a human subject for tool discovery', () => {
@@ -108,7 +107,7 @@ describe('MCP server operation registry', () => {
   })
 })
 
-const sessionPrincipal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const sessionPrincipal = createSessionPrincipal()
 const context = {
   workspaceId: 'workspace-1',
   workspaceOrganizationId: 'organization-1',

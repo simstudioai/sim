@@ -42,10 +42,8 @@ afterEach(() => {
   stop?.()
   stop = undefined
   observers.length = 0
-  vi.restoreAllMocks()
   setBrowserTelemetryPreference(true)
   localStorage.clear()
-  vi.clearAllMocks()
   vi.useRealTimers()
 })
 

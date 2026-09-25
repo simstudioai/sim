@@ -15,7 +15,15 @@ When the user runs `/ship`:
 1. **Check git status** - See what files have changed
 2. **Sync check**: `git fetch origin staging && git log --oneline origin/staging..HEAD`. The list must contain ONLY commits you can attribute to this session (recognizable subjects/SHAs) — a worktree/branch cut from a stale local `staging` silently drags in unrelated commits.
    - If it shows commits you don't recognize, fix it now, **before** staging/committing any new work (step 7 hasn't run yet):
-     - If the working tree has uncommitted changes, stash them first — `git stash push -u -m ship-sync-fix` — so the rebase below isn't blocked by dirty state. Restore with `git stash pop` once the branch is fixed.
+     - If the working tree has uncommitted changes, stash them first so the rebase below isn't blocked by dirty state, and pin the entry by SHA — the stash list is shared across every worktree of the repo, so `stash@{0}` and `git stash pop` can grab another session's entry:
+       ```bash
+       git stash push -u -m ship-sync-fix && SHIP_STASH=$(git rev-parse 'stash@{0}')
+       # once the branch is fixed (`git stash drop` rejects a raw SHA, so resolve the pinned
+       # entry's current stash@{n} and drop only that; an empty lookup drops nothing):
+       git stash apply "$SHIP_STASH" &&
+         SHIP_STASH_REF=$(git stash list --format='%gd %H' | awk -v s="$SHIP_STASH" '$2==s{print $1}') &&
+         { [ -z "$SHIP_STASH_REF" ] || git stash drop "$SHIP_STASH_REF"; }
+       ```
      - Try `git rebase origin/staging` first.
      - **A rebase finishing without conflicts does NOT by itself mean the branch is clean** — it can replay stray commits onto the new base with no conflict at all. After the rebase (clean or not), re-run `git log --oneline origin/staging..HEAD` and re-check the commit list against what you recognize.
      - If the rebase conflicted on unrecognized commits, OR finished cleanly but the log still shows them, abandon it (`git rebase --abort` if mid-rebase) and rebuild, in this exact order:
@@ -32,7 +40,8 @@ When the user runs `/ship`:
   - Keep it concise
 4. **Run the cleanup and test gates**
   - If the diff modifies UI code (any non-test `.tsx` file, or anything under `apps/sim/components/`, `apps/sim/hooks/`, or `apps/sim/stores/`), run `/cleanup`. It fans out the React/UI passes (effects, memo, callbacks, state, React Query, emcn, url-state), the comment pass, and the test-audit pass, and applies fixes so they land in this commit.
-  - Otherwise, if the diff adds or changes tests (`*.test.ts(x)`, `*.integration.ts`, `e2e/**`), run `/test-audit audit <changed test files>` on its own. Every new or changed test must pass the authoring gate; delete the ones that don't rather than shipping them.
+  - Otherwise, if the diff adds or changes tests (`*.test.ts(x)`, `*.integration.ts`, `**/e2e/**`, `apps/sim/scripts/test-*-e2e.ts`), run `/test-audit audit <changed test files>` on its own. Every new or changed test must pass the authoring gate; delete the ones that don't rather than shipping them.
+  - Then run the test files the diff adds or changes, plus the existing tests beside changed source files, with `bun run --cwd <workspace> test <paths>` (`bun run --cwd apps/sim test <paths>` for the app; `*.integration.ts` needs the setup in `.claude/rules/sim-testing.md`). A failing test aborts ship.
 5. **Run migration safety** — only if the diff touches `packages/db/migrations/**` or `packages/db/schema.ts`:
   - Run `/db-migrate` to review the migration for zero-downtime safety (expand/contract phasing, backward-compatibility with the deployed app version).
   - `bun run check:migrations origin/staging` must pass (staging is the PR base). Do not silence a flagged statement with a `-- migration-safe:` annotation unless `/db-migrate` confirmed the old code no longer depends on it; otherwise split the destructive change into a later deploy.
@@ -139,7 +148,7 @@ Use this exact template in the user's voice (concise, bullet points):
 - [x] Bug fix (or appropriate type)
 
 ## Testing
-Tested manually (or describe testing)
+Describe the checks, tests, and E2E artifacts run
 
 ## Checklist
 - [x] Code follows project style guidelines
@@ -169,6 +178,6 @@ gh pr create --base staging --title "COMMIT_MESSAGE" --body "PR_BODY"
 
 - Short, direct bullet points
 - No unnecessary explanation
-- "Tested manually" is acceptable for testing section; include lint, boundary validation, and (when migrations changed) `check:migrations` results when run
+- Testing section names what actually ran: the test files, lint, `check:audits`, (when migrations changed) `check:migrations`, and any E2E artifacts
 - Checkboxes filled in appropriately
 - No screenshots section unless UI changes

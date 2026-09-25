@@ -1,20 +1,22 @@
 import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
+import {
+  tableApplicationTablesMock,
+  tableApplicationTablesMockFns,
+} from '@sim/testing/mocks/table-application-tables.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  createPrincipal: vi.fn(),
-  readTable: vi.fn(),
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mocks.createPrincipal,
-}))
-
-vi.mock('@/lib/table/application/tables', () => ({
-  readTableDefinitionUseCase: { execute: mocks.readTable },
-}))
+vi.mock('@/lib/table/application/tables', () => tableApplicationTablesMock)
 
 import { readTableSchemaAsExecutor } from '@/lib/internal/table/read-schema'
+
+const mockCreatePrincipal = executorPrincipalMockFns.mockCreateExecutorPrincipalFromExecutionContext
+const readTable = tableApplicationTablesMockFns.mockReadTableDefinitionUseCase
 
 const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
   kind: 'delegated',
@@ -31,8 +33,8 @@ const PRINCIPAL: WorkflowExecutionDelegatedPrincipal = {
 
 describe('readTableSchemaAsExecutor', () => {
   beforeEach(() => {
-    mocks.createPrincipal.mockResolvedValue(PRINCIPAL)
-    mocks.readTable.mockResolvedValue({
+    mockCreatePrincipal.mockResolvedValue(PRINCIPAL)
+    readTable.mockResolvedValue({
       table: {
         name: 'Customers',
         schema: {
@@ -58,7 +60,7 @@ describe('readTableSchemaAsExecutor', () => {
       },
     })
 
-    expect(mocks.readTable).toHaveBeenCalledWith({
+    expect(readTable).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: { tableId: 'table-1', workspaceId: 'workspace-canonical' },
     })
@@ -72,7 +74,7 @@ describe('readTableSchemaAsExecutor', () => {
   })
 
   it('fails closed when canonical schema metadata is malformed', async () => {
-    mocks.readTable.mockResolvedValueOnce({
+    readTable.mockResolvedValueOnce({
       table: { name: 'Customers', schema: { columns: [{ name: 'email', type: 'unknown' }] } },
     })
 

@@ -6,17 +6,19 @@
  * reporting it as `degraded`. Indexing that would embed junk, so it must fail the
  * document exactly as empty output does.
  */
+
+import { fileParsersMock, fileParsersMockFns } from '@sim/testing/mocks/file-parsers.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockParseBuffer, mockDownload } = vi.hoisted(() => {
+vi.hoisted(() => {
   // A developer's .env MISTRAL_API_KEY would route the empty-parse case into
   // the OCR/cloud-upload branch and fail on unmocked uploads; CI has no key.
   // Pin the keyless path so the test is hermetic.
   process.env.MISTRAL_API_KEY = ''
-  return {
-    mockParseBuffer: vi.fn(),
-    mockDownload: vi.fn(),
-  }
 })
 
 vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
@@ -27,13 +29,14 @@ vi.mock('@/lib/core/rate-limiter/provider-admission', () => ({
   waitForProviderAdmission: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/lib/file-parsers', () => ({
-  parseBuffer: mockParseBuffer,
-  isSupportedFileType: (extension: string) => ['pdf', 'docx', 'pptx', 'doc'].includes(extension),
-}))
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({ downloadFileFromUrl: mockDownload }))
+vi.mock('@/lib/file-parsers', () => fileParsersMock)
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
+
+const mockParseBuffer = fileParsersMockFns.mockParseBuffer
+
+const mockDownload = fileUtilsServerMockFns.mockDownloadFileFromUrl
 
 const CONNECTOR_PDF_URL = '/api/files/serve/s3/kb%2F1-abc-Report.pdf?context=knowledge-base'
 

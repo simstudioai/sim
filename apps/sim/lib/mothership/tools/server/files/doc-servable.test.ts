@@ -1,8 +1,8 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { remoteSandboxMock, remoteSandboxMockFns } from '@sim/testing/mocks/remote-sandbox.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockExecuteInSandbox,
   mockLoadCompiledDoc,
   mockLoadPublishedCompiledDoc,
   mockPublishCompiledDocArtifact,
@@ -11,7 +11,6 @@ const {
   mockRunSandboxTask,
   mockStoreCompiledDoc,
 } = vi.hoisted(() => ({
-  mockExecuteInSandbox: vi.fn(),
   mockLoadCompiledDoc: vi.fn(),
   mockLoadPublishedCompiledDoc: vi.fn(),
   mockPublishCompiledDocArtifact: vi.fn(),
@@ -21,10 +20,7 @@ const {
   mockStoreCompiledDoc: vi.fn(),
 }))
 
-vi.mock('@/lib/execution/remote-sandbox', () => ({
-  executeInSandbox: mockExecuteInSandbox,
-  executeShellInSandbox: vi.fn(),
-}))
+vi.mock('@/lib/execution/remote-sandbox', () => remoteSandboxMock)
 vi.mock('@/lib/execution/languages', () => ({
   CodeLanguage: { javascript: 'javascript', python: 'python' },
 }))
@@ -54,6 +50,8 @@ vi.mock('@/app/api/files/utils', () => ({
 
 import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
 import { compileDoc, resolveServableDoc, resolveServableDocBytes } from './doc-compile'
+
+const { mockExecuteInSandbox } = remoteSandboxMockFns
 
 const WORKSPACE_ID = '550e8400-e29b-41d4-a716-446655440000'
 const FILE_PRINCIPAL = { kind: 'session', userId: 'user-1' } as const

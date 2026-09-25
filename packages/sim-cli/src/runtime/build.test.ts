@@ -111,7 +111,6 @@ async function run(argv: string[], response: unknown = { data: [], nextCursor: n
 
 describe('commands parsed through commander', () => {
   beforeEach(() => {
-    vi.restoreAllMocks()
     profileState.workspaceId = 'ws_local'
   })
 

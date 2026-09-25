@@ -1,42 +1,30 @@
-import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workspace } from '@sim/db/schema'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { posthogServerMock, posthogServerMockFns } from '@sim/testing/mocks/posthog-server.mock'
+import {
+  workspaceAuthorizationMock,
+  workspaceAuthorizationMockFns,
+} from '@sim/testing/mocks/workspace-authorization.mock'
+import { workspaceForkingAuthzMock } from '@sim/testing/mocks/workspace-forking-authz.mock'
+import { workspaceForkingLineageMock } from '@sim/testing/mocks/workspace-forking-lineage.mock'
+import { workspaceForkingMappingStoreMock } from '@sim/testing/mocks/workspace-forking-mapping-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoistedMocks = vi.hoisted(() => ({
   rollback: vi.fn(),
   activity: vi.fn(),
-  analytics: vi.fn(),
-  audit: vi.fn(),
-  authorize: vi.fn(),
-  workspace: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {
-    WORKSPACE_FORK_ROLLED_BACK: 'workspace.fork.rolled_back',
-    WORKSPACE_FORK_UNLINKED: 'workspace.fork.unlinked',
-    WORKFLOW_FORK_SYNC_EXCLUDED: 'workflow.fork_sync.excluded',
-    WORKFLOW_FORK_SYNC_INCLUDED: 'workflow.fork_sync.included',
-  },
-  AuditResourceType: { WORKSPACE: 'workspace' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@/lib/core/application/workspace-authorization', () => ({
-  authorizeWorkspaceOperation: mocks.authorize,
-  requireAllowedWorkspacePrincipal: vi.fn(),
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: mocks.workspace,
-}))
-vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.analytics }))
-vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => ({ assertForkingEnabled: vi.fn() }))
-vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => ({
-  acquireForkEdgeLock: vi.fn(),
-  setForkLockTimeout: vi.fn(),
-  resolveForkEdge: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/posthog/server', () => posthogServerMock)
+vi.mock('@/ee/workspace-forking/lib/lineage/authz', () => workspaceForkingAuthzMock)
+vi.mock('@/ee/workspace-forking/lib/lineage/lineage', () => workspaceForkingLineageMock)
 vi.mock('@/ee/workspace-forking/lib/lineage/unlink', () => ({ unlinkForkEdge: vi.fn() }))
 vi.mock('@/ee/workspace-forking/lib/mapping/dependent-value-store', () => ({
   reconcileForkDependentValues: vi.fn(),
@@ -46,12 +34,12 @@ vi.mock('@/ee/workspace-forking/lib/mapping/mapping-service', () => ({
   overlayForkMappingEntries: vi.fn(),
   validateForkMappingTargets: vi.fn(),
 }))
-vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => ({
-  getEdgeMappingRows: vi.fn(),
+vi.mock('@/ee/workspace-forking/lib/mapping/mapping-store', () => workspaceForkingMappingStoreMock)
+vi.mock('@/ee/workspace-forking/lib/promote/rollback', () => ({
+  rollbackFork: hoistedMocks.rollback,
 }))
-vi.mock('@/ee/workspace-forking/lib/promote/rollback', () => ({ rollbackFork: mocks.rollback }))
 vi.mock('@/ee/workspace-forking/lib/background-work/store', () => ({
-  recordBackgroundWork: mocks.activity,
+  recordBackgroundWork: hoistedMocks.activity,
 }))
 
 import {
@@ -59,11 +47,15 @@ import {
   updateWorkspaceForkExclusions,
 } from '@/ee/workspace-forking/application/recovery-and-mappings'
 
-const principal: SessionPrincipal = {
-  kind: 'session',
-  userId: 'actor-1',
-  sessionId: 'session-1',
+const mocks = {
+  ...hoistedMocks,
+  analytics: posthogServerMockFns.mockCaptureServerEvent,
+  audit: auditMockFns.mockRecordAudit,
+  workspace: permissionsMockFns.mockGetWorkspaceWithOwner,
+  authorize: workspaceAuthorizationMockFns.mockAuthorizeWorkspaceOperation,
 }
+
+const principal = createSessionPrincipal({ userId: 'actor-1' })
 const rollbackResult = {
   restored: 2,
   archived: 1,
@@ -181,7 +173,7 @@ describe('shared fork exclusion effects', () => {
       expect(result.updated).toBe(25)
       expect(mocks.audit).toHaveBeenCalledWith(
         expect.objectContaining({
-          action: forkSyncExcluded ? 'workflow.fork_sync.excluded' : 'workflow.fork_sync.included',
+          action: forkSyncExcluded ? 'workflow.fork_sync_excluded' : 'workflow.fork_sync_included',
           resourceName: 'Destination',
           metadata: expect.objectContaining({
             forkSyncExcluded,

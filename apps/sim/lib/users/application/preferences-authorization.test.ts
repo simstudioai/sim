@@ -1,31 +1,43 @@
-import type { Principal, SubjectDelegatedPrincipal } from '@sim/auth/principal'
+import type { Principal } from '@sim/auth/principal'
+import {
+  createDelegatedPrincipal,
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
+import {
+  workspaceAuthorizationMock,
+  workspaceAuthorizationMockFns,
+} from '@sim/testing/mocks/workspace-authorization.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ organization: vi.fn(), workspace: vi.fn(), role: vi.fn() }))
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.organization,
-}))
-vi.mock('@/lib/core/application/workspace-authorization', () => ({
-  requireCurrentHumanRole: mocks.role,
-}))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.workspace,
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
 import { userAccountOperations } from '@/lib/users/application/operations'
 import { authorizeAccountPreferences } from '@/lib/users/application/preferences-authorization'
 
-const delegated: SubjectDelegatedPrincipal = {
-  kind: 'delegated',
-  serviceId: 'copilot',
+const mocks = {
+  role: workspaceAuthorizationMockFns.mockRequireCurrentHumanRole,
+  organization: organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation,
+  workspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+}
+
+const delegated = createDelegatedPrincipal({
   subjectUserId: 'actor',
   workspaceId: 'workspace',
   delegationId: 'tool',
   audience: 'sim:settings',
-  issuedAt: new Date(Date.now() - 1000),
-  expiresAt: new Date(Date.now() + 60_000),
   resourceScope: { chatId: 'chat' },
-}
+})
 
 describe('account preferences authority', () => {
   beforeEach(() => {
@@ -62,8 +74,8 @@ describe('account preferences authority', () => {
   })
   it('does not grant self-account operations to API keys or executors', async () => {
     const principals: Principal[] = [
-      { kind: 'workspace_api_key', workspaceId: 'workspace', keyId: 'key' },
-      { kind: 'personal_api_key', userId: 'actor', keyId: 'key' },
+      createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace', keyId: 'key' }),
+      createPersonalApiKeyPrincipal({ userId: 'actor', keyId: 'key' }),
       { ...delegated, serviceId: 'executor' },
     ]
     for (const principal of principals) {

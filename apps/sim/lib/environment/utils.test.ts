@@ -6,48 +6,23 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
+import {
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const {
-  mockCreateWorkspaceEnvCredentials,
-  mockCheckWorkspaceAccess,
-  mockGetAccessibleEnvCredentials,
-  mockGetUserEntityPermissions,
-  mockGetWorkspaceEnvKeyAdminAccess,
-  mockRecordAudit,
-  mockGetActivelyBannedUserIds,
-} = vi.hoisted(() => ({
-  mockCreateWorkspaceEnvCredentials: vi.fn(),
-  mockCheckWorkspaceAccess: vi.fn(),
-  mockGetAccessibleEnvCredentials: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-  mockGetWorkspaceEnvKeyAdminAccess: vi.fn(),
-  mockRecordAudit: vi.fn(),
-  mockGetActivelyBannedUserIds: vi.fn().mockResolvedValue([]),
-}))
 
 // vitest.setup.ts mocks this module globally; this suite tests the real one.
 vi.unmock('@/lib/environment/utils')
 
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
-vi.mock('@sim/audit', () => ({
-  AuditAction: { ENVIRONMENT_UPDATED: 'environment.updated' },
-  AuditResourceType: { ENVIRONMENT: 'environment' },
-  recordAudit: mockRecordAudit,
-}))
-vi.mock('@/lib/credentials/environment', () => ({
-  createWorkspaceEnvCredentials: mockCreateWorkspaceEnvCredentials,
-  getAccessibleEnvCredentials: mockGetAccessibleEnvCredentials,
-  getWorkspaceEnvKeyAdminAccess: mockGetWorkspaceEnvKeyAdminAccess,
-  syncPersonalEnvCredentialsForUser: vi.fn(),
-}))
-vi.mock('@/lib/auth/ban', () => ({
-  getActivelyBannedUserIds: mockGetActivelyBannedUserIds,
-}))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
+vi.mock('@/lib/auth/ban', () => authBanMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import {
   getEffectiveDecryptedEnv,
@@ -60,6 +35,12 @@ import {
   upsertWorkspaceEnvVars,
   WorkspaceEnvAccessError,
 } from '@/lib/environment/utils'
+
+const { mockCheckWorkspaceAccess, mockGetUserEntityPermissions } = permissionsMockFns
+const { mockGetAccessibleEnvCredentials, mockGetWorkspaceEnvKeyAdminAccess } =
+  credentialsEnvironmentMockFns
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockGetActivelyBannedUserIds = authBanMockFns.mockGetActivelyBannedUserIds
 
 describe('getEffectiveEnvironmentVariableNames', () => {
   beforeEach(() => {

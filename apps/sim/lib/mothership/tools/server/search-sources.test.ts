@@ -1,25 +1,26 @@
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  chat: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   list: vi.fn(),
   providers: vi.fn(),
   approve: vi.fn(),
   authorize: vi.fn(),
   prepare: vi.fn(),
 }))
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChatDelegation: { execute: mocks.chat },
-}))
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
 vi.mock('@/lib/knowledge/application/search-sources', () => ({
-  listSearchSources: { execute: mocks.list },
+  listSearchSources: { execute: hoisted.list },
 }))
 vi.mock('@/lib/knowledge/application/search-integrations', () => ({
-  listSearchIntegrations: { execute: mocks.providers },
-  approveSearchIntegration: { execute: mocks.approve },
+  listSearchIntegrations: { execute: hoisted.providers },
+  approveSearchIntegration: { execute: hoisted.approve },
 }))
 vi.mock('@/lib/knowledge/application/sim-search', () => ({
-  prepareSearchSource: { authorize: mocks.authorize, execute: mocks.prepare },
+  prepareSearchSource: { authorize: hoisted.authorize, execute: hoisted.prepare },
 }))
 vi.mock('@/lib/sim-search/connectors', () => ({
   SEARCH_SOURCE_TYPES: [
@@ -30,6 +31,11 @@ vi.mock('@/lib/sim-search/connectors', () => ({
 }))
 
 import { organizationSearchSourcesServerTool as tool } from '@/lib/mothership/tools/server/search-sources'
+
+const mocks = {
+  ...hoisted,
+  chat: mothershipOrganizationChatsMockFns.mockAuthorizeOrganizationChatDelegation,
+}
 
 const context = {
   userId: 'actual-actor',

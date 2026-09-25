@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,9 +13,7 @@ const { mockUseMothershipChatEvents } = vi.hoisted(() => ({
 vi.mock('@/app/workspace/providers/socket-provider', () => ({
   SocketProvider: ({ children }: { children: import('react').ReactNode }) => children,
 }))
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: () => ({ data: { user: { id: 'user-a', email: 'test@example.com' } } }),
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 vi.mock('@/hooks/use-mothership-chat-events', () => ({
   useMothershipChatEvents: mockUseMothershipChatEvents,
 }))
@@ -27,6 +26,10 @@ import {
 } from '@/lib/core/config/deployment-shape'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { OrganizationProvider } from '@/app/o/[organizationId]/providers/organization-provider'
+
+authClientMockFns.mockUseSession.mockReturnValue({
+  data: { user: { id: 'user-a', email: 'test@example.com' } },
+})
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -47,7 +50,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   host.remove()
-  vi.clearAllMocks()
 })
 
 describe('OrganizationProvider', () => {

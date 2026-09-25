@@ -1,4 +1,3 @@
-import { recordAudit, recordAuditBatch } from '@sim/audit'
 import {
   createMockRequest,
   dbChainMockFns,
@@ -6,6 +5,8 @@ import {
   resetDbChainMock,
   schemaMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -31,20 +32,14 @@ vi.mock('@/app/api/v1/admin/auth', () => ({
   authenticateAdminRequest: mockAuthenticateAdminRequest,
 }))
 
-vi.mock('@sim/audit', () => ({
-  recordAudit: vi.fn(),
-  recordAuditBatch: vi.fn(),
-  AuditAction: {
-    ORGANIZATION_UPDATED: 'organization.updated',
-    ORGANIZATION_DELETED: 'organization.deleted',
-  },
-  AuditResourceType: { ORGANIZATION: 'organization' },
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 import { DELETE } from '@/app/api/v1/admin/organizations/[id]/route'
 
+const { mockRecordAudit: recordAudit, mockRecordAuditBatch: recordAuditBatch } = auditMockFns
+
 const ORG_ID = 'org-1'
-const routeContext = { params: Promise.resolve({ id: ORG_ID }) }
+const routeContext = createRouteContext({ id: ORG_ID })
 
 function deleteRequest(confirmSlug?: string) {
   const query = confirmSlug === undefined ? '' : `?confirmSlug=${encodeURIComponent(confirmSlug)}`

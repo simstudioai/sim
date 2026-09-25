@@ -6,73 +6,47 @@ import {
   permissionsMockFns,
   resetPermissionGroupScopeMock,
 } from '@sim/testing'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { tableBillingMock, tableBillingMockFns } from '@sim/testing/mocks/table-billing.mock'
+import {
+  tableRouteUtilsMock,
+  tableRouteUtilsMockFns,
+} from '@sim/testing/mocks/table-route-utils.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCreateTable, mockBatchInsertRows, mockDeleteTable, mockGetLimits } = vi.hoisted(() => ({
-  mockCreateTable: vi.fn(),
-  mockBatchInsertRows: vi.fn(),
-  mockDeleteTable: vi.fn(),
-  mockGetLimits: vi.fn(),
-}))
-
-vi.mock('@sim/utils/id', () => ({
-  generateId: vi.fn().mockReturnValue('deadbeefcafef00d'),
-  generateShortId: vi.fn().mockReturnValue('short-id'),
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
 // Mock only the DB-backed service/billing functions; the real `./import` helpers
 // (createCsvParser, inferSchemaFromCsv, coerceRowsForTable, …) run for real so the
 // streaming multipart + CSV pipeline is exercised end-to-end.
-vi.mock('@/lib/table/service', () => ({
-  createTable: mockCreateTable,
-  deleteTable: mockDeleteTable,
-}))
+vi.mock('@/lib/table/service', () => tableServiceMock)
 
-vi.mock('@/lib/table/rows/service', () => ({
-  batchInsertRows: mockBatchInsertRows,
-}))
-vi.mock('@/lib/table/billing', () => ({ getWorkspaceTableLimits: mockGetLimits }))
-vi.mock('@/app/api/table/utils', async () => {
-  const { NextResponse } = await import('next/server')
-  const { asOrchestrationError, messageForOrchestrationError, statusForOrchestrationError } =
-    await import('@/lib/core/orchestration/types')
-  return {
-    csvProxyBodyCapResponse: () => null,
-    multipartErrorResponse: (error: { code: string; message: string }) =>
-      NextResponse.json(
-        { error: error.message },
-        { status: error.code === 'FILE_TOO_LARGE' ? 413 : 400 }
-      ),
-    orchestrationOutcomeErrorResponse: (
-      outcome: { error?: string; errorCode?: OrchestrationErrorCode; lock?: string },
-      fallback: string
-    ) =>
-      NextResponse.json(
-        {
-          error: messageForOrchestrationError(outcome, fallback),
-          ...(outcome.lock ? { lock: outcome.lock } : {}),
-        },
-        { status: statusForOrchestrationError(outcome.errorCode) }
-      ),
-    orchestrationErrorResponse: (error: unknown) => {
-      const classified = asOrchestrationError(error)
-      return classified
-        ? NextResponse.json(
-            { error: classified.message },
-            { status: statusForOrchestrationError(classified.code) }
-          )
-        : null
-    },
-  }
-})
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
+vi.mock('@/lib/table/billing', () => tableBillingMock)
+vi.mock('@/app/api/table/utils', () => tableRouteUtilsMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
-import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { POST } from '@/app/api/table/import-csv/route'
+
+const { mockBatchInsertRows } = tableRowsServiceMockFns
+const { mockGetWorkspaceTableLimits: mockGetLimits } = tableBillingMockFns
+
+tableRouteUtilsMockFns.mockCsvProxyBodyCapResponse.mockReturnValue(null)
+tableRouteUtilsMockFns.mockMultipartErrorResponse.mockImplementation((error) =>
+  Response.json({ error: error.message }, { status: error.code === 'FILE_TOO_LARGE' ? 413 : 400 })
+)
+const { mockCreateTable, mockDeleteTable } = tableServiceMockFns
+idMockFns.mockGenerateId.mockReturnValue('deadbeefcafef00d')
+idMockFns.mockGenerateShortId.mockReturnValue('short-id')
 
 type Part =
   | { name: string; value: string }

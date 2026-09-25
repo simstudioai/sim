@@ -6,6 +6,9 @@ import { vi } from 'vitest'
  * file that touches an electron-importing module mocks it with:
  *
  *   vi.mock('electron', () => import('@/test/electron-mock'))
+ *
+ * Tests steer the stubs through {@link electronMockFns}, imported from this
+ * same module, e.g. `electronMockFns.mockCanPromptTouchID.mockReturnValue(true)`.
  */
 
 export const app = {
@@ -109,6 +112,19 @@ export const protocol = {
 export const ipcMain = {
   on: vi.fn(),
   handle: vi.fn(),
+}
+
+/** Renderer/preload side of IPC. */
+export const ipcRenderer = {
+  on: vi.fn(),
+  once: vi.fn(),
+  send: vi.fn(),
+  invoke: vi.fn(() => Promise.resolve(undefined)),
+  removeListener: vi.fn(),
+}
+
+export const contextBridge = {
+  exposeInMainWorld: vi.fn(),
 }
 
 export const nativeImage = {
@@ -305,4 +321,82 @@ export class BrowserWindow {
     addChildView: vi.fn(),
     removeChildView: vi.fn(),
   }
+}
+
+/**
+ * Stable handles to the most-steered electron stubs, keyed `mock<Member>`
+ * (namespaced where a bare member name would be ambiguous). Each entry is the
+ * very `vi.fn` the mocked module exposes, so overriding it here changes what
+ * the code under test sees. Defaults are the ones declared above, e.g.
+ * `mockCanPromptTouchID` returns `false`, `mockIsEncryptionAvailable` returns
+ * `true`, `mockShowMessageBox` resolves `{ response: 0, checkboxChecked: false }`,
+ * `mockGetFocusedWindow` and `mockFromWebContents` return `null`.
+ */
+export const electronMockFns = {
+  mockAppGetPath: app.getPath,
+  mockAppGetVersion: app.getVersion,
+  mockAppQuit: app.quit,
+  mockAppOn: app.on,
+  mockShowMessageBox: dialog.showMessageBox,
+  mockShowMessageBoxSync: dialog.showMessageBoxSync,
+  mockShowOpenDialog: dialog.showOpenDialog,
+  mockOpenExternal: shell.openExternal,
+  mockOpenPath: shell.openPath,
+  mockShowItemInFolder: shell.showItemInFolder,
+  mockIsEncryptionAvailable: safeStorage.isEncryptionAvailable,
+  mockEncryptString: safeStorage.encryptString,
+  mockDecryptString: safeStorage.decryptString,
+  mockClipboardWriteText: clipboard.writeText,
+  mockClipboardReadText: clipboard.readText,
+  mockGetMediaAccessStatus: systemPreferences.getMediaAccessStatus,
+  mockAskForMediaAccess: systemPreferences.askForMediaAccess,
+  mockCanPromptTouchID: systemPreferences.canPromptTouchID,
+  mockPromptTouchID: systemPreferences.promptTouchID,
+  mockBuildFromTemplate: Menu.buildFromTemplate,
+  mockSetApplicationMenu: Menu.setApplicationMenu,
+  mockNetFetch: net.fetch,
+  mockFromPartition: session.fromPartition,
+  mockIpcMainOn: ipcMain.on,
+  mockIpcMainHandle: ipcMain.handle,
+  mockIpcRendererOn: ipcRenderer.on,
+  mockIpcRendererOnce: ipcRenderer.once,
+  mockIpcRendererSend: ipcRenderer.send,
+  mockIpcRendererInvoke: ipcRenderer.invoke,
+  mockIpcRendererRemoveListener: ipcRenderer.removeListener,
+  mockExposeInMainWorld: contextBridge.exposeInMainWorld,
+  mockGetFocusedWindow: BrowserWindow.getFocusedWindow,
+  mockFromWebContents: BrowserWindow.fromWebContents,
+}
+
+/**
+ * The electron module shape as one object, for factories that need to spread
+ * or partially override it:
+ *
+ *   vi.mock('electron', () => ({ ...electronMock, nativeTheme: { ... } }))
+ *
+ * Prefer `vi.mock('electron', () => import('@/test/electron-mock'))` otherwise.
+ */
+export const electronMock = {
+  app,
+  autoUpdater,
+  crashReporter,
+  shell,
+  dialog,
+  safeStorage,
+  clipboard,
+  systemPreferences,
+  nativeTheme,
+  screen,
+  Menu,
+  net,
+  session,
+  protocol,
+  ipcMain,
+  ipcRenderer,
+  contextBridge,
+  nativeImage,
+  Tray,
+  Notification,
+  WebContentsView,
+  BrowserWindow,
 }

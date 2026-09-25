@@ -1,27 +1,19 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  credentialGroupsEnrollmentsMock,
+  credentialGroupsEnrollmentsMockFns,
+} from '@sim/testing/mocks/credential-groups-enrollments.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { issue, authenticate, bind } = vi.hoisted(() => ({
-  issue: vi.fn(),
-  authenticate: vi.fn(),
-  bind: vi.fn(),
-}))
-vi.mock('@/lib/credential-groups/enrollments', () => ({
-  createCredentialGroupSelfEnrollmentLink: issue,
-  authenticatePublicCredentialGroupEnrollment: authenticate,
-  bindCredentialGroupEnrollmentUser: bind,
-  CredentialGroupEnrollmentError: class extends Error {
-    constructor(
-      message: string,
-      public status: number
-    ) {
-      super(message)
-    }
-  },
-}))
+vi.mock('@/lib/credential-groups/enrollments', () => credentialGroupsEnrollmentsMock)
 
 import { CredentialGroupEnrollmentError } from '@/lib/credential-groups/enrollments'
 import { createViewerCredentialGroupEnrollment } from '@/lib/credential-groups/self-enrollment'
+
+const issue = credentialGroupsEnrollmentsMockFns.mockCreateCredentialGroupSelfEnrollmentLink
+const authenticate =
+  credentialGroupsEnrollmentsMockFns.mockAuthenticatePublicCredentialGroupEnrollment
+const bind = credentialGroupsEnrollmentsMockFns.mockBindCredentialGroupEnrollmentUser
 
 const input = { userId: 'viewer', workspaceId: 'workspace', credentialGroupId: 'group' }
 

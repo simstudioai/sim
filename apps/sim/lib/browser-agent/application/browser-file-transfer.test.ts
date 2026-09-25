@@ -1,40 +1,32 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileReferenceMock,
+  workspaceFileReferenceMockFns,
+} from '@sim/testing/mocks/workspace-file-reference.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getAsyncToolCall: vi.fn(),
-  getRunSegment: vi.fn(),
-  resolveReference: vi.fn(),
-  fetchBuffer: vi.fn(),
-  loadWorkspace: vi.fn(),
-  createFile: vi.fn(),
-  claimDownload: vi.fn(),
-  resolvePermission: vi.fn(),
-  recordAudit: vi.fn(),
-}))
+const { createFile } = vi.hoisted(() => ({ createFile: vi.fn() }))
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@sim/audit', () => ({
-  AuditAction: { FILE_UPLOADED: 'FILE_UPLOADED' },
-  AuditResourceType: { FILE: 'FILE' },
-  recordAudit: mocks.recordAudit,
-}))
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  getAsyncToolCall: mocks.getAsyncToolCall,
-  getRunSegment: mocks.getRunSegment,
-  claimBrowserDownloadSave: mocks.claimDownload,
-}))
-vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
-  resolveReferencedWorkspaceFileContext: mocks.resolveReference,
-}))
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  fetchWorkspaceFileBuffer: mocks.fetchBuffer,
-  loadActiveWorkspaceContext: mocks.loadWorkspace,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
+vi.mock(
+  '@/lib/workspace-files/application/resolve-workspace-file-reference',
+  () => workspaceFileReferenceMock
+)
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
-  createAuthorizedWorkspaceFile: mocks.createFile,
+  createAuthorizedWorkspaceFile: createFile,
   projectCreateWorkspaceFileAudit: (result: { file: { id: string; name: string } }) => ({
     action: 'FILE_UPLOADED',
     resourceType: 'FILE',
@@ -49,7 +41,19 @@ import {
   saveBrowserDownload,
 } from '@/lib/browser-agent/application/browser-file-transfer'
 
-const principal = { kind: 'session', userId: 'user-1', sessionId: 'session-1' } as const
+const mocks = {
+  getAsyncToolCall: mothershipAsyncRunsMockFns.mockGetAsyncToolCall,
+  getRunSegment: mothershipAsyncRunsMockFns.mockGetRunSegment,
+  claimDownload: mothershipAsyncRunsMockFns.mockClaimBrowserDownloadSave,
+  resolveReference: workspaceFileReferenceMockFns.mockResolveReferencedWorkspaceFileContext,
+  createFile,
+}
+const resolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const recordAudit = auditMockFns.mockRecordAudit
+const fetchBuffer = workspaceUploadsMockFns.mockFetchWorkspaceFileBuffer
+const loadWorkspace = workspaceUploadsMockFns.mockLoadActiveWorkspaceContext
+
+const principal = createSessionPrincipal()
 const workspace = {
   workspaceId: 'workspace-1',
   workspaceOrganizationId: null,
@@ -71,7 +75,7 @@ function claimedCall(toolName: string, args: Record<string, unknown>) {
 
 describe('browser file transfer use cases', () => {
   beforeEach(() => {
-    mocks.resolvePermission.mockResolvedValue('write')
+    resolvePermission.mockResolvedValue('write')
     mocks.claimDownload.mockResolvedValue(true)
     mocks.getRunSegment.mockResolvedValue({
       id: 'run-1',
@@ -80,8 +84,8 @@ describe('browser file transfer use cases', () => {
       chatId: 'chat-1',
     })
     mocks.resolveReference.mockResolvedValue({ ...workspace, fileId: file.id, file })
-    mocks.fetchBuffer.mockResolvedValue(Buffer.from('pdf'))
-    mocks.loadWorkspace.mockResolvedValue(workspace)
+    fetchBuffer.mockResolvedValue(Buffer.from('pdf'))
+    loadWorkspace.mockResolvedValue(workspace)
     mocks.createFile.mockResolvedValue({ file: { ...file, id: 'file-2', name: 'report.csv' } })
   })
 
@@ -169,7 +173,7 @@ describe('browser file transfer use cases', () => {
         content: Buffer.from('a,b'),
       })
     )
-    expect(mocks.recordAudit).toHaveBeenCalledOnce()
+    expect(recordAudit).toHaveBeenCalledOnce()
   })
 
   it('consumes one download save before any overlapping request can create another file', async () => {
@@ -195,7 +199,7 @@ describe('browser file transfer use cases', () => {
       code: 'conflict',
     })
     expect(mocks.createFile).toHaveBeenCalledOnce()
-    expect(mocks.recordAudit).toHaveBeenCalledOnce()
+    expect(recordAudit).toHaveBeenCalledOnce()
   })
 
   it('does not repeat a save after an uncertain storage failure', async () => {
@@ -210,14 +214,14 @@ describe('browser file transfer use cases', () => {
       code: 'conflict',
     })
     expect(mocks.createFile).toHaveBeenCalledOnce()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(recordAudit).not.toHaveBeenCalled()
   })
 
   it('does not consume a save before workspace authorization succeeds', async () => {
     mocks.getAsyncToolCall.mockResolvedValue(
       claimedCall('browser_save_download', { downloadId: 'd1' })
     )
-    mocks.resolvePermission.mockResolvedValue(null)
+    resolvePermission.mockResolvedValue(null)
     await expect(
       saveBrowserDownload.execute({
         principal,
@@ -247,7 +251,7 @@ describe('browser file transfer use cases', () => {
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(mocks.claimDownload).not.toHaveBeenCalled()
     expect(mocks.createFile).not.toHaveBeenCalled()
-    expect(mocks.recordAudit).not.toHaveBeenCalled()
+    expect(recordAudit).not.toHaveBeenCalled()
   })
 
   it('falls back to the downloaded file name and never saves for an upload call', async () => {

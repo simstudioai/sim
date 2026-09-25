@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as XLSX from 'xlsx'
 import {
   readXlsxPreviewData,
@@ -7,10 +7,6 @@ import {
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer/xlsx-preview-data'
 
 describe('readXlsxPreviewData', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('bounds conversion to the rows the preview can display', () => {
     const sheet = XLSX.utils.aoa_to_sheet([
       ['header-a', 'header-b'],

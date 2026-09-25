@@ -1,20 +1,21 @@
 import { db } from '@sim/db'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetUserPermissionConfig, mockResolveVerifiedContext } = vi.hoisted(() => ({
-  mockGetUserPermissionConfig: vi.fn(),
-  mockResolveVerifiedContext: vi.fn(),
-}))
 
 vi.mock('react', () => ({ cache: <F>(fn: F) => fn }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mockGetUserPermissionConfig,
-  resolveVerifiedUserAccessControlContext: mockResolveVerifiedContext,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
 import { resolvePermissionGroupConfig } from '@/lib/permission-groups/config-scope.server'
 import { withPermissionGroupScope } from '@/lib/permission-groups/request-scope.server'
+
+const {
+  mockGetUserPermissionConfig,
+  mockResolveVerifiedUserAccessControlContext: mockResolveVerifiedContext,
+} = permissionGroupsResolveMockFns
 
 const CONFIG = { hideTablesTab: true }
 

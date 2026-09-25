@@ -1,9 +1,12 @@
 import { environmentUtilsMockFns, resetEnvironmentUtilsMock } from '@sim/testing'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockImapFlow, mockValidateDatabaseHost } = vi.hoisted(() => ({
+const { mockImapFlow } = vi.hoisted(() => ({
   mockImapFlow: vi.fn(),
-  mockValidateDatabaseHost: vi.fn(),
 }))
 
 vi.mock('imapflow', () => ({
@@ -12,9 +15,7 @@ vi.mock('imapflow', () => ({
   },
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  validateDatabaseHost: mockValidateDatabaseHost,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import {
   createSecureImapClient,
@@ -23,6 +24,8 @@ import {
   normalizeResolvedImapConnection,
   resolveImapConnectionForActor,
 } from '@/lib/imap/connection.server'
+
+const mockValidateDatabaseHost = inputValidationMockFns.mockValidateDatabaseHost
 
 describe('IMAP connection policy', () => {
   beforeEach(() => {

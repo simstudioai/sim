@@ -3,6 +3,7 @@
  */
 import { act, type ChangeEventHandler, type ReactNode } from 'react'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
@@ -12,7 +13,6 @@ const {
   mockUseConfigureSSO,
   mockUseDeleteSSOProvider,
   mockUseOrganizationBilling,
-  mockUseSession,
   mockUseSetPrimarySSOProvider,
   mockUseSSOProviders,
 } = vi.hoisted(() => ({
@@ -20,7 +20,6 @@ const {
   mockUseDeleteSSOProvider: vi.fn(),
   mockUseSetPrimarySSOProvider: vi.fn(),
   mockUseOrganizationBilling: vi.fn(),
-  mockUseSession: vi.fn(),
   mockUseSSOProviders: vi.fn(),
 }))
 
@@ -136,9 +135,7 @@ vi.mock('@sim/emcn', () => ({
   },
 }))
 
-vi.mock('@/lib/auth/auth-client', () => ({
-  useSession: mockUseSession,
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 vi.mock('@/app/workspace/[workspaceId]/components/credential-detail', () => ({
   UnsavedChangesModal: () => null,
@@ -270,6 +267,8 @@ vi.mock('@/hooks/queries/organization', () => ({
 
 import { SSO } from '@/ee/sso/components/sso-settings'
 
+const mockUseSession = authClientMockFns.mockUseSession
+
 function provider(organizationId: string) {
   const suffix = organizationId === 'org-a' ? 'a' : 'b'
   return {
@@ -368,7 +367,6 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
-  vi.clearAllMocks()
 })
 
 /**

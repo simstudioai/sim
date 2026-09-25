@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetUrlsMock, urlsMockFns } from '@sim/testing/mocks/urls.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CredentialGroupOAuthContext } from '@/lib/credential-groups/enrollments'
 import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
 import { OAuthIdentityVerificationError } from '@/lib/oauth/identity-error'
@@ -7,10 +8,6 @@ import { OAuthIdentityVerificationError } from '@/lib/oauth/identity-error'
 const { mockGetToken, mockVerifyIdentity } = vi.hoisted(() => ({
   mockGetToken: vi.fn(),
   mockVerifyIdentity: vi.fn(),
-}))
-
-vi.mock('@/lib/core/utils/urls', () => ({
-  getBaseUrl: () => 'https://sim.example.com',
 }))
 
 vi.mock('@/lib/auth/connectors/managed-oauth', () => ({
@@ -75,6 +72,9 @@ vi.mock('@/lib/auth/connectors/managed-oauth', () => ({
 }))
 
 import { createStandardOAuthCredentialGroupProviderAdapter } from '@/lib/credential-groups/standard-oauth-provider'
+
+urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example.com')
+afterAll(resetUrlsMock)
 
 const adapter = createStandardOAuthCredentialGroupProviderAdapter('google-calendar')
 const jiraAdapter = createStandardOAuthCredentialGroupProviderAdapter('jira')

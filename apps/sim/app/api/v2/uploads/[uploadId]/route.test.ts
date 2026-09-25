@@ -1,28 +1,26 @@
+import { uploadSessionMock, uploadSessionMockFns } from '@sim/testing/mocks/upload-session.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { MockLocalUploadBodyError, mockGetOwnedUploadSession, mockMetadata, mockWriteLocalPut } =
-  vi.hoisted(() => {
-    class MockLocalUploadBodyError extends Error {}
-    return {
-      MockLocalUploadBodyError,
-      mockGetOwnedUploadSession: vi.fn(),
-      mockMetadata: vi.fn(),
-      mockWriteLocalPut: vi.fn(),
-    }
-  })
+const { MockLocalUploadBodyError, mockWriteLocalPut } = vi.hoisted(() => {
+  class MockLocalUploadBodyError extends Error {}
+  return {
+    MockLocalUploadBodyError,
+    mockWriteLocalPut: vi.fn(),
+  }
+})
 
 vi.mock('@/lib/uploads/upload-session/provider', () => ({
   LocalUploadBodyError: MockLocalUploadBodyError,
   writeLocalPutObject: mockWriteLocalPut,
 }))
 
-vi.mock('@/lib/uploads/upload-session/service', () => ({
-  getOwnedUploadSession: mockGetOwnedUploadSession,
-  uploadSessionObjectMetadata: mockMetadata,
-}))
+vi.mock('@/lib/uploads/upload-session/service', () => uploadSessionMock)
 
 import { PUT } from '@/app/api/v2/uploads/[uploadId]/route'
+
+const { mockGetOwnedUploadSession, mockUploadSessionObjectMetadata: mockMetadata } =
+  uploadSessionMockFns
 
 const SESSION = {
   id: 'upload-1',

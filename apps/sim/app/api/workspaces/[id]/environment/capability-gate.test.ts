@@ -14,45 +14,35 @@ import {
   permissionGroupScopeMockFns,
   resetPermissionGroupScopeMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import {
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const {
-  mockGetWorkspaceById,
-  mockGetUserEntityPermissions,
-  mockGetWorkspaceEnvKeyAdminAccess,
-  mockGetPersonalEnvKeyRawAccess,
-} = vi.hoisted(() => ({
-  mockGetWorkspaceById: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
-  mockGetWorkspaceEnvKeyAdminAccess: vi.fn(),
-  mockGetPersonalEnvKeyRawAccess: vi.fn(),
-}))
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceById: mockGetWorkspaceById,
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/credentials/environment', () => ({
-  getWorkspaceEnvKeyAdminAccess: mockGetWorkspaceEnvKeyAdminAccess,
-  getPersonalEnvKeyRawAccess: mockGetPersonalEnvKeyRawAccess,
-  createWorkspaceEnvCredentials: vi.fn(),
-  deleteWorkspaceEnvCredentials: vi.fn(),
-}))
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { GET, PUT } from '@/app/api/workspaces/[id]/environment/route'
+
+const { mockGetWorkspaceEnvKeyAdminAccess, mockGetPersonalEnvKeyRawAccess } =
+  credentialsEnvironmentMockFns
 
 const USER_ID = 'user-1'
 const WORKSPACE_ID = 'ws-1'
 
 const mockGetSession = authMockFns.mockGetSession
+const { mockGetWorkspaceById, mockGetUserEntityPermissions } = permissionsMockFns
 const mockGetPersonalAndWorkspaceEnv = environmentUtilsMockFns.mockGetPersonalAndWorkspaceEnv
 
 function params() {
-  return { params: Promise.resolve({ id: WORKSPACE_ID }) }
+  return createRouteContext({ id: WORKSPACE_ID })
 }
 
 function readEnvironment() {

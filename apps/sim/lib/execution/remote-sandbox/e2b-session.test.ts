@@ -1,3 +1,4 @@
+import { setEnv } from '@sim/testing/mocks/env.mock'
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -34,9 +35,6 @@ const {
   lockState: { active: false },
   NotFoundError: class NotFoundError extends Error {},
 }))
-vi.mock('@/lib/core/config/env', () => ({
-  env: { E2B_API_KEY: 'test', MOTHERSHIP_E2B_TEMPLATE_ID: 'mothership-template' },
-}))
 vi.mock('@e2b/code-interpreter', () => ({
   Sandbox: { create, list, connect, getInfo },
   NotFoundError,
@@ -47,6 +45,8 @@ vi.mock('@/lib/execution/remote-sandbox/session-lock', () => ({
 
 import { e2bProvider, stopE2BSessionProcess } from '@/lib/execution/remote-sandbox/e2b'
 import { observeSandboxExecution } from '@/lib/execution/remote-sandbox/execution-observer'
+
+setEnv({ E2B_API_KEY: 'test', MOTHERSHIP_E2B_TEMPLATE_ID: 'mothership-template' })
 
 function candidate(sandboxId: string, time: number) {
   return {

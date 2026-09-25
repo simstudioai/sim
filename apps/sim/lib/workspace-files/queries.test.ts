@@ -1,18 +1,18 @@
+import { publicSharesMock, publicSharesMockFns } from '@sim/testing/mocks/public-shares.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetWorkspaceShares, mockListWorkspaceFiles } = vi.hoisted(() => ({
-  mockGetWorkspaceShares: vi.fn(),
-  mockListWorkspaceFiles: vi.fn(),
-}))
-
-vi.mock('@/lib/public-shares/share-manager', () => ({
-  getWorkspaceShares: mockGetWorkspaceShares,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  listWorkspaceFiles: mockListWorkspaceFiles,
-}))
+vi.mock('@/lib/public-shares/share-manager', () => publicSharesMock)
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
 import { listWorkspaceFilesWithShares } from '@/lib/workspace-files/queries'
+
+const mockGetWorkspaceShares = publicSharesMockFns.mockGetWorkspaceShares
+
+const mockListWorkspaceFiles = workspaceFileManagerMockFns.mockListWorkspaceFiles
 
 const STORED_FILE = {
   id: 'file-1',

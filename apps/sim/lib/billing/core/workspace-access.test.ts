@@ -1,24 +1,21 @@
+import { billingAccessMock, billingAccessMockFns } from '@sim/testing/mocks/billing-access.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import { billingSubscriptionMock } from '@sim/testing/mocks/billing-subscription.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetBillingEntityBlockStatus, mockResolveWorkspaceBillingPayer } = vi.hoisted(() => ({
-  mockGetBillingEntityBlockStatus: vi.fn(),
-  mockResolveWorkspaceBillingPayer: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/access', () => billingAccessMock)
 
-vi.mock('@/lib/billing/core/access', () => ({
-  getBillingEntityBlockStatus: mockGetBillingEntityBlockStatus,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveWorkspaceBillingPayer: mockResolveWorkspaceBillingPayer,
-}))
-
-vi.mock('@/lib/billing/core/subscription', () => ({
-  resolveBillingInterval: (subscription?: { billingInterval?: string | null }) =>
-    subscription?.billingInterval === 'year' ? 'year' : 'month',
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
+
+const mockGetBillingEntityBlockStatus = billingAccessMockFns.mockGetBillingEntityBlockStatus
+const mockResolveWorkspaceBillingPayer = billingAttributionMockFns.mockResolveWorkspaceBillingPayer
 
 describe('getWorkspaceOwnerSubscriptionAccess', () => {
   beforeEach(() => {

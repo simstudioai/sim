@@ -1,46 +1,45 @@
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  mothershipEnvironmentContextMock,
+  mothershipEnvironmentContextMockFns,
+} from '@sim/testing/mocks/mothership-environment-context.mock'
+import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { providersMock, providersMockFns } from '@sim/testing/mocks/providers.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  assertPermissionsAllowed: vi.fn(),
   authorizeCredential: vi.fn(),
-  checkWorkspaceAccess: vi.fn(),
-  executeProviderRequest: vi.fn(),
   importProvenance: vi.fn(),
   isComplete: vi.fn(),
-  prepareEnvironment: vi.fn(),
-  requireBillingAttribution: vi.fn(),
   resolveVertexAccessToken: vi.fn(),
 }))
 
-vi.mock('@/providers', () => ({ executeProviderRequest: mocks.executeProviderRequest }))
+vi.mock('@/providers', () => providersMock)
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUseForAuth: mocks.authorizeCredential,
 }))
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  BILLING_ATTRIBUTION_HEADER: 'x-sim-billing-attribution',
-  requireBillingAttributionHeader: mocks.requireBillingAttribution,
-}))
-vi.mock('@/lib/mothership/environment-context', () => ({
-  prepareCopilotEnvironmentContext: mocks.prepareEnvironment,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
 vi.mock('@/lib/internal/llm/credentials', () => ({
   resolveVertexAccessToken: mocks.resolveVertexAccessToken,
 }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mocks.checkWorkspaceAccess,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
   projectResolvedSecretModelContent: vi.fn(),
 }))
-vi.mock('@/ee/access-control/utils/permission-check', () => ({
-  assertPermissionsAllowed: mocks.assertPermissionsAllowed,
-  IntegrationNotAllowedError: class IntegrationNotAllowedError extends Error {},
-  ModelNotAllowedError: class ModelNotAllowedError extends Error {},
-  ProviderNotAllowedError: class ProviderNotAllowedError extends Error {},
-}))
+vi.mock('@/ee/access-control/utils/permission-check', () => permissionCheckMock)
+
+const { mockRequireBillingAttributionHeader } = billingAttributionMockFns
 
 import type { LlmOperationError } from '@/lib/internal/llm/errors'
 import { executeLlmProviderOperation } from '@/lib/internal/llm/operations'
+
+const prepareEnvironment = mothershipEnvironmentContextMockFns.mockPrepareCopilotEnvironmentContext
+const { mockExecuteProviderRequest } = providersMockFns
 
 const BILLING_ATTRIBUTION = {
   actorUserId: 'user-1',
@@ -50,23 +49,23 @@ const BILLING_ATTRIBUTION = {
 
 describe('executeLlmProviderOperation', () => {
   beforeEach(() => {
-    mocks.checkWorkspaceAccess.mockResolvedValue({ hasAccess: true })
-    mocks.requireBillingAttribution.mockReturnValue(BILLING_ATTRIBUTION)
+    permissionsMockFns.mockCheckWorkspaceAccess.mockResolvedValue({ hasAccess: true })
+    mockRequireBillingAttributionHeader.mockReturnValue(BILLING_ATTRIBUTION)
     mocks.importProvenance.mockResolvedValue(true)
     mocks.isComplete.mockReturnValue(true)
-    mocks.prepareEnvironment.mockResolvedValue({
+    prepareEnvironment.mockResolvedValue({
       resolvedSecretTraceRegistry: {
         importProvenance: mocks.importProvenance,
         isComplete: mocks.isComplete,
       },
     })
-    mocks.executeProviderRequest.mockResolvedValue({ content: 'answer', model: 'gpt-4o' })
+    mockExecuteProviderRequest.mockResolvedValue({ content: 'answer', model: 'gpt-4o' })
     mocks.authorizeCredential.mockResolvedValue({ ok: true })
     mocks.resolveVertexAccessToken.mockResolvedValue('vertex-token')
   })
 
   it('fails before provider work when workspace authorization is denied', async () => {
-    mocks.checkWorkspaceAccess.mockResolvedValueOnce({ hasAccess: false })
+    permissionsMockFns.mockCheckWorkspaceAccess.mockResolvedValueOnce({ hasAccess: false })
 
     await expect(
       executeLlmProviderOperation(
@@ -78,7 +77,7 @@ describe('executeLlmProviderOperation', () => {
         }
       )
     ).rejects.toMatchObject<LlmOperationError>({ status: 403, body: { error: 'Forbidden' } })
-    expect(mocks.executeProviderRequest).not.toHaveBeenCalled()
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
   })
 
   it('authorizes and resolves Vertex credentials before provider work', async () => {
@@ -105,7 +104,7 @@ describe('executeLlmProviderOperation', () => {
         callerUserId: 'user-1',
       })
     )
-    expect(mocks.executeProviderRequest).toHaveBeenCalledWith(
+    expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
       'vertex',
       expect.objectContaining({ apiKey: 'vertex-token' }),
       expect.anything()

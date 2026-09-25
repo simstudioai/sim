@@ -1,18 +1,14 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
-  secureFetchWithPinnedIP: vi.fn(),
-  secureFetchWithValidation: vi.fn(),
-  validateUrlWithDNS: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  MAX_JSON_API_RESPONSE_BYTES: 10 * 1024 * 1024,
-  secureFetchWithPinnedIP: mocks.secureFetchWithPinnedIP,
-  secureFetchWithValidation: mocks.secureFetchWithValidation,
-  validateUrlWithDNS: mocks.validateUrlWithDNS,
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { uploadClickUpAttachment } from '@/lib/internal/clickup/client'
 import { sendDiscordMessage } from '@/lib/internal/discord/client'
@@ -22,10 +18,14 @@ import { uploadDataverseFile } from '@/lib/internal/microsoft-dataverse/client'
 import { downloadPipedriveFile, listPipedriveFiles } from '@/lib/internal/pipedrive/client'
 import { uploadServiceNowAttachment } from '@/lib/internal/servicenow/client'
 
+const mockSecureFetchWithPinnedIP = inputValidationMockFns.mockSecureFetchWithPinnedIP
+const mockSecureFetchWithValidation = inputValidationMockFns.mockSecureFetchWithValidation
+const mockValidateUrlWithDNS = inputValidationMockFns.mockValidateUrlWithDNS
+
 describe('file and message provider clients', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mocks.fetch)
-    mocks.validateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
+    mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '203.0.113.10' })
   })
 
   it('forwards cancellation to the bounded ClickUp attachment request', async () => {
@@ -59,7 +59,7 @@ describe('file and message provider clients', () => {
         required_headers: { 'Content-Type': 'text/plain' },
       })
     )
-    mocks.secureFetchWithPinnedIP.mockResolvedValue(new Response(null, { status: 204 }))
+    mockSecureFetchWithPinnedIP.mockResolvedValue(new Response(null, { status: 204 }))
     const registration = await registerLinqAttachment(
       { apiKey: 'key', contentType: 'text/plain', filename: 'a.txt', sizeBytes: 1 },
       controller.signal
@@ -71,7 +71,7 @@ describe('file and message provider clients', () => {
       expect.stringContaining('/attachments'),
       expect.objectContaining({ signal: controller.signal })
     )
-    expect(mocks.secureFetchWithPinnedIP).toHaveBeenCalledWith(
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
       'https://upload.example/file',
       '203.0.113.10',
       expect.objectContaining({ signal: controller.signal, maxResponseBytes: expect.any(Number) })
@@ -80,7 +80,7 @@ describe('file and message provider clients', () => {
 
   it('drops Dataverse bearer credentials on redirects and bounds its response', async () => {
     const controller = new AbortController()
-    mocks.secureFetchWithValidation.mockResolvedValue(new Response(null, { status: 204 }))
+    mockSecureFetchWithValidation.mockResolvedValue(new Response(null, { status: 204 }))
 
     await uploadDataverseFile(
       {
@@ -92,7 +92,7 @@ describe('file and message provider clients', () => {
       controller.signal
     )
 
-    expect(mocks.secureFetchWithValidation).toHaveBeenCalledWith(
+    expect(mockSecureFetchWithValidation).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
         maxResponseBytes: 10 * 1024 * 1024,
@@ -105,7 +105,7 @@ describe('file and message provider clients', () => {
 
   it('bounds and cancels ServiceNow upload responses', async () => {
     const controller = new AbortController()
-    mocks.secureFetchWithValidation.mockResolvedValue(
+    mockSecureFetchWithValidation.mockResolvedValue(
       Response.json({ result: { sys_id: 'attachment-1', file_name: 'a.txt' } })
     )
 
@@ -124,7 +124,7 @@ describe('file and message provider clients', () => {
     )
 
     expect(result).toEqual(expect.objectContaining({ sys_id: 'attachment-1' }))
-    expect(mocks.secureFetchWithValidation).toHaveBeenCalledWith(
+    expect(mockSecureFetchWithValidation).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
         maxResponseBytes: 10 * 1024 * 1024,
@@ -135,7 +135,7 @@ describe('file and message provider clients', () => {
   })
 
   it('uses DNS pinning and never sends Pipedrive credentials to external download hosts', async () => {
-    mocks.secureFetchWithPinnedIP
+    mockSecureFetchWithPinnedIP
       .mockResolvedValueOnce(
         Response.json({
           success: true,
@@ -155,7 +155,7 @@ describe('file and message provider clients', () => {
     )
 
     expect(downloaded?.buffer.toString()).toBe('abc')
-    expect(mocks.secureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+    expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
       'https://cdn.example/a.txt',
       '203.0.113.10',
       expect.objectContaining({ headers: {}, maxResponseBytes: 100 })

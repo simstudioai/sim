@@ -1,3 +1,4 @@
+import { ROOT_CONTEXT, trace } from '@opentelemetry/api'
 import {
   authMockFns,
   dbChainMockFns,
@@ -11,6 +12,34 @@ import {
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import { knowledgeAvailabilityMock } from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  mothershipChatLifecycleMock,
+  mothershipChatLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-chat-lifecycle.mock'
+import {
+  mothershipChatMessagesMock,
+  mothershipChatMessagesMockFns,
+} from '@sim/testing/mocks/mothership-chat-messages.mock'
+import {
+  mothershipChatPayloadMock,
+  mothershipChatPayloadMockFns,
+} from '@sim/testing/mocks/mothership-chat-payload.mock'
+import {
+  mothershipChatStatusMock,
+  mothershipChatStatusMockFns,
+} from '@sim/testing/mocks/mothership-chat-status.mock'
+import {
+  mothershipOrganizationChatsMock,
+  mothershipOrganizationChatsMockFns,
+} from '@sim/testing/mocks/mothership-organization-chats.mock'
+import { mothershipOtelMock, mothershipOtelMockFns } from '@sim/testing/mocks/mothership-otel.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -23,6 +52,10 @@ vi.mock('@/lib/mothership/feature-flags', () => ({
 }))
 
 const resolveWorkflowIdForUser = workflowsUtilsMockFns.mockResolveWorkflowIdForUser
+const {
+  mockResolveBillingAttribution: resolveBillingAttribution,
+  mockResolveOrganizationBillingAttribution: resolveOrganizationBillingAttribution,
+} = billingAttributionMockFns
 const getUserEntityPermissions = permissionsMockFns.mockGetUserEntityPermissions
 
 const getEffectiveEnvironmentSnapshot = environmentUtilsMockFns.mockGetEffectiveEnvironmentSnapshot
@@ -33,20 +66,13 @@ const {
   generateWorkspaceSnapshot,
   processContextsServer,
   resolveActiveResourceContext,
-  buildCopilotRequestPayload,
   createSSEStream,
   acquirePendingChatStream,
   getPendingChatStreamId,
   releasePendingChatStream,
-  resolveOrCreateChat,
-  resolveBillingAttribution,
-  resolveOrganizationBillingAttribution,
-  authorizeOrganizationChat,
   readOrganizationAssistantImage,
   finalizeAssistantTurn,
-  appendCopilotChatMessages,
   persistChatResources,
-  mockPublishStatusChanged,
   atomicallyClaimChatSend,
   admitTurn,
   releaseChatSendClaim,
@@ -56,20 +82,13 @@ const {
   generateWorkspaceSnapshot: vi.fn(),
   processContextsServer: vi.fn(),
   resolveActiveResourceContext: vi.fn(),
-  buildCopilotRequestPayload: vi.fn(),
   createSSEStream: vi.fn(),
   acquirePendingChatStream: vi.fn(),
   getPendingChatStreamId: vi.fn(),
   releasePendingChatStream: vi.fn(),
-  resolveOrCreateChat: vi.fn(),
-  resolveBillingAttribution: vi.fn(),
-  resolveOrganizationBillingAttribution: vi.fn(),
-  authorizeOrganizationChat: vi.fn(),
   readOrganizationAssistantImage: vi.fn(),
   finalizeAssistantTurn: vi.fn(),
-  appendCopilotChatMessages: vi.fn(),
   persistChatResources: vi.fn(),
-  mockPublishStatusChanged: vi.fn(),
   atomicallyClaimChatSend: vi.fn(),
   admitTurn: vi.fn(),
   releaseChatSendClaim: vi.fn(),
@@ -80,35 +99,12 @@ const {
  * `withCopilotSpan` is a pass-through here — the nesting it provides is not
  * under test and a real tracer would need an exporter to observe.
  */
-const { setInputMessages, setUserMessagePreview, startCopilotOtelRoot } = vi.hoisted(() => ({
+const { setInputMessages, setUserMessagePreview } = vi.hoisted(() => ({
   setInputMessages: vi.fn(),
   setUserMessagePreview: vi.fn(),
-  startCopilotOtelRoot: vi.fn(),
 }))
 
-vi.mock('@/lib/mothership/request/otel', async () => {
-  const { ROOT_CONTEXT, trace } = await import('@opentelemetry/api')
-  const span = () => trace.getTracer('post-test').startSpan('post-test')
-  startCopilotOtelRoot.mockImplementation(() => ({
-    span: span(),
-    context: ROOT_CONTEXT,
-    requestId: 'req-1',
-    finish: vi.fn(),
-    setUserMessagePreview,
-    setInputMessages,
-    setOutputMessages: vi.fn(),
-    setRequestShape: vi.fn(),
-  }))
-  return {
-    startCopilotOtelRoot,
-    withCopilotSpan: (
-      _name: string,
-      _attrs: Record<string, unknown> | undefined,
-      fn: (child: ReturnType<typeof span>) => unknown,
-      _context?: unknown
-    ) => fn(span()),
-  }
-})
+vi.mock('@/lib/mothership/request/otel', () => mothershipOtelMock)
 
 const resolvePermissionGroupConfig = permissionGroupScopeMockFns.mockResolvePermissionGroupConfig
 
@@ -145,18 +141,10 @@ vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution,
-  resolveOrganizationBillingAttribution,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  requireOrganizationSearchAvailable: vi.fn(async () => {}),
-  isKnowledgeMemberAccessAvailable: vi.fn(async () => true),
-}))
-vi.mock('@/lib/mothership/chat/organization-chats', () => ({
-  authorizeOrganizationChat: { execute: authorizeOrganizationChat },
-}))
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganizationChatsMock)
 
 vi.mock('@/lib/uploads/contexts/organization-assistant/application', () => ({
   readOrganizationAssistantImage,
@@ -191,9 +179,7 @@ vi.mock('@/lib/mothership/request/session/abort', () => ({
   }),
 }))
 
-vi.mock('@/lib/mothership/chat/payload', () => ({
-  buildCopilotRequestPayload,
-}))
+vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 
 vi.mock('@/lib/mothership/request/lifecycle/start', () => ({
   createSSEStream,
@@ -206,9 +192,7 @@ vi.mock('@/lib/mothership/request/session', () => ({
   releasePendingChatStream,
 }))
 
-vi.mock('@/lib/mothership/chat/lifecycle', () => ({
-  resolveOrCreateChat,
-}))
+vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
 
 vi.mock('@/lib/core/idempotency', () => ({
   chatSendIdempotency: {
@@ -221,9 +205,7 @@ vi.mock('@/lib/mothership/chat/terminal-state', () => ({
   finalizeAssistantTurn,
 }))
 
-vi.mock('@/lib/mothership/chat/messages-store', () => ({
-  appendCopilotChatMessages,
-}))
+vi.mock('@/lib/mothership/chat/messages-store', () => mothershipChatMessagesMock)
 
 vi.mock('@/lib/mothership/resources/persistence', () => ({
   persistChatResources,
@@ -231,13 +213,35 @@ vi.mock('@/lib/mothership/resources/persistence', () => ({
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
-vi.mock('@/lib/mothership/chat-status', () => ({
-  publishChatStatusChanged: mockPublishStatusChanged,
-}))
+vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 
 import { chatOperations } from '@/lib/mothership/application/operations'
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { handleUnifiedChatPost } from './post'
+
+const { mockBuildCopilotRequestPayload: buildCopilotRequestPayload } = mothershipChatPayloadMockFns
+const { mockResolveOrCreateChat: resolveOrCreateChat } = mothershipChatLifecycleMockFns
+const { mockAuthorizeOrganizationChat: authorizeOrganizationChat } =
+  mothershipOrganizationChatsMockFns
+const { mockAppendCopilotChatMessages: appendCopilotChatMessages } = mothershipChatMessagesMockFns
+const { mockPublishChatStatusChanged: mockPublishStatusChanged } = mothershipChatStatusMockFns
+const { mockStartCopilotOtelRoot: startCopilotOtelRoot } = mothershipOtelMockFns
+
+const otelSpan = () => trace.getTracer('post-test').startSpan('post-test')
+startCopilotOtelRoot.mockImplementation(() => ({
+  span: otelSpan(),
+  context: ROOT_CONTEXT,
+  requestId: 'req-1',
+  finish: vi.fn(),
+  setUserMessagePreview,
+  setInputMessages,
+  setOutputMessages: vi.fn(),
+  setRequestShape: vi.fn(),
+}))
+mothershipOtelMockFns.mockWithCopilotSpan.mockImplementation(
+  (_name: string, _attrs: unknown, fn: (child: ReturnType<typeof otelSpan>) => unknown) =>
+    fn(otelSpan())
+)
 
 describe('handleUnifiedChatPost', () => {
   it.each([false, true])(
@@ -275,7 +279,6 @@ describe('handleUnifiedChatPost', () => {
 
   beforeEach(() => {
     flags.models.mockResolvedValue(true)
-    vi.clearAllMocks()
     flags.plan.mockResolvedValue(false)
     resetDbChainMock()
     atomicallyClaimChatSend.mockResolvedValue({
@@ -418,7 +421,7 @@ describe('handleUnifiedChatPost', () => {
     )
     expect(response.status).toBe(200)
     expect(authorizeOrganizationChat).toHaveBeenCalledWith({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: { organizationId: 'org-1', mode: 'assistant' },
     })
     expect(resolveOrCreateChat).toHaveBeenCalledWith(
@@ -480,7 +483,7 @@ describe('handleUnifiedChatPost', () => {
       )
       expect(response.status).toBe(200)
       expect(readOrganizationAssistantImage).toHaveBeenCalledWith({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         organizationId: 'org-1',
         key,
         signal: expect.any(AbortSignal),
@@ -692,7 +695,7 @@ describe('handleUnifiedChatPost', () => {
     expect(processContextsServer).not.toHaveBeenCalled()
     expect(computeWorkspaceEntitlements).not.toHaveBeenCalled()
     expect(listPersonal).toHaveBeenCalledWith({
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       input: { workspaceId: 'ws-1' },
     })
     expect(buildCopilotRequestPayload).toHaveBeenCalledWith(
@@ -1577,7 +1580,7 @@ describe('handleUnifiedChatPost', () => {
 
       expect(admitTurn).toHaveBeenCalledWith(
         expect.objectContaining({
-          principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+          principal: createSessionPrincipal(),
           input: expect.objectContaining({
             chatId: 'chat-1',
             sendClaim: {
@@ -1714,9 +1717,10 @@ describe('handleUnifiedChatPost copilot.use capability gate', () => {
   }
 
   function chatRequest(body: Record<string, unknown> = {}) {
-    return new NextRequest('http://localhost/api/copilot/chat', {
+    return createMockRequest({
       method: 'POST',
-      body: JSON.stringify({ message: 'Hello', workspaceId: 'ws-1', ...body }),
+      url: 'http://localhost/api/copilot/chat',
+      body: { message: 'Hello', workspaceId: 'ws-1', ...body },
     })
   }
 

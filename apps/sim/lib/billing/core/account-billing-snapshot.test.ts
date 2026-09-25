@@ -1,25 +1,30 @@
+import {
+  billingSubscriptionUtilsMock,
+  billingSubscriptionUtilsMockFns,
+} from '@sim/testing/mocks/billing-subscription-utils.mock'
+import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   events: [] as string[],
-  getResolvedUserUsageData: vi.fn(),
   getCreditBalanceForEntity: vi.fn(),
-  isOrgScopedSubscription: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/usage', () => ({
-  getResolvedUserUsageData: mocks.getResolvedUserUsageData,
-}))
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 
 vi.mock('@/lib/billing/credits/balance', () => ({
-  getCreditBalanceForEntity: mocks.getCreditBalanceForEntity,
+  getCreditBalanceForEntity: hoisted.getCreditBalanceForEntity,
 }))
 
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  isOrgScopedSubscription: mocks.isOrgScopedSubscription,
-}))
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
 import { getAccountBillingSnapshot } from '@/lib/billing/core/account-billing-snapshot'
+
+const mocks = {
+  ...hoisted,
+  getResolvedUserUsageData: billingUsageMockFns.mockGetResolvedUserUsageData,
+  isOrgScopedSubscription: billingSubscriptionUtilsMockFns.mockIsOrgScopedSubscription,
+}
 
 const usage = {
   currentUsage: 18.5,

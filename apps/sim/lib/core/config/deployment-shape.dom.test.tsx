@@ -7,7 +7,10 @@
  * fallback resolves to self-hosted. That is the state a tab keeps after recovering
  * in place from Next's bare 404 shell or `global-error`.
  */
+
 import { act, type ReactNode } from 'react'
+import { oauthUtilsMock } from '@sim/testing/mocks/oauth-utils.mock'
+import { providersUtilsMock } from '@sim/testing/mocks/providers-utils.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,8 +23,8 @@ vi.hoisted(() => {
 
 vi.unmock('@/lib/core/config/env')
 vi.unmock('@/lib/core/config/env-flags')
-vi.mock('@/lib/oauth/utils', () => ({ getScopesForService: () => [] }))
-vi.mock('@/providers/utils', () => ({ getProviderFromModel: () => 'openai' }))
+vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
 import {

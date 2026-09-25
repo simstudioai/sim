@@ -6,6 +6,16 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  tableRowsServiceMock,
+  tableRowsServiceMockFns,
+} from '@sim/testing/mocks/table-rows-service.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
+import { triggerSdkMockFns } from '@sim/testing/mocks/trigger-sdk.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import type {
@@ -16,29 +26,17 @@ import type {
 } from '@/lib/table/types'
 
 const {
-  mockResolveBillingAttribution,
-  mockResolveSystemBillingAttribution,
-  mockRunsCancel,
-  mockRunsList,
   mockGetJobQueue,
-  mockGetTableById,
   mockListActiveDispatches,
   mockMarkActiveDispatchesCancelled,
   mockQueueCancelByKey,
   mockQueueCancelJob,
-  mockUpdateRow,
 } = vi.hoisted(() => ({
-  mockResolveBillingAttribution: vi.fn(),
-  mockResolveSystemBillingAttribution: vi.fn(),
-  mockRunsCancel: vi.fn(),
-  mockRunsList: vi.fn(),
   mockGetJobQueue: vi.fn(),
-  mockGetTableById: vi.fn(),
   mockListActiveDispatches: vi.fn(),
   mockMarkActiveDispatchesCancelled: vi.fn(),
   mockQueueCancelByKey: vi.fn(),
   mockQueueCancelJob: vi.fn(),
-  mockUpdateRow: vi.fn(),
 }))
 
 const SYSTEM_BILLING_ATTRIBUTION = {
@@ -54,18 +52,7 @@ const SYSTEM_BILLING_ATTRIBUTION = {
   payerSubscription: null,
 }
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionSnapshot: vi.fn((value) => value),
-  resolveBillingAttribution: mockResolveBillingAttribution,
-  resolveSystemBillingAttribution: mockResolveSystemBillingAttribution,
-}))
-
-vi.mock('@trigger.dev/sdk', () => ({
-  runs: {
-    cancel: mockRunsCancel,
-    list: mockRunsList,
-  },
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 
 vi.mock('@/lib/core/async-jobs/config', () => ({
   getJobQueue: mockGetJobQueue,
@@ -76,13 +63,9 @@ vi.mock('@/lib/table/dispatcher', () => ({
   markActiveDispatchesCancelled: mockMarkActiveDispatchesCancelled,
 }))
 
-vi.mock('@/lib/table/rows/service', () => ({
-  updateRow: mockUpdateRow,
-}))
+vi.mock('@/lib/table/rows/service', () => tableRowsServiceMock)
 
-vi.mock('@/lib/table/service', () => ({
-  getTableById: mockGetTableById,
-}))
+vi.mock('@/lib/table/service', () => tableServiceMock)
 
 import {
   assertWorkflowGroupsDeployable,
@@ -93,6 +76,14 @@ import {
   runWorkflowColumn,
   type WorkflowGroupCellPayload,
 } from '@/lib/table/workflow-columns'
+
+const { mockRunsCancel, mockRunsList } = triggerSdkMockFns
+const mockUpdateRow = tableRowsServiceMockFns.mockUpdateRow
+
+const mockResolveBillingAttribution = billingAttributionMockFns.mockResolveBillingAttribution
+const mockResolveSystemBillingAttribution =
+  billingAttributionMockFns.mockResolveSystemBillingAttribution
+const mockGetTableById = tableServiceMockFns.mockGetTableById
 
 beforeEach(() => {
   resetDbChainMock()

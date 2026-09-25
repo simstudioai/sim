@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { Command } from 'commander'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CLI_CONTRACT } from '../contract/commands'
 import {
   type CreateWorkspaceInvitationsResponse,
@@ -112,10 +112,6 @@ beforeEach(() => {
   output.format = 'json'
 })
 
-afterEach(() => {
-  vi.restoreAllMocks()
-})
-
 const PUBLISH_CHAT: OperationSpec = {
   method: 'PUT',
   path: '/api/v2/workflows/[workflowId]/deployments/chat',
@@ -193,10 +189,6 @@ describe('workspace mutation receipt identity', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
   })
 
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   function applyPush(wait: boolean) {
     return executeOperation(
       'pushWorkspace',
@@ -240,10 +232,6 @@ describe('workspace mutation receipt identity', () => {
 })
 
 describe('selector pagination metadata', () => {
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
   it('preserves clipping reported by a later provider page in machine output', async () => {
     request
       .mockResolvedValueOnce({
@@ -391,9 +379,6 @@ describe('workspace invitation batch outcomes', () => {
 
   beforeEach(() => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
-  })
-  afterEach(() => {
-    vi.restoreAllMocks()
   })
 
   it.each([false, true])(

@@ -1,25 +1,24 @@
-import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { member, permissions, user, workspace } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  effectiveRole: vi.fn(),
-  config: vi.fn(),
-  workspaceConfig: vi.fn(),
-}))
-vi.mock('@sim/platform-authz/workspace', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@sim/platform-authz/workspace')>()),
-  resolveEffectiveWorkspacePermission: mocks.effectiveRole,
-}))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
-
-vi.mock('@/lib/permission-groups/config-scope.server', () => ({
-  resolvePermissionGroupConfig: mocks.workspaceConfig,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 import { SIM_CLI_CLIENT_ID } from '@/lib/auth/oauth-provider'
 import type { DbOrTx } from '@/lib/db/types'
@@ -30,7 +29,13 @@ import {
 } from '@/ee/access-requests/lib/application/authorization'
 import { accessRequestOperations } from '@/ee/access-requests/lib/application/operations'
 
-const principal: SessionPrincipal = { kind: 'session', userId: 'person', sessionId: 'session' }
+const mocks = {
+  effectiveRole: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  config: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+  workspaceConfig: permissionGroupScopeMockFns.mockResolvePermissionGroupConfig,
+}
+
+const principal = createSessionPrincipal({ userId: 'person', sessionId: 'session' })
 const workspaceScope = { kind: 'workspace' as const, workspaceId: 'workspace' }
 const organizationScope = { kind: 'organization' as const, organizationId: 'org' }
 const activePerson = { suspendedAt: null, banned: false, banExpires: null }
@@ -190,7 +195,7 @@ describe('access request scope authorization', () => {
 })
 
 describe('access request credential policy', () => {
-  const key = { kind: 'personal_api_key', userId: 'person', keyId: 'key' } as const
+  const key = createPersonalApiKeyPrincipal({ userId: 'person', keyId: 'key' })
   const oauth = {
     kind: 'oauth_access_token',
     userId: 'person',

@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { jsonResponse } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { googleChatConnector } from '@/connectors/google-chat/google-chat'
 
 const SPACE_NAME = 'spaces/AAAA1111'
@@ -25,13 +26,6 @@ const MESSAGES = [
     text: 'Morning',
   },
 ]
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
 
 const requestedUrls: string[] = []
 const fetchMock = vi.fn<(input: string | URL | Request, init?: RequestInit) => Promise<Response>>()
@@ -63,10 +57,6 @@ beforeEach(() => {
     return jsonResponse({ error: { message: 'not found' } }, 404)
   })
   vi.stubGlobal('fetch', fetchMock)
-})
-
-afterEach(() => {
-  vi.unstubAllGlobals()
 })
 
 /** The decoded `filter` the last `spaces.list` request carried, if any. */

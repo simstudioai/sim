@@ -1,21 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockWarn } = vi.hoisted(() => ({ mockWarn: vi.fn() }))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: mockWarn,
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-  logger: { info: vi.fn(), warn: mockWarn, error: vi.fn(), debug: vi.fn() },
-  runWithRequestContext: <T>(_context: unknown, fn: () => T): T => fn(),
-  getRequestContext: () => undefined,
-  setRequestAuth: vi.fn(),
-  setRequestTraceId: vi.fn(),
-}))
-
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { describe, expect, it } from 'vitest'
 import { deriveDeliveryKey } from '@/lib/core/http/derive-key'
 import { squareCreateCatalogImageTool } from '@/tools/square/create_catalog_image'
 import { squareCreateCustomerTool } from '@/tools/square/create_customer'
@@ -27,6 +11,8 @@ import { squarePublishInvoiceTool } from '@/tools/square/publish_invoice'
 import { squareRefundPaymentTool } from '@/tools/square/refund_payment'
 import { squareUpsertCatalogObjectTool } from '@/tools/square/upsert_catalog_object'
 import type { ToolConfig } from '@/tools/types'
+
+const { warn: mockWarn } = getMockLogger('SquareIdempotency')
 
 /** A complete execution identity, as the executor is expected to inject it. */
 const CONTEXT = {
@@ -87,10 +73,6 @@ const BODY_PLACEMENT_SITES: ReadonlyArray<{
 ]
 
 describe('square idempotency keys', () => {
-  beforeEach(() => {
-    mockWarn.mockClear()
-  })
-
   describe.each(BODY_PLACEMENT_SITES.map((site) => [site.tool.id, site] as const))(
     '%s',
     (_id, site) => {

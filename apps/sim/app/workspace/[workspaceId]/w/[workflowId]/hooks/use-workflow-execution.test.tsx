@@ -1,7 +1,19 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, type ReactNode } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import { terminalConsoleMockFns } from '@sim/testing/mocks/terminal-console.mock'
+import {
+  resetWorkflowRegistryMockState,
+  workflowRegistryStoreMock,
+} from '@sim/testing/mocks/workflow-registry-store.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -10,10 +22,6 @@ const {
   executionStoreState,
   idleExecution,
   mockCancel,
-  mockAdoptScopedExecution,
-  mockBeginScopedExecution,
-  mockClearExecutionPointer,
-  mockEndScopedExecution,
   mockExecute,
   mockExecuteFromBlock,
   mockFindStartBlock,
@@ -22,9 +30,7 @@ const {
   mockHandleExecutionErrorConsole,
   mockIsExecutionStreamHttpError,
   mockIsRunToolActiveForWorkflow,
-  mockLoadExecutionPointer,
   mockReconnect,
-  mockRequestJson,
   mockResolveStartCandidates,
   mockSelectBestTrigger,
   mockUploadInternalFileSession,
@@ -96,10 +102,6 @@ const {
     executionStoreState,
     idleExecution,
     mockCancel: vi.fn(),
-    mockAdoptScopedExecution: vi.fn(),
-    mockBeginScopedExecution: vi.fn(() => ({})),
-    mockClearExecutionPointer: vi.fn(),
-    mockEndScopedExecution: vi.fn(() => true),
     mockExecute: vi.fn(),
     mockExecuteFromBlock: vi.fn(),
     mockFindStartBlock: vi.fn(() => ({ blockId: 'start' })),
@@ -108,9 +110,7 @@ const {
     mockHandleExecutionErrorConsole: vi.fn(),
     mockIsExecutionStreamHttpError: vi.fn(() => false),
     mockIsRunToolActiveForWorkflow: vi.fn(() => false),
-    mockLoadExecutionPointer: vi.fn(),
     mockReconnect: vi.fn(),
-    mockRequestJson: vi.fn(),
     mockResolveStartCandidates: vi.fn(),
     mockSelectBestTrigger: vi.fn(),
     mockUploadInternalFileSession: vi.fn(),
@@ -121,17 +121,11 @@ const {
   }
 })
 
-vi.mock('@sim/emcn', () => ({
-  toast: { error: vi.fn() },
-}))
+vi.mock('@sim/emcn', () => emcnMock)
 
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ workspaceId: 'workspace-1' }),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mockRequestJson,
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 vi.mock('@/lib/mothership/tools/client/run-tool-execution', () => ({
   isRunToolActiveForWorkflow: mockIsRunToolActiveForWorkflow,
@@ -266,22 +260,6 @@ vi.mock('@/stores/execution', () => ({
   ),
 }))
 
-vi.mock('@/stores/terminal', () => ({
-  clearExecutionPointer: mockClearExecutionPointer,
-  consolePersistence: {
-    adoptScopedExecution: mockAdoptScopedExecution,
-    beginScopedExecution: mockBeginScopedExecution,
-    endScopedExecution: mockEndScopedExecution,
-    persist: vi.fn(),
-  },
-  loadExecutionPointer: mockLoadExecutionPointer,
-  saveExecutionPointer: vi.fn(),
-  useTerminalConsoleStore: Object.assign(
-    (selector: (state: typeof terminalStoreState) => unknown) => selector(terminalStoreState),
-    { getState: () => terminalStoreState }
-  ),
-}))
-
 vi.mock('@/stores/variables/store', () => ({
   useVariablesStore: (selector: (state: Record<string, unknown>) => unknown) =>
     selector({
@@ -295,18 +273,7 @@ vi.mock('@/stores/workflow-diff', () => ({
     selector({ isShowingDiff: false }),
 }))
 
-vi.mock('@/stores/workflows/registry/store', () => ({
-  useWorkflowRegistry: (
-    selector: (state: {
-      activeWorkflowId: string
-      hydration: { workspaceId: string; phase: string }
-    }) => unknown
-  ) =>
-    selector({
-      activeWorkflowId: 'workflow-1',
-      hydration: { workspaceId: 'workspace-1', phase: 'ready' },
-    }),
-}))
+vi.mock('@/stores/workflows/registry/store', () => workflowRegistryStoreMock)
 
 vi.mock('@/stores/workflows/utils', () => ({
   mergeSubblockState: (blocks: Record<string, unknown>) => blocks,
@@ -324,6 +291,35 @@ import {
   useWorkflowExecution,
   WorkflowAttachmentUploadError,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
+
+nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
+resetWorkflowRegistryMockState({
+  activeWorkflowId: 'workflow-1',
+  hydration: {
+    phase: 'ready',
+    workspaceId: 'workspace-1',
+    workflowId: null,
+    requestId: null,
+    error: null,
+  },
+})
+
+const {
+  mockClearExecutionPointer,
+  mockLoadExecutionPointer,
+  mockUseTerminalConsoleStore,
+  mockConsolePersistence: {
+    adoptScopedExecution: mockAdoptScopedExecution,
+    beginScopedExecution: mockBeginScopedExecution,
+    endScopedExecution: mockEndScopedExecution,
+  },
+} = terminalConsoleMockFns
+mockUseTerminalConsoleStore.mockImplementation((selector?: (state: never) => unknown) =>
+  selector?.(terminalStoreState as never)
+)
+mockUseTerminalConsoleStore.getState.mockReturnValue(terminalStoreState)
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 
 interface HookHarness {
   result: () => ReturnType<typeof useWorkflowExecution>
@@ -716,10 +712,6 @@ describe('useWorkflowExecution attachment uploads', () => {
     )
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('does not execute and reports the exact server error when an explicit attachment fails', async () => {
     const { result, unmount } = renderWorkflowExecutionHook()
     const contextFile = new File(['context'], 'context.txt', { type: 'text/plain' })
@@ -957,10 +949,6 @@ describe('useWorkflowExecution workflow state override', () => {
     }
     mockResolveStartCandidates.mockReturnValue([startCandidate])
     mockSelectBestTrigger.mockReturnValue([startCandidate])
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
   })
 
   it.each(['manual', 'chat', 'run-until'] as const)(

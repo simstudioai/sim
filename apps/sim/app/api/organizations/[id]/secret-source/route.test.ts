@@ -6,15 +6,15 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PUT } from '@/app/api/organizations/[id]/secret-source/route'
 import { GET as getSecrets } from '@/app/api/organizations/[id]/secret-source/secrets/route'
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-const context = { params: Promise.resolve({ id: 'org' }) }
+const context = createRouteContext({ id: 'org' })
 beforeEach(() => {
   resetDbChainMock()
   authMockFns.mockGetSession.mockResolvedValue({

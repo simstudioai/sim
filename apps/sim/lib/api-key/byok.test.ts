@@ -1,14 +1,19 @@
 import { dbChainMockFns, hasMockCondition, resetDbChainMock, schemaMock } from '@sim/testing'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import {
+  providersModelsMock,
+  providersModelsMockFns,
+} from '@sim/testing/mocks/providers-models.mock'
+import { providersUtilsMock } from '@sim/testing/mocks/providers-utils.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDecryptSecret, mockIsOrganizationBYOKEntitled } = vi.hoisted(() => ({
-  mockDecryptSecret: vi.fn(),
+const { mockIsOrganizationBYOKEntitled } = vi.hoisted(() => ({
   mockIsOrganizationBYOKEntitled: vi.fn(),
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/api-key/byok-entitlement', () => ({
   isOrganizationBYOKEntitledCached: mockIsOrganizationBYOKEntitled,
@@ -18,39 +23,13 @@ vi.mock('@/lib/core/config/api-keys', () => ({
   getRotatingApiKey: mockGetRotatingApiKey,
 }))
 
-const { mockEnv, mockGetRotatingApiKey, mockGetHostedModels, mockIsHosted } = vi.hoisted(() => ({
-  mockEnv: {} as Record<string, string | undefined>,
+const { mockGetRotatingApiKey } = vi.hoisted(() => ({
   mockGetRotatingApiKey: vi.fn(),
-  mockGetHostedModels: vi.fn(() => [] as string[]),
-  mockIsHosted: { value: true },
 }))
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: mockEnv,
-}))
+vi.mock('@/providers/models', () => providersModelsMock)
 
-vi.mock('@/lib/core/config/env-flags', () => ({
-  get isHosted() {
-    return mockIsHosted.value
-  },
-}))
-
-vi.mock('@/providers/models', () => ({
-  getProviderFileAttachment: vi
-    .fn()
-    .mockReturnValue({ maxBytes: 10 * 1024 * 1024, strategy: 'inline' }),
-  INLINE_ATTACHMENT_MAX_BYTES: 10 * 1024 * 1024,
-  getHostedModels: mockGetHostedModels,
-}))
-
-vi.mock('@/providers/utils', () => ({
-  isFunctionToolCall: (toolCall: unknown) =>
-    typeof toolCall === 'object' &&
-    toolCall !== null &&
-    'function' in toolCall &&
-    (toolCall as { function?: unknown }).function != null,
-  PROVIDER_PLACEHOLDER_KEY: 'placeholder',
-}))
+vi.mock('@/providers/utils', () => providersUtilsMock)
 
 vi.mock('@/stores/providers/store', () => ({
   useProvidersStore: { getState: vi.fn() },
@@ -58,6 +37,20 @@ vi.mock('@/stores/providers/store', () => ({
 
 import { getApiKeyWithBYOK, getBYOKKey } from '@/lib/api-key/byok'
 import { useProvidersStore } from '@/stores/providers/store'
+
+const mockDecryptSecret = encryptionMockFns.mockDecryptSecret
+const { mockGetHostedModels } = providersModelsMockFns
+
+setEnvFlags({ isHosted: true })
+setEnv({
+  AZURE_OPENAI_API_KEY: undefined,
+  AZURE_ANTHROPIC_API_KEY: undefined,
+  VLLM_API_KEY: undefined,
+  LITELLM_API_KEY: undefined,
+  FIREWORKS_API_KEY: undefined,
+  TOGETHER_API_KEY: undefined,
+  BASETEN_API_KEY: undefined,
+})
 
 /**
  * Rotation counters persist for the process lifetime, so each test uses
@@ -73,7 +66,11 @@ const storedOrganizationKey = (organizationId: string, id: string) => ({
   ...storedKey(id),
 })
 
-afterAll(resetDbChainMock)
+afterAll(() => {
+  resetDbChainMock()
+  resetEnvMock()
+  resetEnvFlagsMock()
+})
 
 describe('getBYOKKey', () => {
   it('refuses corrupt configured keys in enterprise mode instead of falling back to hosted', async () => {
@@ -243,9 +240,8 @@ describe('getApiKeyWithBYOK provider classification', () => {
 
   beforeEach(() => {
     resetDbChainMock()
-    mockIsHosted.value = true
-    mockEnv.AZURE_OPENAI_API_KEY = 'azure-env-key'
-    mockEnv.VLLM_API_KEY = 'vllm-env-key'
+    setEnvFlags({ isHosted: true })
+    setEnv({ AZURE_OPENAI_API_KEY: 'azure-env-key', VLLM_API_KEY: 'vllm-env-key' })
     dbChainMockFns.orderBy.mockResolvedValue([storedKey('other-provider-key')])
     mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
       decrypted: encrypted.replace('encrypted-', 'decrypted-'),
@@ -299,7 +295,7 @@ describe('getApiKeyWithBYOK provider classification', () => {
   it('uses Bedrock credentials for an uncataloged inference profile', async () => {
     expect(
       await getApiKeyWithBYOK('bedrock', 'BEDROCK/MyInferenceProfile', uniqueWorkspaceId())
-    ).toEqual({ apiKey: 'placeholder', isBYOK: false })
+    ).toEqual({ apiKey: providersUtilsMock.PROVIDER_PLACEHOLDER_KEY, isBYOK: false })
     expect(dbChainMockFns.where).not.toHaveBeenCalled()
   })
 })
@@ -307,7 +303,7 @@ describe('getApiKeyWithBYOK provider classification', () => {
 describe('getApiKeyWithBYOK for TypeSafe', () => {
   beforeEach(() => {
     resetDbChainMock()
-    mockIsHosted.value = true
+    setEnvFlags({ isHosted: true })
     mockGetHostedModels.mockReturnValue(['jev-latest', 'jev-1.13.0', 'jev-preview'])
     mockGetRotatingApiKey.mockReturnValue('hosted-typesafe-key')
     mockDecryptSecret.mockImplementation(async (encrypted: string) => ({
@@ -355,7 +351,7 @@ describe('getApiKeyWithBYOK for TypeSafe', () => {
   })
 
   it('requires caller credentials on self-hosted deployments', async () => {
-    mockIsHosted.value = false
+    setEnvFlags({ isHosted: false })
     await expect(
       getApiKeyWithBYOK('typesafe', 'jev-latest', uniqueWorkspaceId(), 'caller-key')
     ).resolves.toEqual({ apiKey: 'caller-key', isBYOK: false })
@@ -371,8 +367,8 @@ describe('getApiKeyWithBYOK for Fireworks', () => {
 
   beforeEach(() => {
     resetDbChainMock()
-    mockIsHosted.value = true
-    mockEnv.FIREWORKS_API_KEY = 'platform-fireworks-key'
+    setEnvFlags({ isHosted: true })
+    setEnv({ FIREWORKS_API_KEY: 'platform-fireworks-key' })
     mockGetHostedModels.mockReturnValue([HOSTED_POOL_MODEL, 'fireworks/kimi-k3'])
     mockGetRotatingApiKey.mockReturnValue('rotated-fireworks-key')
     ;(useProvidersStore.getState as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -405,7 +401,7 @@ describe('getApiKeyWithBYOK for Fireworks', () => {
   })
 
   it('falls back to the env key for any model when self-hosted', async () => {
-    mockIsHosted.value = false
+    setEnvFlags({ isHosted: false })
 
     const result = await getApiKeyWithBYOK(
       'fireworks',

@@ -1,39 +1,44 @@
+import { createWorkspaceApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadWorkspace: vi.fn(),
-  resolvePermission: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   readBounds: vi.fn(),
   readSegments: vi.fn(),
   resolveFolderScope: vi.fn(),
   folderCondition: vi.fn(),
-  recordAudit: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 vi.mock('@/lib/logs/stats-queries', () => ({
-  readLogStatsBounds: mocks.readBounds,
-  readLogStatsSegments: mocks.readSegments,
+  readLogStatsBounds: hoisted.readBounds,
+  readLogStatsSegments: hoisted.readSegments,
 }))
 
 vi.mock('@/lib/logs/folder-scope', () => ({
-  resolveLogFolderScope: mocks.resolveFolderScope,
-  folderScopeCondition: mocks.folderCondition,
+  resolveLogFolderScope: hoisted.resolveFolderScope,
+  folderScopeCondition: hoisted.folderCondition,
   LOG_FOLDER_SCOPE_VERSION: 2,
 }))
 
-vi.mock('@sim/audit', () => ({ recordAudit: mocks.recordAudit }))
+vi.mock('@sim/audit', () => auditMock)
 
 import { getLogStats } from '@/lib/logs/application/get-log-stats'
+
+const mocks = {
+  recordAudit: auditMockFns.mockRecordAudit,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  ...hoisted,
+  loadWorkspace: workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext,
+}
 
 const workspaceContext = {
   workspaceId: 'workspace-1',
@@ -41,11 +46,7 @@ const workspaceContext = {
   allowPersonalApiKeys: true,
   billedAccountUserId: 'billing-owner-1',
 }
-const workspacePrincipal = {
-  kind: 'workspace_api_key' as const,
-  workspaceId: 'workspace-1',
-  keyId: 'key-1',
-}
+const workspacePrincipal = createWorkspaceApiKeyPrincipal()
 
 function segmentRow(workflowId: string) {
   return {

@@ -1,55 +1,44 @@
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import type { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  getAsyncToolCall,
-  getRunSegment,
-  completeAsyncToolCall,
-  completeClaimedAsyncToolCall,
-  completePendingAsyncToolCall,
-  detachAsyncToolCall,
-  publishToolConfirmation,
-  encryptSecret,
-  getTrustedWorkflowToolExecution,
-} = vi.hoisted(() => ({
-  getAsyncToolCall: vi.fn(),
-  getRunSegment: vi.fn(),
-  completeAsyncToolCall: vi.fn(),
-  completeClaimedAsyncToolCall: vi.fn(),
-  completePendingAsyncToolCall: vi.fn(),
-  detachAsyncToolCall: vi.fn(),
+const { publishToolConfirmation, getTrustedWorkflowToolExecution } = vi.hoisted(() => ({
   publishToolConfirmation: vi.fn(),
-  encryptSecret: vi.fn(),
   getTrustedWorkflowToolExecution: vi.fn(),
 }))
 
 vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
 
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  getAsyncToolCall,
-  getRunSegment,
-  completeAsyncToolCall,
-  completeClaimedAsyncToolCall,
-  completePendingAsyncToolCall,
-  detachAsyncToolCall,
-  getClaimedWorkflowExecutionId: (claimedBy?: string | null) =>
-    claimedBy?.startsWith('workflow:') ? claimedBy.slice('workflow:'.length) : undefined,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 vi.mock('@/lib/mothership/persistence/tool-confirm', () => ({
   publishToolConfirmation,
 }))
 
-vi.mock('@/lib/core/security/encryption', () => ({
-  encryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/workflows/executor/execution-state', () => ({
   getTrustedWorkflowToolExecution,
 }))
 
 import { POST } from './route'
+
+const {
+  mockGetAsyncToolCall: getAsyncToolCall,
+  mockGetRunSegment: getRunSegment,
+  mockCompleteAsyncToolCall: completeAsyncToolCall,
+  mockCompleteClaimedAsyncToolCall: completeClaimedAsyncToolCall,
+  mockCompletePendingAsyncToolCall: completePendingAsyncToolCall,
+  mockDetachAsyncToolCall: detachAsyncToolCall,
+} = mothershipAsyncRunsMockFns
+
+const encryptSecret = encryptionMockFns.mockEncryptSecret
 
 describe('Copilot Confirm API Route', () => {
   const existingRow = {
@@ -82,10 +71,10 @@ describe('Copilot Confirm API Route', () => {
   })
 
   function createMockPostRequest(body: Record<string, unknown>): NextRequest {
-    return new NextRequest('http://localhost:3000/api/copilot/confirm', {
+    return createMockRequest({
       method: 'POST',
-      body: JSON.stringify(body),
-      headers: { 'Content-Type': 'application/json' },
+      url: 'http://localhost:3000/api/copilot/confirm',
+      body,
     })
   }
 

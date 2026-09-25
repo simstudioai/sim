@@ -1,44 +1,29 @@
+import { storageServiceMock, storageServiceMockFns } from '@sim/testing/mocks/storage-service.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableJobsServiceMock,
+  tableJobsServiceMockFns,
+} from '@sim/testing/mocks/table-jobs-service.mock'
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockGetTableById,
-  mockSelectExportRowPage,
-  mockUpdateJobProgress,
-  mockMarkJobReady,
-  mockMarkJobFailed,
-  mockSetJobResultKey,
-  mockAppendTableEvent,
-  mockCreateMultipartUpload,
-  mockDeleteFile,
-} = vi.hoisted(() => ({
-  mockGetTableById: vi.fn(),
-  mockSelectExportRowPage: vi.fn(),
-  mockUpdateJobProgress: vi.fn(),
-  mockMarkJobReady: vi.fn(),
-  mockMarkJobFailed: vi.fn(),
-  mockSetJobResultKey: vi.fn(),
-  mockAppendTableEvent: vi.fn(),
-  mockCreateMultipartUpload: vi.fn(),
-  mockDeleteFile: vi.fn(),
-}))
-
-vi.mock('@/lib/table/service', () => ({
-  getTableById: mockGetTableById,
-}))
-vi.mock('@/lib/table/jobs/service', () => ({
-  selectExportRowPage: mockSelectExportRowPage,
-  updateJobProgressInWorkspace: mockUpdateJobProgress,
-  markJobReadyInWorkspace: mockMarkJobReady,
-  markJobFailedInWorkspace: mockMarkJobFailed,
-  setJobResultKeyInWorkspace: mockSetJobResultKey,
-}))
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: mockAppendTableEvent }))
-vi.mock('@/lib/uploads/core/storage-service', () => ({
-  createMultipartUpload: mockCreateMultipartUpload,
-  deleteFile: mockDeleteFile,
-}))
+vi.mock('@/lib/table/service', () => tableServiceMock)
+vi.mock('@/lib/table/jobs/service', () => tableJobsServiceMock)
+vi.mock('@/lib/table/events', () => tableEventsMock)
+vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
 import { runTableExport } from '@/lib/table/export-runner'
+
+const mockCreateMultipartUpload = storageServiceMockFns.mockCreateMultipartUpload
+const mockDeleteFile = storageServiceMockFns.mockDeleteFile
+
+const mockGetTableById = tableServiceMockFns.mockGetTableById
+const mockSelectExportRowPage = tableJobsServiceMockFns.mockSelectExportRowPage
+const mockUpdateJobProgress = tableJobsServiceMockFns.mockUpdateJobProgressInWorkspace
+const mockMarkJobReady = tableJobsServiceMockFns.mockMarkJobReadyInWorkspace
+const mockMarkJobFailed = tableJobsServiceMockFns.mockMarkJobFailedInWorkspace
+const mockSetJobResultKey = tableJobsServiceMockFns.mockSetJobResultKeyInWorkspace
+const mockAppendTableEvent = tableEventsMockFns.mockAppendTableEvent
 
 const table = {
   id: 'tbl_1',

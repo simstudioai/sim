@@ -1,16 +1,17 @@
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
+import { piiRedactionMock, piiRedactionMockFns } from '@sim/testing/mocks/pii-redaction.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   read: vi.fn(),
   save: vi.fn(),
-  principal: vi.fn(),
   project: vi.fn(),
-  redact: vi.fn(),
   tokens: vi.fn(),
 }))
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mocks.principal,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 vi.mock('@/lib/memory/application/summaries', () => ({
   readAgentMemorySummaryUseCase: { execute: mocks.read },
   saveAgentMemorySummaryUseCase: { execute: mocks.save },
@@ -18,7 +19,7 @@ vi.mock('@/lib/memory/application/summaries', () => ({
 vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
   projectResolvedSecretModelContent: mocks.project,
 }))
-vi.mock('@/lib/logs/execution/pii-redaction', () => ({ redactObjectStrings: mocks.redact }))
+vi.mock('@/lib/logs/execution/pii-redaction', () => piiRedactionMock)
 vi.mock('@/lib/memory/context-tokens', () => ({
   getConversationTokenCount: mocks.tokens,
 }))
@@ -27,6 +28,9 @@ import { setNativeConversationMessage } from '@/providers/conversation-metadata'
 import { createAgentConversationCompactor } from '@/providers/conversation-summary'
 import type { ProviderRuntimeContext } from '@/providers/runtime-context'
 import type { Message, ProviderRequest } from '@/providers/types'
+
+const mockPrincipal = executorPrincipalMockFns.mockCreateExecutorPrincipalFromExecutionContext
+const mockRedact = piiRedactionMockFns.mockRedactObjectStrings
 
 function fixture() {
   const current: Message = { role: 'user', content: 'CURRENT_REQUEST' }
@@ -106,9 +110,9 @@ describe('bounded derived conversation summaries', () => {
   beforeEach(() => {
     mocks.read.mockResolvedValue(undefined)
     mocks.save.mockResolvedValue(undefined)
-    mocks.principal.mockResolvedValue({ kind: 'delegated' })
+    mockPrincipal.mockResolvedValue({ kind: 'delegated' })
     mocks.project.mockImplementation((value: string) => ({ safe: true, value }))
-    mocks.redact.mockImplementation(async (value: string) =>
+    mockRedact.mockImplementation(async (value: string) =>
       value.replaceAll('PRIVATE', '[redacted]')
     )
     mocks.tokens.mockImplementation((text: string) => Math.ceil(text.length / 4))

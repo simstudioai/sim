@@ -1,34 +1,29 @@
+import { createPersonalApiKeyPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import {
+  workflowsQueriesMock,
+  workflowsQueriesMockFns,
+} from '@sim/testing/mocks/workflows-queries.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  recordAudit: vi.fn(),
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
-  loadSnapshot: vi.fn(),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: {},
-  AuditResourceType: { WORKFLOW: 'workflow' },
-  recordAudit: mocks.recordAudit,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveContext,
-}))
-vi.mock('@/lib/workflows/queries', () => ({ loadWorkflowReadSnapshot: mocks.loadSnapshot }))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
+vi.mock('@/lib/workflows/queries', () => workflowsQueriesMock)
 
 import { readWorkflowGraph } from '@/lib/workflows/application/read-workflow-graph'
+
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockLoadSnapshot = workflowsQueriesMockFns.mockLoadWorkflowReadSnapshot
+const mockResolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
+const mockResolveContext = workflowContextMockFns.mockResolveActiveWorkflowApplicationContext
 
 const context = {
   workflowId: 'workflow-1',
@@ -39,7 +34,7 @@ const context = {
   billedAccountUserId: 'billing-owner-1',
 }
 
-const principal = { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' }
+const principal = createPersonalApiKeyPrincipal()
 const input = { workflowId: 'workflow-1' }
 
 /** The stored column shape, including the `workflowId` this surface withholds. */
@@ -53,9 +48,9 @@ const PROJECTED_VARIABLES = {
 
 describe('readWorkflowGraph', () => {
   beforeEach(() => {
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('read')
-    mocks.loadSnapshot.mockResolvedValue({
+    mockResolveContext.mockResolvedValue(context)
+    mockResolvePermission.mockResolvedValue('read')
+    mockLoadSnapshot.mockResolvedValue({
       workflowRecord: { id: 'workflow-1', variables: STORED_VARIABLES },
       normalizedData: { blocks: { 'block-1': { id: 'block-1' } }, edges: [] },
     })
@@ -83,7 +78,7 @@ describe('readWorkflowGraph', () => {
     ['a JSON string', JSON.stringify(STORED_VARIABLES)],
     ['a legacy array', Object.values(STORED_VARIABLES)],
   ])('reads variables stored as %s', async (_shape, stored) => {
-    mocks.loadSnapshot.mockResolvedValue({
+    mockLoadSnapshot.mockResolvedValue({
       workflowRecord: { id: 'workflow-1', variables: stored },
       normalizedData: { blocks: { 'block-1': { id: 'block-1' } }, edges: [] },
     })
@@ -108,7 +103,7 @@ describe('readWorkflowGraph', () => {
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
-    expect(mocks.resolveContext).not.toHaveBeenCalled()
+    expect(mockResolveContext).not.toHaveBeenCalled()
   })
 
   /**
@@ -120,13 +115,13 @@ describe('readWorkflowGraph', () => {
    */
   describe('authorize', () => {
     it('refuses a principal without the minimum role, and never loads the graph', async () => {
-      mocks.resolvePermission.mockResolvedValue(null)
+      mockResolvePermission.mockResolvedValue(null)
 
       await expect(readWorkflowGraph.authorize!({ principal, input })).rejects.toMatchObject({
         code: 'forbidden',
       })
 
-      expect(mocks.loadSnapshot).not.toHaveBeenCalled()
+      expect(mockLoadSnapshot).not.toHaveBeenCalled()
     })
   })
 })

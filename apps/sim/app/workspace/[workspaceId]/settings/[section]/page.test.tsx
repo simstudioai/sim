@@ -1,30 +1,18 @@
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { authMockFns } from '@sim/testing/mocks/auth.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAuthorizeSection,
-  mockGetQueryClient,
-  mockGetSession,
-  mockNotFound,
-  mockRedirect,
-  mockSectionPrefetch,
-  mockGetHostContext,
-} = vi.hoisted(() => ({
-  mockAuthorizeSection: vi.fn(),
-  mockGetQueryClient: vi.fn(),
-  mockGetSession: vi.fn(),
-  mockNotFound: vi.fn(() => {
-    throw new Error('NEXT_NOT_FOUND')
-  }),
-  mockRedirect: vi.fn((href: string) => {
-    throw new Error(`NEXT_REDIRECT:${href}`)
-  }),
-  mockSectionPrefetch: vi.fn(),
-  mockGetHostContext: vi.fn(),
-}))
+const { mockAuthorizeSection, mockGetQueryClient, mockSectionPrefetch, mockGetHostContext } =
+  vi.hoisted(() => ({
+    mockAuthorizeSection: vi.fn(),
+    mockGetQueryClient: vi.fn(),
+    mockSectionPrefetch: vi.fn(),
+    mockGetHostContext: vi.fn(),
+  }))
 
-vi.mock('next/navigation', () => ({ notFound: mockNotFound, redirect: mockRedirect }))
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/ee/access-requests/components/permission-access-boundary', () => ({
   PermissionAccessBoundary: vi.fn(() => null),
 }))
@@ -70,8 +58,11 @@ vi.mock('@/app/workspace/[workspaceId]/settings/[section]/settings', () => ({
 
 import WorkspaceSettingsSectionPage from '@/app/workspace/[workspaceId]/settings/[section]/page'
 
+const mockRedirect = nextNavigationMockFns.mockRedirect
+const mockGetSession = authMockFns.mockGetSession
+
 function pageProps(section: string) {
-  return { params: Promise.resolve({ workspaceId: 'workspace-b', section }) }
+  return createRouteContext({ workspaceId: 'workspace-b', section })
 }
 
 describe('WorkspaceSettingsSectionPage', () => {

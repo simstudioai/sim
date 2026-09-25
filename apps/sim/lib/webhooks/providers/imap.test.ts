@@ -1,33 +1,21 @@
+import { dbChainMockFns } from '@sim/testing'
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockClose,
   mockCreateSecureImapClient,
   mockDbLimit,
-  mockDbSelect,
-  mockDbUpdate,
   mockHasImapEnvironmentReferences,
-  mockLogger,
   mockNormalizeLiteralImapConnection,
   mockResolveImapConnectionForActor,
 } = vi.hoisted(() => ({
   mockClose: vi.fn(),
   mockCreateSecureImapClient: vi.fn(),
   mockDbLimit: vi.fn(),
-  mockDbSelect: vi.fn(),
-  mockDbUpdate: vi.fn(),
   mockHasImapEnvironmentReferences: vi.fn(),
-  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   mockNormalizeLiteralImapConnection: vi.fn(),
   mockResolveImapConnectionForActor: vi.fn(),
-}))
-
-vi.mock('@sim/db', () => ({
-  db: { select: mockDbSelect, update: mockDbUpdate },
-}))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => mockLogger,
 }))
 
 vi.mock('@/lib/imap/connection.server', () => ({
@@ -38,6 +26,11 @@ vi.mock('@/lib/imap/connection.server', () => ({
 }))
 
 import { imapHandler } from '@/lib/webhooks/providers/imap'
+
+const mockDbSelect = dbChainMockFns.select
+const mockDbUpdate = dbChainMockFns.update
+
+const mockLogger = getMockLogger('WebhookProvider:Imap')
 
 const referenceConfig = {
   host: '{{IMAP_HOST}}',

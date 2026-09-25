@@ -1,111 +1,33 @@
 /**
  * @vitest-environment jsdom
  */
+
 import { act, type ReactNode, useEffect, useState } from 'react'
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
+import { reactQueryMock, reactQueryMockFns } from '@sim/testing/mocks/react-query.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '@/lib/api/client/errors'
 import type { MyInvitation } from '@/lib/api/contracts/invitations'
 
-const {
-  mockCancelQueries,
-  mockClearUserData,
-  mockGetSession,
-  mockInvalidateQueries,
-  mockLogger,
-  mockPush,
-  mockRequestJson,
-  mockRefetch,
-  mockSearchParams,
-  mockSetActive,
-  mockSetQueryData,
-  mockSignOut,
-  mockUseSession,
-} = vi.hoisted(() => ({
-  mockCancelQueries: vi.fn(),
+const { mockClearUserData } = vi.hoisted(() => ({
   mockClearUserData: vi.fn(),
-  mockGetSession: vi.fn(),
-  mockInvalidateQueries: vi.fn(),
-  mockLogger: {
-    error: vi.fn(),
-    warn: vi.fn(),
-  },
-  mockPush: vi.fn(),
-  mockRequestJson: vi.fn(),
-  mockRefetch: vi.fn(),
-  mockSearchParams: { current: new URLSearchParams('token=token-1') },
-  mockSetActive: vi.fn(),
-  mockSetQueryData: vi.fn(),
-  mockSignOut: vi.fn(),
-  mockUseSession: vi.fn(),
 }))
 
-vi.mock('@sim/logger', () => ({
-  createLogger: vi.fn().mockReturnValue(mockLogger),
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 
-vi.mock('next/navigation', () => ({
-  useParams: () => ({ id: 'invitation-1' }),
-  useRouter: () => ({ push: mockPush }),
-  useSearchParams: () => mockSearchParams.current,
-}))
+vi.mock('@tanstack/react-query', () => reactQueryMock)
 
-vi.mock('@tanstack/react-query', () => {
-  return {
-    useQueryClient: () => ({
-      cancelQueries: mockCancelQueries,
-      invalidateQueries: mockInvalidateQueries,
-      setQueryData: mockSetQueryData,
-    }),
-    /**
-     * Minimal useQuery stand-in: runs the queryFn once when enabled and
-     * exposes { data, error, isPending } — enough for the invitation fetch.
-     */
-    useQuery: (options: {
-      queryFn: (context: { signal?: AbortSignal }) => Promise<unknown>
-      enabled?: boolean
-    }) => {
-      const [state, setState] = useState<{
-        data: unknown
-        error: unknown
-        isPending: boolean
-      }>({ data: undefined, error: null, isPending: true })
-      const enabled = options.enabled !== false
-      useEffect(() => {
-        if (!enabled) return
-        let cancelled = false
-        options.queryFn({}).then(
-          (data) => {
-            if (!cancelled) setState({ data, error: null, isPending: false })
-          },
-          (error) => {
-            if (!cancelled) setState({ data: undefined, error, isPending: false })
-          }
-        )
-        return () => {
-          cancelled = true
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [enabled])
-      return { ...state, refetch: mockRefetch, isFetching: false }
-    },
-  }
-})
-
-vi.mock('@/lib/api/client/request', () => ({
-  requestJson: mockRequestJson,
-}))
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
 vi.mock('@/stores', () => ({ clearUserData: mockClearUserData }))
 
-vi.mock('@/lib/auth/auth-client', () => ({
-  client: {
-    getSession: mockGetSession,
-    organization: { setActive: mockSetActive },
-    signOut: mockSignOut,
-  },
-  useSession: mockUseSession,
-}))
+vi.mock('@/lib/auth/auth-client', () => authClientMock)
 
 vi.mock('@/app/invite/components/layout', () => ({
   default: ({ children }: { children: ReactNode }) => children,
@@ -145,6 +67,56 @@ vi.mock('@/app/invite/components/status-card', () => ({
 
 import Invite from '@/app/invite/[id]/invite'
 import { sessionKeys } from '@/hooks/queries/session'
+
+const mockPush = nextNavigationMockFns.router.push
+nextNavigationMockFns.mockUseParams.mockReturnValue({ id: 'invitation-1' })
+
+const mockRequestJson = apiClientRequestMockFns.mockRequestJson
+const {
+  cancelQueries: mockCancelQueries,
+  invalidateQueries: mockInvalidateQueries,
+  setQueryData: mockSetQueryData,
+} = reactQueryMockFns.mockQueryClient
+const { mockUseSession, mockSignOut } = authClientMockFns
+const {
+  getSession: mockGetSession,
+  organization: { setActive: mockSetActive },
+} = authClientMockFns.mockClient
+const mockRefetch = vi.fn()
+
+/**
+ * Minimal useQuery stand-in: runs the queryFn once when enabled and
+ * exposes { data, error, isPending } — enough for the invitation fetch.
+ */
+reactQueryMockFns.mockUseQuery.mockImplementation(
+  (options: {
+    queryFn: (context: { signal?: AbortSignal }) => Promise<unknown>
+    enabled?: boolean
+  }) => {
+    const [state, setState] = useState<{
+      data: unknown
+      error: unknown
+      isPending: boolean
+    }>({ data: undefined, error: null, isPending: true })
+    const enabled = options.enabled !== false
+    useEffect(() => {
+      if (!enabled) return
+      let cancelled = false
+      options.queryFn({}).then(
+        (data) => {
+          if (!cancelled) setState({ data, error: null, isPending: false })
+        },
+        (error) => {
+          if (!cancelled) setState({ data: undefined, error, isPending: false })
+        }
+      )
+      return () => {
+        cancelled = true
+      }
+    }, [enabled])
+    return { ...state, refetch: mockRefetch, isFetching: false }
+  }
+)
 
 let container: HTMLDivElement
 let root: Root
@@ -200,7 +172,7 @@ beforeEach(() => {
   document.body.appendChild(container)
   root = createRoot(container)
 
-  mockSearchParams.current = new URLSearchParams('token=token-1')
+  nextNavigationMockFns.mockUseSearchParams.mockReturnValue(new URLSearchParams('token=token-1'))
   mockUseSession.mockReturnValue({
     data: { user: { id: 'user-1', email: 'invitee@example.com' } },
     isPending: false,
@@ -262,7 +234,6 @@ afterEach(() => {
   container.remove()
   vi.clearAllTimers()
   vi.useRealTimers()
-  vi.clearAllMocks()
 })
 
 describe('Invite', () => {

@@ -121,15 +121,13 @@ conditions freshly after every push.
    ```
 
 6. **Before pushing, re-run the full sync check from `/ship` step 2** — not just the log command,
-   the whole check-and-recover flow (stash WIP if needed, rebase, verify the rebase didn't just
+   the whole check-and-recover flow (stash WIP pinned by SHA as `/ship` step 2 shows, rebase, verify the rebase didn't just
    cleanly replay stray commits, cherry-pick rebuild if it did or if it conflicted). A babysit
    loop spanning a long session is exactly the scenario where a branch can drift, and pushing
    review fixes on top of undetected drift is how an oversized PR happens even after the branch
-   was fixed once. Then run the repo's pre-ship checks the same way `/ship` does before
-   committing — not just lint/typecheck/boundary-validation, but also the conditional `/cleanup`
-   (if this round's fix touched UI code) and `/db-migrate` (if it touched schema/migrations)
-   gates from `/ship` steps 4 and 5. A review-fix round is still a code change and can trip
-   either gate just as easily as the original commit did.
+   was fixed once. Then run `/ship` steps 4–6 on this round's diff — the cleanup and test gates,
+   migration safety, and the regenerate + audit phases. A review-fix round is still a code change
+   and can trip any of them just as easily as the original commit did.
 
 7. **Commit and push** the round's fixes as one commit — `--force-with-lease` whenever step 6's
    sync check rewrote history, which includes a plain `git rebase origin/staging` that completed

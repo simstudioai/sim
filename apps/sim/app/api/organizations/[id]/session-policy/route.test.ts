@@ -8,13 +8,16 @@ import {
   resetEnvFlagsMock,
   setEnvFlags,
 } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsEnterprise, mockEagerClamp, mockRecordAudit } = vi.hoisted(() => ({
-  mockIsEnterprise: vi.fn(),
-  mockEagerClamp: vi.fn(),
-  mockRecordAudit: vi.fn(),
-}))
+const mockEagerClamp = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/auth/session-policy', () => ({
   eagerClampOrgSessions: mockEagerClamp,
@@ -25,34 +28,29 @@ vi.mock('@/lib/auth/security-policy', () => ({
   invalidateSecurityPolicyVersionCache: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: vi.fn().mockResolvedValue(null),
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+
+vi.mock('@sim/audit', () => auditMock)
+
+import { GET, PUT } from '@/app/api/organizations/[id]/session-policy/route'
+
+const mockGetSession = authMockFns.mockGetSession
+const mockRecordAudit = auditMockFns.mockRecordAudit
+const mockIsEnterprise = billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan
 
 /**
  * These tests run with billing enabled, where `isOrganizationFeatureEntitled`
  * delegates straight to the plan check — so both names resolve to the same
  * mock and `mockIsEnterprise` keeps steering the gate.
  */
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationOnEnterprisePlan: mockIsEnterprise,
-  isOrganizationFeatureEntitled: mockIsEnterprise,
-}))
-
-vi.mock('@sim/audit', () => ({
-  recordAudit: mockRecordAudit,
-  AuditAction: {
-    ORGANIZATION_SESSION_POLICY_UPDATED: 'organization.session_policy.updated',
-  },
-  AuditResourceType: { ORGANIZATION: 'organization' },
-}))
-
-import { GET, PUT } from '@/app/api/organizations/[id]/session-policy/route'
-
-const mockGetSession = authMockFns.mockGetSession
+billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled.mockImplementation(
+  (...args: unknown[]) => mockIsEnterprise(...args)
+)
 
 const ORG_ID = 'org-1'
-const routeContext = { params: Promise.resolve({ id: ORG_ID }) }
+const routeContext = createRouteContext({ id: ORG_ID })
 
 beforeAll(() => {
   setEnvFlags({ isBillingEnabled: true })

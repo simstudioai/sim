@@ -2,7 +2,9 @@
  * Tests for GCS client functionality
  */
 import { Writable } from 'node:stream'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
+import { setUploadsConfig, uploadsConfigMock } from '@sim/testing/mocks/uploads-config.mock'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockFile,
@@ -10,7 +12,6 @@ const {
   mockStorageInstance,
   mockStorageConstructor,
   mockGetAccessToken,
-  mockEnv,
   mockGcsConfig,
 } = vi.hoisted(() => {
   const mockFile = {
@@ -28,9 +29,6 @@ const {
     bucket: vi.fn(() => mockBucket),
     authClient: { getAccessToken: mockGetAccessToken, request: vi.fn() },
   }
-  const mockEnv: Record<string, string | undefined> = {
-    GCS_BUCKET_NAME: 'test-bucket',
-  }
   const mockGcsConfig = { bucket: 'test-bucket' }
   return {
     mockFile,
@@ -45,7 +43,6 @@ const {
       }
     ),
     mockGetAccessToken,
-    mockEnv,
     mockGcsConfig,
   }
 })
@@ -54,18 +51,7 @@ vi.mock('@google-cloud/storage', () => ({
   Storage: mockStorageConstructor,
 }))
 
-vi.mock('@/lib/core/config/env', () => ({
-  env: mockEnv,
-  getEnv: (key: string) => mockEnv[key],
-  isTruthy: (value: string | boolean | number | undefined) =>
-    typeof value === 'string' ? value.toLowerCase() === 'true' || value === '1' : Boolean(value),
-  isFalsy: (value: string | boolean | number | undefined) =>
-    typeof value === 'string' ? value.toLowerCase() === 'false' || value === '0' : value === false,
-}))
-
-vi.mock('@/lib/uploads/config', () => ({
-  GCS_CONFIG: mockGcsConfig,
-}))
+vi.mock('@/lib/uploads/config', () => uploadsConfigMock)
 
 import {
   completeGcsMultipartUpload,
@@ -81,25 +67,27 @@ import {
   uploadToGcs,
 } from '@/lib/uploads/providers/google-cloud-storage/client'
 
+setUploadsConfig({ GCS_CONFIG: mockGcsConfig })
+
+setEnv({
+  GCS_BUCKET_NAME: 'test-bucket',
+})
+afterAll(resetEnvMock)
+
 const mockFetch = vi.fn()
 
 describe('GCS Client', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', mockFetch)
-    mockEnv.GCS_PROJECT_ID = undefined
-    mockEnv.GCS_CREDENTIALS_JSON = undefined
+    setEnv({ GCS_PROJECT_ID: undefined })
+    setEnv({ GCS_CREDENTIALS_JSON: undefined })
     mockGetAccessToken.mockResolvedValue('test-access-token')
     resetGcsClientForTesting()
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-    vi.restoreAllMocks()
-  })
-
   describe('getGcsClient', () => {
     it('should reject invalid credentials JSON', async () => {
-      mockEnv.GCS_CREDENTIALS_JSON = 'not-json'
+      setEnv({ GCS_CREDENTIALS_JSON: 'not-json' })
 
       await expect(getGcsClient()).rejects.toThrow('GCS_CREDENTIALS_JSON is not valid JSON')
     })

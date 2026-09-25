@@ -1,3 +1,4 @@
+import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Passthrough React hooks so the hook can run outside a React root.
@@ -10,9 +11,7 @@ vi.mock('react', () => ({
 const mockMutate = vi.fn()
 const mockMutateAsync = vi.fn()
 
-vi.mock('@sim/emcn', () => ({
-  toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }),
-}))
+vi.mock('@sim/emcn', () => emcnMock)
 
 vi.mock('@/hooks/queries/tables', () => ({
   useUpdateTableRow: vi.fn(() => ({ mutate: mockMutate })),

@@ -1,14 +1,20 @@
+import {
+  mothershipAgentUrlMock,
+  mothershipAgentUrlMockFns,
+} from '@sim/testing/mocks/mothership-agent-url.mock'
+import {
+  mothershipGoFetchMock,
+  mothershipGoFetchMockFns,
+} from '@sim/testing/mocks/mothership-go-fetch.mock'
 import { generateId } from '@sim/utils/id'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { copyWorkerConversation } from '@/lib/mothership/chat/fork-worker'
 import type { ForkChatRequest } from '@/lib/mothership/generated/protocol'
 
-const { fetchWorker } = vi.hoisted(() => ({ fetchWorker: vi.fn() }))
-vi.mock('@/lib/mothership/request/go/fetch', () => ({ fetchGo: fetchWorker }))
-vi.mock('@/lib/mothership/server/agent-url', () => ({
-  getMothershipBaseURL: async () => 'http://worker.test',
-  getMothershipSourceEnvHeaders: () => ({}),
-}))
+vi.mock('@/lib/mothership/request/go/fetch', () => mothershipGoFetchMock)
+vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
+
+const fetchWorker = mothershipGoFetchMockFns.mockFetchGo
 
 const request: ForkChatRequest = {
   sourceChatId: generateId(),
@@ -22,6 +28,7 @@ const request: ForkChatRequest = {
 }
 
 beforeEach(() => {
+  mothershipAgentUrlMockFns.mockGetMothershipBaseURL.mockResolvedValue('http://worker.test')
   fetchWorker.mockReset()
   fetchWorker.mockImplementation(async () =>
     Response.json({ chatId: request.newChatId, sourceThroughSeq: 7 })

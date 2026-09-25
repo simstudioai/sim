@@ -1,24 +1,22 @@
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import { uploadsCopilotMock, uploadsCopilotMockFns } from '@sim/testing/mocks/uploads-copilot.mock'
+import {
+  uploadsExecutionMock,
+  uploadsExecutionMockFns,
+} from '@sim/testing/mocks/uploads-execution.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  uploadCopilotFile: vi.fn(),
-  uploadExecutionFile: vi.fn(),
   guardedFetch: vi.fn(),
   closeDispatcher: vi.fn(),
 }))
 
-vi.mock('@/lib/uploads/contexts/copilot', () => ({
-  uploadCopilotFile: mocks.uploadCopilotFile,
-}))
-vi.mock('@/lib/uploads/contexts/execution', () => ({
-  uploadExecutionFile: mocks.uploadExecutionFile,
-}))
-vi.mock('@/lib/core/security/input-validation.server', () => ({
-  createSsrfGuardedFetchWithDispatcher: () => ({
-    fetch: mocks.guardedFetch,
-    dispatcher: { close: mocks.closeDispatcher },
-  }),
-}))
+vi.mock('@/lib/uploads/contexts/copilot', () => uploadsCopilotMock)
+vi.mock('@/lib/uploads/contexts/execution', () => uploadsExecutionMock)
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/tools/quickbooks/client', () => ({
   QUICKBOOKS_MAX_RESPONSE_BYTES: 8 * 1024 * 1024,
   buildQuickBooksCompanyUrl: (realmId: string, resource: string) => {
@@ -34,6 +32,10 @@ vi.mock('@/tools/quickbooks/client', () => ({
 
 import { executeQuickBooksDownloadDocument } from '@/lib/internal/quickbooks/operations'
 import { QUICKBOOKS_MAX_ATTACHMENT_BYTES } from '@/tools/quickbooks/documents_utils'
+
+const { mockUploadCopilotFile } = uploadsCopilotMockFns
+
+const { mockUploadExecutionFile } = uploadsExecutionMockFns
 
 const COPILOT_FILE = {
   id: 'file-1',
@@ -57,9 +59,13 @@ function context(overrides: Record<string, string> = {}) {
 describe('QuickBooks internal operations', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn())
+    inputValidationMockFns.mockCreateSsrfGuardedFetchWithDispatcher.mockImplementation(() => ({
+      fetch: mocks.guardedFetch,
+      dispatcher: { close: mocks.closeDispatcher },
+    }))
     mocks.closeDispatcher.mockResolvedValue(undefined)
-    mocks.uploadCopilotFile.mockResolvedValue(COPILOT_FILE)
-    mocks.uploadExecutionFile.mockResolvedValue({ ...COPILOT_FILE, context: 'execution' })
+    mockUploadCopilotFile.mockResolvedValue(COPILOT_FILE)
+    mockUploadExecutionFile.mockResolvedValue({ ...COPILOT_FILE, context: 'execution' })
   })
 
   it('resolves Intuit temporary URLs and downloads attachment bytes without forwarding OAuth', async () => {
@@ -107,7 +113,7 @@ describe('QuickBooks internal operations', () => {
       })
     )
     expect(mocks.closeDispatcher).toHaveBeenCalledOnce()
-    expect(mocks.uploadCopilotFile).toHaveBeenCalledWith({
+    expect(mockUploadCopilotFile).toHaveBeenCalledWith({
       buffer: Buffer.from([1, 2, 3, 4]),
       fileName: 'receipt.png',
       contentType: 'image/png',
@@ -141,7 +147,7 @@ describe('QuickBooks internal operations', () => {
       )
     ).rejects.toThrow('exceeds maximum size')
     expect(mocks.closeDispatcher).toHaveBeenCalledOnce()
-    expect(mocks.uploadCopilotFile).not.toHaveBeenCalled()
+    expect(mockUploadCopilotFile).not.toHaveBeenCalled()
   })
 
   it('refuses a transaction PDF that advertises more than the attachment limit', async () => {
@@ -168,8 +174,8 @@ describe('QuickBooks internal operations', () => {
         context()
       )
     ).rejects.toThrow('QuickBooks transaction PDF')
-    expect(mocks.uploadCopilotFile).not.toHaveBeenCalled()
-    expect(mocks.uploadExecutionFile).not.toHaveBeenCalled()
+    expect(mockUploadCopilotFile).not.toHaveBeenCalled()
+    expect(mockUploadExecutionFile).not.toHaveBeenCalled()
   })
 
   it('stores valid PDFs in trusted execution scope', async () => {
@@ -194,7 +200,7 @@ describe('QuickBooks internal operations', () => {
       })
     )
 
-    expect(mocks.uploadExecutionFile).toHaveBeenCalledWith(
+    expect(mockUploadExecutionFile).toHaveBeenCalledWith(
       {
         workspaceId: 'workspace-1',
         workflowId: 'workflow-1',
@@ -205,6 +211,6 @@ describe('QuickBooks internal operations', () => {
       'application/pdf',
       'user-1'
     )
-    expect(mocks.uploadCopilotFile).not.toHaveBeenCalled()
+    expect(mockUploadCopilotFile).not.toHaveBeenCalled()
   })
 })

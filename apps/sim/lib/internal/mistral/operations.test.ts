@@ -1,38 +1,35 @@
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  submit,
-  authorizeFile,
-  downloadFile,
-  downloadUrl,
-  modelSafeFile,
-  countPages,
-  resolveUrl,
-  validateUrl,
-} = vi.hoisted(() => ({
+const { submit, countPages } = vi.hoisted(() => ({
   submit: vi.fn(),
-  authorizeFile: vi.fn(),
-  downloadFile: vi.fn(),
-  modelSafeFile: vi.fn(),
-  downloadUrl: vi.fn(),
   countPages: vi.fn(),
-  resolveUrl: vi.fn(),
-  validateUrl: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/mistral/client', () => ({ submitMistralOcr: submit }))
 vi.mock('@/lib/internal/mistral/page-count', () => ({ countMistralPdfPages: countPages }))
-vi.mock('@/lib/core/security/input-validation.server', () => ({ validateUrlWithDNS: validateUrl }))
-vi.mock('@/app/api/files/authorization', () => ({ assertToolFileAccess: authorizeFile }))
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: downloadFile,
-  downloadFileFromUrl: downloadUrl,
-  resolveInternalFileUrl: resolveUrl,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  isModelSafeWorkspaceFileKey: modelSafeFile,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE: 'Unsafe model input',
-}))
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
 import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
 import {
@@ -44,6 +41,15 @@ import {
   executeMistralParse,
   type MistralOperationContext,
 } from '@/lib/internal/mistral/operations'
+
+const authorizeFile = filesAuthorizationMockFns.mockAssertToolFileAccess
+const {
+  mockDownloadServableFileFromStorage: downloadFile,
+  mockDownloadFileFromUrl: downloadUrl,
+  mockResolveInternalFileUrl: resolveUrl,
+} = fileUtilsServerMockFns
+const modelSafeFile = workspaceFileSecretProvenanceMockFns.mockIsModelSafeWorkspaceFileKey
+const validateUrl = inputValidationMockFns.mockValidateUrlWithDNS
 
 describe('Mistral ingestion authorization', () => {
   const bytes = Buffer.from('Synthetic OCR fixture')

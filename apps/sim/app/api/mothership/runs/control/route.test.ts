@@ -1,36 +1,43 @@
-import { dbChainMock, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { authBanMock, authBanMockFns } from '@sim/testing/mocks/auth-ban.mock'
+import { queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { schemaMock } from '@sim/testing/mocks/schema.mock'
+import {
+  workspaceAuthorizationMock,
+  workspaceAuthorizationMockFns,
+} from '@sim/testing/mocks/workspace-authorization.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  authorize: vi.fn(),
-  workspace: vi.fn(),
-  banned: vi.fn(),
-  run: vi.fn(),
-  stopped: vi.fn(),
-}))
 vi.unmock('@/lib/mothership/request/http')
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
-vi.mock('@/lib/auth/ban', () => ({ getActivelyBannedUserIds: mocks.banned }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  resolveActiveWorkspaceApplicationContext: mocks.workspace,
-}))
-vi.mock('@/lib/core/application/workspace-authorization', async (original) => ({
-  ...(await original<typeof import('@/lib/core/application/workspace-authorization')>()),
-  authorizeWorkspaceOperation: mocks.authorize,
-}))
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  getLatestRunForStream: mocks.run,
-  isRunStopRequested: mocks.stopped,
-}))
+vi.mock('@/lib/auth/ban', () => authBanMock)
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
+vi.mock('@/lib/core/application/workspace-authorization', () => workspaceAuthorizationMock)
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 import { env } from '@/lib/core/config/env'
 import { POST } from '@/app/api/mothership/runs/control/route'
 
+const mocks = {
+  run: mothershipAsyncRunsMockFns.mockGetLatestRunForStream,
+  stopped: mothershipAsyncRunsMockFns.mockIsRunStopRequested,
+  authorize: workspaceAuthorizationMockFns.mockAuthorizeWorkspaceOperation,
+  banned: authBanMockFns.mockGetActivelyBannedUserIds,
+  workspace: workspaceContextMockFns.mockResolveActiveWorkspaceApplicationContext,
+}
+
 const chatId = '33333333-3333-4333-8333-333333333333'
 function request(headers: Record<string, string> = {}) {
-  return new NextRequest('http://localhost/api/mothership/runs/control', {
+  return createMockRequest({
     method: 'POST',
+    url: 'http://localhost/api/mothership/runs/control',
     headers: {
       'content-type': 'application/json',
       'x-api-key': env.INTERNAL_API_SECRET ?? '',
@@ -38,7 +45,7 @@ function request(headers: Record<string, string> = {}) {
       'x-mothership-workspace-id': 'workspace',
       ...headers,
     },
-    body: JSON.stringify({ chatId, streamId: 'stream' }),
+    body: { chatId, streamId: 'stream' },
   })
 }
 

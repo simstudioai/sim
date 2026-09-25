@@ -8,7 +8,7 @@
  * These tests assert the seeded default reaching each tool for operations whose
  * control is deliberately not last, so re-introducing a collision goes red.
  */
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { executeGetZoneSettingsOperation } from '@/lib/internal/cloudflare/operations/get-zone-settings'
 import { CloudflareBlock } from '@/blocks/blocks/cloudflare'
 import * as cloudflareTools from '@/tools/cloudflare'
@@ -830,10 +830,6 @@ describe('zone settings are read through the endpoints Cloudflare still supports
       { headers: { 'Content-Type': 'application/json' } }
     )
   }
-
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
 
   it('issues one request per setting against the per-setting endpoint', async () => {
     const fetchMock = vi

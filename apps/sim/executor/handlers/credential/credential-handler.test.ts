@@ -1,27 +1,33 @@
+import {
+  executorPrincipalMock,
+  executorPrincipalMockFns,
+} from '@sim/testing/mocks/executor-principal.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/executor/types'
 import type { SerializedBlock } from '@/serializer/types'
 
-const mocks = vi.hoisted(() => ({
-  principal: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   oauth: vi.fn(),
   mcp: vi.fn(),
   workspace: vi.fn(),
 }))
-vi.mock('@/lib/internal/principals/executor', () => ({
-  createExecutorPrincipalFromExecutionContext: mocks.principal,
-}))
+vi.mock('@/lib/internal/principals/executor', () => executorPrincipalMock)
 vi.mock('@/lib/credential-groups/application/list-credentials', () => ({
-  listCredentialGroupCredentials: { execute: mocks.oauth },
+  listCredentialGroupCredentials: { execute: hoisted.oauth },
 }))
 vi.mock('@/lib/credential-groups/application/list-mcp-connections', () => ({
-  listCredentialGroupMcpConnections: { execute: mocks.mcp },
+  listCredentialGroupMcpConnections: { execute: hoisted.mcp },
 }))
 vi.mock('@/lib/credentials/application/resolve-workflow-credentials', () => ({
-  resolveWorkflowCredentials: { execute: mocks.workspace },
+  resolveWorkflowCredentials: { execute: hoisted.workspace },
 }))
 
 import { CredentialBlockHandler } from '@/executor/handlers/credential/credential-handler'
+
+const mocks = {
+  ...hoisted,
+  principal: executorPrincipalMockFns.mockCreateExecutorPrincipalFromExecutionContext,
+}
 
 const ctx = {
   workspaceId: 'child-workspace',

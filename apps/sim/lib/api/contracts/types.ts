@@ -114,8 +114,8 @@ export type AnyApiRouteContract = ApiRouteContract<
  * endpoint that genuinely takes none says so with `query: noInputSchema`
  * (`z.object({}).strict()`) from `./primitives`.
  *
- * That rule is enforced by the `query-declaration` sweep under
- * `contracts/v2/__tests__`, not by this signature. Making `query` conditionally
+ * That rule is enforced by the `query-declaration` sweep in `contracts/v2`, not by this
+ * signature. Making `query` conditionally
  * required on a `/api/v2/` path needs the parameter type to become an
  * intersection, and the intersection collapses inference of the sibling
  * generics: `TParams`, `TBody`, and `THeaders` start resolving to `undefined`,

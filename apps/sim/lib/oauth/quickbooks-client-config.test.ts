@@ -1,14 +1,7 @@
+import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const { mockDecryptSecret, mockEncryptSecret } = vi.hoisted(() => ({
-  mockDecryptSecret: vi.fn(),
-  mockEncryptSecret: vi.fn(),
-}))
-
-vi.mock('@/lib/core/security/encryption', () => ({
-  decryptSecret: mockDecryptSecret,
-  encryptSecret: mockEncryptSecret,
-}))
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 import {
   decryptQuickBooksOAuthClientConfig,
@@ -16,6 +9,8 @@ import {
   normalizeQuickBooksOAuthClientConfig,
   QuickBooksOAuthClientConfigurationError,
 } from '@/lib/oauth/quickbooks-client-config'
+
+const { mockDecryptSecret, mockEncryptSecret } = encryptionMockFns
 
 describe('QuickBooks OAuth client configuration', () => {
   it('normalizes and encrypts the complete app configuration as one secret', async () => {

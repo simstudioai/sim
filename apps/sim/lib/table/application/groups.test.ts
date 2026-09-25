@@ -1,49 +1,41 @@
+import { createDelegatedPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { backgroundTaskMock, backgroundTaskMockFns } from '@sim/testing/mocks/background-task.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
+import { requestUtilsMockFns } from '@sim/testing/mocks/request.mock'
+import {
+  tableApplicationContextMock,
+  tableApplicationContextMockFns,
+} from '@sim/testing/mocks/table-application-context.mock'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
+import {
+  tableWorkflowColumnsMock,
+  tableWorkflowColumnsMockFns,
+} from '@sim/testing/mocks/table-workflow-columns.mock'
+import {
+  workflowContextMock,
+  workflowContextMockFns,
+} from '@sim/testing/mocks/workflow-context.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { TableDefinition, WorkflowGroup } from '@/lib/table/types'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   addGroup: vi.fn(),
   addOutput: vi.fn(),
-  audit: vi.fn(),
   deleteOutput: vi.fn(),
   getEnrichment: vi.fn(),
   loadWorkflowOutputs: vi.fn(),
-  resolveContext: vi.fn(),
-  resolvePermission: vi.fn(),
-  resolveWorkflowContext: vi.fn(),
-  runDetached: vi.fn(),
-  runWorkflowColumn: vi.fn(),
-  signal: vi.fn(),
   updateGroup: vi.fn(),
 }))
 
-vi.mock('@sim/audit', () => ({
-  AuditAction: { TABLE_UPDATED: 'table.updated' },
-  AuditResourceType: { TABLE: 'table' },
-  recordAudit: mocks.audit,
-}))
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (actual: string | null, required: string) => {
-    const rank = { read: 1, write: 2, admin: 3 } as const
-    return (
-      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
-    )
-  },
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-vi.mock('@sim/utils/id', () => ({ generateId: () => 'generated-id' }))
-vi.mock('@/enrichments/registry', () => ({ getEnrichment: mocks.getEnrichment }))
-vi.mock('@/lib/core/utils/background', () => ({
-  runDetached: (label: string, work: () => Promise<unknown>) => {
-    mocks.runDetached(label)
-    void work()
-  },
-}))
-vi.mock('@/lib/core/utils/request', () => ({ generateRequestId: () => 'request-1' }))
-vi.mock('@/lib/table/application/context', () => ({
-  resolveActiveTableContext: mocks.resolveContext,
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@sim/utils/id', () => idMock)
+vi.mock('@/enrichments/registry', () => ({ getEnrichment: hoisted.getEnrichment }))
+vi.mock('@/lib/core/utils/background', () => backgroundTaskMock)
+vi.mock('@/lib/table/application/context', () => tableApplicationContextMock)
 vi.mock('@/lib/table/column-naming', () => ({
   columnTypeForLeaf: (leafType: string | undefined) =>
     leafType === 'number' ? 'number' : 'string',
@@ -53,22 +45,18 @@ vi.mock('@/lib/table/column-naming', () => ({
     return `${base}_0`
   },
 }))
-vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: mocks.signal }))
-vi.mock('@/lib/table/workflow-columns', () => ({
-  runWorkflowColumn: mocks.runWorkflowColumn,
-}))
+vi.mock('@/lib/table/events', () => tableEventsMock)
+vi.mock('@/lib/table/workflow-columns', () => tableWorkflowColumnsMock)
 vi.mock('@/lib/table/workflow-groups/service', () => ({
-  addWorkflowGroup: mocks.addGroup,
-  addWorkflowGroupOutput: mocks.addOutput,
+  addWorkflowGroup: hoisted.addGroup,
+  addWorkflowGroupOutput: hoisted.addOutput,
   deleteWorkflowGroup: vi.fn(),
-  deleteWorkflowGroupOutput: mocks.deleteOutput,
-  updateWorkflowGroup: mocks.updateGroup,
+  deleteWorkflowGroupOutput: hoisted.deleteOutput,
+  updateWorkflowGroup: hoisted.updateGroup,
 }))
-vi.mock('@/lib/workflows/application/context', () => ({
-  resolveActiveWorkflowApplicationContext: mocks.resolveWorkflowContext,
-}))
+vi.mock('@/lib/workflows/application/context', () => workflowContextMock)
 vi.mock('@/lib/workflows/application/resolve-workflow-outputs', () => ({
-  loadResolvedDeployedWorkflowOutputs: mocks.loadWorkflowOutputs,
+  loadResolvedDeployedWorkflowOutputs: hoisted.loadWorkflowOutputs,
 }))
 
 import {
@@ -78,6 +66,24 @@ import {
   createWorkflowTableGroup,
   updateTableGroupUseCase,
 } from '@/lib/table/application/groups'
+
+const mocks = {
+  ...hoisted,
+  resolveContext: tableApplicationContextMockFns.mockResolveActiveTableContext,
+  runDetached: backgroundTaskMockFns.mockRunDetached,
+  runWorkflowColumn: tableWorkflowColumnsMockFns.mockRunWorkflowColumn,
+  audit: auditMockFns.mockRecordAudit,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+  resolveWorkflowContext: workflowContextMockFns.mockResolveActiveWorkflowApplicationContext,
+  signal: tableEventsMockFns.mockSignalTableSchemaChanged,
+}
+
+mocks.runDetached.mockImplementation((_label: string, work: () => Promise<unknown>) => {
+  void work()
+})
+
+idMockFns.mockGenerateId.mockReturnValue('generated-id')
+requestUtilsMockFns.mockGenerateRequestId.mockReturnValue('request-1')
 
 const group: WorkflowGroup = {
   id: 'group-1',
@@ -127,17 +133,11 @@ const enrichmentTable: TableDefinition = {
     workflowGroups: [enrichmentGroup],
   },
 }
-const principal = {
-  kind: 'delegated' as const,
-  serviceId: 'copilot' as const,
-  subjectUserId: 'user-1',
-  workspaceId: 'workspace-1',
+const principal = createDelegatedPrincipal({
   delegationId: 'copilot-tool:tool-1',
   audience: 'sim:tables',
-  issuedAt: new Date('2026-08-01T00:00:00.000Z'),
-  expiresAt: new Date('2099-08-01T00:00:00.000Z'),
   resourceScope: { tableId: 'table-1' },
-}
+})
 const resolvedWorkflow = {
   workflowId: 'workflow-1',
   outputs: [

@@ -7,6 +7,7 @@
 import { createRequire } from 'node:module'
 import type { db } from '@sim/db'
 import * as schema from '@sim/db/schema'
+import { readTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { sql } from 'drizzle-orm'
@@ -14,13 +15,8 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { databaseUrl, transaction } = vi.hoisted(() => {
-  const databaseUrl = process.env.TEST_DATABASE_URL
-  if (databaseUrl && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(databaseUrl).hostname)) {
-    throw new Error('Billing usage integration tests require a disposable local database')
-  }
-  return { databaseUrl, transaction: vi.fn() }
-})
+const { transaction } = vi.hoisted(() => ({ transaction: vi.fn() }))
+const databaseUrl = readTestDatabaseUrl()
 
 vi.mock('@sim/db', () => ({ db: { transaction }, dbReplica: {} }))
 vi.mock('@/lib/billing/core/plan', () => ({ getHighestPrioritySubscription: vi.fn() }))
@@ -38,18 +34,16 @@ const require = createRequire(import.meta.url)
 const commonJsPostgres = require('postgres') as typeof postgres
 
 const schemaName = `billing_usage_${generateId().replaceAll('-', '')}`
-const connection = databaseUrl
-  ? postgres(databaseUrl, {
-      max: 8,
-      prepare: false,
-      fetch_types: false,
-      connection: { search_path: schemaName },
-      onnotice: () => undefined,
-    })
-  : undefined
-const database = connection ? (drizzle(connection, { schema }) as typeof db) : undefined
+const connection = postgres(databaseUrl, {
+  max: 8,
+  prepare: false,
+  fetch_types: false,
+  connection: { search_path: schemaName },
+  onnotice: () => undefined,
+})
+const database = drizzle(connection, { schema }) as typeof db
 
-type Transaction = Parameters<Parameters<NonNullable<typeof database>['transaction']>[0]>[0]
+type Transaction = Parameters<Parameters<(typeof database)['transaction']>[0]>[0]
 
 function deferred() {
   let resolve: () => void = () => undefined
@@ -92,7 +86,6 @@ function usage(cost: number, eventKey = 'update-cost:shared-request'): RecordCum
 }
 
 async function ledgerRows() {
-  if (!connection) throw new Error('PostgreSQL fixture is unavailable')
   return connection<{ event_key: string; cost: string }[]>`
     select event_key, cost from usage_log order by event_key
   `
@@ -100,15 +93,12 @@ async function ledgerRows() {
 
 afterAll(async () => {
   nextPause?.release.resolve()
-  if (connection) {
-    await connection.unsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
-    await connection.end()
-  }
+  await connection.unsafe(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`)
+  await connection.end()
 })
 
-describe.skipIf(!databaseUrl)('Cumulative billing with PostgreSQL', () => {
+describe('Cumulative billing with PostgreSQL', () => {
   beforeAll(async () => {
-    if (!connection || !database) throw new Error('PostgreSQL fixture is unavailable')
     const [version] = await connection`
         select current_setting('server_version_num')::integer as version,
           current_setting('transaction_timeout', true) is not null as has_transaction_timeout
@@ -151,7 +141,6 @@ describe.skipIf(!databaseUrl)('Cumulative billing with PostgreSQL', () => {
 
   beforeEach(async () => {
     nextPause = undefined
-    if (!connection) throw new Error('PostgreSQL fixture is unavailable')
     await connection`truncate usage_log`
   })
 
@@ -161,7 +150,7 @@ describe.skipIf(!databaseUrl)('Cumulative billing with PostgreSQL', () => {
   ])(
     'rejects resumed $name transaction queries after its connection is reused',
     async ({ create }) => {
-      const pool = create(databaseUrl!, {
+      const pool = create(databaseUrl, {
         max: 1,
         prepare: false,
         fetch_types: false,
@@ -260,7 +249,6 @@ describe.skipIf(!databaseUrl)('Cumulative billing with PostgreSQL', () => {
   })
 
   it('reads committed pooled and member charges freshly after concurrent executions', async () => {
-    if (!database) throw new Error('PostgreSQL fixture is unavailable')
     const { billingEntity, billingPeriod } = usage(0)
     if (!billingEntity || !billingPeriod) throw new Error('Billing fixture scope is missing')
     const readPool = () =>

@@ -1,22 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import { describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  resolveFileInputToUrl: vi.fn(),
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  resolveFileInputToUrl: mocks.resolveFileInputToUrl,
-}))
+const { mockResolveFileInputToUrl } = fileUtilsServerMockFns
 
 import { createBufferPost } from '@/lib/internal/buffer/operations'
 
 describe('Buffer operations', () => {
-  beforeEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('resolves stored media with trusted user context before the provider call', async () => {
-    mocks.resolveFileInputToUrl.mockResolvedValue({ fileUrl: 'https://files.example/image.png' })
+    mockResolveFileInputToUrl.mockResolvedValue({ fileUrl: 'https://files.example/image.png' })
     const fetchMock = vi.fn().mockResolvedValue(
       Response.json({
         data: {
@@ -41,7 +37,7 @@ describe('Buffer operations', () => {
       { userId: 'user-1', requestId: 'request-1' }
     )
 
-    expect(mocks.resolveFileInputToUrl).toHaveBeenCalledWith(
+    expect(mockResolveFileInputToUrl).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'user-1', presignExpirySeconds: 604800 })
     )
     const request = fetchMock.mock.calls[0][1]

@@ -1,55 +1,56 @@
-import type { SessionPrincipal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
+import {
+  createExecutorPrincipal,
+  createSessionPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  billingWorkspaceAccessMock,
+  billingWorkspaceAccessMockFns,
+} from '@sim/testing/mocks/billing-workspace-access.mock'
+import {
+  credentialGroupsAvailabilityMock,
+  credentialGroupsAvailabilityMockFns,
+} from '@sim/testing/mocks/credential-groups-availability.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import {
+  resourcePolicyRepositoryMock,
+  resourcePolicyRepositoryMockFns,
+} from '@sim/testing/mocks/resource-policy-repository.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildOrganizationAccountAccessPolicy } from '@/lib/credential-groups/application/workspace-access-policy'
 
-const mocks = vi.hoisted(() => ({
-  getWorkspaceOwnerSubscriptionAccess: vi.fn(),
-  requirePolicy: vi.fn(),
-  listCredentials: vi.fn(),
-  loadEnrollmentAccess: vi.fn(),
-  loadGroup: vi.fn(),
-  loadWorkspace: vi.fn(),
-  resolveCredentialGroupsAvailability: vi.fn(),
-  resolvePermission: vi.fn(),
-}))
+vi.mock('@/lib/billing/core/workspace-access', () => billingWorkspaceAccessMock)
+vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
+vi.mock('@/lib/resource-policies/repository', () => resourcePolicyRepositoryMock)
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
 
-vi.mock('@/lib/billing/core/workspace-access', () => ({
-  getWorkspaceOwnerSubscriptionAccess: mocks.getWorkspaceOwnerSubscriptionAccess,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 
-vi.mock('@/lib/credential-groups/scoped-availability', () => ({
-  isScopedCredentialGroupsAvailable: async () =>
-    (await mocks.resolveCredentialGroupsAvailability()).available,
-}))
-vi.mock('@/lib/resource-policies/repository', () => ({
-  requireResourcePolicy: mocks.requirePolicy,
-}))
-
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  CredentialGroupCredentialCursorNotFoundError: class extends Error {
-    constructor() {
-      super('Credential group credential cursor not found')
-      this.name = 'CredentialGroupCredentialCursorNotFoundError'
-    }
-  },
-  listCredentialGroupCredentialReferences: mocks.listCredentials,
-  loadCredentialGroupEnrollmentAccessForSubject: mocks.loadEnrollmentAccess,
-  loadScopedAccountsCredentialListContext: mocks.loadGroup,
-  MAX_CREDENTIAL_GROUP_CREDENTIAL_PAGE_SIZE: 100,
-}))
-
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
-}))
-
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: (permission: string | null, required: string) =>
-    permission === 'admin' || permission === 'write' || permission === required,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
 import { listCredentialGroupCredentials } from '@/lib/credential-groups/application/list-credentials'
 import { CredentialGroupCredentialCursorNotFoundError } from '@/lib/credential-groups/credentials'
+
+const mocks = {
+  requirePolicy: resourcePolicyRepositoryMockFns.mockRequireResourcePolicy,
+  listCredentials: credentialGroupsCredentialsMockFns.mockListCredentialGroupCredentialReferences,
+  loadEnrollmentAccess:
+    credentialGroupsCredentialsMockFns.mockLoadCredentialGroupEnrollmentAccessForSubject,
+  loadGroup: credentialGroupsCredentialsMockFns.mockLoadScopedAccountsCredentialListContext,
+  isAvailable: credentialGroupsAvailabilityMockFns.mockIsScopedCredentialGroupsAvailable,
+}
+const mockGetWorkspaceOwnerSubscriptionAccess =
+  billingWorkspaceAccessMockFns.mockGetWorkspaceOwnerSubscriptionAccess
+const loadWorkspace = workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext
+const resolvePermission = workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission
 
 const groupContext = {
   credentialGroupId: 'group-1',
@@ -88,26 +89,20 @@ const workspaceContext = {
 const input = { workspaceId: 'workspace-1', limit: 50 }
 
 function executorPrincipal(workspaceId = 'workspace-1'): WorkflowExecutionDelegatedPrincipal {
-  return {
-    kind: 'delegated',
-    serviceId: 'executor',
-    subjectUserId: 'user-1',
+  return createExecutorPrincipal({
     workspaceId,
-    delegationId: 'delegation-1',
     audience: 'sim:credential-groups',
-    issuedAt: new Date(Date.now() - 1_000),
-    expiresAt: new Date(Date.now() + 60_000),
     delegationContext: {
       kind: 'workflow_execution',
       workflowId: 'workflow-1',
-      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      principal: createSessionPrincipal(),
       currentWorkflow: {
         workflowId: 'workflow-1',
         mode: 'deployment',
         deploymentVersionId: 'deployment-version-1',
       },
     },
-  }
+  })
 }
 
 describe('listCredentialGroupCredentials', () => {
@@ -119,10 +114,10 @@ describe('listCredentialGroupCredentials', () => {
       ),
     })
     mocks.loadGroup.mockResolvedValue(groupContext)
-    mocks.loadWorkspace.mockResolvedValue(workspaceContext)
-    mocks.resolvePermission.mockResolvedValue('read')
-    mocks.getWorkspaceOwnerSubscriptionAccess.mockResolvedValue({ isEnterprise: true })
-    mocks.resolveCredentialGroupsAvailability.mockResolvedValue({ available: true })
+    loadWorkspace.mockResolvedValue(workspaceContext)
+    resolvePermission.mockResolvedValue('read')
+    mockGetWorkspaceOwnerSubscriptionAccess.mockResolvedValue({ isEnterprise: true })
+    mocks.isAvailable.mockResolvedValue(true)
     mocks.loadEnrollmentAccess.mockResolvedValue({
       enrollmentId: 'enrollment-1',
       email: 'person@example.com',
@@ -144,11 +139,7 @@ describe('listCredentialGroupCredentials', () => {
   })
 
   it('rejects unsupported principals before loading the group', async () => {
-    const principal: SessionPrincipal = {
-      kind: 'session',
-      userId: 'user-1',
-      sessionId: 'session-1',
-    }
+    const principal = createSessionPrincipal()
 
     await expect(
       listCredentialGroupCredentials.execute({ principal, input })
@@ -289,7 +280,7 @@ describe('listCredentialGroupCredentials', () => {
         input: { ...input, credentialProviderIds: ['slack'] },
       })
     ).rejects.toMatchObject({ code: 'validation' })
-    expect(mocks.getWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
+    expect(mockGetWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
     expect(mocks.listCredentials).not.toHaveBeenCalled()
   })
 
@@ -299,15 +290,12 @@ describe('listCredentialGroupCredentials', () => {
     await expect(
       listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
     ).rejects.toMatchObject({ code: 'conflict' })
-    expect(mocks.getWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
+    expect(mockGetWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
     expect(mocks.listCredentials).not.toHaveBeenCalled()
   })
 
   it('fails before listing when Credential Groups are unavailable', async () => {
-    mocks.resolveCredentialGroupsAvailability.mockResolvedValue({
-      available: false,
-      reason: 'feature_disabled',
-    })
+    mocks.isAvailable.mockResolvedValue(false)
 
     await expect(
       listCredentialGroupCredentials.execute({ principal: executorPrincipal(), input })
@@ -325,7 +313,7 @@ describe('listCredentialGroupCredentials', () => {
         input: { ...input, limit: 101 },
       })
     ).rejects.toMatchObject({ code: 'validation' })
-    expect(mocks.getWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
+    expect(mockGetWorkspaceOwnerSubscriptionAccess).not.toHaveBeenCalled()
     expect(mocks.listCredentials).not.toHaveBeenCalled()
   })
 

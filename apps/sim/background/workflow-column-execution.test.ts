@@ -1,4 +1,5 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { tableEventsMock, tableEventsMockFns } from '@sim/testing/mocks/table-events.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
@@ -11,12 +12,13 @@ import {
   terminalizeAbortedQueuedCarrierMarker,
 } from '@/background/workflow-column-execution'
 
-const { appendTableEventMock, flattenWorkflowOutputsMock } = vi.hoisted(() => ({
-  appendTableEventMock: vi.fn(),
+const appendTableEventMock = tableEventsMockFns.mockAppendTableEvent
+
+const { flattenWorkflowOutputsMock } = vi.hoisted(() => ({
   flattenWorkflowOutputsMock: vi.fn(),
 }))
 
-vi.mock('@/lib/table/events', () => ({ appendTableEvent: appendTableEventMock }))
+vi.mock('@/lib/table/events', () => tableEventsMock)
 vi.mock('@/lib/workflows/blocks/flatten-outputs', () => ({
   flattenWorkflowOutputs: flattenWorkflowOutputsMock,
 }))

@@ -1,16 +1,13 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockIsFeatureEnabled } = vi.hoisted(() => ({
-  mockIsFeatureEnabled: vi.fn<() => Promise<boolean>>(),
-}))
-
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: mockIsFeatureEnabled,
-}))
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import { SearchBudget, SearchDeadlineError } from '@/lib/knowledge/search/budget'
 import { resolveTinKeywordQuery } from '@/lib/knowledge/search/tin-keyword'
+
+const mockIsFeatureEnabled = featureFlagsMockFns.mockIsFeatureEnabled
 
 /** Readiness is cached per process; the incomplete-index case lives in its own file, where the cache starts empty. */
 describe('resolveTinKeywordQuery', () => {

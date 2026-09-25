@@ -1,21 +1,13 @@
-import { resetEnvMock } from '@sim/testing'
+import { authMockFns, resetEnvMock } from '@sim/testing'
+import {
+  authInternalDelegationMock,
+  authInternalDelegationMockFns,
+  MockInvalidInternalDelegationBindingError,
+} from '@sim/testing/mocks/auth-internal-delegation.mock'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { MockInvalidBindingError, mockBindDelegation, mockGetSession } = vi.hoisted(() => {
-  class MockInvalidBindingError extends Error {}
-  return {
-    MockInvalidBindingError,
-    mockBindDelegation: vi.fn(),
-    mockGetSession: vi.fn(),
-  }
-})
-
-vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
-vi.mock('@/lib/auth/internal-delegation', () => ({
-  bindInternalExecutorDelegation: mockBindDelegation,
-  InvalidInternalDelegationBindingError: MockInvalidBindingError,
-}))
+vi.mock('@/lib/auth/internal-delegation', () => authInternalDelegationMock)
 vi.unmock('@/lib/auth/internal')
 
 import {
@@ -27,6 +19,9 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
 import { v2TableErrorPolicies } from '@/lib/table/api/route-policies'
 import { TableRowTtlDisabledError } from '@/lib/table/errors'
+
+const mockGetSession = authMockFns.mockGetSession
+const mockBindDelegation = authInternalDelegationMockFns.mockBindInternalExecutorDelegation
 
 afterAll(resetEnvMock)
 
@@ -125,7 +120,7 @@ describe('internal Table route authentication', () => {
       subjectUserId: 'user-1',
       workflowId: 'workflow-1',
     })
-    mockBindDelegation.mockRejectedValue(new MockInvalidBindingError())
+    mockBindDelegation.mockRejectedValue(new MockInvalidInternalDelegationBindingError())
 
     await expect(
       internalTableSessionOrExecutorAuth.authenticate(

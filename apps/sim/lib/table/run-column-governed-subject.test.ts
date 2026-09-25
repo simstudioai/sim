@@ -1,7 +1,7 @@
+import { tableServiceMock, tableServiceMockFns } from '@sim/testing/mocks/table-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  getTableById: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   insertDispatch: vi.fn(async () => 'tdsp_1'),
   readDispatch: vi.fn(async () => null),
   cancelDispatchById: vi.fn(),
@@ -10,19 +10,24 @@ const mocks = vi.hoisted(() => ({
   resolveTableDispatchConcurrency: vi.fn(async () => 5),
 }))
 
-vi.mock('@/lib/table/service', () => ({ getTableById: mocks.getTableById }))
+vi.mock('@/lib/table/service', () => tableServiceMock)
 vi.mock('@/lib/table/dispatcher', () => ({
-  bulkClearWorkflowGroupCells: mocks.bulkClearWorkflowGroupCells,
-  cancelDispatchById: mocks.cancelDispatchById,
-  insertDispatch: mocks.insertDispatch,
-  readDispatch: mocks.readDispatch,
-  runDispatcherToCompletion: mocks.runDispatcherToCompletion,
+  bulkClearWorkflowGroupCells: hoisted.bulkClearWorkflowGroupCells,
+  cancelDispatchById: hoisted.cancelDispatchById,
+  insertDispatch: hoisted.insertDispatch,
+  readDispatch: hoisted.readDispatch,
+  runDispatcherToCompletion: hoisted.runDispatcherToCompletion,
 }))
 vi.mock('@/lib/table/dispatch-concurrency', () => ({
-  resolveTableDispatchConcurrency: mocks.resolveTableDispatchConcurrency,
+  resolveTableDispatchConcurrency: hoisted.resolveTableDispatchConcurrency,
 }))
 
 import { runWorkflowColumn } from '@/lib/table/workflow-columns'
+
+const mocks = {
+  ...hoisted,
+  getTableById: tableServiceMockFns.mockGetTableById,
+}
 
 const TABLE = {
   id: 'table-1',

@@ -1,22 +1,21 @@
 import { authMockFns, createMockRequest } from '@sim/testing'
+import {
+  billingOrganizationMock,
+  billingOrganizationMockFns,
+} from '@sim/testing/mocks/billing-organization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetOrganizationBillingData, mockIsOrganizationOwnerOrAdmin } = vi.hoisted(() => ({
-  mockGetOrganizationBillingData: vi.fn(),
-  mockIsOrganizationOwnerOrAdmin: vi.fn(),
-}))
 
 vi.mock('@/lib/billing', () => ({
   getUserUsageLimitInfo: vi.fn(),
   updateUserUsageLimit: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/organization', () => ({
-  getOrganizationBillingData: mockGetOrganizationBillingData,
-  isOrganizationOwnerOrAdmin: mockIsOrganizationOwnerOrAdmin,
-}))
+vi.mock('@/lib/billing/core/organization', () => billingOrganizationMock)
 
 import { GET } from '@/app/api/usage/route'
+
+const { mockGetOrganizationBillingData, mockIsOrganizationOwnerOrAdmin } =
+  billingOrganizationMockFns
 
 const mockGetSession = authMockFns.mockGetSession
 

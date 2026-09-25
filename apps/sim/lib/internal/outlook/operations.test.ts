@@ -1,13 +1,22 @@
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  assertToolFileAccess: vi.fn(),
-  downloadServableFilesWithinBudget: vi.fn(),
   empty: vi.fn(),
   buffer: vi.fn(),
   json: vi.fn(),
-  processFilesToUserFiles: vi.fn(),
 }))
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
+const { mockProcessFilesToUserFiles } = fileUtilsMockFns
+const { mockDownloadServableFilesWithinBudget } = fileUtilsServerMockFns
 
 vi.mock('@/lib/internal/outlook/client', () => ({
   OutlookClient: class {
@@ -24,15 +33,9 @@ vi.mock('@/lib/internal/outlook/client', () => ({
     }
   },
 }))
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertToolFileAccess,
-}))
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  processFilesToUserFiles: mocks.processFilesToUserFiles,
-}))
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFilesWithinBudget: mocks.downloadServableFilesWithinBudget,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
 import { OutlookOperationError } from '@/lib/internal/outlook/errors'
 import { executeOutlookGetAttachment, executeOutlookSend } from '@/lib/internal/outlook/operations'
@@ -73,14 +76,14 @@ const USER_FILE = {
 
 describe('Outlook operations', () => {
   beforeEach(() => {
-    mocks.assertToolFileAccess.mockResolvedValue(null)
-    mocks.downloadServableFilesWithinBudget.mockResolvedValue([
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockDownloadServableFilesWithinBudget.mockResolvedValue([
       { buffer: Buffer.from('report'), contentType: 'application/pdf' },
     ])
     mocks.empty.mockResolvedValue(undefined)
     mocks.buffer.mockResolvedValue({ buffer: Buffer.alloc(0), contentType: null })
     mocks.json.mockResolvedValue({})
-    mocks.processFilesToUserFiles.mockReturnValue([])
+    mockProcessFilesToUserFiles.mockReturnValue([])
   })
 
   it('preserves reply envelopes and encodes reply message IDs', async () => {
@@ -95,13 +98,13 @@ describe('Outlook operations', () => {
   })
 
   it('fails closed when file access is denied', async () => {
-    mocks.processFilesToUserFiles.mockReturnValue([USER_FILE])
-    mocks.assertToolFileAccess.mockResolvedValue(new Response(null, { status: 404 }))
+    mockProcessFilesToUserFiles.mockReturnValue([USER_FILE])
+    mockAssertToolFileAccess.mockResolvedValue(new Response(null, { status: 404 }))
 
     await expect(
       executeOutlookSend({ ...MAIL_INPUT, attachments: [RAW_ATTACHMENT] }, MAIL_CONTEXT)
     ).rejects.toEqual(new OutlookOperationError('File not found', 404))
-    expect(mocks.downloadServableFilesWithinBudget).not.toHaveBeenCalled()
+    expect(mockDownloadServableFilesWithinBudget).not.toHaveBeenCalled()
   })
 })
 

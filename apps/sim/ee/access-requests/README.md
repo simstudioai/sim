@@ -25,7 +25,7 @@ Domain and application tests cover denial/delta parity, deployment ceilings, cur
 The PostgreSQL migration tests run in the integration layer against a disposable local test database:
 
 ```sh
-TEST_DATABASE_URL=postgres://postgres@127.0.0.1:5432/sim_test bunx vitest run --mode integration permission-access-requests-migration.integration.ts
+TEST_DATABASE_URL=postgres://postgres@127.0.0.1:5432/sim_test bun run --cwd apps/sim test --mode integration permission-access-requests-migration.integration.ts
 ```
 
 Run that command from `packages/db`. The fixture uses a unique schema and verifies pending uniqueness across independent transactions, lifecycle constraints, default settings, and preservation of decision history.

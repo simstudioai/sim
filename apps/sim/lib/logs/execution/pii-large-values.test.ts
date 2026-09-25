@@ -1,16 +1,15 @@
+import {
+  executionPayloadStoreMock,
+  executionPayloadStoreMockFns,
+} from '@sim/testing/mocks/execution-payload-store.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockMaterializeRef, mockStoreLargeValue, mockCompact, mockMaskBatch } = vi.hoisted(() => ({
-  mockMaterializeRef: vi.fn(),
-  mockStoreLargeValue: vi.fn(),
+const { mockCompact, mockMaskBatch } = vi.hoisted(() => ({
   mockCompact: vi.fn(),
   mockMaskBatch: vi.fn(),
 }))
 
-vi.mock('@/lib/execution/payloads/store', () => ({
-  materializeLargeValueRef: mockMaterializeRef,
-  storeLargeValue: mockStoreLargeValue,
-}))
+vi.mock('@/lib/execution/payloads/store', () => executionPayloadStoreMock)
 vi.mock('@/lib/execution/payloads/serializer', () => ({
   compactExecutionPayload: mockCompact,
 }))
@@ -35,6 +34,9 @@ import {
   redactLargeValueRefsInValue,
 } from '@/lib/logs/execution/pii-large-values'
 import { PiiRedactionError } from '@/lib/logs/execution/pii-redaction'
+
+const mockMaterializeRef = executionPayloadStoreMockFns.mockMaterializeLargeValueRef
+const mockStoreLargeValue = executionPayloadStoreMockFns.mockStoreLargeValue
 
 const REF = {
   __simLargeValueRef: true,

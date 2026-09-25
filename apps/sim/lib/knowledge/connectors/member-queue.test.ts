@@ -6,40 +6,29 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  asyncJobsRegionMock,
+  asyncJobsRegionMockFns,
+} from '@sim/testing/mocks/async-jobs-region.mock'
+import {
+  billingAttributionMock,
+  billingAttributionMockFns,
+} from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  triggerAvailabilityMock,
+  triggerAvailabilityMockFns,
+} from '@sim/testing/mocks/trigger-availability.mock'
+import { triggerSdkMockFns } from '@sim/testing/mocks/trigger-sdk.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockAssertBillingOwner,
-  mockExecuteMemberSync,
-  mockIsTriggerAvailable,
-  mockTrigger,
-  mockResolveRegion,
-  mockResolveSystemBilling,
-} = vi.hoisted(() => ({
-  mockAssertBillingOwner: vi.fn(),
-  mockExecuteMemberSync: vi.fn(),
-  mockIsTriggerAvailable: vi.fn(),
-  mockTrigger: vi.fn(),
-  mockResolveRegion: vi.fn(),
-  mockResolveSystemBilling: vi.fn(),
-}))
+const { mockExecuteMemberSync } = vi.hoisted(() => ({ mockExecuteMemberSync: vi.fn() }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionOwner: mockAssertBillingOwner,
-  assertBillingAttributionSnapshot: (value: unknown) => value,
-  resolveSystemBillingAttribution: mockResolveSystemBilling,
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
 vi.mock('@/lib/knowledge/connectors/member-sync-engine', () => ({
   executeMemberSync: mockExecuteMemberSync,
 }))
-vi.mock('@/lib/core/config/trigger-availability', () => ({
-  isTriggerAvailable: mockIsTriggerAvailable,
-}))
-vi.mock('@trigger.dev/sdk', () => ({
-  tasks: { trigger: mockTrigger },
-  idempotencyKeys: { create: vi.fn(async (key: string) => key) },
-}))
-vi.mock('@/lib/core/async-jobs/region', () => ({ resolveTriggerRegion: mockResolveRegion }))
+vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
+vi.mock('@/lib/core/async-jobs/region', () => asyncJobsRegionMock)
 
 import {
   assertMemberSyncPayload,
@@ -47,6 +36,13 @@ import {
   dispatchMemberSyncsForCredentialOption,
   MEMBER_SYNC_TASK_ID,
 } from '@/lib/knowledge/connectors/member-queue'
+
+const mockIsTriggerAvailable = triggerAvailabilityMockFns.mockIsTriggerAvailable
+const mockResolveRegion = asyncJobsRegionMockFns.mockResolveTriggerRegion
+const mockTrigger = triggerSdkMockFns.mockTasksTrigger
+
+const mockAssertBillingOwner = billingAttributionMockFns.mockAssertBillingAttributionOwner
+const mockResolveSystemBilling = billingAttributionMockFns.mockResolveSystemBillingAttribution
 
 const BILLING = {
   actorUserId: 'user-1',

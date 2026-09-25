@@ -31,8 +31,6 @@ vi.mock('@/lib/core/rate-limiter', () => ({
   enforceUserRateLimit: vi.fn(async () => null),
 }))
 
-const databaseUrl = process.env.TEST_DATABASE_URL
-
 async function loadRuntime() {
   const [
     { db },
@@ -65,7 +63,7 @@ async function loadRuntime() {
   }
 }
 
-describe.skipIf(!databaseUrl)('Primary SSO provider per organization domain in PostgreSQL', () => {
+describe('Primary SSO provider per organization domain in PostgreSQL', () => {
   let runtime: Awaited<ReturnType<typeof loadRuntime>>
   let organizationId: string
   let otherOrganizationId: string
@@ -73,7 +71,6 @@ describe.skipIf(!databaseUrl)('Primary SSO provider per organization domain in P
   let suffix: string
 
   beforeAll(async () => {
-    process.env.DATABASE_URL = databaseUrl
     runtime = await loadRuntime()
   }, 30_000)
 

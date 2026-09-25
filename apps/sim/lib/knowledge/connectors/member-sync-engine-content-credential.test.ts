@@ -6,17 +6,33 @@ import {
   schemaMock,
   setEnvFlags,
 } from '@sim/testing'
+import { billingAttributionMock } from '@sim/testing/mocks/billing-attribution.mock'
+import {
+  credentialGroupsCredentialsMock,
+  credentialGroupsCredentialsMockFns,
+} from '@sim/testing/mocks/credential-groups-credentials.mock'
+import { knowledgeAvailabilityMock } from '@sim/testing/mocks/knowledge-availability.mock'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import {
+  knowledgeMemberAccessMock,
+  knowledgeMemberAccessMockFns,
+} from '@sim/testing/mocks/knowledge-member-access.mock'
+import {
+  triggerAvailabilityMock,
+  triggerAvailabilityMockFns,
+} from '@sim/testing/mocks/trigger-availability.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExternalDocument } from '@/connectors/types'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   list: vi.fn(),
   get: vi.fn(),
   add: vi.fn(),
   update: vi.fn(),
-  dispatch: vi.fn(),
   token: vi.fn(),
-  rejectToken: vi.fn(),
   isCredentialInvalidError: vi.fn(),
   observe: vi.fn(),
   removeUnseen: vi.fn(),
@@ -24,7 +40,6 @@ const mocks = vi.hoisted(() => ({
   materialize: vi.fn(),
   rematerialize: vi.fn(async () => 0),
   lifecycle: vi.fn(),
-  credentials: vi.fn(),
   getChangeCursor: vi.fn(),
   listChanges: vi.fn(),
   supportsChangeFeed: vi.fn(),
@@ -33,61 +48,40 @@ const mocks = vi.hoisted(() => ({
   renew: vi.fn(),
 }))
 
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  assertBillingAttributionOwner: vi.fn(),
-  assertBillingAttributionSnapshot: (value: unknown) => value,
-}))
-vi.mock('@/lib/knowledge/access/availability', () => ({
-  isKnowledgeMemberAccessAvailable: vi.fn(async () => true),
-}))
-vi.mock('@/lib/credential-groups/credentials', () => ({
-  CredentialGroupCredentialCursorNotFoundError: class extends Error {},
-  isManagedCredentialGroupBindingLive: vi.fn(async () => true),
-  loadScopedAccountsCredentialListContext: vi.fn(async () => ({
-    status: 'active',
-    options: [{ id: 'option', status: 'active' }],
-  })),
-}))
+vi.mock('@/lib/billing/core/billing-attribution', () => billingAttributionMock)
+vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
+vi.mock('@/lib/credential-groups/credentials', () => credentialGroupsCredentialsMock)
 vi.mock('@/lib/knowledge/connectors/member-provisioning', () => ({
   inviteWorkspaceMembersToCredentialGroup: vi.fn(async () => ({ invited: 0 })),
 }))
 vi.mock('@/lib/knowledge/connectors/access-token', () => ({
   resolveConnectorTokenUserId: vi.fn(async () => 'credential-owner'),
-  resolveConnectorAccessToken: mocks.token,
+  resolveConnectorAccessToken: hoisted.token,
   syncContextForToken: (token: { cloudId?: string }) => ({ cloudId: token.cloudId }),
 }))
-vi.mock('@/lib/knowledge/connectors/member-access', () => ({
-  KnowledgeConnectorMemberAccessDeniedError: class extends Error {},
-  listKnowledgeConnectorMemberCredentials: mocks.credentials,
-  mintKnowledgeConnectorMemberToken: vi.fn(async () => ({ accessToken: 'member-token' })),
-  rejectKnowledgeConnectorMemberToken: mocks.rejectToken,
-}))
+vi.mock('@/lib/knowledge/connectors/member-access', () => knowledgeMemberAccessMock)
 vi.mock('@/lib/knowledge/connectors/member-observations', () => ({
-  applyMemberDocumentLifecycle: mocks.lifecycle,
-  materializeDocumentAcls: mocks.materialize,
-  rematerializeDocumentAcls: mocks.rematerialize,
-  recordMemberObservations: mocks.observe,
-  removeMemberObservationsForDocuments: mocks.removeForDocuments,
-  removeUnseenMemberObservations: mocks.removeUnseen,
-  renewMemberObservationsInScopes: mocks.renew,
+  applyMemberDocumentLifecycle: hoisted.lifecycle,
+  materializeDocumentAcls: hoisted.materialize,
+  rematerializeDocumentAcls: hoisted.rematerialize,
+  recordMemberObservations: hoisted.observe,
+  removeMemberObservationsForDocuments: hoisted.removeForDocuments,
+  removeUnseenMemberObservations: hoisted.removeUnseen,
+  renewMemberObservationsInScopes: hoisted.renew,
   rewriteConnectorAcls: vi.fn(async () => true),
   tombstoneDocumentsObservedOnlyBy: vi.fn(async () => 0),
   resurrectObservedDocuments: vi.fn(async () => 0),
 }))
 vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
-  addDocument: mocks.add,
-  updateDocument: mocks.update,
+  addDocument: hoisted.add,
+  updateDocument: hoisted.update,
   persistSkippedDocuments: vi.fn(async () => []),
-  persistSourceDocumentFailures: mocks.persistFailures,
+  persistSourceDocumentFailures: hoisted.persistFailures,
   persistHashOnlyUpdates: vi.fn(async () => []),
   resolveSourceMetadataFields: vi.fn(() => ({ sourceUrl: null, sourceModifiedAt: null })),
 }))
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  hardDeleteDocuments: vi.fn(),
-  processDocumentsWithQueue: mocks.dispatch,
-  ConnectorSyncDeletionGuardError: class extends Error {},
-}))
-vi.mock('@/lib/core/config/trigger-availability', () => ({ isTriggerAvailable: () => true }))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
+vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
     full_listing: {
@@ -96,8 +90,8 @@ vi.mock('@/connectors/registry.server', () => ({
       auth: { mode: 'oauth', provider: 'google-drive' },
       permissionScopedListing: { capFieldIds: [] },
       supportsSeparateContentCredential: true,
-      listDocuments: mocks.list,
-      getDocument: mocks.get,
+      listDocuments: hoisted.list,
+      getDocument: hoisted.get,
     },
     scoped_listing: {
       id: 'scoped_listing',
@@ -105,9 +99,9 @@ vi.mock('@/connectors/registry.server', () => ({
       auth: { mode: 'oauth', provider: 'google-drive' },
       permissionScopedListing: { capFieldIds: [] },
       supportsSeparateContentCredential: true,
-      listDocuments: mocks.list,
-      getDocument: mocks.get,
-      listAccessibleScopes: mocks.scopes,
+      listDocuments: hoisted.list,
+      getDocument: hoisted.get,
+      listAccessibleScopes: hoisted.scopes,
       isListingCursorInvalidError: (error: unknown) =>
         error instanceof Error && error.message === 'cursor expired',
     },
@@ -117,12 +111,12 @@ vi.mock('@/connectors/registry.server', () => ({
       auth: { mode: 'oauth', provider: 'google-drive' },
       permissionScopedListing: { capFieldIds: [] },
       supportsSeparateContentCredential: true,
-      listDocuments: mocks.list,
-      getDocument: mocks.get,
-      getChangeCursor: mocks.getChangeCursor,
-      listChanges: mocks.listChanges,
-      supportsChangeFeed: mocks.supportsChangeFeed,
-      isCredentialInvalidError: mocks.isCredentialInvalidError,
+      listDocuments: hoisted.list,
+      getDocument: hoisted.get,
+      getChangeCursor: hoisted.getChangeCursor,
+      listChanges: hoisted.listChanges,
+      supportsChangeFeed: hoisted.supportsChangeFeed,
+      isCredentialInvalidError: hoisted.isCredentialInvalidError,
     },
   },
 }))
@@ -141,6 +135,25 @@ import {
   MEMBER_SCOPE_RENEWAL_PREFIX_BATCH,
   SOURCE_CONTENT_ERROR,
 } from '@/lib/knowledge/connectors/sync-limits'
+
+const mocks = {
+  ...hoisted,
+  credentials: knowledgeMemberAccessMockFns.mockListKnowledgeConnectorMemberCredentials,
+  rejectToken: knowledgeMemberAccessMockFns.mockRejectKnowledgeConnectorMemberToken,
+  dispatch: knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue,
+}
+
+credentialGroupsCredentialsMockFns.mockIsManagedCredentialGroupBindingLive.mockReturnValue(true)
+credentialGroupsCredentialsMockFns.mockLoadScopedAccountsCredentialListContext.mockImplementation(
+  async () => ({
+    status: 'active',
+    options: [{ id: 'option', status: 'active' }],
+  })
+)
+knowledgeMemberAccessMockFns.mockMintKnowledgeConnectorMemberToken.mockImplementation(async () => ({
+  accessToken: 'member-token',
+}))
+triggerAvailabilityMockFns.mockIsTriggerAvailable.mockReturnValue(true)
 
 const serviceDocument: ExternalDocument = {
   externalId: 'file-shared',

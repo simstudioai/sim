@@ -1,27 +1,28 @@
 import type { PersonalApiKeyPrincipal, SessionPrincipal } from '@sim/auth/principal'
-import { setEnvFlags } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import {
+  organizationAuthorizationMock,
+  organizationAuthorizationMockFns,
+} from '@sim/testing/mocks/organization-authorization.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  authorizeOrganizationOperation: vi.fn(),
-  isOrganizationFeatureEntitled: vi.fn(),
-  getOrganizationSubscription: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   readUsageTotals: vi.fn(),
   readUsageTimeSeries: vi.fn(),
 }))
 
-vi.mock('@/lib/core/application/organization-authorization', () => ({
-  authorizeOrganizationOperation: mocks.authorizeOrganizationOperation,
-}))
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isOrganizationFeatureEntitled: mocks.isOrganizationFeatureEntitled,
-}))
-vi.mock('@/lib/billing/core/billing', () => ({
-  getOrganizationSubscription: mocks.getOrganizationSubscription,
-}))
+vi.mock('@/lib/core/application/organization-authorization', () => organizationAuthorizationMock)
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 vi.mock('@/lib/billing/core/usage-analytics-queries', () => ({
-  readUsageTotals: mocks.readUsageTotals,
-  readUsageTimeSeries: mocks.readUsageTimeSeries,
+  readUsageTotals: hoisted.readUsageTotals,
+  readUsageTimeSeries: hoisted.readUsageTimeSeries,
   readUsageBreakdown: vi.fn(),
   readUsageEntities: vi.fn(),
 }))
@@ -30,7 +31,15 @@ import { getOrganizationUsageSummary } from '@/lib/billing/application/organizat
 import { ForbiddenOperationError } from '@/lib/core/application'
 
 const ORG = 'org-1'
-const session: SessionPrincipal = { kind: 'session', userId: 'admin-1', sessionId: 'session-1' }
+const mocks = {
+  ...hoisted,
+  getOrganizationSubscription: billingCoreMockFns.mockGetOrganizationSubscription,
+  authorizeOrganizationOperation:
+    organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation,
+  isOrganizationFeatureEntitled: billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled,
+}
+
+const session = createSessionPrincipal({ userId: 'admin-1' })
 
 const input = {
   organizationId: ORG,

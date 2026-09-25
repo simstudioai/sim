@@ -1,26 +1,26 @@
 import { copilotHttpMock, copilotHttpMockFns } from '@sim/testing'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  mothershipWorkspaceTargetMock,
+  mothershipWorkspaceTargetMockFns,
+} from '@sim/testing/mocks/mothership-workspace-target.mock'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
-const { claimPendingAsyncToolCall, getAsyncToolCall, getRunSegment, resolveInvocationWorkspace } =
-  vi.hoisted(() => ({
-    claimPendingAsyncToolCall: vi.fn(),
-    resolveInvocationWorkspace: vi.fn(),
-    getAsyncToolCall: vi.fn(),
-    getRunSegment: vi.fn(),
-  }))
-
 vi.mock('@/lib/mothership/request/http', () => copilotHttpMock)
-vi.mock('@/lib/mothership/application/workspace-target', () => ({ resolveInvocationWorkspace }))
-
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  claimPendingAsyncToolCall,
-  getAsyncToolCall,
-  getRunSegment,
-}))
+vi.mock('@/lib/mothership/application/workspace-target', () => mothershipWorkspaceTargetMock)
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 import { POST } from './route'
+
+const claimPendingAsyncToolCall = mothershipAsyncRunsMockFns.mockClaimPendingAsyncToolCall
+const getAsyncToolCall = mothershipAsyncRunsMockFns.mockGetAsyncToolCall
+const getRunSegment = mothershipAsyncRunsMockFns.mockGetRunSegment
+const resolveInvocationWorkspace = mothershipWorkspaceTargetMockFns.mockResolveInvocationWorkspace
 
 function request(toolCallId: unknown, claim = false): NextRequest {
   return new NextRequest('http://localhost:3000/api/desktop/tool/authorize', {

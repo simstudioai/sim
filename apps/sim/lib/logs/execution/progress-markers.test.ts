@@ -1,4 +1,8 @@
 import { redisConfigMockFns, resetRedisConfigMock } from '@sim/testing'
+import {
+  executionLimitsMock,
+  executionLimitsMockFns,
+} from '@sim/testing/mocks/execution-limits.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionLastCompletedBlock, ExecutionLastStartedBlock } from '@/lib/logs/types'
 
@@ -13,11 +17,11 @@ const { mockRedis } = vi.hoisted(() => {
 
 const mockGetRedisClient = redisConfigMockFns.mockGetRedisClient
 
+executionLimitsMockFns.mockGetExecutionReservationTtlMs.mockReturnValue(5_460_000)
+
 afterAll(resetRedisConfigMock)
 
-vi.mock('@/lib/core/execution-limits', () => ({
-  getExecutionReservationTtlMs: () => 5_460_000,
-}))
+vi.mock('@/lib/core/execution-limits', () => executionLimitsMock)
 
 import {
   getProgressMarkers,

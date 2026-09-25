@@ -1,39 +1,22 @@
 import {
   auditMock,
   auditMockFns,
-  dbChainMock,
   dbChainMockFns,
   encryptionMock,
   posthogServerMock,
   resetDbChainMock,
-  schemaMock,
 } from '@sim/testing'
+import { idMock } from '@sim/testing/mocks/id.mock'
+import { mcpOauthMock, mcpOauthMockFns } from '@sim/testing/mocks/mcp-oauth.mock'
+import { mcpServiceMock, mcpServiceMockFns } from '@sim/testing/mocks/mcp-service.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockClearCache,
-  mockOauthCredsChanged,
-  mockRevokeOauthTokens,
-  mockEvictServerConnections,
-  mockGenerateMcpServerId,
-} = vi.hoisted(() => ({
-  mockClearCache: vi.fn(),
-  mockOauthCredsChanged: vi.fn(),
-  mockRevokeOauthTokens: vi.fn(),
-  mockEvictServerConnections: vi.fn(),
+const { mockGenerateMcpServerId } = vi.hoisted(() => ({
   mockGenerateMcpServerId: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => auditMock)
-vi.mock('@sim/db', () => ({
-  ...dbChainMock,
-  mcpServers: schemaMock.mcpServers,
-}))
-vi.mock('@sim/db/schema', () => ({
-  credential: schemaMock.credential,
-  mcpServerOauth: schemaMock.mcpServerOauth,
-}))
-vi.mock('@sim/utils/id', () => ({ generateId: vi.fn() }))
+vi.mock('@sim/utils/id', () => idMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/lib/mcp/domain-check', () => ({
   MCP_EGRESS_PROFILE: 'selfHostedService',
@@ -44,17 +27,8 @@ vi.mock('@/lib/mcp/domain-check', () => ({
   validateMcpDomain: vi.fn(),
   validateMcpServerSsrf: vi.fn(),
 }))
-vi.mock('@/lib/mcp/oauth', () => ({
-  detectMcpAuthType: vi.fn(),
-  oauthCredsChanged: mockOauthCredsChanged,
-  revokeMcpOauthTokens: mockRevokeOauthTokens,
-}))
-vi.mock('@/lib/mcp/service', () => ({
-  mcpService: {
-    clearCache: mockClearCache,
-    evictServerConnections: mockEvictServerConnections,
-  },
-}))
+vi.mock('@/lib/mcp/oauth', () => mcpOauthMock)
+vi.mock('@/lib/mcp/service', () => mcpServiceMock)
 vi.mock('@/lib/mcp/utils', () => ({ generateMcpServerId: mockGenerateMcpServerId }))
 vi.mock('@/lib/posthog/server', () => posthogServerMock)
 
@@ -62,6 +36,11 @@ import {
   performCreateMcpServer,
   performUpdateMcpServer,
 } from '@/lib/mcp/orchestration/server-lifecycle'
+
+const mockClearCache = mcpServiceMockFns.mockClearCache
+const mockEvictServerConnections = mcpServiceMockFns.mockEvictServerConnections
+const mockOauthCredsChanged = mcpOauthMockFns.mockOauthCredsChanged
+const mockRevokeOauthTokens = mcpOauthMockFns.mockRevokeMcpOauthTokens
 
 describe('MCP server lifecycle orchestration', () => {
   const auditUpdatedFields = (): string[] | undefined =>

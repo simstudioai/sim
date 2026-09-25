@@ -1,19 +1,25 @@
 /** @vitest-environment jsdom */
+import {
+  apiClientRequestMock,
+  apiClientRequestMockFns,
+} from '@sim/testing/mocks/api-client-request.mock'
+import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { beforeEach, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   invoke: vi.fn(),
-  json: vi.fn(),
   upload: vi.fn(),
   complete: vi.fn(),
   exit: vi.fn(),
 }))
-vi.mock('@/lib/desktop', () => ({ getDesktopBridge: () => ({ localFiles: mocks.invoke }) }))
-vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.json }))
-vi.mock('@/lib/uploads/client/session-upload', () => ({ uploadWorkspaceFileSession: mocks.upload }))
+vi.mock('@/lib/desktop', () => libDesktopMock)
+vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
+vi.mock('@/lib/uploads/client/session-upload', () => ({
+  uploadWorkspaceFileSession: hoisted.upload,
+}))
 vi.mock('@/lib/mothership/tools/client/completion', () => ({
-  reportClientToolCompletion: mocks.complete,
-  reportClientToolCompletionOnPageExit: mocks.exit,
+  reportClientToolCompletion: hoisted.complete,
+  reportClientToolCompletionOnPageExit: hoisted.exit,
 }))
 
 import type { DesktopLocalFileManifest } from '@sim/desktop-bridge'
@@ -21,6 +27,8 @@ import {
   executeNativeFileTool,
   importNativeFiles,
 } from '@/lib/mothership/tools/client/native-files'
+
+const mocks = { ...hoisted, json: apiClientRequestMockFns.mockRequestJson }
 
 const manifest: DesktopLocalFileManifest = {
   kind: 'manifest',
@@ -35,6 +43,7 @@ const manifest: DesktopLocalFileManifest = {
 }
 beforeEach(() => {
   vi.resetAllMocks()
+  libDesktopMockFns.mockGetDesktopBridge.mockReturnValue({ localFiles: mocks.invoke })
   mocks.json.mockResolvedValue({ folder: { id: 'created-folder' } })
   mocks.upload.mockResolvedValue({ id: 'saved-file', name: 'report.txt' })
   mocks.invoke.mockResolvedValue({

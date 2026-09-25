@@ -1,14 +1,10 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   appendSlackAgentStream,
   setSlackAgentSessionStatus,
   stopSlackAgentStream,
 } from '@/lib/webhooks/slack-agent-api'
 import { SlackDeliveryError } from '@/lib/webhooks/slack-delivery-error'
-
-afterEach(() => {
-  vi.unstubAllGlobals()
-})
 
 describe('Slack agent API transport', () => {
   it('uses the documented append, stop, and session status bodies', async () => {

@@ -1,32 +1,29 @@
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import { realtimeNotifyMock, realtimeNotifyMockFns } from '@sim/testing/mocks/realtime-notify.mock'
+import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
+import {
+  workspaceFileManagerMock,
+  workspaceFileManagerMockFns,
+} from '@sim/testing/mocks/workspace-file-manager.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  loadLifecycle: vi.fn(),
-  restoreStored: vi.fn(),
-  getFile: vi.fn(),
-  recordAudit: vi.fn(),
-  notify: vi.fn(),
-  resolvePermission: vi.fn(),
-}))
+vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 
-vi.mock('@sim/platform-authz/workspace', () => ({
-  permissionSatisfies: () => true,
-  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
-}))
-
-vi.mock('@sim/audit', () => ({
-  AuditAction: { FILE_RESTORED: 'FILE_RESTORED' },
-  AuditResourceType: { FILE: 'FILE' },
-  recordAudit: mocks.recordAudit,
-}))
-vi.mock('@/lib/realtime/notify', () => ({ notifyWorkspaceFilesChanged: mocks.notify }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  loadWorkspaceFileLifecycleContext: mocks.loadLifecycle,
-  restoreWorkspaceFile: mocks.restoreStored,
-  getWorkspaceFile: mocks.getFile,
-}))
+vi.mock('@sim/audit', () => auditMock)
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => workspaceFileManagerMock)
 
 import { restoreWorkspaceFileOperation } from '@/lib/workspace-files/application/restore-workspace-file'
+
+const mocks = {
+  loadLifecycle: workspaceFileManagerMockFns.mockLoadWorkspaceFileLifecycleContext,
+  restoreStored: workspaceFileManagerMockFns.mockRestoreWorkspaceFile,
+  getFile: workspaceFileManagerMockFns.mockGetWorkspaceFile,
+  notify: realtimeNotifyMockFns.mockNotifyWorkspaceFilesChanged,
+  recordAudit: auditMockFns.mockRecordAudit,
+  resolvePermission: workspaceAuthzMockFns.mockResolveEffectiveWorkspacePermission,
+}
 
 const context = {
   fileId: 'file-1',
@@ -70,7 +67,7 @@ describe('restoreWorkspaceFileOperation', () => {
   it('conceals an asserted-workspace mismatch before authorization', async () => {
     await expect(
       restoreWorkspaceFileOperation.execute({
-        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        principal: createSessionPrincipal(),
         input: { fileId: 'file-1', assertedWorkspaceId: 'workspace-2' },
       })
     ).rejects.toMatchObject({ code: 'not_found' })

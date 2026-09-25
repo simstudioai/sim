@@ -1,4 +1,25 @@
 import { resetEnvFlagsMock, resetEnvironmentUtilsMock, setEnvFlags } from '@sim/testing'
+import {
+  mothershipAgentUrlMock,
+  mothershipAgentUrlMockFns,
+} from '@sim/testing/mocks/mothership-agent-url.mock'
+import {
+  mothershipAsyncRunsMock,
+  mothershipAsyncRunsMockFns,
+} from '@sim/testing/mocks/mothership-async-runs.mock'
+import {
+  mothershipEnvironmentContextMock,
+  mothershipEnvironmentContextMockFns,
+} from '@sim/testing/mocks/mothership-environment-context.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
+import { toolsMock, toolsMockFns } from '@sim/testing/mocks/tools.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { generateId } from '@sim/utils/id'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { scopeProviderToolCallId } from '@/lib/mothership/request/go/tool-call-identity'
@@ -9,14 +30,13 @@ import { executeRunCode } from '@/lib/mothership/tools/handlers/run-code'
 import { openResourceServerTool } from '@/lib/mothership/tools/server/open-resource'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
-const { mockMaterializeOrganizationSecrets, mockExecuteAppTool } = vi.hoisted(() => ({
+const { mockMaterializeOrganizationSecrets } = vi.hoisted(() => ({
   mockMaterializeOrganizationSecrets: vi.fn(),
-  mockExecuteAppTool: vi.fn(),
 }))
 vi.mock('@/lib/mothership/tools/organization-secret-mount', () => ({
   materializeOrganizationCodeSecrets: mockMaterializeOrganizationSecrets,
 }))
-vi.mock('@/tools', () => ({ executeTool: mockExecuteAppTool }))
+vi.mock('@/tools', () => toolsMock)
 
 const modelSelectorEnabled = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/mothership/feature-flags', () => ({
@@ -31,35 +51,21 @@ vi.mock('@/lib/mothership/application/authorize-chat-callback', () => ({
 afterAll(resetEnvironmentUtilsMock)
 
 const {
-  mockCreateRunSegment,
   mockForceFailHungToolCall,
-  mockGetMothershipBaseURL,
-  mockGetMothershipSourceEnvHeaders,
   mockLoadCopilotSearchIntegrations,
-  mockPrepareCopilotEnvironmentContext,
   mockPrepareExecutionContext,
   mockRunStreamLoop,
   mockPendingToolWaitBudgetMs,
   mockGetAutoAllowedTools,
-  mockGetUserPermissionConfig,
-  mockFilterModelSafeWorkspaceFileAttachments,
-  mockUpdateRunStatus,
   mockCheckAttributedUsageLimits,
   mockEnv,
 } = vi.hoisted(() => ({
-  mockCreateRunSegment: vi.fn(),
   mockForceFailHungToolCall: vi.fn(),
-  mockGetMothershipBaseURL: vi.fn(),
-  mockGetMothershipSourceEnvHeaders: vi.fn(),
   mockLoadCopilotSearchIntegrations: vi.fn(),
-  mockPrepareCopilotEnvironmentContext: vi.fn(),
   mockPrepareExecutionContext: vi.fn(),
   mockRunStreamLoop: vi.fn(),
   mockPendingToolWaitBudgetMs: vi.fn((_toolCall?: { name?: string; status?: string }) => 60_000),
   mockGetAutoAllowedTools: vi.fn(async () => new Set<string>()),
-  mockGetUserPermissionConfig: vi.fn(async () => null),
-  mockFilterModelSafeWorkspaceFileAttachments: vi.fn(async (attachments: unknown[]) => attachments),
-  mockUpdateRunStatus: vi.fn(),
   mockCheckAttributedUsageLimits: vi.fn(),
   mockEnv: {
     INTERNAL_API_SECRET: 'transport-test-secret-000000000000000000',
@@ -74,14 +80,12 @@ vi.mock('@/lib/mothership/application/load-search-integrations', () => ({
 
 vi.mock('@/lib/mothership/request/context/restore', () => ({ restoreStreamingContext: vi.fn() }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  filterModelSafeWorkspaceFileAttachments: mockFilterModelSafeWorkspaceFileAttachments,
-}))
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 
-vi.mock('@/lib/mothership/async-runs/repository', () => ({
-  createRunSegment: mockCreateRunSegment,
-  updateRunStatus: mockUpdateRunStatus,
-}))
+vi.mock('@/lib/mothership/async-runs/repository', () => mothershipAsyncRunsMock)
 
 vi.mock('@/lib/mothership/request/go/stream', () => {
   class CopilotBackendError extends Error {
@@ -126,10 +130,7 @@ vi.mock('@/lib/mothership/request/go/stream', () => {
   }
 })
 
-vi.mock('@/lib/mothership/server/agent-url', () => ({
-  getMothershipBaseURL: mockGetMothershipBaseURL,
-  getMothershipSourceEnvHeaders: mockGetMothershipSourceEnvHeaders,
-}))
+vi.mock('@/lib/mothership/server/agent-url', () => mothershipAgentUrlMock)
 
 vi.mock('@/lib/core/config/env', async (original) => ({
   ...(await original<typeof import('@/lib/core/config/env')>()),
@@ -146,13 +147,9 @@ vi.mock('@/lib/mothership/persistence/tool-permission/auto-allow', () => ({
   addChatAutoAllowedTool: vi.fn(),
 }))
 
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfig: mockGetUserPermissionConfig,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
 
-vi.mock('@/lib/mothership/environment-context', () => ({
-  prepareCopilotEnvironmentContext: mockPrepareCopilotEnvironmentContext,
-}))
+vi.mock('@/lib/mothership/environment-context', () => mothershipEnvironmentContextMock)
 
 vi.mock('@/lib/mothership/tools/handlers/context', () => ({
   prepareExecutionContext: mockPrepareExecutionContext,
@@ -210,6 +207,17 @@ import {
 } from '@/lib/mothership/request/go/stream'
 import { runCopilotLifecycle } from '@/lib/mothership/request/lifecycle/run'
 import { executeToolAndReport } from '@/lib/mothership/request/tools/executor'
+
+const mockExecuteAppTool = toolsMockFns.mockExecuteTool
+const { mockCreateRunSegment, mockUpdateRunStatus } = mothershipAsyncRunsMockFns
+const { mockGetMothershipBaseURL, mockGetMothershipSourceEnvHeaders } = mothershipAgentUrlMockFns
+const { mockPrepareCopilotEnvironmentContext } = mothershipEnvironmentContextMockFns
+const mockGetUserPermissionConfig = permissionGroupsResolveMockFns.mockGetUserPermissionConfig
+const mockFilterModelSafeWorkspaceFileAttachments =
+  workspaceFileSecretProvenanceMockFns.mockFilterModelSafeWorkspaceFileAttachments
+mockFilterModelSafeWorkspaceFileAttachments.mockImplementation(
+  async (attachments: unknown[]) => attachments
+)
 
 afterAll(resetEnvFlagsMock)
 

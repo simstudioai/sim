@@ -1,3 +1,7 @@
+import {
+  providersModelsMock,
+  providersModelsMockFns,
+} from '@sim/testing/mocks/providers-models.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockShouldRequireApiKey, mockRequiresFamilyCredentials } = vi.hoisted(() => ({
@@ -10,38 +14,7 @@ vi.mock('@/blocks/utils', () => ({
   providerRequiresFamilyCredentials: mockRequiresFamilyCredentials,
 }))
 
-vi.mock('@/providers/models', () => ({
-  isAutoModel: (model: string) => model.trim().toLowerCase() === 'sim-auto',
-  isKnownModelId: (model: string) => model.startsWith('gpt') || model.startsWith('claude'),
-  findProviderFromModel: (model: string) => {
-    const lower = model.toLowerCase()
-    if (lower.startsWith('gpt')) return 'openai'
-    if (lower.startsWith('claude')) return 'anthropic'
-    if (lower.startsWith('vertex/')) return 'vertex'
-    if (lower.startsWith('openrouter/')) return 'openrouter'
-    return null
-  },
-  getReasoningEffortValuesForModel: (model: string) =>
-    model === 'gpt-big'
-      ? ['low', 'medium', 'high', 'xhigh']
-      : model === 'gpt-small'
-        ? ['low', 'high']
-        : null,
-  getThinkingLevelsForModel: (model: string) =>
-    model.startsWith('claude') ? ['low', 'medium', 'high'] : null,
-  getVerbosityValuesForModel: (model: string) =>
-    model.startsWith('gpt') ? ['low', 'medium', 'high'] : null,
-  getMaxTemperature: (model: string) =>
-    model.startsWith('claude') ? 1 : model.startsWith('gpt') ? 2 : undefined,
-  getModelCapabilities: (model: string) =>
-    model === 'gpt-small'
-      ? { maxOutputTokens: 4096 }
-      : model.startsWith('gpt')
-        ? { maxOutputTokens: 16000 }
-        : model.startsWith('claude')
-          ? {}
-          : null,
-}))
+vi.mock('@/providers/models', () => providersModelsMock)
 
 import {
   changeFallbackRowModel,
@@ -54,6 +27,52 @@ import {
   normalizeTuningValues,
   resolveFallbackTuning,
 } from '@/lib/workflows/blocks/fallback-models'
+
+const {
+  mockFindProviderFromModel,
+  mockGetMaxTemperature,
+  mockGetModelCapabilities,
+  mockGetReasoningEffortValuesForModel,
+  mockGetThinkingLevelsForModel,
+  mockGetVerbosityValuesForModel,
+  mockIsKnownModelId,
+} = providersModelsMockFns
+mockIsKnownModelId.mockImplementation(
+  (model: string) => model.startsWith('gpt') || model.startsWith('claude')
+)
+mockFindProviderFromModel.mockImplementation((model: string) => {
+  const lower = model.toLowerCase()
+  if (lower.startsWith('gpt')) return 'openai'
+  if (lower.startsWith('claude')) return 'anthropic'
+  if (lower.startsWith('vertex/')) return 'vertex'
+  if (lower.startsWith('openrouter/')) return 'openrouter'
+  return null
+})
+mockGetReasoningEffortValuesForModel.mockImplementation((model: string) =>
+  model === 'gpt-big'
+    ? ['low', 'medium', 'high', 'xhigh']
+    : model === 'gpt-small'
+      ? ['low', 'high']
+      : null
+)
+mockGetThinkingLevelsForModel.mockImplementation((model: string) =>
+  model.startsWith('claude') ? ['low', 'medium', 'high'] : null
+)
+mockGetVerbosityValuesForModel.mockImplementation((model: string) =>
+  model.startsWith('gpt') ? ['low', 'medium', 'high'] : null
+)
+mockGetMaxTemperature.mockImplementation((model: string) =>
+  model.startsWith('claude') ? 1 : model.startsWith('gpt') ? 2 : undefined
+)
+mockGetModelCapabilities.mockImplementation((model: string) =>
+  model === 'gpt-small'
+    ? { maxOutputTokens: 4096 }
+    : model.startsWith('gpt')
+      ? { maxOutputTokens: 16000 }
+      : model.startsWith('claude')
+        ? {}
+        : null
+)
 
 beforeEach(() => {
   mockShouldRequireApiKey.mockReturnValue(false)

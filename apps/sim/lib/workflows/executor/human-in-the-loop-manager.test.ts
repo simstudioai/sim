@@ -6,24 +6,30 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import {
+  billingUsageReservationMock,
+  billingUsageReservationMockFns,
+} from '@sim/testing/mocks/billing-usage-reservation.mock'
+import {
+  executionPreprocessingMock,
+  executionPreprocessingMockFns,
+} from '@sim/testing/mocks/execution-preprocessing.mock'
+import {
+  largeValueMetadataMock,
+  largeValueMetadataMockFns,
+} from '@sim/testing/mocks/large-value-metadata.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTimeoutAbortController, getExecutionDeadlineAt } from '@/lib/core/execution-limits'
 import { abortManualExecution } from '@/lib/execution/manual-cancellation'
 import { terminalExecutionLogFields } from '@/lib/logs/execution/cancellation'
 
 const {
-  mockReleaseExecutionSlot,
-  mockReplaceLargeValueReferenceKeysWithClient,
-  mockPreprocessExecution,
   mockExecuteWorkflowCore,
   mockCleanupExecutionBase64Cache,
   mockResetExecutionStreamBuffer,
   mockInitializeExecutionStreamMeta,
   mockEventWriter,
 } = vi.hoisted(() => ({
-  mockReleaseExecutionSlot: vi.fn(),
-  mockPreprocessExecution: vi.fn(),
-  mockReplaceLargeValueReferenceKeysWithClient: vi.fn(),
   mockExecuteWorkflowCore: vi.fn(),
   mockCleanupExecutionBase64Cache: vi.fn(),
   mockResetExecutionStreamBuffer: vi.fn(),
@@ -31,7 +37,7 @@ const {
   mockEventWriter: { write: vi.fn(), writeTerminal: vi.fn(), close: vi.fn() },
 }))
 
-vi.mock('@/lib/execution/preprocessing', () => ({ preprocessExecution: mockPreprocessExecution }))
+vi.mock('@/lib/execution/preprocessing', () => executionPreprocessingMock)
 
 vi.mock('@/lib/workflows/executor/execution-core', () => ({
   executeWorkflowCore: mockExecuteWorkflowCore,
@@ -49,14 +55,9 @@ vi.mock('@/lib/execution/event-buffer', () => ({
   resetExecutionStreamBuffer: mockResetExecutionStreamBuffer,
 }))
 
-vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
-  releaseExecutionSlot: mockReleaseExecutionSlot,
-}))
+vi.mock('@/lib/billing/calculations/usage-reservation', () => billingUsageReservationMock)
 
-vi.mock('@/lib/execution/payloads/large-value-metadata', () => ({
-  collectLargeValueReferenceKeys: vi.fn(() => []),
-  replaceLargeValueReferenceKeysWithClient: mockReplaceLargeValueReferenceKeysWithClient,
-}))
+vi.mock('@/lib/execution/payloads/large-value-metadata', () => largeValueMetadataMock)
 
 import {
   createResumeAttemptTimeoutController,
@@ -68,6 +69,10 @@ import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paus
 import { AUTOMATIC_RESUME_WAITING_REASON_MAX_LENGTH } from '@/lib/workflows/executor/resume-policy'
 import type { SerializableExecutionState } from '@/executor/execution/types'
 import type { PausePoint, SerializedSnapshot } from '@/executor/types'
+
+const { mockPreprocessExecution } = executionPreprocessingMockFns
+const { mockReleaseExecutionSlot } = billingUsageReservationMockFns
+const { mockReplaceLargeValueReferenceKeysWithClient } = largeValueMetadataMockFns
 
 const humanInTheLoopLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
   ([name]) => name === 'HumanInTheLoopManager'

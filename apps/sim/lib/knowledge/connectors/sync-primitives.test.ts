@@ -1,12 +1,19 @@
 import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  knowledgeDocumentsServiceMock,
+  knowledgeDocumentsServiceMockFns,
+} from '@sim/testing/mocks/knowledge-documents-service.mock'
+import {
+  triggerAvailabilityMock,
+  triggerAvailabilityMockFns,
+} from '@sim/testing/mocks/trigger-availability.mock'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 import type { DocumentData } from '@/lib/knowledge/documents/service'
 import type { ExternalDocument, SyncResult } from '@/connectors/types'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   add: vi.fn(),
   update: vi.fn(),
-  triggerAvailable: vi.fn(),
   persistHashes: vi.fn(),
   sourceMetadata: vi.fn(
     (_connectorType: string, doc: Pick<ExternalDocument, 'sourceUrl' | 'metadata'>) => ({
@@ -15,22 +22,17 @@ const mocks = vi.hoisted(() => ({
       date1: doc.metadata?.lastActivity,
     })
   ),
-  dispatch: vi.fn<(documents: DocumentData[]) => Promise<{ accepted: number; failed: number }>>(),
 }))
 
 vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
-  addDocument: mocks.add,
-  updateDocument: mocks.update,
+  addDocument: hoisted.add,
+  updateDocument: hoisted.update,
   persistSkippedDocuments: vi.fn(),
-  persistHashOnlyUpdates: mocks.persistHashes,
-  resolveSourceMetadataFields: mocks.sourceMetadata,
+  persistHashOnlyUpdates: hoisted.persistHashes,
+  resolveSourceMetadataFields: hoisted.sourceMetadata,
 }))
-vi.mock('@/lib/knowledge/documents/service', () => ({
-  processDocumentsWithQueue: mocks.dispatch,
-}))
-vi.mock('@/lib/core/config/trigger-availability', () => ({
-  isTriggerAvailable: mocks.triggerAvailable,
-}))
+vi.mock('@/lib/knowledge/documents/service', () => knowledgeDocumentsServiceMock)
+vi.mock('@/lib/core/config/trigger-availability', () => triggerAvailabilityMock)
 
 import { SyncLockLostException, stillHoldsSyncLock } from '@/lib/knowledge/connectors/sync-lock'
 import {
@@ -41,6 +43,14 @@ import {
   type ProcessDocOpsInput,
   processDocOps,
 } from '@/lib/knowledge/connectors/sync-primitives'
+
+const mocks = {
+  ...hoisted,
+  triggerAvailable: triggerAvailabilityMockFns.mockIsTriggerAvailable,
+  dispatch: knowledgeDocumentsServiceMockFns.mockProcessDocumentsWithQueue as Mock<
+    (documents: DocumentData[]) => Promise<{ accepted: number; failed: number }>
+  >,
+}
 
 describe('connector-owned hash comparison', () => {
   const listed: ExternalDocument = {

@@ -1,27 +1,41 @@
-import { permissionGroupScopeMock, permissionGroupScopeMockFns } from '@sim/testing'
+import {
+  createPersonalApiKeyPrincipal,
+  createWorkspaceApiKeyPrincipal,
+} from '@sim/testing/factories/principal.factory'
+import {
+  permissionGroupScopeMock,
+  permissionGroupScopeMockFns,
+} from '@sim/testing/mocks/permission-group-scope.mock'
+import {
+  workspaceContextMock,
+  workspaceContextMockFns,
+} from '@sim/testing/mocks/workspace-context.mock'
+import {
+  workspacesUtilsMock,
+  workspacesUtilsMockFns,
+} from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  listAccessible: vi.fn(),
+const hoisted = vi.hoisted(() => ({
   getDetail: vi.fn(),
   getDetails: vi.fn(),
-  loadContext: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/utils', () => ({
-  listAccessibleWorkspaceRowsForUser: mocks.listAccessible,
-}))
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 vi.mock('@/lib/workspaces/public-queries', () => ({
-  getPublicWorkspaceDetail: mocks.getDetail,
-  getPublicWorkspaceDetails: mocks.getDetails,
+  getPublicWorkspaceDetail: hoisted.getDetail,
+  getPublicWorkspaceDetails: hoisted.getDetails,
 }))
-vi.mock('@/lib/workspaces/application/workspace-context', () => ({
-  loadActiveWorkspaceApplicationContext: mocks.loadContext,
-}))
+vi.mock('@/lib/workspaces/application/workspace-context', () => workspaceContextMock)
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { listPublicWorkspaces } from '@/lib/workspaces/application/list-public-workspaces'
+
+const mocks = {
+  ...hoisted,
+  listAccessible: workspacesUtilsMockFns.mockListAccessibleWorkspaceRowsForUser,
+}
 
 const workspace = (id: string, name: string, allowPersonalApiKeys: boolean, day: number) => ({
   id,
@@ -82,7 +96,7 @@ describe('listPublicWorkspaces', () => {
     )
 
     const result = await listPublicWorkspaces.execute({
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      principal: createPersonalApiKeyPrincipal(),
       input: { sortBy: 'name', sortOrder: 'asc', limit: 1, offset: 0 },
     })
 
@@ -158,7 +172,7 @@ describe('listPublicWorkspaces', () => {
       expect(mocks.getDetails).toHaveBeenCalledWith(['workspace-b'])
 
       const apiKeyResult = await listPublicWorkspaces.execute({
-        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        principal: createPersonalApiKeyPrincipal(),
         input,
       })
       expect(apiKeyResult.workspaces.map(({ id }) => id)).toEqual(['workspace-a'])
@@ -167,7 +181,7 @@ describe('listPublicWorkspaces', () => {
   )
 
   it('limits a workspace key to its bound active workspace', async () => {
-    mocks.loadContext.mockResolvedValue({
+    workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext.mockResolvedValue({
       workspaceId: 'workspace-bound',
       workspaceOrganizationId: null,
       allowPersonalApiKeys: false,
@@ -175,11 +189,7 @@ describe('listPublicWorkspaces', () => {
     })
 
     const result = await listPublicWorkspaces.execute({
-      principal: {
-        kind: 'workspace_api_key',
-        workspaceId: 'workspace-bound',
-        keyId: 'key-1',
-      },
+      principal: createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace-bound' }),
       input: { sortBy: 'createdAt', sortOrder: 'desc', limit: 50, offset: 0 },
     })
 

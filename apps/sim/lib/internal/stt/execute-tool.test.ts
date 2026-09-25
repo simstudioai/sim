@@ -1,4 +1,14 @@
 import { inputValidationMock, inputValidationMockFns } from '@sim/testing'
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import { filesAuthorizationMock } from '@sim/testing/mocks/files-authorization.mock'
+import {
+  workspaceFileSecretProvenanceMock,
+  workspaceFileSecretProvenanceMockFns,
+} from '@sim/testing/mocks/workspace-file-secret-provenance.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
@@ -7,36 +17,19 @@ import {
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
 } from '@/lib/execution/private-tool-metadata'
 
-const {
-  mockIsInternalFileUrl,
-  mockDownloadFileFromStorage,
-  mockIsModelSafeWorkspaceFileKey,
-  mockResolveInternalFileUrl,
-} = vi.hoisted(() => ({
-  mockIsInternalFileUrl: vi.fn(),
-  mockDownloadFileFromStorage: vi.fn(),
-  mockIsModelSafeWorkspaceFileKey: vi.fn(),
-  mockResolveInternalFileUrl: vi.fn(),
-}))
+const { mockIsInternalFileUrl, mockExtractStorageKey, mockGetMimeTypeFromExtension } =
+  fileUtilsMockFns
+const { mockDownloadFileFromStorage, mockResolveInternalFileUrl } = fileUtilsServerMockFns
+const { mockIsModelSafeWorkspaceFileKey } = workspaceFileSecretProvenanceMockFns
 
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  extractStorageKey: vi.fn(() => 'storage-key'),
-  isInternalFileUrl: mockIsInternalFileUrl,
-  getMimeTypeFromExtension: vi.fn(() => 'application/octet-stream'),
-}))
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadFileFromStorage: mockDownloadFileFromStorage,
-  resolveInternalFileUrl: mockResolveInternalFileUrl,
-}))
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: vi.fn().mockResolvedValue(null),
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  isModelSafeWorkspaceFileKey: mockIsModelSafeWorkspaceFileKey,
-  MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE:
-    'File cannot be sent to a model because its secret provenance is unavailable',
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
+vi.mock(
+  '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance',
+  () => workspaceFileSecretProvenanceMock
+)
 vi.mock('@/lib/audio/extractor', () => ({
   isVideoFile: vi.fn(() => false),
   extractAudioFromVideo: vi.fn(),
@@ -100,6 +93,8 @@ describe('executeSttTool', () => {
       originalHostname: 'example.com',
     })
     mockIsInternalFileUrl.mockReturnValue(false)
+    mockExtractStorageKey.mockReturnValue('storage-key')
+    mockGetMimeTypeFromExtension.mockReturnValue('application/octet-stream')
     mockIsModelSafeWorkspaceFileKey.mockResolvedValue(true)
     mockDownloadFileFromStorage.mockResolvedValue(Buffer.from('audio'))
 

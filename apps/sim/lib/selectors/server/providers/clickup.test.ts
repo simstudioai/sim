@@ -1,21 +1,25 @@
+import {
+  selectorCredentialsMock,
+  selectorCredentialsMockFns,
+} from '@sim/testing/mocks/selector-credentials.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockFetchProviderJson, mockResolveSelectorOAuthAccessToken } = vi.hoisted(() => ({
+const { mockFetchProviderJson } = vi.hoisted(() => ({
   mockFetchProviderJson: vi.fn(),
-  mockResolveSelectorOAuthAccessToken: vi.fn(),
 }))
 
 vi.mock('@/lib/selectors/server/providers/provider-http', () => ({
   fetchProviderJson: mockFetchProviderJson,
 }))
 
-vi.mock('@/lib/selectors/server/credentials', () => ({
-  resolveSelectorOAuthAccessToken: mockResolveSelectorOAuthAccessToken,
-}))
+vi.mock('@/lib/selectors/server/credentials', () => selectorCredentialsMock)
 
 import { createSelectorProtectedValues } from '@/lib/selectors/server/protected-values'
 import { clickupSelectorAttachments } from '@/lib/selectors/server/providers/clickup'
 import type { ExecuteServerSelectorArgs } from '@/lib/selectors/server/types'
+
+const mockResolveSelectorOAuthAccessToken =
+  selectorCredentialsMockFns.mockResolveSelectorOAuthAccessToken
 
 function listArgs(context: Record<string, string>): ExecuteServerSelectorArgs {
   return {

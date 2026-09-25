@@ -1,24 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockWarn } = vi.hoisted(() => ({ mockWarn: vi.fn() }))
-
-vi.mock('@sim/logger', () => ({
-  createLogger: () => ({
-    info: vi.fn(),
-    warn: mockWarn,
-    error: vi.fn(),
-    debug: vi.fn(),
-  }),
-  logger: { info: vi.fn(), warn: mockWarn, error: vi.fn(), debug: vi.fn() },
-  runWithRequestContext: <T>(_context: unknown, fn: () => T): T => fn(),
-  getRequestContext: () => undefined,
-  setRequestAuth: vi.fn(),
-  setRequestTraceId: vi.fn(),
-}))
-
+import { getMockLogger } from '@sim/testing/mocks/logger.mock'
+import { describe, expect, it } from 'vitest'
 import { deriveDeliveryKey } from '@/lib/core/http/derive-key'
 import { outlookCalendarCreateEventTool } from '@/tools/outlook/calendar_create_event'
 import type { ToolConfig } from '@/tools/types'
+
+const { warn: mockWarn } = getMockLogger('OutlookCalendarIdempotency')
 
 /** A complete execution identity, as the executor is expected to inject it. */
 const CONTEXT = {
@@ -55,10 +41,6 @@ const eventParams = () => ({
 })
 
 describe('outlook_calendar_create_event transactionId', () => {
-  beforeEach(() => {
-    mockWarn.mockClear()
-  })
-
   it('derives the transactionId from the execution identity, keyed to its own tool id', () => {
     const body = buildBody(tool, { ...eventParams(), _context: { ...CONTEXT } })
 

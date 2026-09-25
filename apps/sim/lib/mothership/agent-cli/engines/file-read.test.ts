@@ -1,19 +1,23 @@
 import type { Principal } from '@sim/auth/principal'
+import {
+  workspaceFileReferenceMock,
+  workspaceFileReferenceMockFns,
+} from '@sim/testing/mocks/workspace-file-reference.mock'
 import { PDFDocument } from 'pdf-lib'
 import sharp from 'sharp'
 import { SimApiError } from 'sim/embed'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  resolve: vi.fn(),
   artifact: vi.fn(),
   request: vi.fn(),
   scratch: vi.fn(),
   original: vi.fn(),
 }))
-vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
-  resolveWorkspaceFileReference: mocks.resolve,
-}))
+vi.mock(
+  '@/lib/workspace-files/application/resolve-workspace-file-reference',
+  () => workspaceFileReferenceMock
+)
 vi.mock('@/lib/workspace-files/application/read-workspace-file-artifact', () => ({
   readWorkspaceFileArtifact: { execute: mocks.artifact },
 }))
@@ -31,6 +35,9 @@ import { runEngine } from '@/lib/mothership/agent-cli/engines'
 import type { AgentCliRuntime } from '@/lib/mothership/agent-cli/types'
 import { ArtifactObservations } from '@/lib/mothership/generated/observations'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+
+const mockResolveWorkspaceFileReference =
+  workspaceFileReferenceMockFns.mockResolveWorkspaceFileReference
 
 const workspaceId = '11111111-1111-4111-8111-111111111111'
 const fileId = '22222222-2222-4222-8222-222222222222'
@@ -71,7 +78,7 @@ function textResponse(name = 'notes.txt') {
 
 describe('content-aware files read augmentation', () => {
   beforeEach(async () => {
-    mocks.resolve.mockResolvedValue(file)
+    mockResolveWorkspaceFileReference.mockResolvedValue(file)
     mocks.artifact.mockResolvedValue({
       file,
       contentType: 'image/png',
@@ -85,7 +92,7 @@ describe('content-aware files read augmentation', () => {
   it.each(['image/png', 'application/octet-stream', 'image/png; charset=binary'])(
     'reads uploaded PNG with %s on its first call, without a text request',
     async (type) => {
-      mocks.resolve.mockResolvedValue({ ...file, type })
+      mockResolveWorkspaceFileReference.mockResolvedValue({ ...file, type })
       const result = await runEngine('files read', ['uploads/image.png'], runtime, {})
       expect(result.exitCode).toBe(0)
       expect(JSON.parse(result.stdout)).toMatchObject({
@@ -100,7 +107,7 @@ describe('content-aware files read augmentation', () => {
         resource: { id: fileId, type: 'file' },
       })
       expect(mocks.request).not.toHaveBeenCalled()
-      expect(mocks.resolve).toHaveBeenCalledWith({
+      expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith({
         principal,
         operation: fileOperations.readContent,
         workspaceId,
@@ -130,7 +137,7 @@ describe('content-aware files read augmentation', () => {
     ['script', 'application/javascript'],
     ['report.docx', 'text/x-docxjs'],
   ])('reads %s through the existing text/provenance transport', async (name, type) => {
-    mocks.resolve.mockResolvedValue({ ...file, name, type })
+    mockResolveWorkspaceFileReference.mockResolvedValue({ ...file, name, type })
     mocks.request.mockResolvedValue(textResponse(name))
     const result = await runEngine('files read', [`uploads/${name}`], runtime, {
       offset: '3',
@@ -155,7 +162,7 @@ describe('content-aware files read augmentation', () => {
       const pdf = await PDFDocument.create()
       for (let i = 0; i < 23; i++) pdf.addPage()
       const pdfFile = { ...file, name: 'report.pdf', type }
-      mocks.resolve.mockResolvedValue(pdfFile)
+      mockResolveWorkspaceFileReference.mockResolvedValue(pdfFile)
       mocks.artifact.mockResolvedValue({
         file: pdfFile,
         buffer: Buffer.from(await pdf.save()),
@@ -183,7 +190,7 @@ describe('content-aware files read augmentation', () => {
   ])(
     'returns honest metadata for %s without pretending to read binary bytes',
     async (name, type) => {
-      mocks.resolve.mockResolvedValue({ ...file, name, type })
+      mockResolveWorkspaceFileReference.mockResolvedValue({ ...file, name, type })
       const result = await runEngine('files read', [name], runtime, {})
       expect(result.exitCode).toBe(0)
       expect(JSON.parse(result.stdout)).toMatchObject({
@@ -210,11 +217,13 @@ describe('content-aware files read augmentation', () => {
     ]) {
       expect((await runEngine('files read', ['report.pdf'], runtime, flags)).exitCode).toBe(1)
     }
-    expect(mocks.resolve).not.toHaveBeenCalled()
+    expect(mockResolveWorkspaceFileReference).not.toHaveBeenCalled()
   })
 
   it('does not bypass denied canonical access or opaque provenance and hides unexpected failures', async () => {
-    mocks.resolve.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Access denied'))
+    mockResolveWorkspaceFileReference.mockRejectedValueOnce(
+      new OrchestrationError('forbidden', 'Access denied')
+    )
     expect((await runEngine('files read', ['image.png'], runtime, {})).stderr).toContain(
       'Access denied'
     )
@@ -225,14 +234,16 @@ describe('content-aware files read augmentation', () => {
     const denied = await runEngine('files read', ['image.png'], runtime, {})
     expect(denied.stderr).toContain('provenance')
     expect(denied.observations).toBeUndefined()
-    mocks.resolve.mockRejectedValueOnce(new Error('private database connection string'))
+    mockResolveWorkspaceFileReference.mockRejectedValueOnce(
+      new Error('private database connection string')
+    )
     expect((await runEngine('files read', ['image.png'], runtime, {})).stderr).not.toContain(
       'connection string'
     )
   })
 
   it('preserves actionable text extraction errors from the authenticated CLI client', async () => {
-    mocks.resolve.mockResolvedValue({
+    mockResolveWorkspaceFileReference.mockResolvedValue({
       ...file,
       name: 'report.docx',
       type: 'application/octet-stream',
@@ -259,7 +270,7 @@ describe('content-aware files read augmentation', () => {
     expect(
       (await runEngine('files read', ['image.png'], { ...runtime, signal }, {})).exitCode
     ).toBe(1)
-    expect(mocks.resolve).not.toHaveBeenCalled()
+    expect(mockResolveWorkspaceFileReference).not.toHaveBeenCalled()
   })
 })
 
@@ -278,18 +289,22 @@ describe('scratch files read and explicit inline publication', () => {
     })
     expect(ArtifactObservations.parse(result.observations)).toHaveLength(1)
     expect(result.resources).toBeUndefined()
-    expect(mocks.resolve).not.toHaveBeenCalled()
+    expect(mockResolveWorkspaceFileReference).not.toHaveBeenCalled()
   })
   it('preserves an absolute virtual workspace reference without selecting a sandbox', async () => {
-    mocks.resolve.mockRejectedValue(new OrchestrationError('not_found', 'File missing'))
+    mockResolveWorkspaceFileReference.mockRejectedValue(
+      new OrchestrationError('not_found', 'File missing')
+    )
     await runEngine('files read', ['/uploads/image.png'], runtime, {})
-    expect(mocks.resolve).toHaveBeenCalledWith(
+    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
       expect.objectContaining({ reference: '/uploads/image.png' })
     )
     expect(mocks.scratch).not.toHaveBeenCalled()
   })
   it('does not fall back to scratch after a missing workspace reference', async () => {
-    mocks.resolve.mockRejectedValue(new OrchestrationError('not_found', 'File missing'))
+    mockResolveWorkspaceFileReference.mockRejectedValue(
+      new OrchestrationError('not_found', 'File missing')
+    )
     expect((await runEngine('files read', ['files/missing.png'], runtime, {})).exitCode).toBe(1)
     expect(mocks.scratch).not.toHaveBeenCalled()
   })
@@ -329,7 +344,7 @@ describe('original knowledge document observations', () => {
         signal: undefined,
       },
     })
-    expect(mocks.resolve).not.toHaveBeenCalled()
+    expect(mockResolveWorkspaceFileReference).not.toHaveBeenCalled()
     expect(mocks.request).not.toHaveBeenCalled()
     expect(result.resources).toBeUndefined()
   })
@@ -351,7 +366,7 @@ describe('original knowledge document observations', () => {
     expect(result.exitCode, result.stderr).toBe(0)
     expect(ArtifactObservations.parse(result.observations)).toHaveLength(1)
     expect(result.resources).toBeUndefined()
-    expect(mocks.resolve).not.toHaveBeenCalled()
+    expect(mockResolveWorkspaceFileReference).not.toHaveBeenCalled()
   })
   it('safely handles failed original decoding without emitting partial observations', async () => {
     mocks.original.mockResolvedValue({
@@ -396,6 +411,6 @@ describe('original knowledge document observations', () => {
     expect((await runEngine('files read', ['knowledge/kb/doc'], runtime, {})).stderr).not.toContain(
       'private source'
     )
-    expect(mocks.resolve).not.toHaveBeenCalled()
+    expect(mockResolveWorkspaceFileReference).not.toHaveBeenCalled()
   })
 })

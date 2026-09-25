@@ -6,82 +6,67 @@ import {
   resetEnvFlagsMock,
   setEnvFlags,
 } from '@sim/testing'
+import {
+  billingSubscriptionMock,
+  billingSubscriptionMockFns,
+} from '@sim/testing/mocks/billing-subscription.mock'
+import { billingUsageMock, billingUsageMockFns } from '@sim/testing/mocks/billing-usage.mock'
+import {
+  credentialsEnvironmentMock,
+  credentialsEnvironmentMockFns,
+} from '@sim/testing/mocks/credentials-environment.mock'
+import {
+  organizationMembershipMock,
+  organizationMembershipMockFns,
+} from '@sim/testing/mocks/organization-membership.mock'
+import {
+  organizationSeatsMock,
+  organizationSeatsMockFns,
+} from '@sim/testing/mocks/organization-seats.mock'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import {
+  workspacesPolicyMock,
+  workspacesPolicyMockFns,
+} from '@sim/testing/mocks/workspaces-policy.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockEnsureUserInOrganization,
-  mockGetUserOrganization,
-  mockAcquireOrganizationMutationLock,
-  mockAcquireOrgMembershipLock,
   mockEnsureTeamOrganizationForAcceptance,
-  mockReconcileOrganizationSeats,
-  mockGetWorkspaceWithOwner,
   mockSetActiveOrganizationForCurrentSession,
-  mockSyncUsageLimitsFromSubscription,
-  mockSyncWorkspaceEnvCredentials,
-  mockIsWorkspaceOnEnterprisePlan,
   mockAttachOwnedWorkspacesToOrganizationTx,
-  mockGetInvitePlanCategoryForUser,
 } = vi.hoisted(() => ({
-  mockEnsureUserInOrganization: vi.fn(),
-  mockGetUserOrganization: vi.fn(),
-  mockAcquireOrganizationMutationLock: vi.fn(),
-  mockAcquireOrgMembershipLock: vi.fn(),
   mockEnsureTeamOrganizationForAcceptance: vi.fn(),
-  mockReconcileOrganizationSeats: vi.fn(),
-  mockGetWorkspaceWithOwner: vi.fn(),
   mockSetActiveOrganizationForCurrentSession: vi.fn(),
-  mockSyncUsageLimitsFromSubscription: vi.fn(),
-  mockSyncWorkspaceEnvCredentials: vi.fn(),
-  mockIsWorkspaceOnEnterprisePlan: vi.fn(async () => true),
   mockAttachOwnedWorkspacesToOrganizationTx: vi.fn(),
-  /** Externals must be on a paid plan; invite-time enforces it, accept re-checks. */
-  mockGetInvitePlanCategoryForUser: vi.fn(async () => 'pro'),
 }))
 
-vi.mock('@/lib/billing/organizations/membership', () => ({
-  ensureUserInOrganizationTx: mockEnsureUserInOrganization,
-  getUserOrganization: mockGetUserOrganization,
-  acquireOrganizationMutationLock: mockAcquireOrganizationMutationLock,
-  acquireOrgMembershipLock: mockAcquireOrgMembershipLock,
-}))
+vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
 
 vi.mock('@/lib/billing/organizations/provision-seat', () => ({
   ensureTeamOrganizationForAcceptance: mockEnsureTeamOrganizationForAcceptance,
 }))
 
-vi.mock('@/lib/billing/organizations/seats', () => ({
-  reconcileOrganizationSeats: mockReconcileOrganizationSeats,
-}))
+vi.mock('@/lib/billing/organizations/seats', () => organizationSeatsMock)
 
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getWorkspaceWithOwner: mockGetWorkspaceWithOwner,
-}))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 vi.mock('@/lib/auth/active-organization', () => ({
   setActiveOrganizationForCurrentSession: mockSetActiveOrganizationForCurrentSession,
 }))
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  isWorkspaceOnEnterprisePlan: mockIsWorkspaceOnEnterprisePlan,
-}))
+vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
+billingSubscriptionMockFns.mockIsWorkspaceOnEnterprisePlan.mockResolvedValue(true)
 
-vi.mock('@/lib/billing/core/usage', () => ({
-  syncUsageLimitsFromSubscription: mockSyncUsageLimitsFromSubscription,
-}))
+vi.mock('@/lib/billing/core/usage', () => billingUsageMock)
 
-vi.mock('@/lib/credentials/environment', () => ({
-  syncWorkspaceEnvCredentials: mockSyncWorkspaceEnvCredentials,
-}))
+vi.mock('@/lib/credentials/environment', () => credentialsEnvironmentMock)
 
 vi.mock('@/lib/workspaces/organization-workspaces', () => ({
   attachOwnedWorkspacesToOrganizationTx: mockAttachOwnedWorkspacesToOrganizationTx,
   ownedAttachableWorkspacesWhere: vi.fn(),
 }))
 
-vi.mock('@/lib/workspaces/policy', () => ({
-  getInvitePlanCategoryForUser: mockGetInvitePlanCategoryForUser,
-}))
+vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
 
 vi.mock('@sim/audit', () => auditMock)
 
@@ -92,6 +77,17 @@ import {
   revokeInvitationAsAdmin,
   updateInvitation,
 } from '@/lib/invitations/core'
+
+const { mockEnsureUserInOrganizationTx: mockEnsureUserInOrganization, mockGetUserOrganization } =
+  organizationMembershipMockFns
+const { mockGetWorkspaceWithOwner } = permissionsMockFns
+const mockReconcileOrganizationSeats = organizationSeatsMockFns.mockReconcileOrganizationSeats
+const mockSyncUsageLimitsFromSubscription = billingUsageMockFns.mockSyncUsageLimitsFromSubscription
+const mockSyncWorkspaceEnvCredentials =
+  credentialsEnvironmentMockFns.mockSyncWorkspaceEnvCredentials
+/** Externals must be on a paid plan; invite-time enforces it, accept re-checks. */
+const mockGetInvitePlanCategoryForUser = workspacesPolicyMockFns.mockGetInvitePlanCategoryForUser
+mockGetInvitePlanCategoryForUser.mockResolvedValue('pro')
 
 function queueWhereResponses(responses: unknown[][]) {
   const queue = [...responses]

@@ -1,7 +1,6 @@
 import type { webhook, workflow } from '@sim/db/schema'
 import {
   createMockRequest,
-  dbChainMock,
   executionPreprocessingMock,
   executionPreprocessingMockFns,
   queueTableRows,
@@ -10,6 +9,17 @@ import {
   workflowsPersistenceUtilsMock,
   workflowsPersistenceUtilsMockFns,
 } from '@sim/testing'
+import { admissionGateMock } from '@sim/testing/mocks/admission-gate.mock'
+import { asyncJobsMock, asyncJobsMockFns } from '@sim/testing/mocks/async-jobs.mock'
+import {
+  billingSubscriptionUtilsMock,
+  billingSubscriptionUtilsMockFns,
+} from '@sim/testing/mocks/billing-subscription-utils.mock'
+import {
+  billingUsageReservationMock,
+  billingUsageReservationMockFns,
+} from '@sim/testing/mocks/billing-usage-reservation.mock'
+import { idMock, idMockFns } from '@sim/testing/mocks/id.mock'
 import { NextRequest, NextResponse } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -24,58 +34,26 @@ type WebhookLookupRow = {
   workflow: Pick<WorkflowRecord, 'id'>
 }
 
-const {
-  mockGenerateId,
-  mockAdmissionRelease,
-  mockEnqueue,
-  mockExecuteWebhookJob,
-  mockGetInlineJobQueue,
-  mockGetJobQueue,
-  mockReleaseExecutionSlot,
-  mockProviderHandler,
-  mockShouldExecuteInline,
-} = vi.hoisted(() => ({
-  mockGenerateId: vi.fn(),
-  mockAdmissionRelease: vi.fn(),
+const { mockEnqueue, mockExecuteWebhookJob, mockProviderHandler } = vi.hoisted(() => ({
   mockEnqueue: vi.fn(),
   mockExecuteWebhookJob: vi.fn().mockResolvedValue({ success: true }),
-  mockGetInlineJobQueue: vi.fn(),
-  mockGetJobQueue: vi.fn(),
-  mockReleaseExecutionSlot: vi.fn(),
   mockProviderHandler: { current: {} as Record<string, unknown> },
-  mockShouldExecuteInline: vi.fn(),
 }))
 
 const mockPreprocessExecution = executionPreprocessingMockFns.mockPreprocessExecution
 
-vi.mock('@sim/db', () => ({ ...dbChainMock, ...schemaMock }))
+billingSubscriptionUtilsMockFns.mockCheckEnterprisePlan.mockReturnValue(true)
+billingSubscriptionUtilsMockFns.mockCheckTeamPlan.mockReturnValue(true)
 
-vi.mock('@sim/utils/id', () => ({
-  generateId: mockGenerateId,
-  generateShortId: vi.fn(() => 'mock-short-id'),
-  isValidUuid: vi.fn((v: string) =>
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
-  ),
-}))
+vi.mock('@sim/utils/id', () => idMock)
 
-vi.mock('@/lib/billing/subscriptions/utils', () => ({
-  checkEnterprisePlan: vi.fn().mockReturnValue(true),
-  checkTeamPlan: vi.fn().mockReturnValue(true),
-}))
+vi.mock('@/lib/billing/subscriptions/utils', () => billingSubscriptionUtilsMock)
 
-vi.mock('@/lib/billing/calculations/usage-reservation', () => ({
-  releaseExecutionSlot: mockReleaseExecutionSlot,
-}))
+vi.mock('@/lib/billing/calculations/usage-reservation', () => billingUsageReservationMock)
 
-vi.mock('@/lib/core/async-jobs', () => ({
-  getInlineJobQueue: mockGetInlineJobQueue,
-  getJobQueue: mockGetJobQueue,
-  shouldExecuteInline: mockShouldExecuteInline,
-}))
+vi.mock('@/lib/core/async-jobs', () => asyncJobsMock)
 
-vi.mock('@/lib/core/admission/gate', () => ({
-  tryAdmit: vi.fn(() => ({ release: mockAdmissionRelease })),
-}))
+vi.mock('@/lib/core/admission/gate', () => admissionGateMock)
 
 vi.mock('@sim/security/compare', () => ({
   safeCompare: vi.fn().mockReturnValue(true),
@@ -136,6 +114,15 @@ import {
   parseWebhookBody,
   processPolledWebhookEvent,
 } from '@/lib/webhooks/processor'
+
+const mockGetInlineJobQueue = asyncJobsMockFns.mockGetInlineJobQueue
+const mockGetJobQueue = asyncJobsMockFns.mockGetJobQueue
+const mockShouldExecuteInline = asyncJobsMockFns.mockShouldExecuteInline
+
+const mockReleaseExecutionSlot = billingUsageReservationMockFns.mockReleaseExecutionSlot
+
+const mockGenerateId = idMockFns.mockGenerateId
+idMockFns.mockGenerateShortId.mockImplementation(() => 'mock-short-id')
 
 afterAll(resetDbChainMock)
 

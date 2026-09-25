@@ -15,16 +15,14 @@ import {
   permissionGroupScopeMockFns,
   resetPermissionGroupScopeMock,
 } from '@sim/testing'
-import { NextRequest } from 'next/server'
+import { createRouteContext } from '@sim/testing/helpers/http'
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
+import { tableMock, tableMockFns } from '@sim/testing/mocks/table.mock'
+import { tableEventsMock } from '@sim/testing/mocks/table-events.mock'
+import { tableWireMock } from '@sim/testing/mocks/table-wire.mock'
+import { workspacesUtilsMock } from '@sim/testing/mocks/workspaces-utils.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { mockGetTableById, mockCheckWorkspaceAccess, mockAddTableColumn, mockListTableViews } =
-  vi.hoisted(() => ({
-    mockGetTableById: vi.fn(),
-    mockCheckWorkspaceAccess: vi.fn(),
-    mockAddTableColumn: vi.fn(),
-    mockListTableViews: vi.fn(),
-  }))
 
 /** The shape `checkAccess` reads: the viewer's permission plus the workspace it just loaded. */
 function workspaceAccess(permission: string | null, organizationId: string | null = 'org-1') {
@@ -40,27 +38,19 @@ function workspaceAccess(permission: string | null, organizationId: string | nul
 
 vi.mock('@/lib/permission-groups/config-scope.server', () => permissionGroupScopeMock)
 
-vi.mock('@/lib/table', () => ({
-  addTableColumn: mockAddTableColumn,
-  buildFilterClause: vi.fn(),
-  createTableView: vi.fn(),
-  deleteColumn: vi.fn(),
-  getTableById: mockGetTableById,
-  listTableViews: mockListTableViews,
-  TableQueryValidationError: class TableQueryValidationError extends Error {},
-  TableViewValidationError: class TableViewValidationError extends Error {},
-}))
-vi.mock('@/lib/table/events', () => ({ signalTableSchemaChanged: vi.fn() }))
+vi.mock('@/lib/table', () => tableMock)
+vi.mock('@/lib/table/events', () => tableEventsMock)
 vi.mock('@/lib/table/orchestration', () => ({ performUpdateTableColumn: vi.fn() }))
-vi.mock('@/lib/table/wire', () => ({ normalizeColumn: (column: unknown) => column }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  checkWorkspaceAccess: mockCheckWorkspaceAccess,
-}))
-vi.mock('@/lib/workspaces/utils', () => ({ getWorkspaceOrganizationId: vi.fn() }))
+vi.mock('@/lib/table/wire', () => tableWireMock)
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
+vi.mock('@/lib/workspaces/utils', () => workspacesUtilsMock)
 
 import { DEFAULT_PERMISSION_GROUP_CONFIG } from '@/lib/permission-groups/fields'
 import { POST } from '@/app/api/table/[tableId]/columns/route'
 import { GET } from '@/app/api/table/[tableId]/views/route'
+
+const { mockGetTableById, mockAddTableColumn, mockListTableViews } = tableMockFns
+const { mockCheckWorkspaceAccess } = permissionsMockFns
 
 const USER_ID = 'user-1'
 const TABLE_ID = '22222222-2222-4222-8222-222222222222'
@@ -77,22 +67,24 @@ const TABLE = {
 /** A TTL column — the configuration that deletes rows on a schedule. */
 function addTtlColumn() {
   return POST(
-    new NextRequest(`http://localhost/api/table/${TABLE_ID}/columns`, {
+    createMockRequest({
       method: 'POST',
-      body: JSON.stringify({
+      url: `http://localhost/api/table/${TABLE_ID}/columns`,
+      body: {
         workspaceId: WORKSPACE_ID,
         column: { name: 'expires_at', type: 'ttl' },
-      }),
-      headers: { 'content-type': 'application/json' },
+      },
     }),
-    { params: Promise.resolve({ tableId: TABLE_ID }) }
+    createRouteContext({ tableId: TABLE_ID })
   )
 }
 
 function listViews() {
   return GET(
-    new NextRequest(`http://localhost/api/table/${TABLE_ID}/views?workspaceId=${WORKSPACE_ID}`),
-    { params: Promise.resolve({ tableId: TABLE_ID }) }
+    createMockRequest({
+      url: `http://localhost/api/table/${TABLE_ID}/views?workspaceId=${WORKSPACE_ID}`,
+    }),
+    createRouteContext({ tableId: TABLE_ID })
   )
 }
 

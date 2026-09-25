@@ -1,32 +1,31 @@
 import { member } from '@sim/db/schema'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
+import {
+  permissionGroupsResolveMock,
+  permissionGroupsResolveMockFns,
+} from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
+const hoisted = vi.hoisted(() => ({
   read: vi.fn(),
   save: vi.fn(),
   configure: vi.fn(),
   remove: vi.fn(),
   names: vi.fn(),
   mount: vi.fn(),
-  config: vi.fn(),
-  audit: vi.fn(),
 }))
 vi.mock('@/lib/organization-secrets/repository', () => ({
-  readSecrets: mocks.read,
-  saveSecrets: mocks.save,
-  configureSecretSource: mocks.configure,
-  removeSecretSource: mocks.remove,
-  listSecretNames: mocks.names,
-  materializeSecrets: mocks.mount,
+  readSecrets: hoisted.read,
+  saveSecrets: hoisted.save,
+  configureSecretSource: hoisted.configure,
+  removeSecretSource: hoisted.remove,
+  listSecretNames: hoisted.names,
+  materializeSecrets: hoisted.mount,
 }))
-vi.mock('@/lib/permission-groups/resolve.server', () => ({
-  getUserPermissionConfigForOrganization: mocks.config,
-}))
-vi.mock('@sim/audit', async (original) => ({
-  ...(await original<typeof import('@sim/audit')>()),
-  recordAudit: mocks.audit,
-}))
+vi.mock('@/lib/permission-groups/resolve.server', () => permissionGroupsResolveMock)
+vi.mock('@sim/audit', () => auditMock)
 
 import { ORGANIZATION_SECRETS_AUDIENCE } from '@/lib/organization-secrets/application/operations'
 import {
@@ -38,7 +37,13 @@ import {
   saveOrganizationSecrets,
 } from '@/lib/organization-secrets/application/use-cases'
 
-const principal = { kind: 'session', userId: 'actor', sessionId: 'session' } as const
+const mocks = {
+  ...hoisted,
+  config: permissionGroupsResolveMockFns.mockGetUserPermissionConfigForOrganization,
+  audit: auditMockFns.mockRecordAudit,
+}
+
+const principal = createSessionPrincipal({ userId: 'actor', sessionId: 'session' })
 const delegated = () => ({
   kind: 'organization_delegated' as const,
   serviceId: 'copilot' as const,

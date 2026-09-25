@@ -1,13 +1,15 @@
+import {
+  resourcePolicyRepositoryMock,
+  resourcePolicyRepositoryMockFns,
+} from '@sim/testing/mocks/resource-policy-repository.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ policy: vi.fn() }))
-vi.mock('@/lib/resource-policies/repository', () => ({
-  requireResourcePolicy: mocks.policy,
-  ResourcePolicyNotFoundError: class extends Error {},
-}))
+vi.mock('@/lib/resource-policies/repository', () => resourcePolicyRepositoryMock)
 
 import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
 import { ResourcePolicyNotFoundError } from '@/lib/resource-policies/repository'
+
+const mocks = { policy: resourcePolicyRepositoryMockFns.mockRequireResourcePolicy }
 
 describe('fresh organization account setup', () => {
   it('requires an existing org policy instead of creating grants for a legacy group', async () => {

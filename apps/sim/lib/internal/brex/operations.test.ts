@@ -1,12 +1,18 @@
+import { fileUtilsMock, fileUtilsMockFns } from '@sim/testing/mocks/file-utils.mock'
+import {
+  fileUtilsServerMock,
+  fileUtilsServerMockFns,
+} from '@sim/testing/mocks/file-utils-server.mock'
+import {
+  filesAuthorizationMock,
+  filesAuthorizationMockFns,
+} from '@sim/testing/mocks/files-authorization.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   clientConstructed: vi.fn(),
   createTarget: vi.fn(),
   uploadReceipt: vi.fn(),
-  processFiles: vi.fn(),
-  downloadStorage: vi.fn(),
-  assertAccess: vi.fn(),
 }))
 
 vi.mock('@/lib/internal/brex/client', () => {
@@ -29,17 +35,15 @@ vi.mock('@/lib/internal/brex/client', () => {
   return { BrexReceiptClient, BrexReceiptError }
 })
 
-vi.mock('@/lib/uploads/utils/file-utils', () => ({
-  processFilesToUserFiles: mocks.processFiles,
-}))
+vi.mock('@/lib/uploads/utils/file-utils', () => fileUtilsMock)
 
-vi.mock('@/lib/uploads/utils/file-utils.server', () => ({
-  downloadServableFileFromStorage: mocks.downloadStorage,
-}))
+vi.mock('@/lib/uploads/utils/file-utils.server', () => fileUtilsServerMock)
 
-vi.mock('@/app/api/files/authorization', () => ({
-  assertToolFileAccess: mocks.assertAccess,
-}))
+vi.mock('@/app/api/files/authorization', () => filesAuthorizationMock)
+
+const { mockProcessFilesToUserFiles } = fileUtilsMockFns
+const { mockDownloadServableFileFromStorage } = fileUtilsServerMockFns
+const { mockAssertToolFileAccess } = filesAuthorizationMockFns
 
 import { executeBrexMatchReceipt } from '@/lib/internal/brex/operations'
 
@@ -48,9 +52,9 @@ const userFile = { ...rawFile, type: 'application/pdf' }
 
 describe('Brex receipt operations', () => {
   beforeEach(() => {
-    mocks.processFiles.mockReturnValue([userFile])
-    mocks.assertAccess.mockResolvedValue(null)
-    mocks.downloadStorage.mockResolvedValue({
+    mockProcessFilesToUserFiles.mockReturnValue([userFile])
+    mockAssertToolFileAccess.mockResolvedValue(null)
+    mockDownloadServableFileFromStorage.mockResolvedValue({
       buffer: Buffer.from('receipt-bytes'),
       contentType: 'application/pdf',
     })
@@ -59,7 +63,7 @@ describe('Brex receipt operations', () => {
   })
 
   it('does not load receipt bytes when file authorization fails', async () => {
-    mocks.assertAccess.mockResolvedValue(
+    mockAssertToolFileAccess.mockResolvedValue(
       Response.json({ success: false, error: 'File not found' }, { status: 404 })
     )
     const response = await executeBrexMatchReceipt(
@@ -68,7 +72,7 @@ describe('Brex receipt operations', () => {
     )
 
     expect(response.status).toBe(404)
-    expect(mocks.downloadStorage).not.toHaveBeenCalled()
+    expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
     expect(mocks.createTarget).not.toHaveBeenCalled()
   })
 })

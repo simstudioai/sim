@@ -1,3 +1,4 @@
+import { jsonResponse } from '@sim/testing/helpers/http'
 import { describe, expect, it } from 'vitest'
 import { crunchbaseAutocompleteTool } from '@/tools/crunchbase/autocomplete'
 import { crunchbaseGetEntityTool } from '@/tools/crunchbase/get_entity'
@@ -14,9 +15,6 @@ const buildUrl = (tool: { request: { url: unknown } }, params: Record<string, un
 
 const buildBody = (tool: { request: { body?: unknown } }, params: Record<string, unknown>) =>
   (tool.request.body as (p: Record<string, unknown>) => Record<string, unknown>)(params)
-
-const jsonResponse = (body: unknown, init?: ResponseInit) =>
-  new Response(JSON.stringify(body), { status: 200, ...init })
 
 describe('crunchbase request building', () => {
   it('authenticates with the documented header, not a query param', () => {

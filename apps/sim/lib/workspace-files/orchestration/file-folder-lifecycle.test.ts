@@ -4,59 +4,20 @@
  * arrives unclassified silently becomes a 500 for what is really a caller-fixable
  * 400 or 404. These pin the mapping rather than the happy paths.
  */
+
+import { auditMock } from '@sim/testing/mocks/audit.mock'
+import { realtimeNotifyMock } from '@sim/testing/mocks/realtime-notify.mock'
+import {
+  workspaceUploadsMock,
+  workspaceUploadsMockFns,
+} from '@sim/testing/mocks/workspace-uploads.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-const {
-  mockMoveWorkspaceFileItems,
-  mockUpdateWorkspaceFileFolder,
-  mockCreateWorkspaceFileFolder,
-  mockRestoreWorkspaceFileFolder,
-  mockRenameWorkspaceFile,
-  mockRestoreWorkspaceFile,
-  mockBulkArchive,
-  mockCreateWorkspaceFileFolderAtPath,
-  mockRelocateWorkspaceFileFolderByPath,
-  mockDeleteWorkspaceFileFolderByPath,
-} = vi.hoisted(() => ({
-  mockMoveWorkspaceFileItems: vi.fn(),
-  mockUpdateWorkspaceFileFolder: vi.fn(),
-  mockCreateWorkspaceFileFolder: vi.fn(),
-  mockRestoreWorkspaceFileFolder: vi.fn(),
-  mockRenameWorkspaceFile: vi.fn(),
-  mockRestoreWorkspaceFile: vi.fn(),
-  mockBulkArchive: vi.fn(),
-  mockCreateWorkspaceFileFolderAtPath: vi.fn(),
-  mockRelocateWorkspaceFileFolderByPath: vi.fn(),
-  mockDeleteWorkspaceFileFolderByPath: vi.fn(),
-}))
+vi.mock('@/lib/uploads/contexts/workspace', () => workspaceUploadsMock)
 
-vi.mock('@/lib/uploads/contexts/workspace', () => ({
-  moveWorkspaceFileItems: mockMoveWorkspaceFileItems,
-  updateWorkspaceFileFolder: mockUpdateWorkspaceFileFolder,
-  createWorkspaceFileFolder: mockCreateWorkspaceFileFolder,
-  restoreWorkspaceFileFolder: mockRestoreWorkspaceFileFolder,
-  renameWorkspaceFile: mockRenameWorkspaceFile,
-  restoreWorkspaceFile: mockRestoreWorkspaceFile,
-  bulkArchiveWorkspaceFileItems: mockBulkArchive,
-  createWorkspaceFileFolderAtPath: mockCreateWorkspaceFileFolderAtPath,
-  relocateWorkspaceFileFolderByPath: mockRelocateWorkspaceFileFolderByPath,
-  deleteWorkspaceFileFolderByPath: mockDeleteWorkspaceFileFolderByPath,
-  moveRenameWorkspaceFile: vi.fn(),
-  FileConflictError: class FileConflictError extends Error {},
-  WorkspaceFileFolderConflictError: class WorkspaceFileFolderConflictError extends Error {},
-  WorkspaceFileMoveConflictError: class WorkspaceFileMoveConflictError extends Error {},
-  WorkspaceFileItemsNotFoundError: class WorkspaceFileItemsNotFoundError extends Error {},
-}))
+vi.mock('@/lib/realtime/notify', () => realtimeNotifyMock)
 
-vi.mock('@/lib/realtime/notify', () => ({
-  notifyWorkspaceFilesChanged: vi.fn(),
-}))
-
-vi.mock('@sim/audit', () => ({
-  recordAudit: vi.fn(),
-  AuditAction: new Proxy({}, { get: (_t, k) => String(k) }),
-  AuditResourceType: new Proxy({}, { get: (_t, k) => String(k) }),
-}))
+vi.mock('@sim/audit', () => auditMock)
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -65,6 +26,12 @@ import {
   performRenameWorkspaceFile,
   performUpdateWorkspaceFileFolder,
 } from '@/lib/workspace-files/orchestration'
+
+const mockMoveWorkspaceFileItems = workspaceUploadsMockFns.mockMoveWorkspaceFileItems
+const mockUpdateWorkspaceFileFolder = workspaceUploadsMockFns.mockUpdateWorkspaceFileFolder
+const mockRenameWorkspaceFile = workspaceUploadsMockFns.mockRenameWorkspaceFile
+const mockDeleteWorkspaceFileFolderByPath =
+  workspaceUploadsMockFns.mockDeleteWorkspaceFileFolderByPath
 
 const WS = 'workspace-1'
 const USER = 'user-1'
