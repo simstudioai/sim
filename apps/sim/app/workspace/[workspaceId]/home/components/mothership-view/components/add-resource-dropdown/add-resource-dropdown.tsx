@@ -420,7 +420,13 @@ function WorkspaceResourceMenuContent({
         ? resource
         : { ...resource, workspaceId }
     )
-  const menu = <ResourceMenuSections sections={sections} groups={groups} onSelect={select} />
+  /** Lists fill in as they load, so a trailing row keeps a loading workspace from reading as empty. */
+  const menu = (
+    <>
+      <ResourceMenuSections sections={sections} groups={groups} onSelect={select} />
+      {isHydrating && <DropdownMenuItem disabled>Loading resources…</DropdownMenuItem>}
+    </>
+  )
   return searchable ? (
     <ResourceMenuSearch groups={groups} isHydrating={isHydrating} onSelect={select}>
       {menu}
