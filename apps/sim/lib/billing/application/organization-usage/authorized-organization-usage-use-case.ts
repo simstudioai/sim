@@ -24,6 +24,8 @@ export interface AuthorizedOrganizationUsageContext {
    * three slightly different windows.
    */
   period: ResolvedUsagePeriod
+  /** The payer's subscription, already loaded to resolve {@link period}. */
+  subscription: Awaited<ReturnType<typeof getOrganizationSubscription>>
 }
 
 interface AuthorizedOrganizationUsageDefinition<O extends OrganizationUsageOperation, I, R> {
@@ -61,11 +63,14 @@ export function defineAuthorizedOrganizationUsageUseCase<
     operation: definition.operation,
     async execute({ principal, input }) {
       requireOrganizationUsagePrincipal(principal, definition.operation)
-      const actorUserId = principal.userId
       const organizationId = definition.organizationId(input)
       const billingEntity: BillingEntity = { type: 'organization', id: organizationId }
 
-      await authorizeOrganizationOperation(principal, definition.operation, { organizationId })
+      const { userId: actorUserId } = await authorizeOrganizationOperation(
+        principal,
+        definition.operation,
+        { organizationId }
+      )
 
       /**
        * One call covers both the plan and the deployment: with billing on it checks
@@ -74,21 +79,27 @@ export function defineAuthorizedOrganizationUsageUseCase<
        * same flag the navigation gate reads, so a section can never be visible here
        * and rejected there. Calling `isOrganizationOnEnterprisePlan` directly would
        * answer `true` for every self-hosted organization.
+       *
+       * The subscription is loaded alongside rather than after: nothing is returned
+       * before the gate decides, and every usage read pays this round trip first.
        */
-      if (!(await isOrganizationFeatureEntitled(organizationId, isUsageMonitoringEnabled))) {
+      const [entitled, subscription] = await Promise.all([
+        isOrganizationFeatureEntitled(organizationId, isUsageMonitoringEnabled),
+        getOrganizationSubscription(organizationId),
+      ])
+      if (!entitled) {
         throw new ForbiddenOperationError(
           'ENTERPRISE_PLAN_REQUIRED',
           'Active enterprise subscription required'
         )
       }
 
-      const subscription = await getOrganizationSubscription(organizationId)
       const period = resolveSubscriptionUsagePeriodOrDefault(subscription ?? {})
 
       return definition.execute({
         principal,
         input,
-        context: { organizationId, billingEntity, actorUserId, period },
+        context: { organizationId, billingEntity, actorUserId, period, subscription },
       })
     },
   }

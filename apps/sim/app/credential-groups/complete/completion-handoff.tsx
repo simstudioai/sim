@@ -20,7 +20,8 @@ export function CredentialGroupCompletionHandoff({
     const channel = new BroadcastChannel(credentialGroupOAuthCompletionChannel(completionId))
     channel.postMessage(failure ?? 'connected')
     channel.close()
-    window.close()
+    /** Keep the authorization failure visible while the initiating chat shows its retry action. */
+    if (!failure) window.close()
   }, [completionId, failure])
   return null
 }

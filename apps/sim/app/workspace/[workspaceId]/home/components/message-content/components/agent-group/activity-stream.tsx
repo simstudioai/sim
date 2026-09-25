@@ -12,6 +12,7 @@ const ACTIVITY_UPDATE_INTERVAL_MS = 1000
 interface ActivityStreamProps extends Omit<ActivityDisclosureProps, 'header'> {
   activity: ActivityStatusProps
   activityKey?: string
+  expandedLabel?: string
   attentionKey: string
   collapsible: boolean
 }
@@ -20,6 +21,7 @@ interface ActivityStreamProps extends Omit<ActivityDisclosureProps, 'header'> {
 export function ActivityStream({
   activity,
   activityKey,
+  expandedLabel,
   attentionKey,
   expanded,
   collapsible,
@@ -60,7 +62,7 @@ export function ActivityStream({
   const header = (
     <ActivityStatus
       {...displayed}
-      label={isExpanded && activity.isActive ? 'Tool activity' : displayed.label}
+      label={isExpanded ? (expandedLabel ?? displayed.label) : displayed.label}
       isActive={activity.isActive}
     />
   )

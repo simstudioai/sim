@@ -1,6 +1,8 @@
 import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
 import { validatePredicateShape } from '@/lib/table/query-builder/validate'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
+import { TABLE_ID_PARAM } from '@/tools/table/params'
+import { tableSuccess } from '@/tools/table/response'
 import type { TableQueryV2Response, TableRowQueryV2Params } from '@/tools/table/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -35,12 +37,7 @@ export const tableQueryRowsV2Tool: InternalToolConfig<TableRowQueryV2Params, Tab
     },
 
     params: {
-      tableId: {
-        type: 'string',
-        required: true,
-        description: 'Table ID',
-        visibility: 'user-only',
-      },
+      tableId: TABLE_ID_PARAM,
       filter: {
         type: 'json',
         required: false,
@@ -101,16 +98,13 @@ export const tableQueryRowsV2Tool: InternalToolConfig<TableRowQueryV2Params, Tab
       const result = await response.json()
       const data = result.data || result
 
-      return {
-        success: true,
-        output: {
-          rows: data.rows,
-          rowCount: data.rowCount,
-          totalCount: data.totalCount,
-          limit: data.limit,
-          nextCursor: data.nextCursor,
-        },
-      }
+      return tableSuccess({
+        rows: data.rows,
+        rowCount: data.rowCount,
+        totalCount: data.totalCount,
+        limit: data.limit,
+        nextCursor: data.nextCursor,
+      })
     },
 
     outputs: {

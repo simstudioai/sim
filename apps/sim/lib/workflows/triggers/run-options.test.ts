@@ -121,6 +121,40 @@ describe('file inputs through workflow run options', () => {
   })
 })
 
+describe('workflow input discovery schemas', () => {
+  it('matches optional defaults and describes stored-file and upload alternatives', () => {
+    const [option] = resolveTriggerRunOptions({
+      start: {
+        type: 'start_trigger',
+        subBlocks: {
+          inputFormat: {
+            value: [
+              { name: 'title', type: 'string' },
+              { name: 'documents', type: 'file[]', value: '[]' },
+              { name: 'enabled', type: 'boolean', value: false },
+            ],
+          },
+        },
+      },
+    })
+    expect(option.inputSchema.required).toEqual(['title'])
+    expect(option.inputSchema).toMatchObject({
+      properties: {
+        documents: { type: 'array', items: { anyOf: expect.any(Array) } },
+      },
+    })
+    expect(validateTriggerInput(option, { title: 'Report' }).ok).toBe(true)
+  })
+
+  it('advertises optional attachments on chat triggers', () => {
+    const [option] = resolveTriggerRunOptions({ chat: { type: 'chat_trigger' } })
+    expect(option.inputSchema).toMatchObject({
+      required: ['input'],
+      properties: { files: { type: 'array', items: { anyOf: expect.any(Array) } } },
+    })
+  })
+})
+
 describe('validateTriggerInput', () => {
   describe('fields', () => {
     it('accepts input that provides all declared fields with correct types', () => {

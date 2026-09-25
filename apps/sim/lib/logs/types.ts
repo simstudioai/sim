@@ -149,6 +149,7 @@ export interface WorkflowExecutionLog {
     lastCompletedBlock?: ExecutionLastCompletedBlock
     hasTraceSpans?: boolean
     traceSpanCount?: number
+    hasHandledErrors?: boolean
     completionFailure?: string
     finalizationPath?: ExecutionFinalizationPath
     traceSpans?: TraceSpan[]

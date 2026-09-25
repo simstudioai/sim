@@ -7,7 +7,7 @@
  * implementation so the three surfaces cannot drift.
  */
 
-import { getToolDisplayTitle } from '@/lib/copilot/tools/tool-display'
+import { getToolDisplayTitle } from '@/lib/mothership/tools/tool-display'
 
 export type AgentStreamToolStatus = 'running' | 'success' | 'error' | 'cancelled'
 

@@ -133,7 +133,7 @@ vi.mock('@/lib/api/client/request', () => ({
   requestJson: mockRequestJson,
 }))
 
-vi.mock('@/lib/copilot/tools/client/run-tool-execution', () => ({
+vi.mock('@/lib/mothership/tools/client/run-tool-execution', () => ({
   isRunToolActiveForWorkflow: mockIsRunToolActiveForWorkflow,
   subscribeToRunToolRelease: (listener: (workflowId: string) => void) => {
     runToolReleaseListeners.add(listener)
@@ -596,6 +596,35 @@ describe('useWorkflowExecution lifecycle ownership', () => {
     unmount()
   })
 
+  it('releases unavailable reconnect state without recording a false execution failure', async () => {
+    terminalStoreState._hasHydrated = true
+    executionStoreState.getWorkflowExecution.mockReturnValue({
+      ...idleExecution,
+      status: 'running',
+      isExecuting: true,
+      currentExecutionId: 'execution-1',
+    })
+    executionStoreState.getCurrentExecutionId.mockReturnValue('execution-1')
+    mockLoadExecutionPointer.mockResolvedValue({
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      lastEventId: 3,
+    })
+    mockReconnect.mockRejectedValueOnce(
+      new Error('Execution events pruned before requested event id')
+    )
+    const { unmount } = renderWorkflowExecutionHook()
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(mockReconnect).toHaveBeenCalledOnce()
+    expect(mockHandleExecutionErrorConsole).not.toHaveBeenCalled()
+    expect(mockHandleExecutionCancelledConsole).not.toHaveBeenCalled()
+    expect(executionStoreState.setCurrentExecutionId).toHaveBeenCalledWith('workflow-1', null)
+    unmount()
+  })
+
   it('releases only its persistence ownership when a reconnect retry is superseded', async () => {
     const persistenceExecution = {}
     terminalStoreState._hasHydrated = true
@@ -644,7 +673,7 @@ describe('useWorkflowExecution lifecycle ownership', () => {
     unmount()
   })
 
-  it('logs a Run Error when a reconnect for an unowned pointer finds no run buffer', async () => {
+  it('releases a missing run buffer without inventing a failed execution', async () => {
     primeRunToolOwnedExecution()
     rejectReconnectWithMissingRunBuffer()
 
@@ -655,14 +684,7 @@ describe('useWorkflowExecution lifecycle ownership', () => {
     })
 
     expect(mockReconnect).toHaveBeenCalledTimes(1)
-    expect(mockHandleExecutionErrorConsole.mock.calls[0]).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          executionId: 'execution-1',
-          error: 'Execution state is no longer available after reconnect',
-        }),
-      ])
-    )
+    expect(mockHandleExecutionErrorConsole).not.toHaveBeenCalled()
     expect(executionStoreState.setCurrentExecutionId).toHaveBeenCalledWith('workflow-1', null)
     expect(executionStoreState.setIsExecuting).toHaveBeenCalledWith('workflow-1', false)
     expect(mockClearExecutionPointer).toHaveBeenCalledWith('workflow-1')

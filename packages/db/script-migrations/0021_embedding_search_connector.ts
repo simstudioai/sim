@@ -1,7 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode, getTransientDatabaseFailure } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
-import postgres, { type Sql } from 'postgres'
+import postgres, { type Sql, type TransactionSql } from 'postgres'
+import { resolveMigrationDatabaseUrl } from './database-url'
 
 const logger = createLogger('ProjectionSourceAcl')
 
@@ -32,42 +34,42 @@ export const PROJECTION_SOURCE_ACL_PAGE_RETRIES = 12
 /** Pause before a page is retried: 10 s, doubling to a 60 s base with up to 20% jitter (about 72 s). */
 const PAGE_RETRY_PAUSE = { baseMs: 10_000, maxMs: 60_000 } as const
 
-/** The SQLSTATE on a driver error, or on the error it wraps. */
-function postgresErrorCode(error: unknown): string | undefined {
-  if (typeof error !== 'object' || error === null) return undefined
-  const code = (error as { code?: unknown }).code
-  if (typeof code === 'string') return code
-  return postgresErrorCode((error as { cause?: unknown }).cause)
-}
-
-/** The message on a driver error, or on the error it wraps. */
-function postgresErrorMessage(error: unknown): string | undefined {
-  if (typeof error !== 'object' || error === null) return undefined
-  const message = (error as { message?: unknown }).message
-  if (typeof message === 'string') return message
-  return postgresErrorMessage((error as { cause?: unknown }).cause)
-}
-
-/**
- * The two ways the database cancels a page: `lock_timeout` (55P03) while the page's index write
- * waits on a lock the index's background maintenance holds, and `statement_timeout` (57014) when
- * the page itself runs past {@link PROJECTION_SOURCE_ACL_PAGE_TIMEOUT_MS}. Both pass once the
- * maintenance moves on, so both are retried the same way. 57014 is also what an explicit
- * cancellation raises, and that is not retried: only the message tells the two apart.
- */
-function isPageTimeout(error: unknown): boolean {
-  const code = postgresErrorCode(error)
-  if (code === '55P03') return true
-  if (code !== '57014') return false
-  return postgresErrorMessage(error)?.includes('statement timeout') ?? false
-}
-
 /** Pages between progress log lines. */
 const PROGRESS_EVERY_PAGES = 100
 
 /** The projections that carry their document's source and ACL. */
 export const PROJECTION_SOURCE_ACL_TABLES = ['embedding_search', 'embedding_keyword_tin'] as const
 export type ProjectionSourceAclTable = (typeof PROJECTION_SOURCE_ACL_TABLES)[number]
+
+/**
+ * The document trigger's body: fans a document's source and ACL out to its enabled chunks.
+ *
+ * A chunk the backfill has not filled yet (`acl IS NULL`) keeps a NULL ACL. Search decides such a
+ * row on its document, so writing the ACL there changes no answer, while every write to
+ * `embedding_search` re-inserts the row into its vector index: a document whose ACL changed would
+ * otherwise rewrite each of its unfilled chunks inside the writer's statement. The backfill fills
+ * the row later from the document under a share lock, so it copies whichever ACL is current. A
+ * document that moves to another source still carries the source onto its unfilled chunks, because
+ * source filters read it from the row; an ACL change alone leaves them untouched.
+ */
+export async function replaceProjectionSourceAclSync(sql: Sql | TransactionSql): Promise<void> {
+  const fanOut = (projection: ProjectionSourceAclTable) => `
+      UPDATE ${projection}
+      SET connector_id = NEW.connector_id, acl = CASE WHEN acl IS NULL THEN NULL ELSE NEW.acl END
+      WHERE document_id = NEW.id AND enabled
+        AND CASE WHEN acl IS NULL
+          THEN moved AND connector_id IS DISTINCT FROM NEW.connector_id
+          ELSE connector_id IS DISTINCT FROM NEW.connector_id OR acl IS DISTINCT FROM NEW.acl
+        END;`
+  await sql.unsafe(`CREATE OR REPLACE FUNCTION sync_projection_source_acl()
+    RETURNS trigger LANGUAGE plpgsql AS $$
+    DECLARE
+      moved boolean := TG_OP = 'UPDATE' AND OLD.connector_id IS DISTINCT FROM NEW.connector_id;
+    BEGIN${PROJECTION_SOURCE_ACL_TABLES.map(fanOut).join('')}
+      RETURN NEW;
+    END;
+    $$`)
+}
 
 /**
  * Carries a chunk's source and ACL onto the ranking projections and keeps them there.
@@ -85,18 +87,7 @@ export type ProjectionSourceAclTable = (typeof PROJECTION_SOURCE_ACL_TABLES)[num
 export async function installProjectionSourceAcl(sql: Sql): Promise<void> {
   await sql.begin(async (tx) => {
     await tx.unsafe("SET LOCAL lock_timeout = '5s'")
-    await tx.unsafe(`CREATE OR REPLACE FUNCTION sync_projection_source_acl()
-      RETURNS trigger LANGUAGE plpgsql AS $$
-      BEGIN
-        UPDATE embedding_search SET connector_id = NEW.connector_id, acl = NEW.acl
-        WHERE document_id = NEW.id AND enabled
-          AND (connector_id IS DISTINCT FROM NEW.connector_id OR acl IS DISTINCT FROM NEW.acl);
-        UPDATE embedding_keyword_tin SET connector_id = NEW.connector_id, acl = NEW.acl
-        WHERE document_id = NEW.id AND enabled
-          AND (connector_id IS DISTINCT FROM NEW.connector_id OR acl IS DISTINCT FROM NEW.acl);
-        RETURN NEW;
-      END;
-      $$`)
+    await replaceProjectionSourceAclSync(tx)
     await tx.unsafe(`CREATE OR REPLACE TRIGGER projection_source_acl_sync
       AFTER INSERT OR UPDATE OF connector_id, acl ON document
       FOR EACH ROW EXECUTE FUNCTION sync_projection_source_acl()`)
@@ -225,15 +216,25 @@ export async function backfillProjectionSourceAcl(
         return row
       })
     } catch (error) {
-      if (!isPageTimeout(error)) throw error
-      const code = postgresErrorCode(error)
+      /**
+       * The page is cancelled on `lock_timeout` (55P03) while its index write waits on a lock the
+       * index's background maintenance holds, and on `statement_timeout` (57014) when it runs past
+       * {@link PROJECTION_SOURCE_ACL_PAGE_TIMEOUT_MS}; both pass once the maintenance moves on. A
+       * deadlock, a serialization failure, or a dropped connection rolls the page back the same
+       * way, and a page only fills rows still unset, so all are retried in place. 57014 is also
+       * what an explicit cancellation raises, and that is not retried.
+       */
+      const failure = getTransientDatabaseFailure(error)
+      if (!failure) throw error
+      const code = getPostgresErrorCode(error)
       timeouts += 1
       if (timeouts > PROJECTION_SOURCE_ACL_PAGE_RETRIES) throw error
       if (Date.now() >= deadline) break
       const pauseMs = backoffWithJitter(timeouts, null, PAGE_RETRY_PAUSE)
-      logger.warn('Projection source and ACL backfill page timed out; retrying', {
+      logger.warn('Projection source and ACL backfill page failed transiently; retrying', {
         projection,
         afterId,
+        failure,
         code,
         attempt: timeouts,
         retryInMs: Math.round(pauseMs),
@@ -335,7 +336,7 @@ export async function indexProjectionAcl(pool: Sql): Promise<void> {
  * `0022_projection_source_acl_backfill`, which supersedes this file's earlier, synchronous shape.
  */
 if (import.meta.main) {
-  const url = process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL
+  const url = resolveMigrationDatabaseUrl()
   if (!url) throw new Error('DATABASE_URL is required to backfill the projection source and ACL')
   const sql = postgres(url, { max: 1, max_lifetime: null, onnotice: () => undefined })
   try {

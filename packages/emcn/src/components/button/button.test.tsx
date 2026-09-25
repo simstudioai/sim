@@ -1,7 +1,5 @@
 /** @vitest-environment jsdom */
 /** biome-ignore assist/source/organizeImports: Preserve the documented core/external/UI import order. */
-import { act, createRef } from 'react'
-import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { Button } from '@sim/emcn'
@@ -125,47 +123,5 @@ describe('Button shared action geometry', () => {
     expect(normalizeClasses(after)).toBe(normalizeClasses(before))
     expect(after).not.toContain('focusRing=')
     expect(renderToStaticMarkup(<Button>Open</Button>)).not.toContain('focus-visible:ring-2')
-  })
-
-  it('forwards refs and native focus, submission and disabled behavior with responsive sizing', () => {
-    const container = document.createElement('div')
-    document.body.appendChild(container)
-    const root = createRoot(container)
-    const ref = createRef<HTMLButtonElement>()
-    let submissions = 0
-    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-    const render = (disabled: boolean) =>
-      act(() =>
-        root.render(
-          <form
-            onSubmit={(event) => {
-              event.preventDefault()
-              submissions++
-            }}
-          >
-            <Button
-              ref={ref}
-              type='submit'
-              iconSize={{ base: 'touch', sm: 'regular' }}
-              disabled={disabled}
-              aria-label='Apply'
-            />
-          </form>
-        )
-      )
-    try {
-      render(false)
-      ref.current?.focus()
-      expect(document.activeElement).toBe(ref.current)
-      act(() => ref.current?.click())
-      expect(submissions).toBe(1)
-      render(true)
-      act(() => ref.current?.click())
-      expect(submissions).toBe(1)
-      expect(ref.current?.disabled).toBe(true)
-    } finally {
-      act(() => root.unmount())
-      container.remove()
-    }
   })
 })

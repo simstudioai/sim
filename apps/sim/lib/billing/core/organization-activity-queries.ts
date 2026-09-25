@@ -14,9 +14,14 @@ import {
   type ActivityDimension,
   type ActivityScope,
   type ActivitySort,
+  type ActivityStretch,
   activityMetrics,
+  combineActivity,
+  EMPTY_ACTIVITY_STRETCH,
 } from '@/lib/billing/core/organization-activity'
-import type { UsageBucket } from '@/lib/billing/core/usage-analytics'
+import { usageWindowSegments } from '@/lib/billing/core/usage-analytics'
+import { readThroughSegments } from '@/lib/billing/core/usage-segment-cache'
+import { assertValidTimezone } from '@/lib/core/utils/timezone'
 
 export async function readActivityWorkspace(organizationId: string, workspaceId: string) {
   const [row] = await dbReplica
@@ -32,12 +37,7 @@ export async function readActivityWorkspace(organizationId: string, workspaceId:
  * Only lightweight execution columns are read; transcripts and trace payloads stay private.
  * Chat continuations share an execution id and belong to their first retained start.
  */
-function activityGroups(
-  scope: ActivityScope,
-  keys: SQL,
-  grouping: SQL,
-  dimension?: ActivityDimension
-) {
+function activitySources(scope: ActivityScope) {
   const start = sql`(${scope.start.toISOString()}::timestamptz AT TIME ZONE 'UTC')`
   const end = sql`(${scope.end.toISOString()}::timestamptz AT TIME ZONE 'UTC')`
   const workflows = sql`
@@ -75,19 +75,24 @@ function activityGroups(
       )
     ORDER BY r.execution_id, r.started_at, r.id
   `
+  return { workflows, chats }
+}
+
+function activityGroups(scope: ActivityScope, keys: SQL, dimension?: ActivityDimension) {
+  const { workflows, chats } = activitySources(scope)
   const workflowGroups = sql`
     SELECT ${keys}, count(*) AS "workflowRuns",
       count(*) FILTER (WHERE a.status = 'completed') AS completed,
       count(*) FILTER (WHERE a.status = 'failed') AS failed,
       0::bigint AS "chatRuns", 0::bigint AS "chatMembers",
       avg(a.duration_ms) AS "averageDurationMs"
-    FROM (${workflows}) a ${grouping}
+    FROM (${workflows}) a GROUP BY 1, 2
   `
   const chatGroups = sql`
     SELECT ${keys}, 0::bigint AS "workflowRuns", 0::bigint AS completed, 0::bigint AS failed,
       count(*) AS "chatRuns", count(DISTINCT a.member_id) AS "chatMembers",
       NULL::numeric AS "averageDurationMs"
-    FROM (${chats}) a ${grouping}
+    FROM (${chats}) a GROUP BY 1, 2
   `
   if (dimension === 'member') return chatGroups
   if (dimension === 'workflow' || dimension === 'trigger') return workflowGroups
@@ -104,32 +109,103 @@ const aggregates = sql`
   max(a."averageDurationMs") AS "averageDurationMs"
 `
 
-export async function readActivitySummary(
+/**
+ * A stretch holding an unfinished run is never cached (see `inFlight`), so the lag only
+ * has to cover a run that started but whose row has not yet been written. Every
+ * minute of lag is a minute of the most expensive rows on the page read live.
+ */
+const ACTIVITY_SETTLE_MS = 15 * 60 * 1000
+
+/**
+ * Only finished runs are cached, and those do not change, so cached activity expires
+ * only to release organizations nobody is viewing.
+ */
+const ACTIVITY_SEGMENT_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+type ActivityHourRow = Record<string, unknown> & {
+  hour: string
+  workflowRuns: string | number
+  completed: string | number
+  failed: string | number
+  durationSum: string | number
+  durationCount: string | number
+  chatRuns: string | number
+  chatMembers: string[]
+  inFlight: string | number
+}
+
+/** Workflow and chat activity per local hour of the viewer (`YYYY-MM-DDTHH`), for one range. */
+async function readActivityByHour(
   scope: ActivityScope,
-  bucket: UsageBucket,
   timezone: string
-) {
-  const keys = sql`date_trunc(${bucket}, (a.started_at AT TIME ZONE 'UTC') AT TIME ZONE ${timezone}) AS bucket`
-  const rows = await dbReplica.execute<ActivityAggregate & { bucket: string | null }>(sql`
-    WITH activity AS (${activityGroups(scope, keys, sql`GROUP BY GROUPING SETS ((1), ())`)})
-    SELECT to_char(a.bucket, 'YYYY-MM-DD') AS bucket, ${aggregates}
-    FROM activity a GROUP BY a.bucket
+): Promise<Map<string, ActivityStretch>> {
+  assertValidTimezone(timezone)
+  const { workflows, chats } = activitySources(scope)
+  const hour = sql`date_trunc('hour', (a.started_at AT TIME ZONE 'UTC') AT TIME ZONE ${timezone})`
+  /** Members as JSON: the pool skips type fetching, so a `text[]` would arrive unparsed. */
+  const rows = await dbReplica.execute<ActivityHourRow>(sql`
+    SELECT to_char(g.hour, 'YYYY-MM-DD"T"HH24') AS hour, g."workflowRuns", g.completed, g.failed,
+      g."durationSum", g."durationCount", g."chatRuns", g."chatMembers", g."inFlight"
+    FROM (
+      SELECT ${hour} AS hour, count(*) AS "workflowRuns",
+        count(*) FILTER (WHERE a.status = 'completed') AS completed,
+        count(*) FILTER (WHERE a.status = 'failed') AS failed,
+        coalesce(sum(a.duration_ms), 0) AS "durationSum",
+        count(a.duration_ms) AS "durationCount",
+        0::bigint AS "chatRuns", '[]'::jsonb AS "chatMembers",
+        count(*) FILTER (WHERE a.status NOT IN ('completed', 'failed', 'cancelled')) AS "inFlight"
+      FROM (${workflows}) a GROUP BY 1
+      UNION ALL
+      SELECT ${hour} AS hour, 0, 0, 0, 0, 0, count(*),
+        coalesce(jsonb_agg(DISTINCT a.member_id) FILTER (WHERE a.member_id IS NOT NULL), '[]'::jsonb),
+        0
+      FROM (${chats}) a GROUP BY 1
+    ) g
   `)
-  return {
-    totals: activityMetrics(rows.find((row) => row.bucket === null)),
-    series: rows.flatMap((row) =>
-      row.bucket === null
-        ? []
-        : [
-            {
-              timestamp: `${row.bucket}T00:00:00`,
-              workflowRuns: Number(row.workflowRuns),
-              chatRuns: Number(row.chatRuns),
-              failed: Number(row.failed),
-            },
-          ]
-    ),
+
+  /** The workflow and chat halves of an hour arrive as two rows. */
+  const byHour = new Map<string, ActivityStretch[]>()
+  for (const row of rows) {
+    const stretch: ActivityStretch = {
+      workflowRuns: Number(row.workflowRuns),
+      completed: Number(row.completed),
+      failed: Number(row.failed),
+      durationSum: Number(row.durationSum),
+      durationCount: Number(row.durationCount),
+      chatRuns: Number(row.chatRuns),
+      chatMembers: row.chatMembers,
+      inFlight: Number(row.inFlight),
+    }
+    const halves = byHour.get(row.hour)
+    if (halves) halves.push(stretch)
+    else byHour.set(row.hour, [stretch])
   }
+  return new Map([...byHour].map(([hour, halves]) => [hour, combineActivity(halves)]))
+}
+
+/**
+ * Activity across the scope's window as `[day, activity]` entries, settled days and
+ * hours from the cache. A day can appear in more than one entry.
+ *
+ * Execution history is read through the same segment cache as usage: the workflow
+ * and chat scans behind a month of a large organization's activity cost seconds, and
+ * the recent runs are the costliest rows of all to read.
+ */
+export function readActivityDays(
+  scope: ActivityScope,
+  timezone: string
+): Promise<[string, ActivityStretch][]> {
+  return readThroughSegments<ActivityStretch>({
+    namespace: `activity:${scope.organizationId}:${scope.workspaceId ?? '*'}:${timezone}`,
+    segments: usageWindowSegments({ kind: 'range', from: scope.start, to: scope.end }, timezone, {
+      settleMs: ACTIVITY_SETTLE_MS,
+    }),
+    empty: EMPTY_ACTIVITY_STRETCH,
+    combine: combineActivity,
+    isFinal: (activity) => activity.inFlight === 0,
+    ttlMs: ACTIVITY_SEGMENT_TTL_MS,
+    fetchRange: (start, end) => readActivityByHour({ ...scope, start, end }, timezone),
+  })
 }
 
 /** Aggregation and pagination happen in Postgres; no run history is materialized in the app. */
@@ -154,6 +230,7 @@ export async function readActivityBreakdown(
   const hasWorkspace = dimension === 'workspace' || dimension === 'workflow'
   const workspaceId = hasWorkspace ? sql`a.workspace_id` : sql`NULL::text`
   const workspaceName = hasWorkspace ? sql`w.name` : sql`NULL::text`
+  const image = dimension === 'member' ? sql`u.image` : sql`NULL::text`
   const order = {
     runs: sql`("workflowRuns" + "chatRuns") DESC`,
     failures: sql`failed DESC`,
@@ -165,19 +242,19 @@ export async function readActivityBreakdown(
       label: string
       workspaceId: string | null
       workspaceName: string | null
+      image: string | null
     }
   >(sql`
     WITH activity AS (${activityGroups(
       scope,
       sql`${id} AS id, ${workspaceId} AS "workspaceId"`,
-      sql`GROUP BY 1, 2`,
       dimension
     )}), grouped AS (
       SELECT a.id, a."workspaceId", ${aggregates}
       FROM activity a
       GROUP BY 1, 2
     ), named AS (
-      SELECT a.*, ${label} AS label, ${workspaceName} AS "workspaceName"
+      SELECT a.*, ${label} AS label, ${workspaceName} AS "workspaceName", ${image} AS image
       FROM grouped a
       ${hasWorkspace ? sql`LEFT JOIN ${workspace} w ON w.id = a."workspaceId"` : sql``}
       ${dimension === 'workflow' ? sql`LEFT JOIN ${workflow} f ON f.id = a.id` : sql``}
@@ -192,6 +269,7 @@ export async function readActivityBreakdown(
       label: row.label,
       workspaceId: row.workspaceId,
       workspaceName: row.workspaceName,
+      ...(row.image ? { image: row.image } : {}),
       ...activityMetrics(row),
     })),
     hasMore: rows.length > ACTIVITY_PAGE_SIZE,

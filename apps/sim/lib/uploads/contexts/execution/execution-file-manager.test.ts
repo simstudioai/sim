@@ -23,6 +23,7 @@ vi.mock('@/lib/uploads/providers/s3/client', () => ({
   deleteFromS3: mockDeleteFromS3,
 }))
 
+import { processExecutionFiles } from '@/lib/execution/files'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
 
 const context = {
@@ -66,6 +67,35 @@ describe('uploadExecutionFile key allocation', () => {
 
     expect(first.key).not.toBe(second.key)
     expect(dbChainMockFns.insert).toHaveBeenCalledTimes(2)
+  })
+
+  it('persists the returned upload ID and resolves its ID-only reference through real metadata reads', async () => {
+    const scope = { ...context, workspaceId: '11111111-1111-4111-8111-111111111111' }
+    let persisted: Record<string, unknown> | undefined
+    dbChainMockFns.returning.mockImplementation(async () => {
+      persisted = dbChainMockFns.values.mock.calls.at(-1)?.[0]
+      return [{ ...persisted }]
+    })
+    const uploaded = await uploadExecutionFile(
+      scope,
+      Buffer.from('alpha'),
+      'alpha.txt',
+      'text/plain',
+      'user-1'
+    )
+    expect(persisted).toMatchObject({
+      id: uploaded.id,
+      key: uploaded.key,
+      workspaceId: scope.workspaceId,
+    })
+    dbChainMockFns.limit.mockImplementation(async () => [persisted])
+    const resolved = await processExecutionFiles([{ id: uploaded.id }], scope, 'request', 'user-1')
+    expect(resolved[0]).toMatchObject({
+      id: uploaded.id,
+      key: uploaded.key,
+      name: 'alpha.txt',
+      size: 5,
+    })
   })
 
   it('commits tracked provenance with the canonical file before returning its URL', async () => {

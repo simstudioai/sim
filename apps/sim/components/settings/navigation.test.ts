@@ -146,6 +146,7 @@ describe('settings navigation boundaries', () => {
       'recently-deleted',
       'forks',
       'custom-blocks',
+      'requests',
       'self-host',
     ])
   })
@@ -303,7 +304,6 @@ describe('settings navigation boundaries', () => {
       'data-drains',
       'data-retention',
       'organization',
-      'requests',
       'security',
       'sso',
       'usage',
@@ -320,7 +320,6 @@ describe('settings navigation boundaries', () => {
       billing: 'billing',
       'connected-accounts': 'connected-accounts',
       'access-control': 'access-control',
-      requests: 'requests',
       'audit-logs': 'audit-logs',
       sso: 'sso',
       security: 'security',
@@ -336,6 +335,7 @@ describe('settings navigation boundaries', () => {
 
   it('maps every workspace projection from its unified section', () => {
     expect(UNIFIED_TO_WORKSPACE_SECTION).toEqual({
+      requests: 'requests',
       teammates: 'teammates',
       secrets: 'secrets',
       byok: 'byok',
@@ -513,14 +513,14 @@ describe('settings navigation boundaries', () => {
     ).toBe(true)
   })
 
-  it('limits request settings to organization admins while preserving self-hosted history', () => {
+  it('allows member requests while reserving management for organization admins', () => {
     expect(
       resolveOrganizationSectionAccess({
         section: 'requests',
         isTargetOrganizationMember: true,
         isTargetOrganizationAdmin: false,
       })
-    ).toBe('unavailable')
+    ).toBe('view')
     expect(
       resolveOrganizationSectionAccess({
         section: 'requests',
@@ -566,9 +566,10 @@ describe('settings navigation boundaries', () => {
         'inbox',
         'recently-deleted',
         'custom-blocks',
+        'requests',
         'self-host',
       ],
-      mutable: [],
+      mutable: ['requests'],
     },
     {
       permission: 'write' as const,
@@ -583,9 +584,17 @@ describe('settings navigation boundaries', () => {
         'inbox',
         'recently-deleted',
         'custom-blocks',
+        'requests',
         'self-host',
       ],
-      mutable: ['secrets', 'custom-tools', 'mcp', 'workflow-mcp-servers', 'recently-deleted'],
+      mutable: [
+        'secrets',
+        'custom-tools',
+        'mcp',
+        'workflow-mcp-servers',
+        'recently-deleted',
+        'requests',
+      ],
     },
     {
       permission: 'admin' as const,
@@ -628,6 +637,7 @@ describe('settings navigation boundaries', () => {
       'recently-deleted',
       'forks',
       'custom-blocks',
+      'requests',
       'self-host',
     ])
   })

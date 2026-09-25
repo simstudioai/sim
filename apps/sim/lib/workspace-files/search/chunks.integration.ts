@@ -28,7 +28,7 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
   getWorkspaceFile: vi.fn(),
   fetchWorkspaceFileBuffer: vi.fn(),
 }))
-vi.mock('@/lib/copilot/tools/server/files/doc-compile', () => ({ resolveServableDoc: vi.fn() }))
+vi.mock('@/lib/mothership/tools/server/files/doc-compile', () => ({ resolveServableDoc: vi.fn() }))
 vi.mock('@/lib/file-parsers', () => ({ parseBuffer: vi.fn(), isSupportedFileType: vi.fn() }))
 
 import {
@@ -180,6 +180,7 @@ describe('chunked workspace file search on PostgreSQL', () => {
       '0358_workspace_file_content_version_precision.sql',
       '0359_workspace_file_search_chunks.sql',
       ginWriteMigration,
+      '0382_workspace_file_search_dispatch_handoff.sql',
     ]) {
       await applyMigration(migration)
     }
@@ -640,6 +641,20 @@ describe('chunked workspace file search on PostgreSQL', () => {
     expect((await connection`SELECT status FROM workspace_file_search_revision`)[0].status).toBe(
       'pending'
     )
+  })
+  it('completes a claim handoff when its run begins, never for an older claim', async () => {
+    const older = new Date('2026-01-01T01:00:00Z')
+    const newer = new Date('2026-01-01T02:00:00Z')
+    await connection`UPDATE workspace_file_search_revision
+      SET dispatched_at = ${newer.toISOString()}::timestamp,
+        handoff_expires_at = clock_timestamp() + interval '2 minutes'`
+    const handoff = async () =>
+      (await connection`SELECT handoff_expires_at FROM workspace_file_search_revision`)[0]
+        .handoff_expires_at
+    expect(await beginFileSearchBuild(revision, older.toISOString())).toBeNull()
+    expect(await handoff()).not.toBeNull()
+    expect(await beginFileSearchBuild(revision, newer.toISOString())).not.toBeNull()
+    expect(await handoff()).toBeNull()
   })
 
   async function withOccupiedPool(client: postgres.Sql, count: number, run: () => Promise<void>) {

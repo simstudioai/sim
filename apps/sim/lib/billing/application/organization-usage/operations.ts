@@ -6,7 +6,7 @@ import {
 
 export type OrganizationUsagePrincipal = Extract<
   Principal,
-  { kind: 'session' | 'personal_api_key' | 'oauth_access_token' }
+  { kind: 'session' | 'personal_api_key' | 'oauth_access_token' | 'organization_delegated' }
 >
 
 export interface OrganizationUsageOperation extends OrganizationOperation {
@@ -21,12 +21,14 @@ const BASE = {
   organizationRoles: ['admin', 'owner'],
   minimumRole: 'admin',
   workspaceApiKey: 'deny',
-  principalKinds: ['session'],
+  principalKinds: ['session', 'organization_delegated'],
+  delegationAudience: 'sim:settings',
+  delegatedServices: ['copilot'],
 } as const
 
 const PUBLIC_READ = {
   ...BASE,
-  principalKinds: ['session', 'personal_api_key', 'oauth_access_token'],
+  principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'organization_delegated'],
   oauthScope: 'api:read',
 } as const
 
@@ -50,6 +52,14 @@ export const organizationUsageOperations = {
    */
   readActivityBreakdown: defineOrganizationOperation({
     id: 'organization_usage.activity.breakdown.read',
+    capability: 'none',
+    ...BASE,
+  }),
+  /**
+   * permission-group-exempt: the Insights overview reads the same pooled ledger as the summary, governed by organization billing-admin authority
+   */
+  readOverview: defineOrganizationOperation({
+    id: 'organization_usage.overview.read',
     capability: 'none',
     ...BASE,
   }),

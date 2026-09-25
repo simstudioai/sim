@@ -81,6 +81,7 @@ import { isSafeInternalPath } from '@/main/config'
 import type { DesktopSettingsService } from '@/main/desktop-settings'
 import { isDesktopPreferenceKey } from '@/main/desktop-settings'
 import { hasRecentDeliberateInput, hasRecentDiscreteInput } from '@/main/input-activity'
+import { executeLocalFileRequest } from '@/main/local-files'
 import type { LocalFilesystemService } from '@/main/local-filesystem'
 import { isAppOrigin, openExternalSafe } from '@/main/navigation'
 import type { ScopedEventRouter } from '@/main/scoped-event-router'
@@ -507,7 +508,9 @@ interface DesktopToolAuthorization {
 async function fetchDesktopToolAuthorization(
   event: IpcMainInvokeEvent,
   deps: IpcDeps,
-  toolCallId: unknown
+  toolCallId: unknown,
+  claim = false,
+  onFailureStatus?: (status: number) => void
 ): Promise<DesktopToolAuthorization | null> {
   if (!isDesktopToolCallId(toolCallId)) return null
   const startedAt = Date.now()
@@ -518,11 +521,12 @@ async function fetchDesktopToolAuthorization(
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolCallId }),
+        body: JSON.stringify({ toolCallId, ...(claim ? { claim: true } : {}) }),
         signal: AbortSignal.timeout(BROWSER_TOOL_AUTHORIZATION_TIMEOUT_MS),
       }
     )
     if (!response.ok) {
+      onFailureStatus?.(response.status)
       logger.warn('Desktop tool authorization was rejected', {
         toolCallId,
         status: response.status,
@@ -711,6 +715,15 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         }
         return deps.beginOAuthConnect(providerId, parsedScope)
       },
+    },
+    'desktop:local-files': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requiresAccountData: true,
+      passSender: true,
+      denied: { ok: false, error: 'Local file tools are unavailable from this page.' },
+      handler: (_sender, request, authorization) =>
+        executeLocalFileRequest(request, authorization as DesktopToolAuthorization),
     },
     'desktop:local-filesystem': {
       kind: 'invoke',
@@ -1342,20 +1355,33 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       kind: 'send',
       gate: 'browser-page',
       deviationReason:
-        "the only sender in this family that is a browser PAGE rather than the Sim app, so browser-page is the correct gate and requires:'browser' follows — with the browser off no such page exists",
+        'the isolated browser preload reports its own form; app renderers cannot claim browser targets',
       requires: 'browser',
       passSender: true,
       handler: (sender, report) => {
         if (!isRecordLike(report)) return
-        const { origin, hasLoginForm, hasPasswordField } = report as {
+        const { origin, hasLoginForm, hasPasswordField, targetId, bounds } = report as {
           origin?: unknown
           hasLoginForm?: unknown
           hasPasswordField?: unknown
+          targetId?: unknown
+          bounds?: unknown
         }
         if (
           typeof origin !== 'string' ||
           typeof hasLoginForm !== 'boolean' ||
-          typeof hasPasswordField !== 'boolean'
+          typeof hasPasswordField !== 'boolean' ||
+          (targetId !== null && (typeof targetId !== 'string' || !ID_PATTERN.test(targetId))) ||
+          (bounds !== null &&
+            (!isRecordLike(bounds) ||
+              !['x', 'y', 'width', 'height'].every(
+                (key) =>
+                  typeof bounds[key] === 'number' &&
+                  Number.isFinite(bounds[key]) &&
+                  Math.abs(bounds[key]) <= 100_000
+              ) ||
+              Number(bounds.width) <= 0 ||
+              Number(bounds.height) <= 0))
         ) {
           return
         }
@@ -1363,12 +1389,66 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           origin,
           hasLoginForm,
           hasPasswordField,
+          targetId: typeof targetId === 'string' ? targetId : null,
+          bounds: isRecordLike(bounds)
+            ? {
+                x: Number(bounds.x),
+                y: Number(bounds.y),
+                width: Number(bounds.width),
+                height: Number(bounds.height),
+              }
+            : null,
         })
+      },
+    },
+    'browser-credentials:fill-result': {
+      kind: 'send',
+      gate: 'browser-page',
+      deviationReason:
+        'only the isolated browser preload acknowledges a fill; no secret values are returned',
+      requires: 'browser',
+      passSender: true,
+      handler: (sender, result) => {
+        if (
+          !isRecordLike(result) ||
+          typeof result.requestId !== 'string' ||
+          !ID_PATTERN.test(result.requestId)
+        )
+          return
+        if (
+          result.status !== 'filled' &&
+          result.status !== 'stale-target' &&
+          result.status !== 'failed'
+        )
+          return
+        fillCoordinator()?.noteFillResult(sender as WebContents, {
+          requestId: result.requestId,
+          status: result.status,
+        })
+      },
+    },
+    'browser-credentials:picker': {
+      kind: 'send',
+      gate: 'browser-page',
+      deviationReason:
+        'real input in the browser page opens the trusted picker; selection is authorized separately in its bundled window',
+      requires: 'browser',
+      needsUserActivation: true,
+      passSender: true,
+      handler: (sender, action) => {
+        if (action !== 'open' && action !== 'focus' && action !== 'dismiss') return
+        void fillCoordinator()
+          ?.requestPicker(sender as WebContents, action)
+          .catch((error) => {
+            logger.warn('Could not open saved password picker', { error: getErrorMessage(error) })
+          })
       },
     },
     'browser-credentials:available': {
       kind: 'invoke',
       gate: 'app-origin',
+      deviationReason:
+        'vault availability is account data and remains readable while the browser surface is disabled',
       requiresAccountData: true,
       denied: false,
       handler: () => credentialsAvailable(),
@@ -1376,6 +1456,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:list': {
       kind: 'invoke',
       gate: 'app-origin',
+      deviationReason:
+        'password management remains available while the browser surface is disabled',
       requiresAccountData: true,
       denied: [],
       handler: () => listCredentials(),
@@ -1413,6 +1495,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:reveal': {
       kind: 'invoke',
       gate: 'app-origin',
+      deviationReason:
+        'OS-authenticated password management does not require an active browser surface',
       requiresAccountData: true,
       needsUserActivation: true,
       denied: null,
@@ -1421,6 +1505,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:copy': {
       kind: 'invoke',
       gate: 'app-origin',
+      deviationReason:
+        'OS-authenticated password copying does not require an active browser surface',
       requiresAccountData: true,
       needsUserActivation: true,
       denied: false,
@@ -1429,6 +1515,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:forget': {
       kind: 'invoke',
       gate: 'app-origin',
+      deviationReason:
+        'users must be able to remove saved credentials while the browser surface is disabled',
       requiresAccountData: true,
       needsUserActivation: true,
       denied: [],
@@ -1437,6 +1525,8 @@ export function registerIpcHandlers(deps: IpcDeps): void {
     'browser-credentials:forget-all': {
       kind: 'invoke',
       gate: 'app-origin',
+      deviationReason:
+        'users must be able to clear saved credentials while the browser surface is disabled',
       requiresAccountData: true,
       needsUserActivation: true,
       denied: [],
@@ -1465,9 +1555,7 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         )
       },
     },
-    // Opens the native account chooser. The renderer only says "the user
-    // clicked the key icon, here"; it never learns which accounts exist, never
-    // names one, and never receives a password. The shell performs the fill.
+    /** The app requests a trusted chooser; only its selected account reaches the live page. */
     'browser-credentials:show-chooser': {
       kind: 'invoke',
       gate: 'app-origin',
@@ -1983,6 +2071,32 @@ export function registerIpcHandlers(deps: IpcDeps): void {
             code: 'ACCESS_DENIED',
             error: 'This local filesystem request is not an authorized pending Copilot tool call.',
           }
+        }
+        if (channel === 'desktop:local-files') {
+          const request = args[0]
+          if (!isRecordLike(request)) return { ok: false, error: 'Invalid local file request.' }
+          let failureStatus: number | undefined
+          const authorization = await fetchDesktopToolAuthorization(
+            event,
+            deps,
+            request.toolCallId,
+            request.operation === 'manifest',
+            (status) => {
+              failureStatus = status
+            }
+          )
+          if (failureStatus === 409)
+            return {
+              ok: false,
+              code: 'ALREADY_STARTED',
+              error: 'This import is already running or was already started.',
+            }
+          if (
+            !authorization ||
+            !['read_local_file', 'import_local_files'].includes(authorization.toolName)
+          )
+            return { ok: false, error: 'This is not an authorized pending local file tool call.' }
+          handlerArgs = [request, authorization]
         }
         if (spec.passSender) {
           handlerArgs = [event.sender, ...handlerArgs]

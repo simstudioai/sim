@@ -44,8 +44,8 @@ import {
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { generateWorkflowJson } from '@/lib/workflows/operations/import-export'
-import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
-import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components'
+import { ConversationListItem } from '@/app/workspace/[workspaceId]/components/conversation-list-item'
+import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
 import { getWorkflowCopilotUseChatOptions, useChat } from '@/app/workspace/[workspaceId]/home/hooks'
 import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
@@ -68,6 +68,7 @@ import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowI
 import { getWorkflowLockToggleIds } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
 import { useDeleteWorkflow, useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { RequestAccessModal } from '@/ee/access-requests/components/request-access-action'
+import { getMyAccessRequestHref } from '@/ee/access-requests/lib/navigation'
 import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
 import { useCopilotChatSelection } from '@/hooks/queries/copilot-chat-selection'
 import {
@@ -278,8 +279,12 @@ export const Panel = memo(function Panel() {
     if (usageExceeded) {
       if (usageLimitScope === 'member' && memberLimitTarget) {
         if (memberLimitTarget.pendingRequestId) {
-          const params = new URLSearchParams({ requestId: memberLimitTarget.pendingRequestId })
-          router.push(`/workspace/${encodeURIComponent(workspaceId)}/access-requests?${params}`)
+          router.push(
+            getMyAccessRequestHref(
+              { kind: 'workspace', workspaceId },
+              memberLimitTarget.pendingRequestId
+            )
+          )
         } else {
           setShowLimitRequest(true)
         }

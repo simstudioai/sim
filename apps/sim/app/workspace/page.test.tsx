@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   replace: vi.fn(),
   workspaces: vi.fn(),
-  recentWorkspace: vi.fn(),
   request: vi.fn(),
 }))
 
@@ -16,9 +15,6 @@ vi.mock('@/lib/auth/auth-client', () => ({
 }))
 vi.mock('@/lib/auth/stale-session-recovery', () => ({ recoverFromStaleSession: vi.fn() }))
 vi.mock('@/lib/api/client/request', () => ({ requestJson: mocks.request }))
-vi.mock('@/lib/core/utils/browser-storage', () => ({
-  WorkspaceRecencyStorage: { getMostRecent: mocks.recentWorkspace },
-}))
 vi.mock('@/app/_shell/desktop-title-bar', () => ({ DesktopTitleBarLane: () => null }))
 vi.mock('@/hooks/queries/workspace', () => ({ useWorkspacesWithMetadata: mocks.workspaces }))
 
@@ -32,11 +28,10 @@ describe('workspace settings destination', () => {
     vi.clearAllMocks()
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     window.history.replaceState(null, '', '/workspace?redirect=settings')
-    mocks.recentWorkspace.mockReturnValue('workspace-2')
     mocks.workspaces.mockReturnValue({
       data: {
         workspaces: [{ id: 'workspace-1' }, { id: 'workspace-2' }],
-        lastActiveWorkspaceId: 'workspace-1',
+        lastActiveWorkspaceId: 'workspace-2',
       },
       isLoading: false,
     })
@@ -57,8 +52,14 @@ describe('workspace settings destination', () => {
     expect(mocks.request).not.toHaveBeenCalled()
   })
 
-  it('uses an accessible workspace when the locally remembered workspace is unavailable', async () => {
-    mocks.recentWorkspace.mockReturnValue('removed-workspace')
+  it('uses an accessible workspace when the last active workspace is unavailable', async () => {
+    mocks.workspaces.mockReturnValue({
+      data: {
+        workspaces: [{ id: 'workspace-1' }, { id: 'workspace-2' }],
+        lastActiveWorkspaceId: 'removed-workspace',
+      },
+      isLoading: false,
+    })
     await act(async () => root.render(<WorkspacePage />))
     expect(mocks.replace).toHaveBeenCalledWith('/workspace/workspace-1/settings/general')
   })

@@ -1,198 +1,72 @@
-import { db, mothershipInboxTask, workspace } from '@sim/db'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import { eq, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateInboxConfigContract } from '@/lib/api/contracts/inbox'
+import { getInboxConfigContract, updateInboxConfigContract } from '@/lib/api/contracts/inbox'
 import { parseRequest } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
-import { hasWorkspaceInboxAccess } from '@/lib/billing/core/subscription'
-import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
+import {
+  defineInternalJsonRoute,
+  internalErrorResponse,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { InternalUnauthenticatedError } from '@/lib/api/server/routes/internal-json-route'
+import { ForbiddenOperationError } from '@/lib/core/application'
+import {
+  InsufficientWorkspacePermissionsError,
+  NoWorkspaceAccessError,
+} from '@/lib/core/application/workspace-authorization'
+import { OrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { disableInbox, enableInbox, updateInboxAddress } from '@/lib/mothership/inbox/lifecycle'
-import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
-import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import {
+  inboxSettingsOperations,
+  readInboxSettings,
+  updateInboxSettings,
+} from '@/lib/workspaces/application/inbox-settings'
 
-const logger = createLogger('InboxConfigAPI')
-
-export const GET = withRouteHandler(
-  async (_req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const { id: workspaceId } = await params
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
-    if (!permission) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 })
-    }
-
-    // permission-group-enforced: inbox.use — raw handler with inline queries, which the authorization funnel never sees
-    if (await isWorkspaceCapabilityWithheld(session.user.id, workspaceId, 'inbox.use')) {
-      return capabilityRefusalResponse('inbox.use')
-    }
-
-    const [wsResult, statsResult, entitled] = await Promise.all([
-      db
-        .select({
-          inboxEnabled: workspace.inboxEnabled,
-          inboxAddress: workspace.inboxAddress,
-          inboxSecretScope: workspace.inboxSecretScope,
-          inboxMountedSecrets: workspace.inboxMountedSecrets,
-        })
-        .from(workspace)
-        .where(eq(workspace.id, workspaceId))
-        .limit(1),
-      db
-        .select({
-          status: mothershipInboxTask.status,
-          count: sql<number>`count(*)::int`,
-        })
-        .from(mothershipInboxTask)
-        .where(eq(mothershipInboxTask.workspaceId, workspaceId))
-        .groupBy(mothershipInboxTask.status),
-      hasWorkspaceInboxAccess(workspaceId),
-    ])
-
-    const [ws] = wsResult
-    if (!ws) {
-      return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
-    }
-
-    const stats = {
-      total: 0,
-      completed: 0,
-      processing: 0,
-      failed: 0,
-    }
-    for (const row of statsResult) {
-      const count = Number(row.count)
-      stats.total += count
-      if (row.status === 'completed') stats.completed = count
-      else if (row.status === 'processing') stats.processing = count
-      else if (row.status === 'failed') stats.failed = count
-    }
-
-    return NextResponse.json({
-      enabled: ws.inboxEnabled,
-      address: ws.inboxAddress,
-      ...normalizeSecretMountPolicy({
-        secretScope: ws.inboxSecretScope,
-        mountedSecrets: ws.inboxMountedSecrets,
-      }),
-      entitled,
-      taskStats: stats,
+function inboxError(error: unknown, read: boolean) {
+  if (error instanceof InternalUnauthenticatedError)
+    return internalErrorResponse(401, { error: 'Unauthorized' })
+  if (
+    error instanceof InsufficientWorkspacePermissionsError ||
+    error instanceof NoWorkspaceAccessError
+  )
+    return internalErrorResponse(read ? 404 : 403, {
+      error: read ? 'Not found' : 'Admin access required',
     })
-  }
-)
+  if (error instanceof ForbiddenOperationError)
+    return internalErrorResponse(403, { error: error.message, details: { code: error.detailCode } })
+  if (error instanceof OrchestrationError)
+    return internalErrorResponse(statusForOrchestrationError(error.code), { error: error.message })
+  return null
+}
 
+export const GET = defineInternalJsonRoute({
+  contract: getInboxConfigContract,
+  auth: internalSessionAuth,
+  operation: inboxSettingsOperations.read,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing inbox settings read policy.' }),
+  errorPolicy: { project: (error) => inboxError(error, true) },
+  mapInput: ({ params }) => ({ workspaceId: params.id }),
+  useCase: readInboxSettings,
+})
+
+/** Preserve authorization before body parsing through the shared operation's authorization phase. */
 export const PATCH = withRouteHandler(
-  async (req: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const { id: workspaceId } = await context.params
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
-    if (permission !== 'admin') {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-    }
-
-    // permission-group-enforced: inbox.use — raw handler with inline queries, which the authorization funnel never sees
-    if (await isWorkspaceCapabilityWithheld(session.user.id, workspaceId, 'inbox.use')) {
-      return capabilityRefusalResponse('inbox.use')
-    }
-
-    const parsed = await parseRequest(updateInboxConfigContract, req, context)
-    if (!parsed.success) return parsed.response
-    const body = parsed.data.body
-
+  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
     try {
-      const [current] = await db
-        .select({
-          inboxEnabled: workspace.inboxEnabled,
-          inboxAddress: workspace.inboxAddress,
-          inboxProviderId: workspace.inboxProviderId,
-          inboxSecretScope: workspace.inboxSecretScope,
-          inboxMountedSecrets: workspace.inboxMountedSecrets,
-        })
-        .from(workspace)
-        .where(eq(workspace.id, workspaceId))
-        .limit(1)
-      if (!current) {
-        return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
-      }
-
-      const hasPolicyUpdate = body.secretScope !== undefined || body.mountedSecrets !== undefined
-      const secretMountPolicy = normalizeSecretMountPolicy({
-        secretScope: body.secretScope ?? current.inboxSecretScope,
-        mountedSecrets: body.mountedSecrets ?? current.inboxMountedSecrets,
-      })
-      const persistPolicy = async () => {
-        if (!hasPolicyUpdate) return
-        await db
-          .update(workspace)
-          .set({
-            inboxSecretScope: secretMountPolicy.secretScope,
-            inboxMountedSecrets: secretMountPolicy.mountedSecrets,
-            updatedAt: new Date(),
-          })
-          .where(eq(workspace.id, workspaceId))
-      }
-
-      if (body.enabled === false) {
-        await disableInbox(workspaceId)
-        await persistPolicy()
-        return NextResponse.json({
-          enabled: false,
-          address: null,
-          providerId: null,
-          ...secretMountPolicy,
-        })
-      }
-
-      if (body.enabled === undefined && body.username === undefined && hasPolicyUpdate) {
-        await persistPolicy()
-        return NextResponse.json({
-          enabled: current.inboxEnabled,
-          address: current.inboxAddress,
-          providerId: current.inboxProviderId,
-          ...secretMountPolicy,
-        })
-      }
-
-      if (!(await hasWorkspaceInboxAccess(workspaceId))) {
-        return NextResponse.json({ error: 'Sim Mailer requires a Max plan' }, { status: 403 })
-      }
-
-      if (body.enabled === true) {
-        if (current.inboxEnabled) {
-          return NextResponse.json({ error: 'Inbox is already enabled' }, { status: 409 })
-        }
-        const config = await enableInbox(workspaceId, { username: body.username })
-        await persistPolicy()
-        return NextResponse.json({ ...config, ...secretMountPolicy })
-      }
-
-      if (body.username) {
-        const config = await updateInboxAddress(workspaceId, body.username)
-        await persistPolicy()
-        return NextResponse.json({ ...config, ...secretMountPolicy })
-      }
-
-      return NextResponse.json({ error: 'No valid update provided' }, { status: 400 })
-    } catch (error) {
-      logger.error('Inbox config update failed', {
-        workspaceId,
-        error: getErrorMessage(error, 'Unknown error'),
-      })
+      const principal = await internalSessionAuth.authenticate()
+      const { id: workspaceId } = await context.params
+      await updateInboxSettings.authorize({ principal, input: { workspaceId, patch: {} } })
+      const parsed = await parseRequest(updateInboxConfigContract, request, context)
+      if (!parsed.success) return parsed.response
       return NextResponse.json(
-        { error: getErrorMessage(error, 'Failed to update inbox') },
-        { status: 500 }
+        await updateInboxSettings.execute({
+          principal,
+          input: { workspaceId, patch: parsed.data.body },
+        })
       )
+    } catch (error) {
+      const response = inboxError(error, false)
+      if (response) return NextResponse.json(response.body, { status: response.status })
+      throw error
     }
   }
 )

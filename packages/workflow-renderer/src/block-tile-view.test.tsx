@@ -48,4 +48,22 @@ describe('shared block tile', () => {
     expect(html).toContain('text-black!')
     expect(html).toContain('>A</span>')
   })
+
+  it('renders an inline provider tile inside native row buttons', () => {
+    const inline = renderToStaticMarkup(
+      <BlockTileView
+        as='span'
+        blockType='provider'
+        icon={Icon}
+        bgColor='#33C482'
+        useAccent={false}
+      />
+    )
+    const ordinary = renderToStaticMarkup(
+      <BlockTileView blockType='provider' icon={Icon} bgColor='#33C482' useAccent={false} />
+    )
+    expect(inline).toMatch(/^<span\b/)
+    expect(ordinary).toMatch(/^<div\b/)
+    expect(inline.replace(/^<span/, '<div').replace(/<\/span>$/, '</div>')).toBe(ordinary)
+  })
 })

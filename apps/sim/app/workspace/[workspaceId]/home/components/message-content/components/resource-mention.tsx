@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn } from '@sim/emcn'
+import { chipHoverSurfaceClass, chipTagVariants, cn, OverflowText } from '@sim/emcn'
 
 interface ResourceMentionProps {
   icon: ReactNode
@@ -8,12 +8,11 @@ interface ResourceMentionProps {
 }
 
 export function ResourceMention({ icon, title, onSelect }: ResourceMentionProps) {
-  const classes =
-    'inline-flex items-baseline gap-1 rounded-sm bg-[var(--surface-5)] px-[5px] align-baseline font-[inherit] text-[inherit] leading-[inherit]'
+  const classes = cn(chipTagVariants({ variant: 'mono' }), 'max-w-full align-middle')
   const content = (
     <>
       {icon}
-      {title}
+      <OverflowText label={title} focusTarget='nearest-interactive' />
     </>
   )
   if (!onSelect) return <span className={classes}>{content}</span>
@@ -21,7 +20,7 @@ export function ResourceMention({ icon, title, onSelect }: ResourceMentionProps)
     <button
       type='button'
       onClick={onSelect}
-      className={cn(classes, 'cursor-pointer transition-colors hover-hover:bg-[var(--surface-6)]')}
+      className={cn(classes, 'cursor-pointer transition-colors', chipHoverSurfaceClass)}
     >
       {content}
     </button>

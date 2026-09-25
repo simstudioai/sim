@@ -1,0 +1,179 @@
+/**
+ * @vitest-environment node
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockDownloadFile, mockUploadFile } = vi.hoisted(() => ({
+  mockDownloadFile: vi.fn(),
+  mockUploadFile: vi.fn(),
+}))
+
+vi.mock('@/lib/uploads/core/storage-service', () => ({
+  downloadFile: mockDownloadFile,
+  uploadFile: mockUploadFile,
+}))
+
+import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import {
+  loadCompiledDoc,
+  loadPublishedCompiledDoc,
+  storeCompiledDoc,
+} from '@/lib/mothership/tools/server/files/doc-compiled-store'
+import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
+
+describe('compiled document publication', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockDownloadFile.mockReset()
+    mockDownloadFile.mockRejectedValue(
+      Object.assign(new Error('Missing object'), { code: 'NoSuchKey' })
+    )
+  })
+
+  it('publishes a source-keyed pointer after storing a dependency-bound artifact', async () => {
+    await storeCompiledDoc(
+      'workspace-1',
+      'source',
+      'pdf',
+      'application/pdf',
+      Buffer.from('%PDF-artifact'),
+      'dependency-identity'
+    )
+
+    expect(mockUploadFile).toHaveBeenCalledTimes(2)
+    expect(mockUploadFile).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        file: Buffer.from(
+          JSON.stringify({ version: 1, referencedInputIdentity: 'dependency-identity' })
+        ),
+        contentType: 'application/json',
+        context: 'copilot',
+        preserveKey: true,
+      })
+    )
+  })
+
+  it('loads only the exact dependency-bound artifact named by the published pointer', async () => {
+    mockDownloadFile
+      .mockResolvedValueOnce(
+        Buffer.from(JSON.stringify({ version: 1, referencedInputIdentity: 'dependency-identity' }))
+      )
+      .mockResolvedValueOnce(Buffer.from('%PDF-artifact'))
+
+    await expect(loadPublishedCompiledDoc('workspace-1', 'source', 'pdf')).resolves.toEqual(
+      Buffer.from('%PDF-artifact')
+    )
+    expect(mockDownloadFile).toHaveBeenCalledTimes(2)
+    expect(mockDownloadFile.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({ context: 'copilot' })
+    )
+  })
+
+  it('bounds the artifact read so an oversized artifact is never materialized', async () => {
+    mockDownloadFile.mockResolvedValueOnce(
+      Buffer.from(JSON.stringify({ version: 1, referencedInputIdentity: 'dependency-identity' }))
+    )
+    mockDownloadFile.mockResolvedValueOnce(Buffer.from('%PDF-artifact'))
+
+    await loadPublishedCompiledDoc('workspace-1', 'source', 'pdf')
+
+    // The artifact is fetched separately from the source that names it, so a source
+    // that cleared its own ceiling says nothing about how large this is.
+    expect(mockDownloadFile.mock.calls[1]?.[0]).toEqual(
+      expect.objectContaining({ maxBytes: MAX_BUFFERED_TRANSFER_BYTES })
+    )
+  })
+
+  it('surfaces an oversized artifact instead of reporting it as not yet built', async () => {
+    // `null` means "still compiling", which callers answer with a retry — an artifact
+    // that is too large would sit behind that answer forever.
+    mockDownloadFile.mockResolvedValueOnce(
+      Buffer.from(JSON.stringify({ version: 1, referencedInputIdentity: 'dependency-identity' }))
+    )
+    mockDownloadFile.mockRejectedValueOnce(
+      new PayloadSizeLimitError({
+        label: 'storage download',
+        maxBytes: MAX_BUFFERED_TRANSFER_BYTES,
+        observedBytes: MAX_BUFFERED_TRANSFER_BYTES + 1,
+      })
+    )
+
+    await expect(loadPublishedCompiledDoc('workspace-1', 'source', 'pdf')).rejects.toThrow(
+      PayloadSizeLimitError
+    )
+  })
+
+  it('applies the caller budget and cancellation to both pointer and artifact downloads', async () => {
+    const signal = new AbortController().signal
+    const maxBytes = 25 * 1024 * 1024
+    mockDownloadFile
+      .mockResolvedValueOnce(
+        Buffer.from(JSON.stringify({ version: 1, referencedInputIdentity: 'x'.repeat(8192) }))
+      )
+      .mockResolvedValueOnce(Buffer.from('%PDF-artifact'))
+
+    await loadPublishedCompiledDoc('workspace-1', 'source', 'pdf', { maxBytes, signal })
+
+    expect(mockDownloadFile).toHaveBeenCalledTimes(2)
+    for (const [options] of mockDownloadFile.mock.calls) {
+      expect(options).toMatchObject({ maxBytes, signal })
+    }
+  })
+
+  it('cancels a pointer read without an uncancellable metadata preflight', async () => {
+    const controller = new AbortController()
+    mockDownloadFile.mockImplementationOnce(async ({ signal }) => {
+      expect(signal).toBe(controller.signal)
+      controller.abort()
+      signal.throwIfAborted()
+    })
+    await expect(
+      loadPublishedCompiledDoc('workspace-1', 'source', 'pdf', {
+        signal: controller.signal,
+      })
+    ).rejects.toMatchObject({ name: 'AbortError' })
+  })
+  it.each(['NoSuchKey', 'BlobNotFound', 'ENOENT', 404])(
+    'returns null for a missing pointer (%s)',
+    async (code) => {
+      mockDownloadFile.mockRejectedValueOnce(Object.assign(new Error('Missing'), { code }))
+      await expect(loadPublishedCompiledDoc('workspace-1', 'source', 'pdf')).resolves.toBeNull()
+    }
+  )
+  it('propagates pointer permission errors', async () => {
+    mockDownloadFile.mockRejectedValueOnce(new Error('Access denied'))
+    await expect(loadPublishedCompiledDoc('workspace-1', 'source', 'pdf')).rejects.toThrow(
+      'Access denied'
+    )
+  })
+  it('does not turn an interrupted artifact download into a cache miss', async () => {
+    const controller = new AbortController()
+    mockDownloadFile.mockImplementationOnce(async () => {
+      controller.abort()
+      throw new Error('download interrupted')
+    })
+    await expect(
+      loadCompiledDoc('workspace-1', 'source', 'pdf', undefined, { signal: controller.signal })
+    ).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('still reports a missing artifact as not yet built', async () => {
+    mockDownloadFile.mockResolvedValueOnce(
+      Buffer.from(JSON.stringify({ version: 1, referencedInputIdentity: 'dependency-identity' }))
+    )
+    mockDownloadFile.mockRejectedValueOnce(new Error('NoSuchKey'))
+
+    await expect(loadPublishedCompiledDoc('workspace-1', 'source', 'pdf')).rejects.toThrow(
+      'Published compiled document artifact is missing'
+    )
+  })
+
+  it('fails fast on a malformed published pointer', async () => {
+    mockDownloadFile.mockResolvedValueOnce(Buffer.from('{not-json'))
+
+    await expect(loadPublishedCompiledDoc('workspace-1', 'source', 'pdf')).rejects.toThrow(
+      'Published compiled document pointer is malformed'
+    )
+  })
+})

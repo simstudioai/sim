@@ -1,4 +1,5 @@
-import type { OptionItem } from '../../../../types'
+import { Chip } from '@sim/emcn'
+import type { OptionItem } from '@/app/workspace/[workspaceId]/home/types'
 
 interface OptionsProps {
   items: OptionItem[]
@@ -11,14 +12,15 @@ export function Options({ items, onSelect }: OptionsProps) {
   return (
     <div className='flex flex-wrap gap-2'>
       {items.map((item) => (
-        <button
+        <Chip
           key={item.id}
-          type='button'
+          variant='border'
+          shape='round'
           onClick={() => onSelect?.(item.id)}
-          className='rounded-full border border-[var(--border)] bg-[var(--bg)] px-3.5 py-1.5 font-inter text-[var(--text-primary)] text-sm leading-5 transition-colors hover-hover:bg-[var(--surface-5)]'
+          className='max-w-full'
         >
           {item.label}
-        </button>
+        </Chip>
       ))}
     </div>
   )

@@ -2,11 +2,9 @@
 
 import { File as FileIcon } from '@sim/emcn/icons'
 import { noop } from '@sim/utils/helpers'
-import {
-  type BreadcrumbItem,
-  ResourceChromeFallback,
-} from '@/app/workspace/[workspaceId]/components'
 import { FOLDERED_RESOURCE_HEADERS } from '@/app/workspace/[workspaceId]/components/folders/foldered-resources'
+import { ResourceChromeFallback } from '@/app/workspace/[workspaceId]/components/resource/components/resource-chrome-fallback'
+import type { BreadcrumbItem } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 
 const FILES_HEADER = FOLDERED_RESOURCE_HEADERS.file
 

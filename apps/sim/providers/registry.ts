@@ -21,6 +21,7 @@ import { openRouterProvider } from '@/providers/openrouter'
 import { sakanaProvider } from '@/providers/sakana'
 import { togetherProvider } from '@/providers/together'
 import type { ProviderConfig, ProviderId } from '@/providers/types'
+import { typesafeProvider } from '@/providers/typesafe'
 import { vertexProvider } from '@/providers/vertex'
 import { vllmProvider } from '@/providers/vllm'
 import { xAIProvider } from '@/providers/xai'
@@ -39,6 +40,7 @@ const providerRegistry: Record<ProviderId, ProviderConfig> = {
   cerebras: cerebrasProvider,
   groq: groqProvider,
   sakana: sakanaProvider,
+  typesafe: typesafeProvider,
   nvidia: nvidiaProvider,
   meta: metaProvider,
   zai: zaiProvider,

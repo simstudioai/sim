@@ -33,6 +33,9 @@ SHELL=/bin/sh
 # Workspace file search indexing dispatcher
 */1 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/workspace-file-search-dispatch"
 
+# Knowledge search projection convergence
+*/1 * * * * curl -fsS -m 60 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/cron/knowledge-projection"
+
 # Knowledge base connector syncs
 */5 * * * * curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/knowledge/connectors/sync"
 */5 * * * * curl -fsS -m 120 -o /dev/null -H "Authorization: Bearer $CRON_SECRET" "$SIM_URL/api/knowledge/connectors/member-sync"

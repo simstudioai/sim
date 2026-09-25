@@ -2626,6 +2626,62 @@
       "when": 1790051159355,
       "tag": "0375_document_connector_live_index",
       "breakpoints": true
+    },
+    {
+      "idx": 376,
+      "version": "7",
+      "when": 1790115308709,
+      "tag": "0376_knowledge_connector_detached_at",
+      "breakpoints": true
+    },
+    {
+      "idx": 377,
+      "version": "7",
+      "when": 1790119588517,
+      "tag": "0377_member_tombstone_cursor",
+      "breakpoints": true
+    },
+    {
+      "idx": 378,
+      "version": "7",
+      "when": 1790147511551,
+      "tag": "0378_knowledge_projection_dirty",
+      "breakpoints": true
+    },
+    {
+      "idx": 379,
+      "version": "7",
+      "when": 1790180334617,
+      "tag": "0379_sync_log_database_failure_class",
+      "breakpoints": true
+    },
+    {
+      "idx": 380,
+      "version": "7",
+      "when": 1790187690218,
+      "tag": "0380_mothership_staging_merge",
+      "breakpoints": true
+    },
+    {
+      "idx": 381,
+      "version": "7",
+      "when": 1790197970553,
+      "tag": "0381_browser_download_save_claim",
+      "breakpoints": true
+    },
+    {
+      "idx": 382,
+      "version": "7",
+      "when": 1790284582673,
+      "tag": "0382_workspace_file_search_dispatch_handoff",
+      "breakpoints": true
+    },
+    {
+      "idx": 383,
+      "version": "7",
+      "when": 1790296491758,
+      "tag": "0383_workspace_visit",
+      "breakpoints": true
     }
   ]
 }

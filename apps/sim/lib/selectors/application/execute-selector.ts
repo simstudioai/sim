@@ -1,3 +1,4 @@
+import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import {
   type ExecuteSelectorRequest,
@@ -144,7 +145,7 @@ async function executeAuthorizedSelector(args: {
       selectorKey: args.input.selectorKey as ServerSelectorKey,
       context: args.input.context,
       request: args.input.request,
-      requesterUserId: args.principal.userId,
+      requesterUserId: requirePrincipalSubjectUserId(args.principal),
       workspaceId: args.context.workspaceId,
       protectedValues,
     })
@@ -209,7 +210,7 @@ async function executeAuthorizedSelector(args: {
             if (credentialUseRecorded) return
             credentialUseRecorded = true
             recordCredentialAccess({
-              actorId: args.principal.userId,
+              actorId: requirePrincipalSubjectUserId(args.principal),
               workspaceId: args.context.workspaceId ?? null,
               resourceId: credentialResourceId,
               providerId: credential?.providerId ?? providerId,
@@ -230,7 +231,7 @@ async function executeAuthorizedSelector(args: {
       workspaceId: args.context.workspaceId,
       organizationId,
       principal: args.principal,
-      requesterUserId: args.principal.userId,
+      requesterUserId: requirePrincipalSubjectUserId(args.principal),
       credential,
       references: resolved.references,
       signal: args.input.signal,
@@ -326,7 +327,7 @@ const executeWorkspaceSelector = defineAuthorizedWorkspaceUseCase<
     if (context.workspaceId === undefined) throw new SelectorContextUnavailableError()
     return context
   },
-  authorizationOptions: {},
+  authorizationOptions: { delegation: { audience: 'sim:selectors', isWithinScope: () => true } },
   authorizeResource: ({ input, context }) => validateAuthorizedInput(input, context),
   execute: executeAuthorizedSelector,
 })
@@ -338,6 +339,7 @@ export const executeSelector: OperationUseCase<
   SelectorExecutionResult
 > = {
   operation: selectorOperations.execute,
+  delegationAudience: executeWorkspaceSelector.delegationAudience,
   async execute(args) {
     args = {
       ...args,

@@ -2,9 +2,14 @@ import { createLogger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { isRecordLike, omit } from '@sim/utils/object'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
-import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/payloads/store'
+import { MAX_TRACE_ARCHIVE_BYTES } from '@/lib/execution/payloads/limits'
+import {
+  materializeLargeValueRef,
+  storeExecutionTraceArchive,
+} from '@/lib/execution/payloads/store'
 import { FunctionalOutputsUnavailableError } from '@/lib/logs/execution/functional-outputs'
 import { projectTraceSpansForSecrets } from '@/lib/logs/execution/trace-secret-projection'
+import { traceSpansHaveHandledErrors } from '@/lib/logs/execution/trace-spans/handled-errors'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
   isResolvedSecretTraceProvenanceV1,
@@ -25,7 +30,7 @@ export const TRACE_STORE_REF_KEY = 'traceStoreRef'
 /**
  * The only metadata kept inline on the slim row (everything else lives in the
  * externalized object). Trace presence/count survives object expiry for log
- * diagnostics, while correlation preserves the server-issued binding used to
+ * diagnostics and handled-error filtering, while correlation preserves the server-issued binding used to
  * authenticate terminal Copilot workflow-tool executions. All other fields
  * (environment, trigger, tokens, models, truncation flags, and of course the
  * heavy payloads) are recovered from the stored object.
@@ -254,20 +259,20 @@ export async function externalizeExecutionData(
     const json = JSON.stringify(executionData)
     const size = Buffer.byteLength(json, 'utf8')
 
-    // storeLargeValue persists to the execution bucket with a conforming key and
-    // registers owner + dependency closure (trace -> nested span large values),
-    // so GC keeps nested children alive while this run's log row exists.
-    const ref = await storeLargeValue(executionData, json, size, {
+    /** Register the archive owner and dependencies so nested span values survive with the log. */
+    const ref = await storeExecutionTraceArchive(executionData, json, size, {
       workspaceId,
       workflowId,
       executionId,
       userId,
-      requireDurable: true,
     })
 
     const { preview: _preview, ...slimRef } = ref
 
-    const slim: Record<string, unknown> = { [TRACE_STORE_REF_KEY]: slimRef }
+    const slim: Record<string, unknown> = {
+      [TRACE_STORE_REF_KEY]: slimRef,
+      hasHandledErrors: traceSpansHaveHandledErrors(executionData.traceSpans),
+    }
     for (const key of INLINE_MARKER_KEYS) {
       if (key in executionData) slim[key] = executionData[key]
     }
@@ -316,7 +321,7 @@ export async function materializeExecutionData(
       workspaceId: context.workspaceId,
       workflowId,
       executionId: context.executionId,
-      maxBytes: ref.size,
+      maxBytes: Math.min(ref.size, MAX_TRACE_ARCHIVE_BYTES),
       // Read-only: the value is already referenced by its own execution; don't
       // re-register (or fail) on every view/export.
       trackReference: false,

@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   totals: vi.fn(),
   series: vi.fn(),
   breakdown: vi.fn(),
+  entities: vi.fn(),
   logs: vi.fn(),
   Unauthenticated: class extends Error {},
 }))
@@ -57,8 +58,8 @@ vi.mock('@/lib/billing/organizations/member-limits', () => ({
 vi.mock('@/lib/billing/core/usage-analytics-queries', () => ({
   readUsageTotals: mocks.totals,
   readUsageTimeSeries: mocks.series,
-  readUsageBreakdown: mocks.breakdown,
-  readUsageEntityNames: vi.fn().mockResolvedValue(new Map()),
+  readUsageGroups: mocks.breakdown,
+  readUsageEntities: mocks.entities,
 }))
 vi.mock('@/lib/billing/core/usage-log', () => ({ getBillingEntityUsageLogs: mocks.logs }))
 
@@ -134,6 +135,7 @@ beforeEach(() => {
   mocks.totals.mockResolvedValue({ cost: 1 })
   mocks.series.mockResolvedValue([])
   mocks.breakdown.mockResolvedValue([])
+  mocks.entities.mockResolvedValue(new Map())
   mocks.logs.mockResolvedValue({ logs: [], pagination: { hasMore: false, nextCursorKeys: null } })
 })
 afterEach(() => vi.useRealTimers())
@@ -424,6 +426,17 @@ describe('organization usage API authorization and bounds', () => {
     expect(mocks.totals).not.toHaveBeenCalled()
   })
 
+  it('keeps member avatars out of the public breakdown', async () => {
+    admin()
+    mocks.breakdown.mockResolvedValue([{ key: 'user-1', cost: 1, events: 1 }])
+    mocks.entities.mockResolvedValue(new Map([['user-1', { name: 'Ada', image: 'a.png' }]]))
+    const response = await breakdown(request('usage/breakdown?dimension=member'), usageContext)
+    expect(response.status).toBe(200)
+    const { data } = await response.json()
+    expect(data.rows).toEqual([expect.objectContaining({ id: 'user-1', label: 'Ada' })])
+    expect(data.rows[0]).not.toHaveProperty('image')
+  })
+
   it('reports an oversized breakdown instead of presenting a partial total', async () => {
     admin()
     mocks.breakdown.mockResolvedValue(
@@ -431,7 +444,9 @@ describe('organization usage API authorization and bounds', () => {
     )
     const response = await breakdown(request('usage/breakdown?dimension=member'), usageContext)
     expect(response.status).toBe(413)
-    expect(mocks.breakdown).toHaveBeenCalledWith(expect.any(Array), 'member', undefined, 10_000)
+    expect(mocks.breakdown).toHaveBeenCalledWith(
+      expect.objectContaining({ dimension: 'member', maxRows: 10_000 })
+    )
   })
 })
 

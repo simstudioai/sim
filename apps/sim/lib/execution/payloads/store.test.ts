@@ -8,12 +8,19 @@ import {
   clearLargeValueCacheForTests,
   materializeLargeValueRefSync,
 } from '@/lib/execution/payloads/cache'
-import { MAX_DURABLE_LARGE_VALUE_BYTES } from '@/lib/execution/payloads/limits'
+import {
+  MAX_DURABLE_LARGE_VALUE_BYTES,
+  MAX_TRACE_ARCHIVE_BYTES,
+} from '@/lib/execution/payloads/limits'
 import {
   readLargeValueRefFromStorage,
   readUserFileContent,
 } from '@/lib/execution/payloads/materialization.server'
-import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/payloads/store'
+import {
+  materializeLargeValueRef,
+  storeExecutionTraceArchive,
+  storeLargeValue,
+} from '@/lib/execution/payloads/store'
 import { EXECUTION_RESOURCE_LIMIT_CODE } from '@/lib/execution/resource-errors'
 
 const {
@@ -350,6 +357,51 @@ describe('large execution payload store', () => {
         requireDurable: true,
       })
     ).rejects.toMatchObject({ code: EXECUTION_RESOURCE_LIMIT_CODE })
+    expect(mockUploadFile).not.toHaveBeenCalled()
+  })
+
+  it('admits a trace archive at its separate size cap with durable ownership', async () => {
+    const ref = await storeExecutionTraceArchive({}, '{}', MAX_TRACE_ARCHIVE_BYTES, {
+      workspaceId: 'workspace-1',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+      userId: 'user-1',
+    })
+
+    expect(mockUploadFile).toHaveBeenCalledOnce()
+    expect(mockRegisterLargeValueOwner).toHaveBeenCalledWith(
+      expect.objectContaining({ key: ref.key, size: MAX_TRACE_ARCHIVE_BYTES }),
+      []
+    )
+    expect(materializeLargeValueRefSync(ref, { executionId: 'execution-1' })).toBeUndefined()
+  })
+
+  it('rejects archives above the trace cap before upload or metadata writes', async () => {
+    await expect(
+      storeExecutionTraceArchive({}, '{}', MAX_TRACE_ARCHIVE_BYTES + 1, {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+      })
+    ).rejects.toMatchObject({ code: EXECUTION_RESOURCE_LIMIT_CODE })
+    expect(mockUploadFile).not.toHaveBeenCalled()
+    expect(mockRegisterLargeValueOwner).not.toHaveBeenCalled()
+  })
+
+  it('requires durable storage for trace archives even if the caller disables it', async () => {
+    mockUploadFile.mockRejectedValueOnce(new Error('storage unavailable'))
+
+    await expect(
+      storeExecutionTraceArchive({}, '{}', 2, {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        requireDurable: false,
+      })
+    ).rejects.toThrow('storage unavailable')
+    expect(mockRegisterLargeValueOwner).not.toHaveBeenCalled()
   })
 
   it('bounds explicit server-side materialization', async () => {

@@ -1,26 +1,6 @@
-import { memo } from 'react'
-import { Avatar, AvatarFallback, AvatarImage } from '@sim/emcn'
+import { Avatar } from '@sim/emcn'
 import type { ResourceCell } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import type { WorkspaceMember } from '@/hooks/queries/workspace'
-
-export interface OwnerAvatarProps {
-  name: string
-  image: string | null
-}
-
-/**
- * The canonical 14px workspace-member avatar — a photo, or the member's initial on a neutral
- * disc. Shared so a member reads identically in a resource row's owner cell and in the
- * owner/uploaded-by filter options on every list.
- */
-export const OwnerAvatar = memo(function OwnerAvatar({ name, image }: OwnerAvatarProps) {
-  return (
-    <Avatar size='xs'>
-      {image && <AvatarImage src={image} alt={name} referrerPolicy='no-referrer' />}
-      <AvatarFallback>{name.charAt(0).toUpperCase()}</AvatarFallback>
-    </Avatar>
-  )
-})
 
 /**
  * Resolves a user ID into a ResourceCell with an avatar icon and display name.
@@ -42,7 +22,7 @@ export function ownerCell(
   if (!member) return { label: null }
 
   return {
-    icon: <OwnerAvatar name={member.name} image={member.image} />,
+    icon: <Avatar size='xs' name={member.name} src={member.image} aria-hidden />,
     label: member.name,
   }
 }

@@ -41,6 +41,9 @@ async function authorizeWorkspaceSection(
   },
   permission: NonNullable<Awaited<ReturnType<typeof checkWorkspaceAccess>>['permission']>
 ): Promise<WorkspaceSettingsSectionAccess> {
+  if (section === 'requests' && !workspace.organizationId) {
+    return { allowed: false, disposition: 'redirect-general' }
+  }
   const [accessControl, forksAvailable, customBlocksAvailable] = await Promise.all([
     workspaceSectionUsesPermissionConfig(section)
       ? resolveVerifiedUserAccessControlContext(

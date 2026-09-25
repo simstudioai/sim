@@ -26,7 +26,7 @@ const mockGetSession = authMockFns.mockGetSession
 describe('GET /api/usage organization context', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetSession.mockResolvedValue({ user: { id: 'member-1' } })
+    mockGetSession.mockResolvedValue({ user: { id: 'member-1' }, session: { id: 'session' } })
   })
 
   it('rejects ordinary members before loading organization usage data', async () => {

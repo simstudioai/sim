@@ -224,6 +224,7 @@ export class LoggingSession {
   private traceLargeValueAccess: LargeValueStoreContext = {}
   private executionDeadlineAt?: Date
   private persistedCompletionStatus: PersistedWorkflowExecutionStatus | null = null
+  private lastCompletionError: string | null = null
 
   constructor(
     workflowId: string,
@@ -1435,6 +1436,7 @@ export class LoggingSession {
   }
 
   async safeCompleteWithError(params?: SessionErrorCompleteParams): Promise<void> {
+    this.lastCompletionError = params?.error?.message ?? null
     return this.runCompletionAttempt('error', () => this._safeCompleteWithErrorImpl(params))
   }
 

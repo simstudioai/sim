@@ -2,7 +2,7 @@ import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import type { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
+import { generateId, isValidUuid } from '@sim/utils/id'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
@@ -10,14 +10,12 @@ import { createTimeoutAbortController, getTimeoutErrorMessage } from '@/lib/core
 import { SSE_HEADERS } from '@/lib/core/utils/sse'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { validateCallChain } from '@/lib/execution/call-chain'
-import { processInputFileFields } from '@/lib/execution/files'
 import { containsLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { compactExecutionPayload } from '@/lib/execution/payloads/serializer'
 import { preprocessExecution } from '@/lib/execution/preprocessing'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { MAX_MCP_WORKFLOW_RESPONSE_BYTES } from '@/lib/mcp/constants'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
-import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { enqueueWorkflowExecution } from '@/lib/workflows/executor/enqueue-execution'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -40,17 +38,15 @@ import {
   createStreamingResponse,
 } from '@/lib/workflows/streaming/streaming'
 import { workflowHasResponseBlock } from '@/lib/workflows/utils'
-import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
-import type { NormalizedBlockOutput } from '@/executor/types'
+import type { BlockLog, NormalizedBlockOutput } from '@/executor/types'
 import {
   classifyExecutionError,
   hasExecutionResult,
   type StructuredExecutionError,
 } from '@/executor/utils/errors'
 import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
-import { Serializer } from '@/serializer'
 import type { CoreTriggerType } from '@/stores/logs/filters/types'
 
 const logger = createLogger('WorkflowExecuteService')
@@ -121,6 +117,8 @@ export interface ExecuteWorkflowServiceParams {
     startBlockId: string
     sourceSnapshot: SerializableExecutionState
     sourceExecutionId: string
+    /** Mocked upstream outputs (block name/id → output object) overlaid on the snapshot. */
+    variableInputs?: Record<string, unknown>
   }
 }
 
@@ -143,6 +141,8 @@ export interface ExecuteWorkflowServiceRun {
   aborted: 'client' | 'timeout' | null
   output: NormalizedBlockOutput | undefined
   error: StructuredExecutionError | null
+  /** Outputs of the blocks named by `selectedOutputs`, keyed by the caller's selector strings. */
+  blockOutputs?: Record<string, unknown> | null
   /** Trusted execution-local catalog used by internal callers to project model-visible output. */
   resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   hasResponseBlock: boolean
@@ -456,7 +456,7 @@ export async function executeWorkflowService(
       return { ok: true, queued: true, executionId, jobId: enqueue.jobId }
     }
 
-    let processedInput = input
+    const processedInput = input
     let workflowVariables: Record<string, unknown> = {}
     let workflowBlocks: Record<string, unknown> = {}
     try {
@@ -488,27 +488,6 @@ export async function executeWorkflowService(
             : undefined) ??
           (workflow.variables as Record<string, unknown> | null) ??
           {}
-
-        // Custom blocks resolve only inside the org overlay; wrap this pre-execution
-        // serialize (used for input file-field discovery) the same way the core does.
-        const customBlockRows = await getCustomBlockRowsForWorkspace(workspaceId)
-        const serializedWorkflow = await withCustomBlockOverlay(customBlockRows, async () =>
-          new Serializer().serializeWorkflow(
-            workflowData.blocks,
-            workflowData.edges,
-            workflowData.loops || {},
-            workflowData.parallels || {},
-            false
-          )
-        )
-
-        processedInput = await processInputFileFields(
-          input,
-          serializedWorkflow.blocks,
-          { workspaceId, workflowId, executionId },
-          requestId,
-          actorUserId
-        )
       } else {
         workflowVariables = (workflow.variables as Record<string, unknown> | null) ?? {}
       }
@@ -534,18 +513,25 @@ export async function executeWorkflowService(
       })
     }
 
+    /**
+     * Validated before the run starts, for the sync path as much as the stream:
+     * a selector whose block does not exist is a caller mistake to answer with a
+     * 400 up front, not a run to execute and then answer with a silently emptier
+     * `blockOutputs`.
+     */
+    let resolvedSelectedOutputs: string[] | undefined
+    try {
+      resolvedSelectedOutputs = await resolveOutputIds(selectedOutputs, workflowBlocks)
+    } catch (error) {
+      await releaseExecutionSlot(executionId)
+      return failure({
+        kind: 'input',
+        message: `Invalid selectedOutputs: ${getErrorMessage(error)}`,
+        statusCode: 400,
+      })
+    }
+
     if (mode === 'stream') {
-      let resolvedSelectedOutputs: string[] | undefined
-      try {
-        resolvedSelectedOutputs = await resolveOutputIds(selectedOutputs, workflowBlocks)
-      } catch (error) {
-        await releaseExecutionSlot(executionId)
-        return failure({
-          kind: 'input',
-          message: `Invalid selectedOutputs: ${getErrorMessage(error)}`,
-          statusCode: 400,
-        })
-      }
       const streamWorkflow = {
         id: workflow.id,
         /**
@@ -743,6 +729,10 @@ export async function executeWorkflowService(
             status: 'failed',
             aborted: 'timeout',
             output: compactTimeoutOutput,
+            blockOutputs: await compactServiceOutput(
+              await pickRunBlockOutputs(selectedOutputs, workflowBlocks, result.logs),
+              compactionContext
+            ),
             error: { message: timeoutErrorMessage, code: 'TIMEOUT' },
             resolvedSecretTraceProvenance: result.executionState?.resolvedSecretTraceProvenance,
             hasResponseBlock: false,
@@ -788,6 +778,10 @@ export async function executeWorkflowService(
           status,
           aborted: null,
           output: compactOutput,
+          blockOutputs: await compactServiceOutput(
+            await pickRunBlockOutputs(selectedOutputs, workflowBlocks, result.logs),
+            compactionContext
+          ),
           error:
             status === 'failed' || (status === 'cancelled' && result.error)
               ? classifyExecutionError(result.error ? new Error(result.error) : undefined, result)
@@ -835,10 +829,15 @@ export async function executeWorkflowService(
         reqLogger.error(`Execution failed: ${errorMessage}`)
 
         let compactErrorOutput: NormalizedBlockOutput | undefined
+        let compactErrorBlockOutputs: Record<string, unknown> | null = null
         if (executionResult && Object.hasOwn(executionResult, 'output')) {
           try {
             compactErrorOutput = await compactServiceOutput(
               executionResult.output,
+              compactionContext
+            )
+            compactErrorBlockOutputs = await compactServiceOutput(
+              await pickRunBlockOutputs(selectedOutputs, workflowBlocks, executionResult.logs),
               compactionContext
             )
           } catch (compactError) {
@@ -866,6 +865,7 @@ export async function executeWorkflowService(
           status: 'failed',
           aborted: null,
           output: compactErrorOutput,
+          blockOutputs: compactErrorBlockOutputs,
           error: classifyExecutionError(error, executionResult),
           resolvedSecretTraceProvenance:
             executionResult?.executionState?.resolvedSecretTraceProvenance,
@@ -919,4 +919,70 @@ export async function resolveOutputIds(
     selectedOutputs,
     currentBlocks: blocks as Record<string, BlockState>,
   })
+}
+
+const UUID_LENGTH = 36
+
+function resolveOutputPath(value: unknown, path: string[]): unknown {
+  let current: unknown = value
+  for (const segment of path) {
+    if (current == null || typeof current !== 'object') return undefined
+    current = (current as Record<string, unknown>)[segment]
+  }
+  return current
+}
+
+/**
+ * Projects `selectedOutputs` onto a finished run's block logs, so a sync run
+ * answers with the named blocks' outputs in the same response — no second call
+ * to the run resource and no block-name→id translation for the caller.
+ *
+ * Keys are the caller's original selector strings. A selector whose block never
+ * ran, resolved to no block, or whose path is absent is omitted — the same
+ * missing-fields-are-omitted contract the streamed and finished-run selections
+ * follow. The last log per block wins, so a block inside a loop reports its
+ * final iteration's output.
+ */
+export async function pickRunBlockOutputs(
+  selectedOutputs: string[] | undefined,
+  blocks: Record<string, unknown>,
+  logs: BlockLog[] | undefined
+): Promise<Record<string, unknown> | null> {
+  if (!selectedOutputs || selectedOutputs.length === 0) return null
+
+  const outputByBlockId = new Map<string, unknown>()
+  for (const log of logs ?? []) {
+    if (log.output !== undefined) outputByBlockId.set(log.blockId, log.output)
+  }
+
+  const resolved = (await resolveOutputIds(selectedOutputs, blocks)) ?? []
+  const picked: Record<string, unknown> = {}
+  for (let i = 0; i < selectedOutputs.length; i++) {
+    const selector = selectedOutputs[i]
+    const resolvedId = resolved[i]
+    if (!selector || !resolvedId) continue
+
+    let blockId: string
+    let path: string[]
+    if (isValidUuid(resolvedId)) {
+      blockId = resolvedId
+      path = []
+    } else if (
+      resolvedId.charAt(UUID_LENGTH) === '_' &&
+      isValidUuid(resolvedId.slice(0, UUID_LENGTH))
+    ) {
+      blockId = resolvedId.slice(0, UUID_LENGTH)
+      path = resolvedId.slice(UUID_LENGTH + 1).split('.')
+    } else {
+      continue
+    }
+
+    if (!outputByBlockId.has(blockId)) continue
+    const value =
+      path.length === 0
+        ? outputByBlockId.get(blockId)
+        : resolveOutputPath(outputByBlockId.get(blockId), path)
+    if (value !== undefined) picked[selector] = value
+  }
+  return picked
 }

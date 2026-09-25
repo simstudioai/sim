@@ -1,0 +1,1534 @@
+import { SpanKind, trace } from '@opentelemetry/api'
+import { db } from '@sim/db'
+import {
+  type CopilotAsyncToolStatus,
+  type CopilotRunStatus,
+  type CopilotToolPermissionDecision,
+  copilotAsyncToolCalls,
+  copilotChats,
+  copilotOrganizationRequestStops,
+  copilotRequestStops,
+  copilotRuns,
+} from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { filterUndefined } from '@sim/utils/object'
+import { sanitizeValueForJsonb } from '@sim/utils/string'
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  notInArray,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
+import { type ResourceOwner, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import type { SessionProcessIdentity } from '@/lib/execution/remote-sandbox/session-process'
+import { AsyncToolCallOwnershipError } from '@/lib/mothership/async-runs/errors'
+import {
+  INTERRUPTED_SIM_TOOL_MESSAGE,
+  SIM_TOOL_EXECUTION_LEASE_SECONDS,
+  SimToolExecutionLeaseLostError,
+  type SimToolExecutionOwner,
+} from '@/lib/mothership/async-runs/execution-lease'
+import {
+  ASYNC_TOOL_STATUS,
+  type AsyncCompletionData,
+  type AsyncTerminalStatus,
+  DESKTOP_TOOL_CLAIM_OWNER,
+  EXECUTABLE_TOOL_PERMISSION_DECISIONS,
+} from '@/lib/mothership/async-runs/lifecycle'
+import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
+import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
+import {
+  traceMothershipQuery,
+  traceMothershipTransaction,
+} from '@/lib/mothership/observability/database'
+import type { BillingAdmission } from '@/lib/mothership/request/lifecycle/recovery-config'
+import { markSpanForError } from '@/lib/mothership/request/otel'
+import { chatSandboxSessionKey } from '@/lib/mothership/tools/sandbox-session-key'
+
+const logger = createLogger('CopilotAsyncRunsRepo')
+const WORKFLOW_EXECUTION_CLAIM_PREFIX = 'workflow:'
+const SIM_TOOL_EXECUTION_VERSION = 2
+const TERMINAL_RUN_STATUSES: CopilotRunStatus[] = ['complete', 'error', 'cancelled']
+// Resolve the tracer lazily per-call to avoid capturing the NoOp tracer
+// before NodeSDK installs the global TracerProvider (Next.js 16/Turbopack
+// can evaluate modules before instrumentation-node.ts finishes).
+const getAsyncRunsTracer = () => trace.getTracer('sim-copilot-async-runs', '1.0.0')
+
+/**
+ * Wrap an async DB op in a client-kind span with canonical `db.*` attrs.
+ * Cancellation is routed through `markSpanForError` so aborts record the
+ * exception event but don't paint spans red.
+ *
+ * Every caller writes `return await withDbSpan(...)`. The `await` is
+ * load-bearing, not redundant: Next 16.3.0's Turbopack optimizer models a bare
+ * `return <asyncCall>()` tail call as returning the promise object, then
+ * propagates that always-truthy fact through the caller's `await`. It deleted
+ * the entire insert path from `upsertAsyncToolCall` in the shipped bundle
+ * because `if (existing) return existing` looked always-taken.
+ */
+async function withDbSpan<T>(
+  name: string,
+  op: string,
+  table: string,
+  attrs: Record<string, string | number | boolean | undefined>,
+  fn: () => Promise<T>
+): Promise<T> {
+  return getAsyncRunsTracer().startActiveSpan(
+    name,
+    {
+      kind: SpanKind.CLIENT,
+      attributes: {
+        [TraceAttr.DbSystem]: 'postgresql',
+        [TraceAttr.DbOperation]: op,
+        [TraceAttr.DbSqlTable]: table,
+        ...filterUndefined(attrs),
+      },
+    },
+    async (span) => {
+      try {
+        return await fn()
+      } catch (error) {
+        markSpanForError(span, error)
+        throw error
+      } finally {
+        span.end()
+      }
+    }
+  )
+}
+
+export interface CreateRunSegmentInput {
+  id?: string
+  executionId: string
+  parentRunId?: string | null
+  chatId: string
+  userId: string
+  workflowId?: string | null
+  workspaceId?: string | null
+  organizationId?: string | null
+  streamId: string
+  agent?: string | null
+  model?: string | null
+  provider?: string | null
+  requestContext?: Record<string, unknown>
+  status?: CopilotRunStatus
+}
+
+type RunAdmissionTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+/** Serializes Stop and admission, including when no run row exists to lock yet. */
+export async function withRunAdmissionLock<T>(
+  userId: string,
+  streamId: string,
+  action: (tx: RunAdmissionTransaction) => Promise<T>
+): Promise<T> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SET LOCAL statement_timeout = '10s'`)
+    const key = JSON.stringify(['copilot-run-admission', userId, streamId])
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`)
+    return action(tx)
+  })
+}
+
+/** Stop is durable before worker delivery; admission and all later segments share this intent. */
+interface RunStopInput extends ResourceOwner {
+  userId: string
+  streamId: string
+}
+
+function stopLocation(input: RunStopInput) {
+  const owner = resourceScopeFromOwner(input)
+  const table =
+    owner.kind === 'organization' ? copilotOrganizationRequestStops : copilotRequestStops
+  const ownerMatch =
+    owner.kind === 'organization'
+      ? eq(copilotOrganizationRequestStops.organizationId, owner.organizationId)
+      : eq(copilotRequestStops.workspaceId, owner.workspaceId)
+  return {
+    table,
+    predicate: and(eq(table.userId, input.userId), ownerMatch, eq(table.streamId, input.streamId)),
+  }
+}
+
+export async function requestRunStop(
+  input: RunStopInput & {
+    chatId?: string
+  }
+) {
+  resourceScopeFromOwner(input)
+  return withRunAdmissionLock(input.userId, input.streamId, async (tx) => {
+    const [run] = await tx
+      .select()
+      .from(copilotRuns)
+      .where(and(eq(copilotRuns.userId, input.userId), eq(copilotRuns.streamId, input.streamId)))
+      .limit(1)
+    if (
+      run &&
+      ((run.workspaceId ?? null) !== (input.workspaceId ?? null) ||
+        (run.organizationId ?? null) !== (input.organizationId ?? null) ||
+        (input.chatId && run.chatId !== input.chatId))
+    )
+      return run
+    const { userId, streamId } = input
+    const owner = resourceScopeFromOwner(input)
+    if (owner.kind === 'organization') {
+      await tx
+        .insert(copilotOrganizationRequestStops)
+        .values({ userId, organizationId: owner.organizationId, streamId })
+        .onConflictDoNothing()
+    } else {
+      await tx
+        .insert(copilotRequestStops)
+        .values({ userId, workspaceId: owner.workspaceId, streamId })
+        .onConflictDoNothing()
+    }
+    if (run) {
+      await tx
+        .update(copilotRuns)
+        .set({ toolAdmissionClosedAt: sql`coalesce(${copilotRuns.toolAdmissionClosedAt}, now())` })
+        .where(and(eq(copilotRuns.userId, input.userId), eq(copilotRuns.streamId, input.streamId)))
+    }
+    return run ?? null
+  })
+}
+
+export async function isRunStopRequested(input: RunStopInput): Promise<boolean> {
+  const { table, predicate } = stopLocation(input)
+  const [stop] = await db.select({ streamId: table.streamId }).from(table).where(predicate).limit(1)
+  return !!stop
+}
+
+export async function createRunSegment(input: CreateRunSegmentInput) {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsCreateRunSegment,
+    'INSERT',
+    'copilot_runs',
+    {
+      [TraceAttr.CopilotExecutionId]: input.executionId,
+      [TraceAttr.ChatId]: input.chatId,
+      [TraceAttr.StreamId]: input.streamId,
+      [TraceAttr.UserId]: input.userId,
+      [TraceAttr.CopilotRunParentId]: input.parentRunId ?? undefined,
+      [TraceAttr.CopilotRunAgent]: input.agent ?? undefined,
+      [TraceAttr.CopilotRunModel]: input.model ?? undefined,
+      [TraceAttr.CopilotRunProvider]: input.provider ?? undefined,
+      [TraceAttr.CopilotRunStatus]: input.status ?? 'active',
+    },
+    () => withRunAdmissionLock(input.userId, input.streamId, (tx) => insertRunSegment(tx, input))
+  )
+}
+
+/** Caller holds the Stop/admission lock; its related chat writes commit with this run. */
+export async function insertRunSegment(tx: RunAdmissionTransaction, input: CreateRunSegmentInput) {
+  let workspaceId = input.workspaceId
+  let organizationId = input.organizationId
+  if (!workspaceId && !organizationId) {
+    const [chat] = await tx
+      .select({
+        workspaceId: copilotChats.workspaceId,
+        organizationId: copilotChats.organizationId,
+      })
+      .from(copilotChats)
+      .where(and(eq(copilotChats.id, input.chatId), eq(copilotChats.userId, input.userId)))
+      .limit(1)
+    workspaceId = chat?.workspaceId
+    organizationId = chat?.organizationId
+  }
+  const { table, predicate } = stopLocation({ ...input, workspaceId, organizationId })
+  const [stop] = await tx
+    .select({ stoppedAt: table.stoppedAt })
+    .from(table)
+    .where(predicate)
+    .limit(1)
+  const [run] = await tx
+    .insert(copilotRuns)
+    .values({
+      ...(input.id ? { id: input.id } : {}),
+      executionId: input.executionId,
+      parentRunId: input.parentRunId ?? null,
+      chatId: input.chatId,
+      userId: input.userId,
+      workflowId: input.workflowId ?? null,
+      workspaceId: workspaceId ?? null,
+      organizationId: organizationId ?? null,
+      streamId: input.streamId,
+      toolExecutionVersion: SIM_TOOL_EXECUTION_VERSION,
+      agent: input.agent ?? null,
+      model: input.model ?? null,
+      provider: input.provider ?? null,
+      requestContext: input.requestContext ?? {},
+      status: stop ? 'cancelled' : (input.status ?? 'active'),
+      ...(stop ? { completedAt: sql`now()`, toolAdmissionClosedAt: stop.stoppedAt } : {}),
+    })
+    .returning()
+  if (!run) throw new Error('Run admission did not return its persisted identity')
+  return run
+}
+
+export async function updateRunStatus(
+  runId: string,
+  status: CopilotRunStatus,
+  updates: {
+    completedAt?: Date | null
+    error?: string | null
+  } = {},
+  controllerToken?: string
+) {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsUpdateRunStatus,
+    'UPDATE',
+    'copilot_runs',
+    {
+      [TraceAttr.RunId]: runId,
+      [TraceAttr.CopilotRunStatus]: status,
+      [TraceAttr.CopilotRunHasError]: !!updates.error,
+      [TraceAttr.CopilotRunHasCompletedAt]: !!updates.completedAt,
+    },
+    async () => {
+      const [run] = await db
+        .update(copilotRuns)
+        .set({
+          status,
+          ...(TERMINAL_RUN_STATUSES.includes(status)
+            ? { toolAdmissionClosedAt: sql`coalesce(${copilotRuns.toolAdmissionClosedAt}, now())` }
+            : {}),
+          completedAt: TERMINAL_RUN_STATUSES.includes(status)
+            ? (updates.completedAt ?? sql`now()`)
+            : updates.completedAt,
+          error: updates.error,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(copilotRuns.id, runId),
+            notInArray(copilotRuns.status, TERMINAL_RUN_STATUSES),
+            controllerToken
+              ? sql`${copilotRuns.requestContext}->>'controllerToken' = ${controllerToken}`
+              : undefined
+          )
+        )
+        .returning({ id: copilotRuns.id, status: copilotRuns.status })
+      return run ?? null
+    }
+  )
+}
+
+/** Persist admission without replacing recovery intent or any concurrently updated context. */
+export async function recordRunBillingAdmission(
+  runId: string,
+  admission: BillingAdmission,
+  controllerToken: string
+) {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsUpdateRunStatus,
+    'UPDATE',
+    'copilot_runs',
+    { [TraceAttr.RunId]: runId },
+    async () => {
+      const [run] = await db
+        .update(copilotRuns)
+        .set({
+          requestContext: sql`jsonb_set(${copilotRuns.requestContext}, '{recovery,billingAdmission}', ${JSON.stringify(admission)}::jsonb)`,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(copilotRuns.id, runId),
+            notInArray(copilotRuns.status, TERMINAL_RUN_STATUSES),
+            sql`${copilotRuns.requestContext}->>'controllerToken' = ${controllerToken}`,
+            sql`${copilotRuns.requestContext}->'recovery'->>'kind' = 'interactive_stream'`
+          )
+        )
+        .returning({ id: copilotRuns.id, status: copilotRuns.status })
+      return run ?? null
+    }
+  )
+}
+
+// Un-instrumented: called from a 4 Hz resume poll; per-call spans
+// swamped traces. Use Prom histograms if latency visibility is needed.
+export async function getLatestRunForStream(streamId: string, userId?: string) {
+  const conditions = userId
+    ? and(eq(copilotRuns.streamId, streamId), eq(copilotRuns.userId, userId))
+    : eq(copilotRuns.streamId, streamId)
+  const [run] = await db
+    .select()
+    .from(copilotRuns)
+    .where(conditions)
+    .orderBy(desc(copilotRuns.startedAt))
+    .limit(1)
+  return run ?? null
+}
+
+export async function getRunSegment(runId: string) {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsGetRunSegment,
+    'SELECT',
+    'copilot_runs',
+    { [TraceAttr.RunId]: runId },
+    async () => {
+      const [run] = await db
+        .select({
+          id: copilotRuns.id,
+          userId: copilotRuns.userId,
+          status: copilotRuns.status,
+          workflowId: copilotRuns.workflowId,
+          // Needed to scope an "allow for this chat" decision to its chat.
+          chatId: copilotRuns.chatId,
+          // Needed to resolve the deciding user's permission group.
+          workspaceId: copilotRuns.workspaceId,
+          organizationId: copilotRuns.organizationId,
+        })
+        .from(copilotRuns)
+        .where(eq(copilotRuns.id, runId))
+        .limit(1)
+      return run ?? null
+    }
+  )
+}
+
+export async function upsertAsyncToolCall(input: {
+  runId?: string | null
+  checkpointId?: string | null
+  toolCallId: string
+  toolName: string
+  args?: Record<string, unknown>
+  status?: CopilotAsyncToolStatus
+  sealedContext?: AsyncCompletionData
+}) {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsUpsertAsyncToolCall,
+    'UPSERT',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: input.toolCallId,
+      [TraceAttr.ToolName]: input.toolName,
+      [TraceAttr.CopilotAsyncToolStatus]: input.status ?? 'pending',
+      [TraceAttr.RunId]: input.runId ?? undefined,
+    },
+    async () => {
+      const existing = await getAsyncToolCall(input.toolCallId)
+      if (existing) {
+        if (input.runId && existing.runId !== input.runId) {
+          throw new AsyncToolCallOwnershipError()
+        }
+        return existing
+      }
+
+      const incomingStatus = input.status ?? 'pending'
+      const effectiveRunId = input.runId ?? null
+      if (!effectiveRunId) {
+        logger.warn('upsertAsyncToolCall missing runId and no existing row', {
+          toolCallId: input.toolCallId,
+          toolName: input.toolName,
+          status: input.status ?? 'pending',
+        })
+        return null
+      }
+
+      const now = new Date()
+      const args = sanitizeValueForJsonb(input.args ?? {})
+      const sealedContext = sanitizeValueForJsonb(input.sealedContext)
+      const [row] = await traceMothershipQuery('INSERT', 'copilot_async_tool_calls', () =>
+        db
+          .insert(copilotAsyncToolCalls)
+          .values({
+            runId: effectiveRunId,
+            checkpointId: input.checkpointId ?? null,
+            toolCallId: input.toolCallId,
+            toolName: input.toolName,
+            args,
+            status: incomingStatus,
+            ...(sealedContext !== undefined ? { result: sealedContext } : {}),
+            updatedAt: now,
+          })
+          .onConflictDoNothing()
+          .returning()
+      )
+
+      const persisted = row ?? (await getAsyncToolCall(input.toolCallId))
+      if (persisted && persisted.runId !== effectiveRunId) {
+        throw new AsyncToolCallOwnershipError()
+      }
+      return persisted
+    }
+  )
+}
+
+export async function getAsyncToolCall(toolCallId: string) {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsGetAsyncToolCall,
+    'SELECT',
+    'copilot_async_tool_calls',
+    { [TraceAttr.ToolCallId]: toolCallId },
+    async () => {
+      const [row] = await db
+        .select()
+        .from(copilotAsyncToolCalls)
+        .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+        .limit(1)
+      return row ?? null
+    }
+  )
+}
+
+async function markAsyncToolStatus(
+  toolCallId: string,
+  status: CopilotAsyncToolStatus,
+  updates: {
+    claimedBy?: string | null
+    claimedAt?: Date | null
+    result?: AsyncCompletionData | null
+    error?: string | null
+    completedAt?: Date | null
+  } = {},
+  expectedStatuses?: CopilotAsyncToolStatus[],
+  expectedClaimedBy?: string,
+  expectedExecutionOwnerToken?: string
+) {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: toolCallId,
+      [TraceAttr.CopilotAsyncToolStatus]: status,
+      [TraceAttr.CopilotAsyncToolHasError]: !!updates.error,
+      [TraceAttr.CopilotAsyncToolClaimedBy]: expectedClaimedBy ?? updates.claimedBy ?? undefined,
+    },
+    async () => {
+      const claimedAt =
+        updates.claimedAt !== undefined
+          ? updates.claimedAt
+          : status === 'running' && updates.claimedBy
+            ? new Date()
+            : undefined
+
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          status,
+          claimedBy: updates.claimedBy,
+          claimedAt,
+          // Results carry client/page-derived text; lone UTF-16 surrogates or
+          // NULs in it would make the jsonb write throw (invalid JSON input).
+          result: sanitizeValueForJsonb(updates.result),
+          error: updates.error,
+          completedAt: updates.completedAt,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            expectedStatuses ? inArray(copilotAsyncToolCalls.status, expectedStatuses) : undefined,
+            expectedClaimedBy ? eq(copilotAsyncToolCalls.claimedBy, expectedClaimedBy) : undefined,
+            expectedExecutionOwnerToken
+              ? and(
+                  eq(copilotAsyncToolCalls.executionOwnerToken, expectedExecutionOwnerToken),
+                  isNull(copilotAsyncToolCalls.executionRevokedAt),
+                  sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`
+                )
+              : undefined
+          )
+        )
+        .returning()
+
+      return row ?? null
+    }
+  )
+}
+
+export async function markAsyncToolRunning(toolCallId: string, claimedBy: string) {
+  return markAsyncToolStatus(toolCallId, 'running', { claimedBy })
+}
+
+export type SimToolExecutionClaim =
+  | { outcome: 'claimed' }
+  | { outcome: 'closed' }
+  | { outcome: 'existing' }
+
+/** Serializes admission with Stop; a terminal tool result never releases this execution claim. */
+export async function claimSimToolExecution(
+  input: SimToolExecutionOwner
+): Promise<SimToolExecutionClaim> {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: input.toolCallId,
+      [TraceAttr.RunId]: input.runId,
+    },
+    () =>
+      traceMothershipTransaction<SimToolExecutionClaim>('claim_tool', async (tx) => {
+        const [run] = await traceMothershipQuery('SELECT FOR UPDATE', 'copilot_runs', () =>
+          tx
+            .select({
+              toolExecutionVersion: copilotRuns.toolExecutionVersion,
+              toolAdmissionClosedAt: copilotRuns.toolAdmissionClosedAt,
+              status: copilotRuns.status,
+            })
+            .from(copilotRuns)
+            .where(and(eq(copilotRuns.id, input.runId), eq(copilotRuns.userId, input.userId)))
+            .for('update')
+        )
+        if (!run || run.toolExecutionVersion !== SIM_TOOL_EXECUTION_VERSION)
+          throw new Error('Tool execution ownership is unavailable for this run')
+        if (run.toolAdmissionClosedAt || TERMINAL_RUN_STATUSES.includes(run.status))
+          return { outcome: 'closed' }
+        const startedAt = new Date()
+        const [claimed] = await traceMothershipQuery('UPDATE', 'copilot_async_tool_calls', () =>
+          tx
+            .update(copilotAsyncToolCalls)
+            .set({
+              status: ASYNC_TOOL_STATUS.running,
+              claimedBy: 'sim-stream',
+              claimedAt: startedAt,
+              executionStartedAt: startedAt,
+              executionOwnerToken: input.ownerToken,
+              executionLeaseExpiresAt: sql`clock_timestamp() + ${SIM_TOOL_EXECUTION_LEASE_SECONDS} * interval '1 second'`,
+              updatedAt: startedAt,
+            })
+            .where(
+              and(
+                eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+                eq(copilotAsyncToolCalls.runId, input.runId),
+                isNull(copilotAsyncToolCalls.executionStartedAt),
+                inArray(copilotAsyncToolCalls.status, [
+                  ASYNC_TOOL_STATUS.pending,
+                  ASYNC_TOOL_STATUS.running,
+                ])
+              )
+            )
+            .returning({ id: copilotAsyncToolCalls.id })
+        )
+        if (claimed) return { outcome: 'claimed' }
+        const [record] = await traceMothershipQuery('SELECT', 'copilot_async_tool_calls', () =>
+          tx
+            .select({ id: copilotAsyncToolCalls.id })
+            .from(copilotAsyncToolCalls)
+            .where(
+              and(
+                eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+                eq(copilotAsyncToolCalls.runId, input.runId)
+              )
+            )
+        )
+        if (!record) throw new Error('Tool execution record is unavailable')
+        return { outcome: 'existing' }
+      })
+  )
+}
+
+/** Expired ownership cannot be renewed, even before a follower has observed the expiry. */
+export async function renewSimToolExecutionLease(owner: SimToolExecutionOwner): Promise<boolean> {
+  const [renewed] = await db
+    .update(copilotAsyncToolCalls)
+    .set({
+      executionLeaseExpiresAt: sql`clock_timestamp() + ${SIM_TOOL_EXECUTION_LEASE_SECONDS} * interval '1 second'`,
+    })
+    .where(
+      and(
+        eq(copilotAsyncToolCalls.toolCallId, owner.toolCallId),
+        eq(copilotAsyncToolCalls.runId, owner.runId),
+        eq(copilotAsyncToolCalls.executionOwnerToken, owner.ownerToken),
+        isNull(copilotAsyncToolCalls.executionSettledAt),
+        isNull(copilotAsyncToolCalls.executionRevokedAt),
+        sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`,
+        sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.user_id = ${owner.userId})`
+      )
+    )
+    .returning({ id: copilotAsyncToolCalls.id })
+  return !!renewed
+}
+
+/** Revocation ends local execution authority; recorded remote commands remain independently unsettled. */
+export async function revokeExpiredSimToolExecutions(input: { runId: string; userId: string }) {
+  return db.transaction((tx) =>
+    revokeExpiredExecutions(
+      tx,
+      sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.id = ${input.runId}::uuid AND r.user_id = ${input.userId})`
+    )
+  )
+}
+
+async function revokeExpiredExecutions(tx: RunAdmissionTransaction, scope: SQL) {
+  const revoked = await tx
+    .update(copilotAsyncToolCalls)
+    .set({ executionRevokedAt: sql`now()` })
+    .where(
+      and(
+        scope,
+        isNotNull(copilotAsyncToolCalls.executionOwnerToken),
+        isNull(copilotAsyncToolCalls.executionSettledAt),
+        isNull(copilotAsyncToolCalls.executionRevokedAt),
+        isNull(copilotAsyncToolCalls.clientWorkflowExecutionId),
+        sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} <= clock_timestamp()`
+      )
+    )
+    .returning({ toolCallId: copilotAsyncToolCalls.toolCallId })
+  if (revoked.length) {
+    await tx
+      .update(copilotAsyncToolCalls)
+      .set({
+        status: ASYNC_TOOL_STATUS.failed,
+        result: { error: INTERRUPTED_SIM_TOOL_MESSAGE },
+        error: INTERRUPTED_SIM_TOOL_MESSAGE,
+        claimedBy: null,
+        claimedAt: null,
+        completedAt: sql`now()`,
+        updatedAt: sql`now()`,
+      })
+      .where(
+        and(
+          inArray(
+            copilotAsyncToolCalls.toolCallId,
+            revoked.map((row) => row.toolCallId)
+          ),
+          inArray(copilotAsyncToolCalls.status, [
+            ASYNC_TOOL_STATUS.pending,
+            ASYNC_TOOL_STATUS.running,
+          ])
+        )
+      )
+  }
+  return revoked
+}
+
+/** Called only by the owner after its handler and result processing have both ended. */
+export async function settleSimToolExecution(
+  toolCallId: string,
+  ownerToken: string
+): Promise<void> {
+  return settleToolExecution(toolCallId, eq(copilotAsyncToolCalls.executionOwnerToken, ownerToken))
+}
+
+/** Browser workflow settlement proves completion using its reserved execution identity. */
+export async function settleClientWorkflowToolExecution(
+  toolCallId: string,
+  executionId: string
+): Promise<void> {
+  return settleToolExecution(
+    toolCallId,
+    eq(copilotAsyncToolCalls.clientWorkflowExecutionId, executionId)
+  )
+}
+
+async function settleToolExecution(toolCallId: string, ownership: SQL): Promise<void> {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: toolCallId,
+    },
+    async () => {
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({ executionSettledAt: new Date() })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            ownership,
+            isNotNull(copilotAsyncToolCalls.executionStartedAt),
+            isNull(copilotAsyncToolCalls.executionSettledAt)
+          )
+        )
+        .returning({ id: copilotAsyncToolCalls.id })
+      if (!row) throw new Error('Tool execution settlement could not be recorded')
+    }
+  )
+}
+
+/** Stop and command dispatch serialize on the same run row, including commands within a running tool. */
+export async function recordSimSandboxProcess(
+  input: SimToolExecutionOwner & {
+    process: SessionProcessIdentity
+  }
+): Promise<void> {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    { [TraceAttr.ToolCallId]: input.toolCallId, [TraceAttr.RunId]: input.runId },
+    () =>
+      db.transaction(async (tx) => {
+        const [run] = await tx
+          .select({
+            version: copilotRuns.toolExecutionVersion,
+            closedAt: copilotRuns.toolAdmissionClosedAt,
+            status: copilotRuns.status,
+          })
+          .from(copilotRuns)
+          .where(and(eq(copilotRuns.id, input.runId), eq(copilotRuns.userId, input.userId)))
+          .for('update')
+        if (
+          !run ||
+          run.version !== SIM_TOOL_EXECUTION_VERSION ||
+          run.closedAt ||
+          TERMINAL_RUN_STATUSES.includes(run.status)
+        ) {
+          throw new Error('Sandbox command admission is closed or unavailable')
+        }
+        const { id, sandboxId, sessionKey } = input.process
+        const entry = JSON.stringify({ [id]: { sandboxId, sessionKey, settled: false } })
+        const [row] = await tx
+          .update(copilotAsyncToolCalls)
+          .set({
+            sandboxProcesses: sql`${copilotAsyncToolCalls.sandboxProcesses} || ${entry}::jsonb`,
+          })
+          .where(
+            and(
+              eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+              eq(copilotAsyncToolCalls.runId, input.runId),
+              isNotNull(copilotAsyncToolCalls.executionStartedAt),
+              isNull(copilotAsyncToolCalls.executionSettledAt),
+              eq(copilotAsyncToolCalls.executionOwnerToken, input.ownerToken),
+              isNull(copilotAsyncToolCalls.executionRevokedAt),
+              sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`,
+              sql`NOT (${copilotAsyncToolCalls.sandboxProcesses} ? ${id})`
+            )
+          )
+          .returning({ id: copilotAsyncToolCalls.id })
+        if (!row) throw new Error('Sandbox command ownership could not be recorded')
+      })
+  )
+}
+
+export async function settleSimSandboxProcess(
+  toolCallId: string,
+  processId: string
+): Promise<void> {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    { [TraceAttr.ToolCallId]: toolCallId },
+    async () => {
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          sandboxProcesses: sql`jsonb_set(${copilotAsyncToolCalls.sandboxProcesses}, ARRAY[${processId}, 'settled'], 'true'::jsonb, false)`,
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            sql`${copilotAsyncToolCalls.sandboxProcesses} ? ${processId}`
+          )
+        )
+        .returning({ id: copilotAsyncToolCalls.id })
+      if (!row) throw new Error('Sandbox command settlement could not be recorded')
+    }
+  )
+}
+
+export async function getUnsettledStreamSandboxProcesses(
+  streamId: string,
+  userId: string
+): Promise<Array<SessionProcessIdentity & { toolCallId: string }>> {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsGetRunSegment,
+    'SELECT',
+    'copilot_async_tool_calls',
+    { [TraceAttr.StreamId]: streamId, [TraceAttr.UserId]: userId },
+    async () => {
+      const rows = await db
+        .select({
+          toolCallId: copilotAsyncToolCalls.toolCallId,
+          processes: copilotAsyncToolCalls.sandboxProcesses,
+        })
+        .from(copilotAsyncToolCalls)
+        .innerJoin(copilotRuns, eq(copilotAsyncToolCalls.runId, copilotRuns.id))
+        .where(
+          and(
+            eq(copilotRuns.streamId, streamId),
+            eq(copilotRuns.userId, userId),
+            isNotNull(copilotRuns.toolAdmissionClosedAt),
+            isNotNull(copilotAsyncToolCalls.executionStartedAt),
+            sql`EXISTS (SELECT 1 FROM jsonb_each(${copilotAsyncToolCalls.sandboxProcesses}) AS process WHERE process.value->>'settled' IS DISTINCT FROM 'true')`
+          )
+        )
+      return rows.flatMap(({ toolCallId, processes }) =>
+        Object.entries(processes).flatMap(([id, process]) =>
+          process.settled
+            ? []
+            : [{ id, sandboxId: process.sandboxId, sessionKey: process.sessionKey, toolCallId }]
+        )
+      )
+    }
+  )
+}
+
+export interface WorkbenchRecoveryState {
+  handlersPending: boolean
+  processes: Array<SessionProcessIdentity & { toolCallId: string }>
+}
+
+/** Private sandbox callbacks must still belong to the admitted caller, chat and live tool lease. */
+export async function isActiveSandboxResourceOwner(
+  input: SimToolExecutionOwner & { chatId: string; workspaceId?: string; organizationId?: string }
+): Promise<boolean> {
+  if (Boolean(input.workspaceId) === Boolean(input.organizationId)) return false
+  const [owner] = await db
+    .select({ id: copilotAsyncToolCalls.id })
+    .from(copilotAsyncToolCalls)
+    .innerJoin(copilotRuns, eq(copilotRuns.id, copilotAsyncToolCalls.runId))
+    .innerJoin(copilotChats, eq(copilotChats.id, copilotRuns.chatId))
+    .where(
+      and(
+        eq(copilotRuns.id, input.runId),
+        eq(copilotRuns.userId, input.userId),
+        eq(copilotRuns.chatId, input.chatId),
+        input.workspaceId
+          ? eq(copilotRuns.workspaceId, input.workspaceId)
+          : isNull(copilotRuns.workspaceId),
+        input.organizationId
+          ? eq(copilotRuns.organizationId, input.organizationId)
+          : isNull(copilotRuns.organizationId),
+        eq(copilotChats.userId, input.userId),
+        input.workspaceId
+          ? eq(copilotChats.workspaceId, input.workspaceId)
+          : isNull(copilotChats.workspaceId),
+        input.organizationId
+          ? eq(copilotChats.organizationId, input.organizationId)
+          : isNull(copilotChats.organizationId),
+        isNull(copilotChats.deletedAt),
+        isNull(copilotRuns.toolAdmissionClosedAt),
+        notInArray(copilotRuns.status, TERMINAL_RUN_STATUSES),
+        eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+        eq(copilotAsyncToolCalls.executionOwnerToken, input.ownerToken),
+        isNotNull(copilotAsyncToolCalls.executionStartedAt),
+        isNull(copilotAsyncToolCalls.executionSettledAt),
+        isNull(copilotAsyncToolCalls.executionRevokedAt),
+        sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`
+      )
+    )
+    .limit(1)
+  return Boolean(owner)
+}
+
+/** A successor fences prior admission before checking the handlers and commands that already started. */
+export async function prepareWorkbenchAccess(
+  input: SimToolExecutionOwner & {
+    sessionKey: string
+  }
+): Promise<WorkbenchRecoveryState> {
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`SET LOCAL statement_timeout = '10s'`)
+    const [owner] = await tx
+      .select({ chatId: copilotRuns.chatId })
+      .from(copilotRuns)
+      .where(and(eq(copilotRuns.id, input.runId), eq(copilotRuns.userId, input.userId)))
+      .limit(1)
+    if (!owner || chatSandboxSessionKey(owner.chatId) !== input.sessionKey) {
+      throw new Error('Workbench does not belong to this tool execution')
+    }
+    const [claim] = await tx
+      .select({ id: copilotAsyncToolCalls.id })
+      .from(copilotAsyncToolCalls)
+      .where(
+        and(
+          eq(copilotAsyncToolCalls.runId, input.runId),
+          eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+          isNotNull(copilotAsyncToolCalls.executionStartedAt),
+          isNull(copilotAsyncToolCalls.clientWorkflowExecutionId),
+          isNull(copilotAsyncToolCalls.executionSettledAt),
+          eq(copilotAsyncToolCalls.executionOwnerToken, input.ownerToken),
+          isNull(copilotAsyncToolCalls.executionRevokedAt),
+          sql`${copilotAsyncToolCalls.executionLeaseExpiresAt} > clock_timestamp()`
+        )
+      )
+      .limit(1)
+    if (!claim) throw new Error('Workbench access requires an active tool execution')
+    const [latest] = await tx
+      .select({
+        id: copilotRuns.id,
+        toolExecutionVersion: copilotRuns.toolExecutionVersion,
+        toolAdmissionClosedAt: copilotRuns.toolAdmissionClosedAt,
+        status: copilotRuns.status,
+      })
+      .from(copilotRuns)
+      .where(
+        and(
+          eq(copilotRuns.chatId, owner.chatId),
+          eq(copilotRuns.userId, input.userId),
+          sql`EXISTS (SELECT 1 FROM ${copilotAsyncToolCalls} claimed WHERE claimed.run_id = ${copilotRuns.id} AND claimed.execution_started_at IS NOT NULL)`
+        )
+      )
+      .for('update')
+      .orderBy(desc(copilotRuns.startedAt), desc(copilotRuns.id))
+      .limit(1)
+    if (
+      !latest ||
+      latest.id !== input.runId ||
+      latest.toolExecutionVersion !== SIM_TOOL_EXECUTION_VERSION ||
+      latest.toolAdmissionClosedAt ||
+      TERMINAL_RUN_STATUSES.includes(latest.status)
+    ) {
+      throw new Error('Workbench execution is closed or superseded by a newer turn')
+    }
+    const olderThanOwner = sql`(${copilotRuns.startedAt}, ${copilotRuns.id}) < (SELECT owned.started_at, owned.id FROM ${copilotRuns} owned WHERE owned.id = ${input.runId}::uuid)`
+    await tx
+      .update(copilotRuns)
+      .set({ toolAdmissionClosedAt: sql`now()` })
+      .where(
+        and(
+          eq(copilotRuns.chatId, owner.chatId),
+          eq(copilotRuns.userId, input.userId),
+          ne(copilotRuns.id, input.runId),
+          olderThanOwner,
+          isNull(copilotRuns.toolAdmissionClosedAt)
+        )
+      )
+    await revokeExpiredExecutions(
+      tx,
+      sql`EXISTS (SELECT 1 FROM ${copilotRuns} r WHERE r.id = ${copilotAsyncToolCalls.runId} AND r.chat_id = ${owner.chatId} AND r.user_id = ${input.userId})`
+    )
+    const previous = await tx
+      .select({
+        settledAt: copilotAsyncToolCalls.executionSettledAt,
+        revokedAt: copilotAsyncToolCalls.executionRevokedAt,
+        toolCallId: copilotAsyncToolCalls.toolCallId,
+        processes: copilotAsyncToolCalls.sandboxProcesses,
+      })
+      .from(copilotAsyncToolCalls)
+      .innerJoin(copilotRuns, eq(copilotAsyncToolCalls.runId, copilotRuns.id))
+      .where(
+        and(
+          eq(copilotRuns.chatId, owner.chatId),
+          eq(copilotRuns.userId, input.userId),
+          or(
+            and(ne(copilotRuns.id, input.runId), olderThanOwner),
+            and(
+              eq(copilotRuns.id, input.runId),
+              ne(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+              isNotNull(copilotAsyncToolCalls.executionRevokedAt)
+            )
+          ),
+          isNotNull(copilotAsyncToolCalls.executionStartedAt),
+          isNull(copilotAsyncToolCalls.clientWorkflowExecutionId),
+          or(
+            isNull(copilotAsyncToolCalls.executionSettledAt),
+            sql`EXISTS (SELECT 1 FROM jsonb_each(${copilotAsyncToolCalls.sandboxProcesses}) AS process WHERE process.value->>'settled' IS DISTINCT FROM 'true')`
+          )
+        )
+      )
+    const processes = previous.flatMap((row) =>
+      Object.entries(row.processes).flatMap(([id, process]) =>
+        process.settled
+          ? []
+          : [
+              {
+                id,
+                sandboxId: process.sandboxId,
+                sessionKey: process.sessionKey,
+                toolCallId: row.toolCallId,
+              },
+            ]
+      )
+    )
+    if (processes.some((process) => process.sessionKey !== input.sessionKey))
+      throw new Error('Recorded workbench ownership does not match this chat')
+    return {
+      handlersPending: previous.some((row) => !row.settledAt && !row.revokedAt),
+      processes,
+    }
+  })
+}
+
+/** A missing/pre-versioned run is not a proof of quiescence. */
+export async function closeStreamToolAdmission(streamId: string, userId: string): Promise<boolean> {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsUpdateRunStatus,
+    'UPDATE',
+    'copilot_runs',
+    {
+      [TraceAttr.StreamId]: streamId,
+      [TraceAttr.UserId]: userId,
+    },
+    async () => {
+      const [run] = await db
+        .update(copilotRuns)
+        .set({
+          toolAdmissionClosedAt: sql`coalesce(${copilotRuns.toolAdmissionClosedAt}, now())`,
+        })
+        .where(and(eq(copilotRuns.streamId, streamId), eq(copilotRuns.userId, userId)))
+        .returning({ version: copilotRuns.toolExecutionVersion })
+      return run?.version === SIM_TOOL_EXECUTION_VERSION
+    }
+  )
+}
+
+export async function areStreamToolExecutionsSettled(
+  streamId: string,
+  userId: string
+): Promise<boolean> {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsGetRunSegment,
+    'SELECT',
+    'copilot_runs',
+    {
+      [TraceAttr.StreamId]: streamId,
+      [TraceAttr.UserId]: userId,
+    },
+    async () => {
+      const [run] = await db
+        .select({ id: copilotRuns.id })
+        .from(copilotRuns)
+        .where(
+          and(
+            eq(copilotRuns.streamId, streamId),
+            eq(copilotRuns.userId, userId),
+            eq(copilotRuns.toolExecutionVersion, SIM_TOOL_EXECUTION_VERSION),
+            isNotNull(copilotRuns.toolAdmissionClosedAt)
+          )
+        )
+      if (!run) return false
+      const [pending] = await db
+        .select({ id: copilotAsyncToolCalls.id })
+        .from(copilotAsyncToolCalls)
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.runId, run.id),
+            isNotNull(copilotAsyncToolCalls.executionStartedAt),
+            or(
+              isNull(copilotAsyncToolCalls.executionSettledAt),
+              sql`EXISTS (SELECT 1 FROM jsonb_each(${copilotAsyncToolCalls.sandboxProcesses}) AS process WHERE process.value->>'settled' IS DISTINCT FROM 'true')`
+            )
+          )
+        )
+        .limit(1)
+      return !pending
+    }
+  )
+}
+
+/** Execution IDs reserved by this run's browser-facing workflow handlers, independent of tool results. */
+export async function getUnsettledClientWorkflowExecutions(streamId: string, userId: string) {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsGetRunSegment,
+    'SELECT',
+    'copilot_async_tool_calls',
+    { [TraceAttr.StreamId]: streamId, [TraceAttr.UserId]: userId },
+    async () => {
+      const rows = await db
+        .select({ executionId: copilotAsyncToolCalls.clientWorkflowExecutionId })
+        .from(copilotAsyncToolCalls)
+        .innerJoin(copilotRuns, eq(copilotRuns.id, copilotAsyncToolCalls.runId))
+        .where(
+          and(
+            eq(copilotRuns.streamId, streamId),
+            eq(copilotRuns.userId, userId),
+            eq(copilotRuns.toolExecutionVersion, SIM_TOOL_EXECUTION_VERSION),
+            isNotNull(copilotRuns.toolAdmissionClosedAt),
+            isNotNull(copilotAsyncToolCalls.clientWorkflowExecutionId),
+            isNotNull(copilotAsyncToolCalls.executionStartedAt),
+            isNull(copilotAsyncToolCalls.executionSettledAt)
+          )
+        )
+      return rows.flatMap((row) => (row.executionId ? [row.executionId] : []))
+    }
+  )
+}
+
+export function getClaimedWorkflowExecutionId(claimedBy: string | null | undefined) {
+  if (!claimedBy?.startsWith(WORKFLOW_EXECUTION_CLAIM_PREFIX)) return undefined
+  const executionId = claimedBy.slice(WORKFLOW_EXECUTION_CLAIM_PREFIX.length)
+  return executionId.length > 0 ? executionId : undefined
+}
+
+/** Browser pickup and server fallback share the parent run's Stop/admission lock. */
+export async function claimWorkflowToolExecution(
+  toolCallId: string,
+  executionId: string,
+  executor: 'client' | 'sim'
+) {
+  const claimedBy = `${WORKFLOW_EXECUTION_CLAIM_PREFIX}${executionId}`
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: toolCallId,
+      [TraceAttr.CopilotAsyncToolClaimedBy]: claimedBy,
+    },
+    () =>
+      db.transaction(async (tx) => {
+        const [run] = await tx
+          .select({
+            version: copilotRuns.toolExecutionVersion,
+            status: copilotRuns.status,
+            closedAt: copilotRuns.toolAdmissionClosedAt,
+          })
+          .from(copilotRuns)
+          .innerJoin(copilotAsyncToolCalls, eq(copilotAsyncToolCalls.runId, copilotRuns.id))
+          .where(eq(copilotAsyncToolCalls.toolCallId, toolCallId))
+          .for('update', { of: copilotRuns })
+        if (
+          !run ||
+          run.version !== SIM_TOOL_EXECUTION_VERSION ||
+          run.closedAt ||
+          TERMINAL_RUN_STATUSES.includes(run.status)
+        )
+          return null
+        const now = new Date()
+        const [row] = await tx
+          .update(copilotAsyncToolCalls)
+          .set({
+            status: sql`CASE WHEN ${copilotAsyncToolCalls.status} = ${ASYNC_TOOL_STATUS.pending} THEN ${ASYNC_TOOL_STATUS.running} ELSE ${copilotAsyncToolCalls.status} END`,
+            claimedBy,
+            claimedAt: now,
+            updatedAt: now,
+            ...(executor === 'client'
+              ? { executionStartedAt: now, clientWorkflowExecutionId: executionId }
+              : {}),
+          })
+          .where(
+            and(
+              eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+              isNull(copilotAsyncToolCalls.claimedBy),
+              isNull(copilotAsyncToolCalls.executionStartedAt),
+              or(
+                inArray(copilotAsyncToolCalls.status, [
+                  ASYNC_TOOL_STATUS.running,
+                  ASYNC_TOOL_STATUS.delivered,
+                ]),
+                and(
+                  eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
+                  inArray(copilotAsyncToolCalls.permissionDecision, [
+                    ...EXECUTABLE_TOOL_PERMISSION_DECISIONS,
+                  ])
+                )
+              )
+            )
+          )
+          .returning()
+        return row ?? null
+      })
+  )
+}
+
+export async function releaseWorkflowToolExecutionClaim(toolCallId: string, executionId: string) {
+  const claimedBy = `${WORKFLOW_EXECUTION_CLAIM_PREFIX}${executionId}`
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsReleaseClaim,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: toolCallId,
+      [TraceAttr.CopilotAsyncToolClaimedBy]: claimedBy,
+    },
+    async () => {
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          claimedBy: null,
+          claimedAt: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            eq(copilotAsyncToolCalls.claimedBy, claimedBy),
+            inArray(copilotAsyncToolCalls.status, [
+              ASYNC_TOOL_STATUS.running,
+              ASYNC_TOOL_STATUS.delivered,
+            ])
+          )
+        )
+        .returning()
+      return row ?? null
+    }
+  )
+}
+
+/**
+ * Atomically claims a pending client tool exactly once. Native browser actions
+ * use this before crossing the Electron boundary so a replayed renderer event
+ * cannot click, type, submit, or navigate twice.
+ */
+export async function claimPendingAsyncToolCall(toolCallId: string, claimedBy: string) {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: toolCallId,
+      [TraceAttr.CopilotAsyncToolStatus]: ASYNC_TOOL_STATUS.running,
+      [TraceAttr.CopilotAsyncToolClaimedBy]: claimedBy,
+    },
+    async () => {
+      const now = new Date()
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          status: ASYNC_TOOL_STATUS.running,
+          claimedBy,
+          claimedAt: now,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending)
+          )
+        )
+        .returning()
+      return row ?? null
+    }
+  )
+}
+
+/**
+ * Consumes the single file write of a claimed browser download. The admission remains set even if
+ * storage or response delivery fails: neither failure proves that the file was not committed.
+ * Native completion still owns the call's status, result, and claim fields.
+ */
+export async function claimBrowserDownloadSave(toolCallId: string): Promise<boolean> {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    { [TraceAttr.ToolCallId]: toolCallId },
+    async () => {
+      const now = new Date()
+      const [claimed] = await db
+        .update(copilotAsyncToolCalls)
+        .set({ browserDownloadStartedAt: now, updatedAt: now })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            eq(copilotAsyncToolCalls.toolName, 'browser_save_download'),
+            eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running),
+            eq(copilotAsyncToolCalls.claimedBy, DESKTOP_TOOL_CLAIM_OWNER.browser),
+            isNull(copilotAsyncToolCalls.browserDownloadStartedAt)
+          )
+        )
+        .returning({ toolCallId: copilotAsyncToolCalls.toolCallId })
+      return Boolean(claimed)
+    }
+  )
+}
+
+export interface CompleteAsyncToolCallInput {
+  toolCallId: string
+  status: Extract<CopilotAsyncToolStatus, 'completed' | 'failed' | 'cancelled'>
+  result?: AsyncCompletionData | null
+  error?: string | null
+}
+
+async function completeAsyncToolCallFromStatuses(
+  input: CompleteAsyncToolCallInput,
+  expectedStatuses: CopilotAsyncToolStatus[],
+  expectedClaimedBy?: string,
+  expectedExecutionOwnerToken?: string
+) {
+  return await markAsyncToolStatus(
+    input.toolCallId,
+    input.status,
+    {
+      claimedBy: null,
+      claimedAt: null,
+      result: input.result ?? null,
+      error: input.error ?? null,
+      completedAt: new Date(),
+    },
+    expectedStatuses,
+    expectedClaimedBy,
+    expectedExecutionOwnerToken
+  )
+}
+
+export async function completeAsyncToolCall(input: CompleteAsyncToolCallInput) {
+  return await completeAsyncToolCallFromStatuses(input, [
+    ASYNC_TOOL_STATUS.pending,
+    ASYNC_TOOL_STATUS.running,
+  ])
+}
+
+/** A stale handler cannot publish a success after losing its execution lease. */
+export async function completeOwnedSimToolCall(
+  input: CompleteAsyncToolCallInput,
+  ownerToken: string
+) {
+  const row = await completeAsyncToolCallFromStatuses(
+    input,
+    [ASYNC_TOOL_STATUS.pending, ASYNC_TOOL_STATUS.running],
+    undefined,
+    ownerToken
+  )
+  if (!row) throw new SimToolExecutionLeaseLostError()
+  return row
+}
+
+/**
+ * Finalizes a client tool only while it remains unclaimed. This is the inverse
+ * CAS of `claimPendingAsyncToolCall`: exactly one of a renderer-side preclaim
+ * failure or the native authorization claim may transition the pending row.
+ */
+export async function completePendingAsyncToolCall(input: CompleteAsyncToolCallInput) {
+  return await completeAsyncToolCallFromStatuses(input, [ASYNC_TOOL_STATUS.pending])
+}
+
+/** Finalizes only the exact native claim that won a pending completion race. */
+export async function completeClaimedAsyncToolCall(
+  input: CompleteAsyncToolCallInput,
+  claimedBy: string
+) {
+  return await completeAsyncToolCallFromStatuses(input, [ASYNC_TOOL_STATUS.running], claimedBy)
+}
+
+/**
+ * Atomically detaches a live client tool after the browser reports that it is
+ * continuing in the background. Whichever terminal or detach transition wins
+ * is the only result eligible for publication.
+ */
+export async function detachAsyncToolCall(
+  toolCallId: string,
+  options?: { preserveClaim?: boolean }
+) {
+  return markAsyncToolStatus(
+    toolCallId,
+    ASYNC_TOOL_STATUS.delivered,
+    options?.preserveClaim ? {} : { claimedBy: null, claimedAt: null },
+    [ASYNC_TOOL_STATUS.pending, ASYNC_TOOL_STATUS.running]
+  )
+}
+
+/**
+ * Replaces an already-terminal async tool call from a trusted producer.
+ *
+ * Client workflow confirmations are persisted structurally first. The live
+ * Copilot waiter uses this guarded update only after it has restored and
+ * projected the server-owned workflow result.
+ */
+export async function replaceTerminalAsyncToolCallResult(input: {
+  toolCallId: string
+  status: AsyncTerminalStatus
+  result: AsyncCompletionData | null
+  error: string | null
+}) {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: input.toolCallId,
+      [TraceAttr.CopilotAsyncToolStatus]: input.status,
+      [TraceAttr.CopilotAsyncToolHasError]: !!input.error,
+    },
+    async () => {
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          status: input.status,
+          result: sanitizeValueForJsonb(input.result),
+          error: input.error,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, input.toolCallId),
+            eq(copilotAsyncToolCalls.status, input.status)
+          )
+        )
+        .returning()
+
+      return row ?? null
+    }
+  )
+}
+
+/**
+ * Records the user's answer to a tool permission prompt, exactly once.
+ *
+ * The `IS NULL` guard is what makes a decision final: two tabs (or a click
+ * plus an "allow all") racing on the same prompt resolve to whichever write
+ * lands first, and the loser gets `null` back rather than overwriting an
+ * answer the orchestrator may already have acted on.
+ */
+export async function recordToolPermissionDecision(
+  toolCallId: string,
+  decision: CopilotToolPermissionDecision
+) {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsMarkAsyncToolStatus,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: toolCallId,
+      [TraceAttr.CopilotAsyncToolPermissionDecision]: decision,
+    },
+    async () => {
+      const now = new Date()
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          permissionDecision: decision,
+          permissionDecidedAt: now,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            isNull(copilotAsyncToolCalls.permissionDecision),
+            eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending)
+          )
+        )
+        .returning()
+      return row ?? null
+    }
+  )
+}
+
+export async function getAsyncToolCalls(toolCallIds: string[]) {
+  if (toolCallIds.length === 0) return []
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsGetMany,
+    'SELECT',
+    'copilot_async_tool_calls',
+    { [TraceAttr.CopilotAsyncToolIdsCount]: toolCallIds.length },
+    async () =>
+      db
+        .select()
+        .from(copilotAsyncToolCalls)
+        .where(inArray(copilotAsyncToolCalls.toolCallId, toolCallIds))
+  )
+}
+
+export async function claimCompletedAsyncToolCall(toolCallId: string, workerId: string) {
+  return await withDbSpan(
+    TraceSpan.CopilotAsyncRunsClaimCompleted,
+    'UPDATE',
+    'copilot_async_tool_calls',
+    {
+      [TraceAttr.ToolCallId]: toolCallId,
+      [TraceAttr.CopilotAsyncToolWorkerId]: workerId,
+    },
+    async () => {
+      const [row] = await db
+        .update(copilotAsyncToolCalls)
+        .set({
+          claimedBy: workerId,
+          claimedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(copilotAsyncToolCalls.toolCallId, toolCallId),
+            inArray(copilotAsyncToolCalls.status, ['completed', 'failed', 'cancelled']),
+            isNull(copilotAsyncToolCalls.claimedBy)
+          )
+        )
+        .returning()
+      return row ?? null
+    }
+  )
+}

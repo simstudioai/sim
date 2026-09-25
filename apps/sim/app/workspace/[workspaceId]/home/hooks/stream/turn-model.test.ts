@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import {
   type AgentNode,
   applyTurnTerminal,

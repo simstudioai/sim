@@ -2,6 +2,7 @@
 
 import { type ReactNode, useCallback, useId, useMemo, useRef, useState } from 'react'
 import {
+  Avatar,
   Checkbox,
   Chip,
   ChipConfirmModal,
@@ -47,10 +48,7 @@ import {
   groupTabParam,
   groupTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
-import {
-  MemberAvatar,
-  MemberRow,
-} from '@/app/workspace/[workspaceId]/settings/components/member-list'
+import { MemberRow } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
@@ -337,7 +335,7 @@ function AddMembersModal({
                           className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                         >
                           <Checkbox checked={isSelected} />
-                          <MemberAvatar name={name} image={member.user?.image ?? null} />
+                          <Avatar size='xs' name={name} src={member.user?.image} aria-hidden />
                           <div className='min-w-0 flex-1'>
                             <OverflowText
                               label={name}

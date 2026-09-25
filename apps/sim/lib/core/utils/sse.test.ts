@@ -551,6 +551,55 @@ describe('readSSEEvents', () => {
 })
 
 describe('readSSELines', () => {
+  it('rejects a silent open connection and cancels its reader without waiting for cancellation', async () => {
+    vi.useFakeTimers()
+    const cancel = vi.fn(() => new Promise<void>(() => {}))
+    const reader = new ReadableStream<Uint8Array>({ cancel }).getReader()
+    const rejected = vi.fn()
+    const reading = readSSELines(reader, { onData: vi.fn(), idleTimeoutMs: 45_000 }).catch(rejected)
+    try {
+      await vi.advanceTimersByTimeAsync(45_000)
+      expect(rejected).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'SSEIdleTimeoutError' })
+      )
+      expect(cancel).toHaveBeenCalledTimes(1)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      void reader.cancel()
+      await reading
+      vi.useRealTimers()
+    }
+  })
+
+  it('counts keepalive comments as activity while a long tool is running', async () => {
+    vi.useFakeTimers()
+    let controller!: ReadableStreamDefaultController<Uint8Array>
+    const stream = new ReadableStream<Uint8Array>({
+      start: (value) => {
+        controller = value
+      },
+    })
+    const onData = vi.fn()
+    const rejected = vi.fn()
+    const reading = readSSELines(stream, { onData, idleTimeoutMs: 45_000 }).catch(rejected)
+    try {
+      for (let heartbeat = 0; heartbeat < 6; heartbeat++) {
+        await vi.advanceTimersByTimeAsync(15_000)
+        controller.enqueue(new TextEncoder().encode(': keepalive\n\n'))
+        await vi.advanceTimersByTimeAsync(0)
+      }
+      expect(rejected).not.toHaveBeenCalled()
+      expect(onData).not.toHaveBeenCalled()
+      controller.enqueue(new TextEncoder().encode('data: tool finished\n\n'))
+      controller.close()
+      await reading
+      expect(onData).toHaveBeenCalledWith('tool finished')
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('delivers raw (un-parsed) data payloads', async () => {
     const stream = streamFromStringChunks(['data: raw-one\n\n', 'data: {"keep":"asString"}\n\n'])
     const lines: string[] = []

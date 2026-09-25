@@ -458,7 +458,7 @@ console.log(limits);`
     <div className='space-y-4'>
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>Language</Label>
+          <Label className='block pl-0.5 text-small'>Language</Label>
         </div>
         <ChipButtonGroup value={language} onValueChange={(val) => setLanguage(val as CodeLanguage)}>
           {(Object.keys(LANGUAGE_LABELS) as CodeLanguage[]).map((lang) => (
@@ -471,7 +471,7 @@ console.log(limits);`
 
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>Run workflow</Label>
+          <Label className='block pl-0.5 text-small'>Run workflow</Label>
           <Tooltip.Root>
             <Tooltip.Trigger asChild>
               <Button
@@ -499,9 +499,7 @@ console.log(limits);`
 
       <div>
         <div className='mb-[6.5px] flex items-center justify-between'>
-          <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>
-            Run workflow (stream response)
-          </Label>
+          <Label className='block pl-0.5 text-small'>Run workflow (stream response)</Label>
           <div className='flex items-center gap-1.5'>
             <Tooltip.Root>
               <Tooltip.Trigger asChild>
@@ -540,9 +538,7 @@ console.log(limits);`
       {!info.isPublicApi && (
         <div>
           <div className='mb-[6.5px] flex items-center justify-between'>
-            <Label className='block pl-0.5 text-[var(--text-primary)] text-small'>
-              Run workflow (async)
-            </Label>
+            <Label className='block pl-0.5 text-small'>Run workflow (async)</Label>
             <div className='flex items-center gap-1.5'>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>

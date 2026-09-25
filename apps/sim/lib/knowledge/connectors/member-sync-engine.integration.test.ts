@@ -1,7 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  schemaMock,
+  setEnvFlags,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExternalDocument } from '@/connectors/types'
 
@@ -16,7 +23,9 @@ const mocks = vi.hoisted(() => ({
   isCredentialInvalidError: vi.fn(),
   observe: vi.fn(),
   removeUnseen: vi.fn(),
+  removeForDocuments: vi.fn(),
   materialize: vi.fn(),
+  rematerialize: vi.fn(async () => 0),
   lifecycle: vi.fn(),
   credentials: vi.fn(),
   getChangeCursor: vi.fn(),
@@ -59,11 +68,14 @@ vi.mock('@/lib/knowledge/connectors/member-access', () => ({
 vi.mock('@/lib/knowledge/connectors/member-observations', () => ({
   applyMemberDocumentLifecycle: mocks.lifecycle,
   materializeDocumentAcls: mocks.materialize,
+  rematerializeDocumentAcls: mocks.rematerialize,
   recordMemberObservations: mocks.observe,
-  removeMemberObservationsForDocuments: vi.fn(async () => []),
+  removeMemberObservationsForDocuments: mocks.removeForDocuments,
   removeUnseenMemberObservations: mocks.removeUnseen,
   renewMemberObservationsInScopes: mocks.renew,
   rewriteConnectorAcls: vi.fn(async () => true),
+  tombstoneDocumentsObservedOnlyBy: vi.fn(async () => 0),
+  resurrectObservedDocuments: vi.fn(async () => 0),
 }))
 vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
   addDocument: mocks.add,
@@ -74,11 +86,11 @@ vi.mock('@/lib/knowledge/connectors/sync-persistence', () => ({
   resolveSourceMetadataFields: vi.fn(() => ({ sourceUrl: null, sourceModifiedAt: null })),
 }))
 vi.mock('@/lib/knowledge/documents/service', () => ({
-  isTriggerAvailable: () => true,
   hardDeleteDocuments: vi.fn(),
   processDocumentsWithQueue: mocks.dispatch,
   ConnectorSyncDeletionGuardError: class extends Error {},
 }))
+vi.mock('@/lib/core/config/trigger-availability', () => ({ isTriggerAvailable: () => true }))
 vi.mock('@/connectors/registry.server', () => ({
   CONNECTOR_REGISTRY: {
     full_listing: {
@@ -157,6 +169,7 @@ const member = {
 /** Real engine, content stages, pagination, classification, and leases; external I/O is mocked. */
 function arrange(
   options: {
+    isSearchIndex?: boolean
     connectorType?: 'drive' | 'full_listing' | 'scoped_listing'
     members?: boolean
     memberContent?: boolean
@@ -204,6 +217,7 @@ function arrange(
     queueTableRows(schemaMock.knowledgeBase, [
       {
         id: 'kb',
+        isSearchIndex: options.isSearchIndex,
         workspaceId: options.organizationId ? null : 'workspace',
         organizationId: options.organizationId ?? null,
         userId: 'owner',
@@ -317,6 +331,7 @@ function arrange(
   mocks.dispatch.mockResolvedValue({ accepted: 1, failed: 0 })
   mocks.observe.mockResolvedValue(1)
   mocks.removeUnseen.mockResolvedValue({ removed: 0, finished: true })
+  mocks.removeForDocuments.mockResolvedValue([])
   mocks.getChangeCursor.mockResolvedValue('new-cursor')
   mocks.listChanges.mockResolvedValue({ changes: [], hasMore: false, nextCursor: 'drained' })
   mocks.supportsChangeFeed.mockReturnValue(true)
@@ -340,8 +355,20 @@ function arrange(
 describe('member engine with a dedicated content credential', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetEnvFlagsMock()
     resetDbChainMock()
     dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
+  })
+
+  it('refuses an already queued live Search crawl before resolving credentials or taking a lock', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    const result = await arrange({ isSearchIndex: true, members: true })()
+    expect(result.skipReason).toBe('connector_not_syncable')
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mocks.token).not.toHaveBeenCalled()
+    expect(mocks.credentials).not.toHaveBeenCalled()
+    expect(mocks.list).not.toHaveBeenCalled()
+    expect(mocks.dispatch).not.toHaveBeenCalled()
   })
 
   it.each([undefined, 'organization'])(
@@ -481,6 +508,43 @@ describe('member engine with a dedicated content credential', () => {
     expect(mocks.list.mock.calls[0][0]).toBe('service-token')
     expect(mocks.token).toHaveBeenCalledWith(expect.objectContaining({ accessMode: 'members' }))
     expect(mocks.observe).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The content completion counts the whole connector. That scan runs before the lease
+   * transaction, which stays under the role's own timeouts, so a large connector that finished
+   * every content page cannot then fail its completion on a page bound.
+   */
+  it('counts the connector before its content completion takes the lease', async () => {
+    const run = arrange({ members: true, noDueMembers: true })
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    const insertIndex = dbChainMockFns.insert.mock.calls.findIndex(
+      ([table]) => table === schemaMock.knowledgeConnectorSyncLog
+    )
+    expect(insertIndex).toBeGreaterThanOrEqual(0)
+    const inserted = dbChainMockFns.insert.mock.invocationCallOrder[insertIndex]
+    const opened = Math.max(
+      ...dbChainMockFns.transaction.mock.invocationCallOrder.filter((order) => order < inserted)
+    )
+    const counted = dbChainMockFns.select.mock.calls
+      .map(([fields], index) => ({
+        fields,
+        order: dbChainMockFns.select.mock.invocationCallOrder[index],
+      }))
+      .filter(({ fields, order }) => fields && 'count' in fields && order < inserted)
+      .map(({ order }) => order)
+    expect(Math.max(...counted)).toBeLessThan(opened)
+    const bounded = dbChainMockFns.execute.mock.calls
+      .map((call: unknown[], index) => ({
+        call,
+        order: dbChainMockFns.execute.mock.invocationCallOrder[index],
+      }))
+      .filter(
+        ({ call, order }) =>
+          order > opened && order < inserted && JSON.stringify(call).includes('lock_timeout')
+      )
+    expect(bounded).toEqual([])
   })
 
   it('reserves time for member permissions when a slow dedicated content page has more batches', async () => {
@@ -680,6 +744,99 @@ describe('member engine with a dedicated content credential', () => {
     expect(mocks.materialize).toHaveBeenCalledWith('connector', ['stored-file'], expect.anything())
     expect(mocks.lifecycle).not.toHaveBeenCalled()
     expect(result.docsDeleted).toBe(0)
+  })
+
+  it('hands the documents whose observations a complete listing removed to the member lifecycle', async () => {
+    const run = arrange({ members: true, memberContent: true, contentFresh: true })
+    mocks.list.mockResolvedValue({ documents: [], hasMore: false })
+    mocks.removeUnseen.mockImplementation(async (_tx, _member, _runId, onRemoved) => {
+      await onRemoved(['no-longer-listed'])
+      return { removed: 1, finished: true }
+    })
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(result.observationsRemoved).toBe(1)
+    expect(mocks.lifecycle).toHaveBeenCalledOnce()
+    expect(mocks.lifecycle.mock.calls[0][0].unobservedDocumentIds).toEqual(
+      new Set(['no-longer-listed'])
+    )
+  })
+
+  it('hands the documents a change feed withdrew to the member lifecycle', async () => {
+    const run = arrange({
+      members: true,
+      memberContent: true,
+      openMemberFeed: true,
+      contentFresh: true,
+    })
+    mocks.listChanges.mockResolvedValue({
+      changes: [{ kind: 'removed', externalId: 'file-shared' }],
+      hasMore: false,
+      nextCursor: 'drained',
+    })
+    mocks.removeForDocuments.mockResolvedValue(['stored-file'])
+    const result = await run()
+    expect(result.error).toBeUndefined()
+    expect(mocks.removeForDocuments).toHaveBeenCalledOnce()
+    expect(mocks.lifecycle.mock.calls[0][0].unobservedDocumentIds).toEqual(new Set(['stored-file']))
+  })
+
+  it('advances the change cursor only after the ACLs a feed removal decides are written', async () => {
+    const run = arrange({
+      members: true,
+      memberContent: true,
+      openMemberFeed: true,
+      contentFresh: true,
+    })
+    mocks.listChanges.mockResolvedValue({
+      changes: [{ kind: 'removed', externalId: 'file-shared' }],
+      hasMore: false,
+      nextCursor: 'drained',
+    })
+    mocks.removeForDocuments.mockResolvedValue(['stored-file'])
+    const cursorWrites = () =>
+      dbChainMockFns.set.mock.calls.filter(([values]) => values?.changeCursor === 'drained')
+    mocks.rematerialize.mockRejectedValueOnce(
+      Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' })
+    )
+
+    expect((await run()).error).toBeDefined()
+    expect(mocks.rematerialize).toHaveBeenCalledOnce()
+    expect(cursorWrites()).toEqual([])
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'failed', databaseFailureClass: 'capacity' })
+    )
+
+    vi.clearAllMocks()
+    resetDbChainMock()
+    dbChainMockFns.execute.mockImplementation(async () => [{ startedAt: new Date().toISOString() }])
+    const retry = arrange({
+      members: true,
+      memberContent: true,
+      openMemberFeed: true,
+      contentFresh: true,
+    })
+    mocks.listChanges.mockResolvedValue({
+      changes: [{ kind: 'removed', externalId: 'file-shared' }],
+      hasMore: false,
+      nextCursor: 'drained',
+    })
+    /** The first attempt already committed the observation removal, so the replay removes nothing. */
+    mocks.removeForDocuments.mockResolvedValue([])
+
+    expect((await retry()).error).toBeUndefined()
+    expect(mocks.rematerialize).toHaveBeenCalledWith(
+      'connector',
+      new Set(['stored-file']),
+      expect.any(Function),
+      expect.any(Function)
+    )
+    expect(cursorWrites()).toHaveLength(1)
+    expect(mocks.rematerialize.mock.invocationCallOrder.at(-1)).toBeLessThan(
+      dbChainMockFns.set.mock.invocationCallOrder[
+        dbChainMockFns.set.mock.calls.findIndex(([values]) => values?.changeCursor === 'drained')
+      ]
+    )
   })
 
   it('fully lists scopes whose ancestor moves cannot be represented by the change feed', async () => {

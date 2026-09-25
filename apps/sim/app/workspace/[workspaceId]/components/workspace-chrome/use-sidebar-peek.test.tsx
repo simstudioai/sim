@@ -6,7 +6,6 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   PEEK_CLOSE_DELAY_MS as CLOSE_DELAY_MS,
-  PEEK_EXIT_DURATION_MS as EXIT_DURATION_MS,
   PEEK_OPEN_DELAY_MS as OPEN_DELAY_MS,
   PEEK_POINTER_SAMPLE_MS as POINTER_SAMPLE_MS,
   useSidebarPeek,
@@ -46,7 +45,7 @@ function stubRect(
 }
 
 interface Harness {
-  state: () => { isPeekActive: boolean; isPeekOpen: boolean }
+  state: () => { isPeekActive: boolean }
   card: () => HTMLElement
   trigger: () => HTMLElement
   triggerEnter: () => void
@@ -67,13 +66,13 @@ function renderPeek(initialEnabled: boolean): Harness {
   document.body.appendChild(container)
   const root: Root = createRoot(container)
 
-  let latest = { isPeekActive: false, isPeekOpen: false }
+  let latest = { isPeekActive: false }
   let onTriggerEnter = () => {}
   let onTriggerLeave = () => {}
 
   function Probe({ enabled, dismissed }: { enabled: boolean; dismissed: boolean }) {
     const peek = useSidebarPeek(enabled, dismissed)
-    latest = { isPeekActive: peek.isPeekActive, isPeekOpen: peek.isPeekOpen }
+    latest = { isPeekActive: peek.isPeekActive }
     onTriggerEnter = peek.onTriggerEnter
     onTriggerLeave = peek.onTriggerLeave
     return (
@@ -181,7 +180,6 @@ describe('useSidebarPeek', () => {
       vi.advanceTimersByTime(1)
     })
     expect(active.state().isPeekActive).toBe(true)
-    expect(active.state().isPeekOpen).toBe(true)
   })
 
   it('does not open when the pointer leaves before the dwell elapses', () => {
@@ -217,7 +215,7 @@ describe('useSidebarPeek', () => {
       vi.advanceTimersByTime(CLOSE_DELAY_MS * 3)
     })
 
-    expect(active.state().isPeekOpen).toBe(true)
+    expect(active.state().isPeekActive).toBe(true)
   })
 
   it('does not force layout while the pointer moves across sidebar content', () => {
@@ -233,7 +231,7 @@ describe('useSidebarPeek', () => {
 
     expect(cardMeasure).not.toHaveBeenCalled()
     expect(triggerMeasure).not.toHaveBeenCalled()
-    expect(active.state().isPeekOpen).toBe(true)
+    expect(active.state().isPeekActive).toBe(true)
   })
 
   it('stays open while the pointer is still over the toggle that opened it', () => {
@@ -245,7 +243,7 @@ describe('useSidebarPeek', () => {
       vi.advanceTimersByTime(CLOSE_DELAY_MS * 3)
     })
 
-    expect(active.state().isPeekOpen).toBe(true)
+    expect(active.state().isPeekActive).toBe(true)
   })
 
   it('stays open while the pointer is over a portalled popper', async () => {
@@ -259,7 +257,7 @@ describe('useSidebarPeek', () => {
       vi.advanceTimersByTime(CLOSE_DELAY_MS * 3)
     })
 
-    expect(active.state().isPeekOpen).toBe(true)
+    expect(active.state().isPeekActive).toBe(true)
   })
 
   it('retracts after the grace period once the pointer moves to content', () => {
@@ -267,17 +265,10 @@ describe('useSidebarPeek', () => {
     openPeek(active)
 
     movePointerTo(POINT.onContent)
-    expect(active.state().isPeekOpen).toBe(true)
-
-    act(() => {
-      vi.advanceTimersByTime(CLOSE_DELAY_MS)
-    })
-    expect(active.state().isPeekOpen).toBe(false)
-    // Stays mounted so the fade-out can play.
     expect(active.state().isPeekActive).toBe(true)
 
     act(() => {
-      vi.advanceTimersByTime(EXIT_DURATION_MS)
+      vi.advanceTimersByTime(CLOSE_DELAY_MS)
     })
     expect(active.state().isPeekActive).toBe(false)
   })
@@ -291,7 +282,7 @@ describe('useSidebarPeek', () => {
       vi.advanceTimersByTime(CLOSE_DELAY_MS * 2)
     })
 
-    expect(active.state().isPeekOpen).toBe(true)
+    expect(active.state().isPeekActive).toBe(true)
   })
 
   it('cancels a pending retraction when the pointer returns', () => {
@@ -307,7 +298,7 @@ describe('useSidebarPeek', () => {
       vi.advanceTimersByTime(CLOSE_DELAY_MS * 2)
     })
 
-    expect(active.state().isPeekOpen).toBe(true)
+    expect(active.state().isPeekActive).toBe(true)
   })
 
   it('does not open on hover while a modal is already open', () => {
@@ -334,42 +325,19 @@ describe('useSidebarPeek', () => {
     expect(active.state().isPeekActive).toBe(false)
   })
 
-  it('drops an already-exiting card the instant a modal opens', () => {
+  it('reopens after the hover dwell when a card has retracted', () => {
     active = renderPeek(true)
     openPeek(active)
     movePointerTo(POINT.onContent)
     act(() => {
       vi.advanceTimersByTime(CLOSE_DELAY_MS)
     })
-    expect(active.state().isPeekActive).toBe(true)
-
-    active.setDismissed(true)
-
     expect(active.state().isPeekActive).toBe(false)
-  })
 
-  it('snaps a card that is animating out back open on re-hover', () => {
-    active = renderPeek(true)
-    openPeek(active)
-    movePointerTo(POINT.onContent)
-    act(() => {
-      vi.advanceTimersByTime(CLOSE_DELAY_MS)
-    })
-    // Mid-exit: mounted but no longer open.
+    act(() => active?.triggerEnter())
+    expect(active.state().isPeekActive).toBe(false)
+    act(() => vi.advanceTimersByTime(OPEN_DELAY_MS))
     expect(active.state().isPeekActive).toBe(true)
-    expect(active.state().isPeekOpen).toBe(false)
-
-    // Re-hover late in the exit window; the pending exit timer must not win.
-    act(() => {
-      vi.advanceTimersByTime(EXIT_DURATION_MS - 20)
-      active?.triggerEnter()
-    })
-    expect(active.state().isPeekOpen).toBe(true)
-
-    act(() => {
-      vi.advanceTimersByTime(EXIT_DURATION_MS * 2)
-    })
-    expect(active.state().isPeekOpen).toBe(true)
   })
 
   it('retracts when a modal opens, even with the pointer inside', () => {
@@ -379,7 +347,7 @@ describe('useSidebarPeek', () => {
 
     active.setDismissed(true)
 
-    expect(active.state().isPeekOpen).toBe(false)
+    expect(active.state().isPeekActive).toBe(false)
   })
 
   it('keeps the peek open while the pointer is over a non-modal popper', async () => {
@@ -392,7 +360,7 @@ describe('useSidebarPeek', () => {
       vi.advanceTimersByTime(CLOSE_DELAY_MS * 2)
     })
 
-    expect(active.state().isPeekOpen).toBe(true)
+    expect(active.state().isPeekActive).toBe(true)
   })
 
   /**
@@ -415,7 +383,7 @@ describe('useSidebarPeek', () => {
       vi.advanceTimersByTime(CLOSE_DELAY_MS)
     })
 
-    expect(active.state().isPeekOpen).toBe(false)
+    expect(active.state().isPeekActive).toBe(false)
   })
 
   it('leaves Escape to an open popper rather than retracting', async () => {
@@ -432,7 +400,7 @@ describe('useSidebarPeek', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     })
 
-    expect(active.state().isPeekOpen).toBe(true)
+    expect(active.state().isPeekActive).toBe(true)
   })
 
   it('retracts on Escape when a popper is only animating closed', async () => {
@@ -447,7 +415,7 @@ describe('useSidebarPeek', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     })
 
-    expect(active.state().isPeekOpen).toBe(false)
+    expect(active.state().isPeekActive).toBe(false)
   })
 
   it('retracts on Escape', () => {
@@ -458,7 +426,7 @@ describe('useSidebarPeek', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     })
 
-    expect(active.state().isPeekOpen).toBe(false)
+    expect(active.state().isPeekActive).toBe(false)
   })
 
   it('drops the peek immediately when it stops being enabled', () => {
@@ -467,7 +435,6 @@ describe('useSidebarPeek', () => {
 
     active.setEnabled(false)
 
-    expect(active.state().isPeekOpen).toBe(false)
     expect(active.state().isPeekActive).toBe(false)
   })
 
@@ -484,6 +451,5 @@ describe('useSidebarPeek', () => {
     })
 
     expect(active.state().isPeekActive).toBe(true)
-    expect(active.state().isPeekOpen).toBe(true)
   })
 })

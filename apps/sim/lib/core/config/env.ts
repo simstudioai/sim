@@ -261,6 +261,9 @@ export const env = createEnv({
     KIMI_API_KEY_1:                        z.string().min(1).optional(),           // Primary Kimi (Moonshot AI) API key for load balancing
     KIMI_API_KEY_2:                        z.string().min(1).optional(),           // Additional Kimi API key for load balancing
     KIMI_API_KEY_3:                        z.string().min(1).optional(),           // Additional Kimi API key for load balancing
+    TYPESAFE_API_KEY_1:                    z.string().min(1).optional(),
+    TYPESAFE_API_KEY_2:                    z.string().min(1).optional(),
+    TYPESAFE_API_KEY_3:                    z.string().min(1).optional(),
     XAI_API_KEY_1:                         z.string().min(1).optional(),           // Primary xAI API key for load balancing
     XAI_API_KEY_2:                         z.string().min(1).optional(),           // Additional xAI API key for load balancing
     XAI_API_KEY_3:                         z.string().min(1).optional(),           // Additional xAI API key for load balancing
@@ -461,6 +464,7 @@ export const env = createEnv({
     KB_CONFIG_CONCURRENCY_LIMIT:           z.number().optional().default(20),      // Per-tenant concurrent document-processing runs in the interactive lane
     KB_CONFIG_BACKFILL_CONCURRENCY_LIMIT:  z.number().optional().default(20),      // Per-tenant concurrent document-processing runs in the connector-backfill lane
     KB_CONFIG_EMBEDDING_CONCURRENCY:       z.number().optional().default(8),       // Concurrent embedding API requests within one embed call
+    KB_CONFIG_PROJECTION_CONCURRENCY:      z.number().optional().default(8),       // Most documents one knowledge projector pass projects at once, each on its own connection
     /** Deployment operating budgets shared by every caller using the same provider credential. */
     KB_CONFIG_EMBEDDING_REQUESTS_PER_MINUTE: z.number().positive().optional().default(600),
     KB_CONFIG_EMBEDDING_TOKENS_PER_MINUTE:   z.number().positive().optional().default(600000),
@@ -587,6 +591,9 @@ export const env = createEnv({
     // AgentMail - Mothership Email Inbox
     AGENTMAIL_API_KEY:                     z.string().min(1).optional(),           // AgentMail API key for mothership email inbox
     AGENTMAIL_DOMAIN:                      z.string().optional(),                  // Custom domain for AgentMail inboxes (default: agentmail.to)
+    MSHIP_PLAN_MODE: z.boolean().optional(),
+    MSHIP_MODEL_SELECTOR: z.boolean().optional(),
+    SIM_SEARCH_LIVE: z.boolean().optional(), // Query connected providers directly; false preserves indexed search
     INBOX_ENABLED:                         z.boolean().optional(),                 // Enable inbox (Sim Mailer) on self-hosted (bypasses hosted requirements)
     SANDBOXES_ENABLED:                     z.boolean().optional(),                 // Enable custom sandboxes on self-hosted (bypasses hosted requirements)
 
@@ -596,6 +603,8 @@ export const env = createEnv({
     E2B_FUNCTION_TEMPLATE_ID:               z.string().refine(isImmutableE2BTemplateRef, { message: `E2B_FUNCTION_TEMPLATE_ID ${IMMUTABLE_E2B_TEMPLATE_REF_ERROR}` }).optional(), // Immutable dedicated E2B build for Function JavaScript/Python/Shell and workspace sandbox layers; no Mothership fallback
     E2B_FUNCTION_TEMPLATE_GENERATION:       z.string().refine(isValidSandboxReleaseGeneration, { message: `E2B_FUNCTION_TEMPLATE_GENERATION ${SANDBOX_RELEASE_GENERATION_ERROR}` }).optional(), // Monotonic release epoch printed by the Function E2B builder
     MOTHERSHIP_E2B_TEMPLATE_ID:             z.string().optional(),                  // Mothership code-tool template; never a Function-base fallback
+    MOTHERSHIP_SIM_TRANSPORT:              z.enum(['direct', 'checkpoint']).optional(), // Server-side Sim delivery; hosted defaults to direct, self-hosted to outbound checkpoint delivery
+    MOTHERSHIP_SANDBOX_CLI_ENDPOINT:        z.string().optional(),                  // Sim API base the sandboxed sim CLI calls back to; defaults to NEXT_PUBLIC_APP_URL (set when the public URL is not reachable from the sandbox network)
     MOTHERSHIP_E2B_DOC_TEMPLATE_ID:         z.string().optional(),                  // Dedicated E2B template with python-pptx/docx/openpyxl/reportlab for document generation; when set (and E2B enabled), docs compile via Python instead of the JS isolated-vm path
     E2B_PI_TEMPLATE_ID:                     z.string().optional(),                  // E2B template ID/alias with the Pi CLI + git baked in (Create PR, its Babysit continuation, and Review Code)
     PI_SANDBOX_LIFETIME_MS:                 z.string().optional(),                  // Lower the Pi sandbox lifetime (ms) below the default; E2B caps a sandbox at 1h on Hobby accounts and 24h on Pro
@@ -631,6 +640,8 @@ export const env = createEnv({
     CREDENTIAL_GROUPS:                    z.boolean().optional(),                 // Enable enterprise Credential Groups globally
     KNOWLEDGE_MEMBER_ACCESS:              z.boolean().optional(),                 // Enable per-member knowledge connectors and hybrid-by-default retrieval globally
     KNOWLEDGE_TIN_KEYWORD:                z.boolean().optional(),                 // Rank large-scope keyword retrieval through the Tin text index where it exists
+    KNOWLEDGE_ASYNC_PROJECTION:           z.boolean().optional(),                 // Knowledge writers leave search projection rows to the background projector
+    KNOWLEDGE_PROJECTION_FILL:            z.boolean().optional(),                 // The knowledge projector fills projection rows written before they carried a source and ACL
 
     // Organizations - for self-hosted deployments
     ORGANIZATIONS_ENABLED:                 z.boolean().optional(),                 // Enable organizations on self-hosted (bypasses plan requirements)
@@ -751,6 +762,7 @@ export const env = createEnv({
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED:     z.boolean().optional(),                   // Enable organizations on self-hosted (bypasses plan requirements)
     NEXT_PUBLIC_DISABLE_INVITATIONS:       z.boolean().optional(),                   // Disable workspace invitations globally (for self-hosted deployments)
     NEXT_PUBLIC_DISABLE_PUBLIC_API:        z.boolean().optional(),                   // Disable public API access UI toggle globally
+    NEXT_PUBLIC_SIM_SEARCH_LIVE: z.boolean().optional(),
     NEXT_PUBLIC_INBOX_ENABLED:             z.boolean().optional(),                   // Enable inbox (Sim Mailer) on self-hosted
     NEXT_PUBLIC_CHAT_DISABLED:             z.boolean().optional(),                   // Hide the Chat module (Chat is shown when unset)
     NEXT_PUBLIC_STATUS_NOTICE_PREVIEW:     z.boolean().optional(),                   // Force the sidebar service-status notice into its critical preview state
@@ -798,6 +810,7 @@ export const env = createEnv({
     NEXT_PUBLIC_ORGANIZATIONS_ENABLED: process.env.NEXT_PUBLIC_ORGANIZATIONS_ENABLED,
     NEXT_PUBLIC_DISABLE_INVITATIONS: process.env.NEXT_PUBLIC_DISABLE_INVITATIONS,
     NEXT_PUBLIC_DISABLE_PUBLIC_API: process.env.NEXT_PUBLIC_DISABLE_PUBLIC_API,
+    NEXT_PUBLIC_SIM_SEARCH_LIVE: process.env.NEXT_PUBLIC_SIM_SEARCH_LIVE,
     NEXT_PUBLIC_INBOX_ENABLED: process.env.NEXT_PUBLIC_INBOX_ENABLED,
     NEXT_PUBLIC_CHAT_DISABLED: process.env.NEXT_PUBLIC_CHAT_DISABLED,
     NEXT_PUBLIC_STATUS_NOTICE_PREVIEW: process.env.NEXT_PUBLIC_STATUS_NOTICE_PREVIEW,

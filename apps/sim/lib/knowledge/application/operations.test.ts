@@ -137,7 +137,6 @@ describe('knowledge operation registry', () => {
       knowledgeOperations.update,
       knowledgeOperations.delete,
       knowledgeOperations.uploadDocument,
-      knowledgeOperations.prepareSearchSource,
       knowledgeOperations.updateConnectorAccess,
     ]) {
       expect(operation.organizationOperation.minimumRole).toBe('admin')
@@ -173,13 +172,32 @@ describe('knowledge operation registry', () => {
     }
   })
 
-  it('permits organization delegation only for Copilot reads', () => {
+  it('permits organization delegation for reads and explicitly selected Search controls', () => {
+    const settingsControls = [
+      knowledgeOperations.listSlackInstallations,
+      knowledgeOperations.configureSlackInstallation,
+      knowledgeOperations.removeSlackInstallation,
+    ]
+    const searchControls = [
+      ...settingsControls,
+      knowledgeOperations.listSearchIntegrations,
+      knowledgeOperations.approveSearchIntegration,
+      knowledgeOperations.prepareSearchSource,
+    ]
+
     for (const operation of Object.values(knowledgeOperations)) {
       if (!operation.organizationOperation.principalKinds.includes('organization_delegated'))
         continue
-      expect(operation.minimumRole).toBe('read')
-      expect(operation.delegatedServices).toContain('copilot')
-      expect(operation.organizationOperation.delegationAudience).toBe('sim:knowledge')
+      if (!searchControls.some((control) => control.id === operation.id)) {
+        expect(operation.minimumRole).toBe('read')
+        expect(operation.delegatedServices).toContain('copilot')
+      }
+      expect(operation.organizationOperation.delegatedServices).toContain('copilot')
+      expect(operation.organizationOperation.delegationAudience).toBe(
+        settingsControls.some((control) => control.id === operation.id)
+          ? 'sim:settings'
+          : 'sim:knowledge'
+      )
     }
     expect(knowledgeOperations.search.organizationOperation.principalKinds).toContain(
       'organization_delegated'
@@ -257,7 +275,7 @@ describe('knowledge operation registry', () => {
     ).toBe(true)
   })
 
-  it('allows Copilot folder discovery without delegating folder mutations or upload completion', () => {
+  it('allows Copilot folder operations and bound upload completion', () => {
     expect(knowledgeOperations.list.principalKinds).toContain('delegated')
     expect(knowledgeOperations.search.principalKinds).toContain('delegated')
     expect(knowledgeOperations.uploadDocument.principalKinds).toContain('delegated')
@@ -272,13 +290,13 @@ describe('knowledge operation registry', () => {
       knowledgeOperations.relocateFolder,
       knowledgeOperations.deleteFolder,
     ]) {
-      expect(operation.principalKinds).not.toContain('delegated')
-      expect(operation.delegatedServices).toBeUndefined()
+      expect(operation.principalKinds).toContain('delegated')
+      expect(operation.delegatedServices).toEqual(['copilot'])
     }
-    expect(knowledgeOperations.uploadComplete.principalKinds).not.toContain('delegated')
+    expect(knowledgeOperations.uploadComplete.principalKinds).toContain('delegated')
     expect(knowledgeOperations.list.delegatedServices).toEqual(['copilot'])
     expect(knowledgeOperations.search.delegatedServices).toEqual(['copilot', 'executor'])
-    expect(knowledgeOperations.uploadComplete.delegatedServices).toBeUndefined()
+    expect(knowledgeOperations.uploadComplete.delegatedServices).toEqual(['copilot'])
   })
 
   it('withholds knowledge base creation separately from using existing ones', () => {

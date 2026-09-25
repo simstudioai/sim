@@ -17,14 +17,17 @@ import {
 } from '@sim/emcn'
 import { MoreHorizontal, Pencil, Pin, Plus, SquareArrowUpRight } from '@sim/emcn/icons'
 import Link from 'next/link'
-import { ConversationListItem } from '@/app/workspace/[workspaceId]/components'
+import { ConversationListItem } from '@/app/workspace/[workspaceId]/components/conversation-list-item'
 import type { FlyoutEntry } from '@/app/workspace/[workspaceId]/components/folders'
 import { ChatNavigationLink } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/chat-navigation-link/chat-navigation-link'
 import {
   SidebarNavChip,
   type SidebarNavItemData,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-nav-chip'
-import { SIDEBAR_RAIL_CHIP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import {
+  SIDEBAR_NO_MOTION_CLASS,
+  SIDEBAR_RAIL_CHIP_CLASS,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { interleaveSiblings } from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import type { FolderTreeNode } from '@/stores/folders/types'
@@ -115,7 +118,7 @@ function CollapsedFlyoutRows({
               <OverflowText label={entry.name} />
               {entry.pinned && <PinnedGlyph />}
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
+            <DropdownMenuSubContent className={SIDEBAR_NO_MOTION_CLASS}>
               <CollapsedFlyoutRows entries={entry.children} currentItemId={currentItemId} />
             </DropdownMenuSubContent>
           </DropdownMenuSub>
@@ -257,7 +260,7 @@ export function CollapsedSidebarMenu({
       <DropdownMenuContent
         side='right'
         align='start'
-        className='w-[220px]'
+        className={cn('w-[220px]', SIDEBAR_NO_MOTION_CLASS)}
         sideOffset={8}
         {...hover.contentProps}
         onPointerMoveCapture={isEditing ? holdRowFocus : undefined}
@@ -429,7 +432,7 @@ export function CollapsedWorkflowFlyoutItem({
                 <MoreHorizontal />
               </DropdownMenuItemAction>
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
+            <DropdownMenuSubContent className={SIDEBAR_NO_MOTION_CLASS}>
               {onOpenInNewTab && (
                 <DropdownMenuItem onSelect={onOpenInNewTab}>
                   <SquareArrowUpRight className='size-[14px]' />
@@ -531,7 +534,7 @@ export function CollapsedFolderItems(props: CollapsedFolderItemsProps) {
             <DropdownMenuSubTrigger>
               <OverflowText label={folder.name} />
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
+            <DropdownMenuSubContent className={SIDEBAR_NO_MOTION_CLASS}>
               {interleaveSiblings(folder.children, folderWorkflows).map((child) =>
                 child.kind === 'folder' ? (
                   <CollapsedFolderItems key={child.id} {...props} nodes={[child.node]} />

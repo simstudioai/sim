@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChipSelectOption } from '@sim/emcn'
-import { ChipConfirmModal, ChipSelect, Tooltip, toast } from '@sim/emcn'
+import { Avatar, ChipConfirmModal, ChipSelect, Tooltip, toast } from '@sim/emcn'
 import { Database, FolderPlus, Pencil, Plus, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -23,7 +23,6 @@ import type {
 } from '@/app/workspace/[workspaceId]/components'
 import {
   EMPTY_CELL_PLACEHOLDER,
-  OwnerAvatar,
   ownerCell,
   Resource,
   reportBulkOutcome,
@@ -1325,7 +1324,7 @@ function KnowledgeContent() {
       (members ?? []).map((m) => ({
         value: m.userId,
         label: m.name,
-        iconElement: <OwnerAvatar name={m.name} image={m.image} />,
+        iconElement: <Avatar size='xs' name={m.name} src={m.image} aria-hidden />,
       })),
     [members]
   )

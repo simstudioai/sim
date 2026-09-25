@@ -2,7 +2,6 @@ import { db } from '@sim/db'
 import { copilotChats, slackSearchInstallation, slackSearchTurn } from '@sim/db/schema'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
-import { abortActiveStream } from '@/lib/copilot/request/session/abort'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -19,6 +18,7 @@ import {
   resolveSlackSearchMember,
   SlackSearchIdentityError,
 } from '@/lib/knowledge/application/slack-search/identity'
+import { abortActiveStream } from '@/lib/mothership/request/session/abort'
 import {
   slackSearchConversation,
   slackSearchConversationKey,

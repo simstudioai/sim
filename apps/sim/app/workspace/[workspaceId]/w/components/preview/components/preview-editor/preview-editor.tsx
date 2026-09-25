@@ -599,9 +599,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
 
       {/* Configuration - matches SubflowEditor */}
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-          {getConfigLabel()}
-        </Label>
+        <Label className='mb-[6.5px] block pl-0.5 text-small'>{getConfigLabel()}</Label>
 
         {isCountMode ? (
           <div data-preview-readonly>

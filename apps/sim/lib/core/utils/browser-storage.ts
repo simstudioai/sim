@@ -2,6 +2,7 @@ import {
   type WorkspaceSearchFilters,
   workspaceSearchFiltersSchema,
 } from '@/lib/api/contracts/knowledge/search'
+import { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 /**
  * Safe localStorage utilities with SSR support
  * Provides clean error handling and type safety for browser storage operations
@@ -111,97 +112,8 @@ export class BrowserStorage {
 export const STORAGE_KEYS = {
   LANDING_PAGE_PROMPT: 'sim_landing_page_prompt',
   LANDING_PAGE_WORKFLOW_SEED: 'sim_landing_page_workflow_seed',
-  WORKSPACE_RECENCY: 'sim_workspace_recency',
   MOTHERSHIP_HANDOFF: 'sim_mothership_handoff',
 } as const
-
-export class WorkspaceRecencyStorage {
-  private static readonly KEY = STORAGE_KEYS.WORKSPACE_RECENCY
-  private static readonly CHANGE_EVENT = 'workspace-recency-changed'
-
-  static subscribe(onChange: () => void): () => void {
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === WorkspaceRecencyStorage.KEY || event.key === null) onChange()
-    }
-    window.addEventListener('storage', onStorage)
-    window.addEventListener(WorkspaceRecencyStorage.CHANGE_EVENT, onChange)
-    return () => {
-      window.removeEventListener('storage', onStorage)
-      window.removeEventListener(WorkspaceRecencyStorage.CHANGE_EVENT, onChange)
-    }
-  }
-
-  /** A stable snapshot lets both sidebars follow visits without render-time writes. */
-  static getSnapshot(): string | null {
-    try {
-      return window.localStorage.getItem(WorkspaceRecencyStorage.KEY)
-    } catch {
-      return null
-    }
-  }
-
-  private static save(map: Record<string, number>): void {
-    if (BrowserStorage.setItem(WorkspaceRecencyStorage.KEY, map)) {
-      window.dispatchEvent(new Event(WorkspaceRecencyStorage.CHANGE_EVENT))
-    }
-  }
-
-  static touch(workspaceId: string): void {
-    const map = WorkspaceRecencyStorage.getAll()
-    map[workspaceId] = Date.now()
-    WorkspaceRecencyStorage.save(map)
-  }
-
-  static getAll(): Record<string, number> {
-    return BrowserStorage.getItem<Record<string, number>>(WorkspaceRecencyStorage.KEY, {})
-  }
-
-  static getMostRecent(): string | null {
-    const map = WorkspaceRecencyStorage.getAll()
-    const entries = Object.entries(map)
-    if (entries.length === 0) return null
-    entries.sort((a, b) => b[1] - a[1])
-    return entries[0][0]
-  }
-
-  static remove(workspaceId: string): void {
-    const map = WorkspaceRecencyStorage.getAll()
-    delete map[workspaceId]
-    WorkspaceRecencyStorage.save(map)
-  }
-
-  /**
-   * Removes localStorage entries for workspace IDs not in the provided list.
-   * Call from effects or event handlers, not during render.
-   */
-  static prune(validIds: Set<string>): void {
-    const map = WorkspaceRecencyStorage.getAll()
-    let pruned = false
-    for (const id of Object.keys(map)) {
-      if (!validIds.has(id)) {
-        delete map[id]
-        pruned = true
-      }
-    }
-    if (pruned) {
-      WorkspaceRecencyStorage.save(map)
-    }
-  }
-
-  /**
-   * Sorts workspaces by recency (most recent first).
-   * Workspaces without a recorded timestamp are placed after tracked ones.
-   * Pure function safe for use in render-phase computations.
-   */
-  static sortByRecency<T extends { id: string }>(workspaces: T[]): T[] {
-    const map = WorkspaceRecencyStorage.getAll()
-    return [...workspaces].sort((a, b) => {
-      const aTime = map[a.id] ?? 0
-      const bTime = map[b.id] ?? 0
-      return bTime - aTime
-    })
-  }
-}
 
 /**
  * Specialized utility for managing the landing page prompt
@@ -355,6 +267,7 @@ export interface MothershipHandoff {
   /** The request mode the withdrawn send asked for, so a retry stays the same kind of turn. */
   requestMode?: ChatRequestMode
   assistantSearch?: WorkspaceSearchFilters
+  assistantSearchLevel?: AssistantSearchLevel
 }
 
 type MothershipHandoffOwner = string | { organizationId: string }
@@ -415,6 +328,9 @@ export class MothershipHandoffStorage {
       ...(handoff.resumeUserMessageId ? { resumeUserMessageId: handoff.resumeUserMessageId } : {}),
       ...(handoff.requestMode ? { requestMode: handoff.requestMode } : {}),
       ...(handoff.assistantSearch ? { assistantSearch: handoff.assistantSearch } : {}),
+      ...(handoff.assistantSearchLevel !== undefined
+        ? { assistantSearchLevel: handoff.assistantSearchLevel }
+        : {}),
       workspaceId,
       organizationId,
       timestamp: Date.now(),
@@ -454,7 +370,8 @@ export class MothershipHandoffStorage {
    */
   static consume(
     owner: MothershipHandoffOwner,
-    maxAge: number = MothershipHandoffStorage.MAX_AGE_MS
+    maxAge: number = MothershipHandoffStorage.MAX_AGE_MS,
+    requestMode?: ChatRequestMode
   ): MothershipHandoff | null {
     const data = BrowserStorage.getItem<StoredHandoff | null>(MothershipHandoffStorage.KEY, null)
 
@@ -468,6 +385,9 @@ export class MothershipHandoffStorage {
     ) {
       return null
     }
+
+    const storedMode = data.requestMode ?? (data.organizationId ? 'assistant' : 'agent')
+    if (requestMode && storedMode !== requestMode) return null
 
     MothershipHandoffStorage.clear()
 
@@ -483,14 +403,31 @@ export class MothershipHandoffStorage {
       return null
     }
 
+    const legacyFast = (data as { assistantFast?: unknown }).assistantFast
+    if (
+      data.assistantSearchLevel === undefined &&
+      legacyFast !== undefined &&
+      typeof legacyFast !== 'boolean'
+    )
+      return null
+    const rawLevel =
+      data.assistantSearchLevel ??
+      (legacyFast === true ? 'fast' : legacyFast === false ? 'adaptive' : undefined)
+    const searchLevel = AssistantSearchLevel.optional().safeParse(rawLevel)
+    if (!searchLevel.success) return null
     const assistantSearch = workspaceSearchFiltersSchema.safeParse(data.assistantSearch ?? {})
     if (!assistantSearch.success) return null
 
     return {
       ...(data.message || hasAttachments ? { message: data.message ?? '' } : {}),
       contexts,
-      ...(data.requestMode === 'assistant' ? { requestMode: 'assistant' as const } : {}),
+      ...(data.requestMode === 'assistant' ||
+      data.requestMode === 'agent' ||
+      data.requestMode === 'plan'
+        ? { requestMode: data.requestMode }
+        : {}),
       ...(data.assistantSearch ? { assistantSearch: assistantSearch.data } : {}),
+      ...(searchLevel.data !== undefined ? { assistantSearchLevel: searchLevel.data } : {}),
       ...(Array.isArray(data.fileAttachments) && data.fileAttachments.length > 0
         ? { fileAttachments: data.fileAttachments }
         : {}),

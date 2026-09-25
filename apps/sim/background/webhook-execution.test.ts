@@ -75,6 +75,13 @@ vi.mock('@/lib/webhooks/env-resolver', () => ({
   resolveWebhookRecordProviderConfig: mockResolveWebhookRecordProviderConfig,
 }))
 
+const { mockCreateSlackStreamController } = vi.hoisted(() => ({
+  mockCreateSlackStreamController: vi.fn(),
+}))
+vi.mock('@/lib/webhooks/slack-execution-stream', () => ({
+  SlackExecutionStreamController: { create: mockCreateSlackStreamController },
+}))
+
 vi.mock('@/lib/workflows/executor/execution-core', () => ({
   executeWorkflowCore: mockExecuteWorkflowCore,
   wasExecutionFinalizedByCore: mockWasExecutionFinalizedByCore,
@@ -323,6 +330,59 @@ describe('executeWebhookJob fault vs error handling', () => {
     })
     dbChainMockFns.limit.mockResolvedValue([{ id: 'webhook-1' }])
   })
+
+  it.each([true, false])(
+    'enables the shared Agent/Sim Chat event stream and honors tool visibility: %s',
+    async (includeToolCalls) => {
+      const config = {
+        enabled: true,
+        outputConfigs: [{ blockId: 'mship', path: 'content' }],
+        includeToolCalls,
+        includeThinking: false,
+        taskDisplayMode: 'timeline',
+        taskTitle: 'Running',
+      }
+      dbChainMockFns.limit.mockResolvedValue([
+        {
+          id: 'webhook-1',
+          providerConfig: { credentialId: 'bot-1', streamResponseConfig: config },
+        },
+      ])
+      const calls: string[] = []
+      const controller = {
+        selectedOutputs: ['mship_content'],
+        callbacks: { onStream: vi.fn() },
+        finalize: vi.fn(async () => {
+          calls.push('delivery')
+        }),
+        assertSucceeded: vi.fn(() => {
+          calls.push('receipt')
+        }),
+      }
+      mockCreateSlackStreamController.mockResolvedValue(controller)
+      mockExecuteWorkflowCore.mockImplementationOnce(async (options) => {
+        const result = {
+          success: true,
+          status: 'completed',
+          output: { content: 'Complete answer' },
+          logs: [],
+        }
+        expect(options.callbacks).toBe(controller.callbacks)
+        await options.finalizeDelivery(result)
+        calls.push('workflow-result')
+        return result
+      })
+      await executeWebhookJob({ ...legacyPayload, provider: 'slack' })
+      expect(mockExecutionSnapshot.mock.calls[0]?.[0]).toMatchObject({
+        agentEvents: true,
+        includeThinking: false,
+        includeToolCalls,
+      })
+      expect(mockExecutionSnapshot.mock.calls[0]?.[4]).toEqual(['mship_content'])
+      expect(controller.finalize).toHaveBeenCalledTimes(1)
+      expect(calls).toEqual(['delivery', 'receipt', 'workflow-result'])
+    }
+  )
 
   it('restores a legacy queued webhook as its canonical system principal', async () => {
     mockExecuteWorkflowCore.mockResolvedValueOnce({

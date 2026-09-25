@@ -546,6 +546,175 @@ describe('path-owned folder mutations', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
+  /**
+   * `mv` semantics: `/xp-files` moved to an existing `/fx-archive` lands at
+   * `/fx-archive/xp-files` instead of being refused as a name collision, while
+   * a destination naming no folder is still the source's new full path.
+   */
+  it('moves a folder into a destination that names an existing folder', async () => {
+    const source = folderRow({ id: 'folder-1', name: 'xp-files' })
+    const archive = folderRow({ id: 'folder-2', name: 'fx-archive' })
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map([
+        ['folder-1', source],
+        ['folder-2', archive],
+      ]),
+      pathById: new Map([
+        ['folder-1', '/xp-files'],
+        ['folder-2', '/fx-archive'],
+      ]),
+      idByPath: new Map([
+        ['/xp-files', 'folder-1'],
+        ['/fx-archive', 'folder-2'],
+      ]),
+    })
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      folderRow({ id: 'folder-1', name: 'xp-files', parentId: 'folder-2' }),
+    ])
+
+    const result = await relocateFolderByPath({
+      resourceType: 'table',
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      path: '/xp-files',
+      destinationPath: '/fx-archive',
+    })
+
+    expect(result).toMatchObject({ success: true, path: '/fx-archive/xp-files' })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'xp-files', parentId: 'folder-2' })
+    )
+    expect(auditMock.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'Moved table folder to "/fx-archive/xp-files"',
+        metadata: expect.objectContaining({ destinationPath: '/fx-archive/xp-files' }),
+      })
+    )
+  })
+
+  it('renames a folder to a destination that names no folder', async () => {
+    const source = folderRow({ id: 'folder-1', name: 'xp-files' })
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map([['folder-1', source]]),
+      pathById: new Map([['folder-1', '/xp-files']]),
+      idByPath: new Map([['/xp-files', 'folder-1']]),
+    })
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      folderRow({ id: 'folder-1', name: 'fx-archive' }),
+    ])
+
+    const result = await relocateFolderByPath({
+      resourceType: 'table',
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      path: '/xp-files',
+      destinationPath: '/fx-archive',
+    })
+
+    expect(result).toMatchObject({ success: true, path: '/fx-archive' })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'fx-archive', parentId: null })
+    )
+  })
+
+  /**
+   * `/` is the one destination that always names an existing folder, so it
+   * takes the source as a child like any other: the nested folder lands at the
+   * top level under its own name. Before this the root was refused outright,
+   * which left no way to move a folder back out of its parent.
+   */
+  it('moves a nested folder back to the root when the destination is /', async () => {
+    const archive = folderRow({ id: 'folder-2', name: 'fx-archive' })
+    const source = folderRow({ id: 'folder-1', name: 'xp-docs', parentId: 'folder-2' })
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map([
+        ['folder-1', source],
+        ['folder-2', archive],
+      ]),
+      pathById: new Map([
+        ['folder-1', '/fx-archive/xp-docs'],
+        ['folder-2', '/fx-archive'],
+      ]),
+      idByPath: new Map([
+        ['/fx-archive/xp-docs', 'folder-1'],
+        ['/fx-archive', 'folder-2'],
+      ]),
+    })
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      folderRow({ id: 'folder-1', name: 'xp-docs', parentId: null }),
+    ])
+
+    const result = await relocateFolderByPath({
+      resourceType: 'table',
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      path: '/fx-archive/xp-docs',
+      destinationPath: '/',
+    })
+
+    expect(result).toMatchObject({ success: true, path: '/xp-docs' })
+    expect(dbChainMockFns.set).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'xp-docs', parentId: null })
+    )
+    expect(auditMock.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ description: 'Moved table folder to "/xp-docs"' })
+    )
+  })
+
+  it('reports a root-level folder moved to / as already there', async () => {
+    const source = folderRow({ id: 'folder-1', name: 'xp-docs' })
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map([['folder-1', source]]),
+      pathById: new Map([['folder-1', '/xp-docs']]),
+      idByPath: new Map([['/xp-docs', 'folder-1']]),
+    })
+
+    const result = await relocateFolderByPath({
+      resourceType: 'table',
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      path: '/xp-docs',
+      destinationPath: '/',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
+  it('still refuses a move whose source already exists under the destination', async () => {
+    const source = folderRow({ id: 'folder-1', name: 'xp-files' })
+    const archive = folderRow({ id: 'folder-2', name: 'fx-archive' })
+    const taken = folderRow({ id: 'folder-3', name: 'xp-files', parentId: 'folder-2' })
+    mockLoadActiveFolderPathIndex.mockResolvedValue({
+      rowById: new Map([
+        ['folder-1', source],
+        ['folder-2', archive],
+        ['folder-3', taken],
+      ]),
+      pathById: new Map([
+        ['folder-1', '/xp-files'],
+        ['folder-2', '/fx-archive'],
+        ['folder-3', '/fx-archive/xp-files'],
+      ]),
+      idByPath: new Map([
+        ['/xp-files', 'folder-1'],
+        ['/fx-archive', 'folder-2'],
+        ['/fx-archive/xp-files', 'folder-3'],
+      ]),
+    })
+
+    const result = await relocateFolderByPath({
+      resourceType: 'table',
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      path: '/xp-files',
+      destinationPath: '/fx-archive',
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'conflict' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
   it('requires recursive deletion when the path has descendant folders', async () => {
     const source = folderRow({ id: 'folder-1', name: 'Reports' })
     const child = folderRow({ id: 'folder-2', name: 'Q1', parentId: 'folder-1' })
@@ -989,6 +1158,34 @@ describe('restoreFolder', () => {
     // The hook's count wins; the generic child restore never runs for this resource.
     expect(mockRestoreFolderChildren).not.toHaveBeenCalled()
     expect(result).toEqual({ success: true, restoredItems: { folders: 1, tables: 5 } })
+  })
+
+  /**
+   * Regression: the restore used to run inside `withFolderTreeLock`, so the pool read of the
+   * folder row and the table cascade's own transactions all ran inside a transaction callback —
+   * which the `@sim/db` tripwire refuses outside production, 500ing every table-folder restore.
+   * The lock now lives inside the one folder-row transaction, after the hook has finished.
+   */
+  it('takes the tree lock inside the folder-row transaction, after the restoreChildren hook', async () => {
+    setConfig({ restoreChildren: mockRestoreChildren })
+    mockRestoreChildren.mockResolvedValueOnce(2)
+    queueTableRows(schemaMock.folder, [folderRow({ deletedAt: ARCHIVED_AT })])
+
+    const result = await restoreFolder(baseRestore)
+
+    expect(result).toEqual({ success: true, restoredItems: { folders: 1, tables: 2 } })
+    expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+    expect(mockRestoreChildren.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.transaction.mock.invocationCallOrder[0]
+    )
+    // The advisory lock is the first statement on the transaction handle, ahead of the row writes.
+    expect(dbChainMockFns.execute).toHaveBeenCalled()
+    expect(dbChainMockFns.execute.mock.invocationCallOrder[0]).toBeGreaterThan(
+      dbChainMockFns.transaction.mock.invocationCallOrder[0]
+    )
+    expect(dbChainMockFns.execute.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRestoreFolderRows.mock.invocationCallOrder[0]
+    )
   })
 
   it('returns a conflict when a concurrent create takes the name after the dedup check', async () => {

@@ -112,7 +112,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 // needs the same variables set before first paint.
                 try {
                   var path = window.location.pathname;
-                  if (path.indexOf('/workspace/') === -1 && path.indexOf('/o/') !== 0) {
+                  if (path.indexOf('/workspace/') === -1 && path.indexOf('/o/') !== 0 && path.indexOf('/account/settings') !== 0 && path.indexOf('/selfhost/settings') !== 0) {
                     return;
                   }
                 } catch (e) {
@@ -123,7 +123,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 // 30% of the viewport capped at 400px, and never below the 224px
                 // minimum, so a narrow window yields a width >= MIN instead of a
                 // sub-minimum sliver.
-                var defaultSidebarWidth = 256;
+                var defaultSidebarWidth = 224;
                 try {
                   // Collapse comes from the cookie (independent of localStorage
                   // parsing); the persisted width is read defensively below. Match the

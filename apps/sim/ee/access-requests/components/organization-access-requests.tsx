@@ -1,8 +1,8 @@
 'use client'
 
-import { Chip, ChipInput, ChipSelect, ChipSwitch, ChipTag, toast } from '@sim/emcn'
-import { Search } from '@sim/emcn/icons'
+import { Chip, ChipSelect, ChipSwitch, ChipTag, toast } from '@sim/emcn'
 import { useQueryStates } from 'nuqs'
+import type { SettingsAction } from '@/components/settings/settings-header'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
   SettingsEmptyState,
@@ -32,16 +32,15 @@ import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 interface OrganizationAccessRequestsProps {
   organizationId: string
-  standalone?: boolean
+  actions?: SettingsAction[]
 }
 
 export function OrganizationAccessRequests({
   organizationId,
-  standalone = false,
+  actions,
 }: OrganizationAccessRequestsProps) {
   const [params, setParams] = useQueryStates(accessReviewSearchParams, {
     ...accessRequestUrlOptions,
-    urlKeys: { 'request-id': standalone ? 'requestId' : 'request-id' },
   })
   const searchTerm = params['request-search']
   const setSearchTerm = useDebouncedSearchSetter((value, options) =>
@@ -204,20 +203,9 @@ export function OrganizationAccessRequests({
     maxLength: ACCESS_REQUEST_MAX_SEARCH_LENGTH,
   }
 
-  return standalone ? (
-    <div className='flex flex-col gap-7'>
-      <ChipInput
-        icon={Search}
-        value={search.value}
-        onChange={(event) => search.onChange(event.target.value)}
-        placeholder={search.placeholder}
-        maxLength={search.maxLength}
-        aria-label='Search requests'
-        autoComplete='off'
-      />
+  return (
+    <SettingsPanel actions={actions} search={search}>
       {content}
-    </div>
-  ) : (
-    <SettingsPanel search={search}>{content}</SettingsPanel>
+    </SettingsPanel>
   )
 }

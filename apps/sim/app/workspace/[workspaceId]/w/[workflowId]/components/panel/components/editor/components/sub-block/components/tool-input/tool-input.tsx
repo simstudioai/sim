@@ -599,8 +599,9 @@ export const ToolInput = memo(function ToolInput({
   const modelValue = useSubBlockStore((state) => state.getValue(blockId, 'model'))
   const model = typeof modelValue === 'string' ? modelValue : ''
   const provider = model ? getProviderFromModel(model) : ''
-  const supportsToolControl = provider ? supportsToolUsageControl(provider) : false
-  const supportsForce = supportsForcedToolUse(model)
+  const supportsToolControl =
+    blockType === 'mothership' || (provider ? supportsToolUsageControl(provider) : false)
+  const supportsForce = blockType === 'mothership' || supportsForcedToolUse(model)
 
   const {
     filterBlocks,

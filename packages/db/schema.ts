@@ -27,6 +27,17 @@ import {
 } from 'drizzle-orm/pg-core'
 import { DEFAULT_FREE_CREDITS, TAG_SLOTS } from './constants'
 
+/**
+ * Drizzle push compares index options as JSON, while Postgres introspection
+ * returns strings. Normalize only dev pushes so unchanged HNSW indexes survive
+ * the diff; versioned migration snapshots retain their original numeric values.
+ */
+function hnswIndexOptions() {
+  return process.env.SIM_DEV_DB_PUSH === '1'
+    ? { m: '16', ef_construction: '64' }
+    : { m: 16, ef_construction: 64 }
+}
+
 // Custom tsvector type for full-text search
 export const tsvector = customType<{
   data: string
@@ -293,6 +304,28 @@ export const pinnedItem = pgTable(
       table.resourceType,
       table.resourceId
     ),
+  })
+)
+
+/**
+ * When each user last opened each workspace. The workspace list returns these so
+ * the switcher orders by recency on the server — every render agrees on the order,
+ * and it follows the user across devices.
+ */
+export const workspaceVisit = pgTable(
+  'workspace_visit',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    visitedAt: timestamp('visited_at').notNull().defaultNow(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.userId, table.workspaceId] }),
+    workspaceIdx: index('workspace_visit_workspace_idx').on(table.workspaceId),
   })
 )
 
@@ -748,6 +781,51 @@ export const environment = pgTable('environment', {
   variables: json('variables').notNull(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+/** Generic Secrets source configuration, independent of indexed/searchable connectors. */
+export const organizationSecretSource = pgTable(
+  'organization_secret_source',
+  {
+    id: text('id').primaryKey(),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    mode: text('mode').$type<'organization' | 'member'>().notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('organization_secret_source_org_unique').on(table.organizationId),
+    check(
+      'organization_secret_source_mode_check',
+      sql`${table.mode} IN ('organization', 'member')`
+    ),
+  ]
+)
+
+/** Ciphertext only; a null owner denotes the organization's shared environment. */
+export const organizationSecret = pgTable(
+  'organization_secret',
+  {
+    id: text('id').primaryKey(),
+    sourceId: text('source_id')
+      .notNull()
+      .references(() => organizationSecretSource.id, { onDelete: 'cascade' }),
+    ownerUserId: text('owner_user_id').references(() => user.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    encryptedValue: text('encrypted_value').notNull(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('organization_secret_shared_unique')
+      .on(table.sourceId, table.name)
+      .where(sql`${table.ownerUserId} IS NULL`),
+    uniqueIndex('organization_secret_member_unique')
+      .on(table.sourceId, table.ownerUserId, table.name)
+      .where(sql`${table.ownerUserId} IS NOT NULL`),
+    index('organization_secret_owner_idx').on(table.ownerUserId),
+  ]
+)
 
 export const workspaceEnvironment = pgTable(
   'workspace_environment',
@@ -2509,6 +2587,14 @@ export const workspaceFileSearchRevision = pgTable(
     indexedBytes: integer('indexed_bytes').notNull().default(0),
     chunkCount: integer('chunk_count').notNull().default(0),
     dispatchedAt: timestamp('dispatched_at'),
+    /**
+     * Deadline for a claim's run to be handed off, in PostgreSQL time. Set with the claim and
+     * cleared once a run is known to exist: Trigger.dev accepted it, in-process indexing took it, or
+     * it began its build. A claim still carrying an expired deadline has no run known to exist and
+     * is released, and its token fences out any run it did get. NULL otherwise, including claims
+     * made before this column existed, which fall back to the stale-dispatch window.
+     */
+    handoffExpiresAt: timestamp('handoff_expires_at'),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({
@@ -3596,8 +3682,8 @@ export const EMBEDDING_KEYWORD_TIN_INDEX = 'embedding_keyword_tin_content_idx'
  * BM25 keyword ranking for organization search indexes, served by the Tin text index where the
  * database provides the `tin` extension. `content` is the chunk's `english` lexemes in position
  * order, prefixed with a token naming its knowledge base, so ranking is scoped to one base inside
- * the index and stems exactly as the GIN projection does. Access never enters the row, so ACL
- * changes never rewrite it. Script migration `0019_tin_keyword_projection` installs the extension,
+ * the index and stems exactly as the GIN projection does. The row mirrors its document's source
+ * and ACL, like {@link embeddingSearch}. Script migration `0019_tin_keyword_projection` installs the extension,
  * the index, and the embedding and knowledge base triggers that own these rows, and only where
  * `tin` exists; elsewhere the table stays empty and keyword search keeps the GIN projection.
  */
@@ -3625,9 +3711,10 @@ export const embeddingKeywordTin = pgTable(
 )
 
 /**
- * Transactionally maintained candidate projection. Keeping identities and half-precision vectors apart
- * from content prevents candidate scans from fetching full-precision TOAST values.
- * The embedding write trigger owns this projection; application writers only change embedding.
+ * Candidate projection. Keeping identities and half-precision vectors apart from content prevents
+ * candidate scans from fetching full-precision TOAST values. Application writers only change
+ * `embedding`: its trigger writes this projection in the writer's transaction, or, for a writer that
+ * deferred it, the knowledge projector writes it after the commit (see {@link knowledgeProjectionDirty}).
  */
 export const embeddingSearch = pgTable(
   'embedding_search',
@@ -3669,26 +3756,55 @@ export const embeddingSearch = pgTable(
       .where(sql`${table.enabled}`),
     vectorIdx: index('embedding_search_cosine_hnsw_idx')
       .using('hnsw', table.vector.op('halfvec_cosine_ops'))
-      .with({ m: 16, ef_construction: 64 }),
+      .with(hnswIndexOptions()),
     vector512Idx: index('embedding_search_512_cosine_hnsw_idx')
       .using('hnsw', table.vector512.op('halfvec_cosine_ops'))
-      .with({ m: 16, ef_construction: 64 }),
+      .with(hnswIndexOptions()),
     vector384Idx: index('embedding_search_384_cosine_hnsw_idx')
       .using('hnsw', table.vector384.op('halfvec_cosine_ops'))
-      .with({ m: 16, ef_construction: 64 }),
+      .with(hnswIndexOptions()),
     vector768Idx: index('embedding_search_768_cosine_hnsw_idx')
       .using('hnsw', table.vector768.op('halfvec_cosine_ops'))
-      .with({ m: 16, ef_construction: 64 }),
+      .with(hnswIndexOptions()),
     vector1024Idx: index('embedding_search_1024_cosine_hnsw_idx')
       .using('hnsw', table.vector1024.op('halfvec_cosine_ops'))
-      .with({ m: 16, ef_construction: 64 }),
+      .with(hnswIndexOptions()),
     vector3072Idx: index('embedding_search_3072_cosine_hnsw_idx')
       .using('hnsw', table.vector3072.op('halfvec_cosine_ops'))
-      .with({ m: 16, ef_construction: 64 }),
+      .with(hnswIndexOptions()),
     widthCheck: check(
       'embedding_search_width_check',
       sql`num_nonnulls("binary", "binary_384", "binary_768", "binary_1024", "binary_3072") = 1`
     ),
+  })
+)
+
+/**
+ * Documents whose search projection rows may lag their source rows. The `document` and `embedding`
+ * triggers mark a document here whenever they change what its projection rows carry, in the
+ * writer's transaction; the projector rewrites the rows and then removes the mark, but only on the
+ * generation it read, so a change made while it ran leaves the mark in place. Search decides a
+ * marked document's rows on the document itself, so a mark never widens what a reader sees.
+ *
+ * A side table rather than a column on `document`: a mark is written by the writer that already
+ * holds the document row, but clearing it would otherwise take that row again, and readers probe
+ * this small table instead of joining `document` per ranked row.
+ */
+export const knowledgeProjectionDirty = pgTable(
+  'knowledge_projection_dirty',
+  {
+    documentId: text('document_id')
+      .primaryKey()
+      .references(() => document.id, { onDelete: 'cascade' }),
+    /** Bumped by every mark; the projector removes the row only on the generation it read. */
+    generation: bigint('generation', { mode: 'number' }).notNull().default(1),
+    /** Whether chunk content changed, not only the document's source or ACL. */
+    content: boolean('content').notNull().default(false),
+    markedAt: timestamp('marked_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    /** The projector claims the oldest marks first. */
+    markedAtIdx: index('knowledge_projection_dirty_marked_at_idx').on(table.markedAt),
   })
 )
 
@@ -3761,10 +3877,7 @@ export const docsEmbeddings = pgTable(
     // Vector similarity search indexes (HNSW) - optimized for documentation embeddings
     embeddingVectorHnswIdx: index('docs_embedding_vector_hnsw_idx')
       .using('hnsw', table.embedding.op('vector_cosine_ops'))
-      .with({
-        m: 16,
-        ef_construction: 64,
-      }),
+      .with(hnswIndexOptions()),
 
     // GIN index for JSONB metadata queries
     metadataGinIdx: index('docs_emb_metadata_gin_idx').using('gin', table.metadata),
@@ -3865,6 +3978,19 @@ export const copilotChats = pgTable(
       .on(table.userId, table.workspaceId)
       .where(sql`${table.deletedAt} IS NOT NULL`),
   })
+)
+
+/** Resource effects and panel state commit together; replay cannot undo a later user edit. */
+export const mothershipResourceEffects = pgTable(
+  'mothership_resource_effects',
+  {
+    chatId: uuid('chat_id')
+      .notNull()
+      .references(() => copilotChats.id, { onDelete: 'cascade' }),
+    effectId: text('effect_id').notNull(),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => ({ pk: primaryKey({ columns: [table.chatId, table.effectId] }) })
 )
 
 export const copilotMessages = pgTable(
@@ -4005,11 +4131,46 @@ export type CopilotAsyncToolStatus = (typeof copilotAsyncToolStatusEnum.enumValu
 export type CopilotToolPermissionDecision =
   (typeof copilotToolPermissionDecisionEnum.enumValues)[number]
 
+/** Stop may arrive before chat creation. Its actor/workspace scope cannot cancel another request. */
+export const copilotRequestStops = pgTable(
+  'copilot_request_stops',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    streamId: text('stream_id').notNull(),
+    stoppedAt: timestamp('stopped_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.workspaceId, table.streamId] })]
+)
+
+/** Organization Stop intents preserve the workspace table's deployed key and write contract. */
+export const copilotOrganizationRequestStops = pgTable(
+  'copilot_organization_request_stops',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    organizationId: text('organization_id')
+      .notNull()
+      .references(() => organization.id, { onDelete: 'cascade' }),
+    streamId: text('stream_id').notNull(),
+    stoppedAt: timestamp('stopped_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.organizationId, table.streamId] })]
+)
+
 export const copilotRuns = pgTable(
   'copilot_runs',
   {
     id: uuid('id').primaryKey().defaultRandom(),
     executionId: text('execution_id').notNull(),
+    /** Rows predating the active ownership protocol cannot certify tool settlement. */
+    toolExecutionVersion: integer('tool_execution_version').notNull().default(0),
+    toolAdmissionClosedAt: timestamp('tool_admission_closed_at'),
     parentRunId: uuid('parent_run_id'),
     chatId: uuid('chat_id')
       .notNull()
@@ -4020,6 +4181,9 @@ export const copilotRuns = pgTable(
     workflowId: text('workflow_id').references(() => workflow.id, { onDelete: 'cascade' }),
     workspaceId: text('workspace_id').references(() => workspace.id, { onDelete: 'cascade' }),
     streamId: text('stream_id').notNull(),
+    organizationId: text('organization_id').references(() => organization.id, {
+      onDelete: 'cascade',
+    }),
     agent: text('agent'),
     model: text('model'),
     provider: text('provider'),
@@ -4103,6 +4267,21 @@ export const copilotAsyncToolCalls = pgTable(
     permissionDecidedAt: timestamp('permission_decided_at'),
     claimedAt: timestamp('claimed_at'),
     claimedBy: text('claimed_by'),
+    /** One-use download-save admission; never released after an uncertain storage outcome. */
+    browserDownloadStartedAt: timestamp('browser_download_started_at'),
+    /** Separate from the model-facing terminal result, which can precede cleanup. */
+    executionStartedAt: timestamp('execution_started_at'),
+    executionSettledAt: timestamp('execution_settled_at'),
+    /** Independent of stream ownership and terminal result delivery. */
+    executionOwnerToken: text('execution_owner_token'),
+    executionLeaseExpiresAt: timestamp('execution_lease_expires_at', { withTimezone: true }),
+    executionRevokedAt: timestamp('execution_revoked_at', { withTimezone: true }),
+    /** Assigned only after the workflow HTTP executor has reserved this execution identity. */
+    clientWorkflowExecutionId: text('client_workflow_execution_id'),
+    sandboxProcesses: jsonb('sandbox_processes')
+      .$type<Record<string, { sandboxId: string; sessionKey: string; settled: boolean }>>()
+      .notNull()
+      .default({}),
     completedAt: timestamp('completed_at'),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -5914,6 +6093,12 @@ export const knowledgeConnector = pgTable(
      */
     accessRewritePending: boolean('access_rewrite_pending').notNull().default(false),
     /**
+     * Where the members-mode absence reconcile resumes: the external id of the
+     * last live document it checked, in `doc_connector_external_id_idx` order.
+     * NULL starts a new pass from the beginning.
+     */
+    memberTombstoneCursor: jsonb('member_tombstone_cursor').$type<{ externalId: string }>(),
+    /**
      * One of `active`, `pending`, `syncing`, `error`, `paused`, `disabled`.
      *
      * `pending` and `syncing` are the two halves of a sync in flight: `pending`
@@ -5965,6 +6150,21 @@ export const knowledgeConnector = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     archivedAt: timestamp('archived_at'),
     deletedAt: timestamp('deleted_at'),
+    /**
+     * Set when the connector is removed but its documents are kept. The connector stops syncing
+     * and leaves every management surface at once, while its documents stay readable; a
+     * background job releases them as standalone entries in bounded pages and then deletes the
+     * row. Releasing a document rewrites every search projection row of it, so the release
+     * cannot run inside the removal request.
+     */
+    detachedAt: timestamp('detached_at'),
+    /**
+     * Storage admitted and charged when the connector was detached but not yet matched by a released
+     * document. Each released page consumes its bytes; whatever remains when the row is deleted, such
+     * as a document deleted before its release, is settled then. Billing recomputations count it
+     * alongside standalone documents, since the workspace ledger already includes it.
+     */
+    detachReservedBytes: bigint('detach_reserved_bytes', { mode: 'number' }).notNull().default(0),
   },
   (table) => ({
     knowledgeBaseIdIdx: index('kc_knowledge_base_id_idx').on(table.knowledgeBaseId),
@@ -6385,7 +6585,7 @@ export const knowledgeConnectorMemberSyncLog = pgTable(
     connectorId: text('connector_id')
       .notNull()
       .references(() => knowledgeConnector.id, { onDelete: 'cascade' }),
-    /** `started`, `completed`, or `failed`. */
+    /** `started`, `partial`, `completed`, or `failed`. */
     status: text('status').notNull(),
     startedAt: timestamp('started_at').notNull().defaultNow(),
     completedAt: timestamp('completed_at'),
@@ -6410,6 +6610,12 @@ export const knowledgeConnectorMemberSyncLog = pgTable(
     docsPurged: integer('docs_purged').notNull().default(0),
     credentialsAudited: integer('credentials_audited').notNull().default(0),
     errorMessage: text('error_message'),
+    /**
+     * The transient database failure class (`capacity`, `conflict`, or `connection`) that failed
+     * the run; null on every other outcome and on runs logged before it was recorded. Only these
+     * runs count toward the database retry streak.
+     */
+    databaseFailureClass: text('database_failure_class'),
   },
   (table) => ({
     connectorStartedAtIdx: index('kcmsl_connector_started_at_idx').on(
@@ -6423,6 +6629,10 @@ export const knowledgeConnectorMemberSyncLog = pgTable(
     statusCheck: check(
       'kcmsl_status_check',
       sql`${table.status} IN ('started', 'partial', 'completed', 'failed')`
+    ),
+    databaseFailureClassCheck: check(
+      'kcmsl_database_failure_class_check',
+      sql`${table.databaseFailureClass} IN ('capacity', 'conflict', 'connection')`
     ),
   })
 )
@@ -6449,6 +6659,12 @@ export const knowledgeConnectorSyncLog = pgTable(
     /** Complete listing-cycle size; per-worker counters may cover only its last page batch. */
     listedCount: integer('listed_count'),
     errorMessage: text('error_message'),
+    /**
+     * The transient database failure class (`capacity`, `conflict`, or `connection`) that failed
+     * the run; null on every other outcome and on runs logged before it was recorded. Only these
+     * runs count toward the database retry streak.
+     */
+    databaseFailureClass: text('database_failure_class'),
   },
   (table) => ({
     connectorStartedAtIdx: index('kcsl_connector_started_at_idx').on(
@@ -6469,6 +6685,10 @@ export const knowledgeConnectorSyncLog = pgTable(
     startedPartialIdx: index('kcsl_started_at_partial_idx')
       .on(table.startedAt)
       .where(sql`${table.status} = 'started'`),
+    databaseFailureClassCheck: check(
+      'kcsl_database_failure_class_check',
+      sql`${table.databaseFailureClass} IN ('capacity', 'conflict', 'connection')`
+    ),
   })
 )
 
@@ -7584,4 +7804,53 @@ export const scimRequestLog = pgTable(
       table.createdAt
     ),
   })
+)
+
+/**
+ * Retained for the deployment transition from callback subscriptions to the worker task
+ * inbox (mothership D35). New code reads canonical execution status and does not use
+ * this table. Drop it only after the previous worker/Sim versions have been retired.
+ */
+export const copilotTaskSubscriptions = pgTable(
+  'copilot_task_subscriptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    taskId: uuid('task_id').notNull(),
+    executionId: text('execution_id').notNull(),
+    chatId: uuid('chat_id')
+      .notNull()
+      .references(() => copilotChats.id, { onDelete: 'cascade' }),
+    workspaceId: text('workspace_id')
+      .notNull()
+      .references(() => workspace.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+  },
+  (table) => [
+    index('copilot_task_subscriptions_execution_idx').on(table.executionId),
+    uniqueIndex('copilot_task_subscriptions_task_idx').on(table.taskId),
+  ]
+)
+
+/** Provider costs outlive tool results and chat deletion until the billing owner acknowledges them. */
+export const copilotServiceUsage = pgTable(
+  'copilot_service_usage',
+  {
+    id: uuid('id').primaryKey(),
+    streamId: uuid('stream_id').notNull(),
+    toolCallId: text('tool_call_id').notNull(),
+    service: text('service').notNull(),
+    costUsd: decimal('cost_usd', { precision: 12, scale: 8 }),
+    workerOrigin: text('worker_origin').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    attempts: integer('attempts').notNull().default(0),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    lastError: text('last_error'),
+  },
+  (t) => [
+    index('copilot_service_usage_pending_idx').on(t.nextAttemptAt).where(sql`delivered_at IS NULL`),
+  ]
 )

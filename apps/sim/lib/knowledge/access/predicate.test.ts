@@ -41,7 +41,12 @@ describe('projectionCandidateAccessCondition', () => {
     uploads: true,
   }
 
-  it('decides a filled row on its mirrored columns and an unfilled row on its document', () => {
+  const pending =
+    '(EXISTS (SELECT 1 FROM "knowledge_projection_dirty" WHERE "knowledge_projection_dirty"."document_id" = "embedding_search"."document_id"))'
+  const onDocument =
+    'AND (SELECT "document"."id" FROM "document"\n    WHERE "document"."id" = "embedding_search"."document_id"\n      AND ('
+
+  it('decides a filled row on its mirrored columns and an unfilled or marked row on its document', () => {
     const { sql, params } = render(
       projectionCandidateAccessCondition(
         embeddingSearch,
@@ -49,17 +54,30 @@ describe('projectionCandidateAccessCondition', () => {
         plan
       )
     )
-    expect(sql).toContain(
-      '("embedding_search"."acl" IS NULL AND EXISTS (\n    SELECT 1 FROM "document"\n    WHERE "document"."id" = "embedding_search"."document_id"\n      AND ('
-    )
+    expect(sql).toContain(`(("embedding_search"."acl" IS NULL OR ${pending}) ${onDocument}`)
     expect(sql).toContain('"document"."acl" && ARRAY[$1, $2]::text[]')
-    expect(sql).toContain('OR ("embedding_search"."acl" && ARRAY[')
+    expect(sql).toContain('OR (("embedding_search"."acl" && ARRAY[')
     expect(sql).toContain(
       'AND ("embedding_search"."connector_id" IS NULL OR "embedding_search"."connector_id" = ANY(ARRAY['
     )
+    expect(sql).toContain(`AND NOT ${pending})`)
     expect(params.slice(0, 2)).toEqual(['ws', 'u:alice'])
     expect(params.slice(-3)).toEqual(['ws', 'u:alice', 'ws-src'])
     for (const param of params) expect(Array.isArray(param)).toBe(false)
+  })
+
+  it('still decides a marked row on its document once the projection is filled', () => {
+    const { sql } = render(
+      projectionCandidateAccessCondition(
+        embeddingSearch,
+        { kind: 'user', userId: 'user-1', tokens: ['ws', 'u:alice'] },
+        plan,
+        { filled: true }
+      )
+    )
+    expect(sql).toContain(`((${pending} ${onDocument}`)
+    expect(sql).not.toContain('"embedding_search"."acl" IS NULL')
+    expect(sql).toContain(`AND NOT ${pending})`)
   })
 
   it('still denies everything for an empty token set', () => {

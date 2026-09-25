@@ -23,14 +23,16 @@ export const USAGE_GATE_TTL_MS = 5 * 60 * 1000
 
 /**
  * How long a coalesced usage read may take before its callers give up on it. The read's cost is
- * the ledger sum, which the database ends at {@link USAGE_LEDGER_STATEMENT_TIMEOUT_MS}; the
- * remainder is a few indexed lookups and the connection waits around them. The singleflight
- * default of 30 s exists to bound a hung producer, and a slow sum is not a hung one: given up on
- * early, it keeps running detached while every joined caller fails and the next caller starts a
- * second sum alongside it. Derived from the statement bound so the database always ends the sum
- * first, and the gate only gives up on a connection that never answers.
+ * its ledger aggregates, each of which the database ends at
+ * {@link USAGE_LEDGER_STATEMENT_TIMEOUT_MS}; at most two run in sequence (the payer's usage,
+ * then a member's cap), and the remainder is a few indexed lookups and the connection waits
+ * around them. The singleflight default of 30 s exists to bound a hung producer, and a slow
+ * aggregate is not a hung one: given up on early, it keeps running detached while every joined
+ * caller fails and the next caller starts a second one alongside it. Sized from the statement
+ * bound so the database always ends the aggregates first, and the gate only gives up on a
+ * connection that never answers.
  */
-export const USAGE_GATE_SETTLE_TIMEOUT_MS = USAGE_LEDGER_STATEMENT_TIMEOUT_MS + 15_000
+export const USAGE_GATE_SETTLE_TIMEOUT_MS = 2 * USAGE_LEDGER_STATEMENT_TIMEOUT_MS + 15_000
 
 /**
  * Recent gate answers, admitted and refused, with `LRUCache` supplying the TTL

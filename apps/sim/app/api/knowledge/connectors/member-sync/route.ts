@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { knowledgeBase, knowledgeConnector, knowledgeConnectorMemberSyncLog } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { and, asc, eq, inArray, isNull, lte, type SQL, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyCronAuth } from '@/lib/auth/internal'
@@ -12,6 +13,7 @@ import { resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { connectorIndexingCondition } from '@/lib/knowledge/connectors/indexing-policy'
 import { sweepStaleMemberObservations } from '@/lib/knowledge/connectors/member-observations'
 import {
   dispatchMemberSync,
@@ -157,9 +159,16 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       logger.warn(`[${requestId}] Closed ${closedLogs.length} orphaned member sync log(s)`)
     }
 
-    const sweep = await sweepStaleMemberObservations(now)
-    if (sweep.members > 0) {
-      logger.warn(`[${requestId}] Swept observations of ${sweep.members} stale member(s)`, sweep)
+    /** Observation hygiene never holds back dispatch; an unfinished sweep resumes next tick. */
+    try {
+      const sweep = await sweepStaleMemberObservations(now)
+      if (sweep.members > 0) {
+        logger.warn(`[${requestId}] Swept observations of ${sweep.members} stale member(s)`, sweep)
+      }
+    } catch (error) {
+      logger.error(`[${requestId}] Stale member observation sweep failed`, {
+        error: getErrorMessage(error),
+      })
     }
 
     const dueConnectors = await db
@@ -179,6 +188,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           lte(knowledgeConnector.nextMemberSyncAt, now),
           isNull(knowledgeConnector.archivedAt),
           isNull(knowledgeConnector.deletedAt),
+          connectorIndexingCondition(),
           isNull(knowledgeBase.deletedAt)
         )
       )

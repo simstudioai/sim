@@ -12,10 +12,12 @@ import {
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
 import { resolveTriggerRegion } from '@/lib/core/async-jobs/region'
+import { isTriggerAvailable } from '@/lib/core/config/trigger-availability'
 import {
   CONTENT_ENGINE_ACCESS_MODES,
   isContentEngineAccessMode,
 } from '@/lib/knowledge/connectors/access-modes'
+import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
 import { assertManualSyncCooldown } from '@/lib/knowledge/connectors/manual-sync-cooldown'
 import { executeSync, isConnectorRunnableStatus } from '@/lib/knowledge/connectors/sync-engine'
 import {
@@ -23,7 +25,6 @@ import {
   connectorIsLive,
   LOCKABLE_CONNECTOR_STATUSES,
 } from '@/lib/knowledge/connectors/sync-lock'
-import { isTriggerAvailable } from '@/lib/knowledge/documents/service'
 
 const logger = createLogger('ConnectorSyncQueue')
 
@@ -207,12 +208,14 @@ async function describeUnacceptedSync(connectorId: string): Promise<string> {
       status: knowledgeConnector.status,
       archivedAt: knowledgeConnector.archivedAt,
       deletedAt: knowledgeConnector.deletedAt,
+      detachedAt: knowledgeConnector.detachedAt,
     })
     .from(knowledgeConnector)
     .where(eq(knowledgeConnector.id, connectorId))
     .limit(1)
 
   if (!row) return 'Connector no longer exists'
+  if (row.detachedAt) return 'Connector has been removed'
   if (row.archivedAt || row.deletedAt) return 'Connector has been archived or deleted'
   if (row.status !== 'syncing' && !isLockableConnectorStatus(row.status)) {
     return `Connector is ${row.status} and cannot start a sync`
@@ -312,10 +315,12 @@ export async function dispatchSync(
       connectorAccessMode: knowledgeConnector.accessMode,
       connectorArchivedAt: knowledgeConnector.archivedAt,
       connectorDeletedAt: knowledgeConnector.deletedAt,
+      connectorDetachedAt: knowledgeConnector.detachedAt,
       connectorNextSyncAt: knowledgeConnector.nextSyncAt,
       workspaceId: knowledgeBase.workspaceId,
       organizationId: knowledgeBase.organizationId,
       kbDeletedAt: knowledgeBase.deletedAt,
+      isSearchIndex: knowledgeBase.isSearchIndex,
     })
     .from(knowledgeConnector)
     .innerJoin(knowledgeBase, eq(knowledgeBase.id, knowledgeConnector.knowledgeBaseId))
@@ -327,6 +332,8 @@ export async function dispatchSync(
     logger.warn('Skipping sync dispatch: connector not found', { connectorId, requestId })
     return { queued: false, reason: 'Connector no longer exists' }
   }
+  if (!requiresConnectorIndexing(row.isSearchIndex))
+    return { queued: false, reason: 'This source is searched live and does not require indexing.' }
   if (row.kbDeletedAt) {
     logger.warn('Skipping sync dispatch: knowledge base is deleted', {
       connectorId,
@@ -338,6 +345,10 @@ export async function dispatchSync(
       .set(buildSyncUnscheduledUpdate(new Date(), 'Knowledge base deleted'))
       .where(eq(knowledgeConnector.id, connectorId))
     return { queued: false, reason: 'Knowledge base has been deleted' }
+  }
+  if (row.connectorDetachedAt) {
+    logger.warn('Skipping sync dispatch: connector has been removed', { connectorId, requestId })
+    return { queued: false, reason: 'Connector has been removed' }
   }
   if (row.connectorArchivedAt || row.connectorDeletedAt) {
     logger.warn('Skipping sync dispatch: connector is archived or deleted', {

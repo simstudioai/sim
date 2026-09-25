@@ -63,6 +63,8 @@ vi.mock('@/main/terminal-themes', () => ({
 const { mockCoordinator } = vi.hoisted(() => ({
   mockCoordinator: {
     noteFormState: vi.fn(),
+    noteFillResult: vi.fn(),
+    requestPicker: vi.fn(async () => {}),
     noteNavigation: vi.fn(),
     forget: vi.fn(),
     refreshAvailability: vi.fn(),
@@ -503,6 +505,71 @@ describe('registerIpcHandlers', () => {
       code: 'ACCESS_DENIED',
       error: expect.stringContaining('explicit user click'),
     })
+  })
+
+  it('reads a native file through canonical IPC arguments without folder grants or user activation', async () => {
+    const { invoke } = collectHandlers()
+    const handler = invoke.get('desktop:local-files')
+    const path = fileURLToPath(import.meta.url)
+    const fetchAuthorization = vi.fn(async () =>
+      Response.json({ chatId: 'chat-1', toolName: 'read_local_file', args: { path, limit: 64 } })
+    )
+    const authorizedEvent = {
+      senderFrame: { url: `${APP}/o/org/home` },
+      sender: { session: { fetch: fetchAuthorization } },
+    }
+    const mounts = vi.spyOn(deps.localFilesystem, 'handle')
+    expect(
+      await handler?.(authorizedEvent, {
+        operation: 'read',
+        toolCallId: 'tool-native',
+        path: '/not/the/canonical/path',
+      })
+    ).toMatchObject({
+      ok: true,
+      data: { kind: 'read', path, text: readFileSync(path, 'utf8').slice(0, 64) },
+    })
+    expect(mounts).not.toHaveBeenCalled()
+    expect(fetchAuthorization).toHaveBeenCalledWith(
+      `${APP}/api/desktop/tool/authorize`,
+      expect.objectContaining({ body: JSON.stringify({ toolCallId: 'tool-native' }) })
+    )
+    expect(
+      await handler?.(evilEvent, { operation: 'read', toolCallId: 'tool-native' })
+    ).toMatchObject({ ok: false })
+  })
+
+  it('claims native imports at IPC before traversal and rejects a replay', async () => {
+    const { invoke } = collectHandlers()
+    const handler = invoke.get('desktop:local-files')
+    const fetchAuthorization = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          chatId: 'chat-1',
+          toolName: 'import_local_files',
+          args: { path: fileURLToPath(import.meta.url), targetWorkspaceId: 'workspace' },
+        })
+      )
+      .mockResolvedValueOnce(Response.json({ error: 'already started' }, { status: 409 }))
+    const event = {
+      senderFrame: { url: `${APP}/o/org/home` },
+      sender: { session: { fetch: fetchAuthorization } },
+    }
+    const request = { operation: 'manifest', toolCallId: 'tool-import' }
+    expect(await handler?.(event, request)).toMatchObject({
+      ok: true,
+      data: {
+        kind: 'manifest',
+        targetWorkspaceId: 'workspace',
+        entries: [{ relativePath: '', kind: 'file' }],
+      },
+    })
+    expect(fetchAuthorization).toHaveBeenCalledWith(
+      `${APP}/api/desktop/tool/authorize`,
+      expect.objectContaining({ body: JSON.stringify({ toolCallId: 'tool-import', claim: true }) })
+    )
+    expect(await handler?.(event, request)).toMatchObject({ ok: false, code: 'ALREADY_STARTED' })
   })
 
   it('requires server authorization for every privileged filesystem tool request', async () => {
@@ -1664,6 +1731,7 @@ describe('registerIpcHandlers', () => {
     expect(credentialChannels.sort()).toEqual([
       'browser-credentials:available',
       'browser-credentials:copy',
+      'browser-credentials:fill-result',
       'browser-credentials:fill-selected',
       'browser-credentials:forget',
       'browser-credentials:forget-all',
@@ -1671,6 +1739,7 @@ describe('registerIpcHandlers', () => {
       'browser-credentials:import',
       'browser-credentials:list',
       'browser-credentials:list-fill-options',
+      'browser-credentials:picker',
       'browser-credentials:reveal',
       'browser-credentials:show-chooser',
     ])
@@ -1730,6 +1799,8 @@ describe('registerIpcHandlers', () => {
       origin: 'https://example.com',
       hasLoginForm: true,
       hasPasswordField: false,
+      targetId: 'target-1',
+      bounds: null,
     }
     const browserPageEvent = {
       senderFrame: { url: 'https://example.com/login' },
@@ -1765,6 +1836,56 @@ describe('registerIpcHandlers', () => {
 
     expect(mockCoordinator.noteFormState).not.toHaveBeenCalled()
   })
+
+  it('requires native browser input before opening the field picker', () => {
+    const { on } = collectHandlers()
+    const handler = on.get('browser-credentials:picker')
+    const tracked = trackedSender()
+    Object.assign(tracked.sender, { isBrowserTab: true })
+    const event = { sender: tracked.sender, senderFrame: { url: 'https://example.com/login' } }
+    handler?.(activeAppEvent, 'open')
+    handler?.(event, 'open')
+    expect(mockCoordinator.requestPicker).not.toHaveBeenCalled()
+    tracked.press()
+    handler?.(event, 'unknown')
+    expect(mockCoordinator.requestPicker).not.toHaveBeenCalled()
+    handler?.(event, 'open')
+    expect(mockCoordinator.requestPicker).toHaveBeenCalledWith(tracked.sender, 'open')
+  })
+
+  it('accepts fill acknowledgements only from browser pages with a valid status', () => {
+    const { on } = collectHandlers()
+    const handler = on.get('browser-credentials:fill-result')
+    const event = {
+      sender: { isBrowserTab: true },
+      senderFrame: { url: 'https://example.com/login' },
+    }
+    const result = { requestId: 'request-1', status: 'filled' }
+    handler?.(activeAppEvent, result)
+    handler?.(evilEvent, result)
+    handler?.(event, { ...result, status: 'unknown' })
+    expect(mockCoordinator.noteFillResult).not.toHaveBeenCalled()
+    handler?.(event, result)
+    expect(mockCoordinator.noteFillResult).toHaveBeenCalledWith(event.sender, result)
+  })
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+    'rejects invalid focused field dimensions: %s',
+    (width) => {
+      const { on } = collectHandlers()
+      on.get('browser-credentials:form-state')?.(
+        { sender: { isBrowserTab: true }, senderFrame: { url: 'https://example.com/login' } },
+        {
+          origin: 'https://example.com',
+          targetId: 'target-1',
+          hasLoginForm: true,
+          hasPasswordField: true,
+          bounds: { x: 0, y: 0, width, height: 30 },
+        }
+      )
+      expect(mockCoordinator.noteFormState).not.toHaveBeenCalled()
+    }
+  )
 
   it('requires a live user gesture before opening the credential chooser', async () => {
     const { invoke } = collectHandlers()

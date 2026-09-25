@@ -1,5 +1,7 @@
-import chalk from 'chalk'
 import { type Command, Option } from 'commander'
+import { exitCli } from '#sim-cli/embed-context'
+import { printError } from '#sim-cli/output/io'
+import { styles } from '#sim-cli/output/presentation'
 import { clientFrom } from '../context'
 import type { CommandSpec } from '../contract/types'
 import { type SetSecretResponse, V2_OPERATIONS } from '../generated/v2-api'
@@ -42,10 +44,10 @@ interface SetSecretOptions {
  * A value that genuinely starts with `@` is written `@@`, and only the leading
  * `@` is dropped.
  */
-function readValueArgument(raw: string): string {
+async function readValueArgument(raw: string): Promise<string> {
   if (raw.startsWith('@@')) return raw.slice(1)
   if (!raw.startsWith('@')) return raw
-  return readArgumentSource(raw, 'value').text
+  return (await readArgumentSource(raw, 'value')).text
 }
 
 function validateSecretValue(value: string): string {
@@ -101,14 +103,15 @@ function validateWorkspaceOnlyFlag<T>(
  * stdin listening, so a returning process would sit there instead of ending.
  */
 async function readSecretValue(options: SetSecretOptions): Promise<string | undefined> {
-  if (options.value !== undefined) return validateSecretValue(readValueArgument(options.value))
+  if (options.value !== undefined)
+    return validateSecretValue(await readValueArgument(options.value))
   if (options.description !== undefined || options.unredacted !== undefined) return undefined
   try {
     return validateSecretValue(await promptSecret())
   } catch (error) {
     if (!(error instanceof SecretInputCancelledError)) throw error
-    console.error(chalk.red(`Error: ${error.message}`))
-    return process.exit(CANCELLED_EXIT_CODE)
+    printError(styles().red(`Error: ${error.message}`))
+    return exitCli(CANCELLED_EXIT_CODE)
   }
 }
 

@@ -14,8 +14,7 @@ export { MessageActions } from './message-actions'
 export type { BulkOutcome } from './resource/bulk-outcome'
 export { reportBulkOutcome } from './resource/bulk-outcome'
 export { FloatingOverflowText } from './resource/components/floating-overflow-text'
-export type { OwnerAvatarProps } from './resource/components/owner-cell'
-export { OwnerAvatar, ownerCell } from './resource/components/owner-cell'
+export { ownerCell } from './resource/components/owner-cell'
 export {
   type ChromeActionSpec,
   ResourceChromeFallback,

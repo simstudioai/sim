@@ -4,9 +4,10 @@
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { FileParserError } from '@/lib/file-parsers/errors'
+import { observeWorkspaceFileDelivery } from '@/lib/workspace-files/application/file-delivery-observer'
 
 const mocks = vi.hoisted(() => ({
-  getFile: vi.fn(),
+  provenance: vi.fn(),
   fetchServable: vi.fn(),
   fetchBuffer: vi.fn(),
   parseBuffer: vi.fn(),
@@ -24,13 +25,12 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
-vi.mock('@/lib/workspace-files/application/workspace-file-context', () => ({
-  resolveActiveWorkspaceFileContext: mocks.resolveContext,
+vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
+  resolveReferencedWorkspaceFileContext: mocks.resolveContext,
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   fetchWorkspaceFileBuffer: mocks.fetchBuffer,
-  getWorkspaceFile: mocks.getFile,
 }))
 
 vi.mock('@/lib/workspace-files/application/fetch-servable-workspace-file-buffer', () => ({
@@ -43,8 +43,9 @@ vi.mock('@/lib/file-parsers', () => ({
   parseBuffer: mocks.parseBuffer,
 }))
 
-import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
+import { DocCompileUserError } from '@/lib/mothership/tools/server/files/doc-compile-error'
 import { readWorkspaceFileText } from '@/lib/workspace-files/application/read-workspace-file-text'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -77,22 +78,48 @@ function fileRecord(overrides: Record<string, unknown> = {}) {
   }
 }
 
+/** The canonical context the reference resolver hands back, carrying the record it resolved. */
+function referenceContext(overrides: Record<string, unknown> = {}) {
+  return { ...fileContext, file: fileRecord(overrides) }
+}
+
 function input(overrides: Record<string, unknown> = {}) {
-  return { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID, ...overrides }
+  return { workspaceId: WORKSPACE_ID, reference: FILE_ID, ...overrides }
 }
 
 describe('readWorkspaceFileText', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('read')
-    mocks.resolveContext.mockResolvedValue(fileContext)
-    mocks.getFile.mockResolvedValue(fileRecord())
+    mocks.resolveContext.mockResolvedValue(referenceContext())
     mocks.fetchBuffer.mockResolvedValue(Buffer.from('hello there!'))
     mocks.fetchServable.mockResolvedValue({
       buffer: Buffer.from('%PDF-1.7 rendered'),
       contentType: 'application/pdf',
     })
     mocks.parseBuffer.mockResolvedValue({ content: 'hello there!', metadata: {} })
+  })
+
+  it('observes canonical private provenance before returning while keeping public results unchanged', async () => {
+    const provenance = { status: 'exact', entries: [] }
+    mocks.provenance.mockResolvedValue(provenance)
+    const observe = vi.fn(async () => {})
+    const result = await observeWorkspaceFileDelivery(observe, () =>
+      readWorkspaceFileText.execute({ principal: principals[0], input: input() })
+    )
+    expect(observe).toHaveBeenCalledWith(provenance)
+    expect(result.secretProvenance).toBeUndefined()
+  })
+  it('does not return content if the private delivery observer refuses', async () => {
+    mocks.provenance.mockResolvedValue({ status: 'unknown' })
+    await expect(
+      observeWorkspaceFileDelivery(
+        async () => {
+          throw new Error('no evidence')
+        },
+        () => readWorkspaceFileText.execute({ principal: principals[0], input: input() })
+      )
+    ).rejects.toThrow('no evidence')
   })
 
   it.each(principals)('allows $kind at the read role', async (principal) => {
@@ -157,7 +184,6 @@ describe('readWorkspaceFileText', () => {
         request: { headers: new Headers(), signal: controller.signal },
       })
     ).rejects.toBe(controller.signal.reason)
-    expect(mocks.getFile).not.toHaveBeenCalled()
     expect(mocks.fetchBuffer).not.toHaveBeenCalled()
     expect(mocks.parseBuffer).not.toHaveBeenCalled()
   })
@@ -228,7 +254,35 @@ describe('readWorkspaceFileText', () => {
       readWorkspaceFileText.execute({ principal: principals[2], input: input() })
     ).rejects.toMatchObject({ code: 'not_found' })
     expect(mocks.resolvePermission).not.toHaveBeenCalled()
-    expect(mocks.getFile).not.toHaveBeenCalled()
+    expect(mocks.fetchBuffer).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The reference is what makes a chat upload readable: no listing shows one, so
+   * the `uploads/<name>` path from its upload notice must resolve with chat
+   * uploads admitted, and the record's display name is what comes back.
+   */
+  it('resolves the reference with chat uploads admitted and reads the resolved record', async () => {
+    mocks.resolveContext.mockResolvedValueOnce(
+      referenceContext({ id: 'wf_upload', name: 'notes (2).txt', storageContext: 'mothership' })
+    )
+
+    const result = await readWorkspaceFileText.execute({
+      principal: principals[2],
+      input: input({ reference: 'uploads/notes%20(2).txt' }),
+    })
+
+    expect(mocks.resolveContext).toHaveBeenCalledWith(
+      principals[2],
+      { workspaceId: WORKSPACE_ID, reference: 'uploads/notes%20(2).txt' },
+      { includeChatUploads: true }
+    )
+    expect(result.file.name).toBe('notes (2).txt')
+    expect(mocks.fetchBuffer).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'wf_upload', storageContext: 'mothership' }),
+      expect.anything()
+    )
+    expect(result.text).toBe('hello there!')
   })
 
   /**
@@ -237,7 +291,7 @@ describe('readWorkspaceFileText', () => {
    * reach the caller rather than being swallowed or turned into an error.
    */
   it('surfaces a degraded legacy extraction with its reason', async () => {
-    mocks.getFile.mockResolvedValueOnce(fileRecord({ name: 'legacy.doc' }))
+    mocks.resolveContext.mockResolvedValueOnce(referenceContext({ name: 'legacy.doc' }))
     mocks.parseBuffer.mockResolvedValueOnce({
       content: 'Unable to extract text from DOC file. Please convert to DOCX format.',
       metadata: {
@@ -256,7 +310,7 @@ describe('readWorkspaceFileText', () => {
   })
 
   it('surfaces a text-free deck as degraded', async () => {
-    mocks.getFile.mockResolvedValueOnce(fileRecord({ name: 'deck.pptx' }))
+    mocks.resolveContext.mockResolvedValueOnce(referenceContext({ name: 'deck.pptx' }))
     mocks.parseBuffer.mockResolvedValueOnce({
       content: 'Unable to extract text from PowerPoint file.',
       metadata: { degraded: true, warning: 'Basic text extraction used' },
@@ -289,8 +343,40 @@ describe('readWorkspaceFileText', () => {
    * The message is served to raw HTTP, Copilot, and the CLI alike, so it names
    * the remedy rather than an endpoint only one of those three can call.
    */
+  it('keeps public extension behavior while allowing MIME-identified source text internally', async () => {
+    mocks.resolveContext.mockResolvedValue(
+      referenceContext({ name: 'main.ts', type: 'text/typescript' })
+    )
+    await expect(
+      readWorkspaceFileText.execute({ principal: principals[0], input: input() })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.fetchBuffer).not.toHaveBeenCalled()
+    await readWorkspaceFileText.execute({
+      principal: principals[0],
+      input: input({ allowPlainText: true }),
+    })
+    expect(mocks.parseBuffer).toHaveBeenCalledWith(
+      Buffer.from('hello there!'),
+      'txt',
+      expect.objectContaining({ contentMode: 'complete', pdfTextMode: 'complete' })
+    )
+  })
+
+  it('does not decode binary MIME as text when internal plain-text support is enabled', async () => {
+    mocks.resolveContext.mockResolvedValue(
+      referenceContext({ name: 'photo.png', type: 'image/png' })
+    )
+    await expect(
+      readWorkspaceFileText.execute({
+        principal: principals[0],
+        input: input({ allowPlainText: true }),
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.fetchBuffer).not.toHaveBeenCalled()
+  })
+
   it('rejects an unsupported type and names the raw-bytes escape hatch', async () => {
-    mocks.getFile.mockResolvedValue(fileRecord({ name: 'photo.heic' }))
+    mocks.resolveContext.mockResolvedValue(referenceContext({ name: 'photo.heic' }))
 
     await expect(
       readWorkspaceFileText.execute({ principal: principals[2], input: input() })
@@ -305,7 +391,7 @@ describe('readWorkspaceFileText', () => {
   })
 
   it('rejects a source above the extraction ceiling before reading bytes', async () => {
-    mocks.getFile.mockResolvedValueOnce(fileRecord({ size: 26 * 1024 * 1024 }))
+    mocks.resolveContext.mockResolvedValueOnce(referenceContext({ size: 26 * 1024 * 1024 }))
 
     await expect(
       readWorkspaceFileText.execute({ principal: principals[2], input: input() })
@@ -315,7 +401,7 @@ describe('readWorkspaceFileText', () => {
 
   /** A caller may lower the ceiling but must never raise it. */
   it('clamps a caller maxBytes above the server ceiling', async () => {
-    mocks.getFile.mockResolvedValueOnce(fileRecord({ size: 26 * 1024 * 1024 }))
+    mocks.resolveContext.mockResolvedValueOnce(referenceContext({ size: 26 * 1024 * 1024 }))
 
     await expect(
       readWorkspaceFileText.execute({
@@ -326,7 +412,7 @@ describe('readWorkspaceFileText', () => {
   })
 
   it('honours a caller maxBytes below the server ceiling', async () => {
-    mocks.getFile.mockResolvedValueOnce(fileRecord({ size: 2048 }))
+    mocks.resolveContext.mockResolvedValueOnce(referenceContext({ size: 2048 }))
 
     await expect(
       readWorkspaceFileText.execute({ principal: principals[2], input: input({ maxBytes: 1024 }) })
@@ -338,7 +424,7 @@ describe('readWorkspaceFileText', () => {
    * "0 Bytes" — leaving the caller unable to work out what to pass instead.
    */
   it('names the real size and limit when both are under 1 KB', async () => {
-    mocks.getFile.mockResolvedValueOnce(fileRecord({ size: 28 }))
+    mocks.resolveContext.mockResolvedValueOnce(referenceContext({ size: 28 }))
 
     await expect(
       readWorkspaceFileText.execute({ principal: principals[2], input: input({ maxBytes: 27 }) })
@@ -350,7 +436,9 @@ describe('readWorkspaceFileText', () => {
   })
 
   it('reports a missing file as not found', async () => {
-    mocks.getFile.mockResolvedValueOnce(null)
+    mocks.resolveContext.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'File not found')
+    )
 
     await expect(
       readWorkspaceFileText.execute({ principal: principals[2], input: input() })
@@ -379,7 +467,7 @@ describe('readWorkspaceFileText', () => {
     ['deck.pptx', 'text/x-pptxgenjs'],
   ])('extracts %s from its compiled artifact, not its %s source', async (name, type) => {
     const controller = new AbortController()
-    mocks.getFile.mockResolvedValueOnce(fileRecord({ name, type, size: 900 }))
+    mocks.resolveContext.mockResolvedValueOnce(referenceContext({ name, type, size: 900 }))
     mocks.parseBuffer.mockResolvedValueOnce({ content: 'Quarterly results', metadata: {} })
 
     const result = await readWorkspaceFileText.execute({
@@ -398,7 +486,9 @@ describe('readWorkspaceFileText', () => {
   it('preserves cancellation when an artifact read wraps the error', async () => {
     const controller = new AbortController()
     const reason = new Error('request cancelled during artifact read')
-    mocks.getFile.mockResolvedValueOnce(fileRecord({ name: 'report.pdf', type: 'text/x-pdflibjs' }))
+    mocks.resolveContext.mockResolvedValueOnce(
+      referenceContext({ name: 'report.pdf', type: 'text/x-pdflibjs' })
+    )
     mocks.fetchServable.mockImplementationOnce(async () => {
       controller.abort(reason)
       throw new DocCompileUserError('not ready', { pending: true })
@@ -415,8 +505,8 @@ describe('readWorkspaceFileText', () => {
 
   /** A genuinely uploaded PDF carries its real MIME and must keep reading its own bytes. */
   it('reads an uploaded pdf from storage rather than an artifact', async () => {
-    mocks.getFile.mockResolvedValueOnce(
-      fileRecord({ name: 'scan.pdf', type: 'application/pdf', size: 900 })
+    mocks.resolveContext.mockResolvedValueOnce(
+      referenceContext({ name: 'scan.pdf', type: 'application/pdf', size: 900 })
     )
 
     await readWorkspaceFileText.execute({ principal: principals[2], input: input() })
@@ -427,8 +517,8 @@ describe('readWorkspaceFileText', () => {
 
   /** An artifact still compiling is retryable, so it must not read as a fault. */
   it('reports a still-compiling artifact as a conflict', async () => {
-    mocks.getFile.mockResolvedValueOnce(
-      fileRecord({ name: 'report.pdf', type: 'text/x-pdflibjs', size: 900 })
+    mocks.resolveContext.mockResolvedValueOnce(
+      referenceContext({ name: 'report.pdf', type: 'text/x-pdflibjs', size: 900 })
     )
     mocks.fetchServable.mockRejectedValueOnce(
       new DocCompileUserError('not ready', { pending: true })
@@ -445,8 +535,8 @@ describe('readWorkspaceFileText', () => {
    * what decides, and the artifact carries its own ceiling.
    */
   it('bounds a generated document by its artifact, not its source size', async () => {
-    mocks.getFile.mockResolvedValueOnce(
-      fileRecord({ name: 'report.pdf', type: 'text/x-pdflibjs', size: 900 })
+    mocks.resolveContext.mockResolvedValueOnce(
+      referenceContext({ name: 'report.pdf', type: 'text/x-pdflibjs', size: 900 })
     )
 
     await readWorkspaceFileText.execute({ principal: principals[2], input: input() })
@@ -459,8 +549,8 @@ describe('readWorkspaceFileText', () => {
    * the same exact-byte formatting the source branch does.
    */
   it('names a sub-1 KB artifact limit in bytes', async () => {
-    mocks.getFile.mockResolvedValueOnce(
-      fileRecord({ name: 'report.pdf', type: 'text/x-pdflibjs', size: 10 })
+    mocks.resolveContext.mockResolvedValueOnce(
+      referenceContext({ name: 'report.pdf', type: 'text/x-pdflibjs', size: 10 })
     )
     mocks.fetchServable.mockRejectedValueOnce(
       new PayloadSizeLimitError({ label: 'artifact', maxBytes: 27 })
@@ -474,3 +564,7 @@ describe('readWorkspaceFileText', () => {
     })
   })
 })
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  getBoundWorkspaceFileSecretProvenance: mocks.provenance,
+}))

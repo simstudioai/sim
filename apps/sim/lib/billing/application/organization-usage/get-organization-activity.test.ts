@@ -20,7 +20,7 @@ vi.mock('@/lib/billing/core/subscription', () => ({
 }))
 vi.mock('@/lib/billing/core/billing', () => ({ getOrganizationSubscription: mocks.subscription }))
 vi.mock('@/lib/billing/core/organization-activity-queries', () => ({
-  readActivitySummary: mocks.summary,
+  readActivityDays: mocks.summary,
   readActivityBreakdown: mocks.breakdown,
   readActivityWorkspace: mocks.workspace,
 }))
@@ -29,7 +29,6 @@ import {
   getOrganizationActivityBreakdown,
   getOrganizationActivitySummary,
 } from '@/lib/billing/application/organization-usage/get-organization-activity'
-import { activityMetrics } from '@/lib/billing/core/organization-activity'
 
 const principal: SessionPrincipal = { kind: 'session', userId: 'admin', sessionId: 'session' }
 const input = {
@@ -53,7 +52,7 @@ beforeEach(() => {
   mocks.entitlement.mockResolvedValue(true)
   mocks.subscription.mockResolvedValue(null)
   mocks.workspace.mockResolvedValue({ id: 'workspace', name: 'Support' })
-  mocks.summary.mockResolvedValue({ totals: activityMetrics(), series: [] })
+  mocks.summary.mockResolvedValue(new Map())
   mocks.breakdown.mockResolvedValue({ rows: [], hasMore: false })
 })
 
@@ -85,7 +84,10 @@ describe.each([
     })
     expect(mocks.authority).toHaveBeenCalledWith(
       principal,
-      expect.objectContaining({ minimumRole: 'admin', principalKinds: ['session'] }),
+      expect.objectContaining({
+        minimumRole: 'admin',
+        principalKinds: ['session', 'organization_delegated'],
+      }),
       { organizationId: 'org' }
     )
     expect(mocks.entitlement).not.toHaveBeenCalled()
@@ -118,11 +120,54 @@ it('uses the same authorized scope and timezone for summaries and paginated brea
     start: new Date('2026-03-08T08:00:00Z'),
     end: new Date('2026-03-10T07:00:00Z'),
   }
-  expect(mocks.summary).toHaveBeenCalledWith(scope, 'day', 'America/Los_Angeles')
+  expect(mocks.summary).toHaveBeenCalledWith(scope, 'America/Los_Angeles')
   expect(mocks.breakdown).toHaveBeenCalledWith(scope, 'workflow', 'failures', 2)
   expect(summary.workspace).toEqual({ id: 'workspace', name: 'Support' })
   expect(summary.series).toEqual([
-    { timestamp: '2026-03-08T00:00:00', workflowRuns: 0, chatRuns: 0, failed: 0 },
-    { timestamp: '2026-03-09T00:00:00', workflowRuns: 0, chatRuns: 0, failed: 0 },
+    { timestamp: '2026-03-08T00:00:00', workflowRuns: 0, completed: 0, failed: 0, chatRuns: 0 },
+    { timestamp: '2026-03-09T00:00:00', workflowRuns: 0, completed: 0, failed: 0, chatRuns: 0 },
   ])
+})
+
+describe('activity summary folding', () => {
+  const day = (overrides: Record<string, unknown> = {}) => ({
+    workflowRuns: 0,
+    completed: 0,
+    failed: 0,
+    durationSum: 0,
+    durationCount: 0,
+    chatRuns: 0,
+    chatMembers: [],
+    ...overrides,
+  })
+  const run = () => getOrganizationActivitySummary.execute({ principal, input })
+
+  it('counts a chat member active on two days once', async () => {
+    mocks.summary.mockResolvedValue(
+      new Map([
+        ['2026-03-08', day({ chatRuns: 2, chatMembers: ['a'] })],
+        ['2026-03-09', day({ chatRuns: 4, chatMembers: ['a', 'b'] })],
+      ])
+    )
+    const summary = await run()
+    expect(summary.totals).toMatchObject({ chatRuns: 6, chatMembers: 2 })
+    expect(summary.series.map((point) => point.chatRuns)).toEqual([2, 4])
+  })
+
+  it('weights the mean duration by runs, not by days', async () => {
+    mocks.summary.mockResolvedValue(
+      new Map([
+        [
+          '2026-03-08',
+          day({ workflowRuns: 3, completed: 2, failed: 1, durationSum: 300, durationCount: 3 }),
+        ],
+        ['2026-03-09', day({ workflowRuns: 1, completed: 1, durationSum: 700, durationCount: 1 })],
+      ])
+    )
+    expect((await run()).totals).toMatchObject({
+      workflowRuns: 4,
+      failureRate: 0.25,
+      averageDurationMs: 250,
+    })
+  })
 })

@@ -1318,6 +1318,23 @@ describe('file parser operation', () => {
     expect(mockUploadExecutionFile).not.toHaveBeenCalled()
   })
 
+  it('returns the canonical metadata identity for an existing execution file', async () => {
+    const key = 'execution/workspace-id/workflow-id/execution-id/alpha.txt'
+    mockResolveProvenanceSource.mockResolvedValue({
+      identity: { fileId: 'canonical-alpha', key, context: 'execution' },
+      ownerUserId: 'test-user-id',
+    })
+    const response = await POST(
+      createMockRequest('POST', {
+        filePath: `/api/files/serve/${encodeURIComponent(key)}?context=execution`,
+      })
+    )
+    const result = await response.json()
+    expect(result.success).toBe(true)
+    expect(result.output.file).toMatchObject({ id: 'canonical-alpha', key })
+    expect(mockUploadExecutionFile).not.toHaveBeenCalled()
+  })
+
   it('should process execution file URLs with context query param', async () => {
     setupFileApiMocks({
       cloudEnabled: true,

@@ -9,6 +9,7 @@ import {
   deployedChatPostBodySchema,
   updateChatBodySchema,
 } from '@/lib/api/contracts/chats'
+import { v2ReplaceChatDeploymentBodySchema } from '@/lib/api/contracts/v2/chat-deployments'
 
 const createBody = {
   workflowId: 'wf-1',
@@ -71,5 +72,28 @@ describe('chat deployment password contract', () => {
     expect(updateChatBodySchema.safeParse({ password: '   ' }).success).toBe(false)
     expect(updateChatBodySchema.safeParse({ password: tooLong }).success).toBe(false)
     expect(updateChatBodySchema.safeParse({ password: '' }).success).toBe(true)
+  })
+
+  /**
+   * Only the use case knows whether the caller is Sim's agent, whose reference
+   * resolves before the password rules apply, so v2 admits a whole-value
+   * reference below the password minimum. Every other short value, and the internal surface,
+   * stay refused with the password message rather than a generic union failure.
+   */
+  it('admits a short whole-value reference on v2 only', () => {
+    const body = { identifier: 'support', title: 'Support', authType: 'password' }
+
+    expect(
+      v2ReplaceChatDeploymentBodySchema.safeParse({ ...body, password: '{{PW}}' }).success
+    ).toBe(true)
+    expect(
+      v2ReplaceChatDeploymentBodySchema.safeParse({ ...body, password: 'x-{{PW}}' }).error
+        ?.issues[0].message
+    ).toBe('Password must be at least 15 characters')
+    expect(
+      v2ReplaceChatDeploymentBodySchema.safeParse({ ...body, password: '   ' }).error?.issues[0]
+        .message
+    ).toBe('Password cannot contain only whitespace')
+    expect(chatDeploymentPasswordSchema.safeParse('{{PW}}').success).toBe(false)
   })
 })

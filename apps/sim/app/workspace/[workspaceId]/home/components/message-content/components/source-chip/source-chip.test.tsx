@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
+import { toast } from '@sim/emcn'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -7,6 +8,8 @@ vi.mock('@/lib/browser-agent/open-in-panel', () => ({
   shouldOpenInBrowserPanel: () => false,
   openInBrowserPanel: vi.fn(),
 }))
+vi.mock('@/hooks/queries/link-preview', () => ({ useLinkPreview: () => ({ data: undefined }) }))
+
 vi.mock('@/lib/integrations/icon-mapping', () => ({ blockTypeToIconMap: {} }))
 
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
@@ -30,6 +33,8 @@ afterEach(() => {
   container?.remove()
   root = null
   container = null
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 describe('citation labels', () => {
@@ -44,15 +49,11 @@ describe('citation labels', () => {
     expect(link.textContent).toBe('#engineering')
     expect(link.getAttribute('href')).toBe(source.url)
 
-    act(() => {
-      link.dispatchEvent(
-        new MouseEvent('pointerover', { bubbles: true, clientX: 200, clientY: 200 })
-      )
-    })
-    const tooltip = document.querySelector('[role="tooltip"]')!
+    act(() => link.focus())
+    const tooltip = document.querySelector('[role="dialog"][aria-label="Source preview"]')!
     expect(tooltip.textContent).toContain(source.title)
-    expect(tooltip.textContent).toContain(source.url)
-    expect(link.getAttribute('aria-describedby')).toBe(tooltip.id)
+    expect(tooltip.textContent).not.toContain(source.url)
+    expect(tooltip.querySelector('a')?.getAttribute('href')).toBe(source.url)
   })
 
   it.each([
@@ -126,5 +127,53 @@ describe('citation labels', () => {
     const link = view.querySelector('[data-source-link]')!
     expect(link.textContent).toBe(source.title)
     expect(link.getAttribute('href')).toBe(source.url)
+  })
+})
+
+async function openSourceActions(view: HTMLElement) {
+  await act(async () =>
+    view
+      .querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  )
+}
+
+async function selectSourceAction(label: string) {
+  const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+    (entry) => entry.textContent === label
+  )!
+  expect(item).toBeDefined()
+  await act(async () => item.click())
+}
+
+describe('source card actions', () => {
+  it('summarizes and copies the selected document without activating its link', async () => {
+    const source = { url: 'https://docs.example.com/release', title: 'Release checklist' }
+    const onSummarize = vi.fn()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { clipboard: { writeText }, userAgent: '', platform: '' })
+    const view = mount(<SourceCard source={source} onSummarize={onSummarize} />)
+    await openSourceActions(view)
+    await selectSourceAction('Summarize')
+    expect(onSummarize).toHaveBeenCalledExactlyOnceWith(source)
+    await openSourceActions(view)
+    await selectSourceAction('Copy link')
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(source.url)
+    expect(view.querySelector('button[aria-label="Link copied"]')).not.toBeNull()
+  })
+
+  it('does not claim a successful copy when clipboard access is denied', async () => {
+    const showError = vi.spyOn(toast, 'error').mockReturnValue('copy-error')
+    vi.stubGlobal('navigator', {
+      clipboard: { writeText: vi.fn().mockRejectedValue(new Error('denied')) },
+      userAgent: '',
+      platform: '',
+    })
+    const view = mount(<SourceCard source={{ url: 'https://docs.example.com/release' }} />)
+    await openSourceActions(view)
+    expect(document.querySelector('[role="menu"]')?.textContent).not.toContain('Summarize')
+    await selectSourceAction('Copy link')
+    expect(view.querySelector('button[aria-label="Link copied"]')).toBeNull()
+    expect(showError).toHaveBeenCalledWith('Unable to copy link')
   })
 })

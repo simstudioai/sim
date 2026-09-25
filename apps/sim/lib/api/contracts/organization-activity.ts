@@ -36,8 +36,9 @@ export const organizationActivitySummarySchema = z.object({
       z.object({
         timestamp: z.string(),
         workflowRuns: z.number().int().nonnegative(),
-        chatRuns: z.number().int().nonnegative(),
+        completed: z.number().int().nonnegative(),
         failed: z.number().int().nonnegative(),
+        chatRuns: z.number().int().nonnegative(),
       })
     )
     .max(1000),
@@ -52,6 +53,8 @@ export const organizationActivityBreakdownSchema = z.object({
         label: z.string(),
         workspaceId: workspaceIdSchema.nullable(),
         workspaceName: z.string().nullable(),
+        /** Member rows only, when the member has one. */
+        image: z.string().optional(),
       })
     )
     .max(ACTIVITY_PAGE_SIZE),

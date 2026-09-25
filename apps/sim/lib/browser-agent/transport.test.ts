@@ -7,8 +7,6 @@ const {
   cancelTool,
   discardScope,
   disposeScope,
-  fillCredential,
-  listFillOptions,
   markScopeSuspended,
   migrateStoreScope,
   nativeMigrateScope,
@@ -48,8 +46,6 @@ const {
   cancelTool: vi.fn(),
   discardScope: vi.fn(),
   disposeScope: vi.fn(async () => true),
-  fillCredential: vi.fn(async () => true),
-  listFillOptions: vi.fn(async () => []),
   markScopeSuspended: vi.fn(),
   migrateStoreScope: vi.fn(),
   nativeMigrateScope: vi.fn(),
@@ -120,8 +116,6 @@ vi.mock('@/lib/desktop', () => ({
       setTheme,
     },
     browserCredentials: {
-      fill: fillCredential,
-      listFillOptions,
       onFillAvailability,
       showChooser: showCredentialChooser,
     },
@@ -149,9 +143,7 @@ import {
   captureBrowserPanelSnapshot,
   discardBrowserScope,
   executeBrowserTool,
-  fillBrowserCredential,
   initBrowserAgentTransport,
-  loadBrowserFillOptions,
   loadBrowserSearchSuggestions,
   migrateBrowserScope,
   onBrowserAddToChat,
@@ -396,26 +388,6 @@ describe('browser panel transport', () => {
     expect(onFillAvailability).toHaveBeenCalledWith(expect.any(Function), 'chat-a')
     expect(callback).toHaveBeenCalledOnce()
     expect(callback).toHaveBeenCalledWith(true)
-  })
-
-  it('loads and fills scoped credential choices through the desktop shell', async () => {
-    const options = [
-      {
-        id: 'credential-1',
-        origin: 'https://example.com',
-        username: 'ada@example.com',
-        createdAt: '',
-        updatedAt: '',
-        source: 'chrome' as const,
-      },
-    ]
-    listFillOptions.mockResolvedValue(options)
-
-    await expect(loadBrowserFillOptions('chat-a')).resolves.toEqual(options)
-    await expect(fillBrowserCredential('credential-1', 'chat-a')).resolves.toBe(true)
-
-    expect(listFillOptions).toHaveBeenCalledWith('chat-a')
-    expect(fillCredential).toHaveBeenCalledWith('credential-1', 'chat-a')
   })
 
   it('keeps the native credential fallback in the owning browser scope', () => {

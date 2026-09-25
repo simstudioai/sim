@@ -5,7 +5,9 @@ import {
   createMockRequest,
   flattenMockConditions,
   hasMockCondition,
+  resetEnvFlagsMock,
   schemaMock,
+  setEnvFlags,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -53,6 +55,7 @@ async function run() {
 describe('connector directory sync scheduler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetEnvFlagsMock()
     mockVerifyCronAuth.mockReturnValue(null)
     mockDispatch.mockResolvedValue(undefined)
     mockClaim.mockResolvedValue([{ id: 'connector-1' }])
@@ -134,6 +137,24 @@ describe('connector directory sync scheduler', () => {
 
     await expect(run()).resolves.toMatchObject({ dispatched: 1, failed: 1 })
   })
+
+  it.each([true, false])(
+    'excludes Search directories from scheduled pages only when live Search is %s',
+    async (liveSearch) => {
+      setEnvFlags({ isLiveEnterpriseSearchEnabled: liveSearch })
+      mockConnectorRows.mockResolvedValue([])
+      await run()
+      expect(
+        hasMockCondition(
+          mockWhere.mock.calls[0][0],
+          (node) =>
+            node.type === 'eq' &&
+            node.left === schemaMock.knowledgeBase.isSearchIndex &&
+            node.right === false
+        )
+      ).toBe(liveSearch)
+    }
+  )
 
   it('does not enqueue a connector another scheduler claimed or paused', async () => {
     mockConnectorRows.mockResolvedValue([connector()])

@@ -3,6 +3,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { escapeRegExp } from '@sim/utils/string'
 import { z } from 'zod'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { stringifyBoundedJson } from '@/lib/core/utils/bounded-json'
 import {
   type DurableSecretProvenance,
   EXACT_EMPTY_DURABLE_SECRET_PROVENANCE,
@@ -17,7 +18,6 @@ import {
   type MemoryArtifactScope,
   readMemoryArtifactByHandle,
 } from '@/lib/memory/artifacts'
-import { stringifyBoundedMemoryJson } from '@/lib/memory/bounded-json'
 import { readConversationItems } from '@/lib/memory/conversation-store'
 import { readMemoryRetrievalPrefix } from '@/lib/memory/retrieval-prefix'
 import type { ExecutionContext } from '@/executor/types'
@@ -187,7 +187,7 @@ async function projectText(
   provenance: DurableSecretProvenance,
   provenanceValue: unknown
 ): Promise<string | undefined> {
-  if (stringifyBoundedMemoryJson(value, MAX_MEMORY_ARTIFACT_BYTES) === undefined) return undefined
+  if (stringifyBoundedJson(value, MAX_MEMORY_ARTIFACT_BYTES) === undefined) return undefined
   const current = input.projection.resolvedSecretTraceRegistry
   const registry = current?.forkForToolCall() ?? new ResolvedSecretTraceRegistry([])
   if (!(await importDurableSecretProvenance(registry, provenance, provenanceValue)))
@@ -198,7 +198,7 @@ async function projectText(
   const safe = redaction?.enabled
     ? await redactObjectStrings(projected.value, { ...redaction, onFailure: 'throw' })
     : projected.value
-  return stringifyBoundedMemoryJson(withOpaqueHandles(safe), MAX_MEMORY_ARTIFACT_BYTES)
+  return stringifyBoundedJson(withOpaqueHandles(safe), MAX_MEMORY_ARTIFACT_BYTES)
 }
 
 function textChunk(text: string, offset: number, args: MemoryRetrievalArguments) {

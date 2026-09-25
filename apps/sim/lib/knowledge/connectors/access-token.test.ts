@@ -455,13 +455,15 @@ describe.each([
     name: 'Gmail',
     auth: gmailConnectorMeta.auth,
     contentScope: 'https://www.googleapis.com/auth/gmail.readonly',
+    delegatedScopes: ['https://www.googleapis.com/auth/gmail.readonly'],
   },
   {
     name: 'Google Calendar',
     auth: googleCalendarConnectorMeta.auth,
     contentScope: 'https://www.googleapis.com/auth/calendar.events.readonly',
+    delegatedScopes: ['https://www.googleapis.com/auth/calendar.events.readonly'],
   },
-])('$name declared company authentication', ({ auth, contentScope }) => {
+])('$name declared company authentication', ({ auth, contentScope, delegatedScopes }) => {
   const directoryScope = 'https://www.googleapis.com/auth/admin.directory.user.readonly'
   const resolve = (accessMode: ConnectorAccessMode) =>
     resolveConnectorAccessToken({
@@ -503,7 +505,7 @@ describe.each([
     )
     expect(mockGetServiceAccountToken).toHaveBeenCalledExactlyOnceWith(
       'google-service',
-      [contentScope],
+      delegatedScopes,
       'employee@example.com'
     )
     expect(syncContextForToken(token!)).toEqual({
@@ -551,7 +553,7 @@ describe.each([
     expect(mockResolveTokenBundle).toHaveBeenCalledOnce()
     expect(mockGetServiceAccountToken).toHaveBeenCalledExactlyOnceWith(
       'google-service',
-      [contentScope],
+      delegatedScopes,
       'employee@example.com'
     )
   })

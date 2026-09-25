@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { cn } from '@sim/emcn'
 import { usePathname } from 'next/navigation'
 import {
   ACCOUNT_SETTINGS_GROUPS,
@@ -19,8 +20,9 @@ import { SettingsSidebar } from '@/components/settings/settings-sidebar'
 import { useSettingsBeforeUnload } from '@/components/settings/use-settings-before-unload'
 import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { SIDEBAR_NO_MOTION_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { useSeedDeploymentShape } from '@/hooks/use-seed-deployment-shape'
-import { SIDEBAR_WIDTH } from '@/stores/constants'
+import { useSidebarWidth } from '@/hooks/use-sidebar-width'
 
 interface StandaloneSettingsShellBaseProps {
   children: ReactNode
@@ -46,6 +48,8 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
   const pathname = usePathname()
   const { hosted, billingEnabled } = useDeploymentShape()
   const isSuperUser = plane === 'account' ? (props.isSuperUser ?? false) : false
+
+  useSidebarWidth()
 
   const accountItems = ACCOUNT_SETTINGS_ITEMS.filter((item) => {
     if (item.id === 'billing' && !billingEnabled) return false
@@ -100,8 +104,10 @@ export function StandaloneSettingsShell(props: StandaloneSettingsShellProps) {
         page should look the same whether it is reached inside a workspace or not.
       */}
       <aside
-        style={{ width: SIDEBAR_WIDTH.DEFAULT }}
-        className='flex h-full shrink-0 flex-col overflow-hidden bg-[var(--surface-1)] pt-3'
+        className={cn(
+          'flex h-full w-[var(--sidebar-expanded-width)] shrink-0 flex-col overflow-hidden bg-[var(--surface-1)] pt-3',
+          SIDEBAR_NO_MOTION_CLASS
+        )}
         aria-label={`${SETTINGS_PLANE_CHROME[plane].label} settings navigation`}
       >
         {sidebar}

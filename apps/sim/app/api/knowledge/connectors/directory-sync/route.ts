@@ -11,6 +11,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { EXTERNAL_GROUP_SYNC_INTERVAL_MS } from '@/lib/knowledge/access/external-groups'
 import { MIRRORING_ACCESS_MODES } from '@/lib/knowledge/connectors/access-modes'
 import { dispatchDirectorySync } from '@/lib/knowledge/connectors/directory-queue'
+import { connectorIndexingCondition } from '@/lib/knowledge/connectors/indexing-policy'
 import { RUNNABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 
 export const dynamic = 'force-dynamic'
@@ -41,6 +42,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         inArray(knowledgeConnector.status, RUNNABLE_CONNECTOR_STATUSES),
         isNull(knowledgeConnector.archivedAt),
         isNull(knowledgeConnector.deletedAt),
+        connectorIndexingCondition(),
         isNull(knowledgeBase.deletedAt),
         or(
           and(isNotNull(knowledgeBase.workspaceId), isNull(knowledgeBase.organizationId)),

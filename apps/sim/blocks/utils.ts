@@ -15,6 +15,7 @@ import {
   getProviderModels,
   isAutoModel,
   isCustomModelId,
+  isEvaluationModel,
   orderModelIdsByReleaseDate,
   SIM_AUTO_MODEL_ID,
 } from '@/providers/models'
@@ -52,6 +53,15 @@ export const SERVICE_ACCOUNT_SUBBLOCKS: SubBlockConfig[] = [
  * Returns model options for combobox subblocks, combining all provider sources.
  */
 export function getModelOptions() {
+  return buildModelOptions(false)
+}
+
+/** Agent supports both conversational and native evaluation models. */
+export function getAgentModelOptions() {
+  return buildModelOptions(true)
+}
+
+function buildModelOptions(includeEvaluation: boolean) {
   const providersState = useProvidersStore.getState()
   const baseModels = orderModelIdsByReleaseDate(providersState.providers.base.models)
   const ollamaModels = providersState.providers.ollama.models
@@ -77,7 +87,11 @@ export function getModelOptions() {
   )
 
   const options = allModels
-    .filter((model) => getModelSunsetStatus(model) !== 'deprecated')
+    .filter(
+      (model) =>
+        getModelSunsetStatus(model) !== 'deprecated' &&
+        (includeEvaluation || !isEvaluationModel(model))
+    )
     .map((model) => {
       const icon = getProviderIcon(model)
       return { label: model, id: model, ...(icon && { icon }) }

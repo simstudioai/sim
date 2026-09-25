@@ -1,159 +1,234 @@
-/**
- * @vitest-environment node
- */
+/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
-import { getToolActivitySummary } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
+import {
+  getActivityHeaderTool,
+  getCompletedActivityLabel,
+  getInProgressActivityLabel,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
-function tool(toolName: string, status: ToolCallStatus = 'success'): ToolCallData {
-  return { id: toolName, toolName, displayTitle: `Running ${toolName}`, status }
+/** A finished activity without a model title is labelled by its action summary. */
+function getToolActivitySummary(tools: ToolCallData[]): string {
+  return getCompletedActivityLabel(tools, undefined)
+}
+
+let toolSeq = 0
+
+function tool(
+  toolName: string,
+  displayTitle: string,
+  status: ToolCallStatus = 'success',
+  params?: Record<string, unknown>
+): ToolCallData {
+  toolSeq += 1
+  return { id: `tool-${toolSeq}`, toolName, displayTitle, status, params }
 }
 
 describe('getToolActivitySummary', () => {
-  it('caps distinct actions in order and counts the remaining categories, not repeated calls', () => {
+  it('names the first three distinct CLI actions without counting the rest', () => {
     expect(
       getToolActivitySummary([
-        tool('read'),
-        tool('terminal_run'),
-        tool('read'),
-        tool('grep'),
-        tool('browser_navigate'),
+        tool('cli_tables_list', 'Listed tables'),
+        tool('cli_tables_get', 'Read Invoices'),
+        tool('cli_tables_get', 'Read Customers'),
+        tool('cli_files_read', 'Read notes.md'),
+        tool('cli_workflows_run', 'Ran invoice workflow'),
       ])
-    ).toBe('Read files, ran commands, searched files +1 more')
+    ).toBe('Listed, read tables, read files')
   })
 
-  it('summarizes browser navigation and interactions without repeating actions', () => {
+  it('shares one object across adjacent browser actions', () => {
     expect(
       getToolActivitySummary([
-        tool('browser_navigate'),
-        tool('browser_read_text'),
-        tool('browser_type'),
-        tool('browser_navigate'),
+        tool('browser_navigate', 'Opened example.com'),
+        tool('browser_read_text', 'Read page'),
+        tool('browser_click', 'Clicked Sign in'),
+        tool('browser_screenshot', 'Took screenshot'),
       ])
-    ).toBe('Navigated, read pages, entered text')
+    ).toBe('Navigated, read pages, clicked elements')
   })
 
-  it.each([
-    [['browser_navigate', 'browser_read_text'], 'Navigated, read pages'],
-    [['browser_read_text', 'browser_navigate'], 'Read, navigated pages'],
-    [
-      ['browser_navigate', 'browser_read_text', 'browser_scroll'],
-      'Navigated, read, scrolled pages',
-    ],
-    [['browser_navigate', 'browser_type'], 'Navigated pages, entered text'],
-    [['browser_navigate', 'browser_navigate'], 'Navigated pages'],
-    [['read', 'browser_read_text'], 'Read files, read pages'],
-  ])('compacts only explicit shared objects: %j', (names, expected) => {
-    expect(getToolActivitySummary((names as string[]).map((name) => tool(name)))).toBe(expected)
-  })
-
-  it('does not describe unsuccessful work as completed actions', () => {
+  it('collapses repeated actions so a long run cannot crowd out other kinds', () => {
     expect(
       getToolActivitySummary([
-        tool('read'),
-        tool('apply_file_edit', 'error'),
-        tool('terminal_run', 'cancelled'),
-        tool('browser_type', 'rejected'),
+        tool('web_search', 'Searched online for pricing'),
+        tool('web_search', 'Searched online for plans'),
+        tool('web_fetch', 'Fetched pricing page'),
+        tool('run_code', 'Ran code'),
       ])
-    ).toBe('Read files · 1 stopped')
+    ).toBe('Searched the web, read web pages, ran code')
   })
 
-  it('does not invent actions when all calls failed or were stopped', () => {
+  it('keeps two phrases when only two distinct actions succeeded', () => {
     expect(
       getToolActivitySummary([
-        tool('apply_file_edit', 'error'),
-        tool('terminal_run', 'interrupted'),
+        tool('cli_workflows_get', 'Read invoice workflow'),
+        tool('cli_workflows_operations_apply', 'Edited invoice workflow'),
       ])
-    ).toBe('Tool activity · 1 stopped')
+    ).toBe('Read, edited workflows')
   })
 
-  it('uses a neutral summary when every call failed', () => {
-    expect(
-      getToolActivitySummary([tool('run_workflow', 'error'), tool('terminal', 'rejected')])
-    ).toBe('Tool activity')
+  it('keeps failed attempts in history without naming or counting them in the summary', () => {
+    const summary = getToolActivitySummary([
+      tool('web_search', 'Searched online for invoices'),
+      tool('browser_navigate', 'Opening billing portal', 'error'),
+      tool('cli_tables_rows_update', 'Updating table row', 'rejected'),
+      tool('read', 'Read invoice inputs'),
+    ])
+    expect(summary).toBe('Searched the web, read files')
+    expect(summary).not.toMatch(/\+\s?\d/)
   })
 
-  it('does not infer tool failures from workflow results', () => {
+  it('does not claim success when every call failed', () => {
     expect(
       getToolActivitySummary([
-        tool('read'),
-        { ...tool('run_workflow'), result: { success: false, error: 'Workflow run failed' } },
+        tool('read', 'Reading invoice inputs', 'error'),
+        tool('edit_workflow', 'Editing invoice workflow', 'rejected'),
       ])
-    ).toBe('Read files, ran workflows')
+    ).toBe('2 tool calls')
   })
 
-  it('keeps an individual tool’s descriptive title', () => {
+  it('describes custom and unnamed CLI calls with their own completed titles', () => {
     expect(
-      getToolActivitySummary([{ ...tool('read'), displayTitle: 'Reading project notes' }])
-    ).toBe('Read project notes')
+      getToolActivitySummary([
+        tool('custom_inventory', 'Checked inventory'),
+        tool('sim_cli', 'Reconciled account balances'),
+      ])
+    ).toBe('Checked inventory, reconciled account balances')
   })
 
+  it('keeps a single call title and its model supplied description', () => {
+    expect(getToolActivitySummary([tool('cli_tables_list', 'Listed tables')])).toBe('Listed tables')
+    expect(
+      getToolActivitySummary([
+        { ...tool('read', 'Reading inbox'), activityDescription: 'Read the latest inbox emails' },
+      ])
+    ).toBe('Read the latest inbox emails')
+  })
+})
+
+describe('interrupted activity summaries', () => {
   it.each([
     ['rejected', 'Running checks'],
     ['skipped', 'Skipped running checks'],
     ['interrupted', 'Stopped running checks'],
   ] as const)('labels a single %s tool as finished', (status, expected) => {
-    expect(
-      getToolActivitySummary([{ ...tool('terminal', status), displayTitle: 'Running checks' }])
-    ).toBe(expected)
+    expect(getToolActivitySummary([tool('terminal', 'Running checks', status)])).toBe(expected)
   })
 
-  it('keeps unknown tools visible with a neutral summary', () => {
-    expect(getToolActivitySummary([tool('future_tool'), tool('browser_future_action')])).toBe(
-      'Used tools, used the browser'
+  it('keeps earlier interruption counts without naming failed calls', () => {
+    expect(
+      getToolActivitySummary([
+        tool('read', 'Reading file', 'error'),
+        tool('terminal', 'Running checks', 'interrupted', { operation: 'run' }),
+        tool('terminal', 'Running checks', 'skipped', { operation: 'run' }),
+        tool('read', 'Read project notes'),
+      ])
+    ).toBe('Read project notes · 1 stopped · 1 skipped')
+  })
+
+  it('does not infer tool failures from workflow results', () => {
+    expect(
+      getToolActivitySummary([
+        {
+          ...tool('run_workflow', 'Running invoice workflow'),
+          result: { success: false, error: 'Workflow run failed' },
+        },
+      ])
+    ).toBe('Ran invoice workflow')
+  })
+})
+
+describe('in-progress activity header', () => {
+  const read = tool('read', 'Reading notes.md')
+  const pendingCli = tool('sim_cli', 'Running CLI command', 'executing', {
+    activity: { id: 'a' },
+  })
+  const pendingGateway = tool('call_integration_tool', 'Calling integration', 'executing')
+
+  it.each([
+    ['a CLI call before its command parses', pendingCli],
+    ['a code call before its arguments resolve', tool('run_code', 'Running code', 'executing')],
+    ['a gateway call before its description streams', pendingGateway],
+    [
+      'a search before its arguments arrive',
+      tool('search_workspace', 'Searching documents', 'executing'),
+    ],
+  ])('holds the previous call for %s', (_case, pending) => {
+    const tools = [read, pending]
+    expect(getActivityHeaderTool(tools, pending)).toBe(read)
+    expect(getInProgressActivityLabel('Reading notes.md', read, tools, 'Reconciling')).toBe(
+      'Reading notes.md'
     )
   })
 
-  it('describes current browser and workflow tools', () => {
-    expect(
-      getToolActivitySummary([
-        tool('browser_open_url'),
-        tool('browser_fill_form'),
-        tool('browser_insert_text'),
-        tool('read_document'),
-        tool('run_workflow'),
-        tool('deploy_as_api'),
-        tool('table_rows'),
-      ])
-    ).toBe('Navigated pages, filled forms, entered text +4 more')
+  it('holds the call the header described before, skipping untitled and failed calls', () => {
+    const failed = tool('grep', 'Searching', 'error')
+    const tools = [read, failed, pendingGateway, pendingCli]
+    expect(getActivityHeaderTool(tools, pendingCli)).toBe(read)
   })
 
-  it('keeps interruption counts without failure badges when action categories are capped', () => {
-    expect(
-      getToolActivitySummary([
-        tool('read'),
-        tool('grep'),
-        tool('terminal'),
-        tool('browser_navigate'),
-        tool('apply_file_edit', 'error'),
-        tool('wait', 'interrupted'),
-        tool('browser_type', 'skipped'),
-      ])
-    ).toBe('Read files, searched files, used the terminal +1 more · 1 stopped · 1 skipped')
+  it('never borrows a later parallel call as the previous header', () => {
+    expect(getActivityHeaderTool([pendingCli, read], pendingCli)).toBe(pendingCli)
   })
 
-  it('keeps individual unsuccessful actions neutral without aggregate failure badges', () => {
-    const rejected = { ...tool('terminal', 'rejected'), displayTitle: 'Running checks' }
-    expect(getToolActivitySummary([rejected])).toBe('Running checks')
-    expect(getToolActivitySummary([rejected, tool('read', 'skipped')])).toBe(
-      'Tool activity · 1 skipped'
-    )
+  it('never holds a failed call, falling back to the new call itself', () => {
+    const failed = tool('grep', 'Searching', 'error')
+    expect(getActivityHeaderTool([failed, pendingCli], pendingCli)).toBe(pendingCli)
+    expect(
+      getInProgressActivityLabel(
+        'Running CLI command',
+        pendingCli,
+        [failed, pendingCli],
+        'Reconciling'
+      )
+    ).toBe('Reconciling')
   })
 
-  it('deduplicates related tools and preserves opposite operations in the summary', () => {
-    expect(
-      getToolActivitySummary([
-        { ...tool('deploy_as_api'), params: { action: 'deploy' } },
-        { ...tool('deploy_as_chat'), params: { action: 'deploy' } },
-        { ...tool('deploy_as_mcp'), params: { action: 'undeploy' } },
-        tool('read'),
-      ])
-    ).toBe('Deployed workflows, undeployed workflows, read files')
+  it('keeps a call waiting on approval as the header, never holding past or onto it', () => {
+    const gatedGateway = {
+      ...pendingGateway,
+      id: 'gateway-gated',
+      status: 'awaiting_approval' as const,
+    }
+    expect(getActivityHeaderTool([read, gatedGateway], gatedGateway)).toBe(gatedGateway)
+    const gatedRead = { ...read, id: 'read-gated', status: 'awaiting_approval' as const }
+    expect(getActivityHeaderTool([read, gatedRead, pendingCli], pendingCli)).toBe(read)
   })
 
-  it('describes terminal runs from their operation', () => {
+  it.each([
+    [
+      'a parsed search query',
+      tool('search_workspace', 'Searching documents', 'executing', { query: 'launch' }),
+    ],
+    ['a parsed CLI command', tool('cli_workflows_list', 'Listing workflows', 'executing')],
+    [
+      'resolved code arguments',
+      tool('run_code', 'Summing', 'executing', { activity: { id: 'a' }, code: '1' }),
+    ],
+    [
+      'a streamed gateway description',
+      {
+        ...pendingGateway,
+        id: 'gateway-described',
+        streamingArgs: '{"description":"Sending the report",',
+      },
+    ],
+    [
+      'a model activity description',
+      { ...pendingCli, id: 'cli-described', activityDescription: 'Listing the workflows' },
+    ],
+  ])('describes the new call once it has %s', (_case, titled) => {
+    expect(getActivityHeaderTool([read, titled], titled)).toBe(titled)
+  })
+
+  it('reads a first untitled call as the activity intent, else its own title', () => {
+    expect(getActivityHeaderTool([pendingCli], pendingCli)).toBe(pendingCli)
     expect(
-      getToolActivitySummary([{ ...tool('terminal'), params: { operation: 'run' } }, tool('read')])
-    ).toBe('Ran commands, read files')
+      getInProgressActivityLabel('Running CLI command', pendingCli, [pendingCli], 'Reconciling')
+    ).toBe('Reconciling')
+    expect(
+      getInProgressActivityLabel('Running CLI command', pendingCli, [pendingCli], undefined)
+    ).toBe('Running CLI command')
   })
 })

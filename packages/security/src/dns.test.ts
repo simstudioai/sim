@@ -56,6 +56,39 @@ describe('resolveHostAddresses', () => {
     await expect(resolveHostAddresses('missing.example')).rejects.toThrow('ENOTFOUND')
   })
 
+  it('does not start DNS work for an already aborted caller', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    await expect(
+      resolveHostAddresses('example.com', { signal: controller.signal })
+    ).rejects.toThrow()
+    expect(mockLookup).not.toHaveBeenCalled()
+  })
+
+  it('cancels a pending lookup at the caller deadline and cleans up its listener and timer', async () => {
+    vi.useFakeTimers()
+    try {
+      let rejectLookup!: (error: Error) => void
+      mockLookup.mockReturnValue(
+        new Promise((_, reject) => {
+          rejectLookup = reject
+        })
+      )
+      const controller = new AbortController()
+      const removeListener = vi.spyOn(controller.signal, 'removeEventListener')
+      const pending = resolveHostAddresses('example.com', { signal: controller.signal })
+      const rejection = expect(pending).rejects.toThrow('Preview deadline')
+      controller.abort(new Error('Preview deadline'))
+      await rejection
+      expect(vi.getTimerCount()).toBe(0)
+      expect(removeListener).toHaveBeenCalledWith('abort', expect.any(Function))
+      rejectLookup(new Error('Late lookup failure'))
+      await Promise.resolve()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('clears the deadline timer once the lookup succeeds', async () => {
     // A leaked timer holds the event loop open for the full window and is
     // invisible to every other assertion here.

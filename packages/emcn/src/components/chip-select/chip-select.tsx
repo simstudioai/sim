@@ -89,8 +89,10 @@ interface ChipSelectBaseProps {
   className?: string
   /** Forwarded to the menu content. */
   contentClassName?: string
-  /** A filled form/filter control, or a primary action with a menu. */
-  variant?: 'filled' | 'primary'
+  /** A filled form/filter control, a primary action, or a bare round toolbar picker. */
+  variant?: 'filled' | 'primary' | 'ghost'
+  /** Reports menu visibility, for example to hide a tooltip while its menu is open. */
+  onOpenChange?: (open: boolean) => void
   /** Optional leading trigger icon. */
   leftIcon?: React.ComponentType<{ className?: string }>
   /** Trigger id, also usable in `aria-labelledby`. */
@@ -192,6 +194,7 @@ export const ChipSelect = React.forwardRef<HTMLButtonElement, ChipSelectProps>(f
     className,
     contentClassName,
     variant = 'filled',
+    onOpenChange,
     leftIcon: LeftIcon,
     id,
     showSelectedCheck = false,
@@ -216,10 +219,11 @@ export const ChipSelect = React.forwardRef<HTMLButtonElement, ChipSelectProps>(f
     .join(' ')
   const describedBy = [ariaDescribedBy, fieldState && fieldStateId].filter(Boolean).join(' ')
   const inverse = variant === 'primary'
+  const ghost = variant === 'ghost'
   const isPlaceholder = !multiSelect && value == null && displayLabel == null
   const labelClass = cn(
     'flex-1 text-sm',
-    !inverse && 'text-[var(--text-body)]',
+    !inverse && (ghost ? 'text-[var(--text-icon)]' : 'text-[var(--text-body)]'),
     isPlaceholder && !inverse && 'text-[var(--text-muted)]'
   )
 
@@ -327,6 +331,7 @@ export const ChipSelect = React.forwardRef<HTMLButtonElement, ChipSelectProps>(f
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen)
         if (!nextOpen) setQuery('')
+        onOpenChange?.(nextOpen)
       }}
     >
       <DropdownMenuTrigger asChild>
@@ -339,9 +344,13 @@ export const ChipSelect = React.forwardRef<HTMLButtonElement, ChipSelectProps>(f
           aria-labelledby={ariaLabelledBy}
           aria-describedby={describedBy || undefined}
           className={cn(
-            chipVariants({ variant, fullWidth }),
-            !inverse && TRIGGER_BORDER_CLASS,
-            fullWidth ? 'justify-between' : 'w-fit max-w-[240px]',
+            chipVariants({
+              variant: ghost ? 'default' : variant,
+              shape: ghost ? 'round' : undefined,
+              fullWidth,
+            }),
+            !inverse && !ghost && TRIGGER_BORDER_CLASS,
+            fullWidth ? 'justify-between' : ghost ? 'w-fit' : 'w-fit max-w-[240px]',
             className
           )}
         >

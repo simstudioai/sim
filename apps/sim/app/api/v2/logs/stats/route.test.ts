@@ -87,6 +87,28 @@ describe('GET /api/v2/logs/stats', () => {
     )
   })
 
+  it('omits empty buckets by default and forwards an explicit includeEmpty', async () => {
+    await GET(request())
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ includeEmpty: false }) })
+    )
+
+    await GET(request('&includeEmpty=true'))
+    expect(mocks.execute).toHaveBeenLastCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ includeEmpty: true }) })
+    )
+  })
+
+  it('rejects an includeEmpty spelling outside the published vocabulary', async () => {
+    const response = await GET(request('&includeEmpty=maybe'))
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'BAD_REQUEST', message: expect.stringContaining('expected one of') },
+    })
+    expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
   /**
    * Each of these produced a 500 before the bounds landed: `0` divided by zero,
    * `1e9` allocated two billion-element arrays, and a fraction indexed between
@@ -120,6 +142,41 @@ describe('GET /api/v2/logs/stats', () => {
         input: expect.objectContaining({
           filters: expect.objectContaining({ workflowIds: ['a', 'b'], triggers: ['api'] }),
           folderPaths: ['/prod'],
+        }),
+      })
+    )
+  })
+
+  it('forwards includeHandledErrors and publishes the handled-error count when asked', async () => {
+    mocks.execute.mockResolvedValueOnce({
+      stats: { ...stats, handledErrorRuns: 3 },
+      workflowsTruncated: false,
+    })
+
+    const response = await GET(request('&level=error&includeHandledErrors=true'))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data.handledErrorRuns).toBe(3)
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          filters: expect.objectContaining({ level: 'error', includeHandledErrors: true }),
+        }),
+      })
+    )
+  })
+
+  it('leaves handledErrorRuns out by default rather than publishing an uncounted zero', async () => {
+    const response = await GET(request())
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data).not.toHaveProperty('handledErrorRuns')
+    expect(mocks.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          filters: expect.objectContaining({ includeHandledErrors: false }),
         }),
       })
     )

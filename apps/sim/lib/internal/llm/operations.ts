@@ -8,7 +8,6 @@ import {
   type BillingAttributionSnapshot,
   requireBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
-import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
 import {
   inspectModelInputProjectionState,
   inspectModelInputProvenanceRequest,
@@ -16,6 +15,7 @@ import {
 import { resolveVertexAccessToken } from '@/lib/internal/llm/credentials'
 import { LlmOperationError } from '@/lib/internal/llm/errors'
 import type { LlmProviderOperationInput } from '@/lib/internal/llm/input'
+import { prepareCopilotEnvironmentContext } from '@/lib/mothership/environment-context'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import {
   assertPermissionsAllowed,

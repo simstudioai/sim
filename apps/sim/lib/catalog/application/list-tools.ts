@@ -1,4 +1,5 @@
 import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
+import { catalogDelegationPolicy } from '@/lib/catalog/application/authorization'
 import {
   loadCatalogWorkspaceContext,
   resolveCatalogGate,
@@ -48,7 +49,7 @@ export const listCatalogTools = defineAuthorizedWorkspaceUseCase({
   operation: catalogOperations.listTools,
   resolveContext: ({ input }: { input: ListCatalogToolsInput }) =>
     loadCatalogWorkspaceContext(input.workspaceId),
-  authorizationOptions: {},
+  authorizationOptions: { delegation: catalogDelegationPolicy },
   execute: async ({ principal, input, context }): Promise<ListCatalogToolsResult> => {
     const search = normalizeCatalogSearch(input.search)
     const oauthProvider = input.oauthProvider?.trim().toLowerCase()

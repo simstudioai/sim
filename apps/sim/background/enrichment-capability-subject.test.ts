@@ -51,6 +51,7 @@ vi.mock('@/lib/table/cell-write', () => ({
 vi.mock('@/lib/table/workflow-cell-result', () => ({
   classifyWorkflowCellTerminalResult: mocks.classifyWorkflowCellTerminalResult,
 }))
+vi.mock('@/lib/workflows/executor/execute-workflow', () => ({ executeWorkflow: vi.fn() }))
 vi.mock('@/enrichments/registry', () => ({ getEnrichment: mocks.getEnrichment }))
 vi.mock('@/enrichments/run', () => ({
   runEnrichment: mocks.runEnrichment,

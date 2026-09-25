@@ -52,16 +52,59 @@ const CLICK_FIXTURE = `<!doctype html><title>Click fixture</title>
  });
 </script>`
 
+const CAPABILITIES_FIXTURE = `<!doctype html><title>Capabilities fixture</title>
+<button id="delete" onclick="document.body.dataset.deleted = confirm('Delete the report?')">Delete report</button>
+<div id="row" oncontextmenu="event.preventDefault(); document.body.dataset.menu = event.button + ':' + event.shiftKey">Report row</div>
+<div id="zone" role="button" aria-label="Attach receipt">Drop a receipt<input id="receipt" type="file" hidden onchange="this.files[0].text().then(text => document.body.dataset.upload = this.files[0].name + ':' + text)"></div>
+<button onclick="window.open(new URLSearchParams(location.search).get('popup'), 'auth', 'width=400,height=400')">Connect</button>
+<script>addEventListener('message', (event) => { document.body.dataset.connected = event.data })</script>`
+
+const POPUP_FIXTURE = `<!doctype html><title>Authorize fixture</title>
+<button onclick="window.opener.postMessage('granted', '*'); window.close()">Allow</button>`
+
+const UPLOAD_TARGET_FIXTURE = `<!doctype html><title>Upload target fixture</title>
+<div id="surface"></div>
+<script>
+  const params = new URLSearchParams(location.search);
+  const surface = document.getElementById('surface');
+  const root = params.get('shadow') === '1' ? surface.attachShadow({ mode: 'open' }) : surface;
+  root.innerHTML = '<div role="button" aria-label="Upload original">Attach file<input id="original" type="file" hidden></div><input id="decoy" type="file" hidden>';
+  const original = root.querySelector('#original');
+  const decoy = root.querySelector('#decoy');
+  window.uploadTestState = async () => ({
+    original: await Promise.all(Array.from(original.files, async (file) => ({ name: file.name, text: await file.text() }))),
+    decoy: await Promise.all(Array.from(decoy.files, async (file) => ({ name: file.name, text: await file.text() }))),
+    currentCount: root.querySelector('#original').files.length,
+  });
+  window.mutateUploadTarget = (mutation) => {
+    if (mutation === 'replace') original.replaceWith(original.cloneNode(true));
+    if (mutation === 'disable') original.disabled = true;
+  };
+  if (params.get('steal') === '1') {
+    new MutationObserver(() => {
+      const marker = original.getAttribute('data-sim-agent-upload');
+      if (!marker) return;
+      original.removeAttribute('data-sim-agent-upload');
+      decoy.setAttribute('data-sim-agent-upload', marker);
+    }).observe(root, { subtree: true, attributes: true, attributeFilter: ['data-sim-agent-upload'] });
+  }
+</script>`
+
 test.describe('browser tools', () => {
   const calls = new Map<
     string,
-    { chatId: string; toolName: BrowserToolName; args: Record<string, unknown> }
+    { chatId: string; toolName: BrowserToolName | 'terminal'; args: Record<string, unknown> }
   >()
+  const claimed = new Map<string, { args: Record<string, unknown> }>()
   let server: Server
+  let popupServer: Server
   let origin: string
+  let site: string
+  let popupOrigin: string
   let app: ElectronApplication
   let window: Page
   let callCount = 0
+  let beforeUploadResponse: (() => Promise<void>) | undefined
 
   test.beforeAll(async () => {
     server = createServer(async (request, response) => {
@@ -71,27 +114,124 @@ test.describe('browser tools', () => {
         response.end()
         return
       }
+      if (path === '/enter-sim') {
+        response.writeHead(302, { Location: `${origin}/private-chat` })
+        response.end()
+        return
+      }
+      if (path === '/api/auth/get-session') {
+        response.writeHead(200, { 'Content-Type': 'application/json' })
+        response.end(
+          JSON.stringify(
+            request.headers.cookie?.includes('better-auth.session_token=fixture')
+              ? { user: { id: 'browser-auth-fixture' }, session: { id: 'fixture-session' } }
+              : null
+          )
+        )
+        return
+      }
+      if (path === '/api/auth/sign-out') {
+        response.writeHead(200, {
+          'Content-Type': 'application/json',
+          'Set-Cookie': 'better-auth.session_token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0',
+        })
+        response.end('{}')
+        return
+      }
+      if (path === '/private-chat' || path === '/private-preview') {
+        if (!request.headers.cookie?.includes('better-auth.session_token=fixture')) {
+          response.writeHead(302, { Location: '/login' })
+          response.end()
+          return
+        }
+        response.writeHead(200, { 'Content-Type': 'text/html' })
+        response.end(
+          path === '/private-chat'
+            ? '<!doctype html><title>Private deployed chat</title><h1>Authenticated deployed chat</h1><label>Message <input id="message"></label><button onclick="document.getElementById(\'reply\').textContent = document.getElementById(\'message\').value">Send</button><p id="reply"></p>'
+            : `<!doctype html><title>Private HTML preview</title><h1>Authenticated HTML preview</h1><iframe sandbox="allow-scripts" srcdoc="<button onclick='document.body.dataset.clicked = true'>Test quiz</button><script>try { parent.document.body.dataset.escaped = true } catch { document.body.dataset.isolated = true }</script>"></iframe>`
+        )
+        return
+      }
+      if (path === '/api/desktop/tool/file') {
+        let body = ''
+        for await (const chunk of request) body += chunk.toString()
+        const { toolCallId, index } = JSON.parse(body)
+        const reference = claimed.get(toolCallId)?.args.paths
+        const found = Array.isArray(reference) && reference[index] === 'files/receipt.txt'
+        const beforeResponse = beforeUploadResponse
+        beforeUploadResponse = undefined
+        try {
+          await beforeResponse?.()
+        } catch (error) {
+          response.writeHead(500, { 'Content-Type': 'text/plain' })
+          response.end(String(error))
+          return
+        }
+        response.writeHead(found ? 200 : 404, {
+          'Content-Type': found ? 'application/octet-stream' : 'application/json',
+          ...(found ? { 'Content-Disposition': 'attachment; filename="receipt.txt"' } : {}),
+        })
+        response.end(found ? 'receipt-bytes' : JSON.stringify({ error: 'File not found' }))
+        return
+      }
+      if (path === '/upload-target' || path === '/upload-host') {
+        const params = new URL(request.url ?? '/', 'http://127.0.0.1').searchParams
+        const frameOrigin = params.get('kind') === 'oopif' ? origin : site
+        response.writeHead(200, { 'Content-Type': 'text/html' })
+        response.end(
+          path === '/upload-target'
+            ? UPLOAD_TARGET_FIXTURE
+            : `<!doctype html><title>Upload frame fixture</title><iframe src="${frameOrigin}/upload-target" title="Upload frame"></iframe>`
+        )
+        return
+      }
+      if (path === '/doc.pdf') {
+        response.writeHead(200, { 'Content-Type': 'application/pdf' })
+        response.end(
+          '%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n'
+        )
+        return
+      }
       if (path === '/api/desktop/tool/authorize') {
         let body = ''
         for await (const chunk of request) body += chunk.toString()
         const authorization = calls.get(JSON.parse(body).toolCallId)
+        calls.delete(JSON.parse(body).toolCallId)
+        if (authorization) claimed.set(JSON.parse(body).toolCallId, authorization)
         response.writeHead(authorization ? 200 : 403, { 'Content-Type': 'application/json' })
         response.end(JSON.stringify(authorization ?? {}))
         return
       }
-      response.writeHead(200, { 'Content-Type': 'text/html' })
+      response.writeHead(200, {
+        'Content-Type': 'text/html',
+        ...(path === '/workspace' || path === '/home' || path === '/'
+          ? { 'Set-Cookie': 'better-auth.session_token=fixture; HttpOnly; SameSite=Lax; Path=/' }
+          : {}),
+      })
       response.end(
         path === '/click'
           ? CLICK_FIXTURE
-          : path === '/form'
-            ? FORM
-            : '<!doctype html><title>Sim fixture</title><h1>Browser tools fixture</h1>'
+          : path === '/capabilities'
+            ? CAPABILITIES_FIXTURE
+            : path === '/form'
+              ? FORM
+              : '<!doctype html><title>Sim fixture</title><h1>Browser tools fixture</h1>'
       )
     })
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
     const address = server.address()
     if (!address || typeof address === 'string') throw new Error('Missing fixture address')
     origin = `http://127.0.0.1:${address.port}`
+    /** Pages outside the app origin browse in the agent partition, like any third-party site. */
+    site = origin.replace('127.0.0.1', 'localhost')
+    popupServer = createServer((_request, response) => {
+      response.writeHead(200, { 'Content-Type': 'text/html' })
+      response.end(POPUP_FIXTURE)
+    })
+    await new Promise<void>((resolve) => popupServer.listen(0, '127.0.0.1', resolve))
+    const popupAddress = popupServer.address()
+    if (!popupAddress || typeof popupAddress === 'string') throw new Error('Missing popup address')
+    popupOrigin = `http://localhost:${popupAddress.port}`
   })
 
   test.beforeEach(async () => {
@@ -104,6 +244,11 @@ test.describe('browser tools', () => {
         SIM_DESKTOP_USER_DATA: mkdtempSync(join(tmpdir(), 'sim-browser-tools-e2e-')),
       },
     })
+    // A dialog listener stops Playwright auto-dismissing page dialogs, so the desktop's own CDP
+    // dialog handling decides their outcome exactly as it does in production.
+    const leaveDialogsToDesktop = (page: Page) => page.on('dialog', () => {})
+    app.context().pages().forEach(leaveDialogsToDesktop)
+    app.context().on('page', leaveDialogsToDesktop)
     window = await app.firstWindow()
     await app.evaluate(({ app, BrowserWindow }) => {
       const host = BrowserWindow.getAllWindows()[0]
@@ -130,14 +275,18 @@ test.describe('browser tools', () => {
   })
 
   test.afterEach(async () => {
+    beforeUploadResponse = undefined
     await app?.close()
     calls.clear()
+    claimed.clear()
   })
 
   test.afterAll(async () => {
-    await new Promise<void>((resolve, reject) =>
-      server.close((error) => (error ? reject(error) : resolve()))
-    )
+    for (const listener of [server, popupServer]) {
+      await new Promise<void>((resolve, reject) =>
+        listener.close((error) => (error ? reject(error) : resolve()))
+      )
+    }
   })
 
   async function execute(tool: BrowserToolName, args: Record<string, unknown>) {
@@ -166,6 +315,433 @@ test.describe('browser tools', () => {
       return Number(match[1])
     }
   }
+
+  async function openCapabilities() {
+    const url = `${site}/capabilities?popup=${encodeURIComponent(`${popupOrigin}/authorize`)}`
+    const response = await execute('browser_open_url', { url })
+    expect(response.ok, response.error).toBe(true)
+    const outline = (response.result as { snapshot: { outline: string } }).snapshot.outline
+    const ref = (name: string) => {
+      const match = outline
+        .split('\n')
+        .find((line) => line.includes(`"${name}"`) && /\[ref=\d+\]/.test(line))
+        ?.match(/\[ref=(\d+)\]/)
+      if (!match) throw new Error(`No reference for ${name}: ${outline}`)
+      return Number(match[1])
+    }
+    const dataset = () =>
+      app.evaluate(
+        ({ webContents }, url) =>
+          webContents
+            .getAllWebContents()
+            .find((contents) => contents.getURL() === url)
+            ?.executeJavaScript('({ ...document.body.dataset })'),
+        url
+      )
+    return { ref, dataset }
+  }
+
+  test('answers confirm dialogs only when the action asks and right-clicks reach the page', async () => {
+    const { ref, dataset } = await openCapabilities()
+
+    const dismissed = await execute('browser_click', { elementId: ref('Delete report') })
+    expect(JSON.stringify(dismissed.result)).toContain('which was dismissed')
+    expect(await dataset()).toMatchObject({ deleted: 'false' })
+
+    const accepted = await execute('browser_click', {
+      elementId: ref('Delete report'),
+      dialog: { accept: true },
+    })
+    expect(JSON.stringify(accepted.result)).toContain('accepted as requested')
+    expect(await dataset()).toMatchObject({ deleted: 'true' })
+
+    const menu = await execute('browser_click', {
+      elementId: ref('Report row'),
+      button: 'right',
+      modifiers: ['Shift'],
+    })
+    expect(menu.ok, menu.error).toBe(true)
+    expect(await dataset()).toMatchObject({ menu: '2:true' })
+  })
+
+  test('uploads a workspace file into the hidden input behind a drop zone', async () => {
+    const { ref, dataset } = await openCapabilities()
+
+    const upload = await execute('browser_upload_file', {
+      elementId: ref('Attach receipt'),
+      paths: ['files/receipt.txt'],
+    })
+
+    expect(upload.ok, upload.error).toBe(true)
+    expect(upload.result).toMatchObject({
+      uploaded: [{ name: 'receipt.txt', size: 13 }],
+      effectObserved: true,
+    })
+    await expect.poll(dataset).toMatchObject({ upload: 'receipt.txt:receipt-bytes' })
+  })
+
+  async function openUploadTarget(
+    kind: 'root' | 'same-origin' | 'oopif' | 'shadow',
+    steal = false
+  ) {
+    const framed = kind === 'same-origin' || kind === 'oopif'
+    const url = framed
+      ? `${site}/upload-host?kind=${kind}`
+      : `${site}/upload-target?shadow=${kind === 'shadow' ? '1' : '0'}&steal=${steal ? '1' : '0'}`
+    const response = await execute('browser_open_url', { url })
+    expect(response.ok, response.error).toBe(true)
+    const evaluate = (expression: string, inTopFrame = false) =>
+      app.evaluate(
+        ({ webContents }, { url, framed, expression }) => {
+          const contents = webContents
+            .getAllWebContents()
+            .find((contents) => contents.getURL() === url)
+          const frame = framed ? contents?.mainFrame.frames[0] : contents?.mainFrame
+          if (!frame) throw new Error('Missing upload fixture frame')
+          return frame.executeJavaScript(expression)
+        },
+        { url, framed: framed && !inTopFrame, expression }
+      )
+    await expect.poll(() => evaluate('typeof window.uploadTestState')).toBe('function')
+    if (kind === 'oopif') {
+      expect(
+        await app.evaluate(({ webContents }, url) => {
+          const contents = webContents
+            .getAllWebContents()
+            .find((contents) => contents.getURL() === url)
+          const child = contents?.mainFrame.frames[0]
+          return child && child.processId !== contents?.mainFrame.processId
+        }, url)
+      ).toBe(true)
+    }
+    const snapshot = await execute('browser_snapshot', {})
+    expect(snapshot.ok, snapshot.error).toBe(true)
+    const outline = (snapshot.result as { outline: string }).outline
+    const match = outline
+      .split('\n')
+      .find((line) => line.includes('"Upload original"'))
+      ?.match(/\[ref=(\d+)\]/)
+    expect(match, outline).toBeTruthy()
+    return { elementId: Number(match?.[1]), evaluate }
+  }
+
+  test('pins uploads to the original input when page code steals a DOM marker', async () => {
+    const { elementId, evaluate } = await openUploadTarget('root', true)
+    const upload = await execute('browser_upload_file', { elementId, paths: ['files/receipt.txt'] })
+
+    expect(upload.ok, upload.error).toBe(true)
+    expect(await evaluate('window.uploadTestState()')).toEqual({
+      original: [{ name: 'receipt.txt', text: 'receipt-bytes' }],
+      decoy: [],
+      currentCount: 1,
+    })
+  })
+
+  test('reports an unconfirmed upload when cancelled before Chromium acknowledgement arrives', async () => {
+    const { elementId, evaluate } = await openUploadTarget('root')
+    await app.evaluate(({ webContents }, site) => {
+      const contents = webContents
+        .getAllWebContents()
+        .find((contents) => contents.getURL() === `${site}/upload-target?shadow=0&steal=0`)
+      if (!contents) throw new Error('Missing upload acknowledgement fixture')
+      const original = contents.debugger.sendCommand
+      let release = () => {}
+      const acknowledgement = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const state = {
+        count: 0,
+        applied: false,
+        release,
+        restore: () => {
+          contents.debugger.sendCommand = original
+        },
+      }
+      const globals = globalThis as typeof globalThis & { heldUploadAcknowledgement?: typeof state }
+      globals.heldUploadAcknowledgement = state
+      contents.debugger.sendCommand = async (method, params, sessionId) => {
+        if (method !== 'DOM.setFileInputFiles') {
+          return original.call(contents.debugger, method, params, sessionId)
+        }
+        state.count++
+        const result = await original.call(contents.debugger, method, params, sessionId)
+        state.applied = true
+        await acknowledgement
+        return result
+      }
+    }, site)
+    const pending = execute('browser_upload_file', { elementId, paths: ['files/receipt.txt'] })
+    const toolCallId = `browser-fixture-${callCount}`
+    try {
+      await expect
+        .poll(() => evaluate('window.uploadTestState()'))
+        .toEqual({
+          original: [{ name: 'receipt.txt', text: 'receipt-bytes' }],
+          decoy: [],
+          currentCount: 1,
+        })
+      await expect
+        .poll(() =>
+          app.evaluate(
+            () =>
+              (
+                globalThis as typeof globalThis & {
+                  heldUploadAcknowledgement?: { applied: boolean }
+                }
+              ).heldUploadAcknowledgement?.applied
+          )
+        )
+        .toBe(true)
+      await window.evaluate(
+        async ({ toolCallId, scope }) => {
+          const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+          if (!api.browserAgent.cancelTool) throw new Error('Browser cancellation is unavailable')
+          await api.browserAgent.cancelTool(toolCallId, scope)
+        },
+        { toolCallId, scope: SCOPE }
+      )
+
+      const upload = await pending
+      expect(upload.ok, JSON.stringify(upload)).toBe(true)
+      expect(upload.result).toMatchObject({
+        outcomeUnknown: true,
+        doNotRetry: true,
+        note: expect.stringContaining('Inspect the page'),
+      })
+      expect(upload.result).not.toHaveProperty('dispatched', true)
+      expect((await execute('browser_list_tabs', {})).ok).toBe(true)
+      expect(
+        await app.evaluate(
+          () =>
+            (
+              globalThis as typeof globalThis & {
+                heldUploadAcknowledgement?: { count: number }
+              }
+            ).heldUploadAcknowledgement?.count
+        )
+      ).toBe(1)
+    } finally {
+      await app.evaluate(() => {
+        const globals = globalThis as typeof globalThis & {
+          heldUploadAcknowledgement?: { release: () => void; restore: () => void }
+        }
+        globals.heldUploadAcknowledgement?.release()
+        globals.heldUploadAcknowledgement?.restore()
+        globals.heldUploadAcknowledgement = undefined
+      })
+      await pending
+    }
+  })
+
+  for (const mutation of ['replace', 'disable', 'navigate-frame'] as const) {
+    test(`refuses uploads when the target changes during staging: ${mutation}`, async () => {
+      const { elementId, evaluate } = await openUploadTarget(
+        mutation === 'navigate-frame' ? 'same-origin' : 'root'
+      )
+      let mutated = false
+      beforeUploadResponse = async () => {
+        if (mutation === 'navigate-frame') {
+          await evaluate('parent.previousUploadInput = document.querySelector("#original")')
+          await evaluate('location.replace("/upload-target?after=1")')
+          await expect.poll(() => evaluate('location.search')).toBe('?after=1')
+          await expect.poll(() => evaluate('typeof window.uploadTestState')).toBe('function')
+        } else {
+          await evaluate(`window.mutateUploadTarget(${JSON.stringify(mutation)})`)
+        }
+        mutated = true
+      }
+      const upload = await execute('browser_upload_file', {
+        elementId,
+        paths: ['files/receipt.txt'],
+      })
+
+      expect(mutated).toBe(true)
+      expect(upload.ok, JSON.stringify(upload)).toBe(false)
+      expect(await evaluate('window.uploadTestState()')).toEqual({
+        original: [],
+        decoy: [],
+        currentCount: 0,
+      })
+      if (mutation === 'navigate-frame') {
+        expect(await evaluate('parent.previousUploadInput.files.length')).toBe(0)
+      }
+    })
+  }
+
+  test('refuses uploads after their same-origin frame is removed during staging', async () => {
+    const { elementId, evaluate } = await openUploadTarget('same-origin')
+    let removed = false
+    beforeUploadResponse = async () => {
+      await evaluate(
+        'window.removedUploadInput = document.querySelector("iframe").contentDocument.querySelector("#original"); document.querySelector("iframe").remove()',
+        true
+      )
+      removed = true
+    }
+    const upload = await execute('browser_upload_file', {
+      elementId,
+      paths: ['files/receipt.txt'],
+    })
+
+    expect(removed).toBe(true)
+    expect(upload.ok, JSON.stringify(upload)).toBe(false)
+    expect(await evaluate('window.removedUploadInput.files.length', true)).toBe(0)
+  })
+
+  for (const kind of ['same-origin', 'oopif', 'shadow'] as const) {
+    test(`uploads through a pinned input in a ${kind} context`, async () => {
+      const { elementId, evaluate } = await openUploadTarget(kind)
+      const upload = await execute('browser_upload_file', {
+        elementId,
+        paths: ['files/receipt.txt'],
+      })
+
+      expect(upload.ok, upload.error).toBe(true)
+      expect(upload.result).toMatchObject({ uploaded: [{ name: 'receipt.txt', size: 13 }] })
+      expect(await evaluate('window.uploadTestState()')).toEqual({
+        original: [{ name: 'receipt.txt', text: 'receipt-bytes' }],
+        decoy: [],
+        currentCount: 1,
+      })
+    })
+  }
+
+  test('keeps window.opener for page popups and returns to the opener when they close', async () => {
+    const { ref, dataset } = await openCapabilities()
+
+    expect((await execute('browser_click', { elementId: ref('Connect') })).ok).toBe(true)
+    const popup = await execute('browser_snapshot', {})
+    const allow = (popup.result as { outline: string }).outline.match(
+      /button "Allow" \[ref=(\d+)\]/
+    )?.[1]
+    expect(allow, JSON.stringify(popup.result)).toBeTruthy()
+    expect((await execute('browser_click', { elementId: Number(allow) })).ok).toBe(true)
+
+    await expect.poll(dataset).toMatchObject({ connected: 'granted' })
+    await expect
+      .poll(
+        async () => ((await execute('browser_list_tabs', {})).result as { tabs: unknown[] }).tabs
+      )
+      .toHaveLength(1)
+  })
+
+  test('renders PDFs in the built-in viewer', async () => {
+    const response = await execute('browser_open_url', { url: `${site}/doc.pdf` })
+    expect(response.ok, response.error).toBe(true)
+
+    await expect
+      .poll(() =>
+        app.evaluate(
+          ({ webContents }, url) =>
+            webContents
+              .getAllWebContents()
+              .find((contents) => contents.getURL() === url)
+              ?.mainFrame.framesInSubtree.some((frame) =>
+                frame.url.startsWith('chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/')
+              ),
+          `${site}/doc.pdf`
+        )
+      )
+      .toBe(true)
+  })
+
+  test('shares desktop authentication for private HTML previews and deployed chats', async () => {
+    for (const path of ['/private-preview', '/private-chat']) {
+      const result = await execute('browser_open_url', { url: `${origin}${path}` })
+      expect(result.ok, result.error).toBe(true)
+      expect(result.result).toMatchObject({ url: `${origin}${path}` })
+      const state = await app.evaluate(async ({ webContents, BrowserWindow }, url) => {
+        const host = BrowserWindow.getAllWindows()[0].webContents
+        const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
+        if (!page) throw new Error('Missing protected page')
+        return {
+          sharedSession: page.session === host.session,
+          hasDesktopBridge: await page.executeJavaScript(
+            'typeof window.simDesktop !== "undefined"'
+          ),
+          heading: await page.executeJavaScript('document.querySelector("h1").textContent'),
+          escaped: await page.executeJavaScript('document.body.dataset.escaped === "true"'),
+        }
+      }, `${origin}${path}`)
+      expect(state.sharedSession).toBe(true)
+      expect(state.hasDesktopBridge).toBe(false)
+      expect(state.heading).toContain('Authenticated')
+      expect(state.escaped).toBe(false)
+      if (path === '/private-preview') {
+        const outline = (result.result as { snapshot: { outline: string } }).snapshot.outline
+        const button = outline
+          .split('\n')
+          .find((line) => line.includes('"Test quiz"') && /\[ref=\d+\]/.test(line))
+          ?.match(/\[ref=(\d+)\]/)?.[1]
+        expect(button, JSON.stringify(result.result)).toBeTruthy()
+        const click = await execute('browser_click', { elementId: Number(button) })
+        expect(click.ok, click.error).toBe(true)
+        const frameState = await app.evaluate(async ({ webContents }, url) => {
+          const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
+          const frame = page?.mainFrame.frames.find((frame) => frame.url === 'about:srcdoc')
+          if (!frame) throw new Error('Missing sandboxed preview')
+          return frame.executeJavaScript(
+            '({ clicked: document.body.dataset.clicked, isolated: document.body.dataset.isolated, bridge: typeof window.simDesktop })'
+          )
+        }, `${origin}${path}`)
+        expect(frameState).toEqual({ clicked: 'true', isolated: 'true', bridge: 'undefined' })
+      }
+    }
+    const typed = await execute('browser_open_url', { url: `${origin}/private-chat` })
+    expect(typed.ok, typed.error).toBe(true)
+    const result = typed.result as { snapshot: { outline: string } }
+    const message = result.snapshot.outline
+      .split('\n')
+      .find((line) => line.includes('"Message"') && /\[ref=\d+\]/.test(line))
+      ?.match(/\[ref=(\d+)\]/)?.[1]
+    const send = result.snapshot.outline
+      .split('\n')
+      .find((line) => line.includes('"Send"') && /\[ref=\d+\]/.test(line))
+      ?.match(/\[ref=(\d+)\]/)?.[1]
+    expect(message, result.snapshot.outline).toBeTruthy()
+    expect(send, result.snapshot.outline).toBeTruthy()
+    expect(
+      (await execute('browser_type', { elementId: Number(message), text: 'Session works' })).ok
+    ).toBe(true)
+    expect((await execute('browser_click', { elementId: Number(send) })).ok).toBe(true)
+    expect(JSON.stringify(await execute('browser_snapshot', {}))).toContain('Session works')
+  })
+
+  test('keeps external navigation isolated and authenticates redirects back into Sim', async () => {
+    expect((await execute('browser_open_url', { url: `${origin}/private-chat` })).ok).toBe(true)
+    const external = origin.replace('127.0.0.1', 'localhost')
+    const result = await execute('browser_open_url', { url: `${origin}/redirect` })
+    expect(result.ok, result.error).toBe(true)
+    expect(result.result).toMatchObject({ url: `${external}/landing` })
+    expect(
+      await app.evaluate(({ webContents, BrowserWindow }, url) => {
+        const page = webContents.getAllWebContents().find((contents) => contents.getURL() === url)
+        return page?.session === BrowserWindow.getAllWindows()[0].webContents.session
+      }, `${external}/landing`)
+    ).toBe(false)
+    const back = await execute('browser_open_url', { url: `${external}/enter-sim` })
+    expect(back.ok, back.error).toBe(true)
+    expect(back.result).toMatchObject({ url: `${origin}/private-chat` })
+  })
+
+  test('sign-out clears authenticated browser pages with the desktop session', async () => {
+    const opened = await execute('browser_open_url', { url: `${origin}/private-chat` })
+    expect(opened.ok, opened.error).toBe(true)
+    expect(opened.result).toMatchObject({ url: `${origin}/private-chat` })
+    await window.evaluate(async () => {
+      await fetch('/api/auth/sign-out', { method: 'POST' })
+    })
+    await expect
+      .poll(() =>
+        app.evaluate(
+          ({ webContents }, url) =>
+            webContents.getAllWebContents().some((contents) => contents.getURL() === url),
+          `${origin}/private-chat`
+        )
+      )
+      .toBe(false)
+    await expect(window).toHaveURL(`${origin}/login`)
+  })
 
   async function formState() {
     return app.evaluate(async ({ webContents }, origin) => {
@@ -619,6 +1195,28 @@ test.describe('browser tools', () => {
     expect(await formState()).toMatchObject({ scrollLeft: 0 })
   })
 
+  test('batches an action with a fresh observation without replaying form fields', async () => {
+    const ref = await openForm()
+    const fill = await execute('browser_fill_form', {
+      fields: [{ elementId: ref('Name'), kind: 'text', text: 'Observed value' }],
+      observe: { query: 'Name' },
+    })
+    expect(fill.ok, fill.error).toBe(true)
+    expect(fill.result).toMatchObject({
+      completed: true,
+      completedCount: 1,
+      observation: { ok: true, result: { totalMatches: 1 } },
+    })
+    expect(await formState()).toMatchObject({ name: 'Observed value' })
+    const result = fill.result as { observation: { result: { matches: { elementId: number }[] } } }
+    const freshId = result.observation.result.matches[0].elementId
+    expect(freshId).not.toBe(ref('Name'))
+    const clear = await execute('browser_type', { elementId: freshId, text: '', observe: {} })
+    expect(clear.ok, clear.error).toBe(true)
+    expect(clear.result).toMatchObject({ observation: { ok: true } })
+    expect(await formState()).toMatchObject({ name: '' })
+  })
+
   test('stops after a route change without writing the next field', async () => {
     const ref = await openForm()
     const fill = await execute('browser_fill_form', {
@@ -707,5 +1305,38 @@ test.describe('browser tools', () => {
     })
     expect(fill.result).toMatchObject({ completed: false, completedCount: 0 })
     expect(await formState()).toMatchObject({ name: '', password: '' })
+  })
+  test('local terminal executes through its native PTY and refuses repeated authorization', async () => {
+    await window.evaluate(async (scope) => {
+      const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+      await api.terminal.activateScope(scope)
+      await api.terminal.openTerminal(undefined, scope)
+    }, SCOPE)
+    calls.set('local-cwd', {
+      chatId: SCOPE,
+      toolName: 'terminal',
+      args: { operation: 'cwd', args: {} },
+    })
+    const cwd = await window.evaluate(async (scope) => {
+      const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+      return api.terminal.executeTool('local-cwd', 'cwd', {}, scope)
+    }, SCOPE)
+    expect(cwd.ok).toBe(true)
+    calls.set('local-run', {
+      chatId: SCOPE,
+      toolName: 'terminal',
+      args: { operation: 'run', args: { command: "printf 'SIM_NATIVE_TERMINAL_VERIFIED\\n'" } },
+    })
+    const result = await window.evaluate(async (scope) => {
+      const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+      return api.terminal.executeTool('local-run', 'run', {}, scope)
+    }, SCOPE)
+    expect(result.ok).toBe(true)
+    expect(JSON.stringify(result)).toContain('SIM_NATIVE_TERMINAL_VERIFIED')
+    const replay = await window.evaluate(async (scope) => {
+      const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
+      return api.terminal.executeTool('local-run', 'run', {}, scope)
+    }, SCOPE)
+    expect(replay.ok).toBe(false)
   })
 })

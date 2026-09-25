@@ -80,7 +80,7 @@ export const providerHistoryAdapters: Record<ConversationProtocol, ProviderHisto
   bedrock: { protocol: 'bedrock', capture: (value) => capture('bedrock', value) },
 }
 
-export const providerHistoryProtocols: Record<ProviderId, ConversationProtocol> = {
+export const providerHistoryProtocols: Record<ProviderId, ConversationProtocol | null> = {
   openai: 'responses',
   'azure-openai': 'responses',
   anthropic: 'anthropic',
@@ -93,6 +93,7 @@ export const providerHistoryProtocols: Record<ProviderId, ConversationProtocol> 
   cerebras: 'chat-completions',
   groq: 'chat-completions',
   sakana: 'chat-completions',
+  typesafe: null,
   nvidia: 'chat-completions',
   meta: 'chat-completions',
   zai: 'chat-completions',

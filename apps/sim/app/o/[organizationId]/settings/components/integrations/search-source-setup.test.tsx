@@ -5,6 +5,16 @@ import { act, cloneElement, type ReactNode } from 'react'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  resetDeploymentShape,
+  resolveDeploymentShape,
+  seedDeploymentShape,
+} from '@/lib/core/config/deployment-shape'
+
+vi.mock('@/hooks/queries/environment', () => ({
+  usePersonalEnvironment: () => ({ data: {} }),
+  useWorkspaceEnvironment: () => ({ data: { workspace: {}, personal: {} } }),
+}))
 
 const mocks = vi.hoisted(() => ({
   canAdmin: true,
@@ -27,6 +37,7 @@ const mocks = vi.hoisted(() => ({
   create: vi.fn(),
   update: vi.fn(),
   applyAccess: vi.fn(),
+  updateSearchIntegration: vi.fn(),
   prepare: vi.fn(),
   createPending: false,
   updatePending: false,
@@ -72,6 +83,9 @@ vi.mock('@/lib/auth/auth-client', () => ({
   useSession: () => ({ data: { user: { id: mocks.userId } } }),
 }))
 vi.mock('@/hooks/use-oauth-return', () => ({ useOAuthReturnForKBConnectors: mocks.oauthReturn }))
+vi.mock('@/hooks/queries/search-integrations', () => ({
+  useUpdateSearchIntegration: () => ({ mutate: mocks.updateSearchIntegration }),
+}))
 vi.mock('@/hooks/use-github-installation-setup', () => ({
   useGitHubInstallationSetup: () => ({
     connect: vi.fn(),
@@ -269,6 +283,7 @@ async function chooseSyncFrequency(label: string) {
 async function fill(placeholder: string, value: string) {
   const input = document.querySelector<HTMLInputElement>(`input[placeholder="${placeholder}"]`)
   expect(input, `Input ${placeholder}`).not.toBeNull()
+  await act(async () => input?.focus())
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value)
     input?.dispatchEvent(new Event('input', { bubbles: true }))
@@ -380,6 +395,7 @@ afterEach(async () => {
   root = null
   container = null
   vi.restoreAllMocks()
+  resetDeploymentShape()
 })
 
 function organizationSetup() {
@@ -562,17 +578,61 @@ describe('organization setup entry points', () => {
     )
   })
 
-  it.each(['github', 'jira'])(
-    'returns old %s organization setup links to personal integrations without loading the index',
-    async (type) => {
-      await render(organizationSetup(), `?addConnector=${type}`)
-      expect(mocks.replace).toHaveBeenCalledWith('/o/org-1/integrations')
-      expect(mocks.basesQuery).toHaveBeenLastCalledWith('org-1', { enabled: false })
-      expect(mocks.connectorsQuery).not.toHaveBeenCalled()
-      expect(document.querySelector('[role="dialog"]')).toBeNull()
-      expect(mocks.prepare).not.toHaveBeenCalled()
-    }
-  )
+  it('selects a newly added live service source before navigating to it', async () => {
+    const shape = resolveDeploymentShape()
+    seedDeploymentShape({
+      ...shape,
+      features: { ...shape.features, liveEnterpriseSearch: true },
+    })
+    mocks.credentials = [
+      {
+        id: 'gmail-service',
+        name: 'Gmail service account',
+        provider: 'google-email',
+        type: 'service_account',
+      },
+    ]
+    await render(organizationSetup(), '?addConnector=gmail')
+    await fill('admin@yourcompany.com', 'admin@example.com')
+    await click(button('Save connection'))
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({ connectorType: 'gmail', accessMode: 'admin' }),
+      expect.any(Object)
+    )
+    await act(async () =>
+      mocks.create.mock.calls[0][1].onSuccess(
+        connector({ id: 'new-gmail', connectorType: 'gmail', accessMode: 'admin' })
+      )
+    )
+    await vi.waitFor(
+      () =>
+        expect(mocks.updateSearchIntegration).toHaveBeenCalledWith(
+          {
+            organizationId: 'org-1',
+            connectorType: 'gmail',
+            approved: true,
+            policy: expect.objectContaining({
+              accessMode: 'service_account',
+              sourceId: 'new-gmail',
+            }),
+          },
+          expect.any(Object)
+        ),
+      { interval: 1 }
+    )
+    expect(mocks.push).not.toHaveBeenCalled()
+    await act(async () => mocks.updateSearchIntegration.mock.calls[0][1].onSuccess())
+    expect(mocks.push).toHaveBeenCalledWith('/o/org-1/settings/integrations/sources/new-gmail')
+  })
+
+  it('returns an old Jira organization setup link to personal integrations without loading the index', async () => {
+    await render(organizationSetup(), '?addConnector=jira')
+    expect(mocks.replace).toHaveBeenCalledWith('/o/org-1/integrations')
+    expect(mocks.basesQuery).toHaveBeenLastCalledWith('org-1', { enabled: false })
+    expect(mocks.connectorsQuery).not.toHaveBeenCalled()
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(mocks.prepare).not.toHaveBeenCalled()
+  })
 
   it.each(['google_drive', 'gmail', 'google_calendar'])(
     'opens %s central setup directly and keeps explicit member links in member mode',
@@ -897,8 +957,8 @@ describe('member content credentials in real add and edit dialogs', () => {
     )
     await click(card!)
     expect(document.body.textContent).not.toContain('Connected members')
-    expect(button('Administrator token')).toHaveAttribute('aria-checked', 'true')
-    expect(document.body.textContent).not.toContain('Connection method')
+    expect(document.body.textContent).not.toContain('Administrator token')
+    expect(document.body.textContent).toContain('Everyone in this workspace')
     await fill('Enter your GitLab PAT', 'new-pat')
     await fill('gitlab.example.com', 'gitlab.example.test')
     await fill('group/project or numeric ID', '1')
@@ -906,7 +966,7 @@ describe('member content credentials in real add and edit dialogs', () => {
     await click(button('Connect & Sync'))
     expect(mocks.create.mock.calls[1][0]).toMatchObject({
       connectorType: 'gitlab',
-      accessMode: 'admin',
+      accessMode: 'workspace',
       apiKey: 'new-pat',
     })
     expect(mocks.create.mock.calls[1][0].sourceConfig).not.toHaveProperty('excludeChannels')

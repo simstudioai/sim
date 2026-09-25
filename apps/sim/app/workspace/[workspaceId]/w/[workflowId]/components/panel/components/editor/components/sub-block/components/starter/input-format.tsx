@@ -24,6 +24,7 @@ import {
   isFileFieldType,
   parseInputFormatFiles,
 } from '@/lib/workflows/input-format'
+import type { InputFormatFieldState } from '@/lib/workflows/input-format-schema'
 import { FileUpload } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/file-upload/file-upload'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
@@ -39,14 +40,8 @@ import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/c
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 
-interface Field {
-  id: string
-  name: string
-  type?: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'file[]'
-  value?: string
-  description?: string
-  collapsed?: boolean
-}
+type Field = Pick<InputFormatFieldState, 'id' | 'name'> &
+  Partial<Omit<InputFormatFieldState, 'id' | 'name'>>
 
 interface FieldFormatProps {
   blockId: string

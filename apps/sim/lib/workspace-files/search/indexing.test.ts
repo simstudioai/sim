@@ -24,24 +24,32 @@ vi.mock('@/lib/workspace-files/search/extract', () => ({
 }))
 
 import {
+  FILE_SEARCH_INDEX_CAPACITY_MAX_ATTEMPTS,
+  FILE_SEARCH_INDEX_CAPACITY_RETRY_BASE_MS,
+  FILE_SEARCH_INDEX_CAPACITY_RETRY_MAX_MS,
+  FILE_SEARCH_INDEX_MAX_ATTEMPTS,
   FILE_SEARCH_INSERT_BATCH_BYTES,
   FILE_SEARCH_INSERT_BATCH_ROWS,
   FILE_SEARCH_MAX_SOURCE_BYTES,
   FILE_SEARCH_SLOW_INSERT_BATCH_MS,
 } from '@/lib/workspace-files/search/constants'
 import type { FileSearchChunk } from '@/lib/workspace-files/search/index-plan'
-import { indexWorkspaceFileForSearch } from '@/lib/workspace-files/search/indexing'
+import {
+  getWorkspaceFileSearchRetry,
+  indexWorkspaceFileForSearch,
+} from '@/lib/workspace-files/search/indexing'
 
 const logger = vi.mocked(createLogger).mock.results[
   vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'WorkspaceFileSearchIndexer')
-].value as { warn: ReturnType<typeof vi.fn> }
+].value as { info: ReturnType<typeof vi.fn>; warn: ReturnType<typeof vi.fn> }
 
 const FILE_TEXT = 'confidential customer text'
 
-function statementTimeout(): DrizzleQueryError {
-  const driverError = Object.assign(new Error('canceling statement due to statement timeout'), {
-    code: '57014',
-  })
+function statementTimeout(
+  message = 'canceling statement due to statement timeout',
+  code = '57014'
+): DrizzleQueryError {
+  const driverError = Object.assign(new Error(message), { code })
   return new DrizzleQueryError(
     'insert into "workspace_file_search_chunk" values ($1)',
     [FILE_TEXT],
@@ -80,6 +88,10 @@ describe('complete-file indexing worker', () => {
     await indexWorkspaceFileForSearch(payload, signal)
     expect(mocks.load).not.toHaveBeenCalled()
     expect(mocks.publish).not.toHaveBeenCalled()
+    expect(logger.info).toHaveBeenCalledWith(
+      'Workspace file search run no longer owns its revision',
+      payload
+    )
   })
   it('rejects an oversized source before downloading', async () => {
     mocks.file.mockResolvedValue({
@@ -180,5 +192,93 @@ describe('complete-file indexing worker', () => {
     mocks.append.mockResolvedValue(false)
     await indexWorkspaceFileForSearch(payload, signal)
     expect(mocks.publish).not.toHaveBeenCalled()
+  })
+})
+
+describe('indexing retry policy', () => {
+  const now = Date.parse('2026-01-01T00:00:00.000Z')
+
+  /** The error the task runner receives: the redacted wrapper the worker throws. */
+  async function thrownBy(error: unknown): Promise<unknown> {
+    vi.clearAllMocks()
+    mocks.begin.mockResolvedValue({ id: 'build', ...payload })
+    mocks.file.mockResolvedValue({
+      name: 'notes.txt',
+      size: 100,
+      contentUpdatedAt: new Date(payload.sourceContentUpdatedAt),
+    })
+    mocks.load.mockResolvedValue({ buffer: Buffer.from('a\n') })
+    mocks.extract.mockResolvedValue({ text: 'a\n', lineCount: 1 })
+    mocks.append.mockRejectedValue(error)
+    return indexWorkspaceFileForSearch(payload, signal).catch((thrown) => thrown)
+  }
+
+  function delayOf(decision: ReturnType<typeof getWorkspaceFileSearchRetry>): number {
+    if (!decision || !('retryAt' in decision)) throw new Error('expected a scheduled retry')
+    return decision.retryAt.getTime() - now
+  }
+
+  it.each([
+    ['statement timeout', 'canceling statement due to statement timeout', '57014'],
+    ['lock timeout', 'canceling statement due to lock timeout', '55P03'],
+    ['transaction timeout', 'terminating connection due to transaction timeout', '25P04'],
+    ['deadlock', 'deadlock detected', '40P01'],
+    ['serialization failure', 'could not serialize access', '40001'],
+    ['dropped connection', 'write CONNECTION_CLOSED', 'CONNECTION_CLOSED'],
+    ['connection reset', 'read ECONNRESET', 'ECONNRESET'],
+  ])('waits minutes, not seconds, after a %s', async (_label, message, code) => {
+    const thrown = await thrownBy(statementTimeout(message, code))
+    const first = delayOf(getWorkspaceFileSearchRetry(thrown, 1, now))
+    expect(first).toBeGreaterThanOrEqual(FILE_SEARCH_INDEX_CAPACITY_RETRY_BASE_MS * 0.8)
+    expect(first).toBeLessThanOrEqual(FILE_SEARCH_INDEX_CAPACITY_RETRY_BASE_MS * 1.2)
+  })
+
+  it('backs capacity retries off to a ceiling and spans a slow window', async () => {
+    const thrown = await thrownBy(statementTimeout())
+    let total = 0
+    for (let attempt = 1; attempt < FILE_SEARCH_INDEX_CAPACITY_MAX_ATTEMPTS; attempt++) {
+      const delay = delayOf(getWorkspaceFileSearchRetry(thrown, attempt, now))
+      expect(delay).toBeLessThanOrEqual(FILE_SEARCH_INDEX_CAPACITY_RETRY_MAX_MS * 1.2)
+      total += delay
+    }
+    expect(total).toBeGreaterThanOrEqual(45 * 60 * 1000)
+  })
+
+  it('stops capacity retries at their attempt ceiling', async () => {
+    const thrown = await thrownBy(statementTimeout())
+    expect(
+      getWorkspaceFileSearchRetry(thrown, FILE_SEARCH_INDEX_CAPACITY_MAX_ATTEMPTS, now)
+    ).toEqual({ skipRetrying: true })
+  })
+
+  it('keeps the short default retries and attempt count for other failures', () => {
+    const parserFailure = new Error('parser failed')
+    for (let attempt = 1; attempt < FILE_SEARCH_INDEX_MAX_ATTEMPTS; attempt++) {
+      expect(getWorkspaceFileSearchRetry(parserFailure, attempt, now)).toBeUndefined()
+    }
+    expect(getWorkspaceFileSearchRetry(parserFailure, FILE_SEARCH_INDEX_MAX_ATTEMPTS, now)).toEqual(
+      { skipRetrying: true }
+    )
+  })
+
+  it('treats a reset outside the database as an ordinary failure', async () => {
+    vi.clearAllMocks()
+    mocks.begin.mockResolvedValue({ id: 'build', ...payload })
+    mocks.file.mockResolvedValue({
+      name: 'notes.txt',
+      size: 100,
+      contentUpdatedAt: new Date(payload.sourceContentUpdatedAt),
+    })
+    mocks.load.mockRejectedValue(
+      Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' })
+    )
+    const thrown = await indexWorkspaceFileForSearch(payload, signal).catch((caught) => caught)
+    expect(thrown).toMatchObject({ code: 'ECONNRESET' })
+    expect(getWorkspaceFileSearchRetry(thrown, 1, now)).toBeUndefined()
+  })
+
+  it('treats a user cancellation as an ordinary failure', async () => {
+    const thrown = await thrownBy(statementTimeout('canceling statement due to user request'))
+    expect(getWorkspaceFileSearchRetry(thrown, 1, now)).toBeUndefined()
   })
 })

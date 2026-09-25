@@ -3,15 +3,17 @@
 import { useMemo } from 'react'
 import { cn } from '@sim/emcn'
 import { escapeRegExp } from '@sim/utils/string'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
+import { ResourceMention } from '@/app/workspace/[workspaceId]/home/components/message-content/components/resource-mention'
 import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 import { getIntegrationMatcher } from '@/blocks/integration-matcher'
 
 const USER_MESSAGE_CLASSES =
-  'whitespace-pre-wrap [overflow-wrap:anywhere] font-inter text-base text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'
+  'whitespace-pre-wrap [overflow-wrap:anywhere] text-base text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'
 
 const COMPACT_CLASSES =
-  'truncate text-small leading-[20px] font-inter text-[var(--text-primary)] tracking-[0] antialiased'
+  'truncate text-small leading-[20px] text-[var(--text-primary)] tracking-[0] antialiased'
 
 interface UserMessageContentProps {
   content: string
@@ -105,13 +107,15 @@ function computeIntegrationRanges(text: string, taken: MentionRange[]): MentionR
 
 function MentionHighlight({ context }: { context: ChatMessageContext }) {
   return (
-    <span className='inline-flex items-baseline gap-1 rounded-sm bg-[var(--surface-5)] px-[5px]'>
-      <ContextMentionIcon
-        context={context}
-        className='relative top-0.5 size-[12px] shrink-0 text-[var(--text-icon)]'
-      />
-      {context.label}
-    </span>
+    <ResourceMention
+      title={context.label ?? ''}
+      icon={
+        <ContextMentionIcon
+          context={context}
+          className='size-[12px] shrink-0 text-[var(--text-icon)]'
+        />
+      }
+    />
   )
 }
 
@@ -123,7 +127,7 @@ export function UserMessageContent({
   compact = false,
 }: UserMessageContentProps) {
   const trimmed = content.trim()
-  const classes = cn(compact ? COMPACT_CLASSES : USER_MESSAGE_CLASSES, className)
+  const classes = cn(inter.className, compact ? COMPACT_CLASSES : USER_MESSAGE_CLASSES, className)
 
   const ranges = useMemo(() => computeMentionRanges(content, contexts ?? []), [content, contexts])
 

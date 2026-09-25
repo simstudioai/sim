@@ -454,6 +454,8 @@ describe('script migration registry', () => {
       '0018_repair_workspace_file_content_revision',
       '0019_tin_keyword_projection',
       '0022_projection_source_acl_backfill',
+      '0023_projection_acl_skip_unfilled',
+      '0024_knowledge_projection_async',
     ])
   })
 })

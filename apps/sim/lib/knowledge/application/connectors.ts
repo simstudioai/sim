@@ -11,12 +11,15 @@ import {
   knowledgeConnectorMemberSyncLog,
   knowledgeConnectorSyncLog,
 } from '@sim/db/schema'
+import { toError } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { requireCurrentHumanRole } from '@/lib/core/application'
+import { resolvePrincipalEnvironmentVariable } from '@/lib/core/application/environment-reference'
 import { requireOrganizationMembership } from '@/lib/core/application/organization-authorization'
+import { isLiveEnterpriseSearchEnabled } from '@/lib/core/config/env-flags'
 import {
   OrchestrationError,
   type OrchestrationRequestContext,
@@ -26,8 +29,11 @@ import {
   resourceScopeFields,
   resourceScopeFromOwner,
 } from '@/lib/core/resource-scope'
+import { redactKnownSensitiveValues } from '@/lib/core/security/redaction'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
+import { parseExactEnvironmentReference } from '@/lib/environment/reference'
+import { resolveEffectiveEnvironmentVariables } from '@/lib/environment/utils'
 import { requireKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
 import { knowledgeAccessCondition } from '@/lib/knowledge/access/predicate'
 import { createKnowledgeAccessProvider } from '@/lib/knowledge/access/scope'
@@ -74,6 +80,7 @@ import {
   readConnectorPermissionSummary,
 } from '@/lib/knowledge/connectors/permission-config.server'
 import { MEMBER_OBSERVATION_STALE_AFTER_HOURS } from '@/lib/knowledge/connectors/sync-limits'
+import { connectorIsLive } from '@/lib/knowledge/connectors/sync-lock'
 import {
   DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
   MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS,
@@ -97,6 +104,7 @@ import {
   performSyncKnowledgeConnector,
   performUpdateKnowledgeConnector,
   type SourceConfigRejection,
+  withoutSecret,
 } from '@/lib/knowledge/orchestration/connectors'
 import type {
   KnowledgeOperationSource,
@@ -252,6 +260,7 @@ function connectorTarget(context: ActiveKnowledgeResourceBaseContext) {
   return {
     id: context.knowledgeBaseId,
     name: context.knowledgeBase.name,
+    isSearchIndex: context.knowledgeBase.isSearchIndex,
     workspaceId: context.workspaceId ?? null,
     organizationId: context.organizationId ?? null,
   }
@@ -494,14 +503,21 @@ export async function validateConnectorSourceConfig(input: {
       )
     }
   }
-  const validation = await connectorConfig.validateConfig(
-    resolved.accessToken,
-    input.sourceConfig,
-    validationContext
-  )
+  const validation = await connectorConfig
+    .validateConfig(resolved.accessToken, input.sourceConfig, validationContext)
+    .catch((error: unknown) => {
+      const sanitized = toError(error)
+      sanitized.message = redactKnownSensitiveValues(sanitized.message, [resolved.accessToken])
+      throw sanitized
+    })
   return validation.valid
     ? null
-    : { message: validation.error || 'Invalid source configuration', errorCode: 'validation' }
+    : {
+        message: redactKnownSensitiveValues(validation.error || 'Invalid source configuration', [
+          resolved.accessToken,
+        ]),
+        errorCode: 'validation',
+      }
 }
 
 export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
@@ -525,11 +541,7 @@ export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
       .select()
       .from(knowledgeConnector)
       .where(
-        and(
-          eq(knowledgeConnector.knowledgeBaseId, context.knowledgeBaseId),
-          isNull(knowledgeConnector.archivedAt),
-          isNull(knowledgeConnector.deletedAt)
-        )
+        and(eq(knowledgeConnector.knowledgeBaseId, context.knowledgeBaseId), connectorIsLive())
       )
       .orderBy(sortOrder(sortColumn), sortOrder(knowledgeConnector.id))
     const offset = input.offset ?? 0
@@ -551,11 +563,14 @@ export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
           })
         : new Map<string, ViewerConnectorMembership>()
     return {
-      connectors: page.map(({ encryptedApiKey: _encryptedApiKey, ...rest }) => ({
-        ...rest,
-        permissionConfig: permissionSummaries.get(rest.id),
-        viewerMembership: memberships.get(rest.id) ?? null,
-      })),
+      connectors: page.map((row) => {
+        const rest = withoutSecret(row)
+        return {
+          ...rest,
+          permissionConfig: permissionSummaries.get(rest.id),
+          viewerMembership: memberships.get(rest.id) ?? null,
+        }
+      }),
       hasMore,
       offset,
       limit: input.limit ?? page.length,
@@ -695,24 +710,29 @@ export const readKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   async execute({ principal, context }) {
     const connector = await getKnowledgeConnector(context.knowledgeBaseId, context.connectorId)
     if (!connector) throw new OrchestrationError('not_found', 'Connector not found')
+    const liveSearchConnector = isLiveEnterpriseSearchEnabled && context.knowledgeBase.isSearchIndex
     const [syncLogs, memberSyncLogs, members] = await Promise.all([
-      db
-        .select()
-        .from(knowledgeConnectorSyncLog)
-        .where(eq(knowledgeConnectorSyncLog.connectorId, context.connectorId))
-        .orderBy(desc(knowledgeConnectorSyncLog.startedAt))
-        .limit(10),
-      db
-        .select()
-        .from(knowledgeConnectorMemberSyncLog)
-        .where(eq(knowledgeConnectorMemberSyncLog.connectorId, context.connectorId))
-        .orderBy(desc(knowledgeConnectorMemberSyncLog.startedAt))
-        .limit(10),
-      connector.accessMode === 'members'
+      liveSearchConnector
+        ? []
+        : db
+            .select()
+            .from(knowledgeConnectorSyncLog)
+            .where(eq(knowledgeConnectorSyncLog.connectorId, context.connectorId))
+            .orderBy(desc(knowledgeConnectorSyncLog.startedAt))
+            .limit(10),
+      liveSearchConnector
+        ? []
+        : db
+            .select()
+            .from(knowledgeConnectorMemberSyncLog)
+            .where(eq(knowledgeConnectorMemberSyncLog.connectorId, context.connectorId))
+            .orderBy(desc(knowledgeConnectorMemberSyncLog.startedAt))
+            .limit(10),
+      !liveSearchConnector && connector.accessMode === 'members'
         ? summarizeConnectorMembers(context.connectorId, connector.syncIntervalMinutes)
         : { active: 0, suspended: 0, stale: 0 },
     ])
-    const { encryptedApiKey: _encryptedApiKey, ...connectorData } = connector
+    const connectorData = withoutSecret(connector)
     const viewerUserId = principal.kind === 'session' ? principal.userId : null
     const memberships =
       viewerUserId && (context.workspaceId || context.organizationId)
@@ -765,6 +785,50 @@ async function summarizeConnectorMembers(
     .from(knowledgeConnectorMember)
     .where(eq(knowledgeConnectorMember.connectorId, connectorId))
   return { active: row?.active ?? 0, suspended: row?.suspended ?? 0, stale: row?.stale ?? 0 }
+}
+
+/** Whole-value `$NAME`, the shell-style spelling of a secret reference that is never resolved. */
+const SHELL_STYLE_SECRET_PATTERN = /^\$([A-Za-z_][A-Za-z0-9_]*)$/
+
+/**
+ * Rejects an API key spelled `$NAME` when the caller has a secret named `NAME`, so the literal
+ * reference is not sent to the provider and stored as the key. A `$`-prefixed value that names no
+ * secret passes through, since password-style keys (SFTP, ServiceNow) can legitimately look alike.
+ */
+async function rejectShellStyleSecretReference(
+  apiKey: string,
+  principal: Principal,
+  workspaceId: string | undefined
+): Promise<void> {
+  const name = apiKey.trim().match(SHELL_STYLE_SECRET_PATTERN)?.[1]
+  if (!name) return
+  const userId = resolvePrincipalSubjectUserId(principal)
+  if (!userId) return
+  const variables = await resolveEffectiveEnvironmentVariables(userId, workspaceId, [name])
+  if (!Object.hasOwn(variables, name)) return
+  throw new OrchestrationError(
+    'validation',
+    `Secret references use {{${name}}}, not $${name}. Pass apiKey as "{{${name}}}" to use the secret.`
+  )
+}
+
+/** Resolves a secret reference at setup time; the connector stores an encrypted token snapshot. */
+async function resolveConnectorApiKey(
+  apiKey: string | undefined,
+  principal: Principal,
+  workspaceId: string | undefined
+): Promise<string | undefined> {
+  if (apiKey === undefined) return undefined
+  const name = parseExactEnvironmentReference(apiKey.trim())
+  if (!name) {
+    await rejectShellStyleSecretReference(apiKey, principal, workspaceId)
+    return apiKey
+  }
+  const value = await resolvePrincipalEnvironmentVariable(principal, workspaceId, name)
+  if (!value) {
+    throw new OrchestrationError('validation', `Secret "${name}" is unavailable or empty`)
+  }
+  return value
 }
 
 async function executeCreateKnowledgeConnector(
@@ -881,19 +945,20 @@ async function executeCreateKnowledgeConnector(
     sourceConfig: membersBinding?.sourceConfig ?? input.sourceConfig,
   })
   if (membersBinding) membersBinding = { ...membersBinding, sourceConfig }
+  const apiKey = await resolveConnectorApiKey(input.apiKey, principal, workspaceId)
   const permissionChange = input.permissionConfig
     ? await prepareConnectorPermissions(input.connectorType, {
         accessMode: input.accessMode ?? 'workspace',
         sourceConfig,
         permissionConfig: input.permissionConfig,
-        apiKey: input.apiKey,
+        apiKey,
       })
     : undefined
   const outcome = await performCreateKnowledgeConnector({
     knowledgeBase: connectorTarget(context),
     connectorType: input.connectorType,
     credentialId: input.credentialId,
-    apiKey: input.apiKey,
+    apiKey,
     permissionChange,
     /** Members mode stores the config with its listing caps cleared. */
     sourceConfig,
@@ -1088,7 +1153,7 @@ export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
         accessMode: connector.accessMode,
         sourceConfig: updates.sourceConfig ?? (connector.sourceConfig as Record<string, unknown>),
         permissionConfig,
-        apiKey,
+        apiKey: await resolveConnectorApiKey(apiKey, principal, context.workspaceId),
         existing: connector,
       })
       if (permissionChange && !permissionConfig && apiKey === undefined) {

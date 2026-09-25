@@ -248,26 +248,30 @@ export async function resolveWorkflowIdForUser(
   }
 }
 
+/**
+ * Adds settled runs to a workflow's `runCount` and stamps `lastRunAt`. The
+ * increment happens in SQL: concurrent runs of one workflow settle at the same
+ * time, and a read-then-write would let one overwrite the other's count.
+ */
 export async function updateWorkflowRunCounts(workflowId: string, runs = 1) {
   try {
-    const workflow = await getWorkflowById(workflowId)
-    if (!workflow) {
+    const [updated] = await db
+      .update(workflowTable)
+      .set({
+        runCount: sql`${workflowTable.runCount} + ${runs}`,
+        lastRunAt: new Date(),
+      })
+      .where(eq(workflowTable.id, workflowId))
+      .returning({ runCount: workflowTable.runCount })
+    if (!updated) {
       logger.error(`Workflow ${workflowId} not found`)
       throw new Error(`Workflow ${workflowId} not found`)
     }
 
-    await db
-      .update(workflowTable)
-      .set({
-        runCount: workflow.runCount + runs,
-        lastRunAt: new Date(),
-      })
-      .where(eq(workflowTable.id, workflowId))
-
     return {
       success: true,
       runsAdded: runs,
-      newTotal: workflow.runCount + runs,
+      newTotal: updated.runCount,
     }
   } catch (error) {
     logger.error(`Error updating workflow stats for ${workflowId}`, error)

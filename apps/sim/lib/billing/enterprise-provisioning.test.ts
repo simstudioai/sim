@@ -199,8 +199,6 @@ describe('Enterprise issuance preflight', () => {
     queueTableRows(schemaMock.workspace, [])
     queueTableRows(schemaMock.workspace, [])
     queueTableRows(schemaMock.subscription, [])
-    /** The run count resolves first; the ledger sum opens its bounded transaction before it reads. */
-    queueTableRows(schemaMock.usageLog, [{ workflowRuns: 0 }])
     queueTableRows(schemaMock.usageLog, [{ cost: '150' }])
 
     const result = await getEnterpriseIssuancePreflight({
@@ -930,6 +928,56 @@ describe('Enterprise creation invitations', () => {
       expect(mocks.sendInvitationEmail).not.toHaveBeenCalled()
     }
   )
+
+  it('reads applied access on an archived selected workspace, which the selection keeps', async () => {
+    const payload = operationPayload({
+      request: { ...operationPayload().request, workspaceIds: ['workspace-1'] },
+      applicationResult: { appliedAt: '2026-08-13T00:00:00.000Z', subscriptionId: 'sub-1' },
+    })
+    queueTableRows(schemaMock.outboxEvent, [{ eventType: 'stripe.provision-enterprise', payload }])
+    queueTableRows(schemaMock.outboxEvent, [])
+    queueTableRows(schemaMock.outboxEvent, [{ status: 'completed' }])
+    queueTableRows(schemaMock.user, [
+      { userId: 'invitee-1', workspaceId: 'workspace-1', role: 'admin', permission: 'admin' },
+    ])
+    queueTableRows(schemaMock.invitation, [])
+
+    await expect(
+      inviteEnterprisePeople(
+        {
+          provisioningOperationId: 'operation-1',
+          organizationId: 'org-1',
+          ownerUserId: 'owner-1',
+          email: 'new@example.com',
+          role: 'member',
+          permission: 'write',
+          sequence: 0,
+        },
+        {
+          eventId: 'invite-1',
+          eventType: 'enterprise.invite-people',
+          attempts: 0,
+          checkpointPayload: vi.fn(),
+        }
+      )
+    ).resolves.toBeUndefined()
+
+    /**
+     * The applied-state join scopes workspaces to the organization and the selection only.
+     * An archived filter here would turn already-applied access on an archived selected
+     * workspace into a missing one, scheduling an invitation the archived workspace refuses.
+     */
+    const joinConditions = dbChainMockFns.innerJoin.mock.calls.map(([, condition]) =>
+      JSON.stringify(condition)
+    )
+    const workspaceJoin = joinConditions.find((condition) =>
+      condition.includes('workspace.organizationId')
+    )
+    expect(workspaceJoin).toBeDefined()
+    expect(workspaceJoin).toContain('"workspace-1"')
+    expect(workspaceJoin).not.toContain('workspace.archivedAt')
+    expect(mocks.createWorkspaceInvitation).not.toHaveBeenCalled()
+  })
 
   it('waits without consuming attempts until every selected workspace move completes', async () => {
     const payload = operationPayload({

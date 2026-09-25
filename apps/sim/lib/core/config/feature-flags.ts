@@ -46,6 +46,18 @@ interface FeatureFlagDefinition {
 
 /** The single registry of known flags. To add a flag, add one entry here. */
 const FEATURE_FLAGS = {
+  'mothership-model-selector': {
+    description:
+      'Show the Mothership model selector, model-specific effort levels, and Fast for supported ' +
+      'models. Global on/off only; disabled uses Astra with simplified effort labels.',
+    fallback: 'MSHIP_MODEL_SELECTOR',
+  },
+  'mothership-plan-mode': {
+    description:
+      'Show and admit Mothership Plan conversations. Global on/off only, shared by organization ' +
+      'and workspace surfaces.',
+    fallback: 'MSHIP_PLAN_MODE',
+  },
   'agent-memory-history': {
     description:
       'Capture durable Workflow Agent tool history and continue existing retries. Supports workspace rollout targeting; version-aware memory storage remains active when capture is disabled.',
@@ -104,6 +116,23 @@ const FEATURE_FLAGS = {
       'the Tin text index instead of GIN. Has no effect where the Tin keyword index is absent or ' +
       'invalid. Off-AppConfig falls back to KNOWLEDGE_TIN_KEYWORD.',
     fallback: 'KNOWLEDGE_TIN_KEYWORD',
+  },
+  'knowledge-async-projection': {
+    description:
+      'Knowledge writers (document processing and connector ACL writes) leave search projection ' +
+      'rows to the background knowledge projector instead of rewriting them in their own ' +
+      'transaction. Global on/off only; turn it on only once no release older than the ' +
+      'projector serves search. Off-AppConfig falls back to KNOWLEDGE_ASYNC_PROJECTION.',
+    fallback: 'KNOWLEDGE_ASYNC_PROJECTION',
+  },
+  'knowledge-projection-fill': {
+    description:
+      'The knowledge projector also fills search projection rows written before they carried ' +
+      "their document's source and ACL, marking at most 100 documents at once so fresh writes " +
+      'never wait behind much of it. Global on/off only; off pauses the fill, and search keeps ' +
+      'deciding unfilled rows on their document. Off-AppConfig falls back to ' +
+      'KNOWLEDGE_PROJECTION_FILL.',
+    fallback: 'KNOWLEDGE_PROJECTION_FILL',
   },
 } satisfies Record<string, FeatureFlagDefinition>
 

@@ -8,7 +8,9 @@ import {
   type MockCondition,
   queueTableRows,
   resetDbChainMock,
+  resetEnvFlagsMock,
   schemaMock,
+  setEnvFlags,
 } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -33,7 +35,7 @@ vi.mock('@trigger.dev/sdk', () => ({
 vi.mock('@/lib/core/async-jobs/region', () => ({
   resolveTriggerRegion: mockResolveTriggerRegion,
 }))
-vi.mock('@/lib/knowledge/documents/service', () => ({
+vi.mock('@/lib/core/config/trigger-availability', () => ({
   isTriggerAvailable: mockIsTriggerAvailable,
 }))
 vi.mock('@/lib/knowledge/connectors/sync-engine', () => ({
@@ -85,6 +87,7 @@ const NEXT_SYNC_AT = new Date('2026-07-15T12:00:00.000Z')
 describe('connector sync queue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetEnvFlagsMock()
     resetDbChainMock()
     queueTableRows(schemaMock.knowledgeConnector, [
       {
@@ -130,6 +133,19 @@ describe('connector sync queue', () => {
       expect(mockExecuteSync).not.toHaveBeenCalled()
     }
   )
+
+  it('does not dispatch a live Search source to Trigger or the inline indexer', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    resetDbChainMock()
+    queueTableRows(schemaMock.knowledgeConnector, [{ isSearchIndex: true }])
+    expect(await dispatchSync('connector-1', { billingAttribution: BILLING_ATTRIBUTION })).toEqual({
+      queued: false,
+      reason: 'This source is searched live and does not require indexing.',
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockTrigger).not.toHaveBeenCalled()
+    expect(mockExecuteSync).not.toHaveBeenCalled()
+  })
 
   it('does not consult manual cooldown history for automatic or initial dispatch', async () => {
     await dispatchSync('connector-1', { billingAttribution: BILLING_ATTRIBUTION })

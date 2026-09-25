@@ -7,6 +7,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
+import { useRouter } from 'next/navigation'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
@@ -41,6 +42,7 @@ import { client } from '@/lib/auth/auth-client'
 import { isOrganizationsEnabled } from '@/lib/core/config/env-flags'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
+import { organizationUsageKeys } from '@/hooks/queries/utils/organization-usage-keys'
 import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
@@ -339,6 +341,10 @@ export function useUpdateOrganizationUsageLimit() {
       queryClient.invalidateQueries({
         queryKey: organizationKeys.subscription(variables.organizationId),
       })
+      /** The Insights headline states the same allowance. */
+      queryClient.invalidateQueries({
+        queryKey: organizationUsageKeys.overviews(variables.organizationId),
+      })
     },
   })
 }
@@ -600,6 +606,7 @@ type CreateOrganizationParams = Pick<
 
 export function useCreateOrganization() {
   const queryClient = useQueryClient()
+  const router = useRouter()
 
   return useMutation({
     mutationFn: async ({ name, slug }: CreateOrganizationParams) => {
@@ -610,15 +617,17 @@ export function useCreateOrganization() {
         },
       })
 
-      await client.organization.setActive({
+      const { error } = await client.organization.setActive({
         organizationId: data.organizationId,
       })
+      if (error) throw new Error(error.message || 'Failed to activate organization')
 
       return data
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
+      router.refresh()
     },
   })
 }

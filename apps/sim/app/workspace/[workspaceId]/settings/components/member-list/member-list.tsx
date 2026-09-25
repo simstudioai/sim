@@ -1,30 +1,12 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { Avatar, AvatarFallback, AvatarImage, OverflowText } from '@sim/emcn'
+import { Avatar, OverflowText } from '@sim/emcn'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 const ROW_CLASSES = 'flex items-center gap-2.5 p-2'
 const ROW_STATUS_CLASSES = 'shrink-0 text-[var(--text-muted)] text-caption'
-
-interface MemberAvatarProps {
-  name: string
-  image: string | null
-}
-
-/**
- * 14px circular avatar used in member rows. Falls back to the first letter of
- * the member's name when no image is available.
- */
-export function MemberAvatar({ name, image }: MemberAvatarProps) {
-  return (
-    <Avatar size='xs'>
-      {image && <AvatarImage src={image} alt={name} referrerPolicy='no-referrer' />}
-      <AvatarFallback>{name.charAt(0).toUpperCase()}</AvatarFallback>
-    </Avatar>
-  )
-}
 
 interface MemberRowProps {
   name: string
@@ -46,7 +28,7 @@ interface MemberRowProps {
 export function MemberRow({ name, email, image, status, roleControl, menu }: MemberRowProps) {
   return (
     <div className={ROW_CLASSES}>
-      <MemberAvatar name={name} image={image} />
+      <Avatar size='xs' name={name} src={image} />
       <OverflowText label={email} className='flex-1 text-[var(--text-body)] text-sm' />
       <span className={ROW_STATUS_CLASSES}>{status}</span>
       {roleControl}

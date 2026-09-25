@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('electron', () => import('@/test/electron-mock'))
 
 import { Menu, WebContentsView } from 'electron'
+import { clickAt, PRIMARY_CLICK } from '@/main/browser-agent/cdp'
 import {
   attachAgentContextMenu,
   BASE_ZOOM_FACTOR,
@@ -214,6 +215,51 @@ describe('buildAgentContextMenuTemplate', () => {
 
 describe('attachAgentContextMenu', () => {
   type ContextMenuListener = (event: unknown, params: Params) => void
+
+  it('suppresses one agent context menu and immediately allows the next menu', async () => {
+    const contents = new WebContentsView().webContents
+    attachAgentContextMenu(contents, {
+      addToChat: vi.fn(),
+      openTab: vi.fn(),
+      defaultZoomFactor: () => BASE_ZOOM_FACTOR,
+    })
+    const listeners = vi.mocked(contents.on).mock.calls as unknown as [
+      string,
+      ContextMenuListener,
+    ][]
+    const onContextMenu = listeners.find(([event]) => event === 'context-menu')![1]
+    await clickAt(contents, 10, 20, false, { ...PRIMARY_CLICK, button: 'right' })
+    vi.mocked(Menu.buildFromTemplate).mockClear()
+
+    onContextMenu({}, params())
+    expect(Menu.buildFromTemplate).not.toHaveBeenCalled()
+    onContextMenu({}, params())
+    expect(Menu.buildFromTemplate).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['mouseDown', 'keyDown', 'touchStart'])(
+    'allows human %s when a page prevents the agent context menu event',
+    async (inputEvent) => {
+      const contents = new WebContentsView().webContents
+      attachAgentContextMenu(contents, {
+        addToChat: vi.fn(),
+        openTab: vi.fn(),
+        defaultZoomFactor: () => BASE_ZOOM_FACTOR,
+      })
+      const listeners = vi.mocked(contents.on).mock.calls as unknown as [
+        string,
+        (event: unknown, params: unknown) => void,
+      ][]
+      const onInput = listeners.find(([event]) => event === 'input-event')?.[1]
+      const onContextMenu = listeners.find(([event]) => event === 'context-menu')![1]
+      await clickAt(contents, 10, 20, false, { ...PRIMARY_CLICK, button: 'right' })
+      vi.mocked(Menu.buildFromTemplate).mockClear()
+
+      onInput?.({}, { type: inputEvent })
+      onContextMenu({}, params())
+      expect(Menu.buildFromTemplate).toHaveBeenCalledTimes(1)
+    }
+  )
 
   it('pops a menu built from the page that was right-clicked', () => {
     const contents = new WebContentsView().webContents

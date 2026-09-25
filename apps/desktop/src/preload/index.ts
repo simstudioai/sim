@@ -28,6 +28,8 @@ import type {
   BrowserToolbarCommand,
   DesktopAppearanceTheme,
   DesktopCommand,
+  DesktopLocalFileRequest,
+  DesktopLocalFileResponse,
   DesktopNotificationPayload,
   DesktopOAuthConnectResult,
   DesktopOAuthConnectScope,
@@ -146,6 +148,8 @@ const api: SimDesktopApi = {
   },
   localFilesystem: (request: LocalFilesystemRequest): Promise<LocalFilesystemResponse> =>
     ipcRenderer.invoke('desktop:local-filesystem', request),
+  localFiles: (request: DesktopLocalFileRequest): Promise<DesktopLocalFileResponse> =>
+    ipcRenderer.invoke('desktop:local-files', request),
   onCommand: (callback: (command: DesktopCommand) => void): (() => void) => {
     const listener = (_event: unknown, command: DesktopCommand) => callback(command)
     ipcRenderer.on('desktop:command', listener)

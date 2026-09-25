@@ -3,7 +3,6 @@
 import * as React from 'react'
 import * as SliderPrimitive from '@radix-ui/react-slider'
 import { cn } from '../../lib/cn'
-import { mutedFocusRingClass } from '../../lib/focus-ring'
 
 interface SliderProps extends React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root> {}
 
@@ -17,7 +16,17 @@ interface SliderProps extends React.ComponentPropsWithoutRef<typeof SliderPrimit
  * ```
  */
 const Slider = React.forwardRef<React.ElementRef<typeof SliderPrimitive.Root>, SliderProps>(
-  ({ className, disabled, ...props }, ref) => (
+  (
+    {
+      className,
+      disabled,
+      'aria-label': label,
+      'aria-labelledby': labelledBy,
+      'aria-valuetext': valueText,
+      ...props
+    },
+    ref
+  ) => (
     <SliderPrimitive.Root
       ref={ref}
       disabled={disabled}
@@ -32,10 +41,10 @@ const Slider = React.forwardRef<React.ElementRef<typeof SliderPrimitive.Root>, S
         <SliderPrimitive.Range className='absolute h-full bg-[var(--text-primary)]' />
       </SliderPrimitive.Track>
       <SliderPrimitive.Thumb
-        className={cn(
-          'relative block size-[14px] cursor-pointer rounded-full bg-[var(--text-primary)] shadow-xs transition-colors before:absolute before:inset-[-15px] before:content-[""]',
-          mutedFocusRingClass
-        )}
+        aria-label={label}
+        aria-labelledby={labelledBy}
+        aria-valuetext={valueText}
+        className='relative block size-[14px] cursor-pointer rounded-full bg-[var(--text-primary)] shadow-xs transition-colors before:absolute before:inset-[-15px] before:content-[""] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[color-mix(in_srgb,var(--text-muted)_30%,transparent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-2)]'
       />
     </SliderPrimitive.Root>
   )

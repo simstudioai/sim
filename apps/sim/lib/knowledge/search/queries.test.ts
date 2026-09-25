@@ -37,6 +37,7 @@ import {
   executeKeywordSearch,
   forgetProjectionFilled,
   forgetSearchReach,
+  fuseByReciprocalRank,
   getStructuredTagFilters,
   handleTagAndVectorSearch,
   handleTagOnlySearch,
@@ -47,10 +48,12 @@ import {
   resolveReach,
   retrieveKnowledgeSearch,
   type SearchParams,
+  type SearchResult,
   VECTOR_PROBE_DOCUMENT_LIMIT,
   vectorCandidatePoolLimit,
   visibleDocumentsQuery,
 } from '@/lib/knowledge/search/queries'
+import { RRF_K } from '@/lib/knowledge/search/recency'
 import { forgetIndexedVectorSources } from '@/lib/knowledge/search/source-vector-indexes'
 import type { StructuredFilter } from '@/lib/knowledge/types'
 
@@ -438,6 +441,26 @@ describe('workspace-scoped vector retrieval', () => {
     vi.useRealTimers()
   })
 
+  it.each([false, undefined])(
+    'retrieves ordinary KB results without global projection readiness (searchIndexOnly=%s)',
+    async (searchIndexOnly) => {
+      queueTableRows(schemaMock.embedding, [...ranked].reverse())
+      const result = await retrieveKnowledgeSearch({
+        ...params,
+        searchIndexOnly,
+        searchMode: 'vector',
+        query: 'What is the capital of France?',
+      })
+      expect(result.retrieval).toEqual({ status: 'complete', timedOutLegs: [] })
+      expect(result.rows.map((row) => row.id)).toEqual(['near', 'far'])
+      expect(statements().filter((query) => query.sql.includes('AS unfilled'))).toHaveLength(0)
+      expect(statements().some((query) => isPageStatement(query.sql))).toBe(true)
+      const walk = statements().find((query) => isWalk(query.sql))!
+      expect(JSON.stringify(walk)).toContain('required_clause')
+      expect(JSON.stringify(walk)).toContain(String(schemaMock.document.acl))
+    }
+  )
+
   it.each([handleVectorOnlySearch, handleTagAndVectorSearch])(
     'does not acquire a connection or start SQL after the KB retrieval deadline',
     async (search) => {
@@ -749,7 +772,7 @@ describe('workspace-scoped vector retrieval', () => {
       statements()
         .filter((query) => query.sql.includes('statement_timeout'))
         .map((query) => query.params[0])
-    ).toEqual(['100', '100', '40', '20'])
+    ).toEqual(['100', '40', '20'])
   })
 
   it('applies the scan settings in the deadline statement rather than one of their own', async () => {
@@ -805,49 +828,53 @@ describe('workspace-scoped vector retrieval', () => {
     )
   })
 
-  it('reports incomplete retrieval for 18 expired pool waiters without starting their SQL later', async () => {
-    vi.useFakeTimers()
-    const release: Array<() => void> = []
-    const transactions: Array<Promise<unknown>> = []
-    vi.spyOn(db, 'transaction').mockImplementation((callback) => {
-      const transaction = new Promise<void>((resolve) => release.push(resolve)).then(() =>
-        callback(db as never)
-      )
-      transactions.push(transaction)
-      return transaction as ReturnType<typeof db.transaction>
-    })
-    const pending = Promise.all(
-      Array.from({ length: 18 }, (_, index) =>
-        retrieveKnowledgeSearch({
-          ...params,
-          knowledgeBaseIds: [`kb-${index}`],
-          query: 'fixture policy',
-          searchMode: 'vector',
-          vectorBudgetMs: 50,
-        })
-      )
-    )
-    await vi.advanceTimersByTimeAsync(60)
-    const results = await pending
-    expect(results).toHaveLength(18)
-    for (const result of results) {
-      expect(result).toEqual({
-        rows: [],
-        retrieval: { status: 'partial', timedOutLegs: ['vector'] },
+  it.each([false, true])(
+    'expires pool waiters without starting SQL later (searchIndexOnly=%s)',
+    async (searchIndexOnly) => {
+      vi.useFakeTimers()
+      const release: Array<() => void> = []
+      const transactions: Array<Promise<unknown>> = []
+      vi.spyOn(db, 'transaction').mockImplementation((callback) => {
+        const transaction = new Promise<void>((resolve) => release.push(resolve)).then(() =>
+          callback(db as never)
+        )
+        transactions.push(transaction)
+        return transaction as ReturnType<typeof db.transaction>
       })
+      const pending = Promise.all(
+        Array.from({ length: 18 }, (_, index) =>
+          retrieveKnowledgeSearch({
+            ...params,
+            knowledgeBaseIds: [`kb-${index}`],
+            searchIndexOnly,
+            query: 'fixture policy',
+            searchMode: 'vector',
+            vectorBudgetMs: 50,
+          })
+        )
+      )
+      await vi.advanceTimersByTimeAsync(60)
+      const results = await pending
+      expect(results).toHaveLength(18)
+      for (const result of results) {
+        expect(result).toEqual({
+          rows: [],
+          retrieval: { status: 'partial', timedOutLegs: ['vector'] },
+        })
+      }
+      for (const resume of release) resume()
+      const settled = await Promise.allSettled(transactions)
+      /** Search indexes share the readiness read; ordinary KBs acquire their own candidate reads. */
+      expect(settled).toHaveLength(searchIndexOnly ? 1 : 18)
+      for (const transaction of settled) {
+        expect(transaction.status).toBe('rejected')
+        if (transaction.status === 'rejected')
+          expect(transaction.reason).toBeInstanceOf(SearchDeadlineError)
+      }
+      expect(dbChainMockFns.select).not.toHaveBeenCalled()
+      expect(dbChainMockFns.execute).not.toHaveBeenCalled()
     }
-    for (const resume of release) resume()
-    const settled = await Promise.allSettled(transactions)
-    /** The searches that miss the projection-fill memo together share one read; each search's own read is refused at its deadline before it starts. */
-    expect(settled).toHaveLength(1)
-    for (const transaction of settled) {
-      expect(transaction.status).toBe('rejected')
-      if (transaction.status === 'rejected')
-        expect(transaction.reason).toBeInstanceOf(SearchDeadlineError)
-    }
-    expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    expect(dbChainMockFns.execute).not.toHaveBeenCalled()
-  })
+  )
 })
 
 describe('workspace search filters before ranking', () => {
@@ -943,6 +970,7 @@ describe('hydration follows ranked candidates', () => {
   }
   const params: SearchParams = {
     knowledgeBaseIds: ['org-index'],
+    searchIndexOnly: true,
     topK: 1,
     access: identity,
     accessProvider: provider,
@@ -1296,6 +1324,7 @@ describe('permitted-document planner', () => {
   }
   const params: SearchParams = {
     knowledgeBaseIds: ['org-index'],
+    searchIndexOnly: true,
     topK: 1,
     access: reader,
     accessProvider: provider,
@@ -1613,7 +1642,7 @@ describe('permitted-document planner', () => {
       expect(JSON.stringify(dbChainMockFns.where.mock.calls)).not.toContain('@@')
     })
 
-    it('decides a row the backfill has not reached on its document while the fill runs', async () => {
+    it('decides a row the fill has not reached on its document while the fill runs', async () => {
       tinPages.push({
         ranked: 1,
         candidates: [{ id: 'a', documentId: 'doc-a', connectorId: 'src-a' }],
@@ -1632,8 +1661,10 @@ describe('permitted-document planner', () => {
         },
       })
       const statement = JSON.stringify(tinStatements()[0])
-      /** A row the backfill has not filled (`acl IS NULL`) is decided on its document instead. */
-      expect(statement).toContain('IS NULL AND EXISTS (')
+      /** A row the fill has not reached (`acl IS NULL`), or a marked document's row, is decided on its document. */
+      expect(statement).toContain(' IS NULL OR ')
+      expect(statement).toContain('knowledgeProjectionDirty.documentId')
+      expect(statement).toContain('EXISTS (')
       expect(statement).toContain('ranked_tin_chunks.document_id')
     })
 
@@ -2276,6 +2307,7 @@ describe('permitted-document planner', () => {
 
   const liveSearch = {
     knowledgeBaseIds: ['org-index'],
+    searchIndexOnly: true,
     topK: 1,
     searchMode: 'hybrid' as const,
     query: 'release',
@@ -2362,48 +2394,57 @@ describe('permitted-document planner', () => {
     expect(statements().some((query) => isPageStatement(query.sql))).toBe(false)
   })
 
-  it('excludes a denied source through its documents while the projection is unfilled', async () => {
-    queueTableRows(schemaMock.knowledgeConnector, [
-      {
-        id: 'gated-src',
-        accessMode: 'admin',
-        connectorType: 'confluence',
-        githubRepository: false,
-      },
-    ])
-    dbChainMockFns.execute.mockImplementation(async (query) => {
-      const statement = render(query).sql
-      /** The fill has not reached every row, so a denied source cannot be read off the row. */
-      if (statement.includes('AS unfilled')) return [{ unfilled: true }]
-      /** The mock renders nested fragments as parameters, so the marker is found in the whole query. */
-      const rebuilt = JSON.stringify(query).includes('/* excluded sources */')
-      if (isPageStatement(statement))
-        return JSON.stringify(render(query).params).includes('"b"')
-          ? [hit('b', 'other-src')]
-          : [hit('a', 'gated-src')]
-      if (isWalk(statement))
-        return Array.from({ length: 400 }, (_, i) => ({
-          id: i === 0 ? (rebuilt ? 'b' : 'a') : `w-${i}`,
-          distance: 0.1,
-        }))
-      return []
-    })
-    queueTableRows(schemaMock.embedding, [])
-    queueTableRows(schemaMock.embedding, [hit('b', 'other-src')])
-    const getForConnectors = vi.fn<KnowledgeAccessProvider['getForConnectors']>(async () => reader)
-    const result = await retrieveKnowledgeSearch({
-      ...liveSearch,
-      searchMode: 'vector',
-      access: reader,
-      accessProvider: { ...provider, getForConnectors },
-    })
-    expect(result.rows.map((row) => row.id)).toEqual(['b'])
-    const walks = statements().filter((query) => isWalk(query.sql))
-    expect(walks).toHaveLength(2)
-    expect(JSON.stringify(walks[0])).not.toContain('/* excluded sources */')
-    expect(JSON.stringify(walks[1])).toContain('NOT EXISTS (SELECT 1 FROM')
-    expect(JSON.stringify(walks[1])).toContain('/* excluded sources */')
-  })
+  it.each([false, true])(
+    'excludes a denied source through its documents (searchIndexOnly=%s)',
+    async (searchIndexOnly) => {
+      queueTableRows(schemaMock.knowledgeConnector, [
+        {
+          id: 'gated-src',
+          accessMode: 'admin',
+          connectorType: 'confluence',
+          githubRepository: false,
+        },
+      ])
+      dbChainMockFns.execute.mockImplementation(async (query) => {
+        const statement = render(query).sql
+        /** The fill has not reached every row, so a denied source cannot be read off the row. */
+        if (statement.includes('AS unfilled')) return [{ unfilled: true }]
+        /** The mock renders nested fragments as parameters, so the marker is found in the whole query. */
+        const rebuilt = JSON.stringify(query).includes('/* excluded sources */')
+        if (isPageStatement(statement))
+          return JSON.stringify(render(query).params).includes('"b"')
+            ? [hit('b', 'other-src')]
+            : [hit('a', 'gated-src')]
+        if (isWalk(statement))
+          return Array.from({ length: 400 }, (_, i) => ({
+            id: i === 0 ? (rebuilt ? 'b' : 'a') : `w-${i}`,
+            distance: 0.1,
+          }))
+        return []
+      })
+      queueTableRows(schemaMock.embedding, [])
+      queueTableRows(schemaMock.embedding, [hit('b', 'other-src')])
+      const getForConnectors = vi.fn<KnowledgeAccessProvider['getForConnectors']>(
+        async () => reader
+      )
+      const result = await retrieveKnowledgeSearch({
+        ...liveSearch,
+        searchIndexOnly,
+        searchMode: 'vector',
+        access: reader,
+        accessProvider: { ...provider, getForConnectors },
+      })
+      expect(result.rows.map((row) => row.id)).toEqual(['b'])
+      expect(statements().filter((query) => query.sql.includes('AS unfilled'))).toHaveLength(
+        searchIndexOnly ? 1 : 0
+      )
+      const walks = statements().filter((query) => isWalk(query.sql))
+      expect(walks).toHaveLength(2)
+      expect(JSON.stringify(walks[0])).not.toContain('/* excluded sources */')
+      expect(JSON.stringify(walks[1])).toContain('NOT EXISTS (SELECT 1 FROM')
+      expect(JSON.stringify(walks[1])).toContain('/* excluded sources */')
+    }
+  )
 
   it('hands back the unread slices of a page a denied source made it rebuild', async () => {
     queueTableRows(schemaMock.knowledgeConnector, [
@@ -2486,6 +2527,7 @@ describe('filters on a resolved scope', () => {
   }
   const params: SearchParams = {
     knowledgeBaseIds: ['org-index'],
+    searchIndexOnly: true,
     topK: 1,
     access: reader,
     accessProvider: provider,
@@ -2911,5 +2953,55 @@ describe('filters on a resolved scope', () => {
     const tin = statements().filter((query) => query.sql.includes('ranked_tin_chunks'))
     expect(tin.length).toBeGreaterThan(0)
     expect(JSON.stringify(tin[0])).toContain('"type":"gte"')
+  })
+})
+
+/** A retrieval row with only the fields fusion reads; the tag slots are irrelevant here. */
+function searchRow(id: string, distance: number): SearchResult {
+  return {
+    id,
+    content: id,
+    documentId: `doc-${id}`,
+    chunkIndex: 0,
+    tag1: null,
+    tag2: null,
+    tag3: null,
+    tag4: null,
+    tag5: null,
+    tag6: null,
+    tag7: null,
+    number1: null,
+    number2: null,
+    number3: null,
+    number4: null,
+    number5: null,
+    date1: null,
+    date2: null,
+    boolean1: null,
+    boolean2: null,
+    boolean3: null,
+    distance,
+    knowledgeBaseId: 'kb-1',
+    sourceModifiedAt: null,
+  }
+}
+
+describe('fuseByReciprocalRank exposes the ordering key', () => {
+  it('stamps each row with the fused score it is ordered by and a 1-based rank, leaving similarity alone', () => {
+    const lexical = [searchRow('a', 0.5), searchRow('b', 0.2)]
+    const vector = [searchRow('b', 0.2), searchRow('c', 0.1)]
+
+    const fused = fuseByReciprocalRank([lexical, vector], 3)
+
+    expect(fused.map((row) => row.id)).toEqual(['b', 'a', 'c'])
+    expect(fused.map((row) => row.rank)).toEqual([1, 2, 3])
+    expect(fused[0].rankScore).toBeCloseTo(1 / (RRF_K + 2) + 1 / (RRF_K + 1), 12)
+    expect(fused[1].rankScore).toBeCloseTo(1 / (RRF_K + 1), 12)
+    expect(fused[2].rankScore).toBeCloseTo(1 / (RRF_K + 2), 12)
+    /** The order follows rankScore, which the cosine distance alone would not explain: c is the nearest chunk yet ranks last. */
+    expect(fused.map((row) => row.rankScore)).toEqual(
+      [...fused.map((row) => row.rankScore)].sort((x, y) => (y ?? 0) - (x ?? 0))
+    )
+    expect(fused.map((row) => row.distance)).toEqual([0.2, 0.5, 0.1])
   })
 })

@@ -26,10 +26,16 @@ import {
   SOURCE_CONTENT_ERROR,
   SOURCE_PERMISSION_ERROR,
 } from '@/lib/knowledge/connectors/sync-limits'
-import { assertSyncLeaseHeldInTx, type SyncRunLease } from '@/lib/knowledge/connectors/sync-lock'
+import {
+  assertSyncLeaseHeldInTx,
+  type LeaseTransaction,
+  leaseTransaction,
+  type SyncRunLease,
+} from '@/lib/knowledge/connectors/sync-lock'
 import {
   type KnowledgeBaseOwner,
   persistSourceDocumentFailures,
+  revokeDocumentAcls,
 } from '@/lib/knowledge/connectors/sync-persistence'
 import {
   buildReconciliationHoldNotice,
@@ -45,6 +51,7 @@ import {
   resolveReconciliationDeleteCap,
   storedHashIsCurrent,
 } from '@/lib/knowledge/connectors/sync-primitives'
+import { hasVisibleUserDocuments } from '@/lib/knowledge/connectors/user-document-visibility'
 import { hardDeleteDocuments } from '@/lib/knowledge/documents/service'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
 import { googleCompanyUserContextSchema } from '@/connectors/google-workspace/company-work'
@@ -85,11 +92,15 @@ interface ContentPassInput {
 /** One durable content cycle shared by content-owned and member-visibility connectors. */
 export async function runConnectorContentPass(input: ContentPassInput) {
   const { matchContentHash } = input.connectorConfig
-  const withLease = <T>(fn: (tx: DbOrTx) => Promise<T>) =>
+  /** The lease is proved last, so no write waits on document rows while holding the connector row. */
+  const withLease: LeaseTransaction = (fn) =>
     db.transaction(async (tx) => {
+      const written = await fn(tx)
       await assertSyncLeaseHeldInTx(tx, input.connectorId, input.lease)
-      return fn(tx)
+      return written
     })
+  /** ACL revocations fire the projection fan-out, so each of their pages is also bounded. */
+  const withAclPage = leaseTransaction(input.connectorId, input.lease)
   const readGenerationStartedAt = async (tx: DbOrTx): Promise<Date> => {
     const [clock] = await tx.execute<{ startedAt: string }>(
       sql`SELECT statement_timestamp()::text AS "startedAt"`
@@ -139,6 +150,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
         provider: input.connector.connectorType,
         listDocuments: input.connectorConfig.listDocuments,
         isListingCursorInvalidError: input.connectorConfig.isListingCursorInvalidError,
+        hasVisibleDocuments: (user) => hasVisibleUserDocuments(input.connectorId, user.email),
         syncIntervalMinutes,
         store: {
           get: (...args) => companyStore().get(...args),
@@ -177,23 +189,17 @@ export async function runConnectorContentPass(input: ContentPassInput) {
         })
         /** Revoke grants without matching stored content, retaining the content crawl's observation for EOF reconciliation. */
         if (changed.length)
-          await withLease(async (tx) => {
-            for (let offset = 0; offset < changed.length; offset += 500) {
-              await tx
-                .update(document)
-                .set({ acl: [], aclRequirements: [], aclVerifiedAt: null })
-                .where(
-                  and(
-                    eq(document.connectorId, input.connectorId),
-                    inArray(
-                      document.externalId,
-                      changed.slice(offset, offset + 500).map((item) => item.externalId)
-                    ),
-                    isNull(document.archivedAt)
-                  )
-                )
-            }
-          })
+          await revokeDocumentAcls(
+            withAclPage,
+            changed.map((item) => item.externalId),
+            (batch) =>
+              and(
+                eq(document.connectorId, input.connectorId),
+                inArray(document.externalId, batch),
+                isNull(document.archivedAt)
+              ),
+            { beforePage: input.lease.beatIfDue }
+          )
       }
       const state = createSyncRunState(input.result)
       const startedAt = new Date(cycle.startedAt)
@@ -328,7 +334,7 @@ export async function runConnectorContentPass(input: ContentPassInput) {
     },
   })
   const reconciliation = checkpoint.complete
-    ? await reconcileCompletedListing(input, checkpoint, withLease)
+    ? await reconcileCompletedListing(input, checkpoint, withLease, withAclPage)
     : { finished: false, notice: null }
   /** Unverified permissions, an incomplete listing and unrefreshed content are independent holds; an admin needs each, one per line. */
   const holdNotice =
@@ -351,7 +357,8 @@ export async function runConnectorContentPass(input: ContentPassInput) {
 async function reconcileCompletedListing(
   input: ContentPassInput,
   checkpoint: ListingCheckpoint,
-  withLease: <T>(fn: (tx: DbOrTx) => Promise<T>) => Promise<T>
+  withLease: LeaseTransaction,
+  withAclPage: LeaseTransaction
 ): Promise<{ finished: boolean; notice: string | null }> {
   if (checkpoint.unsafe || (checkpoint.listingFailures?.count ?? 0) > 0)
     return {
@@ -428,19 +435,11 @@ async function reconcileCompletedListing(
       await input.lease.beatIfDue()
       const rows = await loadBatch(and(absent, sql`cardinality(${document.acl}) > 0`), 500, after)
       if (rows.length === 0) break
-      await withLease((tx) =>
-        tx
-          .update(document)
-          .set({ acl: [], aclRequirements: [], aclVerifiedAt: null })
-          .where(
-            and(
-              absent,
-              inArray(
-                document.id,
-                rows.map((row) => row.id)
-              )
-            )
-          )
+      await revokeDocumentAcls(
+        withAclPage,
+        rows.map((row) => row.id),
+        (batch) => and(absent, inArray(document.id, batch)),
+        { beforePage: input.lease.beatIfDue }
       )
       after = rows.at(-1)
     }

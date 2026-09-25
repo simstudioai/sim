@@ -45,6 +45,8 @@ export interface PanelHost {
   restoreActiveScope: () => void
   /** Lets the session drop focus tracking for a view that is no longer attached. */
   onViewDetached: (view: WebContentsView | null) => void
+  /** Invalidates field-anchored UI when the page moves, hides, or detaches. */
+  onGeometryChanged?: () => void
 }
 
 let host: PanelHost = {
@@ -292,6 +294,7 @@ function detachAttachedView(): void {
   occludableFrame = null
   unbindHostResize()
   host.onViewDetached(view)
+  host.onGeometryChanged?.()
 
   if (!view || !win) return
   try {
@@ -331,6 +334,7 @@ function hideAttachedView(): void {
       error: getErrorMessage(error, 'unknown'),
     })
   }
+  host.onGeometryChanged?.()
 }
 
 /**
@@ -428,11 +432,13 @@ export function layout(): void {
     lastAppliedBounds = boundsKey
     occludableFrame = null
     active.view.setBounds(bounds)
+    host.onGeometryChanged?.()
   }
   const visible = !panelOccluded
   if (lastAppliedVisibility !== visible) {
     lastAppliedVisibility = visible
     active.view.setVisible(visible)
+    host.onGeometryChanged?.()
     if (visible && !active.view.webContents.isDestroyed()) {
       // invalidate() recomposites the LAST frame — which is blank when the
       // page finished loading while this view was hidden and background

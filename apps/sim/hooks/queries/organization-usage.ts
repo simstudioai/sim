@@ -4,12 +4,12 @@ import { hashKey, keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack
 import { requestJson } from '@/lib/api/client/request'
 import {
   getOrganizationUsageBreakdownContract,
-  getOrganizationUsageSummaryContract,
+  getOrganizationUsageOverviewContract,
   listOrganizationUsageEventsContract,
   ORGANIZATION_USAGE_BREAKDOWN_DEFAULT_LIMIT,
   type OrganizationUsageBreakdown,
   type OrganizationUsageEventPage,
-  type OrganizationUsageSummary,
+  type OrganizationUsageOverview,
   type UsageBreakdownDimension,
 } from '@/lib/api/contracts/organization-usage'
 import {
@@ -17,10 +17,10 @@ import {
   organizationUsageKeys,
 } from '@/hooks/queries/utils/organization-usage-keys'
 
-export const ORGANIZATION_USAGE_SUMMARY_STALE_TIME = 60 * 1000
+export const ORGANIZATION_USAGE_OVERVIEW_STALE_TIME = 60 * 1000
 /**
- * Longer than the summary: a ranking does not move meaningfully within a minute, and
- * three of the five dimensions heap-scan the ledger.
+ * Longer than the overview: a ranking does not move meaningfully within a minute, and
+ * some dimensions heap-scan the ledger.
  */
 export const ORGANIZATION_USAGE_BREAKDOWN_STALE_TIME = 5 * 60 * 1000
 export const ORGANIZATION_USAGE_EVENTS_STALE_TIME = 30 * 1000
@@ -32,7 +32,7 @@ const EVENTS_PAGE_SIZE = 50
  * asked, which is what `placeholderData` has to compare on.
  *
  * Both keys put the one segment their placeholder may legitimately cross last: the
- * summary's window ("the same scope, a different period") and the breakdown's row limit
+ * overview's window ("the same scope, a different period") and the breakdown's row limit
  * ("the same list, more rows"). Everything a retained answer must never cross —
  * organization, workspace, dimension — sits in the prefix.
  */
@@ -40,30 +40,30 @@ function usageKeyIdentity(key: readonly unknown[]): string {
   return hashKey(key.slice(0, -1))
 }
 
-interface UseSummaryOptions {
+interface UseOverviewOptions {
   /** The panel fetches the drill-down's chart only while that view is open. */
   enabled?: boolean
   /** Narrows to one workspace, for the Workspaces drill-down. */
   workspaceId?: string
 }
 
-export function useOrganizationUsageSummary(
+export function useOrganizationUsageOverview(
   organizationId: string | undefined,
   window: OrganizationUsageWindowKey,
-  options: UseSummaryOptions = {}
+  options: UseOverviewOptions = {}
 ) {
   const { workspaceId } = options
-  const queryKey = organizationUsageKeys.summary(organizationId ?? '', window, workspaceId)
+  const queryKey = organizationUsageKeys.overview(organizationId ?? '', window, workspaceId)
   return useQuery({
     queryKey,
-    queryFn: ({ signal }): Promise<OrganizationUsageSummary> =>
-      requestJson(getOrganizationUsageSummaryContract, {
+    queryFn: ({ signal }): Promise<OrganizationUsageOverview> =>
+      requestJson(getOrganizationUsageOverviewContract, {
         params: { id: organizationId as string },
         query: { ...window, ...(workspaceId ? { workspaceId } : {}) },
         signal,
       }),
     enabled: Boolean(organizationId) && (options.enabled ?? true),
-    staleTime: ORGANIZATION_USAGE_SUMMARY_STALE_TIME,
+    staleTime: ORGANIZATION_USAGE_OVERVIEW_STALE_TIME,
     /**
      * Kept only across a period change — the same scope asked about a different window,
      * where dimming the figures beats blanking them.

@@ -22,6 +22,7 @@ import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-b
 import { assertOrganizationAttachmentControlBinding } from '@/lib/uploads/contexts/organization-assistant/binding'
 import { assertOrganizationLogoControlBinding } from '@/lib/uploads/contexts/organization-logo/binding'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace'
+import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { buildStorageKeySegment } from '@/lib/uploads/core/storage-key'
 import {
   ASSISTANT_IMAGE_MAX_BYTES,
@@ -53,7 +54,13 @@ import type {
   UploadStorageProvider,
   UploadTransferMethod,
 } from '@/lib/uploads/upload-session/types'
+import {
+  bindWorkspaceFileUploadProvenance,
+  WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY,
+  type WorkspaceFileUploadSource,
+} from '@/lib/uploads/upload-session/workspace-file-provenance'
 import { isImageFileType } from '@/lib/uploads/utils/file-utils'
+import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 
 export const UPLOAD_SESSION_PUT_MAX_BYTES = 50 * 1024 * 1024
 export const UPLOAD_SESSION_PART_SIZE = 8 * 1024 * 1024
@@ -129,6 +136,13 @@ export interface UploadSessionAuthBinding {
     | { kind: 'workspace_api_key'; workspaceId: string; keyId: string }
     | {
         kind: 'delegated'
+        serviceId: 'copilot'
+        subjectUserId: string
+        audience: string
+        chatId: string
+      }
+    | {
+        kind: 'delegated'
         serviceId: 'executor'
         subjectUserId: string
         audience: string
@@ -187,7 +201,13 @@ interface CreateUploadSessionBaseParams {
 
 export type CreateUploadSessionParams = CreateUploadSessionBaseParams &
   (
-    | { purpose: 'workspace_file'; workspaceId: string; principal: Principal }
+    | {
+        purpose: 'workspace_file'
+        workspaceId: string
+        principal: Principal
+        /** Trusted runtime source classification, never a public upload input. */
+        secretProvenance?: WorkspaceFileUploadSource
+      }
     | { purpose: 'table_import'; workspaceId: string; principal?: Principal }
     | {
         purpose: 'knowledge_document'
@@ -206,6 +226,7 @@ export type CreateUploadSessionParams = CreateUploadSessionBaseParams &
     | { purpose: 'workspace_logo' | 'mothership_attachment'; workspaceId: string }
     | {
         purpose: 'mothership_attachment'
+        requestMode?: 'agent' | 'assistant' | 'plan'
         organizationId: string
         principal: Principal
         workspaceId?: never
@@ -247,9 +268,19 @@ export async function createUploadSession(
       )
     }
     metadata.organizationAttachment = {
+      requestMode: params.requestMode ?? 'assistant',
       organizationId: params.organizationId,
       userId: params.userId,
       sessionId: params.principal.sessionId,
+    }
+  }
+  if (params.purpose === 'workspace_file') {
+    delete metadata[WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY]
+    if (params.secretProvenance !== undefined) {
+      metadata[WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY] = bindWorkspaceFileUploadProvenance(
+        params.workspaceId,
+        params.secretProvenance
+      )
     }
   }
   if (params.purpose === 'workspace_file' || params.purpose === 'knowledge_document') {
@@ -257,11 +288,15 @@ export async function createUploadSession(
     if (!params.principal) {
       throw new Error(`${params.purpose} upload requires an authenticated principal`)
     }
-    metadata.authBinding = createUploadSessionAuthBinding(params.principal, workspaceId)
+    metadata.authBinding = createUploadSessionAuthBinding(params.principal, workspaceId, {
+      copilotDelegationAudience:
+        params.purpose === 'workspace_file' ? WORKSPACE_FILES_DELEGATION_AUDIENCE : 'sim:knowledge',
+    })
   } else if (params.purpose === 'table_import' && params.principal) {
     if (!workspaceId) throw new Error('table_import upload is missing workspaceId')
     metadata.authBinding = createUploadSessionAuthBinding(params.principal, workspaceId, {
       executorDelegationAudience: 'sim:tables',
+      copilotDelegationAudience: 'sim:tables',
     })
   }
   const { storageContext, finalKey } = resolveUploadStorage(params, id)
@@ -463,7 +498,7 @@ export async function getPrincipalKnowledgeDocumentUploadSession(params: {
 export function createUploadSessionAuthBinding(
   principal: Principal,
   workspaceId: string,
-  options: { executorDelegationAudience?: string } = {}
+  options: { executorDelegationAudience?: string; copilotDelegationAudience?: string } = {}
 ): UploadSessionAuthBinding {
   switch (principal.kind) {
     case 'slack_app':
@@ -501,6 +536,31 @@ export function createUploadSessionAuthBinding(
         principal: { kind: principal.kind, workspaceId, keyId: principal.keyId },
       }
     case 'delegated': {
+      if (principal.serviceId === 'copilot') {
+        if (
+          principal.workspaceId !== workspaceId ||
+          principal.audience !==
+            (options.copilotDelegationAudience ?? WORKSPACE_FILES_DELEGATION_AUDIENCE) ||
+          !principal.resourceScope?.chatId ||
+          principal.expiresAt <= new Date()
+        ) {
+          throw new UploadSessionError(
+            'forbidden',
+            'Copilot upload requires current chat and workspace authority'
+          )
+        }
+        return {
+          version: 1,
+          workspaceId,
+          principal: {
+            kind: 'delegated',
+            serviceId: 'copilot',
+            subjectUserId: requirePrincipalSubjectUserId(principal),
+            audience: principal.audience,
+            chatId: principal.resourceScope.chatId,
+          },
+        }
+      }
       if (
         options.executorDelegationAudience === undefined ||
         !isExecutorWorkflowExecutionPrincipal(principal) ||
@@ -581,12 +641,21 @@ export function assertUploadSessionAuthBinding(
             ? principal.kind === 'workspace_api_key' &&
               bound.workspaceId === principal.workspaceId &&
               bound.keyId === principal.keyId
-            : isExecutorWorkflowExecutionPrincipal(principal) &&
-              principal.workspaceId === session.workspaceId &&
-              principal.subjectUserId === bound.subjectUserId &&
-              principal.audience === bound.audience &&
-              principal.delegationContext.workflowId === bound.workflowId &&
-              principal.delegationContext.executionId === bound.executionId)
+            : bound.serviceId === 'copilot'
+              ? principal.kind === 'delegated' &&
+                principal.serviceId === 'copilot' &&
+                principal.workspaceId === session.workspaceId &&
+                principal.subjectUserId === bound.subjectUserId &&
+                principal.audience === bound.audience &&
+                principal.audience === copilotUploadAudience(session.purpose) &&
+                principal.resourceScope?.chatId === bound.chatId &&
+                principal.expiresAt > new Date()
+              : isExecutorWorkflowExecutionPrincipal(principal) &&
+                principal.workspaceId === session.workspaceId &&
+                principal.subjectUserId === bound.subjectUserId &&
+                principal.audience === bound.audience &&
+                principal.delegationContext.workflowId === bound.workflowId &&
+                principal.delegationContext.executionId === bound.executionId)
   if (!matches) throw uploadNotFound()
 }
 
@@ -660,6 +729,8 @@ export async function createUploadPartUrls(params: {
 
 export async function completeUploadSession<T>(params: {
   session: UploadSessionRecord
+  /** Host evidence for the completed byte stream; never sourced from request JSON. */
+  secretProvenance?: WorkspaceFileSecretProvenance
   finalize: (session: UploadSessionRecord) => Promise<{ value: T; completedFileId?: string }>
   loadCompleted?: (session: UploadSessionRecord) => Promise<T>
 }): Promise<{ session: UploadSessionRecord; value: T; alreadyCompleted: boolean }> {
@@ -689,7 +760,14 @@ export async function completeUploadSession<T>(params: {
       params.session.id,
       leaseId,
       recoveringFinalization ? ['finalizing'] : ['uploading', 'completing'],
-      recoveringFinalization ? 'finalizing' : 'completing'
+      recoveringFinalization ? 'finalizing' : 'completing',
+      db,
+      params.session.purpose === 'workspace_file' && params.session.workspaceId
+        ? bindWorkspaceFileUploadProvenance(
+            params.session.workspaceId,
+            params.secretProvenance ?? { status: 'unknown' }
+          )
+        : undefined
     )),
     uploadToken: params.session.uploadToken,
   }
@@ -1122,7 +1200,8 @@ async function claimSession(
   leaseId: string,
   statuses: UploadSessionStatus[],
   nextStatus: UploadSessionStatus = 'completing',
-  database: typeof db = db
+  database: typeof db = db,
+  fileProvenance?: ReturnType<typeof bindWorkspaceFileUploadProvenance>
 ): Promise<UploadSessionRecord> {
   const now = new Date()
   const [row] = await database
@@ -1133,6 +1212,14 @@ async function claimSession(
       processingLeaseExpiresAt: new Date(now.getTime() + PROCESSING_LEASE_MS),
       error: null,
       updatedAt: now,
+      /** Seal once with the completion lease; recovery must retain the first claim's evidence. */
+      ...(fileProvenance
+        ? {
+            metadata: sql`CASE WHEN ${uploadSession.metadata}->${WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY}->>'pending' = 'true'
+              THEN jsonb_set(${uploadSession.metadata}, ARRAY[${WORKSPACE_FILE_UPLOAD_PROVENANCE_KEY}]::text[], ${JSON.stringify(fileProvenance)}::jsonb)
+              ELSE ${uploadSession.metadata} END`,
+          }
+        : {}),
     })
     .where(
       and(
@@ -1294,8 +1381,9 @@ function validateFile(params: CreateUploadSessionParams): void {
   if (
     organizationAttachment &&
     (!params.organizationId.trim() ||
-      params.fileSize > ASSISTANT_IMAGE_MAX_BYTES ||
-      !isAssistantImageType(params.contentType))
+      (params.requestMode !== 'agent' &&
+        params.requestMode !== 'plan' &&
+        (params.fileSize > ASSISTANT_IMAGE_MAX_BYTES || !isAssistantImageType(params.contentType))))
   ) {
     throw new UploadSessionError(
       'validation',
@@ -1336,6 +1424,13 @@ function maximumFileSize(purpose: UploadSessionPurpose): number {
 
 function requiresStorageQuota(purpose: UploadSessionPurpose): boolean {
   return purpose === 'workspace_file' || purpose === 'knowledge_document'
+}
+
+function copilotUploadAudience(purpose: UploadSessionPurpose): string | undefined {
+  if (purpose === 'workspace_file') return WORKSPACE_FILES_DELEGATION_AUDIENCE
+  if (purpose === 'knowledge_document') return 'sim:knowledge'
+  if (purpose === 'table_import') return 'sim:tables'
+  return undefined
 }
 
 function isPrincipalBoundUploadPurpose(purpose: UploadSessionPurpose): boolean {
@@ -1438,6 +1533,13 @@ function isUploadSessionAuthBinding(value: unknown): value is UploadSessionAuthB
     return typeof principal.userId === 'string' && typeof principal.clientId === 'string'
   }
   if (principal.kind === 'delegated') {
+    if (principal.serviceId === 'copilot')
+      return (
+        typeof principal.subjectUserId === 'string' &&
+        typeof principal.audience === 'string' &&
+        typeof principal.chatId === 'string' &&
+        principal.chatId.length > 0
+      )
     return (
       principal.serviceId === 'executor' &&
       typeof principal.subjectUserId === 'string' &&

@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { MothershipResource } from '@/lib/copilot/resources/types'
+import {
+  getChatResourceSelectionId,
+  type MothershipResource,
+} from '@/lib/mothership/resources/types'
 import {
   resolveEffectiveResourceId,
+  resolveFileResourceSelectionId,
   resolveResourceEventPresentation,
   resolveResourceSelectionUpdate,
 } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
@@ -19,6 +23,24 @@ const SHELLS: MothershipResource[] = [
 const NO_NATIVE = { browser: null, terminal: null }
 
 describe('resolveEffectiveResourceId', () => {
+  it('preserves workspace-qualified selection and fallback for files and tables', () => {
+    const resources: MothershipResource[] = [
+      { type: 'file', id: 'wf_same', title: 'Report', workspaceId: 'workspace-a' },
+      { type: 'file', id: 'wf_same', title: 'Report', workspaceId: 'workspace-b' },
+      { type: 'table', id: 'tbl_inventory', title: 'Inventory', workspaceId: 'workspace-b' },
+    ]
+    for (const resource of resources) {
+      const selection = getChatResourceSelectionId(resource)
+      expect(resolveEffectiveResourceId(resources, selection, NO_NATIVE)).toBe(selection)
+    }
+    expect(resolveEffectiveResourceId(resources, null, NO_NATIVE)).toBe(
+      getChatResourceSelectionId(resources[2])
+    )
+    expect(resolveEffectiveResourceId(resources, 'wf_same', NO_NATIVE)).toBe(
+      getChatResourceSelectionId(resources[2])
+    )
+  })
+
   it('shows nothing when the strip is empty', () => {
     expect(resolveEffectiveResourceId([], null, NO_NATIVE)).toBeNull()
     expect(resolveEffectiveResourceId([], 'anything', NO_NATIVE)).toBeNull()
@@ -177,4 +199,21 @@ describe('resolveResourceEventPresentation', () => {
       revealPanel: false,
     })
   })
+})
+
+it('normalizes file attention using the actual tab owner while preserving new unowned tabs', () => {
+  const resource: MothershipResource = {
+    type: 'file',
+    id: 'wf_file',
+    title: 'File',
+    workspaceId: 'owner',
+  }
+  expect(resolveFileResourceSelectionId([resource], resource.id, 'owner')).toBe(
+    getChatResourceSelectionId(resource)
+  )
+  expect(resolveFileResourceSelectionId([resource], resource.id, 'foreign')).toBe(resource.id)
+  expect(resolveFileResourceSelectionId([], resource.id, 'owner')).toBe(resource.id)
+  expect(
+    resolveFileResourceSelectionId([{ ...resource, workspaceId: undefined }], resource.id, 'owner')
+  ).toBe(resource.id)
 })

@@ -533,7 +533,7 @@ function CapabilityRow({ blockId, capability, checked, disabled }: CapabilityRow
       />
       <Label
         htmlFor={id}
-        className='cursor-pointer text-[var(--text-primary)] text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-60'
+        className='cursor-pointer text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-60'
       >
         {capability.label}
       </Label>

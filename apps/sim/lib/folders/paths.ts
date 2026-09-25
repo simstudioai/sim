@@ -154,6 +154,32 @@ export function folderNameFromPath(path: string): string {
 }
 
 /**
+ * Where a folder move lands, with `mv` semantics.
+ *
+ * A destination that names an EXISTING folder receives the source as a child
+ * under its own name: moving `/xp-files` to `/fx-archive` yields
+ * `/fx-archive/xp-files`. The root is always an existing folder for this
+ * purpose, so `/` moves the source to the top level under its current name —
+ * the only way back out of a nested folder without retyping its name. Any other
+ * destination is the source's new full path — a rename, a relocation, or both.
+ * Before this, an existing destination was refused as a name collision, so
+ * moving a folder into another meant spelling out the target path in full. A
+ * destination equal to the source is returned as is, so the caller's collision
+ * check answers it the way it always has.
+ */
+export function resolveFolderMoveDestination(
+  index: Pick<FolderPathIndex, 'idByPath'>,
+  sourcePath: string,
+  destinationPath: string
+): string {
+  if (destinationPath === sourcePath) return destinationPath
+  if (destinationPath !== ROOT_FOLDER_PATH && !index.idByPath.has(destinationPath)) {
+    return destinationPath
+  }
+  return buildFolderPath([...parseFolderPath(destinationPath), folderNameFromPath(sourcePath)])
+}
+
+/**
  * Runs a path helper over STORED rows. Those helpers classify their failures as
  * caller input, which is wrong here — the caller supplied nothing. Rethrowing as
  * a hierarchy fault keeps corruption a 500 and out of the client's face.

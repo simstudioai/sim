@@ -33,8 +33,8 @@ export const PUT = defineInternalJsonRoute({
   errorPolicy: internalKnowledgeErrorPolicies.connectors,
   mapInput: ({ body }) => body,
   useCase: approveSearchIntegration,
-  present: ({ connectorType, approved }) => ({
+  present: ({ connectorType, approved, policy }) => ({
     success: true as const,
-    data: { connectorType, approved },
+    data: { connectorType, approved, ...(policy ? { policy } : {}) },
   }),
 })

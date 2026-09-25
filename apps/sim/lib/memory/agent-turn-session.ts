@@ -6,6 +6,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { decryptSecret } from '@/lib/core/security/encryption'
+import { stringifyBoundedJson } from '@/lib/core/utils/bounded-json'
 import {
   bindDurableSecretProvenanceToValue,
   durableSecretProvenanceFromRegistry,
@@ -24,7 +25,6 @@ import {
 } from '@/lib/memory/application/agent-turns'
 import { MEMORY_DELEGATION_AUDIENCE } from '@/lib/memory/application/authorization'
 import { getMemoryArtifactHandle } from '@/lib/memory/artifact-handle'
-import { stringifyBoundedMemoryJson } from '@/lib/memory/bounded-json'
 import {
   decryptMemoryCheckpoint,
   encryptMemoryCheckpoint,
@@ -534,7 +534,7 @@ export async function openAgentTurnSession(
       },
       async prepareResult(result) {
         let requiresArtifact =
-          stringifyBoundedMemoryJson(result, MEMORY.MAX_MESSAGE_CONTENT_BYTES) === undefined
+          stringifyBoundedJson(result, MEMORY.MAX_MESSAGE_CONTENT_BYTES) === undefined
         let safeError: string | undefined
         try {
           const projected = await project(result.modelResponse)
@@ -550,7 +550,7 @@ export async function openAgentTurnSession(
             modelResponse: { ...result.modelResponse, ...projected },
           }
           requiresArtifact ||=
-            stringifyBoundedMemoryJson(prepared, MEMORY.MAX_MESSAGE_CONTENT_BYTES) === undefined
+            stringifyBoundedJson(prepared, MEMORY.MAX_MESSAGE_CONTENT_BYTES) === undefined
           requiresArtifact ||=
             JSON.stringify(prepared.modelResponse).length > MAX_ARTIFACT_PREVIEW_CHARS
           if (requiresArtifact) {

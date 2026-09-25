@@ -8,11 +8,13 @@ import { getBlock } from '@/blocks/index'
 import { BlockType } from '@/executor/constants'
 import { GenericBlockHandler } from '@/executor/handlers/generic/generic-handler'
 import type { ExecutionContext } from '@/executor/types'
+import { resolveBlockReference } from '@/executor/utils/block-reference'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { selectKnowledgeDocumentWriteSecretProvenance } from '@/tools/knowledge/secret-provenance'
 import { mcpRunOperationTool } from '@/tools/mcp/run-operation'
+import { tableQueryRowsV2Tool } from '@/tools/table/query_rows_v2'
 import type { ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
 
@@ -105,6 +107,33 @@ describe('GenericBlockHandler', () => {
       executionContext: mockContext,
     })
     expect(result).toEqual(expectedOutput)
+  })
+
+  it('exposes the Table success field used by downstream workflow references', async () => {
+    const rows = [{ id: 'row-1', data: { amount: 17 }, executions: {} }]
+    const tableResponse = await tableQueryRowsV2Tool.transformResponse!(
+      Response.json({ data: { rows, rowCount: 1, totalCount: 1, limit: 10, nextCursor: null } })
+    )
+    mockGetTool.mockReturnValue(tableQueryRowsV2Tool)
+    mockExecuteTool.mockResolvedValue(tableResponse)
+    const block: SerializedBlock = {
+      ...mockBlock,
+      metadata: { id: 'table_v2', name: 'Read open items' },
+      config: { tool: tableQueryRowsV2Tool.id, params: {} },
+    }
+    const output = await handler.execute(mockContext, block, { tableId: 'table-1' })
+    const resolved = resolveBlockReference('readopenitems', ['success'], {
+      blockNameMapping: { readopenitems: block.id },
+      blockData: { [block.id]: output },
+      blockOutputSchemas: { [block.id]: tableQueryRowsV2Tool.outputs ?? {} },
+    })
+    expect(resolved?.value).toBe(true)
+    expect(output.rows).toEqual(rows)
+
+    mockExecuteTool.mockResolvedValue({ success: false, error: 'Table access denied', output: {} })
+    await expect(handler.execute(mockContext, block, { tableId: 'table-1' })).rejects.toThrow(
+      'Table access denied'
+    )
   })
 
   it('executes the standalone stable MCP action after argument resolution with trusted block scope', async () => {

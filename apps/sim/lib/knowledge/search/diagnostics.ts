@@ -64,6 +64,13 @@ export type SearchStage =
   | 'source_overview.searchable'
   | 'access_batch.connectors'
   | 'access_batch.live_proof'
+  | 'live.policies'
+  | 'live.accounts'
+  | 'live.resolve'
+  | 'live.session'
+  | 'live.search'
+  | 'live.verify'
+  | 'live.read'
 
 /** Fixed, content-free fields. Never pass queries, filters, document identities, SQL, or errors. */
 export interface SearchDiagnosticMetadata {

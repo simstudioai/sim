@@ -1,10 +1,19 @@
 import { Buffer } from 'node:buffer'
 import { createLogger } from '@sim/logger'
 import { describeError } from '@sim/utils/errors'
+import {
+  type BackgroundRetryDecision,
+  type BackgroundRetryPolicy,
+  getBackgroundRetryDecision,
+} from '@/lib/core/errors/background-retry'
 import { redactDatabaseQueryError } from '@/lib/core/errors/database-query-error'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import {
+  FILE_SEARCH_INDEX_CAPACITY_MAX_ATTEMPTS,
+  FILE_SEARCH_INDEX_CAPACITY_RETRY_BASE_MS,
+  FILE_SEARCH_INDEX_CAPACITY_RETRY_MAX_MS,
+  FILE_SEARCH_INDEX_MAX_ATTEMPTS,
   FILE_SEARCH_MAX_SOURCE_BYTES,
   FILE_SEARCH_SLOW_INSERT_BATCH_MS,
 } from '@/lib/workspace-files/search/constants'
@@ -81,7 +90,10 @@ export async function indexWorkspaceFileForSearch(
   if (!payload.dispatchToken) return
   const revision = parseRevision(payload)
   const build = await beginFileSearchBuild(revision, payload.dispatchToken)
-  if (!build) return
+  if (!build) {
+    logger.info('Workspace file search run no longer owns its revision', payload)
+    return
+  }
   const startedAt = Date.now()
   try {
     const file = await getWorkspaceFile(payload.workspaceId, payload.fileId, { throwOnError: true })
@@ -153,4 +165,28 @@ export async function markWorkspaceFileSearchIndexFailed(
   if (!payload.dispatchToken || Number.isNaN(new Date(payload.sourceContentUpdatedAt).getTime()))
     return
   await failFileSearchRevision(parseRevision(payload), payload.dispatchToken)
+}
+
+const FILE_SEARCH_INDEX_RETRY_POLICY: BackgroundRetryPolicy = {
+  maxAttempts: FILE_SEARCH_INDEX_MAX_ATTEMPTS,
+  database: {
+    maxAttempts: FILE_SEARCH_INDEX_CAPACITY_MAX_ATTEMPTS,
+    baseDelayMs: FILE_SEARCH_INDEX_CAPACITY_RETRY_BASE_MS,
+    maxDelayMs: FILE_SEARCH_INDEX_CAPACITY_RETRY_MAX_MS,
+  },
+}
+
+/**
+ * Chooses the next attempt after `attempt` (1-based) failed. A transient database failure (a
+ * statement, lock, or transaction timeout, a deadlock, or a dropped connection) means the database
+ * could not take this build right now, not that the file is bad: those back off for minutes so the
+ * retries outlast a slow window instead of all landing inside it. Anything else keeps the ordinary
+ * short retries. `undefined` keeps the runner's default delay.
+ */
+export function getWorkspaceFileSearchRetry(
+  error: unknown,
+  attempt: number,
+  now = Date.now()
+): BackgroundRetryDecision {
+  return getBackgroundRetryDecision(error, attempt, FILE_SEARCH_INDEX_RETRY_POLICY, now)
 }

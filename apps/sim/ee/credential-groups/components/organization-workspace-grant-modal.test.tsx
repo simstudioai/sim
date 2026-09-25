@@ -73,8 +73,9 @@ describe('workspace integration grant editor', () => {
     )
   }
   async function closeIntegrations() {
+    const trigger = document.querySelector<HTMLButtonElement>('[aria-label="Integrations"]')
     await act(async () =>
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      trigger?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }))
     )
   }
   async function click(label: string) {

@@ -22,6 +22,7 @@ import {
   getUserPermissionConfigForOrganization,
   isOrganizationPermissionRegimeActive,
 } from '@/lib/permission-groups/resolve.server'
+import { canCreateOrganizationWorkspace } from '@/lib/workspaces/policy'
 
 export interface OrganizationSurfaceOrganization {
   id: string
@@ -50,6 +51,8 @@ export interface OrganizationSurfaceContext {
   organization: OrganizationSurfaceOrganization
   viewer: OrganizationSurfaceViewer
   connectedAccountsAvailable: boolean
+  mothershipAvailable: boolean
+  canBuild: boolean
   searchAccess: KnowledgeAccessAvailability
   settingsFeatures: OrganizationSettingsFeatures
   deployment: DeploymentShape
@@ -131,6 +134,10 @@ async function resolveOrganizationSurfaceContext(
         !capabilityDeniedBy('oauth_apps.use', config),
     },
     connectedAccountsAvailable,
+    mothershipAvailable: !capabilityDeniedBy('copilot.use', config),
+    canBuild:
+      !capabilityDeniedBy('copilot.use', config) &&
+      canCreateOrganizationWorkspace(access.role, config),
     searchAccess,
     settingsFeatures: getOrganizationSettingsFeatures(
       hasEnterprisePlan,

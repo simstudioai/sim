@@ -1,5 +1,5 @@
-import { MothershipStreamV1EventType } from '@/lib/copilot/generated/mothership-stream-v1'
-import type { PersistedStreamEventEnvelope } from '@/lib/copilot/request/session/contract'
+import { MothershipStreamV1EventType } from '@/lib/mothership/generated/mothership-stream-v1'
+import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { handleCompleteEvent } from '@/app/workspace/[workspaceId]/home/hooks/stream/handle-complete-event'
 import { handleErrorEvent } from '@/app/workspace/[workspaceId]/home/hooks/stream/handle-error-event'
 import { handleResourceEvent } from '@/app/workspace/[workspaceId]/home/hooks/stream/handle-resource-event'

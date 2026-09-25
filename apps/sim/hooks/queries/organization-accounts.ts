@@ -32,6 +32,7 @@ import {
   removeOrganizationAccountMcpProviderContract,
   resendOrganizationAccountInvitationContract,
   revokeOrganizationAccountEnrollmentContract,
+  type StartOrganizationAccountConnectionBody,
   startOrganizationAccountConnectionContract,
   type UpdateOrganizationAccountsBody,
   type UpdateOrganizationAccountWorkspaceAccessBody,
@@ -195,10 +196,13 @@ export function useUpdateOrganizationAccounts() {
 
 export function useConnectOrganizationAccount() {
   return useMutation({
-    mutationFn: ({ organizationId, optionId }: { organizationId: string; optionId: string }) =>
+    mutationFn: ({
+      organizationId,
+      ...body
+    }: { organizationId: string } & StartOrganizationAccountConnectionBody) =>
       requestJson(startOrganizationAccountConnectionContract, {
         params: { id: organizationId },
-        body: { optionId },
+        body,
       }),
   })
 }

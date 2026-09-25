@@ -15,18 +15,26 @@ import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/aut
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
+import { withWorkflowBlockScope } from '@/lib/workflows/application/workflow-block-scope'
 import { requireMutableWorkflow } from '@/lib/workflows/application/workflow-mutability'
 import { normalizeWorkflowVariables } from '@/lib/workflows/application/workflow-variables'
 import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import type { WorkflowLintReport } from '@/lib/workflows/editing/lint'
 import { buildWorkflowLintReport } from '@/lib/workflows/editing/lint-report'
+import { validateValueForSubBlockType } from '@/lib/workflows/editing/validation'
 import { prepareWorkflowStateForPersistence } from '@/lib/workflows/persistence/prepare-state'
 import {
   assertWorkflowGraphIdsUnclaimed,
   collectWorkflowGraphIds,
   replaceWorkflowNormalizedState,
 } from '@/lib/workflows/persistence/replace-normalized-state'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowState } from '@/lib/workflows/sanitization/validation'
+import {
+  getToolBindingAuthoringSchema,
+  validateToolBindingAuthoring,
+} from '@/lib/workflows/tool-input/authoring'
+import { getBlock } from '@/blocks/registry'
 
 const logger = createLogger('ReplaceWorkflowState')
 
@@ -108,122 +116,174 @@ export const replaceWorkflowState = defineAuthorizedWorkflowUseCase({
   async execute({ principal, input, context }): Promise<ReplaceWorkflowStateResult> {
     await requireMutableWorkflow(context.workflowId)
 
-    const candidate = {
-      blocks: input.blocks,
-      edges: input.edges,
-      loops: {},
-      parallels: {},
-    }
-    const validation = validateWorkflowState(candidate, { sanitize: true })
-    if (!validation.valid) {
-      throw new OrchestrationError(
-        'validation',
-        `Invalid workflow state: ${validation.errors.join('; ')}`
-      )
-    }
-    const sanitized = validation.sanitizedState ?? candidate
+    return withWorkflowBlockScope(context, async () => {
+      const candidate = {
+        blocks: input.blocks,
+        edges: input.edges,
+        loops: {},
+        parallels: {},
+      }
+      const validation = validateWorkflowState(candidate, { sanitize: true })
+      if (!validation.valid) {
+        throw new OrchestrationError(
+          'validation',
+          `Invalid workflow state: ${validation.errors.join('; ')}`
+        )
+      }
+      const sanitized = validation.sanitizedState ?? candidate
 
-    const graph = {
-      blocks: sanitized.blocks as Record<string, BlockState>,
-      edges: sanitized.edges as WorkflowState['edges'],
-    }
+      /** Use registry control types, never the caller's subblock type, just as operation edits do. */
+      const blocks = structuredClone(sanitized.blocks) as Record<string, BlockState>
+      const enforceToolBindings =
+        principal.kind === 'delegated' &&
+        principal.serviceId === 'copilot' &&
+        Object.values(blocks).some((block) => getToolBindingAuthoringSchema(block.type))
+      const previous = enforceToolBindings
+        ? await loadWorkflowFromNormalizedTables(context.workflowId)
+        : undefined
+      if (enforceToolBindings && !previous) {
+        throw new OrchestrationError(
+          'validation',
+          'Cannot validate tool edits without the saved workflow state'
+        )
+      }
+      for (const [blockId, block] of Object.entries(blocks)) {
+        const config = getBlock(block.type)
+        if (!config) continue
+        const fields = new Map(config.subBlocks.map((field) => [field.id, field]))
+        for (const [fieldId, stored] of Object.entries(block.subBlocks ?? {})) {
+          const field = fields.get(fieldId)
+          if (!field) continue
+          if (enforceToolBindings && field.type === 'tool-input') {
+            const savedBlock = previous?.blocks[blockId]
+            const error = validateToolBindingAuthoring(
+              block.type,
+              stored.value,
+              savedBlock?.type === block.type ? savedBlock.subBlocks[fieldId]?.value : undefined
+            )
+            if (error)
+              throw new OrchestrationError('validation', `Block ${block.name || blockId}: ${error}`)
+          }
+          const result = validateValueForSubBlockType(
+            field,
+            stored.value,
+            field.id,
+            block.type,
+            blockId
+          )
+          if (!result.valid) {
+            throw new OrchestrationError(
+              'validation',
+              `Block ${block.name || blockId}: ${result.error?.error ?? `Invalid field ${field.id}`}`
+            )
+          }
+          stored.value = result.value
+          stored.type = field.type
+        }
+      }
 
-    /**
-     * Linted before the write so a dry run and a committed write report the
-     * same findings for the same body. Unlike its sibling `applyOperations`,
-     * this operation admits workspace API keys, which have no human subject —
-     * the reference pass is skipped for them rather than resolved against the
-     * billing owner. See {@link buildWorkflowLintReport}.
-     */
-    const subjectUserId = humanSubjectUserId(principal)
+      const graph = {
+        blocks,
+        edges: sanitized.edges as WorkflowState['edges'],
+      }
 
-    const lint = await buildWorkflowLintReport(graph, {
-      workflowId: context.workflowId,
-      workspaceId: context.workspaceId,
-      subjectUserId,
-    })
-
-    if (input.dryRun) {
       /**
-       * The same preparation the committed write runs, so a dry run reports the
-       * notes that write would produce and checks the ids it would actually
-       * insert — the prepared graph, not the caller's body. Preparing here and
-       * again inside the write is the cost of the two paths never disagreeing.
+       * Linted before the write so a dry run and a committed write report the
+       * same findings for the same body. Unlike its sibling `applyOperations`,
+       * this operation admits workspace API keys, which have no human subject —
+       * the reference pass is skipped for them rather than resolved against the
+       * billing owner. See {@link buildWorkflowLintReport}.
        */
-      const prepared = prepareWorkflowStateForPersistence(graph)
-      await assertWorkflowGraphIdsUnclaimed(
-        db,
-        context.workflowId,
-        collectWorkflowGraphIds(prepared.state)
-      )
+      const subjectUserId = humanSubjectUserId(principal)
 
-      logger.info('Validated workflow state without persisting', {
+      const lint = await buildWorkflowLintReport(graph, {
+        workflowId: context.workflowId,
+        workspaceId: context.workspaceId,
+        subjectUserId,
+      })
+
+      if (input.dryRun) {
+        /**
+         * The same preparation the committed write runs, so a dry run reports the
+         * notes that write would produce and checks the ids it would actually
+         * insert — the prepared graph, not the caller's body. Preparing here and
+         * again inside the write is the cost of the two paths never disagreeing.
+         */
+        const prepared = prepareWorkflowStateForPersistence(graph)
+        await assertWorkflowGraphIdsUnclaimed(
+          db,
+          context.workflowId,
+          collectWorkflowGraphIds(prepared.state)
+        )
+
+        logger.info('Validated workflow state without persisting', {
+          workflowId: context.workflowId,
+          workspaceId: context.workspaceId,
+          principalKind: principal.kind,
+        })
+        return {
+          workflowId: context.workflowId,
+          workflowName: context.workflow.name,
+          workspaceId: context.workspaceId,
+          blocksCount: Object.keys(graph.blocks).length,
+          edgesCount: graph.edges.length,
+          warnings: [...validation.warnings, ...prepared.warnings],
+          needsRedeployment: await checkNeedsRedeployment(context.workflowId),
+          lint,
+          dryRun: true,
+        }
+      }
+
+      const attribution = resolvePrincipalAttribution(principal, {
+        workspaceBillingOwnerUserId: context.billedAccountUserId,
+      })
+      const persisted = await replaceWorkflowNormalizedState({
+        workflowId: context.workflowId,
+        workspaceId: context.workspaceId,
+        attributedUserId: attribution.attributedUserId,
+        /**
+         * The same human the lint pass resolved above, and never
+         * `attribution.attributedUserId`: that answers a workspace API key with
+         * the billing owner, so reusing it would judge a caller-supplied graph
+         * against a bystander's grants. This operation admits only principals
+         * that name a human, so the `null` branch is a fail-safe rather than a
+         * reachable state.
+         */
+        subjectUserId,
+        state: {
+          blocks: graph.blocks,
+          edges: graph.edges,
+          /**
+           * Re-keyed by variable id and coerced onto each declared type by the
+           * same helper `PATCH /workflows/{id}/variables` uses, so a full
+           * replacement cannot write a shape the incremental path never
+           * produces. Omitted stays omitted — that leaves the column untouched.
+           */
+          variables:
+            input.variables === undefined
+              ? undefined
+              : normalizeWorkflowVariables(input.variables, { coerceValues: true }),
+        },
+      })
+
+      logger.info('Replaced workflow state', {
         workflowId: context.workflowId,
         workspaceId: context.workspaceId,
         principalKind: principal.kind,
       })
+
       return {
         workflowId: context.workflowId,
         workflowName: context.workflow.name,
         workspaceId: context.workspaceId,
-        blocksCount: Object.keys(graph.blocks).length,
-        edgesCount: graph.edges.length,
-        warnings: [...validation.warnings, ...prepared.warnings],
+        blocksCount: Object.keys(persisted.state.blocks).length,
+        edgesCount: persisted.state.edges.length,
+        warnings: [...validation.warnings, ...persisted.warnings],
         needsRedeployment: await checkNeedsRedeployment(context.workflowId),
         lint,
-        dryRun: true,
+        dryRun: false,
       }
-    }
-
-    const attribution = resolvePrincipalAttribution(principal, {
-      workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
-    const persisted = await replaceWorkflowNormalizedState({
-      workflowId: context.workflowId,
-      workspaceId: context.workspaceId,
-      attributedUserId: attribution.attributedUserId,
-      /**
-       * The same human the lint pass resolved above, and never
-       * `attribution.attributedUserId`: that answers a workspace API key with
-       * the billing owner, so reusing it would judge a caller-supplied graph
-       * against a bystander's grants. This operation admits only principals
-       * that name a human, so the `null` branch is a fail-safe rather than a
-       * reachable state.
-       */
-      subjectUserId,
-      state: {
-        blocks: graph.blocks,
-        edges: graph.edges,
-        /**
-         * Re-keyed by variable id and coerced onto each declared type by the
-         * same helper `PATCH /workflows/{id}/variables` uses, so a full
-         * replacement cannot write a shape the incremental path never
-         * produces. Omitted stays omitted — that leaves the column untouched.
-         */
-        variables:
-          input.variables === undefined
-            ? undefined
-            : normalizeWorkflowVariables(input.variables, { coerceValues: true }),
-      },
-    })
-
-    logger.info('Replaced workflow state', {
-      workflowId: context.workflowId,
-      workspaceId: context.workspaceId,
-      principalKind: principal.kind,
-    })
-
-    return {
-      workflowId: context.workflowId,
-      workflowName: context.workflow.name,
-      workspaceId: context.workspaceId,
-      blocksCount: Object.keys(persisted.state.blocks).length,
-      edgesCount: persisted.state.edges.length,
-      warnings: [...validation.warnings, ...persisted.warnings],
-      needsRedeployment: await checkNeedsRedeployment(context.workflowId),
-      lint,
-      dryRun: false,
-    }
   },
   /** A dry run changes nothing, so it projects no audit entry. */
   projectAudit: ({ principal, context, result }) =>

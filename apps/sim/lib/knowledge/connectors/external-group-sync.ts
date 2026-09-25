@@ -30,6 +30,7 @@ import {
   syncContextForToken,
 } from '@/lib/knowledge/connectors/access-token'
 import { getConnectorFailureDiagnostic } from '@/lib/knowledge/connectors/connector-error'
+import { requiresConnectorIndexing } from '@/lib/knowledge/connectors/indexing-policy'
 import { RUNNABLE_CONNECTOR_STATUSES } from '@/lib/knowledge/connectors/sync-lock'
 import { isRateLimitError } from '@/lib/knowledge/documents/utils'
 import { CONNECTOR_REGISTRY } from '@/connectors/registry.server'
@@ -573,6 +574,7 @@ export async function refreshConnectorDirectory(
       workspaceId: knowledgeBase.workspaceId,
       organizationId: knowledgeBase.organizationId,
       knowledgeBaseOwnerId: knowledgeBase.userId,
+      isSearchIndex: knowledgeBase.isSearchIndex,
       updatedAt: knowledgeConnector.updatedAt,
       lastSyncError: knowledgeConnector.lastSyncError,
     })
@@ -590,6 +592,7 @@ export async function refreshConnectorDirectory(
     .limit(1)
   if (
     !connector ||
+    !requiresConnectorIndexing(connector.isSearchIndex) ||
     !mirrorsSourceAcls(connector.accessMode) ||
     (!connector.workspaceId && !connector.organizationId)
   ) {

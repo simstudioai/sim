@@ -393,7 +393,7 @@ describe('shouldOpenUrlSuggestions', () => {
   })
 
   it('stays closed when another overlay holds the lease', () => {
-    expect(shouldOpenUrlSuggestions('credentials', 3)).toBe(false)
+    expect(shouldOpenUrlSuggestions('downloads', 3)).toBe(false)
     expect(shouldOpenUrlSuggestions('tab', 3)).toBe(false)
   })
 

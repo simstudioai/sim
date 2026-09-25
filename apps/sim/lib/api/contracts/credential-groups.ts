@@ -369,6 +369,7 @@ export type UpdateCredentialGroupBody = z.input<typeof updateCredentialGroupBody
 export const createCredentialGroupMcpConnectorBodySchema = z.discriminatedUnion('connectorId', [
   z.object({ connectorId: z.literal('fireflies') }).strict(),
   z.object({ connectorId: z.literal('granola') }).strict(),
+  z.object({ connectorId: z.literal('coda') }).strict(),
   z
     .object({
       connectorId: z.literal('databricks'),

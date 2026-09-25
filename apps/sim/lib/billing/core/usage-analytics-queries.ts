@@ -1,7 +1,19 @@
 import { dbReplica } from '@sim/db'
 import { usageLog, user, workflow, workspace } from '@sim/db/schema'
 import { and, eq, inArray, isNotNull, type SQL, sql } from 'drizzle-orm'
-import type { UsageBreakdownDimension, UsageBucket } from '@/lib/billing/core/usage-analytics'
+import {
+  buildUsageAnalyticsScope,
+  mergeRowsByKey,
+  sumUsageDays,
+  USAGE_MODEL_DIMENSIONS,
+  type UsageAnalyticsWindow,
+  type UsageBreakdownDimension,
+  type UsageBucket,
+  type UsageGroupRow,
+  usageWindowSegments,
+} from '@/lib/billing/core/usage-analytics'
+import type { BillingEntity } from '@/lib/billing/core/usage-log'
+import { readThroughSegments } from '@/lib/billing/core/usage-segment-cache'
 import { assertValidTimezone } from '@/lib/core/utils/timezone'
 import type { DbClient } from '@/lib/db/types'
 
@@ -92,9 +104,6 @@ export interface UsageBreakdownRow {
   outputTokens?: number
 }
 
-/** Dimensions keyed on `description`, which holds a model name for model categories. */
-const MODEL_DIMENSIONS = new Set<UsageBreakdownDimension>(['model', 'byok'])
-
 function breakdownColumn(dimension: UsageBreakdownDimension) {
   switch (dimension) {
     case 'member':
@@ -111,20 +120,8 @@ function breakdownColumn(dimension: UsageBreakdownDimension) {
   }
 }
 
-/**
- * Ranked totals for one dimension.
- *
- * Aggregate-first: names are hydrated by {@link readUsageEntityNames} for the
- * surviving keys only. Joining inside the aggregate would break index-only for
- * `member` and force a nested loop across the whole window.
- */
-export async function readUsageBreakdown(
-  scope: SQL[],
-  dimension: UsageBreakdownDimension,
-  executor: DbClient = dbReplica,
-  maxRows?: number
-): Promise<UsageBreakdownRow[]> {
-  const column = breakdownColumn(dimension)
+/** The rows a dimension ranks: the scope, narrowed to what that dimension can describe. */
+function breakdownConditions(scope: SQL[], dimension: UsageBreakdownDimension): SQL[] {
   const conditions = [...scope]
   /**
    * `description` holds a model name only for the model categories; a tool or fixed
@@ -140,8 +137,194 @@ export async function readUsageBreakdown(
    * of an organization's usage into a list it does not belong in.
    */
   if (dimension === 'workflow') conditions.push(isNotNull(usageLog.workflowId))
+  return conditions
+}
 
-  if (!MODEL_DIMENSIONS.has(dimension)) {
+/**
+ * One dimension's totals per local hour (`YYYY-MM-DDTHH`) or day (`YYYY-MM-DD`) of the
+ * viewer.
+ *
+ * Hours for the segment cache, which settles today hour by hour; days wherever
+ * nothing is cached, which returns a twenty-fourth of the rows. No `HAVING` here,
+ * unlike {@link readUsageBreakdown}: whether a group is billed is a property of its
+ * whole window, so the caller filters after summing — a per-stretch filter would drop
+ * the unbilled stretches of a group that is billed in others.
+ */
+export async function readUsageBreakdownOverTime(
+  scope: SQL[],
+  dimension: UsageBreakdownDimension,
+  timezone: string,
+  granularity: 'hour' | 'day',
+  executor: DbClient = dbReplica
+): Promise<Map<string, UsageGroupRow[]>> {
+  assertValidTimezone(timezone)
+  const column = breakdownColumn(dimension)
+  const withTokens = USAGE_MODEL_DIMENSIONS.has(dimension)
+  const grouped = executor
+    .select({
+      stretch:
+        sql`date_trunc(${granularity}, (${usageLog.createdAt} AT TIME ZONE 'UTC') AT TIME ZONE ${timezone})`.as(
+          'stretch'
+        ),
+      key: sql<string | null>`${column}`.as('key'),
+      cost: sql<string>`SUM(${usageLog.cost})`.as('cost'),
+      events: sql<number>`COUNT(*)`.mapWith(Number).as('events'),
+      inputTokens: (withTokens
+        ? sql<number>`SUM((${usageLog.metadata}->>'inputTokens')::bigint)`
+        : sql<number>`0`
+      )
+        .mapWith(Number)
+        .as('input_tokens'),
+      outputTokens: (withTokens
+        ? sql<number>`SUM((${usageLog.metadata}->>'outputTokens')::bigint)`
+        : sql<number>`0`
+      )
+        .mapWith(Number)
+        .as('output_tokens'),
+    })
+    .from(usageLog)
+    .where(and(...breakdownConditions(scope, dimension)))
+    .groupBy(sql`1`, sql`2`)
+    .as('grouped')
+
+  /** Format the aggregated groups rather than every ledger entry. */
+  const rows = await executor
+    .select({
+      stretch: sql<string>`to_char(${grouped.stretch}, ${granularity === 'hour' ? 'YYYY-MM-DD"T"HH24' : 'YYYY-MM-DD'})`,
+      key: grouped.key,
+      cost: grouped.cost,
+      events: grouped.events,
+      inputTokens: grouped.inputTokens,
+      outputTokens: grouped.outputTokens,
+    })
+    .from(grouped)
+
+  const byStretch = new Map<string, UsageGroupRow[]>()
+  for (const row of rows) {
+    const entry: UsageGroupRow = {
+      key: row.key,
+      cost: Number.parseFloat(row.cost) || 0,
+      events: row.events,
+      ...(withTokens
+        ? { inputTokens: row.inputTokens || 0, outputTokens: row.outputTokens || 0 }
+        : {}),
+    }
+    const stretchRows = byStretch.get(row.stretch)
+    if (stretchRows) stretchRows.push(entry)
+    else byStretch.set(row.stretch, [entry])
+  }
+  return byStretch
+}
+
+/**
+ * Ledger rows are immutable once settled, so a usage segment only expires to heal a
+ * straggler and to release organizations nobody is viewing.
+ */
+const USAGE_SEGMENT_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+interface ReadUsageDaysArgs {
+  entity: BillingEntity
+  window: UsageAnalyticsWindow
+  timezone: string
+  dimension: UsageBreakdownDimension
+  workspaceId?: string
+}
+
+/**
+ * {@link readUsageBreakdownOverTime} for a whole window as `[day, rows]` entries, with
+ * settled days and hours from the cache. A day can appear in more than one entry.
+ *
+ * A window matched on `created_at` — any range, or a reporting period — cuts cleanly
+ * at the viewer's midnights and hours, so each settled stretch is read once and
+ * reused by every later view. A stripe or default period matches the stamps rows
+ * carry rather than when they were created, so it has nothing to cut and reads the
+ * ledger directly.
+ */
+export async function readUsageDays({
+  entity,
+  window,
+  timezone,
+  dimension,
+  workspaceId,
+}: ReadUsageDaysArgs): Promise<[string, UsageGroupRow[]][]> {
+  if (window.kind === 'period' && window.period.source !== 'reporting') {
+    return [
+      ...(await readUsageBreakdownOverTime(
+        buildUsageAnalyticsScope(entity, window, workspaceId),
+        dimension,
+        timezone,
+        'day'
+      )),
+    ]
+  }
+  return readThroughSegments<UsageGroupRow[]>({
+    namespace: `${entity.type}:${entity.id}:${workspaceId ?? '*'}:${timezone}:${dimension}`,
+    segments: usageWindowSegments(window, timezone),
+    empty: [],
+    combine: (values) => mergeRowsByKey(values.flat(), (key) => key),
+    ttlMs: USAGE_SEGMENT_TTL_MS,
+    fetchRange: (from, to) =>
+      readUsageBreakdownOverTime(
+        buildUsageAnalyticsScope(entity, { kind: 'range', from, to }, workspaceId),
+        dimension,
+        timezone,
+        'hour'
+      ),
+  })
+}
+
+interface ReadUsageGroupsArgs extends ReadUsageDaysArgs {
+  /** Refuses a window with more groups than this — the public API's bound. */
+  maxRows?: number
+}
+
+/**
+ * One dimension's usage per key over a whole window — the one entry point a ranking
+ * reads through, whichever store answers it.
+ *
+ * Every dimension but `workflow` has at most a few hundred keys a day and reads
+ * through the segment cache. Workflows can number in the thousands, so a window of
+ * them per hour would be a large cache entry for a list only the Workspaces drill-down
+ * shows. They, and any read with a `maxRows` bound — the public API's — go to the
+ * ledger directly, where the bound stops the scan instead of a full window being
+ * summed first. A capped read can return one row past `maxRows`, which is how the
+ * caller knows the window was too large.
+ */
+export async function readUsageGroups({
+  maxRows,
+  ...args
+}: ReadUsageGroupsArgs): Promise<UsageGroupRow[]> {
+  if (args.dimension === 'workflow' || maxRows !== undefined) {
+    const rows = await readUsageBreakdown(
+      buildUsageAnalyticsScope(args.entity, args.window, args.workspaceId),
+      args.dimension,
+      undefined,
+      maxRows
+    )
+    return mergeRowsByKey(rows, (key) => key)
+  }
+  return sumUsageDays(await readUsageDays(args), {
+    billedOnly: !USAGE_MODEL_DIMENSIONS.has(args.dimension),
+  })
+}
+
+/**
+ * Ranked totals for one dimension.
+ *
+ * Aggregate-first: names and avatars are hydrated by {@link readUsageEntities} for the
+ * surviving keys only. Joining inside the aggregate would break index-only for
+ * `member` and force a nested loop across the whole window.
+ */
+export async function readUsageBreakdown(
+  scope: SQL[],
+  dimension: UsageBreakdownDimension,
+  executor: DbClient = dbReplica,
+  maxRows?: number
+): Promise<UsageBreakdownRow[]> {
+  const column = breakdownColumn(dimension)
+  const conditions = breakdownConditions(scope, dimension)
+
+  if (!USAGE_MODEL_DIMENSIONS.has(dimension)) {
     const query = executor
       .select({
         key: sql<string | null>`${column}`,
@@ -188,25 +371,35 @@ export async function readUsageBreakdown(
   return maxRows === undefined ? query : query.limit(maxRows + 1)
 }
 
+export interface UsageEntity {
+  name: string
+  image?: string
+}
+
 /**
- * Display names for the top-N keys of an entity-backed dimension.
+ * Names, and member avatars, for the top-N keys of an entity-backed dimension.
  *
  * Members fall back to email because a user may have no name set, and an empty row
  * label is worse than an address.
  */
-export async function readUsageEntityNames(
+export async function readUsageEntities(
   dimension: UsageBreakdownDimension,
   ids: string[],
   executor: DbClient = dbReplica
-): Promise<Map<string, string>> {
+): Promise<Map<string, UsageEntity>> {
   if (ids.length === 0) return new Map()
 
   if (dimension === 'member') {
     const rows = await executor
-      .select({ id: user.id, name: user.name, email: user.email })
+      .select({ id: user.id, name: user.name, email: user.email, image: user.image })
       .from(user)
       .where(inArray(user.id, ids))
-    return new Map(rows.map((row) => [row.id, row.name?.trim() || row.email]))
+    return new Map(
+      rows.map((row) => [
+        row.id,
+        { name: row.name?.trim() || row.email, ...(row.image ? { image: row.image } : {}) },
+      ])
+    )
   }
 
   if (dimension === 'workspace') {
@@ -214,7 +407,7 @@ export async function readUsageEntityNames(
       .select({ id: workspace.id, name: workspace.name })
       .from(workspace)
       .where(inArray(workspace.id, ids))
-    return new Map(rows.map((row) => [row.id, row.name]))
+    return new Map(rows.map((row) => [row.id, { name: row.name }]))
   }
 
   if (dimension === 'workflow') {
@@ -222,7 +415,7 @@ export async function readUsageEntityNames(
       .select({ id: workflow.id, name: workflow.name })
       .from(workflow)
       .where(inArray(workflow.id, ids))
-    return new Map(rows.map((row) => [row.id, row.name]))
+    return new Map(rows.map((row) => [row.id, { name: row.name }]))
   }
 
   return new Map()

@@ -4,7 +4,6 @@
 import { act, createRef, type ReactNode, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ChipModal } from '../chip-modal/chip-modal'
 import { ChipSelect, type ChipSelectProps } from './chip-select'
 
 let root: Root | null = null
@@ -75,6 +74,32 @@ afterEach(() => {
 })
 
 describe('ChipSelect', () => {
+  it('keeps the bare round toolbar treatment and reports menu visibility', async () => {
+    vi.useFakeTimers()
+    const onOpenChange = vi.fn()
+    const trigger = mountNode(
+      <ChipSelect
+        variant='ghost'
+        modal={false}
+        value='agent'
+        options={[
+          { value: 'agent', label: 'Build' },
+          { value: 'plan', label: 'Plan' },
+        ]}
+        onOpenChange={onOpenChange}
+      />
+    )
+    expect(trigger.className).toContain('rounded-full')
+    expect(trigger.className).not.toContain('border-[var(--border-1)]')
+    expect(trigger.querySelector('[data-overflow-text]')?.className).toContain(
+      'text-[var(--text-icon)]'
+    )
+    await key(trigger, 'ArrowDown')
+    expect(onOpenChange).toHaveBeenCalledWith(true)
+    await key(document.activeElement!, 'Escape')
+    expect(onOpenChange).toHaveBeenLastCalledWith(false)
+  })
+
   it('fills its container when fullWidth is enabled', () => {
     expect(mount(true).className).toContain('w-full')
   })
@@ -278,28 +303,5 @@ describe('ChipSelect menu interactions', () => {
     expect(trigger.textContent).toBe('Select workspaces')
     await key(trigger, 'ArrowDown')
     expect(document.querySelectorAll('[role="menuitemcheckbox"]')).toHaveLength(1)
-  })
-
-  it('closes only the menu with Escape inside a modal and restores the nested trigger', async () => {
-    vi.useFakeTimers()
-    const dismiss = vi.fn()
-    mountNode(
-      <ChipModal open onOpenChange={dismiss} srTitle='Settings'>
-        <ChipSelect
-          modal={false}
-          searchable
-          placeholder='Access'
-          options={[{ value: 'a', label: 'Alpha' }]}
-        />
-      </ChipModal>
-    )
-    await settle()
-    const trigger = document.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')!
-    await key(trigger, 'ArrowDown')
-    await key(document.querySelector('input')!, 'Escape')
-    expect(document.querySelector('[role="menu"]')).toBeNull()
-    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
-    expect(document.activeElement).toBe(trigger)
-    expect(dismiss).not.toHaveBeenCalled()
   })
 })

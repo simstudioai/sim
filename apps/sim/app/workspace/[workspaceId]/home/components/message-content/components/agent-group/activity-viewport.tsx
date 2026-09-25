@@ -1,12 +1,18 @@
 'use client'
 
 import { type ReactNode, useEffect, useLayoutEffect, useRef } from 'react'
-import { cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
+import {
+  cn,
+  overflowFadeSizeClass,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  useScrollEdges,
+} from '@sim/emcn'
 
 interface ActivityViewportProps {
   children: ReactNode
   isStreaming: boolean
-  /** A nested blocking interaction must not be clipped by this ancestor's log viewport. */
+  /** Keeps nested interactions or independently scrolling detail lists from being clipped. */
   unbounded?: boolean
 }
 
@@ -86,7 +92,7 @@ export function ActivityViewport({
         'pr-2',
         !unbounded && 'scrollbar-hide max-h-[110px] overflow-y-auto',
         scrollFadeClass,
-        (edges.top || edges.bottom) && 'py-1'
+        overflowFadeSizeClass
       )}
       {...scrollFadeAttributes(edges)}
     >

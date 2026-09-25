@@ -204,11 +204,11 @@ describe('workspace SettingsSidebar organization rollout', () => {
   })
 
   it.each(['member', 'external'] as const)(
-    'does not expose organization review to a workspace admin who is an org %s',
+    'offers own requests to a workspace user who is an org %s',
     (role) => {
       hostContext = makeHostContext(role, false)
       renderSidebar()
-      expect(workspaceLink('requests')).toBeNull()
+      expect(workspaceLink('requests')).toHaveTextContent('Requests')
     }
   )
 

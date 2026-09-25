@@ -4,6 +4,7 @@ import { TABLE_LIMITS } from '@/lib/table/constants'
 import { filterRulesToFilter, sortRulesToSort } from '@/lib/table/query-builder/converters'
 import type { BlockConfig } from '@/blocks/types'
 import { parseOptionalNumberInput } from '@/blocks/utils'
+import { TABLE_ID_PARAM } from '@/tools/table/params'
 import type { TableQueryResponse } from '@/tools/table/types'
 import { getTrigger } from '@/triggers'
 
@@ -735,7 +736,7 @@ Return ONLY the sort JSON:`,
 
   inputs: {
     operation: { type: 'string', description: 'Table operation to perform' },
-    tableId: { type: 'string', description: 'Table identifier' },
+    tableId: { type: 'string', description: TABLE_ID_PARAM.description },
     data: { type: 'json', description: 'Row data for insert/update' },
     rows: { type: 'array', description: 'Array of row data for batch insert' },
     rowId: { type: 'string', description: 'Row identifier for ID-based operations' },

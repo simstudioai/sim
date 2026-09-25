@@ -22,6 +22,7 @@
 
 import * as React from 'react'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
+import { RowActions, rowActionsGroupClass } from '@sim/emcn'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronRight, Circle, Search } from '../../icons'
 import { cn } from '../../lib/cn'
@@ -209,10 +210,26 @@ const DropdownMenuSubTrigger = React.forwardRef<
     inset?: boolean
     asChild?: boolean
   }
->(({ className, inset, children, asChild, ...props }, ref) => {
+>(({ className, inset, children, asChild, onPointerLeave, ...props }, ref) => {
+  const handlePointerLeave = (event: React.PointerEvent<HTMLDivElement>) => {
+    onPointerLeave?.(event)
+    if (event.defaultPrevented) return
+    const submenuId = event.currentTarget.getAttribute('aria-controls')
+    const submenu = submenuId && event.currentTarget.ownerDocument.getElementById(submenuId)
+    /** Direct portal entry must not depend on Radix's last in-parent pointer direction. */
+    if (event.relatedTarget instanceof Node && submenu && submenu.contains(event.relatedTarget)) {
+      event.preventDefault()
+    }
+  }
   if (asChild) {
     return (
-      <DropdownMenuPrimitive.SubTrigger ref={ref} asChild className={className} {...props}>
+      <DropdownMenuPrimitive.SubTrigger
+        ref={ref}
+        asChild
+        className={className}
+        {...props}
+        onPointerLeave={handlePointerLeave}
+      >
         {children}
       </DropdownMenuPrimitive.SubTrigger>
     )
@@ -220,6 +237,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
   return (
     <DropdownMenuPrimitive.SubTrigger
       ref={ref}
+      onPointerLeave={handlePointerLeave}
       className={cn(
         /* An open submenu keeps its trigger on the selected surface — including while
            the pointer is on it, so walking into the submenu doesn't drop the trigger
@@ -356,7 +374,7 @@ const DropdownMenuItem = React.forwardRef<
     if (action) {
       return (
         <div
-          className='group/dropdownitem relative'
+          className={cn('group/dropdownitem relative', rowActionsGroupClass)}
           onKeyDown={(event) => {
             if (
               event.defaultPrevented ||
@@ -393,7 +411,9 @@ const DropdownMenuItem = React.forwardRef<
               actionIndicator || actionOpen
                 ? 'pr-[28px]'
                 : '[@media(hover:hover)]:group-focus-within/dropdownitem:pr-[28px] [@media(hover:hover)]:group-hover/dropdownitem:pr-[28px]',
-              actionIndicator ? '[@media(hover:none)]:pr-[52px]' : '[@media(hover:none)]:pr-[28px]',
+              actionIndicator
+                ? '[@media(any-pointer:coarse)]:pr-[52px] [@media(hover:none)]:pr-[52px]'
+                : '[@media(any-pointer:coarse)]:pr-[28px] [@media(hover:none)]:pr-[28px]',
               inset && 'pl-7',
               className
             )}
@@ -402,27 +422,14 @@ const DropdownMenuItem = React.forwardRef<
           >
             {content}
           </DropdownMenuPrimitive.Item>
-          <div className='-translate-y-1/2 pointer-events-none absolute top-1/2 right-1 flex size-[18px] items-center gap-1.5 [@media(hover:none)]:w-auto'>
-            {actionIndicator && (
-              <div
-                className={cn(
-                  'pointer-events-none flex size-[18px] shrink-0 items-center justify-center [@media(hover:hover)]:group-focus-within/dropdownitem:opacity-0 [@media(hover:hover)]:group-hover/dropdownitem:opacity-0',
-                  actionOpen && '[@media(hover:hover)]:opacity-0'
-                )}
-              >
-                {actionIndicator}
-              </div>
-            )}
-            <div
-              ref={actionRef}
-              className={cn(
-                'pointer-events-none absolute inset-0 flex items-center opacity-0 transition-opacity group-focus-within/dropdownitem:pointer-events-auto group-focus-within/dropdownitem:opacity-100 group-hover/dropdownitem:pointer-events-auto group-hover/dropdownitem:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:static [@media(hover:none)]:opacity-100',
-                actionOpen && 'pointer-events-auto opacity-100'
-              )}
-            >
-              {action}
-            </div>
-          </div>
+          <RowActions
+            indicator={actionIndicator}
+            open={actionOpen}
+            actionRef={actionRef}
+            className='-translate-y-1/2 absolute top-1/2 right-1'
+          >
+            {action}
+          </RowActions>
         </div>
       )
     }

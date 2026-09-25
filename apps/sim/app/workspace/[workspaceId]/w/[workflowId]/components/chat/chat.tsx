@@ -137,11 +137,12 @@ function ChatFilePreview({ file, onRemove }: ChatFilePreviewProps) {
       <Button
         aria-label='Remove file'
         variant='ghost'
+        size='icon'
         onClick={(event) => {
           event.stopPropagation()
           onRemove(file.id)
         }}
-        className='absolute top-0.5 right-0.5 size-4 p-0 opacity-0 transition-opacity group-hover:opacity-100'
+        className='absolute top-0.5 right-0.5 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100'
       >
         <X className='size-2.5' />
       </Button>

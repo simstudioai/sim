@@ -8,7 +8,13 @@ import type {
   BillingReadOperation,
   BillingReadPrincipal,
 } from '@/lib/billing/application/operations'
-import { type OperationUseCase, requireUserCredentialCapabilities } from '@/lib/core/application'
+import { copilotBillingOperations } from '@/lib/billing/application/operations'
+import {
+  authorizeWorkspaceOperation,
+  type OperationUseCase,
+  requireUserCredentialCapabilities,
+} from '@/lib/core/application'
+import { isCopilotWorkspaceInvocation } from '@/lib/core/application/copilot-workspace-invocation'
 import { requireOAuthOperationScope } from '@/lib/core/application/oauth-authorization'
 import {
   InsufficientWorkspacePermissionsError,
@@ -56,6 +62,25 @@ async function resolveBillingReadScope(
   operation: BillingReadOperation,
   requestedWorkspaceId: string | undefined
 ): Promise<BillingReadScope> {
+  if (principal.kind === 'delegated') {
+    if (!isCopilotWorkspaceInvocation(principal))
+      throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
+    if (requestedWorkspaceId && requestedWorkspaceId !== principal.workspaceId)
+      throw new WorkspaceApiKeyScopeAuthorizationError()
+    const workspaceOperation = Object.values(copilotBillingOperations).find(
+      (candidate) => candidate.id === operation.id
+    )
+    if (!workspaceOperation) throw new Error('Missing private workspace read policy')
+    const workspace = await loadActiveWorkspaceApplicationContext(principal.workspaceId)
+    if (!workspace) throw new OrchestrationError('not_found', 'Workspace not found')
+    await authorizeWorkspaceOperation(principal, workspaceOperation, workspace, {
+      delegation: {
+        audience: 'sim:billing',
+        isWithinScope: (actor, target) => actor.workspaceId === target.workspaceId,
+      },
+    })
+    return { kind: 'workspace', workspace }
+  }
   if (principal.kind === 'workspace_api_key') {
     if (requestedWorkspaceId && requestedWorkspaceId !== principal.workspaceId) {
       /**
@@ -154,6 +179,7 @@ export function defineAuthorizedBillingReadUseCase<const O extends BillingReadOp
 ): OperationUseCase<O, I, R> {
   return {
     operation: definition.operation,
+    delegationAudience: 'sim:billing',
     async execute({ principal, input }) {
       requireBillingReadPrincipal(principal, definition.operation)
       requireOAuthOperationScope(principal, definition.operation)

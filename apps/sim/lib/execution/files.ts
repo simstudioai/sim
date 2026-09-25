@@ -1,6 +1,21 @@
+import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import { isPlainRecord } from '@sim/utils/object'
 import { withResourceOutboundScope } from '@/lib/core/network/resource-scope.server'
+import { getExecutionKeyParts } from '@/lib/execution/payloads/access-keys'
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution'
+import { generatePresignedDownloadUrl } from '@/lib/uploads/core/storage-service'
+import { getFileMetadataById, getFileMetadataByKey } from '@/lib/uploads/server/metadata'
+import { getWorkspaceFileSize } from '@/lib/uploads/shared/types'
+import {
+  extractWorkspaceIdFromStorageKey,
+  inferContextFromKey,
+  isInternalFileUrl,
+  parseInternalFileUrl,
+} from '@/lib/uploads/utils/file-utils'
+import { workflowFileInputSchema } from '@/lib/workflows/input-file-schema'
+import { isFileFieldType } from '@/lib/workflows/input-format'
 import { TRIGGER_TYPES } from '@/lib/workflows/triggers/triggers'
 import type { InputFormatField } from '@/lib/workflows/types'
 import type { UserFile } from '@/executor/types'
@@ -11,27 +26,165 @@ const logger = createLogger('ExecutionFiles')
 const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
 
 /**
+ * Which stored files an input reference (`id`, `key`, or internal file URL) may resolve to.
+ *
+ * - `workspace`: any live file in the executing workspace. Only for callers acting as an
+ *   authorized workspace member, since a resolved file becomes readable by the run.
+ * - `execution`: only files already stored under this execution, such as the uploads a chat
+ *   or webhook entry point makes before handing its input on. Every other reference is
+ *   rejected, so a caller outside the workspace cannot pull in files it names by key or ID.
+ */
+export type StoredFileReferenceScope = 'workspace' | 'execution'
+
+const STORED_FILE_REFERENCE_DENIED =
+  'Stored file references require workspace member access; send the file content instead'
+
+/**
+ * The stored-file reference scope an execution principal may use. Only principals that the
+ * entry point authorized as the workspace's own members get `workspace`; system principals
+ * (public API, public MCP, chat, webhook, schedule, table, internal) never do.
+ */
+export function getStoredFileReferenceScope(
+  principal: WorkflowExecutionPrincipal
+): StoredFileReferenceScope {
+  switch (principal.kind) {
+    case 'session':
+    case 'personal_api_key':
+    case 'oauth_access_token':
+    case 'workspace_api_key':
+    case 'delegated':
+      return 'workspace'
+    default:
+      return 'execution'
+  }
+}
+
+function isCurrentExecutionFileKey(
+  key: string,
+  executionContext: { workspaceId: string; workflowId: string; executionId: string }
+): boolean {
+  const parts = getExecutionKeyParts(key)
+  return (
+    parts?.workspaceId === executionContext.workspaceId &&
+    parts.workflowId === executionContext.workflowId &&
+    parts.executionId === executionContext.executionId
+  )
+}
+
+/**
+ * Resolves a reference to an already-stored file under `storedFileScope`. Outside `workspace`
+ * scope only this execution's own files resolve, and a key naming any other file is refused
+ * before it is looked up, so the refusal reveals nothing about whether that file exists.
+ */
+async function resolveStoredFileReference(
+  reference: { key?: string; id?: string },
+  executionContext: { workspaceId: string; workflowId: string; executionId: string },
+  storedFileScope: StoredFileReferenceScope
+): Promise<UserFile> {
+  if (
+    storedFileScope !== 'workspace' &&
+    reference.key &&
+    !isCurrentExecutionFileKey(reference.key, executionContext)
+  ) {
+    throw new Error(STORED_FILE_REFERENCE_DENIED)
+  }
+  const record = reference.key
+    ? await getFileMetadataByKey(reference.key)
+    : reference.id
+      ? await getFileMetadataById(reference.id)
+      : null
+  if (
+    !record ||
+    record.deletedAt ||
+    record.workspaceId !== executionContext.workspaceId ||
+    extractWorkspaceIdFromStorageKey(record.key) !== executionContext.workspaceId ||
+    (record.context !== 'workspace' &&
+      record.context !== 'mothership' &&
+      record.context !== 'execution')
+  ) {
+    throw new Error(
+      storedFileScope === 'workspace'
+        ? 'File not found in this workspace'
+        : STORED_FILE_REFERENCE_DENIED
+    )
+  }
+  if (storedFileScope !== 'workspace' && !isCurrentExecutionFileKey(record.key, executionContext)) {
+    throw new Error(STORED_FILE_REFERENCE_DENIED)
+  }
+  const storageContext = inferContextFromKey(record.key)
+  return {
+    id: record.id,
+    name: record.originalName,
+    type: record.contentType,
+    size: getWorkspaceFileSize(record),
+    key: record.key,
+    context: storageContext,
+    url: await generatePresignedDownloadUrl(record.key, storageContext, 5 * 60),
+  }
+}
+
+/**
  * Process a single file for workflow execution - handles base64 ('file' type) and URL downloads ('url' type)
  */
 export async function processExecutionFile(
-  file: { type: string; data: string; name: string; mime?: string },
+  fileInput: unknown,
   executionContext: { workspaceId: string; workflowId: string; executionId: string },
   requestId: string,
-  userId?: string
+  userId?: string,
+  storedFileScope: StoredFileReferenceScope = 'execution'
 ): Promise<UserFile | null> {
+  const parsed = workflowFileInputSchema.safeParse(fileInput)
+  if (!parsed.success) throw new Error('Invalid workflow file input')
+  const candidate = parsed.data
+  if (!('data' in candidate) || typeof candidate.data !== 'string') {
+    let key = 'key' in candidate && typeof candidate.key === 'string' ? candidate.key : undefined
+    if (
+      !key &&
+      'url' in candidate &&
+      typeof candidate.url === 'string' &&
+      isInternalFileUrl(candidate.url)
+    ) {
+      key = parseInternalFileUrl(candidate.url).key
+    }
+    const id = 'id' in candidate && typeof candidate.id === 'string' ? candidate.id : undefined
+    return resolveStoredFileReference({ key, id }, executionContext, storedFileScope)
+  }
+  const upload =
+    'mimeType' in candidate && typeof candidate.mimeType === 'string'
+      ? {
+          type: 'file',
+          name: candidate.name,
+          data: candidate.data.startsWith('data:')
+            ? candidate.data
+            : `data:${candidate.mimeType};base64,${candidate.data}`,
+          mime: candidate.mimeType,
+        }
+      : candidate
+  if (
+    !('type' in upload) ||
+    !('name' in upload) ||
+    typeof upload.name !== 'string' ||
+    typeof upload.data !== 'string'
+  ) {
+    throw new Error('Invalid workflow upload input')
+  }
+  const file = {
+    type: upload.type,
+    data: upload.data,
+    name: upload.name,
+    mime: 'mime' in upload && typeof upload.mime === 'string' ? upload.mime : undefined,
+  }
   if (file.type === 'file' && file.data && file.name) {
     const dataUrlPrefix = 'data:'
     const base64Prefix = ';base64,'
 
     if (!file.data.startsWith(dataUrlPrefix)) {
-      logger.warn(`[${requestId}] Invalid data format for file: ${file.name}`)
-      return null
+      throw new Error(`Invalid data URL for file: ${file.name}`)
     }
 
     const base64Index = file.data.indexOf(base64Prefix)
     if (base64Index === -1) {
-      logger.warn(`[${requestId}] Invalid data format (no base64 marker) for file: ${file.name}`)
-      return null
+      throw new Error(`Missing base64 marker for file: ${file.name}`)
     }
 
     const mimeType = file.data.substring(dataUrlPrefix.length, base64Index)
@@ -57,6 +210,13 @@ export async function processExecutionFile(
   }
 
   if (file.type === 'url' && file.data) {
+    if (storedFileScope !== 'workspace' && isInternalFileUrl(file.data)) {
+      return resolveStoredFileReference(
+        { key: parseInternalFileUrl(file.data).key },
+        executionContext,
+        storedFileScope
+      )
+    }
     const { downloadFileFromUrl } = await import('@/lib/uploads/utils/file-utils.server')
     const buffer = await withResourceOutboundScope(executionContext, () =>
       downloadFileFromUrl(file.data, { userId })
@@ -87,14 +247,14 @@ export async function processExecutionFile(
  * Process all files for a given field in workflow execution input
  */
 export async function processExecutionFiles(
-  fieldValue: any,
+  fieldValue: unknown,
   executionContext: { workspaceId: string; workflowId: string; executionId: string },
   requestId: string,
-  userId?: string
+  userId?: string,
+  storedFileScope: StoredFileReferenceScope = 'execution'
 ): Promise<UserFile[]> {
-  if (!fieldValue || typeof fieldValue !== 'object') {
-    return []
-  }
+  if (fieldValue === undefined || fieldValue === null) return []
+  if (typeof fieldValue !== 'object') throw new Error('Workflow files must be file objects')
 
   const files = Array.isArray(fieldValue) ? fieldValue : [fieldValue]
   const uploadedFiles: UserFile[] = []
@@ -102,14 +262,20 @@ export async function processExecutionFiles(
 
   for (const file of files) {
     try {
-      const userFile = await processExecutionFile(file, fullContext, requestId, userId)
+      const userFile = await processExecutionFile(
+        file,
+        fullContext,
+        requestId,
+        userId,
+        storedFileScope
+      )
 
       if (userFile) {
         uploadedFiles.push(userFile)
       }
     } catch (error) {
-      logger.error(`[${requestId}] Failed to process file ${file.name}:`, error)
-      throw new Error(`Failed to upload file: ${file.name}`)
+      logger.error(`[${requestId}] Failed to process workflow file`, error)
+      throw new Error(`Failed to process workflow file: ${getErrorMessage(error, 'Invalid file')}`)
     }
   }
 
@@ -119,7 +285,8 @@ export async function processExecutionFiles(
 /**
  * Extract inputFormat fields from a start block or trigger block
  */
-type ValidatedInputFormatField = Required<Pick<InputFormatField, 'name' | 'type'>>
+type ValidatedInputFormatField = Required<Pick<InputFormatField, 'name' | 'type'>> &
+  Pick<InputFormatField, 'value'>
 
 function extractInputFormatFromBlock(block: SerializedBlock): ValidatedInputFormatField[] {
   const metadata = block.metadata as { subBlocks?: Record<string, { value?: unknown }> } | undefined
@@ -145,19 +312,26 @@ function extractInputFormatFromBlock(block: SerializedBlock): ValidatedInputForm
 /**
  * Process file fields in workflow input based on the start block's inputFormat
  * This handles base64 and URL file inputs from API calls
+ *
+ * `storedFileScope` bounds stored references supplied by the caller. Defaults declared on the
+ * trigger's input format are authored by the workflow's own editors and resolve workspace-wide.
  */
 export async function processInputFileFields(
   input: unknown,
   blocks: SerializedBlock[],
   executionContext: { workspaceId: string; workflowId: string; executionId: string },
   requestId: string,
-  userId?: string
+  userId?: string,
+  triggerBlockId?: string,
+  onFileResolved?: (file: UserFile) => void,
+  storedFileScope: StoredFileReferenceScope = 'execution'
 ): Promise<unknown> {
   if (!input || typeof input !== 'object' || blocks.length === 0) {
     return input
   }
 
   const startBlock = blocks.find((block) => {
+    if (triggerBlockId) return block.id === triggerBlockId
     const blockType = block.metadata?.id
     return (
       blockType === TRIGGER_TYPES.START ||
@@ -173,7 +347,16 @@ export async function processInputFileFields(
   }
 
   const inputFormat = extractInputFormatFromBlock(startBlock)
-  const fileFields = inputFormat.filter((field) => field.type === 'file[]')
+  const fileFields = inputFormat.filter((field) => isFileFieldType(field.type))
+  if (
+    (startBlock.metadata?.id === TRIGGER_TYPES.START ||
+      startBlock.metadata?.id === TRIGGER_TYPES.CHAT ||
+      startBlock.metadata?.id === TRIGGER_TYPES.STARTER) &&
+    isPlainRecord(input) &&
+    Array.isArray(input.files) &&
+    !fileFields.some((field) => field.name === 'files')
+  )
+    fileFields.push({ name: 'files', type: 'file[]' })
 
   if (fileFields.length === 0) {
     return input
@@ -182,18 +365,31 @@ export async function processInputFileFields(
   const processedInput = { ...input } as Record<string, unknown>
 
   for (const fileField of fileFields) {
-    const fieldValue = processedInput[fileField.name]
+    const nestedInput = isPlainRecord(processedInput.input) ? processedInput.input : undefined
+    const isNested = nestedInput !== undefined && Object.hasOwn(nestedInput, fileField.name)
+    const callerValue = isNested ? nestedInput[fileField.name] : processedInput[fileField.name]
+    let fieldValue = callerValue ?? fileField.value
+    if (typeof fieldValue === 'string' && fieldValue.trim()) {
+      try {
+        fieldValue = JSON.parse(fieldValue)
+      } catch {
+        throw new Error(`Invalid file input for field: ${fileField.name}`)
+      }
+    }
 
-    if (fieldValue && typeof fieldValue === 'object') {
+    if (fieldValue !== undefined && fieldValue !== null && fieldValue !== '') {
       const uploadedFiles = await processExecutionFiles(
         fieldValue,
         executionContext,
         requestId,
-        userId
+        userId,
+        callerValue === undefined || callerValue === null ? 'workspace' : storedFileScope
       )
 
+      for (const file of uploadedFiles) onFileResolved?.(file)
+      if (isNested) processedInput.input = { ...nestedInput, [fileField.name]: uploadedFiles }
+      else processedInput[fileField.name] = uploadedFiles
       if (uploadedFiles.length > 0) {
-        processedInput[fileField.name] = uploadedFiles
         logger.info(
           `[${requestId}] Successfully processed ${uploadedFiles.length} file(s) for field: ${fileField.name}`
         )

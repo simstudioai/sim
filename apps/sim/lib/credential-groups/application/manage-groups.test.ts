@@ -53,20 +53,14 @@ vi.mock('@sim/platform-authz/workspace', () => ({
   resolveEffectiveWorkspacePermission: mocks.resolvePermission,
 }))
 
-/** The VFS lazy-read regression exercises account authorization, not provider registries. */
-vi.mock('@/blocks/registry-maps', () => ({ BLOCK_REGISTRY: {}, BLOCK_META_REGISTRY: {} }))
-vi.mock('@/connectors/registry.server', () => ({ CONNECTOR_REGISTRY: {} }))
-vi.mock('@/triggers/registry', () => ({ TRIGGER_REGISTRY: {} }))
-
-import { loadCopilotConnectedAccounts } from '@/lib/copilot/application/load-connected-accounts'
-import { requireTrustedCopilotExecutionContext } from '@/lib/copilot/auth/application-delegation'
-import { WorkspaceVFS } from '@/lib/copilot/vfs/workspace-vfs'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   ensureWorkspaceAccounts,
   getCredentialGroupSettings,
   getWorkspaceAccountsSettings,
 } from '@/lib/credential-groups/application/manage-groups'
+import { loadCopilotConnectedAccounts } from '@/lib/mothership/application/load-connected-accounts'
+import { requireTrustedCopilotExecutionContext } from '@/lib/mothership/auth/application-delegation'
 
 const workspaceContext = {
   workspaceId: 'workspace-1',
@@ -109,20 +103,6 @@ function copilotPrincipal(overrides: Partial<DelegatedPrincipal> = {}): Delegate
     resourceScope: { chatId: 'chat-1' },
     ...overrides,
   }
-}
-
-function mountAccounts(vfs: WorkspaceVFS, permission = 'admin', enabled = true) {
-  return (
-    vfs as unknown as {
-      materializeConnectedAccounts(context: {
-        features: { credentialGroups: boolean }
-        viewer: { permission: string }
-      }): boolean
-    }
-  ).materializeConnectedAccounts({
-    features: { credentialGroups: enabled },
-    viewer: { permission },
-  })
 }
 
 describe('Credential Group Settings application operations', () => {
@@ -202,73 +182,25 @@ describe('Credential Group Settings application operations', () => {
     expect(mocks.listEnrollments).not.toHaveBeenCalled()
   })
 
-  it('reauthorizes a mounted lazy account catalog after the admin is demoted', async () => {
-    const vfs = new WorkspaceVFS(undefined, undefined, () =>
-      loadCopilotConnectedAccounts(copilotContext)
-    )
-    expect(mountAccounts(vfs)).toBe(true)
-    expect(vfs.glob('organization/*')).toContain('organization/connected-accounts.json')
-    expect(mocks.list).not.toHaveBeenCalled()
-
+  it('reauthorizes connected-account reads after the acting admin is demoted', async () => {
+    await loadCopilotConnectedAccounts(copilotContext)
+    mocks.list.mockClear()
     mocks.resolvePermission.mockResolvedValue('read')
-    await expect(vfs.read('organization/connected-accounts.json')).resolves.toBeNull()
+    await expect(loadCopilotConnectedAccounts(copilotContext)).rejects.toMatchObject({
+      code: 'forbidden',
+    })
     expect(mocks.list).not.toHaveBeenCalled()
     expect(mocks.listEnrollments).not.toHaveBeenCalled()
   })
 
-  it('loads only singleton readiness when an admin opens the catalog', async () => {
-    mocks.list.mockResolvedValue({
-      id: 'internal-container-id',
-      status: 'active',
-      options: [
-        {
-          id: 'internal-option-id',
-          provider: 'slack',
-          status: 'active',
-          configurationStatus: 'ready',
-          slackBotCredentialId: 'internal-credential-id',
-        },
-      ],
-    })
-    const vfs = new WorkspaceVFS(undefined, undefined, () =>
-      loadCopilotConnectedAccounts(copilotContext)
-    )
-    mountAccounts(vfs)
-    const result = await vfs.read('organization/connected-accounts.json')
-    expect(JSON.parse(result!.content)).toMatchObject({
-      status: 'active',
-      options: [{ provider: 'slack', status: 'active', configurationStatus: 'ready' }],
-    })
-    expect(result!.content).not.toContain('internal-')
-    expect(mocks.list).toHaveBeenCalledExactlyOnceWith('workspace-1')
-    expect(mocks.listEnrollments).not.toHaveBeenCalled()
-  })
-
-  it('rechecks availability before resolving a previously mounted catalog', async () => {
-    const vfs = new WorkspaceVFS(undefined, undefined, () =>
-      loadCopilotConnectedAccounts(copilotContext)
-    )
-    mountAccounts(vfs)
+  it('rechecks account availability on each authorized read', async () => {
+    await loadCopilotConnectedAccounts(copilotContext)
+    mocks.list.mockClear()
     mocks.requireAvailable.mockRejectedValue(new OrchestrationError('not_found', 'Unavailable'))
-    await expect(vfs.read('organization/connected-accounts.json')).resolves.toBeNull()
+    await expect(loadCopilotConnectedAccounts(copilotContext)).rejects.toMatchObject({
+      code: 'not_found',
+    })
     expect(mocks.list).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    { permission: 'read', enabled: true },
-    { permission: 'admin', enabled: false },
-  ])('does not advertise unavailable accounts: %j', async ({ permission, enabled }) => {
-    const vfs = new WorkspaceVFS(undefined, undefined, () =>
-      loadCopilotConnectedAccounts(copilotContext)
-    )
-    expect(mountAccounts(vfs, permission, enabled)).toBe(false)
-    expect(vfs.glob('organization/*')).toEqual([])
-    await expect(vfs.read('organization/connected-accounts.json')).resolves.toBeNull()
-    expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
-  })
-
-  it('does not mount account metadata without its trusted application loader', () => {
-    expect(mountAccounts(new WorkspaceVFS())).toBe(false)
   })
 
   it.each([

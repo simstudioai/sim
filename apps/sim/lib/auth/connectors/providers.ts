@@ -15,6 +15,7 @@ import {
   readResponseTextWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { exchangeAtlassianAuthorizationCode } from '@/lib/oauth/atlassian-token'
 import { getDocusignOAuthUrl } from '@/lib/oauth/docusign'
 import { createGitHubRepositoriesProvider } from '@/lib/oauth/github-repositories'
 import { getMicrosoftUserInfoFromIdToken } from '@/lib/oauth/microsoft'
@@ -1572,10 +1573,19 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       responseType: 'code',
       pkce: true,
       accessType: 'offline',
-      authentication: 'basic',
+      authentication: 'post',
       prompt: 'consent',
       authorizationUrlParams: { audience: 'api.atlassian.com' },
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/confluence`,
+      getToken: ({ code, redirectURI, codeVerifier }) =>
+        exchangeAtlassianAuthorizationCode({
+          provider: 'confluence',
+          clientId: env.CONFLUENCE_CLIENT_ID as string,
+          clientSecret: env.CONFLUENCE_CLIENT_SECRET as string,
+          code,
+          redirectUri: redirectURI,
+          codeVerifier,
+        }),
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://api.atlassian.com/me', {
@@ -1624,10 +1634,19 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       responseType: 'code',
       pkce: true,
       accessType: 'offline',
-      authentication: 'basic',
+      authentication: 'post',
       prompt: 'consent',
       authorizationUrlParams: { audience: 'api.atlassian.com' },
       redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/jira`,
+      getToken: ({ code, redirectURI, codeVerifier }) =>
+        exchangeAtlassianAuthorizationCode({
+          provider: 'jira',
+          clientId: env.JIRA_CLIENT_ID as string,
+          clientSecret: env.JIRA_CLIENT_SECRET as string,
+          code,
+          redirectUri: redirectURI,
+          codeVerifier,
+        }),
       getUserInfo: async (tokens) => {
         try {
           const response = await fetch('https://api.atlassian.com/me', {

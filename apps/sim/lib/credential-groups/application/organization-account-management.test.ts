@@ -133,11 +133,13 @@ describe('organization account people search application', () => {
     expect(mocks.invite).not.toHaveBeenCalled()
   })
 
-  it('keeps the existing session-only admin operation and forwards search after authorization', async () => {
+  it('keeps admin authority and adds only scoped Copilot settings delegation', async () => {
     const result = await listOrganizationAccountPeople.execute({ principal, input })
     expect(organizationAccountManagementOperations.people).toMatchObject({
       minimumRole: 'admin',
-      principalKinds: ['session'],
+      principalKinds: ['session', 'organization_delegated'],
+      delegationAudience: 'sim:settings',
+      delegatedServices: ['copilot'],
       capability: 'integrations.manage',
     })
     expect(mocks.authorize).toHaveBeenCalledExactlyOnceWith(

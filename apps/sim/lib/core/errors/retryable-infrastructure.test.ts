@@ -41,6 +41,17 @@ describe('isRetryableInfrastructureError', () => {
     })
   })
 
+  it.each(['DNS_TIMEOUT', 'EAI_AGAIN'])('recognizes transient DNS errors: %s', (code) => {
+    expect(
+      isRetryableInfrastructureError(new Error('DNS lookup failed', { cause: errorWithCode(code) }))
+    ).toBe(true)
+  })
+
+  it('does not retry permanent DNS or destination-policy failures', () => {
+    expect(isRetryableInfrastructureError(errorWithCode('ENOTFOUND'))).toBe(false)
+    expect(isRetryableInfrastructureError(new Error('Destination blocked'))).toBe(false)
+  })
+
   it('does not classify semantic SQL errors as retryable', () => {
     expect(isRetryableInfrastructureError(errorWithCode('42703'))).toBe(false)
     expect(isRetryableInfrastructureError(new Error('workflow not found'))).toBe(false)

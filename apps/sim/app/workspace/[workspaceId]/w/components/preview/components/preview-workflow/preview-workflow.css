@@ -1,0 +1,27 @@
+.preview-mode .react-flow,
+.preview-mode .react-flow__renderer {
+  cursor: var(--preview-cursor);
+}
+
+.preview-mode .react-flow__pane,
+.preview-mode .react-flow__selectionpane {
+  cursor: var(--preview-cursor) !important;
+}
+
+.preview-mode:where([data-preview-grab]) .react-flow:active,
+.preview-mode:where([data-preview-grab]) .react-flow__renderer:active {
+  cursor: grabbing;
+}
+
+.preview-mode:where([data-preview-grab]) .react-flow__pane:active,
+.preview-mode:where([data-preview-grab]) .react-flow__selectionpane:active,
+.preview-mode:where([data-preview-grab]) .react-flow__node:active,
+.preview-mode:where([data-preview-grab]) .react-flow__node:active * {
+  cursor: grabbing !important;
+}
+
+.preview-mode.interactive-nodes .react-flow__node,
+.preview-mode.interactive-nodes .react-flow__node > div,
+.preview-mode.interactive-nodes .react-flow__node * {
+  cursor: pointer !important;
+}

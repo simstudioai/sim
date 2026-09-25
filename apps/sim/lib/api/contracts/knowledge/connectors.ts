@@ -362,6 +362,7 @@ const searchSourceSummaryFields = {
   connectorType: z.string().min(1).max(100),
   sourceDescription: z.string().max(240),
   accessMode: z.enum(['admin', 'members']),
+  isGitHubInstallation: z.boolean().default(false),
   availability: z.enum(['available', 'unavailable']),
   enabled: z.boolean(),
   approved: z.boolean().optional(),

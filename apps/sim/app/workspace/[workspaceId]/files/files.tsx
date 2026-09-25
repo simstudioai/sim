@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  Avatar,
   Chip,
   ChipCombobox,
   ChipConfirmModal,
@@ -53,29 +54,8 @@ import {
   SUPPORTED_VIDEO_EXTENSIONS,
 } from '@/lib/uploads/utils/validation'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-compile'
-import type {
-  BreadcrumbItem,
-  FilterTag,
-  ResourceAction,
-  ResourceColumn,
-  ResourceRow,
-  ResourceTableHandle,
-  SearchConfig,
-  SortConfig,
-} from '@/app/workspace/[workspaceId]/components'
-import {
-  EMPTY_CELL_PLACEHOLDER,
-  FILTER_SECTION_LABEL_CLASS,
-  FindBar,
-  OwnerAvatar,
-  ownerCell,
-  Resource,
-  resourceListState,
-  selectionLabel,
-  timeCell,
-  useFindShortcut,
-  useResourceRowSelection,
-} from '@/app/workspace/[workspaceId]/components'
+import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar/find-bar'
+import { useFindShortcut } from '@/app/workspace/[workspaceId]/components/find-bar/use-find-shortcut'
 import type {
   MoveOptionNode,
   SortableResource,
@@ -100,10 +80,37 @@ import {
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
+import { ownerCell } from '@/app/workspace/[workspaceId]/components/resource/components/owner-cell'
 import {
   FilesEmptyState,
   ResourceNoResults,
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import type {
+  BreadcrumbItem,
+  ResourceAction,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
+import type {
+  FilterTag,
+  SearchConfig,
+  SortConfig,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import {
+  ResourceFilterPanel,
+  ResourceFilterSection,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import { timeCell } from '@/app/workspace/[workspaceId]/components/resource/components/time-cell'
+import { resourceListState } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
+import type {
+  ResourceColumn,
+  ResourceRow,
+  ResourceTableHandle,
+} from '@/app/workspace/[workspaceId]/components/resource/resource'
+import {
+  EMPTY_CELL_PLACEHOLDER,
+  Resource,
+} from '@/app/workspace/[workspaceId]/components/resource/resource'
+import { selectionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
+import { useResourceRowSelection } from '@/app/workspace/[workspaceId]/components/resource/use-resource-row-selection'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
 import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
 import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
@@ -1932,7 +1939,7 @@ function FilesContent() {
       (members ?? []).map((m) => ({
         value: m.userId,
         label: m.name,
-        iconElement: <OwnerAvatar name={m.name} image={m.image} />,
+        iconElement: <Avatar size='xs' name={m.name} src={m.image} aria-hidden />,
       })),
     [members]
   )
@@ -2000,9 +2007,8 @@ function FilesContent() {
           : `${uploadedByFilter.length} members`
 
     return (
-      <div className='flex w-[240px] flex-col gap-3 p-3'>
-        <div className='flex flex-col gap-1.5'>
-          <span className={FILTER_SECTION_LABEL_CLASS}>File Type</span>
+      <ResourceFilterPanel>
+        <ResourceFilterSection label='File Type'>
           <ChipCombobox
             options={[
               { value: 'document', label: 'Documents' },
@@ -2019,9 +2025,8 @@ function FilesContent() {
             allOptionLabel='All'
             className='w-full'
           />
-        </div>
-        <div className='flex flex-col gap-1.5'>
-          <span className={FILTER_SECTION_LABEL_CLASS}>Size</span>
+        </ResourceFilterSection>
+        <ResourceFilterSection label='Size'>
           <ChipCombobox
             options={[
               { value: 'small', label: 'Small (< 1 MB)' },
@@ -2037,10 +2042,9 @@ function FilesContent() {
             allOptionLabel='All'
             className='w-full'
           />
-        </div>
+        </ResourceFilterSection>
         {memberOptions.length > 0 && (
-          <div className='flex flex-col gap-1.5'>
-            <span className={FILTER_SECTION_LABEL_CLASS}>Uploaded By</span>
+          <ResourceFilterSection label='Uploaded By'>
             <ChipCombobox
               options={memberOptions}
               multiSelect
@@ -2054,14 +2058,14 @@ function FilesContent() {
               allOptionLabel='All'
               className='w-full'
             />
-          </div>
+          </ResourceFilterSection>
         )}
         {hasActiveFilters && (
           <Chip fullWidth onClick={clearFileFilters} align='center'>
             Clear all filters
           </Chip>
         )}
-      </div>
+      </ResourceFilterPanel>
     )
   }, [
     typeFilter,

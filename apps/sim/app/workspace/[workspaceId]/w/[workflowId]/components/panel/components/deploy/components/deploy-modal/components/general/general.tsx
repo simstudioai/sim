@@ -198,7 +198,7 @@ export function GeneralDeploy({
       <div className='space-y-3'>
         <div>
           <div className='relative mb-[6.5px]'>
-            <Label className='block truncate pl-0.5 text-[var(--text-primary)] text-small'>
+            <Label className='block truncate pl-0.5 text-small'>
               {previewMode === 'selected' && selectedVersionInfo
                 ? formatVersionLabel(selectedVersionInfo.version, selectedVersionInfo.name)
                 : 'Live Workflow'}
@@ -263,9 +263,7 @@ export function GeneralDeploy({
         </div>
 
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-            Versions
-          </Label>
+          <Label className='mb-[6.5px] block pl-0.5 text-small'>Versions</Label>
           <Versions
             workflowId={workflowId}
             versions={versions}

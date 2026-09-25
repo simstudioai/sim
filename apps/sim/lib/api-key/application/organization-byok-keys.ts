@@ -1,5 +1,9 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import type { Principal } from '@sim/auth/principal'
+import {
+  type Principal,
+  requirePrincipalSubjectUserId,
+  resolvePrincipalAuditAttribution,
+} from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { member, organizationBYOKKeys, workspaceBYOKKeys } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -11,12 +15,14 @@ import {
   type OrganizationByokOperation,
   type OrganizationByokPrincipal,
 } from '@/lib/api-key/application/operations'
+import { maskByokApiKey } from '@/lib/api-key/byok-display'
 import { isOrganizationBYOKEntitled } from '@/lib/api-key/byok-entitlement'
 import {
   defineAuthorizedWorkspaceUseCase,
   ForbiddenOperationError,
   type OperationUseCase,
 } from '@/lib/core/application'
+import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import type { OrchestrationRequestContext } from '@/lib/core/orchestration/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
@@ -72,13 +78,22 @@ function defineAuthorizedOrganizationByokUseCase<
     async execute({ principal, input, request }) {
       requireOrganizationByokPrincipal(principal, definition.operation)
 
-      const [membership] = await db
-        .select({ role: member.role })
-        .from(member)
-        .where(
-          and(eq(member.organizationId, input.organizationId), eq(member.userId, principal.userId))
-        )
-        .limit(1)
+      const actorUserId = requirePrincipalSubjectUserId(principal)
+      const membership =
+        principal.kind === 'organization_delegated'
+          ? await authorizeOrganizationOperation(principal, definition.operation, input)
+          : (
+              await db
+                .select({ role: member.role })
+                .from(member)
+                .where(
+                  and(
+                    eq(member.organizationId, input.organizationId),
+                    eq(member.userId, actorUserId)
+                  )
+                )
+                .limit(1)
+            )[0]
 
       if (!membership) {
         throw new ForbiddenOperationError(
@@ -105,17 +120,11 @@ function defineAuthorizedOrganizationByokUseCase<
       return definition.execute({
         principal,
         input,
-        context: { organizationId: input.organizationId, actorUserId: principal.userId },
+        context: { organizationId: input.organizationId, actorUserId },
         request,
       })
     },
   }
-}
-
-function maskApiKey(apiKey: string): string {
-  if (apiKey.length <= 8) return '•'.repeat(8)
-  if (apiKey.length <= 12) return `${apiKey.slice(0, 4)}...${apiKey.slice(-4)}`
-  return `${apiKey.slice(0, 6)}...${apiKey.slice(-4)}`
 }
 
 function providerIdFromStorage(providerId: string): BYOKProviderId {
@@ -153,7 +162,7 @@ async function projectOrganizationByokKey(
   let maskedKey = '••••••••'
   try {
     const { decrypted } = await decryptSecret(key.encryptedApiKey)
-    maskedKey = maskApiKey(decrypted)
+    maskedKey = maskByokApiKey(decrypted)
   } catch (error) {
     logger.error('Failed to decrypt organization BYOK key for display', {
       error,
@@ -177,6 +186,7 @@ async function projectOrganizationByokKey(
 function recordOrganizationByokAudit(params: {
   organizationId: string
   actorUserId: string
+  principal: Principal
   operationId: string
   action:
     | typeof AuditAction.BYOK_KEY_CREATED
@@ -208,6 +218,7 @@ function recordOrganizationByokAudit(params: {
       ...(params.keyId ? { keyId: params.keyId } : {}),
       ...(params.deletedKeyIds ? { deletedKeyIds: params.deletedKeyIds } : {}),
       operation: params.operationId,
+      actor: resolvePrincipalAuditAttribution(params.principal).actor,
     },
     request: params.request,
   })
@@ -263,6 +274,7 @@ export const saveOrganizationByokKey = defineAuthorizedOrganizationByokUseCase({
   async execute({
     input,
     context,
+    principal,
     request,
   }: AuthorizedOrganizationByokExecuteArgs<SaveOrganizationByokKeyInput>) {
     if (input.keyId) {
@@ -300,6 +312,7 @@ export const saveOrganizationByokKey = defineAuthorizedOrganizationByokUseCase({
       recordOrganizationByokAudit({
         organizationId: context.organizationId,
         actorUserId: context.actorUserId,
+        principal,
         operationId: byokKeyOperations.saveOrganization.id,
         action: AuditAction.BYOK_KEY_UPDATED,
         providerId: input.providerId,
@@ -312,7 +325,7 @@ export const saveOrganizationByokKey = defineAuthorizedOrganizationByokUseCase({
           id: updatedKey.id,
           providerId: input.providerId,
           name: updatedName,
-          maskedKey: maskApiKey(input.apiKey),
+          maskedKey: maskByokApiKey(input.apiKey),
           updatedAt,
         } satisfies OrganizationByokKeyMutationProjection,
       }
@@ -372,6 +385,7 @@ export const saveOrganizationByokKey = defineAuthorizedOrganizationByokUseCase({
     recordOrganizationByokAudit({
       organizationId: context.organizationId,
       actorUserId: context.actorUserId,
+      principal,
       operationId: byokKeyOperations.saveOrganization.id,
       action: AuditAction.BYOK_KEY_CREATED,
       providerId: input.providerId,
@@ -393,7 +407,7 @@ export const saveOrganizationByokKey = defineAuthorizedOrganizationByokUseCase({
         id: newKey.id,
         providerId: providerIdFromStorage(newKey.providerId),
         name: newKey.name,
-        maskedKey: maskApiKey(input.apiKey),
+        maskedKey: maskByokApiKey(input.apiKey),
         createdAt: newKey.createdAt,
         updatedAt: newKey.updatedAt,
       } satisfies OrganizationByokKeyMutationProjection,
@@ -412,6 +426,7 @@ export const deleteOrganizationByokKey = defineAuthorizedOrganizationByokUseCase
   async execute({
     input,
     context,
+    principal,
     request,
   }: AuthorizedOrganizationByokExecuteArgs<DeleteOrganizationByokKeyInput>) {
     const providerScope = and(
@@ -432,6 +447,7 @@ export const deleteOrganizationByokKey = defineAuthorizedOrganizationByokUseCase
     recordOrganizationByokAudit({
       organizationId: context.organizationId,
       actorUserId: context.actorUserId,
+      principal,
       operationId: byokKeyOperations.deleteOrganization.id,
       action: AuditAction.BYOK_KEY_DELETED,
       providerId: input.providerId,
@@ -461,7 +477,7 @@ export const readInheritedByokStatus = defineAuthorizedWorkspaceUseCase({
     if (!context) throw new OrchestrationError('not_found', 'Workspace not found')
     return context
   },
-  authorizationOptions: {},
+  authorizationOptions: { delegation: { audience: 'sim:settings', isWithinScope: () => true } },
   async execute({ context }) {
     const organizationId = context.workspaceOrganizationId
     if (!organizationId || !(await isOrganizationBYOKEntitled(organizationId))) {

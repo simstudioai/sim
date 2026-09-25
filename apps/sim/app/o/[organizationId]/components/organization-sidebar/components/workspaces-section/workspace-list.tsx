@@ -6,8 +6,9 @@ import {
   cn,
   DropdownMenuItem,
   DropdownMenuItemAction,
-  Loader,
   OverflowText,
+  RowActions,
+  rowActionsGroupClass,
   toast,
 } from '@sim/emcn'
 import { MoreHorizontal, Pin } from '@sim/emcn/icons'
@@ -18,10 +19,7 @@ import { WorkspaceContextMenu } from '@/components/workspaces/workspace-context-
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import { useOrganizationWorkspaces } from '@/app/o/[organizationId]/components/organization-sidebar/hooks/use-organization-workspaces'
 import { SidebarRenameRow } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-rename-row'
-import {
-  SidebarRowAction,
-  SidebarRowActions,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
+import { SidebarRowAction } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
 import { useFlyoutInlineRename } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-flyout-inline-rename'
 import type { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-hover-menu'
 import { useToggleWorkspacePin, useUpdateWorkspace } from '@/hooks/queries/workspace'
@@ -76,12 +74,6 @@ export function WorkspaceList({ organizationId, pathname, flyout }: WorkspaceLis
 
   return (
     <>
-      {isLoading && flyout && (
-        <DropdownMenuItem disabled>
-          <Loader className='size-[14px]' animate />
-          Loading...
-        </DropdownMenuItem>
-      )}
       {!isLoading && workspaces.length === 0 && (
         <div className='px-2 py-1 text-[var(--text-muted)] text-small'>No workspaces yet</div>
       )}
@@ -183,12 +175,12 @@ export function WorkspaceList({ organizationId, pathname, flyout }: WorkspaceLis
             href={href}
             className={cn(
               chipVariants({ active: isActive || isMenuOpen, fullWidth: true }),
-              'group/sidebar-row'
+              rowActionsGroupClass
             )}
             onContextMenu={(event) => openMenu(event, workspace.id)}
           >
             {label}
-            <SidebarRowActions
+            <RowActions
               open={isMenuOpen}
               indicator={
                 isPinned ? (
@@ -208,7 +200,7 @@ export function WorkspaceList({ organizationId, pathname, flyout }: WorkspaceLis
               >
                 <MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />
               </SidebarRowAction>
-            </SidebarRowActions>
+            </RowActions>
           </SettingsGuardedLink>
         )
       })}

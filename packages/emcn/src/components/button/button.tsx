@@ -37,6 +37,7 @@ const buttonVariants = cva(
           'bg-[var(--text-primary)] text-[var(--text-inverse)] hover-hover:text-[var(--text-inverse)] hover-hover:bg-[var(--text-body)] dark:bg-white dark:text-[var(--bg)] dark:hover-hover:bg-[var(--text-secondary)] dark:hover-hover:text-[var(--bg)]',
         destructive:
           'bg-[var(--text-error)] text-white hover-hover:text-white hover-hover:brightness-106',
+        secondary: 'bg-[var(--brand-secondary)] text-[var(--text-primary)]',
         ghost: 'text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)]',
         'ghost-hover':
           'text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)] hover-hover:bg-[var(--surface-hover)]',

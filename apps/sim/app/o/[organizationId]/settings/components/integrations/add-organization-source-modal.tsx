@@ -10,6 +10,10 @@ import {
   ChipModalHeader,
 } from '@sim/emcn'
 import { Search } from '@sim/emcn/icons'
+import {
+  GENERIC_SECRETS_SOURCE_TYPE,
+  GenericSecretSourceIcon,
+} from '@/app/o/[organizationId]/settings/components/integrations/generic-secret-source'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {
@@ -21,7 +25,7 @@ import type { ConnectorMeta } from '@/connectors/types'
 interface AddOrganizationSourceModalProps {
   sources: {
     type: string
-    meta: ConnectorMeta
+    meta: Pick<ConnectorMeta, 'name' | 'icon'> & { auth?: ConnectorMeta['auth'] }
     access: { admin: boolean; members: boolean }
   }[]
   pending: boolean
@@ -29,6 +33,8 @@ interface AddOrganizationSourceModalProps {
   feedback: ReactNode
   onClose: () => void
   onSelect: (type: string, accessMode: 'admin' | 'members') => void
+  descriptions?: Readonly<Record<string, string>>
+  compact?: boolean
 }
 
 export function AddOrganizationSourceModal({
@@ -38,10 +44,57 @@ export function AddOrganizationSourceModal({
   feedback,
   onClose,
   onSelect,
+  descriptions,
+  compact = false,
 }: AddOrganizationSourceModalProps) {
   const [search, setSearch] = useState('')
   const query = search.trim().toLowerCase()
   const visible = sources.filter(({ meta }) => meta.name.toLowerCase().includes(query))
+  const list = (
+    <div className={RESOURCE_LIST_STACK}>
+      {visible.map(({ type, meta, access }) => {
+        const available = access.admin || access.members
+        return (
+          <SettingsResourceRow
+            key={type}
+            iconVariant='custom'
+            icon={
+              type === GENERIC_SECRETS_SOURCE_TYPE ? (
+                <GenericSecretSourceIcon />
+              ) : (
+                <IntegrationTile blockType={type} icon={meta.icon} />
+              )
+            }
+            title={meta.name}
+            description={
+              !ready
+                ? 'Checking availability…'
+                : !available
+                  ? 'Unavailable in this deployment'
+                  : (descriptions?.[type] ??
+                    (access.admin
+                      ? meta.auth?.mode === 'apiKey'
+                        ? 'Connect an API token'
+                        : meta.auth?.mode === 'oauth' &&
+                            meta.auth.adminCredentialType === 'service_account'
+                          ? 'Connect a service account'
+                          : 'Connect an admin account'
+                      : type === 'slack'
+                        ? 'Set up your Slack app'
+                        : 'Connect member accounts'))
+            }
+            disabled={pending || !ready || !available}
+            onClick={() => onSelect(type, access.admin ? 'admin' : 'members')}
+            clickLabel={`Set up ${meta.name}`}
+            navigable={ready && available}
+          />
+        )
+      })}
+      {visible.length === 0 && (
+        <SettingsEmptyState variant='inline'>No matching sources</SettingsEmptyState>
+      )}
+    </div>
+  )
 
   return (
     <ChipModal
@@ -52,55 +105,29 @@ export function AddOrganizationSourceModal({
     >
       <ChipModalHeader onClose={onClose}>Add source</ChipModalHeader>
       <ChipModalBody>
-        <ChipModalField type='custom' title='Find a source' submitOnEnter={false}>
-          <ChipInput
-            icon={Search}
-            placeholder='Search sources...'
-            aria-label='Find a source'
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            disabled={pending}
-          />
-        </ChipModalField>
-        <ChipModalField type='custom' title='Sources'>
-          {feedback}
-          <div className={RESOURCE_LIST_STACK}>
-            {visible.map(({ type, meta, access }) => {
-              const available = access.admin || access.members
-              return (
-                <SettingsResourceRow
-                  key={type}
-                  iconVariant='custom'
-                  icon={<IntegrationTile blockType={type} icon={meta.icon} />}
-                  title={meta.name}
-                  description={
-                    !ready
-                      ? 'Checking availability…'
-                      : !available
-                        ? 'Unavailable in this deployment'
-                        : access.admin
-                          ? meta.auth.mode === 'apiKey'
-                            ? 'Connect an API token'
-                            : meta.auth.mode === 'oauth' &&
-                                meta.auth.adminCredentialType === 'service_account'
-                              ? 'Connect a service account'
-                              : 'Connect an admin account'
-                          : type === 'slack'
-                            ? 'Set up your Slack app'
-                            : 'Connect member accounts'
-                  }
-                  disabled={pending || !ready || !available}
-                  onClick={() => onSelect(type, access.admin ? 'admin' : 'members')}
-                  clickLabel={`Set up ${meta.name}`}
-                  navigable={ready && available}
-                />
-              )
-            })}
-            {visible.length === 0 && (
-              <SettingsEmptyState variant='inline'>No matching sources</SettingsEmptyState>
-            )}
+        {!compact && (
+          <ChipModalField type='custom' title='Find a source' submitOnEnter={false}>
+            <ChipInput
+              icon={Search}
+              placeholder='Search sources...'
+              aria-label='Find a source'
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              disabled={pending}
+            />
+          </ChipModalField>
+        )}
+        {compact ? (
+          <div className='px-2'>
+            {feedback}
+            {list}
           </div>
-        </ChipModalField>
+        ) : (
+          <ChipModalField type='custom' title='Sources'>
+            {feedback}
+            {list}
+          </ChipModalField>
+        )}
       </ChipModalBody>
       <ChipModalFooter onCancel={onClose} defaultAction='dismiss' />
     </ChipModal>

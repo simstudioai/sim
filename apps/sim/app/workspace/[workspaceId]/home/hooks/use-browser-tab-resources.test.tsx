@@ -4,7 +4,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { MothershipResource } from '@/lib/copilot/resources/types'
+import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { useBrowserTabResources } from '@/app/workspace/[workspaceId]/home/hooks/use-browser-tab-resources'
 import type { DesktopTabResourceOptions } from '@/app/workspace/[workspaceId]/home/hooks/use-desktop-tab-resources'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'

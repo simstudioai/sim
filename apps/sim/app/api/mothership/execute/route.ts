@@ -1,30 +1,16 @@
+import { serializePrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { type NextRequest, NextResponse } from 'next/server'
-import { mothershipExecuteContract } from '@/lib/api/contracts/mothership-chats'
+import {
+  type MothershipExecuteStreamEvent,
+  mothershipExecuteContract,
+} from '@/lib/api/contracts/mothership-chats'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { verifyInternalDelegationToken } from '@/lib/auth/internal'
 import { requireBillingAttributionHeader } from '@/lib/billing/core/billing-attribution'
-import { buildIntegrationToolSchemas } from '@/lib/copilot/chat/payload'
-import { processContextsServer } from '@/lib/copilot/chat/process-contents'
-import { generateWorkspaceContext } from '@/lib/copilot/chat/workspace-context'
-import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
-import {
-  type CopilotEnvironmentContext,
-  createCopilotEnvironmentContext,
-} from '@/lib/copilot/environment-context'
-import {
-  MothershipStreamV1EventType,
-  MothershipStreamV1TextChannel,
-} from '@/lib/copilot/generated/mothership-stream-v1'
-import { buildSelectedMcpToolSchemas, buildTaggedMcpToolSchemas } from '@/lib/copilot/mcp-tools'
-import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
-import { requestExplicitStreamAbort } from '@/lib/copilot/request/session/explicit-abort'
-import type { StreamEvent } from '@/lib/copilot/request/types'
-import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
-import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { acceptsMediaType } from '@/lib/core/utils/media-types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
@@ -36,6 +22,21 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { createExecutorPrincipalFromExecutionContext } from '@/lib/internal/principals/executor'
 import { MCP_SERVER_DELEGATION_AUDIENCE } from '@/lib/mcp/application/authorization'
+import { resolveMcpToolBinding } from '@/lib/mcp/tool-binding'
+import { createMcpToolId } from '@/lib/mcp/utils'
+import { processContextsServer } from '@/lib/mothership/chat/process-contents'
+import {
+  type CopilotEnvironmentContext,
+  createCopilotEnvironmentContext,
+} from '@/lib/mothership/environment-context'
+import { IntegrationCatalogMcpExecution } from '@/lib/mothership/generated/integration-catalog'
+import { PROTOCOL_VERSION } from '@/lib/mothership/generated/protocol'
+import { ExecuteEventProjection } from '@/lib/mothership/request/lifecycle/execute-events'
+import { runHeadlessCopilotLifecycle } from '@/lib/mothership/request/lifecycle/headless'
+import { requestExplicitStreamAbort } from '@/lib/mothership/request/session/explicit-abort'
+import type { StreamEvent } from '@/lib/mothership/request/types'
+import { normalizeSecretMountPolicy } from '@/lib/mothership/secret-mount-policy'
+import { getSimConnection } from '@/lib/mothership/transport/connection'
 import {
   assertActiveWorkspaceAccess,
   isWorkspaceAccessDeniedError,
@@ -45,6 +46,7 @@ import {
   type ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ChatContext } from '@/stores/panel'
+import { hasToolId } from '@/tools/tool-ids'
 
 export const maxDuration = 3600
 
@@ -96,12 +98,10 @@ function encodeNdjson(value: unknown): Uint8Array {
 
 export function buildExecuteResponsePayload(
   result: Awaited<ReturnType<typeof runHeadlessCopilotLifecycle>>,
-  effectiveChatId: string,
-  integrationTools: Array<{ name: string }>
+  effectiveChatId: string
 ) {
-  const clientToolNames = new Set(integrationTools.map((t) => t.name))
   const clientToolCalls = (result.toolCalls || []).filter(
-    (tc: { name: string }) => clientToolNames.has(tc.name) || tc.name.startsWith('mcp-')
+    (tc: { name: string }) => hasToolId(tc.name) || tc.name.startsWith('mcp-')
   )
 
   return {
@@ -149,6 +149,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     const {
       messages,
       responseFormat,
+      useConversationHistory,
+      modelSelection,
+      effort,
       workspaceId,
       userId: bodyUserId,
       chatId,
@@ -246,87 +249,87 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     )
     const nonMcpAgentMentions = agentMentions?.filter((context) => context.kind !== 'mcp')
     const userPermission = workspaceAccess.permission
-    const mothershipToolsPromise = Promise.allSettled([
-      buildSelectedMcpToolSchemas(userId, workspaceId, mcpTools ?? [], mcpContext),
-      buildTaggedMcpToolSchemas(userId, workspaceId, taggedMcpServerIds, mcpContext),
-    ]).then((results) => {
-      const groups = results.map((result) => {
-        if (result.status === 'rejected') throw result.reason
-        return result.value
+    const selectedMcpToolIds = (mcpTools ?? [])
+      .filter((tool) => tool.type === 'mcp' && (tool.usageControl || 'auto') !== 'none')
+      .map((tool) => {
+        const { serverId, toolName } = resolveMcpToolBinding(tool)
+        return createMcpToolId(serverId, toolName)
       })
-      const byName = new Map(groups.flat().map((tool) => [tool.name, tool]))
-      return [...byName.values()]
+    const requiredToolIds = (mcpTools ?? [])
+      .filter((tool) => tool.usageControl === 'force')
+      .map((tool) => {
+        const { serverId, toolName } = resolveMcpToolBinding(tool)
+        return createMcpToolId(serverId, toolName)
+      })
+    const agentContexts = await processContextsServer(
+      nonMcpAgentMentions,
+      userId,
+      lastUserMessage,
+      workspaceId,
+      effectiveChatId,
+      activeResolvedSecretTraceRegistry
+    ).catch((error) => {
+      reqLogger.warn('Failed to resolve agent contexts for execution', {
+        error: toError(error).message,
+      })
+      return []
     })
-    const [workspaceContext, integrationTools, mothershipTools, entitlements, agentContexts] =
-      await Promise.all([
-        generateWorkspaceContext(workspaceId, userId, {
-          workspaceAccess,
-          secretMountPolicy,
-        }),
-        buildIntegrationToolSchemas(userId, undefined, workspaceId),
-        mothershipToolsPromise,
-        computeWorkspaceEntitlements(workspaceId, userId),
-        processContextsServer(
-          nonMcpAgentMentions,
-          userId,
-          lastUserMessage,
-          workspaceId,
-          effectiveChatId,
-          activeResolvedSecretTraceRegistry
-        ).catch((error) => {
-          reqLogger.warn('Failed to resolve agent contexts for execution', {
-            error: toError(error).message,
-          })
-          return []
-        }),
-      ])
+    /**
+     * The wire payload IS the shared ExecuteRequest contract. Caller-side context —
+     * resolved mentions and the MCP-enablement notice — folds into the message array
+     * itself (the worker adds no persona of its own on this surface), and the run-scoped
+     * delegation credential is minted here exactly as on the chat path.
+     */
+    const contextBlocks: string[] = [
+      ...agentContexts.map((ctx) => {
+        const c = ctx as { type?: string; content?: string }
+        return `[Attached ${c.type ?? 'context'}]\n${c.content ?? ''}`
+      }),
+      ...(taggedMcpServerIds.length || selectedMcpToolIds.length
+        ? [
+            [
+              'MCP operations are enabled. Discover their current input schemas with search_integration_tools, then invoke them through call_integration_tool.',
+              'Do not narrate discovery, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
+              ...taggedMcpServerIds.map((id) => `Enabled MCP server: ${id}`),
+              ...selectedMcpToolIds.map((id) => `Enabled MCP operation: ${id}`),
+            ].join('\n'),
+          ]
+        : []),
+    ]
+    const wireMessages = messages.map((m, i) =>
+      i === messages.length - 1 && contextBlocks.length > 0
+        ? { ...m, content: `${contextBlocks.join('\n\n')}\n\n${m.content}` }
+        : m
+    )
     const requestPayload: Record<string, unknown> = {
-      messages,
+      simConnection: getSimConnection(),
+      messages: wireMessages,
+      ...(useConversationHistory !== undefined ? { useConversationHistory } : {}),
+      ...(modelSelection ? { modelSelection } : {}),
+      ...(effort ? { effort } : {}),
       ...(responseFormat !== undefined ? { responseFormat } : {}),
       userId,
-      // Go's auth middleware reads workspaceId off the request body to forward
-      // to /api/copilot/api-keys/validate (per-member org usage gate). Omitting
-      // it makes that validation 400 ("API key validation failed"), which kills
-      // the block. The chat path sends it via buildCopilotRequestPayload; the
-      // block path must too.
+      protocolVersion: PROTOCOL_VERSION,
       workspaceId,
       chatId: effectiveChatId,
-      mode: 'agent',
       messageId,
-      isHosted: true,
-      workspaceContext,
-      ...(isDocSandboxEnabled ? { docCompiler: 'python' } : {}),
-      ...(userMetadata ? { userMetadata } : {}),
-      ...(fileAttachments && fileAttachments.length > 0 ? { fileAttachments } : {}),
-      ...(agentContexts.length > 0 || mothershipTools.length > 0
-        ? {
-            contexts: [
-              ...agentContexts,
-              ...(mothershipTools.length > 0
-                ? [
-                    {
-                      type: 'mcp',
-                      content: [
-                        'The following MCP tools are explicitly enabled for this request and are callable directly by the exact name shown — there is no loading step.',
-                        'Do not narrate discovery, tool-name selection, or retries. Call the tool first, then respond once with the result. Never claim the server works before a successful tool result. Do not automatically retry a timed-out or abandoned MCP call.',
-                        ...mothershipTools.map(
-                          (tool) => `- ${tool.name}: ${tool.description || tool.name}`
-                        ),
-                      ].join('\n'),
-                    },
-                  ]
-                : []),
-            ],
-          }
-        : {}),
-      ...(integrationTools.length > 0 ? { integrationTools } : {}),
-      ...(mothershipTools.length > 0 ? { mothershipTools } : {}),
-      ...(userPermission ? { userPermission } : {}),
-      ...(entitlements.length > 0 ? { entitlements } : {}),
+      integrationCatalog: {
+        mcpServerIds: taggedMcpServerIds,
+        mcpToolIds: selectedMcpToolIds,
+        ...(requiredToolIds.length ? { requiredToolIds: [...new Set(requiredToolIds)] } : {}),
+        mcpExecution: IntegrationCatalogMcpExecution.parse({
+          workflowId: delegation.workflowId,
+          executionId: delegation.executionId,
+          mcpBlockId: delegation.mcpBlockId,
+          subjectUserId: delegation.subjectUserId,
+          ...(delegation.principal ? { principal: serializePrincipal(delegation.principal) } : {}),
+          ...(delegation.currentWorkflow ? { currentWorkflow: delegation.currentWorkflow } : {}),
+        }),
+      },
     }
 
     let allowExplicitAbort = true
-    let explicitAbortRequest: Promise<void> | undefined
+    let explicitAbortRequest: Promise<unknown> | undefined
     const lifecycleAbortController = new AbortController()
     const requestExplicitAbortOnce = () => {
       if (!allowExplicitAbort || explicitAbortRequest || !messageId) {
@@ -337,7 +340,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         streamId: messageId,
         userId,
         chatId: effectiveChatId,
-        workspaceId,
       }).catch((error) => {
         reqLogger.warn('Failed to send explicit abort for mothership execution', {
           error: toError(error).message,
@@ -391,12 +393,18 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
-          let forwardedAssistantContent = ''
-          const send = (event: unknown) => {
+          const send = (event: MothershipExecuteStreamEvent) => {
             if (!cancelled) {
               controller.enqueue(encodeNdjson(event))
             }
           }
+
+          const projection = new ExecuteEventProjection((event) => {
+            /** Keep text frames readable by workers deployed before agent-event versioning. */
+            if (event.type === 'text_delta')
+              send({ type: 'chunk', v: 1, content: event.text, turn: event.turn })
+            else send({ type: 'agent_event', v: 1, event })
+          })
 
           // Flush response headers promptly and keep long headless runs from
           // looking idle to worker/proxy HTTP stacks.
@@ -407,25 +415,11 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
           void (async () => {
             try {
-              const result = await runLifecycle(async (event) => {
-                if (
-                  event.type === MothershipStreamV1EventType.text &&
-                  event.payload.channel === MothershipStreamV1TextChannel.assistant &&
-                  event.payload.text
-                ) {
-                  const text = event.payload.text
-                  const content = text.startsWith(forwardedAssistantContent)
-                    ? text.slice(forwardedAssistantContent.length)
-                    : text
-                  if (content) {
-                    forwardedAssistantContent += content
-                    send({ type: 'chunk', content })
-                  }
-                }
-              })
+              const result = await runLifecycle(async (event) => projection.accept(event))
               allowExplicitAbort = false
 
               if (lifecycleAbortController.signal.aborted) {
+                projection.finish('cancelled')
                 send(
                   withPrivateProvenance(
                     { type: 'error', error: 'Sim execution aborted' },
@@ -437,6 +431,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
               }
 
               if (!result.success) {
+                projection.finish('error')
                 logger.error(
                   messageId
                     ? `Mothership execute failed [messageId:${messageId}]`
@@ -463,15 +458,17 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
                 return
               }
 
+              projection.finish('success')
               send({
                 type: 'final',
                 data: withPrivateProvenance(
-                  buildExecuteResponsePayload(result, effectiveChatId, integrationTools),
+                  buildExecuteResponsePayload(result, effectiveChatId),
                   resolvedSecretTraceRegistry,
                   includePrivateProvenance
                 ),
               })
             } catch (error) {
+              projection.finish(lifecycleAbortController.signal.aborted ? 'cancelled' : 'error')
               if (
                 lifecycleAbortController.signal.aborted ||
                 req.signal.aborted ||
@@ -594,7 +591,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
       return NextResponse.json(
         withPrivateProvenance(
-          buildExecuteResponsePayload(result, effectiveChatId, integrationTools),
+          buildExecuteResponsePayload(result, effectiveChatId),
           resolvedSecretTraceRegistry,
           includePrivateProvenance
         ),

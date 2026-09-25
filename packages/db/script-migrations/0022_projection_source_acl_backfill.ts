@@ -8,13 +8,10 @@ import type { ScriptMigration } from '@sim/db/script-migrations/types'
  * Installs the projection source and ACL triggers and builds their indexes; both are idempotent,
  * so a run that was cut short completes on the next deploy. The columns are not filled here: on
  * `embedding_search` every filled row is re-inserted into each HNSW index, which puts the full
- * projection far beyond what a deploy job can wait for. The backfill is started after the deploy
- * with `bun apps/sim/scripts/backfill-projection-source-acl.ts`, which enqueues the
- * `projection-source-acl-backfill` Trigger.dev task the way the table backfill is enqueued (or runs
- * the same backfill detached in the app where no worker is configured); the task chains bounded
- * runs until both projections are filled and is safe to start again at any time. Until it
- * completes, an unfilled row is decided on its document, the join per candidate every row paid
- * before the columns existed.
+ * projection far beyond what a deploy job can wait for. The knowledge projector fills them after
+ * the deploy, marking the documents of unfilled rows in bounded batches and converging them as it
+ * converges any other document. Until then, an unfilled row is decided on its document, the join
+ * per candidate every row paid before the columns existed.
  *
  * Supersedes `0021_embedding_search_connector`, whose synchronous backfill this replaces: a
  * database that recorded it still gains the unfilled indexes, and one where it was cut short

@@ -21,12 +21,12 @@ import {
   workflowLogContract,
   workflowStateSchema,
 } from '@/lib/api/contracts/workflows'
+import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
+import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
 import {
   isRunToolActiveForWorkflow,
   subscribeToRunToolRelease,
-} from '@/lib/copilot/tools/client/run-tool-execution'
-import type { SecretSafeBlockLog } from '@/lib/logs/execution/display-types'
-import { buildTraceSpans } from '@/lib/logs/execution/trace-spans/trace-spans'
+} from '@/lib/mothership/tools/client/run-tool-execution'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import type {
   ExecutionPausedData,
@@ -2548,11 +2548,9 @@ export function useWorkflowExecution() {
           releaseReconnectPersistenceOwnership()
           return
         }
-        handleExecutionErrorConsole({
+        logger.warn('Execution updates unavailable after reconnect; outcome is unknown', {
           workflowId: reconnectWorkflowId,
           executionId: capturedExecutionId,
-          error: 'Execution state is no longer available after reconnect',
-          blockLogs: [],
         })
         setCurrentExecutionId(reconnectWorkflowId, null)
         finishReconnectExecution()

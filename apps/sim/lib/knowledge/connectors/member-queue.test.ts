@@ -1,7 +1,14 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  schemaMock,
+  setEnvFlags,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -28,7 +35,7 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 vi.mock('@/lib/knowledge/connectors/member-sync-engine', () => ({
   executeMemberSync: mockExecuteMemberSync,
 }))
-vi.mock('@/lib/knowledge/documents/service', () => ({
+vi.mock('@/lib/core/config/trigger-availability', () => ({
   isTriggerAvailable: mockIsTriggerAvailable,
 }))
 vi.mock('@trigger.dev/sdk', () => ({
@@ -70,10 +77,23 @@ const CONNECTOR_ROW = {
 describe('member sync queue', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetEnvFlagsMock()
     resetDbChainMock()
     mockIsTriggerAvailable.mockReturnValue(true)
     mockResolveRegion.mockResolvedValue('us')
     mockExecuteMemberSync.mockResolvedValue({})
+  })
+
+  it('does not dispatch a live Search source to member indexing', async () => {
+    setEnvFlags({ isLiveEnterpriseSearchEnabled: true })
+    queueTableRows(schemaMock.knowledgeConnector, [{ ...CONNECTOR_ROW, isSearchIndex: true }])
+    expect(await dispatchMemberSync('c-1', { billingAttribution: BILLING })).toEqual({
+      queued: false,
+      reason: 'This source is searched live and does not require indexing.',
+    })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockTrigger).not.toHaveBeenCalled()
+    expect(mockExecuteMemberSync).not.toHaveBeenCalled()
   })
 
   describe('assertMemberSyncPayload', () => {
@@ -118,6 +138,57 @@ describe('member sync queue', () => {
   })
 
   describe('dispatchMemberSync', () => {
+    it('makes only the freshly connected account due when accepting its retry', async () => {
+      queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR_ROW])
+      dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'c-1' }])
+
+      await expect(
+        dispatchMemberSync('c-1', {
+          billingAttribution: BILLING,
+          connectedCredentialId: 'reconnected-account',
+        })
+      ).resolves.toEqual({ queued: true })
+
+      expect(dbChainMockFns.transaction).toHaveBeenCalledOnce()
+      expect(dbChainMockFns.update).toHaveBeenNthCalledWith(2, schemaMock.knowledgeConnectorMember)
+      expect(dbChainMockFns.set).toHaveBeenLastCalledWith({
+        nextAttemptAt: expect.any(Date),
+        updatedAt: expect.any(Date),
+      })
+      expect(dbChainMockFns.where).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          type: 'and',
+          conditions: expect.arrayContaining([
+            { type: 'eq', left: schemaMock.knowledgeConnectorMember.connectorId, right: 'c-1' },
+            { type: 'eq', left: schemaMock.knowledgeConnectorMember.status, right: 'active' },
+            {
+              type: 'eq',
+              left: schemaMock.knowledgeConnectorMember.credentialId,
+              right: 'reconnected-account',
+            },
+          ]),
+        })
+      )
+      expect(dbChainMockFns.returning.mock.invocationCallOrder[0]).toBeLessThan(
+        dbChainMockFns.update.mock.invocationCallOrder[1]
+      )
+      expect(mockTrigger).toHaveBeenCalledOnce()
+    })
+
+    it('does not reset account backoff when its retry cannot claim the connector', async () => {
+      queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR_ROW])
+      queueTableRows(schemaMock.knowledgeConnector, [{ ...CONNECTOR_ROW, status: 'paused' }])
+      dbChainMockFns.returning.mockResolvedValueOnce([])
+      await expect(
+        dispatchMemberSync('c-1', {
+          billingAttribution: BILLING,
+          connectedCredentialId: 'reconnected-account',
+        })
+      ).resolves.toMatchObject({ queued: false })
+      expect(dbChainMockFns.update).not.toHaveBeenCalledWith(schemaMock.knowledgeConnectorMember)
+      expect(mockTrigger).not.toHaveBeenCalled()
+    })
+
     it('rejects a rapid manual repeat without making members due', async () => {
       queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR_ROW])
       queueTableRows(schemaMock.knowledgeConnector, [CONNECTOR_ROW])

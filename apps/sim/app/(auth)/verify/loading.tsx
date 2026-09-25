@@ -1,12 +1,15 @@
-import { Skeleton } from '@sim/emcn'
+import {
+  AuthLoadingFrame,
+  AuthLoadingSkeleton,
+} from '@/app/(auth)/components/auth-loading-skeleton'
 
 export default function VerifyLoading() {
   return (
-    <div className='flex flex-col items-center'>
-      <Skeleton className='h-[38px] w-[180px] rounded-sm' />
-      <Skeleton className='mt-3 h-[14px] w-[300px] rounded-sm' />
-      <Skeleton className='mt-1 h-[14px] w-[240px] rounded-sm' />
-      <Skeleton className='mt-8 h-[44px] w-full rounded-lg' />
-    </div>
+    <AuthLoadingFrame>
+      <AuthLoadingSkeleton shape='title' className='w-[180px]' />
+      <AuthLoadingSkeleton shape='label' className='mt-3 w-[300px]' />
+      <AuthLoadingSkeleton shape='label' className='mt-1 w-[240px]' />
+      <AuthLoadingSkeleton shape='control' className='mt-8 w-full' />
+    </AuthLoadingFrame>
   )
 }

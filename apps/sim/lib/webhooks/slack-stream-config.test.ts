@@ -11,6 +11,25 @@ import {
 const CHILD_WORKFLOW_ID = '11111111-1111-4111-8111-111111111111'
 
 describe('Slack stream response config', () => {
+  it.each([undefined, true, false])(
+    'uses the shared tool-call toggle for Sim Chat outputs: %s',
+    (includeToolCalls) => {
+      const config = normalizeSlackStreamResponseConfig(
+        {
+          eventType: 'message',
+          streamResponse: true,
+          streamOutputs: ['simchat.content'],
+          streamIncludeToolCalls: includeToolCalls,
+        },
+        { mship: { id: 'mship', name: 'Sim Chat' } }
+      )
+      expect(config).toMatchObject({
+        outputConfigs: [{ blockId: 'mship', path: 'content' }],
+        includeToolCalls: includeToolCalls !== false,
+      })
+    }
+  )
+
   it('normalizes selected outputs and replaces authoring fields', () => {
     const providerConfig: Record<string, unknown> = {
       eventType: 'app_mention',

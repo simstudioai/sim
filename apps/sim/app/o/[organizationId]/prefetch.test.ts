@@ -13,7 +13,7 @@ const { mockListOrganizationChats, mockListWorkspacesForViewer, mockGetUserProfi
   })
 )
 
-vi.mock('@/lib/copilot/chat/organization-chats', () => ({
+vi.mock('@/lib/mothership/chat/organization-chats', () => ({
   listOrganizationChats: { execute: mockListOrganizationChats },
 }))
 vi.mock('@/lib/workspaces/list', () => ({

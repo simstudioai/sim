@@ -1,4 +1,6 @@
-# Coda connector decisions and verification
+# Coda indexed connector decisions and verification
+
+This document covers ordinary knowledge-base ingestion and the explicitly selected legacy Search backend (`SIM_SEARCH_LIVE=false`). Its historical verification notes refer to that indexed path. Default live Search uses personal Coda MCP authorization plus optional service-source verification; see [live Search](../../lib/sim-search/live/README.md) and the [Coda Search guide](../../../docs/content/docs/search/coda.mdx). Background Coda content/ACL/directory builds are not part of live Search.
 
 ## Precedent and authentication
 

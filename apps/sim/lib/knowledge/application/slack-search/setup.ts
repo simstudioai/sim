@@ -151,7 +151,7 @@ async function prepareInstallationAttempt(
   if (shared && installation && member.app && member.app.teamId !== installation.teamId)
     throw new OrchestrationError(
       'conflict',
-      'Install Sim Search in the Slack workspace used for member indexing'
+      'Install Sim Search in the Slack workspace connected by your members'
     )
   const clientId = input.clientId ?? app?.clientId
   if (!clientId) throw new OrchestrationError('validation', 'Slack Client ID is required')
@@ -284,7 +284,7 @@ async function saveInstallation(
   )
     throw new OrchestrationError(
       'conflict',
-      'Install the same Slack app and workspace used for member indexing'
+      'Install the same Slack app and workspace connected by your members'
     )
   const { encrypted: encryptedToken } = await encryptSecret(
     JSON.stringify({

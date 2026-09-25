@@ -7,6 +7,7 @@ import {
   knowledgeConnector,
   knowledgeConnectorMember,
   knowledgeDocumentObservation,
+  knowledgeProjectionDirty,
   member,
   user,
 } from '@sim/db/schema'
@@ -334,6 +335,29 @@ export function knowledgeCandidateAccessConditionForConnectors(
 }
 
 /**
+ * Whether a projection row belongs to a document marked for the knowledge projector: its source,
+ * ACL, or chunks changed and its rows may not show it yet. A probe of the marks' primary key: the
+ * planner may instead hash the whole set once per statement, which is as cheap while the marks are
+ * few, and an `IN` would risk re-reading them per row once they outgrow the hash.
+ */
+export function projectionPending(documentId: AnyPgColumn | SQL): SQL {
+  return sql`(EXISTS (SELECT 1 FROM ${knowledgeProjectionDirty} WHERE ${knowledgeProjectionDirty.documentId} = ${documentId}))`
+}
+
+/**
+ * Whether a projection row is decided on its document rather than on its own columns: its
+ * document is marked for the projector, or, while the source and ACL fill runs, the row has not
+ * been filled.
+ */
+export function projectionDecidedOnDocument(
+  projection: { acl: AnyPgColumn | SQL; documentId: AnyPgColumn | SQL },
+  filled: boolean
+): SQL {
+  const pending = projectionPending(projection.documentId)
+  return filled ? pending : sql`(${projection.acl} IS NULL OR ${pending})`
+}
+
+/**
  * The candidate predicate on a ranking projection's own row, for a scope whose connectors were
  * resolved: `connectorId` and `acl` are mirrored there from the document, so a walk or a keyword
  * window decides readability on the row it scores instead of joining `document` per candidate.
@@ -344,11 +368,15 @@ export function knowledgeCandidateAccessConditionForConnectors(
  * under the full predicate, before content is returned — this predicate only decides what is worth
  * ranking.
  *
- * A row the backfill has not reached yet carries no ACL (`acl IS NULL`) and is decided on its
- * document instead, under {@link knowledgeCandidateAccessConditionForConnectors} — the join per
- * candidate that every row paid before the columns existed. The backfill runs in the background,
- * so search never waits on it, never loses a document to it, and never ranks an unreadable one
- * into a bounded candidate pool because of it.
+ * A row whose columns may be behind its document is decided on the document instead, under
+ * {@link knowledgeCandidateAccessConditionForConnectors} — the join per candidate that every row
+ * paid before the columns existed: a row the source and ACL fill has not reached (`acl IS NULL`),
+ * and every row of a document marked for the knowledge projector. A revoked grant still on such a
+ * row never admits it, and a new grant not yet on it never hides it from a statement that reaches
+ * the row. A source-scoped walk or slice reaches rows by the source on the row, though, so a
+ * document that moved to another source joins that source's ranking once the projector has
+ * rewritten its rows; until then it can be missing there, never shown where it is not readable.
+ * The projector and the fill run in the background, so search never waits on either.
  */
 export function projectionCandidateAccessCondition(
   projection: {
@@ -361,8 +389,8 @@ export function projectionCandidateAccessCondition(
   options: {
     /**
      * Whether every row of the projection carries its mirrored source and ACL. While the fill
-     * is under way, a row it has not reached is decided on its document; once it is complete no
-     * such row exists, and the predicate is the array test alone.
+     * is under way, a row it has not reached is decided on its document; once it is complete only
+     * a marked document's rows are.
      */
     filled?: boolean
   } = {}
@@ -383,13 +411,17 @@ export function projectionCandidateAccessCondition(
     ? sql`(${projection.connectorId} IS NULL OR ${inSources(mirrored)})`
     : inSources(mirrored)
   const onRow = sql`(${projection.acl} && ${tokens} AND ${owned})`
-  if (options.filled) return onRow
-  const unfilled = sql`(${projection.acl} IS NULL AND EXISTS (
-    SELECT 1 FROM ${document}
+  /**
+   * A scalar subquery rather than `EXISTS`: the planner may turn an `EXISTS` into one hash of every
+   * readable document, a sequential scan of `document` for a statement that only needs a few rows
+   * decided. A scalar subquery is only ever a primary-key probe per row that needs it.
+   */
+  const onDocument = sql`(SELECT ${document.id} FROM ${document}
     WHERE ${document.id} = ${projection.documentId}
       AND ${knowledgeCandidateAccessConditionForConnectors(scope, plan)}
-  ))`
-  return sql`(${unfilled} OR ${onRow})`
+    LIMIT 1) IS NOT NULL`
+  return sql`((${projectionDecidedOnDocument(projection, options.filled ?? false)} AND ${onDocument})
+    OR (${onRow} AND NOT ${projectionPending(projection.documentId)}))`
 }
 
 /**

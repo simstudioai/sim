@@ -67,7 +67,8 @@ export function defineV2BinaryRoute<
         request,
         options.operation,
         options.auth,
-        options.rateLimit
+        options.rateLimit,
+        options.useCase
       )
       if (!admission.success) return admission.response
 

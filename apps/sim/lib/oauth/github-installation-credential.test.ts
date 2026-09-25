@@ -13,7 +13,11 @@ vi.mock('@/lib/oauth/github-installation', () => ({
   parseGitHubInstallationBinding: mocks.parseBinding,
   resolveGitHubInstallationAccessToken: mocks.resolveToken,
 }))
-vi.mock('@/lib/oauth/oauth', () => ({ OAUTH_PROVIDERS: {}, refreshOAuthToken: vi.fn() }))
+vi.mock('@/lib/oauth/oauth', () => ({
+  OAUTH_PROVIDERS: {},
+  refreshOAuthToken: vi.fn(),
+  TOKEN_REFRESH_TIMEOUT_MS: 15_000,
+}))
 
 import { resolveServiceAccountToken } from '@/lib/oauth/credential-service'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'

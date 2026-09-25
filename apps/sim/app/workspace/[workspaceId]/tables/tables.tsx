@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ComboboxOption } from '@sim/emcn'
-import { ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@sim/emcn'
+import { Avatar, ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@sim/emcn'
 import { Columns3, FolderPlus, Pencil, Rows3, Table as TableIcon, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -11,27 +11,6 @@ import { useQueryStates } from 'nuqs'
 import type { TableDefinition } from '@/lib/table'
 import { generateUniqueTableName, MAX_TABLE_BATCH_ITEMS } from '@/lib/table/constants'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import type {
-  DropdownOption,
-  FilterTag,
-  ResourceAction,
-  ResourceColumn,
-  ResourceRow,
-  SearchConfig,
-  SortConfig,
-} from '@/app/workspace/[workspaceId]/components'
-import {
-  EMPTY_CELL_PLACEHOLDER,
-  FILTER_SECTION_LABEL_CLASS,
-  OwnerAvatar,
-  ownerCell,
-  Resource,
-  reportBulkOutcome,
-  resourceListState,
-  selectionLabel,
-  timeCell,
-  useResourceRowSelection,
-} from '@/app/workspace/[workspaceId]/components'
 import type {
   MoveOptionNode,
   SortableResource,
@@ -58,11 +37,38 @@ import {
   useFolderNavigation,
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
+import { reportBulkOutcome } from '@/app/workspace/[workspaceId]/components/resource/bulk-outcome'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
+import { ownerCell } from '@/app/workspace/[workspaceId]/components/resource/components/owner-cell'
 import {
   ResourceNoResults,
   TablesEmptyState,
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+import type {
+  DropdownOption,
+  ResourceAction,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
+import type {
+  FilterTag,
+  SearchConfig,
+  SortConfig,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import {
+  ResourceFilterPanel,
+  ResourceFilterSection,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import { timeCell } from '@/app/workspace/[workspaceId]/components/resource/components/time-cell'
+import { resourceListState } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
+import type {
+  ResourceColumn,
+  ResourceRow,
+} from '@/app/workspace/[workspaceId]/components/resource/resource'
+import {
+  EMPTY_CELL_PLACEHOLDER,
+  Resource,
+} from '@/app/workspace/[workspaceId]/components/resource/resource'
+import { selectionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
+import { useResourceRowSelection } from '@/app/workspace/[workspaceId]/components/resource/use-resource-row-selection'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
@@ -715,7 +721,7 @@ function TablesContent() {
       (members ?? []).map((m) => ({
         value: m.userId,
         label: m.name,
-        iconElement: <OwnerAvatar name={m.name} image={m.image} />,
+        iconElement: <Avatar size='xs' name={m.name} src={m.image} aria-hidden />,
       })),
     [members]
   )
@@ -724,9 +730,8 @@ function TablesContent() {
 
   const filterContent = useMemo(
     () => (
-      <div className='flex w-[240px] flex-col gap-3 p-3'>
-        <div className='flex flex-col gap-1.5'>
-          <span className={FILTER_SECTION_LABEL_CLASS}>Row Count</span>
+      <ResourceFilterPanel>
+        <ResourceFilterSection label='Row Count'>
           <ChipCombobox
             options={[
               { value: 'empty', label: 'Empty' },
@@ -742,10 +747,9 @@ function TablesContent() {
             allOptionLabel='All'
             className='w-full'
           />
-        </div>
+        </ResourceFilterSection>
         {memberOptions.length > 0 && (
-          <div className='flex flex-col gap-1.5'>
-            <span className={FILTER_SECTION_LABEL_CLASS}>Owner</span>
+          <ResourceFilterSection label='Owner'>
             <ChipCombobox
               options={memberOptions}
               multiSelect
@@ -759,7 +763,7 @@ function TablesContent() {
               allOptionLabel='All'
               className='w-full'
             />
-          </div>
+          </ResourceFilterSection>
         )}
         {hasActiveFilters && (
           <button
@@ -770,7 +774,7 @@ function TablesContent() {
             Clear all filters
           </button>
         )}
-      </div>
+      </ResourceFilterPanel>
     ),
     [
       rowCountFilter,

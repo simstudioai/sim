@@ -1,4 +1,4 @@
-import type { MothershipResource } from '@/lib/copilot/resource-types'
+import type { MothershipResource } from '@/lib/mothership/resource-types'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import type { FolderTreeNode } from '@/stores/folders/types'

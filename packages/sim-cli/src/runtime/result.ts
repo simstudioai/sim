@@ -1,4 +1,6 @@
-import chalk from 'chalk'
+import { writeStderr } from '#sim-cli/output/io'
+import { styles } from '#sim-cli/output/presentation'
+import { truncationMetadata } from '#sim-cli/output/truncation'
 import type { OutputFormat } from '../config/index'
 import type { ColumnSpec, CommandSpec } from '../contract/types'
 import type { V2OperationName } from '../generated/v2-api'
@@ -319,41 +321,7 @@ function writePageNote(spec: CommandSpec, envelope: unknown): void {
   if (!spec.pageNote) return
   const value = at(envelope, spec.pageNote.path)
   if (value === undefined || value === null) return
-  process.stderr.write(chalk.dim(`${spec.pageNote.label}: ${String(value)}\n`))
-}
-
-/**
- * Response fields that state the server itself clipped what it returned.
- *
- * Matched by shape rather than listed per command, so a flag added to a route
- * envelope is surfaced the day it lands. Structured list output carries data
- * and nextCursor along with these boolean flags; human-readable warnings remain on stderr.
- */
-const TRUNCATION_FLAG = /^truncated$|^[A-Za-z0-9]+Truncated$/
-
-/**
- * Negating prefixes whose `Truncated` suffix states the opposite.
- *
- * A bare `Truncated$` match also accepts `notTruncated` and `isNotTruncated`,
- * where `true` means the answer is whole, and a note about a clip that did not
- * happen is the worst thing this can print. These four prefixes are the
- * spellings worth anticipating rather than a decision procedure for English —
- * a field negated some other way slips through and has to be added here.
- */
-const NEGATED_TRUNCATION_FLAG = /^(?:not|un|non|never)Truncated$|(?:Not|Un|Non|Never)Truncated$/
-
-/** Preserves declared boolean truncation fields without projecting user-owned row values. */
-function truncationMetadata(container: unknown): Record<string, boolean> {
-  if (!container || typeof container !== 'object' || Array.isArray(container)) return {}
-  const metadata: Record<string, boolean> = {}
-  for (const [key, value] of Object.entries(container))
-    if (
-      typeof value === 'boolean' &&
-      TRUNCATION_FLAG.test(key) &&
-      !NEGATED_TRUNCATION_FLAG.test(key)
-    )
-      metadata[key] = value
-  return metadata
+  writeStderr(styles().dim(`${spec.pageNote.label}: ${String(value)}\n`))
 }
 
 /** The flags one object raised, in the spelling the wire used. */
@@ -432,8 +400,8 @@ function clippedSubject(flag: string): string {
  */
 function writeEnvelopeTruncation(envelope: unknown): void {
   for (const flag of responseTruncationFlags(envelope)) {
-    process.stderr.write(
-      chalk.dim(
+    writeStderr(
+      styles().dim(
         `${spellOut(flag)}: the server clipped ${clippedSubject(flag)}, so the answer is incomplete\n`
       )
     )
@@ -458,7 +426,10 @@ export function renderResult(
     return
   }
 
-  const data = unwrapResource(raw)
+  // The single-key unwrap exists for the human table: `{ mcpServer: {...} }` rendered as-is
+  // printed nothing. Machine formats print the API's data verbatim, so `--output json`
+  // matches the OpenAPI shape the docs and the agent reference card are generated from.
+  const data = format === 'json' || format === 'yaml' ? raw : unwrapResource(raw)
   if (spec.itemsPath) {
     const items = at(data, spec.itemsPath)
     if (!Array.isArray(items)) {

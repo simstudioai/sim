@@ -83,6 +83,12 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
 
+      - name: Verify direct schema push compatibility
+        working-directory: packages/db
+        env:
+          DB_PUSH_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+        run: bunx vitest run scripts/push.postgres.test.ts
+
       - name: Provision a fresh database through the supported command
         working-directory: packages/db
         run: |
@@ -102,6 +108,7 @@ jobs:
           bunx vitest run
           scripts/retired-columns.postgres.test.ts
           scripts/connector-sync-schedule-precision.postgres.test.ts
+          scripts/database-failure-classification.postgres.test.ts
 
       - name: Verify OAuth lifecycle and SCIM membership guards in PostgreSQL
         working-directory: apps/sim
@@ -232,14 +239,16 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Verify durable provenance, concurrent memory writes, and attachment replay
+      - name: Verify durable provenance, concurrent memory writes, and browser download admission
         working-directory: apps/sim
         env:
+          BROWSER_FILE_TRANSFER_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
           TABLE_PROVENANCE_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
           MEMORY_PROVENANCE_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
           AGENT_MEMORY_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_auth_scim
         run: >-
           bunx vitest run
+          lib/mothership/async-runs/browser-download-claim.postgres.test.ts
           lib/table/rows/secret-provenance.postgres.test.ts
           lib/memory/message-provenance.postgres.test.ts
           lib/memory/conversation-store.postgres.test.ts
@@ -255,6 +264,7 @@ jobs:
           script-migrations/0016_backfill_search_vectors.postgres.test.ts
           script-migrations/0018_repair_workspace_file_content_revision.postgres.test.ts
           script-migrations/0019_tin_keyword_projection.postgres.test.ts
+          member-sync-status-migration.postgres.test.ts
 
       - name: Verify Search progress, pagination, and outbox scheduling in PostgreSQL
         working-directory: apps/sim
@@ -267,14 +277,23 @@ jobs:
           lib/knowledge/__integration__/search-source-pagination.integration.ts
           lib/knowledge/__integration__/search-reference-batching.integration.ts
           lib/knowledge/__integration__/embedding-insert-batches.integration.ts
+          lib/knowledge/__integration__/processing-lock-scope.integration.ts
           lib/knowledge/__integration__/connector-lifecycle-locks.integration.ts
           lib/knowledge/__integration__/connector-deferral.integration.ts
           lib/knowledge/__integration__/stored-document-recovery.integration.ts
           lib/knowledge/__integration__/connector-partition-work.integration.ts
+          lib/knowledge/__integration__/user-document-visibility.integration.ts
           lib/knowledge/__integration__/listing-continuation.integration.ts
           lib/knowledge/__integration__/member-scope-renewal.integration.ts
+          lib/knowledge/__integration__/member-document-lifecycle.integration.ts
+          lib/knowledge/__integration__/connector-lease-pages.integration.ts
           lib/knowledge/__integration__/slack-empty-threads.integration.ts
           lib/knowledge/__integration__/kb-block-search.integration.ts
+          lib/knowledge/__integration__/gitlab-workspace.integration.ts
+          lib/knowledge/__integration__/unfilled-projection-source.integration.ts
+          lib/knowledge/__integration__/knowledge-projection.integration.ts
+          lib/knowledge/__integration__/async-projection-processing.integration.ts
+          lib/knowledge/__integration__/purged-detach-reservation.integration.ts
           lib/core/outbox/service.integration.ts
           lib/knowledge/__integration__/connector-upload.integration.ts
           lib/uploads/contexts/organization-logo/application.integration.ts
@@ -297,7 +316,17 @@ jobs:
           bunx vitest run --mode integration lib/knowledge/access/group-membership.integration.ts
           bunx vitest run \
             lib/knowledge/access/predicate.postgres.test.ts \
-            lib/knowledge/connectors/external-directory.postgres.test.ts
+            lib/knowledge/connectors/external-directory.postgres.test.ts \
+            lib/knowledge/connectors/sync-persistence.postgres.test.ts \
+            lib/knowledge/connectors/sync-content-pass.postgres.test.ts
+
+      - name: Verify the projection source and ACL trigger and backfill in PostgreSQL
+        working-directory: packages/db
+        env:
+          KNOWLEDGE_ACL_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/sim_acl_test
+        run: |
+          bun -e 'import postgres from "postgres"; const sql = postgres(process.env.DATABASE_URL); const [row] = await sql`SELECT 1 FROM pg_database WHERE datname = ${"sim_acl_test"}`; if (!row) await sql`CREATE DATABASE sim_acl_test`; await sql.end()'
+          bunx vitest run script-migrations/0021_embedding_search_connector.postgres.test.ts
 
   test-build:
     name: Lint and Test

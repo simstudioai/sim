@@ -54,6 +54,10 @@ import {
   useFolderAncestors,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import {
+  ResourceFilterPanel,
+  ResourceFilterSection,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import {
   ChunkContextMenu,
   ChunkEditor,
   DeleteChunkModal,
@@ -739,9 +743,11 @@ export function Document({
 
   const filterContent = useMemo(
     () => (
-      <div className='flex w-[240px] flex-col gap-3 p-3'>
-        <div className='flex flex-col gap-1.5'>
-          <span className='text-[var(--text-secondary)] text-caption'>Status</span>
+      <ResourceFilterPanel>
+        <ResourceFilterSection
+          label='Status'
+          labelClassName='text-[var(--text-secondary)] text-caption'
+        >
           <ChipCombobox
             options={[
               { value: 'enabled', label: 'Enabled' },
@@ -759,7 +765,7 @@ export function Document({
             allOptionLabel='All'
             className='w-full'
           />
-        </div>
+        </ResourceFilterSection>
         {enabledFilter.length > 0 && (
           <button
             type='button'
@@ -772,7 +778,7 @@ export function Document({
             Clear all filters
           </button>
         )}
-      </div>
+      </ResourceFilterPanel>
     ),
     [enabledFilter, setEnabledFilter]
   )

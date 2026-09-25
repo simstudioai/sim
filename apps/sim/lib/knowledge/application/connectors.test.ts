@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 
 const mocks = vi.hoisted(() => ({
   resolveKnowledgeBase: vi.fn(),
+  resolveEnvironment: vi.fn(),
   resolveConnector: vi.fn(),
   resolvePermission: vi.fn(),
   createConnector: vi.fn(),
@@ -31,6 +32,10 @@ const mocks = vi.hoisted(() => ({
   viewerMemberships: vi.fn(),
   getAccess: vi.fn(),
   getForConnectors: vi.fn(),
+}))
+
+vi.mock('@/lib/environment/utils', () => ({
+  resolveEffectiveEnvironmentVariables: mocks.resolveEnvironment,
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -229,6 +234,100 @@ const delegatedPrincipal = {
 const BILLING = { actorUserId: 'shared-user', workspaceId: 'workspace-a' } as never
 
 describe('knowledge connector application use cases', () => {
+  const patInput = {
+    knowledgeBaseId: 'knowledge-b',
+    connectorType: 'gitlab',
+    apiKey: '{{GITLAB_PAT}}',
+    sourceConfig: { project: 'group/project' },
+    syncIntervalMinutes: 1440,
+  }
+  const patPrincipal = { kind: 'session' as const, userId: 'writer', sessionId: 'session' }
+
+  it('resolves an API-key reference using the caller and canonical workspace before persistence', async () => {
+    mocks.resolveEnvironment.mockResolvedValue({ GITLAB_PAT: { value: 'resolved-pat' } })
+    mocks.createConnector.mockResolvedValueOnce({
+      success: true,
+      connector: { id: 'new-connector', connectorType: 'gitlab', accessMode: 'workspace' },
+    })
+    await createKnowledgeConnector.execute({ principal: patPrincipal, input: patInput })
+    expect(mocks.resolveEnvironment).toHaveBeenCalledWith('writer', 'workspace-b', ['GITLAB_PAT'])
+    expect(mocks.createConnector).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: 'resolved-pat' })
+    )
+  })
+
+  it.each([{}, { GITLAB_PAT: { value: '' } }])(
+    'rejects missing or empty secrets before contacting the provider',
+    async (variables) => {
+      mocks.resolveEnvironment.mockResolvedValue(variables)
+      await expect(
+        createKnowledgeConnector.execute({ principal: patPrincipal, input: patInput })
+      ).rejects.toMatchObject({
+        code: 'validation',
+        message: 'Secret "GITLAB_PAT" is unavailable or empty',
+      })
+      expect(mocks.createConnector).not.toHaveBeenCalled()
+    }
+  )
+
+  it('checks workspace write permission before resolving a secret', async () => {
+    mocks.resolvePermission.mockResolvedValue('read')
+    await expect(
+      createKnowledgeConnector.execute({ principal: patPrincipal, input: patInput })
+    ).rejects.toMatchObject({ name: 'InsufficientWorkspacePermissionsError' })
+    expect(mocks.resolveEnvironment).not.toHaveBeenCalled()
+    expect(mocks.createConnector).not.toHaveBeenCalled()
+  })
+
+  it('passes literal PATs through without reading secrets', async () => {
+    mocks.createConnector.mockResolvedValueOnce({
+      success: true,
+      connector: { id: 'new-connector', connectorType: 'gitlab', accessMode: 'workspace' },
+    })
+    await createKnowledgeConnector.execute({
+      principal: patPrincipal,
+      input: { ...patInput, apiKey: 'literal-pat' },
+    })
+    expect(mocks.resolveEnvironment).not.toHaveBeenCalled()
+    expect(mocks.createConnector).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: 'literal-pat' })
+    )
+  })
+
+  it.each([{ GITLAB_PAT: { value: 'resolved-pat' } }, { GITLAB_PAT: { value: '' } }])(
+    'rejects a shell-style reference to an existing secret instead of storing it as the key',
+    async (variables) => {
+      mocks.resolveEnvironment.mockResolvedValue(variables)
+      await expect(
+        createKnowledgeConnector.execute({
+          principal: patPrincipal,
+          input: { ...patInput, apiKey: ' $GITLAB_PAT ' },
+        })
+      ).rejects.toMatchObject({
+        code: 'validation',
+        message:
+          'Secret references use {{GITLAB_PAT}}, not $GITLAB_PAT. Pass apiKey as "{{GITLAB_PAT}}" to use the secret.',
+      })
+      expect(mocks.resolveEnvironment).toHaveBeenCalledWith('writer', 'workspace-b', ['GITLAB_PAT'])
+      expect(mocks.createConnector).not.toHaveBeenCalled()
+    }
+  )
+
+  it('passes a $-prefixed literal through when no secret has that name', async () => {
+    mocks.resolveEnvironment.mockResolvedValue({})
+    mocks.createConnector.mockResolvedValueOnce({
+      success: true,
+      connector: { id: 'new-connector', connectorType: 'sftp', accessMode: 'workspace' },
+    })
+    await createKnowledgeConnector.execute({
+      principal: patPrincipal,
+      input: { ...patInput, apiKey: '$Summer2024' },
+    })
+    expect(mocks.createConnector).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: '$Summer2024' })
+    )
+  })
+
   it('refuses workspace-wide or unreviewed source ingestion into the canonical search index', async () => {
     mocks.resolveKnowledgeBase.mockResolvedValue({
       ...crossWorkspaceContext,
@@ -237,6 +336,7 @@ describe('knowledge connector application use cases', () => {
     mocks.resolvePermission.mockResolvedValue('admin')
     for (const [connectorType, accessMode] of [
       ['confluence', 'workspace'],
+      ['gitlab', 'workspace'],
       ['notion', 'members'],
     ] as const) {
       await expect(
@@ -557,6 +657,45 @@ describe('knowledge connector application use cases', () => {
       mocks.decryptApiKey.mock.invocationCallOrder[0]!
     )
   })
+
+  it.each(['result', 'exception'] as const)(
+    'redacts stored tokens from provider validation %s when editing a connector',
+    async (failure) => {
+      const message = 'Provider rejected existing-pat'
+      if (failure === 'exception') {
+        mocks.validateConnectorConfig.mockRejectedValueOnce(
+          new OrchestrationError('validation', message)
+        )
+      } else {
+        mocks.validateConnectorConfig.mockResolvedValueOnce({ valid: false, error: message })
+      }
+      const result = validateConnectorSourceConfig({
+        principal: patPrincipal,
+        requestId: 'request',
+        workspaceId: 'workspace-b',
+        actingUserId: 'writer',
+        sourceConfig: { owner: 'acme', repo: 'handbook' },
+        connector: {
+          ...connectorContext.connector,
+          connectorType: 'github',
+          credentialId: null,
+          encryptedApiKey: 'persisted-cipher',
+          accessMode: 'workspace',
+        } as Parameters<typeof validateConnectorSourceConfig>[0]['connector'],
+      })
+      if (failure === 'exception') {
+        await expect(result).rejects.toMatchObject({
+          code: 'validation',
+          message: 'Provider rejected [REDACTED]',
+        })
+      } else {
+        await expect(result).resolves.toEqual({
+          errorCode: 'validation',
+          message: 'Provider rejected [REDACTED]',
+        })
+      }
+    }
+  )
 
   it.each([
     [

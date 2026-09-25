@@ -7,6 +7,8 @@ import { ApiClientError } from '@/lib/api/client/errors'
 
 const mocks = vi.hoisted(() => ({
   admin: true,
+  live: false,
+  accessCheck: vi.fn(),
   personal: true,
   access: { admin: true, members: true },
   overview: vi.fn(),
@@ -37,11 +39,17 @@ vi.mock('@/app/o/[organizationId]/providers/organization-provider', () => ({
     searchAccess: { memberScoped: true, sourceMirrored: true },
   }),
 }))
+vi.mock('@/lib/core/config/deployment-shape', () => ({
+  useDeploymentShape: () => ({ features: { liveEnterpriseSearch: mocks.live } }),
+}))
 vi.mock('@/lib/sim-search/connectors', () => ({
   canConnectPersonally: () => mocks.personal,
   canConnectWithDefaults: (meta: { name: string }) =>
     ['Gmail', 'Google Calendar', 'Google Drive'].includes(meta.name),
-  getConnectorAccessAvailability: () => mocks.access,
+  getConnectorAccessAvailability: (_meta: unknown, _availability: unknown, options: unknown) => {
+    mocks.accessCheck(options)
+    return mocks.access
+  },
 }))
 vi.mock('@/lib/oauth', () => ({
   getServiceConfigByServiceId: (providerId: string) => ({ providerId }),
@@ -68,6 +76,7 @@ vi.mock('@/connectors/registry', () => ({
     slack: { name: 'Slack', auth: { mode: 'oauth', provider: 'slack' } },
     github: { name: 'GitHub', auth: { mode: 'oauth', provider: 'github-repositories' } },
     gitlab: { name: 'GitLab', auth: { mode: 'apiKey' } },
+    confluence: { name: 'Confluence', auth: { mode: 'oauth', provider: 'confluence' } },
   },
 }))
 vi.mock('@/hooks/queries/kb/connectors', () => ({
@@ -150,6 +159,7 @@ describe('organization provider management', () => {
     vi.clearAllMocks()
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     mocks.admin = true
+    mocks.live = false
     mocks.personal = true
     mocks.access = { admin: true, members: true }
     mocks.approvalError = null
@@ -626,6 +636,21 @@ describe('organization provider management', () => {
     })
   })
 
+  it('offers Slack app setup in live search even before member sign-in is ready', async () => {
+    mocks.live = true
+    mocks.access = { admin: false, members: false }
+    mocks.overview.mockReturnValue({
+      data: { providers: [{ ...provider, connectorType: 'slack' }] },
+    })
+    mocks.accounts.mockReturnValue({ data: { credentialGroup: null }, isPending: false })
+    await render('slack')
+    await click('Set up Slack app')
+    await vi.waitFor(() => {
+      const query = new URLSearchParams(mocks.updateUrl.mock.calls.at(-1)![0].queryString)
+      expect(query.get('connectedAccounts')).toBe('slack')
+    })
+  })
+
   it.each([
     {
       name: 'missing configuration',
@@ -715,5 +740,51 @@ describe('organization provider management', () => {
     expect(mocks.accounts).toHaveBeenCalledWith(undefined)
     expect(mocks.setup).not.toHaveBeenCalled()
     expect(mocks.people).not.toHaveBeenCalled()
+  })
+  it('preserves member identity capability for live Confluence service-account setup', async () => {
+    mocks.live = true
+    mocks.overview.mockReturnValue({
+      data: { providers: [{ ...provider, connectorType: 'confluence' }] },
+    })
+    await render('confluence')
+    expect(mocks.accessCheck).toHaveBeenCalledWith(
+      expect.objectContaining({ memberAccessAvailable: true })
+    )
+    expect(mocks.setup).toHaveBeenCalledWith(
+      expect.objectContaining({ memberAccessAvailable: true })
+    )
+    expect(container.textContent).toContain('Add service account')
+    expect(container.textContent).not.toContain('Last synced')
+  })
+  it('shows managed GitHub repositories and opens the repo-by-repo setup', async () => {
+    mocks.live = true
+    mocks.access = { admin: false, members: true }
+    mocks.overview.mockReturnValue({
+      data: { providers: [{ ...provider, connectorType: 'github' }] },
+    })
+    mocks.sources.mockReturnValue({
+      data: [
+        {
+          ...source,
+          connectorType: 'github',
+          accessMode: 'members',
+          isGitHubInstallation: true,
+          sourceDescription: 'acme/project',
+        },
+      ],
+      isPending: false,
+      isError: false,
+      hasNextPage: false,
+    })
+    await render('github')
+    expect(container.textContent).toContain('acme/project')
+    expect(container.textContent).toContain('GitHub App repositories')
+    expect(container.textContent).toContain('Add repository')
+    await click('Add repository')
+    await vi.waitFor(() => {
+      const params = mocks.updateUrl.mock.calls.at(-1)![0].searchParams
+      expect(params.get('addConnector')).toBe('github')
+      expect(params.get('source-access')).toBe('members')
+    })
   })
 })

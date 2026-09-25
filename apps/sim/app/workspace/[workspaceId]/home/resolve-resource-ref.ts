@@ -1,5 +1,5 @@
-import type { MothershipResource, WorkspaceResourceRef } from '@/lib/copilot/resources/types'
-import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import type { MothershipResource, WorkspaceResourceRef } from '@/lib/mothership/resources/types'
+import { canonicalWorkspaceFilePath } from '@/lib/mothership/vfs/path-utils'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { findWorkspaceFileByPath } from '@/hooks/queries/utils/find-workspace-file-by-src'
 

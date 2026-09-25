@@ -9,6 +9,8 @@ import { getDesktopBridge } from '@/lib/desktop'
 import { SidebarChromeProvider } from '@/app/workspace/[workspaceId]/components/workspace-chrome/sidebar-chrome-context'
 import { useSidebarPeek } from '@/app/workspace/[workspaceId]/components/workspace-chrome/use-sidebar-peek'
 import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'
+import { SIDEBAR_NO_MOTION_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import { useSidebarWidth } from '@/hooks/use-sidebar-width'
 import { useFullscreenOriginStore } from '@/stores/fullscreen-origin'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useSidebarStore } from '@/stores/sidebar/store'
@@ -33,32 +35,10 @@ const FULLSCREEN_SUFFIXES = ['/upgrade'] as const
  * still bounds itself; see the `[data-peek]` rule in `globals.css`.
  *
  * `w-auto` shrink-wraps the inner shell, which `[data-peek]` has already put at the
- * expanded width. It must not be a length: `width` cannot interpolate to or from
- * `auto`, so entering and leaving the peek snap instead of animating — otherwise the
- * card widens as it appears and leaves a shrinking ghost on retract.
+ * expanded width.
  */
 const PEEK_CARD_CHROME =
-  'absolute top-[var(--desktop-title-bar-height)] left-2 z-[var(--z-modal)] flex max-h-[calc(100%-var(--desktop-title-bar-height)-8px)] w-auto flex-col origin-top-left rounded-lg border border-[var(--border)]'
-
-/**
- * Peek card enter/exit — the popper idiom rather than a slide, since the card is
- * anchored to the title-bar toggle and grows out of that corner exactly as emcn's
- * Radix surfaces do (`dropdown-menu.tsx`: `fade-in-0 zoom-in-95`).
- *
- * Animations rather than transitions: an animation runs from mount, so the card needs
- * no hidden "from" frame and no `requestAnimationFrame` to step into — rAF is throttled
- * in an unfocused window, which would strand the card mounted-but-invisible.
- *
- * `duration-150` must match {@link PEEK_EXIT_DURATION_MS}.
- */
-const PEEK_CARD_ENTER = cn(
-  PEEK_CARD_CHROME,
-  'animate-in fade-in-0 zoom-in-95 duration-150 ease-out motion-reduce:animate-none'
-)
-const PEEK_CARD_EXIT = cn(
-  PEEK_CARD_CHROME,
-  'pointer-events-none animate-out fade-out-0 zoom-out-95 fill-mode-forwards duration-150 ease-out motion-reduce:animate-none'
-)
+  'absolute top-[var(--desktop-title-bar-height)] left-2 z-[var(--z-modal)] flex max-h-[calc(100%-var(--desktop-title-bar-height)-8px)] w-auto flex-col rounded-lg border border-[var(--border)]'
 
 /**
  * The divider between the rail and the content pane, dropped when there is no rail
@@ -160,9 +140,7 @@ function isFullscreenPath(pathname: string | null): boolean {
  * zero width, revealing the route content. Because this component lives in the
  * layout it persists across navigations, so the rail never re-mounts.
  *
- * The docked rail and content pane share one width transition. Drag-resizing,
- * hydration, and reduced motion bypass it; the floating peek retains its own
- * enter/exit animation.
+ * The docked rail and floating peek change immediately without layout animations.
  *
  * Because the chrome observes every pathname transition, it records the page a
  * fullscreen route was launched from into {@link useFullscreenOriginStore}. The
@@ -221,13 +199,12 @@ export function WorkspaceChrome({
    * and native fullscreen falls back to that same rail.
    */
   const peekEnabled = isCollapsed && !isFullscreen && titleBarMode === 'inset'
-  const { isPeekActive, isPeekOpen, cardRef, triggerRef, onTriggerEnter, onTriggerLeave } =
-    useSidebarPeek(peekEnabled, isSearchModalOpen)
+  const { isPeekActive, cardRef, triggerRef, onTriggerEnter, onTriggerLeave } = useSidebarPeek(
+    peekEnabled,
+    isSearchModalOpen
+  )
 
-  // Hydrate the persisted width before paint (collapse comes from the cookie/prop).
-  useLayoutEffect(() => {
-    void useSidebarStore.persist.rehydrate()
-  }, [])
+  useSidebarWidth()
 
   // Remember the last non-fullscreen page so a fullscreen route's Back control
   // can return there, deterministically and for any trigger.
@@ -297,24 +274,6 @@ export function WorkspaceChrome({
     }
   }, [])
 
-  // Re-clamp the width when the window shrinks below what the persisted width
-  // allows, so the sidebar can never grow wider than the viewport permits.
-  useEffect(() => {
-    let rafId: number | null = null
-    const onResize = () => {
-      if (rafId !== null) return
-      rafId = requestAnimationFrame(() => {
-        rafId = null
-        syncSidebarWidth()
-      })
-    }
-    window.addEventListener('resize', onResize)
-    return () => {
-      if (rafId !== null) cancelAnimationFrame(rafId)
-      window.removeEventListener('resize', onResize)
-    }
-  }, [syncSidebarWidth])
-
   return (
     <div
       className='desktop-workspace-window-frame relative flex min-h-0 flex-1'
@@ -331,21 +290,12 @@ export function WorkspaceChrome({
         ref={cardRef}
         className={cn(
           'sidebar-shell-outer shrink-0 overflow-hidden',
-          hasHydrated &&
-            !isPeekActive &&
-            'transition-[width] duration-175 ease-[cubic-bezier(0.25,0.1,0.25,1)] data-[resizing]:transition-none motion-reduce:transition-none',
-          isPeekActive
-            ? isPeekOpen
-              ? PEEK_CARD_ENTER
-              : PEEK_CARD_EXIT
-            : isFullscreen
-              ? 'w-0'
-              : 'w-[var(--sidebar-width)]'
+          SIDEBAR_NO_MOTION_CLASS,
+          isPeekActive ? PEEK_CARD_CHROME : isFullscreen ? 'w-0' : 'w-[var(--sidebar-width)]'
         )}
         data-collapsed={isCollapsed || undefined}
         data-peek={isPeekActive || undefined}
-        /* Also hidden mid-exit, where the card is mounted but invisible. */
-        aria-hidden={isFullscreen || (isPeekActive && !isPeekOpen) || undefined}
+        aria-hidden={isFullscreen || undefined}
         suppressHydrationWarning
       >
         <div

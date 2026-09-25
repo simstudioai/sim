@@ -28,7 +28,13 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
     }
     admin = postgres(url.toString(), { max: 1, onnotice: () => undefined })
     await admin.unsafe(`CREATE SCHEMA "${schemaName}"`)
-    for (const table of ['knowledge_base', 'embedding', 'embedding_search']) {
+    for (const table of [
+      'knowledge_base',
+      'document',
+      'embedding',
+      'embedding_search',
+      'knowledge_projection_dirty',
+    ]) {
       await admin.unsafe(
         `CREATE TABLE "${schemaName}"."${table}" (LIKE public."${table}" INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES INCLUDING GENERATED)`
       )
@@ -393,6 +399,8 @@ describe.runIf(Boolean(databaseUrl))('search projection upgrade in PostgreSQL', 
       { name: '0019_tin_keyword_projection' },
       { name: '0021_embedding_search_connector' },
       { name: '0022_projection_source_acl_backfill' },
+      { name: '0023_projection_acl_skip_unfilled' },
+      { name: '0024_knowledge_projection_async' },
     ])
     const [{ complete }] = await sql`SELECT count(*)::int AS complete FROM embedding e
       JOIN embedding_search s ON s.id = e.id JOIN embedding_keyword_search k ON k.id = e.id

@@ -11,6 +11,7 @@ import {
 } from 'node:fs'
 import { dirname } from 'node:path'
 import { lock } from 'proper-lockfile'
+import { embeddedProfile } from '../embed-context'
 import {
   FORBIDDEN_IN_VALUE,
   getSection,
@@ -150,6 +151,12 @@ export interface ResolvedProfile {
   oauth: StoredOAuthCredential | null
   workspaceId: string | null
   output: OutputFormat
+  /**
+   * Replaces global `fetch` for every request. Only an embedding server sets it, to
+   * answer its own v2 routes in-process; the installed CLI never does.
+   */
+  transport?: typeof fetch
+  signal?: AbortSignal
   /** Where each value came from, for `sim whoami` to explain surprising results. */
   sources: {
     endpoint: SettingSource
@@ -497,7 +504,7 @@ export async function withProfileLoginLease<T>(
   const path = `${credentialsPath()}.login-${digest}`
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
 
-  let release: (() => Promise<void>) | undefined
+  let release: () => Promise<void>
   try {
     release = await lock(path, {
       realpath: false,
@@ -526,7 +533,7 @@ export async function withCredentialsLock<T>(work: () => Promise<T>): Promise<T>
 
   const path = credentialsPath()
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
-  let release: (() => Promise<void>) | undefined
+  let release: () => Promise<void>
   try {
     release = await lock(path, {
       realpath: false,
@@ -570,6 +577,17 @@ export function deleteProfile(profile: string): { config: boolean; credentials: 
 }
 
 /**
+ * Removes every trailing `/`. A backward scan rather than `/\/+$/`: that regex
+ * restarts at each `/` in a long run that does not reach the end, so it is
+ * quadratic in the run length.
+ */
+function stripTrailingSlashes(value: string): string {
+  let end = value.length
+  while (end > 0 && value.charCodeAt(end - 1) === 0x2f) end--
+  return value.slice(0, end)
+}
+
+/**
  * Validates an endpoint and strips its trailing slashes.
  *
  * The check has to live here rather than at the call sites because an endpoint
@@ -590,7 +608,7 @@ export function normalizeEndpoint(endpoint: string, source: string): string {
   // naming the flag. It also has to come first so the slash strip sees the real
   // end of the URL — and that strip is there because a trailing slash produces
   // `https://sim.ai//api/v2/...`, which some proxies 404 rather than normalize.
-  const trimmed = endpoint.trim().replace(/\/+$/, '')
+  const trimmed = stripTrailingSlashes(endpoint.trim())
 
   // Trimming only reaches the ends, and a control character in the middle is
   // the one that matters: the URL parser deletes tabs and line breaks from
@@ -703,6 +721,11 @@ function refuseBlankOverrides(overrides: ProfileOverrides): void {
 }
 
 export function resolveProfile(overrides: ProfileOverrides = {}): ResolvedProfile {
+  // An embedded (in-process, server-hosted) run carries its full identity in its
+  // async context — the host already authenticated the caller and scoped the
+  // workspace, so profiles, env vars, and config files never apply there.
+  const embedded = embeddedProfile()
+  if (embedded) return embedded
   refuseBlankOverrides(overrides)
 
   const named = overrides.profile || process.env.SIM_PROFILE

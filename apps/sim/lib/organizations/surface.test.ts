@@ -68,6 +68,8 @@ describe('getOrganizationSurfaceContext', () => {
         canUseSearchMcp: true,
       },
       connectedAccountsAvailable: true,
+      mothershipAvailable: true,
+      canBuild: true,
       searchAccess: { memberScoped: true, sourceMirrored: false },
       settingsFeatures: expect.objectContaining({
         hosted: true,
@@ -79,6 +81,29 @@ describe('getOrganizationSurfaceContext', () => {
     expect(mockSearchAccess).toHaveBeenCalledWith({ organizationId: 'org-1' })
     expect(mockEnterprisePlan).toHaveBeenCalledWith('org-1')
   })
+
+  it.each([
+    { role: 'owner', billing: true, denied: false, expected: true },
+    { role: 'admin', billing: true, denied: true, expected: false },
+    { role: 'member', billing: true, denied: false, expected: false },
+    { role: 'member', billing: false, denied: false, expected: true },
+    { role: 'member', billing: false, denied: true, expected: false },
+  ])(
+    'projects Build permission for $role with billing=$billing and denied=$denied',
+    async ({ role, billing, denied, expected }) => {
+      setEnvFlags({ isBillingEnabled: billing })
+      queueTableRows(member, [{ role }])
+      queueTableRows(organization, [{ id: 'org-1', name: 'Acme', slug: 'acme', logo: null }])
+      queueTableRows(member, [{ memberCount: 1 }])
+      mockPermissionConfig.mockResolvedValue({
+        ...DEFAULT_PERMISSION_GROUP_CONFIG,
+        disableWorkspaceCreation: denied,
+      })
+      expect(await getOrganizationSurfaceContext('org-1', 'viewer')).toMatchObject({
+        canBuild: expected,
+      })
+    }
+  )
 
   it('normalizes a missing logo to null', async () => {
     queueTableRows(member, [{ role: 'member' }])
