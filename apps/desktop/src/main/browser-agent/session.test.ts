@@ -1,4 +1,11 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import type { MenuItemConstructorOptions, WebContents } from 'electron'
@@ -3570,11 +3577,33 @@ describe('browser-agent session', () => {
     }
   })
 
-  it('interrupts a completed download whose staging file cannot be moved into place', async () => {
+  it('never overwrites a file that takes the allocated name before the download claims it', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+    writeFileSync(join(directory, 'taken.bin'), 'user data')
     session = freshSession(win, {}, undefined, {
       getDirectory: () => directory,
       getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
+      pathExists: () => false,
+    })
+    const contents = (session.ensureTab().view as unknown as MockView).webContents
+    const download = mockDownloadItem({ filename: 'taken.bin', totalBytes: 100 })
+
+    startMockDownload(contents, download)
+
+    await vi.waitFor(() => expect(download.item.cancel).toHaveBeenCalledOnce())
+    expect(download.item.resume).not.toHaveBeenCalled()
+    expect(readFileSync(join(directory, 'taken.bin'), 'utf8')).toBe('user data')
+  })
+
+  it('interrupts a completed download whose staging file cannot be moved into place', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sim-browser-downloads-'))
+    const moveFile = vi.fn(() =>
+      Promise.reject(Object.assign(new Error('cross-device link'), { code: 'EXDEV' }))
+    )
+    session = freshSession(win, {}, undefined, {
+      getDirectory: () => directory,
+      getFreeDiskBytes: () => Number.MAX_SAFE_INTEGER,
+      moveFile,
     })
     const contents = (session.ensureTab().view as unknown as MockView).webContents
     const download = mockDownloadItem({ filename: 'blocked.bin', totalBytes: 100 })
@@ -3582,7 +3611,7 @@ describe('browser-agent session', () => {
     startMockDownload(contents, download)
     const stagingPath = expectOnlyStagingSavePath(download.item, directory)
     await vi.waitFor(() => expect(download.item.resume).toHaveBeenCalledOnce())
-    mkdirSync(join(directory, 'blocked.bin'))
+    expect(readFileSync(join(directory, 'blocked.bin'), 'utf8')).toBe('')
     download.emitDone('completed')
 
     await vi.waitFor(() =>
@@ -3591,7 +3620,9 @@ describe('browser-agent session', () => {
         state: 'interrupted',
       })
     )
-    await vi.waitFor(() => expect(existsSync(stagingPath)).toBe(false))
+    await vi.waitFor(() => expect(readdirSync(directory)).toEqual([]))
+    expect(existsSync(stagingPath)).toBe(false)
+    expect(moveFile).toHaveBeenCalledOnce()
     const { id } = session.getBrowserDownloadsState('chat-test').downloads[0]
     expect(session.completedBrowserDownload('chat-test', id)).toBeNull()
 
@@ -3970,6 +4001,7 @@ describe('browser-agent session', () => {
     })
 
     download.emitDone('cancelled')
+    await vi.waitFor(() => expect(readdirSync(directory)).toEqual([]))
     const replacement = mockDownloadItem({ filename: 'stream.bin', totalBytes: 100 })
     startMockDownload(contents, replacement)
     expect(replacement.item.cancel).not.toHaveBeenCalled()
@@ -4118,6 +4150,7 @@ describe('browser-agent session', () => {
     expect(second.item.resume).not.toHaveBeenCalled()
     expect(session.getBrowserDownloadsState('chat-test').downloads).toEqual([])
     expect(snapshots.get('chat-test')?.downloads).toEqual([])
+    await vi.waitFor(() => expect(finishedDownloadFiles(directory)).toEqual([]))
 
     const nextContents = (session.ensureTab().view as unknown as MockView).webContents
     const replacement = mockDownloadItem({ filename: 'same-name.bin', totalBytes: 100 })
@@ -4131,14 +4164,18 @@ describe('browser-agent session', () => {
     startMockDownload(nextContents, concurrent)
     await vi.waitFor(() => expect(concurrent.item.resume).toHaveBeenCalledOnce())
     concurrent.emitDone('completed')
+    // The torn-down downloads settling late must not remove the replacement's claimed name.
     await vi.waitFor(() =>
       expect(finishedDownloadFiles(directory)).toEqual([
         expect.stringMatching(/^same-name \(.+\)\.bin$/),
+        'same-name.bin',
       ])
     )
+    expect(readFileSync(join(directory, 'same-name.bin'), 'utf8')).toBe('')
     replacement.emitDone('completed')
-    await vi.waitFor(() => expect(finishedDownloadFiles(directory)).toHaveLength(2))
-    expect(finishedDownloadFiles(directory)).toContain('same-name.bin')
+    await vi.waitFor(() =>
+      expect(readFileSync(join(directory, 'same-name.bin'), 'utf8')).toBe('same-name.bin')
+    )
     await vi.waitFor(() =>
       expect(readdirSync(directory).filter((name) => name.startsWith('.'))).toEqual([])
     )
@@ -4208,10 +4245,13 @@ describe('browser-agent session', () => {
     await vi.waitFor(() =>
       expect(finishedDownloadFiles(directory)).toEqual([
         expect.stringMatching(/^shared \(.+\)\.bin$/),
+        'shared.bin',
       ])
     )
     second.emitDone('completed')
-    await vi.waitFor(() => expect(finishedDownloadFiles(directory)).toContain('shared.bin'))
+    await vi.waitFor(() =>
+      expect(readFileSync(join(directory, 'shared.bin'), 'utf8')).toBe('shared.bin')
+    )
   })
 
   it('cancels only the disposed scope and ignores its late download callbacks', async () => {
@@ -4334,7 +4374,9 @@ describe('browser-agent session', () => {
     expect(rejected.item.cancel).toHaveBeenCalledOnce()
 
     first.emitDone('completed')
-    await vi.waitFor(() => expect(finishedDownloadFiles(directory)).toEqual(['first.txt']))
+    await vi.waitFor(() =>
+      expect(readFileSync(join(directory, 'first.txt'), 'utf8')).toBe('first.txt')
+    )
     const replacement = mockDownloadItem({ filename: 'fourth.txt', totalBytes: 100 })
     startMockDownload(contents, replacement)
     expect(replacement.item.cancel).not.toHaveBeenCalled()

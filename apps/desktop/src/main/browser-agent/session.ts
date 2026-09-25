@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { existsSync } from 'node:fs'
-import { rename, rm, statfs } from 'node:fs/promises'
+import { rename, rm, statfs, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type {
   BrowserDataKind,
@@ -436,6 +436,11 @@ interface ActiveBrowserDownload {
   stagingPath: string
   /** The reserved final destination, once allocation has chosen one. */
   savePath?: string
+  /**
+   * The empty file claiming `savePath` on disk while bytes stage, as Firefox does, so another
+   * program choosing a name sees it taken; the completed file replaces it.
+   */
+  placeholderPath?: string
   /** Settles with the final destination, or null when allocation failed. */
   destination: Promise<string | null>
   /** Set once Electron reports the item done, so a late disk check never resumes or cancels it. */
@@ -712,6 +717,8 @@ function releaseActiveBrowserDownload(active: ActiveBrowserDownload): void {
   active.terminal = true
   activeBrowserDownloads.delete(active)
   releaseActiveBrowserDownloadPath(active)
+  // Once Electron reports the item done, the move owns the placeholder until it settles.
+  if (!active.finished) removeBrowserDownloadPlaceholder(active)
 }
 
 function releaseActiveBrowserDownloadPath(
@@ -723,13 +730,39 @@ function releaseActiveBrowserDownloadPath(
   }
 }
 
-function discardStagedBrowserDownload(active: ActiveBrowserDownload): void {
-  void rm(active.stagingPath, { force: true }).catch((error) => {
+function removeBrowserDownloadFile(active: ActiveBrowserDownload, path: string): void {
+  void rm(path, { force: true }).catch((error) => {
     logger.warn('Could not remove a staged agent browser download', {
       error: getErrorMessage(error),
       filename: active.download.filename,
     })
   })
+}
+
+/**
+ * Removes the destination placeholder at most once: after that the name is free, and a later
+ * download may already have claimed it.
+ */
+function removeBrowserDownloadPlaceholder(active: ActiveBrowserDownload): void {
+  const { placeholderPath } = active
+  if (!placeholderPath) return
+  active.placeholderPath = undefined
+  removeBrowserDownloadFile(active, placeholderPath)
+}
+
+/** Removes a failed download's staging file and its destination placeholder. */
+function discardStagedBrowserDownload(active: ActiveBrowserDownload): void {
+  removeBrowserDownloadFile(active, active.stagingPath)
+  removeBrowserDownloadPlaceholder(active)
+}
+
+/** Claims the allocated destination with an empty file; throws if anything already holds it. */
+async function claimBrowserDownloadDestination(
+  active: ActiveBrowserDownload,
+  savePath: string
+): Promise<void> {
+  await writeFile(savePath, '', { flag: 'wx' })
+  active.placeholderPath = savePath
 }
 
 /**
@@ -1722,7 +1755,7 @@ function configureBrowserDownloads(ses: Session): void {
         allocationExpired = true
       }
     )
-      .then((savePath) => {
+      .then(async (savePath) => {
         if (active.terminal || !activeBrowserDownloads.has(active)) {
           releaseActiveBrowserDownloadPath(active, savePath ?? undefined)
           return null
@@ -1733,6 +1766,11 @@ function configureBrowserDownloads(ses: Session): void {
             'Stopped: a safe non-conflicting download filename could not be allocated'
           )
           publishActiveBrowserDownload(active)
+          return null
+        }
+        await claimBrowserDownloadDestination(active, savePath)
+        if (active.terminal || !activeBrowserDownloads.has(active)) {
+          removeBrowserDownloadPlaceholder(active)
           return null
         }
         checkBrowserDownloadDiskSpace(active, 'admission')
