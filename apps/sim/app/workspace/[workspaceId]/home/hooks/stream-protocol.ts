@@ -11,6 +11,7 @@ import {
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import {
   type ParseStreamEventEnvelopeFailure,
+  type PersistedStreamEventEnvelope,
   parsePersistedStreamEventEnvelope,
 } from '@/lib/mothership/request/session/contract'
 import {
@@ -18,6 +19,9 @@ import {
   isFilePreviewSession,
 } from '@/lib/mothership/request/session/file-preview-session-contract'
 import type { StreamBatchEvent } from '@/lib/mothership/request/session/types'
+
+/** Both live transports heartbeat every 15s; three missed heartbeats trigger cursor recovery. */
+export const STREAM_IDLE_TIMEOUT_MS = 45_000
 
 export type StreamBatchResponse = {
   success: boolean
@@ -146,6 +150,24 @@ export function isAlreadyProcessedStreamCursor(
 export function isZeroStreamCursor(cursor: string): boolean {
   const sequence = Number(cursor)
   return Number.isFinite(sequence) && sequence <= 0
+}
+
+/**
+ * The resume endpoint for a stream's events after `afterCursor`: replayed then
+ * tailed live, or returned as one JSON batch.
+ */
+export function buildStreamResumeUrl(
+  streamId: string,
+  afterCursor: string,
+  options?: { batch?: boolean }
+): string {
+  const url = `/api/mothership/chat/stream?streamId=${encodeURIComponent(streamId)}&after=${encodeURIComponent(afterCursor)}`
+  return options?.batch ? `${url}&batch=true` : url
+}
+
+/** The cursor an event advances its stream to; dedupes replayed events. */
+export function getStreamEventCursor(event: PersistedStreamEventEnvelope): string {
+  return event.stream?.cursor ?? String(event.seq)
 }
 
 /**

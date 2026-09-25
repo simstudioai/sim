@@ -38,7 +38,7 @@ const VFS_GLOB_OPTIONS: micromatch.Options = {
   noext: true,
 }
 
-interface LocalFilesystemExecutionContext {
+export interface LocalFilesystemExecutionContext {
   workspaceId?: string
   chatId?: string
   signal?: AbortSignal
