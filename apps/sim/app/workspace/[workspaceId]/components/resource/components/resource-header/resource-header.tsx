@@ -39,7 +39,7 @@ import {
 import { ArrowUpLeft } from '@sim/emcn/icons'
 import { createPortal } from 'react-dom'
 import { HEADER_ACTION_CLUSTER, TITLE_BAR_LANE_PT } from '@/components/page-header-bar'
-import { orderHeaderActions } from '@/components/settings/settings-header'
+import { orderHeaderActions, SettingsActionChip } from '@/components/settings/settings-header'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
 
 export interface DropdownOption {
@@ -104,6 +104,7 @@ export interface ResourceAction {
   active?: boolean
   onSelect: () => void
   disabled?: boolean
+  tooltip?: string
 }
 
 /**
@@ -259,16 +260,7 @@ export const ResourceHeader = memo(function ResourceHeader({
           <div className={cn(HEADER_ACTION_CLUSTER, 'shrink-0')}>
             {aside}
             {orderHeaderActions(actions).map(({ action }) => (
-              <Chip
-                key={action.id ?? action.text}
-                variant={action.variant}
-                active={action.active}
-                leftIcon={action.icon}
-                onClick={action.onSelect}
-                disabled={action.disabled}
-              >
-                {action.text}
-              </Chip>
+              <SettingsActionChip key={action.id ?? action.text} action={action} />
             ))}
           </div>
         )}

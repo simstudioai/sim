@@ -414,7 +414,7 @@ describe('pinned fetch response decoding', () => {
         controller.abort(reason)
 
         if (mode === 'guarded') await expect(reading).rejects.toBe(reason)
-        else await expect(reading).rejects.toThrow(/closed before completing/)
+        else await expect(reading).rejects.toMatchObject({ code: 'ERR_STREAM_PREMATURE_CLOSE' })
         expect(decoder.destroyed).toBe(true)
       } finally {
         decoder.destroy()

@@ -152,6 +152,24 @@ describe('organization Search page gates', () => {
     )
     expect(mocks.chat).not.toHaveBeenCalled()
   })
+
+  it('routes chat URLs exactly where Home routes the same viewer, before loading the chat', async () => {
+    mocks.context.mockResolvedValue({
+      mothershipAvailable: true,
+      canBuild: false,
+      searchAccess: { memberScoped: false },
+    })
+    await expect(OrganizationChatPage({ params })).rejects.toThrow(
+      'redirect:/workspace?redirect=settings'
+    )
+    mocks.context.mockResolvedValue({
+      mothershipAvailable: false,
+      canBuild: false,
+      searchAccess: { memberScoped: true },
+    })
+    await expect(OrganizationChatPage({ params })).rejects.toThrow('redirect:/o/org-1/search')
+    expect(mocks.chat).not.toHaveBeenCalled()
+  })
 })
 
 it('renders standalone Search independently of assistant availability', async () => {

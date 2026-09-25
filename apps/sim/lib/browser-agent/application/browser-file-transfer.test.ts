@@ -47,6 +47,7 @@ vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
 }))
 
 import {
+  admitBrowserDownloadSave,
   readBrowserUploadFile,
   saveBrowserDownload,
 } from '@/lib/browser-agent/application/browser-file-transfer'
@@ -229,6 +230,28 @@ describe('browser file transfer use cases', () => {
     ).rejects.toThrow()
     expect(mocks.claimDownload).not.toHaveBeenCalled()
     expect(mocks.createFile).not.toHaveBeenCalled()
+  })
+
+  it('admits a download save without claiming, creating, or auditing, and refuses a foreign run', async () => {
+    mocks.getAsyncToolCall.mockResolvedValue(
+      claimedCall('browser_save_download', { downloadId: 'd1' })
+    )
+    await expect(
+      admitBrowserDownloadSave(principal, { toolCallId: 'call-1', name: 'report.csv' })
+    ).resolves.toBeUndefined()
+
+    mocks.getRunSegment.mockResolvedValue({
+      id: 'run-1',
+      userId: 'someone-else',
+      workspaceId: 'workspace-1',
+      chatId: 'chat-1',
+    })
+    await expect(
+      admitBrowserDownloadSave(principal, { toolCallId: 'call-1', name: 'report.csv' })
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.claimDownload).not.toHaveBeenCalled()
+    expect(mocks.createFile).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
   it('falls back to the downloaded file name and never saves for an upload call', async () => {

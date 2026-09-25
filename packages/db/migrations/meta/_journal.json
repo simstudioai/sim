@@ -2668,6 +2668,13 @@
       "when": 1790197970553,
       "tag": "0381_browser_download_save_claim",
       "breakpoints": true
+    },
+    {
+      "idx": 382,
+      "version": "7",
+      "when": 1790284582673,
+      "tag": "0382_workspace_file_search_dispatch_handoff",
+      "breakpoints": true
     }
   ]
 }

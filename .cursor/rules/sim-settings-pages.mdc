@@ -249,11 +249,12 @@ and — on activatable rows only — the hover band. Never hand-roll any of it, 
 
 
 **One member avatar.** Every member list, owner cell, and ranking renders emcn
-`<Avatar size='xs' name={…} src={…} aria-hidden />` — a 14px photo, or the initial
-on the neutral disc (`aria-hidden` because the name is always beside it). Never
-hand-roll an avatar or give a person a `getUserColor` hash; per-person colors
-belong to live collaboration (presence, cursors), where the color matches that
-person's cursor.
+`<Avatar size='xs' name={…} src={…} />` — a 14px photo, or the initial on the
+neutral disc. Pass `aria-hidden` only when the member's name is visibly rendered
+beside it; an email-only row (`MemberRow`) keeps the avatar labelled because it
+carries the name. Never hand-roll an avatar or give a person a `getUserColor`
+hash; per-person colors belong to live collaboration (presence, cursors), where
+the color matches that person's cursor.
 
 ## Header action order
 

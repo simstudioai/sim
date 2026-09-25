@@ -94,7 +94,10 @@ import type {
   SearchConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
-import { FILTER_SECTION_LABEL_CLASS } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import {
+  ResourceFilterPanel,
+  ResourceFilterSection,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
 import { timeCell } from '@/app/workspace/[workspaceId]/components/resource/components/time-cell'
 import { resourceListState } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
 import type {
@@ -2004,9 +2007,8 @@ function FilesContent() {
           : `${uploadedByFilter.length} members`
 
     return (
-      <div className='flex w-[240px] flex-col gap-3 p-3'>
-        <div className='flex flex-col gap-1.5'>
-          <span className={FILTER_SECTION_LABEL_CLASS}>File Type</span>
+      <ResourceFilterPanel>
+        <ResourceFilterSection label='File Type'>
           <ChipCombobox
             options={[
               { value: 'document', label: 'Documents' },
@@ -2023,9 +2025,8 @@ function FilesContent() {
             allOptionLabel='All'
             className='w-full'
           />
-        </div>
-        <div className='flex flex-col gap-1.5'>
-          <span className={FILTER_SECTION_LABEL_CLASS}>Size</span>
+        </ResourceFilterSection>
+        <ResourceFilterSection label='Size'>
           <ChipCombobox
             options={[
               { value: 'small', label: 'Small (< 1 MB)' },
@@ -2041,10 +2042,9 @@ function FilesContent() {
             allOptionLabel='All'
             className='w-full'
           />
-        </div>
+        </ResourceFilterSection>
         {memberOptions.length > 0 && (
-          <div className='flex flex-col gap-1.5'>
-            <span className={FILTER_SECTION_LABEL_CLASS}>Uploaded By</span>
+          <ResourceFilterSection label='Uploaded By'>
             <ChipCombobox
               options={memberOptions}
               multiSelect
@@ -2058,7 +2058,7 @@ function FilesContent() {
               allOptionLabel='All'
               className='w-full'
             />
-          </div>
+          </ResourceFilterSection>
         )}
         {hasActiveFilters && (
           <Button
@@ -2069,7 +2069,7 @@ function FilesContent() {
             Clear all filters
           </Button>
         )}
-      </div>
+      </ResourceFilterPanel>
     )
   }, [
     typeFilter,

@@ -194,6 +194,16 @@ describe('secureFetchWithPinnedIP request framing', () => {
     expect(receivedHost).toBe(url.host)
   })
 
+  it('exposes a retryable code when the request times out before headers', async () => {
+    const origin = await startServer((req) => req.resume())
+    await expect(
+      secureFetchWithPinnedIP(origin, '127.0.0.1', {
+        timeout: 20,
+        profile: 'configuredEndpoint',
+      })
+    ).rejects.toMatchObject({ code: 'ETIMEDOUT' })
+  })
+
   it('cancels a framed request while waiting for response headers', async () => {
     const controller = new AbortController()
     const origin = await startServer((req) => {

@@ -59,7 +59,7 @@ export function ActivityDisclosure({
       {collapsible && (
         <Expandable expanded={expanded}>
           <ExpandableContent id={contentId}>
-            <div className='pt-1.5'>
+            <div className='pt-2'>
               <ActivityViewport isStreaming={isStreaming} unbounded={unbounded}>
                 {children}
               </ActivityViewport>

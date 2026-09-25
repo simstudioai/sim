@@ -605,7 +605,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
     <div className='flex-1 overflow-y-auto overflow-x-hidden pt-2 pb-2'>
       {/* Type Selection - matches SubflowEditor */}
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
+        <Label className='mb-[6.5px] block pl-0.5 text-small'>
           {isLoop ? 'Loop Type' : 'Parallel Type'}
         </Label>
         <Combobox
@@ -622,9 +622,7 @@ function SubflowConfigDisplay({ block, loop, parallel }: SubflowConfigDisplayPro
 
       {/* Configuration - matches SubflowEditor */}
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
-          {getConfigLabel()}
-        </Label>
+        <Label className='mb-[6.5px] block pl-0.5 text-small'>{getConfigLabel()}</Label>
 
         {isCountMode ? (
           <div>

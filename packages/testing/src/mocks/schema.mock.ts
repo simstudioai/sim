@@ -754,6 +754,7 @@ export const schemaMock = {
     lineCount: 'revision.lineCount',
     indexedBytes: 'revision.indexedBytes',
     dispatchedAt: 'revision.dispatchedAt',
+    handoffExpiresAt: 'revision.handoffExpiresAt',
     updatedAt: 'revision.updatedAt',
     buildId: 'revision.buildId',
     chunkCount: 'revision.chunkCount',

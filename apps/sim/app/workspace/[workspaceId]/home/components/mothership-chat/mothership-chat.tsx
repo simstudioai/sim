@@ -17,6 +17,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components/message-actions'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
 import { ChatSurfaceProvider } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
@@ -304,15 +305,11 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
     questionDismissed,
   })
 
-  // A visible interaction card (active or answered recap) sits 12px below the
-  // preceding prose (chat-content's `space-y-3`). The row's default `pb-6`
-  // would leave 24px underneath — asymmetric. Shrink the trailing gap to match
-  // so the card breathes equally top and bottom. Dismissed cards fall back to
-  // the normal message rhythm (they render the standard actions row instead).
+  /** Match the 16px prose/card gap when the card is the message's last visible content. */
   const showsInteractionCard = (endsWithQuestion && !questionDismissed) || showsCredentialCard
 
   return (
-    <div className={cn(rowClassName, showsInteractionCard && 'pb-3')}>
+    <div className={cn(rowClassName, showsInteractionCard && 'pb-4')}>
       <MessageContent
         messageId={message.id}
         imageRequestId={message.requestId}
@@ -813,7 +810,7 @@ export function MothershipChat({
       onContextRemove={onContextRemove}
       onWorkspaceResourceSelect={onWorkspaceResourceSelect}
     >
-      <div className={cn('flex h-full min-h-0 flex-col', className)}>
+      <div className={cn('flex h-full min-h-0 flex-col', inter.className, className)}>
         <div ref={setScrollElement} className={styles.scrollContainer} onCopy={handleCopy}>
           {isLoading && !hasMessages ? (
             <MothershipChatSkeleton layout={layout} />

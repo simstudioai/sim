@@ -53,7 +53,10 @@ import type {
   SearchConfig,
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
-import { FILTER_SECTION_LABEL_CLASS } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+import {
+  ResourceFilterPanel,
+  ResourceFilterSection,
+} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
 import { timeCell } from '@/app/workspace/[workspaceId]/components/resource/components/time-cell'
 import { resourceListState } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
 import type {
@@ -727,9 +730,8 @@ function TablesContent() {
 
   const filterContent = useMemo(
     () => (
-      <div className='flex w-[240px] flex-col gap-3 p-3'>
-        <div className='flex flex-col gap-1.5'>
-          <span className={FILTER_SECTION_LABEL_CLASS}>Row Count</span>
+      <ResourceFilterPanel>
+        <ResourceFilterSection label='Row Count'>
           <ChipCombobox
             options={[
               { value: 'empty', label: 'Empty' },
@@ -745,10 +747,9 @@ function TablesContent() {
             allOptionLabel='All'
             className='w-full'
           />
-        </div>
+        </ResourceFilterSection>
         {memberOptions.length > 0 && (
-          <div className='flex flex-col gap-1.5'>
-            <span className={FILTER_SECTION_LABEL_CLASS}>Owner</span>
+          <ResourceFilterSection label='Owner'>
             <ChipCombobox
               options={memberOptions}
               multiSelect
@@ -762,7 +763,7 @@ function TablesContent() {
               allOptionLabel='All'
               className='w-full'
             />
-          </div>
+          </ResourceFilterSection>
         )}
         {hasActiveFilters && (
           <button
@@ -773,7 +774,7 @@ function TablesContent() {
             Clear all filters
           </button>
         )}
-      </div>
+      </ResourceFilterPanel>
     ),
     [
       rowCountFilter,

@@ -1,7 +1,8 @@
 'use client'
 
-import { Popover, PopoverContent, PopoverTrigger, Tooltip } from '@sim/emcn'
+import { cn, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@sim/emcn'
 import { BookOpen } from '@sim/emcn/icons'
+import { inter } from '@/app/_styles/fonts/inter/inter'
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 
@@ -36,7 +37,13 @@ export function MessageSources({ sources }: MessageSourcesProps) {
         </Tooltip.Trigger>
         <Tooltip.Content side='top'>{label}</Tooltip.Content>
       </Tooltip.Root>
-      <PopoverContent align='start' side='top' sideOffset={4} padding='none' className='w-[420px]'>
+      <PopoverContent
+        align='start'
+        side='top'
+        sideOffset={4}
+        padding='none'
+        className={cn('w-[420px]', inter.className)}
+      >
         <div className='flex flex-col py-1'>
           {sources.map((source) => (
             <SourceCard key={source.url} source={source} dense />

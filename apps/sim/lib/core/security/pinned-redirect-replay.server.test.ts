@@ -6,6 +6,7 @@
  */
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { resolveHostAddresses } from '@sim/security/dns'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@sim/security/dns', () => ({
@@ -58,6 +59,20 @@ async function startRecordingServer(hops: RecordedHop[]): Promise<string> {
 }
 
 describe('secureFetchWithPinnedIP redirect replay', () => {
+  it('preserves transient DNS failure causes on redirects', async () => {
+    const cause = Object.assign(new Error('Temporary DNS failure'), { code: 'EAI_AGAIN' })
+    vi.mocked(resolveHostAddresses).mockRejectedValueOnce(cause)
+    const origin = await startServer((_req, res) => {
+      res.writeHead(302, { location: 'https://example.com/next' })
+      res.end()
+    })
+    await expect(
+      secureFetchWithPinnedIP(origin, '127.0.0.1', {
+        profile: 'contentFetch',
+      })
+    ).rejects.toMatchObject({ cause })
+  })
+
   it('rejects a redirect target before following it', async () => {
     const hops: RecordedHop[] = []
     const target = await startRecordingServer(hops)

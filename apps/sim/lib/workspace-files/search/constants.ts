@@ -96,6 +96,14 @@ export const FILE_SEARCH_INDEX_MAX_OUTSTANDING = 100
 export const FILE_SEARCH_INDEX_DISPATCH_WORKSPACES = 100
 export const FILE_SEARCH_DISPATCH_INTERVAL_MS = 60 * 1000
 export const FILE_SEARCH_DISPATCH_MAX_DURATION_SECONDS = 60
+/**
+ * How long a claim may wait for its run to be handed off. A claim commits before Trigger.dev
+ * accepts the run, so a dispatcher that stops in between leaves a claim with no run. By twice the
+ * dispatcher task's maximum duration that dispatcher has been stopped, so the next dispatch
+ * releases the claim instead of waiting out {@link FILE_SEARCH_INDEX_STALE_DISPATCH_MS}. Anything it
+ * sent that still lands later is fenced out by the claim's token.
+ */
+export const FILE_SEARCH_DISPATCH_HANDOFF_MS = 2 * FILE_SEARCH_DISPATCH_MAX_DURATION_SECONDS * 1000
 /** Leave room for connection setup, rollback, and task failure reporting before the hard cutoff. */
 export const FILE_SEARCH_DISPATCH_STATEMENT_TIMEOUT_MS = 10 * 1000
 export const FILE_SEARCH_DISPATCH_LOCK_TIMEOUT_MS = 2 * 1000

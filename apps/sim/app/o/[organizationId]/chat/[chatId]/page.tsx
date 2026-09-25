@@ -6,6 +6,7 @@ import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
 import { WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import OrganizationChatLoading from '@/app/o/[organizationId]/chat/[chatId]/loading'
+import { getOrganizationHomeRedirect } from '@/app/o/[organizationId]/home/home-redirect'
 import { OrganizationHome } from '@/app/o/[organizationId]/home/organization-home'
 
 export const metadata: Metadata = { title: 'Chat' }
@@ -20,8 +21,8 @@ export default async function OrganizationChatPage({
   if (!session?.user?.id) notFound()
   const context = await getOrganizationSurfaceContext(organizationId, session.user.id)
   if (!context) notFound()
-  if (!context.mothershipAvailable && !context.searchAccess.memberScoped)
-    redirect(WORKSPACE_SETTINGS_PATH)
+  const homeRedirect = getOrganizationHomeRedirect(context, organizationId)
+  if (homeRedirect) redirect(homeRedirect)
   const chat = await getAccessibleCopilotChatAuth(chatId, session.user.id, {
     principal: { kind: 'session', userId: session.user.id, sessionId: session.session.id },
   })
@@ -38,7 +39,6 @@ export default async function OrganizationChatPage({
       </Suspense>
     )
   }
-  if (!context.mothershipAvailable) redirect(WORKSPACE_SETTINGS_PATH)
   return (
     <Suspense fallback={<OrganizationChatLoading />}>
       <OrganizationHome

@@ -1,5 +1,5 @@
 export { Avatar, AvatarFallback, AvatarImage } from './avatar/avatar'
-export { Badge, type BadgeProps } from './badge/badge'
+export { Badge, type BadgeProps, badgeVariants } from './badge/badge'
 export { Banner } from './banner/banner'
 export {
   BulkActionButton,
@@ -194,9 +194,11 @@ export {
 export {
   OverflowText,
   type OverflowTextProps,
+  overflowFadeSizeClass,
   overflowTextClipClass,
   overflowTextFadeClass,
 } from './overflow-text/overflow-text'
+export { pageHeadingClassName } from './page-heading/page-heading'
 export {
   Popover,
   PopoverAnchor,
@@ -213,6 +215,7 @@ export {
 } from './popover/popover'
 export { POPOVER_ANIMATION_CLASSES } from './popover/popover-animation'
 export { ProgressItem } from './progress-item/progress-item'
+export { RowActions, type RowActionsProps, rowActionsGroupClass } from './row-actions/row-actions'
 export { SecretInput } from './secret-input/secret-input'
 export { SecretReveal } from './secret-reveal/secret-reveal'
 export { WORDMARK_PATHS, WORDMARK_VIEW_BOX } from './sim-wordmark/paths'
@@ -229,7 +232,6 @@ export {
 } from './status-page/status-page'
 export { Switch } from './switch/switch'
 export {
-  isTabTitleTruncated,
   TabStrip,
   type TabStripDragContext,
   type TabStripItem,

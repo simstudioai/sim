@@ -81,7 +81,6 @@ import {
   seedDeploymentShape,
 } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
-import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import type { MothershipStreamV1EventEnvelope } from '@/lib/mothership/generated/mothership-stream-v1'
 import { createSearchResource } from '@/lib/mothership/resources/search'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
@@ -117,6 +116,7 @@ interface NetworkState {
   abortSettlements: boolean[]
   abortBodies: CopilotChatAbortBody[]
   stopBodies: CopilotChatStopBody[]
+  toolInputPadding?: string
   abortTraceparents: Array<string | null>
 }
 
@@ -221,11 +221,14 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
         stream: { streamId },
         payload: {
           phase: 'call',
-          executor: 'client',
-          mode: 'async',
-          toolName: 'run_workflow',
+          executor: state.toolInputPadding ? 'go' : 'client',
+          mode: state.toolInputPadding ? 'sync' : 'async',
+          toolName: state.toolInputPadding ? 'run_code' : 'run_workflow',
           toolCallId: 'this-chat-tool',
-          arguments: { workflowId: 'this-chat-workflow' },
+          arguments: {
+            workflowId: 'this-chat-workflow',
+            ...(state.toolInputPadding ? { padding: state.toolInputPadding } : {}),
+          },
         },
       }
       return new Response(
@@ -751,6 +754,7 @@ describe('useChat remount send recovery', () => {
     state.pendingAdmissions.clear()
     state.abortSettlements = []
     state.abortBodies = []
+    state.toolInputPadding = undefined
     state.stopBodies = []
     state.abortTraceparents = []
     mockRequestJson.mockResolvedValue({ chats: [] })
@@ -1450,6 +1454,41 @@ describe('useChat remount send recovery', () => {
     }
   )
 
+  it.each([false, true])(
+    'does not interrupt or send a queued edit before submission (explicit ID: %s)',
+    async (explicitId) => {
+      state.postBehavior = 'task'
+      const { getResult } = renderUseChatInChat('chat-a')
+      await act(async () => {
+        void getResult().sendMessage('Original request')
+      })
+      await waitFor(() => state.postBodies.length === 1 && getResult().isSending)
+      const beforeRender = getResult()
+      let queuedId = ''
+      await act(async () => {
+        void beforeRender.sendMessage('Unfinished correction')
+        queuedId = allQueuedMessages()[0].id
+        beforeRender.editQueuedMessage(queuedId)
+        void beforeRender.sendNow(explicitId ? queuedId : undefined)
+      })
+      expect(state.abortBodies).toHaveLength(0)
+      expect(state.postBodies).toHaveLength(1)
+      expect(allQueuedMessages()).toEqual([
+        expect.objectContaining({ id: queuedId, content: 'Unfinished correction' }),
+      ])
+      expect(useMothershipQueueStore.getState().editing['chat-a']).toBe(queuedId)
+      state.postBehavior = 'hang'
+      await act(async () => {
+        void getResult().sendMessage('Finished correction')
+        void getResult().sendNow()
+      })
+      await waitFor(() => state.postBodies.length === 2)
+      expect(state.postBodies[1].message).toBe('Finished correction')
+      expect(state.abortBodies).toHaveLength(1)
+      expect(allQueuedMessages()).toHaveLength(0)
+    }
+  )
+
   it('sends the live queue head once without waiting for a render, after Stop settles', async () => {
     state.postBehavior = 'task'
     const { getResult } = renderUseChatInChat('chat-a')
@@ -1657,6 +1696,139 @@ describe('useChat remount send recovery', () => {
     expect(state.postBodies[0]).toHaveProperty('effort')
   })
 
+  it.each(['initial', 'tail'] as const)(
+    'recovers a silent %s connection after a tool group without refresh or resending',
+    async (connection) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+      let unmount: (() => void) | undefined
+      try {
+        const history: MothershipChatHistory = {
+          id: 'chat-silent-stream',
+          title: 'Silent stream',
+          messages: [],
+          activeStreamId: null,
+          resources: [],
+        }
+        const cancelled = vi.fn()
+        const cursors: string[] = []
+        let recovered = false
+        let tailReads = 0
+        let streamId = ''
+        const textEvent = (): MothershipStreamV1EventEnvelope => ({
+          v: 1,
+          seq: 3,
+          ts: new Date().toISOString(),
+          type: 'text',
+          stream: { streamId },
+          payload: { channel: 'assistant', text: 'The work continued.' },
+        })
+        vi.stubGlobal('fetch', async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = String(input)
+          if (url === '/api/mothership/chat' && init?.method === 'POST') {
+            const sent = JSON.parse(String(init.body))
+            state.postBodies.push(sent)
+            streamId = sent.userMessageId
+            const events: MothershipStreamV1EventEnvelope[] = [
+              {
+                v: 1,
+                seq: 1,
+                ts: new Date().toISOString(),
+                type: 'tool',
+                stream: { streamId },
+                payload: {
+                  phase: 'call',
+                  executor: 'go',
+                  mode: 'sync',
+                  toolName: 'run_code',
+                  toolCallId: 'finished-tool',
+                  arguments: { code: 'return 1' },
+                },
+              },
+              {
+                v: 1,
+                seq: 2,
+                ts: new Date().toISOString(),
+                type: 'tool',
+                stream: { streamId },
+                payload: {
+                  phase: 'result',
+                  toolName: 'run_code',
+                  toolCallId: 'finished-tool',
+                  success: true,
+                  output: { value: 1 },
+                },
+              },
+            ]
+            return new Response(
+              new ReadableStream<Uint8Array>({
+                start(controller) {
+                  for (const event of events)
+                    controller.enqueue(
+                      new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`)
+                    )
+                  if (connection === 'tail') controller.close()
+                },
+                cancel: cancelled,
+              }),
+              {
+                headers: {
+                  'Content-Type': 'text/event-stream',
+                  'x-mothership-chat-id': history.id,
+                },
+              }
+            )
+          }
+          if (url.includes('/api/mothership/chat/stream')) {
+            const params = new URL(url, 'https://sim.test').searchParams
+            if (params.get('batch') === 'true') {
+              cursors.push(params.get('after') ?? '')
+              recovered = connection === 'initial' || tailReads > 0
+              return Response.json({
+                success: true,
+                status: 'streaming',
+                events: recovered ? [{ eventId: 3, streamId, event: textEvent() }] : [],
+              })
+            }
+            tailReads++
+            return new Response(new ReadableStream<Uint8Array>({ cancel: cancelled }), {
+              headers: { 'Content-Type': 'text/event-stream' },
+            })
+          }
+          return fetchStub(input, init)
+        })
+        const mounted = renderUseChatInChat(history.id, history)
+        unmount = mounted.unmount
+        const { getResult } = mounted
+        await act(async () => {
+          void getResult().sendMessage('Keep working')
+        })
+        await act(async () => vi.advanceTimersByTimeAsync(0))
+        expect(
+          getResult()
+            .messages.flatMap((message) => message.contentBlocks ?? [])
+            .find((block) => block.toolCall?.id === 'finished-tool')?.toolCall?.status
+        ).toBe('success')
+        expect(recovered).toBe(false)
+        await act(async () => vi.advanceTimersByTimeAsync(45_000))
+        expect(recovered).toBe(true)
+        expect(cursors.every((cursor) => cursor === '2')).toBe(true)
+        expect(cancelled).toHaveBeenCalledTimes(1)
+        expect(
+          getResult()
+            .messages.filter((message) => message.role === 'assistant')
+            .map((message) => message.content)
+        ).toEqual(['The work continued.'])
+        expect(getResult().isSending).toBe(true)
+        expect(getResult().error).toBeNull()
+        expect(state.postBodies).toHaveLength(1)
+        expect(state.abortBodies).toHaveLength(0)
+      } finally {
+        unmount?.()
+        vi.useRealTimers()
+      }
+    }
+  )
+
   it('recovers a running turn after reconnect exhaustion without reloading or resending', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     try {
@@ -1713,7 +1885,7 @@ describe('useChat remount send recovery', () => {
     }
   })
 
-  it('preserves a visible workflow watch when Stop persists the partial response', async () => {
+  it('preserves the visible workflow watch while Stop sends only identifiers', async () => {
     state.postBehavior = 'task'
     const { getResult } = renderUseChatInChat('chat-a')
     await act(async () => {
@@ -1730,20 +1902,43 @@ describe('useChat remount send recovery', () => {
       await getResult().stopGeneration()
     })
     expect(state.stopBodies).toHaveLength(1)
-    const saved = state.stopBodies[0]
-    const restored = normalizeMessage({
-      id: 'saved-assistant',
-      role: 'assistant',
-      content: saved.content,
-      contentBlocks: saved.contentBlocks,
+    expect(state.stopBodies[0]).toEqual({
+      chatId: 'chat-a',
+      streamId: state.postBodies[0].userMessageId,
     })
-    expect(restored.contentBlocks?.find((block) => block.type === 'task')?.task).toEqual({
-      taskId: 'watch-1',
-      kind: 'workflow_run',
-      status: 'pending',
-      target: { workflowId: 'workflow-1', executionId: 'watched-execution' },
-      note: 'Check the completed invoice run',
+    const task = getResult()
+      .messages.flatMap((message) => message.contentBlocks ?? [])
+      .find((block) => block.type === 'task')?.task
+    expect(task?.taskId).toBe('watch-1')
+  })
+
+  it('sends a queued correction after stopping with more than 10 MiB of tool input', async () => {
+    state.postBehavior = 'tool'
+    state.toolInputPadding = 'x'.repeat(11 * 1024 * 1024)
+    const { getResult } = renderUseChatInChat('chat-a')
+    await act(async () => {
+      void getResult().sendMessage('Start working')
     })
+    await waitFor(() =>
+      expect(
+        getResult().messages.some((message) =>
+          message.contentBlocks?.some((block) => block.toolCall?.id === 'this-chat-tool')
+        )
+      ).toBe(true)
+    )
+    state.postBehavior = 'hang'
+    await act(async () => {
+      await getResult().sendMessage('Use the correction')
+      void getResult().sendNow()
+    })
+    await waitFor(() => expect(state.postBodies).toHaveLength(2))
+    expect(state.postBodies[1].message).toBe('Use the correction')
+    expect(state.stopBodies).toHaveLength(1)
+    expect(state.stopBodies[0]).not.toHaveProperty('content')
+    expect(state.stopBodies[0]).not.toHaveProperty('contentBlocks')
+    expect(new TextEncoder().encode(JSON.stringify(state.stopBodies[0])).length).toBeLessThan(1024)
+    expect(allQueuedMessages()).toHaveLength(0)
+    expect(getResult().error).toBeNull()
   })
 
   it.each([false, true])(

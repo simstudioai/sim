@@ -1,6 +1,13 @@
 'use client'
 
-import { chipVariants, cn, DropdownMenuItem, OverflowText } from '@sim/emcn'
+import {
+  chipVariants,
+  cn,
+  DropdownMenuItem,
+  OverflowText,
+  RowActions,
+  rowActionsGroupClass,
+} from '@sim/emcn'
 import { MoreHorizontal, Pin, Task } from '@sim/emcn/icons'
 import type { OrganizationChat } from '@/app/o/[organizationId]/components/organization-sidebar/hooks'
 import { useOrganizationChatActions } from '@/app/o/[organizationId]/components/organization-sidebar/hooks/use-organization-chat-actions'
@@ -8,7 +15,6 @@ import {
   ChatNavigationLink,
   CollapsedChatFlyoutItem,
   CollapsedSidebarMenu,
-  SidebarRowActions,
   SidebarSection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
 import { SidebarRenameRow } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-rename-row'
@@ -51,12 +57,12 @@ function ChatRow({
       isCurrentRoute={isCurrentRoute}
       className={cn(
         chipVariants({ active: isCurrentRoute || isMenuOpen, fullWidth: true }),
-        'group/sidebar-row'
+        rowActionsGroupClass
       )}
       onContextMenu={(e) => onContextMenu(e, chat.id)}
     >
       <OverflowText label={chat.name} className='flex-1 text-[var(--text-body)]' />
-      <SidebarRowActions
+      <RowActions
         open={isMenuOpen}
         indicator={
           showStatusDot ? (
@@ -81,7 +87,7 @@ function ChatRow({
         >
           <MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />
         </SidebarRowAction>
-      </SidebarRowActions>
+      </RowActions>
     </ChatNavigationLink>
   )
 }

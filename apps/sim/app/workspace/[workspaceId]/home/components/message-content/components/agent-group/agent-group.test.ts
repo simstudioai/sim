@@ -481,6 +481,50 @@ describe('AgentGroup inline main activity', () => {
     expect(container.textContent).not.toContain('Built API')
   })
 
+  function renderBuildActivity(lastStatus: ToolCallStatus) {
+    const read = (id: string): AgentGroupItem => ({
+      type: 'tool',
+      data: { id, toolName: 'read', displayTitle: `Read ${id}`, status: 'success' },
+    })
+    act(() =>
+      root.render(
+        createElement(AgentGroupView, {
+          agentName: 'mothership',
+          agentLabel: 'Sim',
+          activity: { id: 'build', title: 'Building API', completedTitle: 'Built API' },
+          items: [
+            read('config'),
+            read('schema'),
+            {
+              type: 'tool',
+              data: {
+                id: 'create',
+                toolName: 'create',
+                displayTitle: 'Create route',
+                status: lastStatus,
+              },
+            },
+          ],
+          ToolCallComponent: ({ displayTitle, renderStatus }: ToolCallItemProps) =>
+            renderStatus
+              ? renderStatus({ label: displayTitle, activeLabel: displayTitle, isActive: false })
+              : createElement('div', { 'data-pending': 'true' }, displayTitle),
+        })
+      )
+    )
+  }
+
+  it('keeps the completed title off a finished multi-call run while its activity awaits approval', () => {
+    renderBuildActivity('awaiting_approval')
+    expect(container.textContent).not.toContain('Built API')
+    expect(container.querySelector('[data-pending]')?.textContent).toBe('Create route')
+  })
+
+  it('shows the completed title on a multi-call run once its activity has finished', () => {
+    renderBuildActivity('success')
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Built API')
+  })
+
   it.each([
     [
       'approval',

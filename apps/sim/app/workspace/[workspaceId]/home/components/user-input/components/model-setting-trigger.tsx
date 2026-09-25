@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import { Chip, chipContentLabelClass, DropdownMenuTrigger, OverflowText, Tooltip } from '@sim/emcn'
+import { Chip, DropdownMenuTrigger, OverflowText, Tooltip } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
 
 interface ModelSettingTriggerProps {
@@ -21,6 +21,7 @@ export function ModelSettingTrigger({
       <Tooltip.Trigger asChild>
         <DropdownMenuTrigger asChild>
           <Chip
+            shape='round'
             aria-label={label}
             aria-description={valueLabel}
             leftAdornment={
@@ -29,7 +30,7 @@ export function ModelSettingTrigger({
                 <span className='flex @max-[320px]/input-toolbar:hidden min-w-0 items-center gap-2'>
                   <OverflowText
                     label={valueLabel}
-                    className={chipContentLabelClass}
+                    className='text-[var(--text-icon)] text-sm'
                     focusTarget='nearest-interactive'
                   />
                   {showChevron && (

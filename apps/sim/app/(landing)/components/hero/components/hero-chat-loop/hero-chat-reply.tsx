@@ -24,9 +24,7 @@ export function HeroChatReply({ content, onOpenWorkflowResource }: HeroChatReply
               <>
                 {paragraph.slice(0, resourceIndex)}
                 <ResourceMention
-                  icon={
-                    <Workflow className='relative top-0.5 size-[12px] shrink-0 text-[var(--text-icon)]' />
-                  }
+                  icon={<Workflow className='size-[12px] shrink-0 text-[var(--text-icon)]' />}
                   title={WORKFLOW_TITLE}
                   onSelect={onOpenWorkflowResource}
                 />
