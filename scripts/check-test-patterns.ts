@@ -19,7 +19,7 @@
  * Run: `bun run check:test-patterns`
  */
 import { execFileSync } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { parse } from '@babel/parser'
 
@@ -97,7 +97,10 @@ function mockedId(node: Node): string | undefined {
   return first?.type === 'StringLiteral' ? (first as { value: string }).value : undefined
 }
 
-/** A factory of the form `() => fooMock` (or `() => ({ ...fooMock })`) using a central mock. */
+/**
+ * A factory that uses a central mock as-is: `() => fooMock`, `() => ({ ...fooMock, override })`, or
+ * `async () => (await import('@sim/testing/mocks/foo.mock')).fooMock`.
+ */
 function centralMockName(
   factory: Node | undefined,
   testingImports: Set<string>
@@ -112,7 +115,25 @@ function centralMockName(
   if (spread?.type === 'Identifier' && testingImports.has((spread as { name: string }).name)) {
     return (spread as { name: string }).name
   }
+  const awaited = body.type === 'MemberExpression' ? (body.object as Node) : undefined
+  if (awaited?.type === 'AwaitExpression' && importsTesting(awaited.argument as Node)) {
+    return (body.property as { name: string }).name
+  }
   return undefined
+}
+
+/** A dynamic `import('@sim/testing/…')`. */
+function importsTesting(node: Node | undefined): boolean {
+  const source =
+    node?.type === 'CallExpression' && (node.callee as Node).type === 'Import'
+      ? (node.arguments as Node[])[0]
+      : node?.type === 'ImportExpression'
+        ? (node.source as Node)
+        : undefined
+  return (
+    source?.type === 'StringLiteral' &&
+    (source as { value: string }).value.startsWith('@sim/testing')
+  )
 }
 
 function testFiles(): string[] {
@@ -153,13 +174,32 @@ function canUseSharedMocks(file: string): boolean {
   return uses
 }
 
+/**
+ * Module ids the central mocks declare — each `packages/testing/src/mocks/*.mock.ts` documents its
+ * target in an `@example` `vi.mock('<id>', () => xMock)` line. Reading the declarations (not just
+ * current usages) keeps a module covered after its last conforming usage disappears.
+ */
+function declaredCentralMockIds(): Set<string> {
+  const ids = new Set<string>()
+  const dir = path.join(ROOT, 'packages/testing/src/mocks')
+  for (const name of readdirSync(dir)) {
+    if (!name.endsWith('.mock.ts')) continue
+    for (const match of readFileSync(path.join(dir, name), 'utf8').matchAll(
+      /vi\.mock\(\s*['"]([^'"]+)['"],\s*(?:async\s*)?\(\)\s*=>\s*(?:\(\{\s*\.\.\.)?(?:\(await import\([^)]*\)\)\.)?\w+Mock\b/g
+    )) {
+      ids.add(match[1])
+    }
+  }
+  return ids
+}
+
 function collect(): Violation[] {
   const files = testFiles()
   const globals = globalMockIds()
   const parsed = files.map((file) => ({ file, program: parseFile(file) }))
 
   const testingImportsByFile = new Map<string, Set<string>>()
-  const centralIds = new Set<string>(globals)
+  const centralIds = new Set<string>([...globals, ...declaredCentralMockIds()])
   for (const { file, program } of parsed) {
     const imports = new Set<string>()
     for (const statement of program.body) {
