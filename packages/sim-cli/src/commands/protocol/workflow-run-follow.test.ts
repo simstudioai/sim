@@ -50,7 +50,7 @@ function sse(...frames: unknown[]): ReadableStream<Uint8Array> {
   return bodyOf(frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`))
 }
 
-function _streamResponse(body: ReadableStream<Uint8Array>): Response {
+function streamResponse(body: ReadableStream<Uint8Array>): Response {
   return {
     body,
     status: 200,

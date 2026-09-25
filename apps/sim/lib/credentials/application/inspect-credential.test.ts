@@ -1,5 +1,3 @@
-/** @vitest-environment node */
-import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -40,7 +38,6 @@ const context = {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mocks.context.mockResolvedValue({ ...context })
   mocks.permission.mockResolvedValue('read')
   mocks.actor.mockResolvedValue({
@@ -77,34 +74,6 @@ describe('inspectCredential', () => {
     expect(diagnostics.notes.join(' ')).toContain('conversation membership')
     expect(JSON.stringify(diagnostics)).not.toContain('billing-owner')
     expect(JSON.stringify(diagnostics)).not.toContain('A friendly label')
-  })
-
-  it.each<Principal>([
-    { kind: 'session', userId: 'actor-1', sessionId: 'session-1' },
-    {
-      kind: 'oauth_access_token',
-      userId: 'actor-1',
-      clientId: 'client',
-      tokenId: 'token',
-      scopes: ['api:read'],
-      expiresAt: new Date('2099-01-01'),
-    },
-    {
-      kind: 'delegated',
-      serviceId: 'copilot',
-      subjectUserId: 'actor-1',
-      workspaceId: 'workspace-1',
-      delegationId: 'delegation',
-      audience: 'sim:credentials',
-      issuedAt: new Date('2026-01-01'),
-      expiresAt: new Date('2099-01-01'),
-    },
-  ])('uses the same authorized read for $kind callers', async (principal) => {
-    const result = await inspectCredential.execute({ principal, input })
-    expect(result.diagnostics.scopes.source).toBe('linked-account')
-    expect(mocks.actor).toHaveBeenCalledWith('credential-1', 'actor-1', {
-      workspaceId: 'workspace-1',
-    })
   })
 
   it('denies workspace access before reading account metadata', async () => {

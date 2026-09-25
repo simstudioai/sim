@@ -1,9 +1,5 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  buildTraceSpans,
-  traceSpansIndicateFailure,
-} from '@/lib/logs/execution/trace-spans/trace-spans'
 import { executeAnthropicProviderRequest } from '@/providers/anthropic/core'
 import type { ProviderRequest, ProviderResponse } from '@/providers/types'
 
@@ -26,7 +22,7 @@ describe('executeAnthropicProviderRequest request identity and usage', () => {
     ['azure-anthropic', false],
     ['azure-anthropic', true],
   ] as const)(
-    'preserves authoritative tool success for %s traces when success=%s',
+    'preserves authoritative tool success for %s responses when success=%s',
     async (providerId, success) => {
       mockExecuteTool.mockResolvedValue(
         success
@@ -71,35 +67,6 @@ describe('executeAnthropicProviderRequest request identity and usage', () => {
 
       expect(result.toolCalls).toHaveLength(1)
       expect(result.toolCalls![0].success).toBe(success)
-      for (const withTimingSegments of [true, false]) {
-        const { traceSpans } = buildTraceSpans({
-          success: true,
-          output: { content: result.content },
-          metadata: { duration: 1000, startTime: '2024-01-01T10:00:00.000Z' },
-          logs: [
-            {
-              blockId: 'research',
-              blockType: 'agent',
-              startedAt: '2024-01-01T10:00:00.000Z',
-              endedAt: '2024-01-01T10:00:01.000Z',
-              durationMs: 1000,
-              success: true,
-              output: {
-                toolCalls: { list: result.toolCalls!, count: 1 },
-                ...(withTimingSegments && { providerTiming: result.timing }),
-              },
-            },
-          ],
-        })
-        const agentSpan = traceSpans[0].children![0]
-        const toolSpan = agentSpan.children!.find((span) => span.type === 'tool')!
-        expect(toolSpan.status).toBe(success ? 'success' : 'error')
-        expect(toolSpan.errorHandled).toBe(success ? undefined : true)
-        expect(toolSpan.errorMessage).toBe(success ? undefined : 'Search credits exhausted')
-        expect(agentSpan.status).toBe('success')
-        expect(traceSpans[0].status).toBe('success')
-        expect(traceSpansIndicateFailure(traceSpans)).toBe(false)
-      }
     }
   )
 

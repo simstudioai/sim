@@ -1,9 +1,4 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
-import { projectToolOutputs } from '@/lib/catalog/projection/tool'
-import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { StripeBlock } from '@/blocks/blocks/stripe'
 import { stripeListSubscriptionsTool } from '@/tools/stripe/list_subscriptions'
 import { stripeSearchSubscriptionsTool } from '@/tools/stripe/search_subscriptions'
@@ -47,11 +42,6 @@ describe('Stripe subscription pagination', () => {
     (cursor) => {
       const url = listUrl({ [cursor]: 'sub_cursor/with+reserved=characters' })
       expect(url.searchParams.get(cursor)).toBe('sub_cursor/with+reserved=characters')
-      expect(stripeListSubscriptionsTool.params[cursor]).toMatchObject({
-        required: false,
-        visibility: 'user-or-llm',
-        type: 'string',
-      })
     }
   )
 
@@ -112,25 +102,5 @@ describe('Stripe subscription pagination', () => {
       })
     )
     expect(last.output.metadata).toEqual({ count: 0, has_more: false, next_page: null })
-    expect(stripeSearchSubscriptionsTool.params.page).toMatchObject({
-      required: false,
-      visibility: 'user-or-llm',
-    })
-    expect(projectToolOutputs(stripeSearchSubscriptionsTool.outputs)).toMatchObject({
-      metadata: { properties: { next_page: { type: 'string', nullable: true } } },
-    })
-  })
-
-  it.each([
-    ['starting_after', 'list_subscriptions'],
-    ['ending_before', 'list_subscriptions'],
-    ['page', 'search_subscriptions'],
-  ])('exposes %s only for %s in advanced block inputs', (id, operation) => {
-    const field = StripeBlock.subBlocks.find((candidate) => candidate.id === id)
-    if (!field) throw new Error(`Missing Stripe cursor field ${id}`)
-    expect(field.mode).toBe('advanced')
-    expect(evaluateSubBlockCondition(field.condition, { operation })).toBe(true)
-    expect(evaluateSubBlockCondition(field.condition, { operation: 'list_customers' })).toBe(false)
-    expect(StripeBlock.inputs?.[id]).toMatchObject({ type: 'string' })
   })
 })

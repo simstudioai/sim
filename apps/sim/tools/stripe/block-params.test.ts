@@ -1,6 +1,3 @@
-/**
- * @vitest-environment node
- */
 import { describe, expect, it } from 'vitest'
 import { StripeBlock } from '@/blocks/blocks/stripe'
 import { prepareToolRequest } from '@/tools/request-transport'

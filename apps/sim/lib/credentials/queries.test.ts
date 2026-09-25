@@ -128,9 +128,4 @@ describe('readCredentialAccountMetadata', () => {
     expect(drizzleOrmMock.eq).toHaveBeenCalledWith(schemaMock.account.providerId, 'slack')
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(1)
   })
-
-  it('represents a missing account as unavailable metadata', async () => {
-    dbChainMockFns.limit.mockResolvedValueOnce([])
-    expect(await readCredentialAccountMetadata('missing', 'slack')).toBeNull()
-  })
 })

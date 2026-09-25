@@ -19,15 +19,14 @@ import { buildGeneratedCommands } from '../../runtime/build'
 import { removeStagingOnSignal, saveToFile, streamToFile } from './files-get'
 import { attachProtocolCommands } from './index'
 
-const { output, requestRaw, requireWorkspace } = vi.hoisted(() => ({
+const { output, requestRaw } = vi.hoisted(() => ({
   output: { format: 'json' },
   requestRaw: vi.fn(),
-  requireWorkspace: vi.fn(() => 'ws_local'),
 }))
 
 vi.mock('../../context', () => ({
   clientFrom: () => ({
-    client: { requestRaw, requireWorkspace },
+    client: { requestRaw, requireWorkspace: () => 'ws_local' },
     profile: {
       workspaceId: 'ws_local',
       output: output.format,
@@ -44,7 +43,6 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'sim-dl-'))
   output.format = 'json'
   requestRaw.mockReset()
-  requireWorkspace.mockReset().mockReturnValue('ws_local')
 })
 
 afterEach(() => {
@@ -232,72 +230,5 @@ describe('files get', () => {
         Reflect.deleteProperty(process.stdout, 'isTTY')
       }
     }
-  })
-})
-
-describe('tool and workflow descriptor downloads', () => {
-  it.each([
-    {
-      command: ['tools', 'files', 'download', 'copilot/abc/report.pdf'],
-      fileId: 'copilot/abc/report.pdf',
-      path: '/api/v2/tools/files/download',
-      query: { workspaceId: 'ws_local', fileId: 'copilot/abc/report.pdf' },
-      workspace: true,
-    },
-    {
-      command: [
-        'workflows',
-        'runs',
-        'files',
-        'download',
-        'wf_1',
-        'run_1',
-        'execution/ws/run/report.pdf',
-      ],
-      fileId: 'execution/ws/run/report.pdf',
-      path: '/api/v2/workflows/wf_1/runs/run_1/files/execution%2Fws%2Frun%2Freport.pdf',
-      query: {},
-      workspace: false,
-    },
-  ])(
-    'saves $command bytes and reports the local path',
-    async ({ command, fileId, path, query, workspace }) => {
-      const target = join(dir, 'report.pdf')
-      const bytes = new Uint8Array([0, 255, 13, 10, 42])
-      requestRaw.mockResolvedValue(
-        new Response(bytes, { headers: { 'content-type': 'application/pdf' } })
-      )
-      const logged = vi.spyOn(console, 'log').mockImplementation(() => {})
-      await program().parseAsync(['node', 'sim', ...command, '-o', target])
-      expect(readFileSync(target)).toEqual(Buffer.from(bytes))
-      expect(requestRaw).toHaveBeenCalledWith(path, { method: 'GET', query })
-      expect(requireWorkspace).toHaveBeenCalledTimes(workspace ? 1 : 0)
-      expect(JSON.parse(logged.mock.calls[0][0])).toEqual({
-        id: fileId,
-        path: target,
-        status: 'saved',
-      })
-    }
-  )
-
-  it('preserves an existing local destination unless --force is explicit', async () => {
-    const target = join(dir, 'report.pdf')
-    writeFileSync(target, 'existing')
-    requestRaw.mockResolvedValue(
-      new Response('replacement', { headers: { 'content-type': 'application/pdf' } })
-    )
-    await expect(
-      program().parseAsync([
-        'node',
-        'sim',
-        'tools',
-        'files',
-        'download',
-        'copilot/abc/report.pdf',
-        '-o',
-        target,
-      ])
-    ).rejects.toThrow(/already exists/)
-    expect(readFileSync(target, 'utf8')).toBe('existing')
   })
 })

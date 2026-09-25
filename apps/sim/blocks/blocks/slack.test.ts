@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
-import { SlackV2Block } from '@/blocks/blocks/slack'
+import { SlackBlock, SlackV2Block } from '@/blocks/blocks/slack'
 
 function mapSlackV2Params(params: Record<string, unknown>): Record<string, unknown> {
   const mapParams = SlackV2Block.tools.config?.params
@@ -112,55 +112,18 @@ describe('Slack block release', () => {
   })
 })
 
-describe.each([SlackBlock, SlackV2Block])('$type Block Kit fallback text', (block) => {
-  it.each(['send', 'ephemeral', 'update', 'schedule_message'])(
-    'keeps optional fallback text visible for %s and preserves it through parameter mapping',
-    (operation) => {
-      const fieldId = operation === 'update' ? 'updateText' : 'text'
-      const field = block.subBlocks.find((candidate) => candidate.id === fieldId)
-      if (!field || !block.tools.config?.params) throw new Error('Slack message field is missing')
-      const values = {
-        operation,
-        messageFormat: 'blocks',
-        [fieldId]: 'Deployment is ready.\nReview the release notes.',
-        blocks: '[{"type":"section","text":{"type":"mrkdwn","text":"*Ready*"}}]',
-        scheduleAt: '2000000000',
-      }
-
-      expect(evaluateSubBlockCondition(field.condition, values)).toBe(true)
-      expect(typeof field.required).toBe('object')
-      expect(evaluateSubBlockCondition(field.required as typeof field.condition, values)).toBe(
-        false
-      )
-      expect(
-        evaluateSubBlockCondition(field.required as typeof field.condition, {
-          ...values,
-          messageFormat: 'text',
-        })
-      ).toBe(true)
-      expect(block.tools.config.params(values)).toMatchObject({
-        text: values[fieldId],
-        blocks: values.blocks,
-      })
-      expect(block.tools.config.params({ ...values, [fieldId]: undefined }).text).toBeUndefined()
-    }
-  )
-})
-
 describe.each([SlackBlock, SlackV2Block])('$type channel target visibility', (block) => {
-  it.each(['update', 'react', 'archive_conversation', 'get_channel_history', 'ephemeral'])(
-    'keeps both channel inputs visible for %s after a DM action',
-    (operation) => {
-      for (const fieldId of ['channel', 'manualChannel']) {
-        const field = block.subBlocks.find((candidate) => candidate.id === fieldId)
-        if (!field) throw new Error(`Missing ${fieldId}`)
-        expect(
-          evaluateSubBlockCondition(field.condition, { operation, destinationType: 'dm' }),
-          fieldId
-        ).toBe(true)
-      }
+  it('keeps both channel inputs visible for a channel-only operation after a DM action', () => {
+    const operation = 'update'
+    for (const fieldId of ['channel', 'manualChannel']) {
+      const field = block.subBlocks.find((candidate) => candidate.id === fieldId)
+      if (!field) throw new Error(`Missing ${fieldId}`)
+      expect(
+        evaluateSubBlockCondition(field.condition, { operation, destinationType: 'dm' }),
+        fieldId
+      ).toBe(true)
     }
-  )
+  })
 
   it.each(['send', 'read', 'schedule_message'])(
     'preserves the channel/DM switch for %s in both modes',

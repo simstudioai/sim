@@ -9,6 +9,7 @@ import {
   permissions,
   user,
   workflow,
+  workflowBlocks,
   workspace,
   workspaceOperationReceipt,
 } from '@sim/db/schema'
@@ -17,6 +18,7 @@ import { eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { hashApiKey } from '@/lib/api-key/crypto'
+import { POST as workflowOperations } from '@/app/api/v2/workflows/[workflowId]/operations/route'
 import { POST as importPreview } from '@/app/api/v2/workflows/import/preview/route'
 import { POST as importApply } from '@/app/api/v2/workflows/import/route'
 import { POST as forkPreview } from '@/app/api/v2/workspaces/[workspaceId]/fork/preview/route'
@@ -160,8 +162,12 @@ describe('v2 and CLI workflow protocol against PostgreSQL', () => {
         const path = new URL(request.url).pathname
         const match = path.match(/^\/api\/v2\/workspaces\/([^/]+)\/(.*)$/)
         const context = { params: Promise.resolve({ workspaceId: match?.[1] ?? workspaceId }) }
-        const response =
-          path === '/api/v2/workflows/import/preview'
+        const workflowMatch = path.match(/^\/api\/v2\/workflows\/([^/]+)\/operations$/)
+        const response = workflowMatch
+          ? await workflowOperations(request, {
+              params: Promise.resolve({ workflowId: workflowMatch[1] }),
+            })
+          : path === '/api/v2/workflows/import/preview'
             ? await importPreview(request, { params: Promise.resolve({}) })
             : path === '/api/v2/workflows/import'
               ? await importApply(request, { params: Promise.resolve({}) })
@@ -308,6 +314,66 @@ describe('v2 and CLI workflow protocol against PostgreSQL', () => {
     expect(unconfirmed.code).toBe(1)
     expect(unconfirmed.stderr).toContain('--yes')
     expect(requestCount).toBe(before)
+  })
+
+  it('previews and commits enablement-only CLI edits without moving or rewriting the block', async () => {
+    const workflowId = generateId()
+    const blockId = generateId()
+    const now = new Date()
+    await db.insert(workflow).values({
+      id: workflowId,
+      userId,
+      workspaceId,
+      name: `Enablement ${workflowId}`,
+      lastSynced: now,
+      createdAt: now,
+      updatedAt: now,
+    })
+    const fields = {
+      positionX: '123',
+      positionY: '456',
+      subBlocks: {
+        code: { id: 'code', type: 'code', value: 'return 42' },
+      },
+    }
+    await db.insert(workflowBlocks).values({
+      id: blockId,
+      workflowId,
+      type: 'function',
+      name: 'Existing function',
+      enabled: true,
+      ...fields,
+      outputs: {},
+      data: {},
+    })
+    const read = async () => {
+      const [row] = await db
+        .select({
+          enabled: workflowBlocks.enabled,
+          positionX: workflowBlocks.positionX,
+          positionY: workflowBlocks.positionY,
+          subBlocks: workflowBlocks.subBlocks,
+        })
+        .from(workflowBlocks)
+        .where(eq(workflowBlocks.id, blockId))
+      return row
+    }
+    const before = await read()
+    const args = [
+      'workflows',
+      'operations',
+      'apply',
+      workflowId,
+      '--atomic',
+      '--set-block-enabled',
+      JSON.stringify([{ block_id: blockId, enabled: false }]),
+    ]
+    const preview = await cli([...args, '--dry-run'])
+    expect(preview.code, preview.stderr).toBe(0)
+    expect(await read()).toEqual(before)
+    const saved = await cli([...args, '--yes'])
+    expect(saved.code, saved.stderr).toBe(0)
+    expect(await read()).toEqual({ ...before, enabled: false })
   })
 
   it('creates a draft fork through the CLI and follows its operation receipt', async () => {

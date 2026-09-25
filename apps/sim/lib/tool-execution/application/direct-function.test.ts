@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { runInNewContext } from 'node:vm'
 import type { Principal } from '@sim/auth/principal'
 import {
@@ -101,7 +100,6 @@ function run(input: Record<string, unknown>, caller: Principal = principal) {
 }
 describe('direct Function execution', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     resetEnvironmentUtilsMock()
     mocks.deleteFiles.mockResolvedValue({ deleted: 1, failed: [] })
     mocks.deleteMetadata.mockResolvedValue(undefined)

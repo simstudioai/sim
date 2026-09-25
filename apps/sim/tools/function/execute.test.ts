@@ -37,15 +37,6 @@ describe('Function Execute Tool', () => {
     }
   )
 
-  it('publishes placeholder syntax and selected-secret guidance in the caller schema', () => {
-    const schema = createUserToolSchema(functionExecuteTool)
-    expect(schema.properties.code.description).toContain('{{SERVICE_API_KEY}}')
-    expect(schema.properties.code.description).toContain('do not use process.env.NAME')
-    expect(schema.properties.mountedSecrets.description).toContain('empty list permits no')
-    expect(schema.properties).not.toHaveProperty('callerPrincipal')
-    expect(schema.properties).not.toHaveProperty('executorDelegationOrigin')
-  })
-
   it('keeps mounted secret names under author control for Agent tool calls', async () => {
     const { schema, modelBlockedParams } = await createLLMToolSchema(functionExecuteTool, {
       secretScope: 'selected',

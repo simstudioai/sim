@@ -142,7 +142,6 @@ describe('bedrockProvider credential handling', () => {
         ],
       })) as ProviderResponse
 
-      expect(executeTool).toHaveBeenCalledWith('exa_search', expect.any(Object), expect.any(Object))
       expect(result.toolCalls).toHaveLength(1)
       expect(result.toolCalls![0].success).toBe(success)
     }

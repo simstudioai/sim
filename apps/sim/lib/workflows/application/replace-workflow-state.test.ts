@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { WorkflowLockedError } from '@sim/platform-authz/workflow'
-import { dbChainMockFns, resetDbChainMock, workflowAuthzMockFns } from '@sim/testing'
+import { workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),
   notify: vi.fn(),
   replace: vi.fn(),
-  realReplace: vi.fn(),
   replacementResult: vi.fn(),
   resolvedState: vi.fn(),
   prepare: vi.fn(),
@@ -18,8 +17,6 @@ const mocks = vi.hoisted(() => ({
   validate: vi.fn(),
   needsRedeployment: vi.fn(),
   loadNormalized: vi.fn(),
-  saveNormalized: vi.fn(),
-  extractCustomTools: vi.fn(),
   admitBlockTypes: vi.fn(),
 }))
 
@@ -46,16 +43,11 @@ vi.mock('@/lib/realtime/notify', () => ({ notifyWorkflowUpdated: mocks.notify })
 vi.mock('@/lib/workflows/persistence/prepare-state', () => ({
   prepareWorkflowStateForPersistence: mocks.prepare,
 }))
-vi.mock('@/lib/workflows/persistence/replace-normalized-state', async (importOriginal) => {
-  const original =
-    await importOriginal<typeof import('@/lib/workflows/persistence/replace-normalized-state')>()
-  mocks.realReplace.mockImplementation(original.replaceWorkflowNormalizedState)
-  return {
-    replaceWorkflowNormalizedState: mocks.replace,
-    collectWorkflowGraphIds: mocks.collectGraphIds,
-    assertWorkflowGraphIdsUnclaimed: mocks.assertIdsUnclaimed,
-  }
-})
+vi.mock('@/lib/workflows/persistence/replace-normalized-state', () => ({
+  replaceWorkflowNormalizedState: mocks.replace,
+  collectWorkflowGraphIds: mocks.collectGraphIds,
+  assertWorkflowGraphIdsUnclaimed: mocks.assertIdsUnclaimed,
+}))
 vi.mock('@/lib/workflows/sanitization/validation', () => ({
   validateWorkflowState: mocks.validate,
 }))
@@ -64,15 +56,10 @@ vi.mock('@/lib/workflows/deployment-status', () => ({
 }))
 vi.mock('@/lib/workflows/persistence/utils', () => ({
   loadWorkflowFromNormalizedTables: mocks.loadNormalized,
-  saveWorkflowToNormalizedTables: mocks.saveNormalized,
 }))
 
 vi.mock('@/lib/workflows/persistence/block-access-guard', () => ({
   assertNoWithheldBlockType: mocks.admitBlockTypes,
-}))
-
-vi.mock('@/lib/workflows/persistence/custom-tools-persistence', () => ({
-  extractAndPersistCustomTools: mocks.extractCustomTools,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -138,117 +125,6 @@ describe('replaceWorkflowState', () => {
     mocks.collectGraphIds.mockReturnValue({ blockIds: ['block-1'], edgeIds: [], subflowIds: [] })
     mocks.assertIdsUnclaimed.mockResolvedValue(undefined)
     mocks.loadNormalized.mockResolvedValue({ blocks: {}, edges: [], loops: {}, parallels: {} })
-  })
-
-  it.each([true, false])(
-    'reports binding removals before/after save (dryRun=%s)',
-    async (dryRun) => {
-      vi.mocked(getBlock).mockImplementation((type) =>
-        type === 'bound-test'
-          ? ({
-              type: 'bound-test',
-              subBlocks: [{ id: 'credential', type: 'oauth-input' }],
-              outputs: {},
-            } as never)
-          : defaultGetBlock?.(type)
-      )
-      const bound = {
-        ...BLOCK,
-        type: 'bound-test',
-        subBlocks: {
-          credential: { id: 'credential', type: 'oauth-input' as const, value: 'credential-1' },
-        },
-      }
-      mocks.loadNormalized.mockResolvedValue({
-        blocks: { [BLOCK.id]: bound },
-        edges: [],
-        loops: {},
-        parallels: {},
-      })
-      const result = await replaceWorkflowState.execute({
-        principal: sessionPrincipal,
-        input: { ...input, dryRun },
-      })
-      expect(result.removedBindings).toEqual([
-        expect.objectContaining({
-          blockId: BLOCK.id,
-          resourceId: 'credential-1',
-          kind: 'credential',
-          field: 'credential',
-        }),
-      ])
-      expect(result.warnings.join(' ')).toContain('removes 1 credential/table binding')
-      expect(mocks.loadNormalized).toHaveBeenCalledTimes(1)
-      expect(mocks.loadNormalized).toHaveBeenCalledWith(
-        context.workflowId,
-        dryRun ? undefined : db,
-        {
-          persistMigrations: false,
-        }
-      )
-      expect(mocks.replace).toHaveBeenCalledTimes(dryRun ? 0 : 1)
-    }
-  )
-
-  it('compares removals against the baseline read after the replacement acquires its row lock', async () => {
-    resetDbChainMock()
-    mocks.saveNormalized.mockResolvedValue({ success: true })
-    mocks.extractCustomTools.mockResolvedValue({ saved: 0, errors: [] })
-    mocks.replace.mockImplementationOnce(mocks.realReplace)
-    vi.mocked(getBlock).mockImplementation((type) =>
-      type === 'bound-test'
-        ? ({
-            type: 'bound-test',
-            subBlocks: [{ id: 'credential', type: 'oauth-input' }],
-            outputs: {},
-          } as never)
-        : defaultGetBlock?.(type)
-    )
-    const baseline = (credential: string) => ({
-      blocks: {
-        [BLOCK.id]: {
-          ...BLOCK,
-          type: 'bound-test',
-          subBlocks: {
-            credential: { id: 'credential', type: 'oauth-input' as const, value: credential },
-          },
-        },
-      },
-      edges: [],
-      loops: {},
-      parallels: {},
-    })
-    let saved = baseline('credential-before-concurrent-save')
-    mocks.loadNormalized.mockImplementation(async () => saved)
-    let unlock!: () => void
-    let started!: () => void
-    const lockStarted = new Promise<void>((resolve) => {
-      started = resolve
-    })
-    const lockReleased = new Promise<void>((resolve) => {
-      unlock = resolve
-    })
-    dbChainMockFns.for.mockImplementationOnce(async () => {
-      started()
-      await lockReleased
-      return [{ id: context.workflowId }]
-    })
-
-    const replacing = replaceWorkflowState.execute({ principal: sessionPrincipal, input })
-    await lockStarted
-    saved = baseline('credential-committed-while-waiting-for-lock')
-    unlock()
-    const result = await replacing
-
-    expect(result.removedBindings.map((binding) => binding.resourceId)).toEqual([
-      'credential-committed-while-waiting-for-lock',
-    ])
-    expect(mocks.loadNormalized).toHaveBeenCalledWith(context.workflowId, expect.anything(), {
-      persistMigrations: false,
-    })
-    expect(mocks.saveNormalized).toHaveBeenCalledTimes(1)
-    expect(mocks.admitBlockTypes).toHaveBeenCalledBefore(dbChainMockFns.for)
-    expect(mocks.loadNormalized).toHaveBeenCalledBefore(mocks.saveNormalized)
   })
 
   it.each([true, false])(

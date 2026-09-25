@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { describe, expect, it } from 'vitest'
 import { v2ToolSummarySchema } from '@/lib/api/contracts/v2/catalog'
 import { projectToolSummary } from '@/lib/catalog/projection/tool'

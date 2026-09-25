@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -56,7 +55,6 @@ const context = {
 
 describe('authorized read-only manual workflow preview', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     mocks.context.mockResolvedValue(context)
     mocks.permission.mockResolvedValue('write')
     mocks.blockScope.mockImplementation(async (_context, run) => run())

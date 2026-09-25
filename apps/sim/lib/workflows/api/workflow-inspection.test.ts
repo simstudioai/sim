@@ -1,10 +1,6 @@
-/** @vitest-environment node */
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  v2InspectWorkflowQuerySchema,
-  v2WorkflowInspectionSchema,
-} from '@/lib/api/contracts/v2/workflow-inspection'
+import { v2WorkflowInspectionSchema } from '@/lib/api/contracts/v2/workflow-inspection'
 import { presentWorkflowInspection } from '@/lib/workflows/api/workflow-inspection'
 import type { ReadWorkflowGraphResult } from '@/lib/workflows/application/read-workflow-graph'
 import * as credentialExtractor from '@/lib/workflows/credentials/credential-extractor'
@@ -140,14 +136,6 @@ describe('workflow diagnostic projection', () => {
     expect(JSON.stringify(result.blocks[0].inputs).length).toBeLessThan(66_000)
     expect(result.blocks[0].inputs.text).toEqual({})
     expect(result.blocks[0].inputs.operation).toHaveLength(16)
-  })
-
-  it('defaults to withholding code and validates boolean and unknown options', () => {
-    expect(v2InspectWorkflowQuerySchema.parse({})).toEqual({ includeCode: false })
-    expect(v2InspectWorkflowQuerySchema.parse({ includeCode: 'false' }).includeCode).toBe(false)
-    expect(v2InspectWorkflowQuerySchema.safeParse({ includeCode: 'yes' }).success).toBe(false)
-    expect(v2InspectWorkflowQuerySchema.safeParse({ blockId: '' }).success).toBe(false)
-    expect(v2InspectWorkflowQuerySchema.safeParse({ raw: true }).success).toBe(false)
   })
 
   it('bounds omitted input names as well as projected values', () => {

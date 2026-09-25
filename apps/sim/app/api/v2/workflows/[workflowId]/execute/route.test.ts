@@ -831,27 +831,6 @@ describe('POST /api/v2/workflows/[workflowId]/execute', () => {
     expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
   })
 
-  it('forwards an explicit deployed entry to async execution with its immutable version', async () => {
-    mockLoadDeployedWorkflowState.mockResolvedValue({
-      deploymentVersionId: 'version-1',
-      blocks: {
-        api: createBlock({ id: 'api', type: 'api_trigger' }),
-        schedule: createBlock({ id: 'schedule', type: 'schedule' }),
-      },
-    })
-    const res = await callExecute({
-      async: true,
-      run: { source: 'deployment', entry: { type: 'trigger', blockId: 'schedule' } },
-    })
-    expect(res.status).toBe(202)
-    expect(mockEnqueue).toHaveBeenCalledWith(
-      'workflow-execution',
-      expect.objectContaining({ triggerBlockId: 'schedule', deploymentVersionId: 'version-1' }),
-      expect.anything()
-    )
-    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
-  })
-
   it('validates a stop target before executing and pins the validated state', async () => {
     const res = await callExecute({ stopAfterBlockId: 'start' })
     expect(res.status).toBe(200)

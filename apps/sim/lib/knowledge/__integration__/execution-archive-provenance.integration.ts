@@ -8,6 +8,7 @@ import { db } from '@sim/db'
 import {
   document,
   documentSecretProvenance,
+  folder,
   knowledgeBase,
   organization,
   outboxEvent,
@@ -41,7 +42,10 @@ vi.mock('@/lib/embeddings', async () => ({
   }),
 }))
 
-import { fileManageDecompressBodySchema } from '@/lib/api/contracts/tools/file'
+import {
+  fileManageCompressBodySchema,
+  fileManageDecompressBodySchema,
+} from '@/lib/api/contracts/tools/file'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { encryptSecret } from '@/lib/core/security/encryption'
 import { isUserFile } from '@/lib/core/utils/user-file'
@@ -472,6 +476,97 @@ describe('execution archive durable provenance', () => {
           'Knowledge document secret provenance is unavailable'
         )
       }
+    }
+  )
+
+  it.each([
+    { name: 'Finance/Legal', folderPath: '/Finance%2FLegal' },
+    { name: 'Finance\\Legal', folderPath: '/Finance%5CLegal' },
+    { name: 'Q3 Reports', folderPath: '/Q3%20Reports' },
+  ])(
+    'compresses into stored folder $name without overwriting a colliding archive',
+    async ({ name, folderPath }) => {
+      const ids = await seed()
+      const source = await extract(ids, await uploadArchive(ids, { status: 'exact', entries: [] }))
+      const folderId = generateId()
+      /** Stored legacy names can contain separators even though new folder creation forbids them. */
+      await db.insert(folder).values({
+        id: folderId,
+        workspaceId: ids.workspaceId,
+        userId: ids.aliceId,
+        name,
+        resourceType: 'file',
+      })
+      const compress = (options: { folderPath?: string; onConflict?: 'rename' | 'error' } = {}) =>
+        executeFileManageOperation(
+          fileManageCompressBodySchema.parse({
+            operation: 'compress',
+            workspaceId: ids.workspaceId,
+            fileId: source.child.id,
+            archiveName: 'bundle.zip',
+            ...options,
+          }),
+          {
+            principal: sessionPrincipal(ids),
+            workspaceId: ids.workspaceId,
+            attributedUserId: ids.aliceId,
+            fileAccessUserId: ids.aliceId,
+            workflowId: '',
+            headers: new Headers(),
+            requestId: generateId(),
+          }
+        )
+
+      const first = await compress({ folderPath })
+      const firstBody = await first.json()
+      expect(first.status, JSON.stringify(firstBody)).toBe(200)
+      expect(firstBody.data.path).toBe(`files${folderPath}/bundle.zip`)
+      const archive = await getWorkspaceFile(ids.workspaceId, firstBody.data.id)
+      if (!archive) throw new Error('Compression did not persist a workspace file')
+      expect(archive.folderId).toBe(folderId)
+      const originalBytes = await downloadFile({ key: archive.key, context: 'workspace' })
+      const zipped = await JSZip.loadAsync(originalBytes)
+      expect(await zipped.file('report.csv')?.async('string')).toBe(REPORT_CSV)
+      expect(
+        await getBoundWorkspaceFileSecretProvenance(ids.workspaceId, {
+          fileId: archive.id,
+          key: archive.key,
+          context: 'workspace',
+          contentUpdatedAt: archive.contentUpdatedAt ?? undefined,
+        })
+      ).toEqual({ status: 'exact', entries: [] })
+
+      const renamed = await compress({ folderPath })
+      const renamedBody = await renamed.json()
+      expect(renamed.status, JSON.stringify(renamedBody)).toBe(200)
+      expect(renamedBody.data.name).toBe('bundle (1).zip')
+      expect(renamedBody.data.path).toBe(`files${folderPath}/bundle%20(1).zip`)
+      expect(renamedBody.data.id).not.toBe(archive.id)
+      expect((await getWorkspaceFile(ids.workspaceId, renamedBody.data.id))?.folderId).toBe(
+        folderId
+      )
+
+      const storedBeforeRefusal = await db
+        .select({ id: workspaceFiles.id })
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.workspaceId, ids.workspaceId))
+      expect((await compress({ folderPath, onConflict: 'error' })).status).toBe(409)
+      expect((await compress({ folderPath: '/Missing' })).status).toBe(404)
+      const storedAfterRefusal = await db
+        .select({ id: workspaceFiles.id })
+        .from(workspaceFiles)
+        .where(eq(workspaceFiles.workspaceId, ids.workspaceId))
+      expect(storedAfterRefusal.map((file) => file.id).sort()).toEqual(
+        storedBeforeRefusal.map((file) => file.id).sort()
+      )
+      expect(await downloadFile({ key: archive.key, context: 'workspace' })).toEqual(originalBytes)
+
+      const rootArchive = await compress()
+      const rootBody = await rootArchive.json()
+      expect(rootArchive.status, JSON.stringify(rootBody)).toBe(200)
+      expect(rootBody.data.name).toBe('bundle.zip')
+      expect(rootBody.data.path).toBe('files/bundle.zip')
+      expect((await getWorkspaceFile(ids.workspaceId, rootBody.data.id))?.folderId).toBeNull()
     }
   )
 

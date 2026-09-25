@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { describe, expect, it } from 'vitest'
 import { collectBranchDependentBlockOutputReferences } from '@/lib/workflows/editing/lint'

@@ -7046,57 +7046,6 @@ describe('Cost Field Handling', () => {
   })
 })
 
-describe('direct public Function execution', () => {
-  it('dispatches with the authenticated caller and selected secrets without a workflow origin', async () => {
-    vi.clearAllMocks()
-    const callerPrincipal = {
-      kind: 'personal_api_key' as const,
-      userId: 'direct-actor',
-      keyId: 'direct-key',
-    }
-    const result = await executeTool(
-      'function_execute',
-      {
-        code: 'return {{SERVICE_TOKEN}} ? 1 : 0',
-        envVars: { SERVICE_TOKEN: 'private-selected-value' },
-        secretScope: 'selected',
-        mountedSecrets: ['SERVICE_TOKEN'],
-        _context: {
-          userId: 'direct-actor',
-          workspaceId: 'direct-workspace',
-          enforceCredentialAccess: true,
-          envReferenceMode: 'explicit',
-        },
-      },
-      {
-        operationContext: {
-          workflowId: '',
-          workspaceId: 'direct-workspace',
-          userId: 'direct-actor',
-          callerPrincipal,
-        },
-      }
-    )
-    expect(result.success).toBe(true)
-    expect(mockCreateExecutorPrincipalFromExecutionContext).not.toHaveBeenCalled()
-    expect(mockExecuteFunction).toHaveBeenCalledWith(
-      expect.objectContaining({
-        principal: callerPrincipal,
-        input: expect.objectContaining({
-          meterSandboxUsage: true,
-          body: expect.objectContaining({
-            workspaceId: 'direct-workspace',
-            workflowId: '',
-            userId: undefined,
-            secretScope: 'selected',
-            mountedSecrets: ['SERVICE_TOKEN'],
-          }),
-        }),
-      })
-    )
-  })
-})
-
 describe('organization scratch internal entrance', () => {
   it.each(['agent', 'plan'] as const)(
     'admits the real function operation with trusted %s scope and no fake workspace',

@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { describe, expect, it } from 'vitest'
 import { collectWorkflowCodeSyntax } from '@/lib/workflows/editing/code-syntax'

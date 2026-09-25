@@ -446,7 +446,7 @@ describe('applyWorkflowOperations', () => {
     expect(mocks.replace).not.toHaveBeenCalled()
   })
 
-  it('honours a caller-supplied base graph only for a delegated principal', async () => {
+  it('honours a caller-supplied base graph for the delegated Copilot principal', async () => {
     const baseGraph = graph({ 'block-9': { ...BLOCK, id: 'block-9' } })
 
     await applyWorkflowOperations.execute({
@@ -455,27 +455,10 @@ describe('applyWorkflowOperations', () => {
     })
     expect(mocks.loadNormalized).not.toHaveBeenCalled()
     expect(mocks.applyOperations).toHaveBeenCalledWith(baseGraph, operations, null, true)
+  })
 
-    vi.clearAllMocks()
-    mocks.customBlocks.mockResolvedValue([])
-    mocks.resolveContext.mockResolvedValue(context)
-    mocks.resolvePermission.mockResolvedValue('write')
-    mocks.sandboxAccess.mockResolvedValue(true)
-    mocks.blockVisibility.mockResolvedValue({ revealed: [], disabled: [], previewTagged: [] })
-    mocks.permissionConfig.mockResolvedValue(null)
-    mocks.loadNormalized.mockResolvedValue(graph())
-    mocks.normalizeState.mockReturnValue({ state: graph(), warnings: [] })
-    mocks.preValidate.mockResolvedValue({ filteredOperations: operations, errors: [] })
-    mocks.applyOperations.mockReturnValue({
-      state: graph(),
-      validationErrors: [],
-      skippedItems: [],
-    })
-    mocks.collectReferences.mockResolvedValue([])
-    mocks.collectToolReferences.mockResolvedValue([])
-    mocks.validate.mockReturnValue({ valid: true, errors: [], warnings: [] })
-    mocks.replace.mockResolvedValue({ warnings: [], state: graph() })
-    mocks.needsRedeployment.mockResolvedValue(true)
+  it('loads the stored graph despite a caller-supplied base graph for a session principal', async () => {
+    const baseGraph = graph({ 'block-9': { ...BLOCK, id: 'block-9' } })
 
     await applyWorkflowOperations.execute({
       principal: sessionPrincipal,
@@ -484,7 +467,7 @@ describe('applyWorkflowOperations', () => {
     expect(mocks.loadNormalized).toHaveBeenCalledWith('workflow-1', undefined, {
       persistMigrations: false,
     })
-    expect(mocks.applyOperations).not.toHaveBeenCalledWith(baseGraph, operations, null, true)
+    expect(mocks.applyOperations).toHaveBeenCalledWith(graph(), operations, null, false)
   })
 
   it('preserves positions, inputs, and edges for default-layout enablement-only edits', async () => {

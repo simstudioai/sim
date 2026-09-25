@@ -1,4 +1,3 @@
-/** @vitest-environment node */
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { collectRemovedWorkflowBindings } from '@/lib/workflows/editing/binding-changes'
